@@ -67,6 +67,9 @@ importers:
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

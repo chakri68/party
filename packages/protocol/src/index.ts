@@ -32,7 +32,21 @@ export function normalizeName(input: string): string {
 
 export type RoomPhase = "lobby" | "playing" | "results";
 
-export type Presence = "connected" | "reconnecting" | "disconnected";
+/**
+ * connected → reconnecting (socket dropped, grace running) → disconnected (grace
+ * expired, §12). "left" = walked out or removed mid-game; the seat lingers only so
+ * the final standings can still name them.
+ */
+export type Presence = "connected" | "reconnecting" | "disconnected" | "left";
+
+// ---------------------------------------------------------------------------
+// Timing (§12). Shared so clients and server agree on when buttons appear.
+// ---------------------------------------------------------------------------
+
+export const GRACE_MS = 60_000;
+export const NUDGE_AFTER_MS = 30_000;
+export const SKIP_AFTER_MS = 60_000;
+export const NUDGE_COOLDOWN_MS = 10_000;
 
 export interface SeatPublic {
   id: string;
@@ -107,7 +121,11 @@ export type ErrorCode =
   | "not-enough-players"
   | "unknown-game"
   | "invalid-settings"
-  | "wrong-phase";
+  | "wrong-phase"
+  | "removed"
+  | "too-early"
+  | "rate-limited"
+  | "not-available";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
@@ -116,6 +134,7 @@ export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
   "game-in-progress",
   "replaced-by-new-connection",
   "protocol-mismatch",
+  "removed",
 ]);
 
 // ---------------------------------------------------------------------------

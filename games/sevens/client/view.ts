@@ -1,3 +1,4 @@
+import type { Presence } from "@games/protocol";
 import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatRank, rankName, rowBounds, SEVEN } from "../shared/rules.ts";
 import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState, type Suit } from "../shared/types.ts";
@@ -5,6 +6,13 @@ import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type Seven
 // U+FE0E asks for text presentation; without it some platforms draw ♥ as an emoji.
 const SUIT_SYMBOL: Record<Suit, string> = { spades: "♠\uFE0E", hearts: "♥\uFE0E", diamonds: "♦\uFE0E", clubs: "♣\uFE0E" };
 const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
+
+const PRESENCE_LABEL: Record<Presence, string> = {
+  connected: "",
+  reconnecting: "reconnecting…",
+  disconnected: "disconnected",
+  left: "left",
+};
 
 const cardLabel = (c: Pick<Card, "suit" | "rank">) => `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`;
 const isRed = (suit: Suit) => suit === "hearts" || suit === "diamonds";
@@ -85,9 +93,9 @@ export class SevensView implements GameView {
     // Status line
     // Once finished, the room's results panel announces the winner.
     this.status.hidden = game.currentPlayerId === null;
-    this.status.textContent = myTurn
-        ? "Your turn"
-        : `Waiting for ${seatName(props.room, game.currentPlayerId)}…`;
+    const awaited = props.room.seats.find((s) => s.id === game.currentPlayerId);
+    const awaitedAway = awaited && awaited.presence !== "connected" ? ` (${PRESENCE_LABEL[awaited.presence]})` : "…";
+    this.status.textContent = this.status.hidden ? "" : myTurn ? "Your turn" : `Waiting for ${seatName(props.room, game.currentPlayerId)}${awaitedAway}`;
     this.status.classList.toggle("mine", myTurn);
 
     // Board: fixed columns so the seven lines up across suits (§15).
@@ -119,7 +127,7 @@ export class SevensView implements GameView {
       this.players,
       game.players.map((p) => {
         const seat = props.room.seats.find((s) => s.id === p.id);
-        const away = seat && seat.presence !== "connected";
+        const away = seat && seat.presence !== "connected" && !p.removed;
         return h(
           "div",
           {
@@ -128,7 +136,7 @@ export class SevensView implements GameView {
           h("span", { class: "name" }, p.id === props.playerId ? "You" : (seat?.name ?? "?")),
           p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null,
           h("span", { class: "count" }, p.removed ? "left" : `${p.cardCount}`),
-          away ? h("span", { class: "away-label" }, "reconnecting…") : null,
+          away ? h("span", { class: "away-label" }, PRESENCE_LABEL[seat.presence]) : null,
         );
       }),
     );

@@ -1,5 +1,12 @@
 import { seededRandomInt } from "@games/game-core";
-import { PROTOCOL_VERSION, type ServerMessage } from "@games/protocol";
+import {
+  GRACE_MS,
+  NUDGE_AFTER_MS,
+  NUDGE_COOLDOWN_MS,
+  PROTOCOL_VERSION,
+  SKIP_AFTER_MS,
+  type ServerMessage,
+} from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
 import type { SevensPrivateState, SevensPublicState } from "@games/sevens/shared";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -69,6 +76,12 @@ class World {
     this.conns.push(c);
     await room.onConnect(c);
     return c;
+  }
+
+  /** Moves the clock and fires the alarm if it's due, like the DO would. */
+  async tick(room: RoomRuntime, ms: number) {
+    this.clock += ms;
+    if (this.alarm !== null && this.alarm <= this.clock) await room.onAlarm();
   }
 
   async disconnect(room: RoomRuntime, c: FakeConn) {
@@ -269,11 +282,12 @@ describe("room runtime", () => {
       });
     });
 
-    it("schedules cleanup when the last player leaves, cancels it on return", async () => {
+    it("arms grace first, then cleanup; returning cancels both", async () => {
       const a = await join(world, room, "Ana");
       expect(world.alarm).toBeNull();
       await world.disconnect(room, a);
-      expect(world.alarm).toBe(world.clock + CLEANUP_AFTER_MS);
+      // One alarm, earliest timer wins: grace (60 s) before cleanup (6 h).
+      expect(world.alarm).toBe(world.clock + GRACE_MS);
 
       await join(world, room, "Ana", a.last("welcome")!.resumeToken);
       expect(world.alarm).toBeNull();
@@ -305,5 +319,234 @@ describe("room runtime", () => {
       expect(roomOf(ps[0]!).seats).toHaveLength(3);
       expect(gameOf(ps[0]!).players).toHaveLength(3);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: surviving real phones
+// ---------------------------------------------------------------------------
+
+describe("presence, grace and host migration", () => {
+  let world: World;
+  let room: RoomRuntime;
+  beforeEach(async () => {
+    world = new World();
+    room = world.runtime();
+    await room.load();
+    await room.claim();
+  });
+
+  it("lobby: grace expiry frees the seat and passes host on", async () => {
+    const a = await join(world, room, "Ana");
+    const b = await join(world, room, "Ben");
+    await world.disconnect(room, a);
+    expect(roomOf(b).seats.find((s) => s.name === "Ana")!.presence).toBe("reconnecting");
+    expect(roomOf(b).hostId).toBe(a.last("welcome")!.playerId); // host keeps it during grace
+
+    await world.tick(room, GRACE_MS);
+    expect(roomOf(b).seats.map((s) => s.name)).toEqual(["Ben"]);
+    expect(roomOf(b).hostId).toBe(b.last("welcome")!.playerId);
+  });
+
+  it("reconnecting within grace keeps everything", async () => {
+    const a = await join(world, room, "Ana");
+    const b = await join(world, room, "Ben");
+    await world.disconnect(room, a);
+    await world.tick(room, GRACE_MS - 1);
+    const back = await join(world, room, "Ana", a.last("welcome")!.resumeToken);
+    await world.tick(room, 10);
+    expect(roomOf(b).seats.map((s) => s.presence)).toEqual(["connected", "connected"]);
+    expect(roomOf(back).hostId).toBe(back.last("welcome")!.playerId);
+  });
+
+  it("host stays put when nobody else is connected, then moves to whoever returns", async () => {
+    const a = await join(world, room, "Ana");
+    const b = await join(world, room, "Ben");
+    const c = await join(world, room, "Cy");
+    await send(room, a, { type: "start-game" });
+    for (const p of [a, b, c]) await world.disconnect(room, p);
+    await world.tick(room, GRACE_MS);
+    const ben = await join(world, room, "Ben", b.last("welcome")!.resumeToken);
+    expect(roomOf(ben).hostId).toBe(ben.last("welcome")!.playerId);
+  });
+});
+
+describe("mid-game absence", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let ps: FakeConn[];
+
+  const idOf = (c: FakeConn) => c.last("welcome")!.playerId;
+  const observer = () => ps.find((p) => !p.closed)!;
+  const current = () => {
+    const id = gameOf(observer()).currentPlayerId;
+    return ps.find((p) => idOf(p) === id)!;
+  };
+  const playOnce = async (p = current()) => {
+    const card = privOf(p).playableCardIds[0]!;
+    await send(room, p, { type: "game-action", clientActionId: "x", action: { type: "play-card", cardId: card } });
+  };
+
+  beforeEach(async () => {
+    world = new World();
+    room = world.runtime();
+    await room.load();
+    await room.claim();
+    ps = [];
+    for (const n of ["Ana", "Ben", "Cy", "Dee"]) ps.push(await join(world, room, n));
+    await send(room, ps[0]!, { type: "start-game" });
+  });
+
+  it("grace expiry mid-game keeps seat and hand, marks them disconnected", async () => {
+    const ben = ps[1]!;
+    const hand = privOf(ben).hand;
+    await world.disconnect(room, ben);
+    await world.tick(room, GRACE_MS);
+    expect(roomOf(ps[0]!).seats.find((s) => s.id === idOf(ben))!.presence).toBe("disconnected");
+
+    const back = await join(world, room, "Ben", ben.last("welcome")!.resumeToken);
+    expect(privOf(back).hand).toEqual(hand);
+  });
+
+  it("host migrates mid-game when the host's grace runs out", async () => {
+    await world.disconnect(room, ps[0]!);
+    await world.tick(room, GRACE_MS);
+    expect(roomOf(ps[1]!).hostId).toBe(idOf(ps[1]!));
+  });
+
+  it("remove-player waits for grace, then ghosts their cards and locks them out", async () => {
+    const victim = ps.find((p) => p !== ps[0])!;
+    const token = victim.last("welcome")!.resumeToken;
+    await world.disconnect(room, victim);
+
+    await send(room, ps[0]!, { type: "remove-player", playerId: idOf(victim) });
+    expect(ps[0]!.last("error")?.code).toBe("too-early");
+
+    await world.tick(room, GRACE_MS);
+    await send(room, ps[0]!, { type: "remove-player", playerId: idOf(victim) });
+    const r = roomOf(ps[0]!);
+    expect(r.seats.find((s) => s.id === idOf(victim))!.presence).toBe("left");
+    expect(gameOf(ps[0]!).players.find((p) => p.id === idOf(victim))!.removed).toBe(true);
+    expect(r.phase).toBe("playing");
+
+    // Old token no longer resumes; they'd be a newcomer mid-game.
+    const again = await join(world, room, "Ghost", token);
+    expect(again.last("error")?.code).toBe("game-in-progress");
+  });
+
+  it("non-hosts can't remove or skip", async () => {
+    await send(room, ps[1]!, { type: "remove-player", playerId: idOf(ps[2]!) });
+    expect(ps[1]!.last("error")?.code).toBe("not-host");
+    await send(room, ps[1]!, { type: "skip-turn", playerId: idOf(current()) });
+    expect(ps[1]!.last("error")?.code).toBe("not-host");
+  });
+
+  it("leaving mid-game hands your cards to the board and play goes on", async () => {
+    const leaver = ps[3]!;
+    await send(room, leaver, { type: "leave" });
+    expect(leaver.closed).not.toBeNull();
+    ps = ps.filter((p) => p !== leaver);
+    expect(roomOf(ps[0]!).seats.find((s) => s.id === idOf(leaver))!.presence).toBe("left");
+    // Keep playing to the end with three.
+    for (let i = 0; roomOf(ps[0]!).phase === "playing"; i++) {
+      expect(i).toBeLessThan(200);
+      await playOnce();
+    }
+    expect(roomOf(ps[0]!).result!.winnerIds[0]).not.toBe(idOf(leaver));
+    // Standings still name the leaver; next game drops them.
+    expect(roomOf(ps[0]!).seats.some((s) => s.id === idOf(leaver))).toBe(true);
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(roomOf(ps[0]!).seats).toHaveLength(3);
+  });
+
+  it("the game ends when fewer than two players remain", async () => {
+    await send(room, ps[3]!, { type: "leave" });
+    await send(room, ps[2]!, { type: "leave" });
+    expect(roomOf(ps[0]!).phase).toBe("playing");
+    await send(room, ps[1]!, { type: "leave" });
+    const r = roomOf(ps[0]!);
+    expect(r.phase).toBe("results");
+    expect(r.result!.winnerIds).toEqual([idOf(ps[0]!)]);
+  });
+
+  it("a host leaving mid-game hands host on", async () => {
+    await send(room, ps[0]!, { type: "leave" });
+    expect(roomOf(ps[1]!).hostId).toBe(idOf(ps[1]!));
+  });
+
+  describe("idle players (§12.2)", () => {
+    it("nudges only after 30 s, only reach the awaited player, and are rate-limited", async () => {
+      const cur = current();
+      const other = ps.find((p) => p !== cur)!;
+      await send(room, other, { type: "nudge" });
+      expect(other.last("error")?.code).toBe("too-early");
+
+      await world.tick(room, NUDGE_AFTER_MS);
+      await send(room, other, { type: "nudge" });
+      expect(cur.last("nudged")).toEqual({ type: "nudged", byPlayerId: idOf(other) });
+      for (const p of ps) if (p !== cur) expect(p.last("nudged")).toBeUndefined();
+
+      await send(room, other, { type: "nudge" });
+      expect(other.last("error")?.code).toBe("rate-limited");
+      await world.tick(room, NUDGE_COOLDOWN_MS);
+      await send(room, other, { type: "nudge" });
+      expect(cur.of("nudged")).toHaveLength(2);
+    });
+
+    it("you can't nudge yourself", async () => {
+      await world.tick(room, NUDGE_AFTER_MS);
+      await send(room, current(), { type: "nudge" });
+      expect(current().last("error")?.code).toBe("too-early");
+    });
+
+    it("host can skip a connected player only after 60 s", async () => {
+      const host = ps[0]!;
+      const target = current() === host ? (await playOnce(host), current()) : current();
+      await send(room, host, { type: "skip-turn", playerId: idOf(target) });
+      expect(host.last("error")?.code).toBe("too-early");
+
+      await world.tick(room, SKIP_AFTER_MS);
+      await send(room, host, { type: "skip-turn", playerId: idOf(target) });
+      expect(host.last("update")!.events).toContainEqual({ type: "turn-skipped", playerId: idOf(target) });
+      expect(gameOf(host).currentPlayerId).not.toBe(idOf(target));
+    });
+
+    it("host can skip a dropped player straight away", async () => {
+      const host = ps[0]!;
+      if (current() === host) await playOnce(host);
+      const target = current();
+      await world.disconnect(room, target);
+      await send(room, host, { type: "skip-turn", playerId: idOf(target) });
+      expect(gameOf(host).currentPlayerId).not.toBe(idOf(target));
+    });
+
+    it("skipping someone whose turn it isn't is refused", async () => {
+      const notCur = ps.find((p) => p !== current() && p !== ps[0])!;
+      await world.tick(room, SKIP_AFTER_MS);
+      await send(room, ps[0]!, { type: "skip-turn", playerId: idOf(notCur) });
+      expect(ps[0]!.last("error")?.code).toBe("not-available");
+    });
+
+    it("the idle clock restarts on every move", async () => {
+      const since = roomOf(ps[0]!).awaitingSince!;
+      await world.tick(room, 5_000);
+      await playOnce();
+      expect(roomOf(ps[0]!).awaitingSince).toBe(since + 5_000);
+    });
+  });
+});
+
+describe("kicking from the lobby", () => {
+  it("removes a connected player and tells them, fatally", async () => {
+    const world = new World();
+    const room = world.runtime();
+    await room.load();
+    await room.claim();
+    const a = await join(world, room, "Ana");
+    const b = await join(world, room, "Ben");
+    await send(room, a, { type: "remove-player", playerId: b.last("welcome")!.playerId });
+    expect(b.last("error")).toMatchObject({ code: "removed", fatal: true });
+    expect(b.closed).not.toBeNull();
+    expect(roomOf(a).seats.map((s) => s.name)).toEqual(["Ana"]);
   });
 });

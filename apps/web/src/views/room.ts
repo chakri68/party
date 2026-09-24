@@ -1,4 +1,12 @@
-import { isValidRoomCode, normalizeName, normalizeRoomCode, type RoomPublicState } from "@games/protocol";
+import { audio } from "@games/audio";
+import {
+  isValidRoomCode,
+  normalizeName,
+  normalizeRoomCode,
+  NUDGE_AFTER_MS,
+  SKIP_AFTER_MS,
+  type RoomPublicState,
+} from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
 import { h, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { games } from "../games.ts";
@@ -12,6 +20,7 @@ const FATAL_COPY: Record<string, string> = {
   "game-in-progress": "A game is already underway. You can join once this round ends.",
   "replaced-by-new-connection": "This room is open in another tab.",
   "protocol-mismatch": "A new version is out. Refresh to keep playing.",
+  removed: "The host removed you from this room.",
 };
 
 export class RoomView implements View {
@@ -26,7 +35,10 @@ export class RoomView implements View {
   private gameView: GameView | null = null;
   private gameViewFor: string | null = null;
   private gameHost = h("div", { class: "game-host" });
+  private controls = h("div", { class: "turn-controls", "aria-live": "polite" });
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Re-checks the nudge/skip thresholds while a game runs (§12.2). */
+  private ticker: ReturnType<typeof setInterval> | undefined;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -50,6 +62,7 @@ export class RoomView implements View {
 
   destroy() {
     clearTimeout(this.toastTimer);
+    clearInterval(this.ticker);
     this.client?.close();
     this.gameView?.destroy();
     this.root.remove();
@@ -96,14 +109,23 @@ export class RoomView implements View {
     });
     client.on("rejected", ({ clientActionId, message }) => this.gameView?.rejected(clientActionId, message));
     client.on("error", ({ message }) => this.showToast(message));
+    client.on("nudged", ({ byPlayerId }) => {
+      const room = this.last?.room;
+      this.showToast(`${room ? seatName(room, byPlayerId) : "Someone"} nudged you: it's your turn!`);
+      audio.play("nudge");
+      navigator.vibrate?.([80, 60, 80]);
+    });
     client.on("fatal", ({ code, message }) => {
       // A seat that no longer exists isn't worth resuming.
-      if (code === "room-not-found") setResumeToken(this.code, null);
+      if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
       this.showMessage(FATAL_COPY[code] ?? message, code === "replaced-by-new-connection");
     });
   }
 
   private leave() {
+    if (this.last?.room.phase === "playing" && !confirm("Leave the game? Your cards will be played out automatically.")) {
+      return;
+    }
     this.client?.send({ type: "leave" });
     this.client?.close();
     setResumeToken(this.code, null);
@@ -130,6 +152,13 @@ export class RoomView implements View {
     if (!u || !me) return;
     const room = u.room;
 
+    if (room.phase === "playing") {
+      this.ticker ??= setInterval(() => this.renderControls(), 1000);
+    } else {
+      clearInterval(this.ticker);
+      this.ticker = undefined;
+    }
+
     if (room.phase === "lobby") {
       this.dropGameView();
       replaceChildren(this.body, this.lobby(room, me));
@@ -138,7 +167,8 @@ export class RoomView implements View {
 
     // playing / results: the game view stays mounted so the final board is visible.
     const panel = room.phase === "results" ? this.results(room, me) : null;
-    replaceChildren(this.body, panel, this.gameHost);
+    this.renderControls();
+    replaceChildren(this.body, panel, this.controls, this.gameHost);
     void this.ensureGameView(room.gameId).then((view) => {
       if (view && this.last === u) {
         view.update({ room, game: room.game, private: u.private, playerId: me, events: u.events });
@@ -164,6 +194,64 @@ export class RoomView implements View {
     this.gameView?.destroy();
     this.gameView = null;
     this.gameViewFor = null;
+  }
+
+  /**
+   * Room-level turn controls (§12). They live in the shell, not the game, since
+   * any turn-based game gets them for free.
+   */
+  private renderControls() {
+    const u = this.last;
+    const client = this.client;
+    const me = client?.playerId;
+    if (!u || !client || !me || u.room.phase !== "playing") return replaceChildren(this.controls);
+
+    const room = u.room;
+    const isHost = room.hostId === me;
+    const target = room.seats.find((s) => s.id === room.awaitingPlayerIds[0]);
+    const elapsed = room.awaitingSince === null ? 0 : Date.now() + client.clockOffset - room.awaitingSince;
+    const dropped = target && target.presence !== "connected";
+    const items: (Node | null)[] = [];
+
+    if (target && dropped) {
+      items.push(
+        h("p", { class: "muted" }, target.presence === "disconnected"
+          ? `${target.name} is disconnected. The game waits for them.`
+          : `${target.name} dropped out. Waiting for them to come back…`),
+      );
+    }
+    if (target && target.id !== me && !dropped && elapsed >= NUDGE_AFTER_MS) {
+      items.push(
+        h("button", {
+          type: "button",
+          onclick: () => {
+            client.send({ type: "nudge" });
+            this.showToast(`Nudged ${target.name}.`);
+          },
+        }, `👋 Nudge ${target.name}`),
+      );
+    }
+    if (isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
+      items.push(
+        h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, `Skip ${target.name}'s turn`),
+      );
+    }
+    if (isHost) {
+      for (const s of room.seats.filter((s) => s.presence === "disconnected")) {
+        items.push(
+          h("button", {
+            type: "button",
+            class: "danger",
+            onclick: () => {
+              if (confirm(`Remove ${s.name}? Their cards will be played out automatically.`)) {
+                client.send({ type: "remove-player", playerId: s.id });
+              }
+            },
+          }, `Remove ${s.name}`),
+        );
+      }
+    }
+    replaceChildren(this.controls, items);
   }
 
   private lobby(room: RoomPublicState, me: string) {
@@ -199,13 +287,21 @@ export class RoomView implements View {
       h(
         "ul",
         { class: "seats" },
-        room.seats.map((s) =>
+        room.seats.filter((s) => s.presence !== "left").map((s) =>
           h(
             "li",
             { class: s.presence !== "connected" ? "away" : "" },
             h("span", { class: "name" }, s.name, s.id === me ? " (you)" : ""),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "away" : s.ready ? "ready ✓" : "not ready"),
+            h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? "ready ✓" : "not ready"),
+            isHost && s.id !== me
+              ? h("button", {
+                  type: "button",
+                  class: "kick",
+                  "aria-label": `Remove ${s.name}`,
+                  onclick: () => confirm(`Remove ${s.name} from the room?`) && this.client?.send({ type: "remove-player", playerId: s.id }),
+                }, "✕")
+              : null,
           ),
         ),
       ),
@@ -244,7 +340,14 @@ export class RoomView implements View {
         "ol",
         { class: "standings" },
         (result?.standings ?? []).map((s) =>
-          h("li", {}, h("span", {}, s.playerId === me ? "You" : seatName(room, s.playerId)), h("span", { class: "muted" }, `${s.value} ${s.value === 1 ? "card" : "cards"}`)),
+          h(
+            "li",
+            {},
+            h("span", {}, s.playerId === me ? "You" : seatName(room, s.playerId)),
+            h("span", { class: "muted" }, room.seats.find((x) => x.id === s.playerId)?.presence === "left"
+              ? "left"
+              : `${s.value} ${s.value === 1 ? "card" : "cards"}`),
+          ),
         ),
       ),
       h(

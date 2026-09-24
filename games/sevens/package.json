@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@games/game-core": "workspace:*",
-    "@games/ui": "workspace:*"
+    "@games/ui": "workspace:*",
+    "@games/protocol": "workspace:*"
   }
 }

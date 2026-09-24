@@ -170,3 +170,17 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none; }
 }
+
+/* Turn controls (§12) */
+.turn-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.turn-controls:empty { display: none; }
+.turn-controls p { flex: 0 0 100%; margin: 0; }
+.turn-controls button { flex: 1; }
+button.danger { border-color: var(--red-on-felt); color: var(--red-on-felt); }
+.seats .kick {
+  min-height: 32px;
+  padding: 0 10px;
+  margin-left: 4px;
+  background: none;
+  color: var(--muted);
+}

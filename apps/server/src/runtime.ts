@@ -4,7 +4,10 @@
 import type { AnyGameDefinition, GameContext, GameEventEnvelope, GameTransition } from "@games/game-core";
 import {
   FATAL_ERRORS,
+  GRACE_MS,
   normalizeName,
+  NUDGE_AFTER_MS,
+  NUDGE_COOLDOWN_MS,
   parseClientMessage,
   PROTOCOL_VERSION,
   type ClientMessage,
@@ -13,6 +16,7 @@ import {
   type RoomPhase,
   type RoomPublicState,
   type ServerMessage,
+  SKIP_AFTER_MS,
 } from "@games/protocol";
 
 // ---------------------------------------------------------------------------
@@ -77,6 +81,8 @@ interface RoomData {
   game: { gameId: string; state: unknown } | null;
   awaiting: string[];
   awaitingSince: number | null;
+  /** Room-wide nudge rate limit (§12.2). */
+  lastNudgeAt: number;
   /** Timer table (§4): key → due time. The one DO alarm tracks the earliest. */
   timers: Record<string, number>;
 }
@@ -84,6 +90,7 @@ interface RoomData {
 const STORAGE_KEY = "room";
 const CLEANUP_TIMER = "cleanup";
 const GAME_TIMER_PREFIX = "game:";
+const GRACE_TIMER_PREFIX = "grace:";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
 const CLOSE_NORMAL = 1000;
@@ -128,6 +135,7 @@ export class RoomRuntime {
       for (const seat of this.data.seats) {
         if (seat.presence === "connected" && !live.has(seat.id)) {
           seat.presence = "reconnecting";
+          this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
           changed = true;
         }
       }
@@ -153,6 +161,7 @@ export class RoomRuntime {
         game: null,
         awaiting: [],
         awaitingSince: null,
+        lastNudgeAt: 0,
         timers: {},
       };
       // Covers the room nobody ever joins.
@@ -199,8 +208,9 @@ export class RoomRuntime {
       const seat = this.data.seats.find((s) => s.id === playerId);
 
       // A replaced tab closing mustn't mark the player as gone.
-      if (seat && !others.some((c) => c.state?.playerId === seat.id)) {
+      if (seat && seat.presence === "connected" && !others.some((c) => c.state?.playerId === seat.id)) {
         seat.presence = "reconnecting";
+        this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
         const events = this.applyGameHook((def, st) => def.onPlayerDisconnected?.(st, seat.id, this.ctx()));
         await this.commit(events, others);
       }
@@ -218,6 +228,7 @@ export class RoomRuntime {
       const due = Object.entries(this.data.timers)
         .filter(([, at]) => at <= now)
         .sort((a, b) => a[1] - b[1]);
+      const events: GameEventEnvelope<unknown>[] = [];
       for (const [key] of due) {
         delete this.data.timers[key];
         if (key === CLEANUP_TIMER) {
@@ -226,12 +237,15 @@ export class RoomRuntime {
           await this.host.storage.deleteAll();
           return;
         }
+        if (key.startsWith(GRACE_TIMER_PREFIX)) {
+          this.onGraceExpired(key.slice(GRACE_TIMER_PREFIX.length));
+        }
         if (key.startsWith(GAME_TIMER_PREFIX)) {
           const timerId = key.slice(GAME_TIMER_PREFIX.length);
-          this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()));
+          events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
         }
       }
-      await this.commit([]);
+      await this.commit(events);
     });
   }
 
@@ -249,7 +263,9 @@ export class RoomRuntime {
     const name = normalizeName(msg.name);
     if (!name) return this.error(conn, "invalid-name", "Pick a name first.");
 
-    let seat = msg.resumeToken ? data.seats.find((s) => s.resumeToken === msg.resumeToken) : undefined;
+    let seat = msg.resumeToken
+      ? data.seats.find((s) => s.presence !== "left" && s.resumeToken === msg.resumeToken)
+      : undefined;
     let events: GameEventEnvelope<unknown>[] = [];
 
     if (seat) {
@@ -264,13 +280,16 @@ export class RoomRuntime {
       seat.name = name;
       seat.avatarSeed = msg.avatarSeed;
       seat.presence = "connected";
+      this.clearTimer(GRACE_TIMER_PREFIX + seat.id);
       if (wasAway) events = this.applyGameHook((def, st) => def.onPlayerReconnected?.(st, seat!.id, this.ctx()));
+      // A room whose host timed out while nobody else was around gets one now.
+      this.ensureHost();
     } else {
       if (data.phase === "playing") {
         return this.fatal(conn, "game-in-progress", "A game is already underway. Try again after this round.");
       }
       const def = this.games[data.gameId]!;
-      if (data.seats.length >= def.manifest.maxPlayers) {
+      if (this.activeSeats().length >= def.manifest.maxPlayers) {
         return this.fatal(conn, "room-full", "This room is full.");
       }
       seat = {
@@ -348,7 +367,7 @@ export class RoomRuntime {
         if (!result.ok) {
           return conn.send({ type: "action-rejected", clientActionId: msg.clientActionId, ...result.error });
         }
-        const events = this.applyTransition(result.transition);
+        const events = this.applyTransition(result.transition, true);
         return this.commit(events);
       }
 
@@ -356,23 +375,67 @@ export class RoomRuntime {
         if (!hostOnly() || !inPhase("playing", "results")) return;
         data.phase = "lobby";
         data.game = null;
+        data.seats = this.activeSeats();
         this.resetReady();
         this.setAwaiting([]);
         return this.commit([]);
 
-      case "leave":
-        // Leaving mid-game needs removal + ghost cards; that lands with Phase 2.
-        if (!inPhase("lobby", "results")) return;
-        data.seats = data.seats.filter((s) => s.id !== seat.id);
-        if (data.hostId === seat.id) data.hostId = this.pickHost();
+      case "leave": {
         conn.setState({ hello: true, playerId: null });
         conn.close(CLOSE_NORMAL, "left");
-        return this.commit([]);
+        return this.commit(this.removeSeat(seat));
+      }
 
-      case "nudge":
-      case "skip-turn":
-      case "remove-player":
-        return this.error(conn, "wrong-phase", "Not available yet.");
+      case "nudge": {
+        if (!inPhase("playing")) return;
+        const now = this.host.now();
+        const targets = data.awaiting.filter((id) => id !== seat.id);
+        if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
+          return this.error(conn, "too-early", "Give them a moment.");
+        }
+        if (now - (data.lastNudgeAt ?? 0) < NUDGE_COOLDOWN_MS) {
+          return this.error(conn, "rate-limited", "They've just been nudged.");
+        }
+        data.lastNudgeAt = now;
+        for (const c of this.liveConns()) {
+          const pid = c.state?.playerId;
+          if (pid && targets.includes(pid)) c.send({ type: "nudged", byPlayerId: seat.id });
+        }
+        return this.persist();
+      }
+
+      case "skip-turn": {
+        if (!hostOnly() || !inPhase("playing")) return;
+        const target = data.seats.find((s) => s.id === msg.playerId);
+        if (!target || !data.awaiting.includes(target.id)) {
+          return this.error(conn, "not-available", "It isn't their turn.");
+        }
+        // Idle players get a minute; a dropped connection can be skipped straight away.
+        const idleFor = this.host.now() - (data.awaitingSince ?? this.host.now());
+        if (target.presence === "connected" && idleFor < SKIP_AFTER_MS) {
+          return this.error(conn, "too-early", "Give them a moment.");
+        }
+        const events = this.applyGameHook((def, st) => def.skipTurn?.(st, target.id, this.ctx()), true);
+        if (!events.length) return this.error(conn, "not-available", "This game can't skip turns.");
+        return this.commit(events);
+      }
+
+      case "remove-player": {
+        if (!hostOnly()) return;
+        const target = data.seats.find((s) => s.id === msg.playerId && s.presence !== "left");
+        if (!target || target.id === seat.id) return this.error(conn, "not-available", "You can't remove them.");
+        // Mid-game, only once the grace period has run out (§12.1).
+        if (data.phase === "playing" && target.presence !== "disconnected") {
+          return this.error(conn, "too-early", "They might still come back — wait until they show as disconnected.");
+        }
+        for (const c of this.liveConns()) {
+          if (c.state?.playerId === target.id) {
+            c.setState({ hello: true, playerId: null });
+            this.fatal(c, "removed", "The host removed you from this room.");
+          }
+        }
+        return this.commit(this.removeSeat(target));
+      }
 
       case "hello":
       case "join":
@@ -387,7 +450,7 @@ export class RoomRuntime {
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
     data.seats = data.seats.filter((s) => s.presence === "connected");
-    if (data.hostId && !data.seats.some((s) => s.id === data.hostId)) data.hostId = this.pickHost();
+    this.ensureHost();
 
     const n = data.seats.length;
     if (n < def.manifest.minPlayers || n > def.manifest.maxPlayers) {
@@ -411,7 +474,7 @@ export class RoomRuntime {
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
     this.resetReady();
-    const events = this.applyTransition(transition);
+    const events = this.applyTransition(transition, true);
     return this.commit(events);
   }
 
@@ -424,14 +487,20 @@ export class RoomRuntime {
   /** Runs an optional hook against the live game and applies whatever it returns. */
   private applyGameHook(
     fn: (def: AnyGameDefinition, state: unknown) => GameTransition<unknown, unknown> | undefined,
+    acted = false,
   ): GameEventEnvelope<unknown>[] {
     const data = this.data!;
     if (data.phase !== "playing" || !data.game) return [];
     const t = fn(this.games[data.game.gameId]!, data.game.state);
-    return t ? this.applyTransition(t) : [];
+    return t ? this.applyTransition(t, acted) : [];
   }
 
-  private applyTransition(t: GameTransition<unknown, unknown>): GameEventEnvelope<unknown>[] {
+  /**
+   * `acted`: the game moved on (a play, a skip, a removal), so the idle clock
+   * restarts even if the same player is awaited again, e.g. after everyone
+   * else auto-passed.
+   */
+  private applyTransition(t: GameTransition<unknown, unknown>, acted = false): GameEventEnvelope<unknown>[] {
     const data = this.data!;
     const game = data.game!;
     const def = this.games[game.gameId]!;
@@ -449,15 +518,15 @@ export class RoomRuntime {
       this.setAwaiting([]);
       for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
     } else {
-      this.setAwaiting(def.getAwaitedPlayerIds(game.state));
+      this.setAwaiting(def.getAwaitedPlayerIds(game.state), acted);
     }
     return t.events;
   }
 
-  private setAwaiting(ids: string[]): void {
+  private setAwaiting(ids: string[], restart = false): void {
     const data = this.data!;
     const same = ids.length === data.awaiting.length && ids.every((id, i) => id === data.awaiting[i]);
-    if (same) return;
+    if (same && !restart) return;
     data.awaiting = ids;
     data.awaitingSince = ids.length ? this.host.now() : null;
   }
@@ -466,10 +535,58 @@ export class RoomRuntime {
     for (const s of this.data!.seats) s.ready = false;
   }
 
-  /** Longest-seated connected player, else longest-seated anyone (§24). */
-  private pickHost(): string | null {
-    const seats = [...this.data!.seats].sort((a, b) => a.joinedAt - b.joinedAt);
-    return (seats.find((s) => s.presence === "connected") ?? seats[0])?.id ?? null;
+  private activeSeats(): SeatData[] {
+    return this.data!.seats.filter((s) => s.presence !== "left");
+  }
+
+  /**
+   * Host migration (§24). The host keeps the role through their grace period;
+   * once they're disconnected or gone, it passes to the longest-seated connected
+   * player. If nobody's connected, it stays put until someone returns.
+   */
+  private ensureHost(): void {
+    const data = this.data!;
+    const host = data.seats.find((s) => s.id === data.hostId);
+    if (host && (host.presence === "connected" || host.presence === "reconnecting")) return;
+    const next = this.activeSeats()
+      .filter((s) => s.presence === "connected")
+      .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    if (next) data.hostId = next.id;
+    else if (!host || host.presence === "left") data.hostId = this.activeSeats()[0]?.id ?? null;
+  }
+
+  private onGraceExpired(playerId: string): void {
+    const data = this.data!;
+    const seat = data.seats.find((s) => s.id === playerId);
+    if (!seat || seat.presence !== "reconnecting") return;
+    if (data.phase === "playing") {
+      // Seat and hand stay; the host can now remove them (§12.1).
+      seat.presence = "disconnected";
+      this.ensureHost();
+    } else {
+      this.removeSeat(seat);
+    }
+  }
+
+  /**
+   * Takes a player out of the room. Outside a game the seat just goes; mid-game
+   * it's kept as "left" so standings can still name them, and the game decides
+   * what their absence means (ghost cards, for Sevens).
+   */
+  private removeSeat(seat: SeatData): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    this.clearTimer(GRACE_TIMER_PREFIX + seat.id);
+    let events: GameEventEnvelope<unknown>[] = [];
+    if (data.phase === "playing") {
+      seat.presence = "left";
+      seat.resumeToken = "";
+      seat.ready = false;
+      events = this.applyGameHook((def, st) => def.onPlayerRemoved?.(st, seat.id, this.ctx()), true);
+    } else {
+      data.seats = data.seats.filter((s) => s !== seat);
+    }
+    this.ensureHost();
+    return events;
   }
 
   // ---- timers -------------------------------------------------------------

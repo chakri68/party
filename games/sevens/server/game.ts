@@ -294,11 +294,14 @@ export const sevensGame: GameDefinition<
 
   getResult(state) {
     if (state.phase !== "finished") return null;
+    // Winner first, then whoever's left by cards remaining, then leavers — whose
+    // ghost cards shrink their hands without them earning it.
+    const rank = (p: (typeof state.players)[number]) => (p.id === state.winnerId ? 0 : p.removed ? 2 : 1);
     return {
       winnerIds: state.winnerId ? [state.winnerId] : [],
-      standings: state.players
-        .map((p) => ({ playerId: p.id, value: p.hand.length }))
-        .sort((a, b) => a.value - b.value),
+      standings: [...state.players]
+        .sort((a, b) => rank(a) - rank(b) || a.hand.length - b.hand.length)
+        .map((p) => ({ playerId: p.id, value: p.hand.length })),
     };
   },
 };

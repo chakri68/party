@@ -241,6 +241,8 @@ describe("onPlayerRemoved", () => {
     const two = sevens.onPlayerRemoved!(one, "p2", ctx());
     expect(two.state.phase).toBe("finished");
     expect(two.state.winnerId).toBe("p0");
+    // Leavers rank last even though their ghost cards emptied their hands.
+    expect(sevens.getResult(two.state)!.standings.map((s) => s.playerId)).toEqual(["p0", "p1", "p2"]);
   });
 });
 
