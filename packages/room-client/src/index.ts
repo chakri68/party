@@ -35,6 +35,8 @@ export interface RoomClientOptions {
   avatarSeed: string;
   /** Read on every (re)connect, so a token issued mid-session is used next time. */
   getResumeToken(): string | undefined;
+  /** The owner's key, if this device has it. Marks the seat as the owner's. */
+  getOwnerKey?(): string | null;
   host?: string;
 }
 
@@ -131,11 +133,13 @@ export class RoomClient {
     this.lastVersion = -1;
     this.send({ type: "hello", protocolVersion: PROTOCOL_VERSION });
     const resumeToken = this.opts.getResumeToken();
+    const ownerKey = this.opts.getOwnerKey?.();
     this.send({
       type: "join",
       name: this.opts.name,
       avatarSeed: this.opts.avatarSeed,
       ...(resumeToken && { resumeToken }),
+      ...(ownerKey && { ownerKey }),
     });
     clearInterval(this.pingTimer);
     this.ping();

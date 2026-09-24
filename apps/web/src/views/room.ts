@@ -10,7 +10,7 @@ import {
 import { RoomClient, type RoomUpdate } from "@games/room-client";
 import { avatar, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { games } from "../games.ts";
-import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
+import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
 import { nameInput } from "./home.ts";
 
@@ -107,6 +107,7 @@ export class RoomView implements View {
       name: me.displayName,
       avatarSeed: me.avatarSeed,
       getResumeToken: () => getResumeToken(this.code),
+      getOwnerKey,
     });
     this.client = client;
 
@@ -319,6 +320,7 @@ export class RoomView implements View {
     const min = entry?.manifest.minPlayers ?? 2;
     const max = entry?.manifest.maxPlayers ?? 8;
     const url = `${location.origin}/room/${room.code}`;
+    const ownerHere = seats.some((s) => s.owner && s.presence === "connected");
 
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
     const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
@@ -375,6 +377,7 @@ export class RoomView implements View {
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
+            s.owner ? h("span", { class: "tag owner", title: "Owner: games need them here" }, "owner") : null,
             h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? "ready ✓" : "not ready"),
             isHost && s.id !== me
               ? h("button", {
@@ -402,8 +405,8 @@ export class RoomView implements View {
         isHost
           ? h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min, onclick: () => this.client?.send({ type: "start-game" }) },
-              connected < min ? `Need ${min - connected} more` : "Start game",
+              { type: "button", class: "primary", disabled: connected < min || !ownerHere, onclick: () => this.client?.send({ type: "start-game" }) },
+              !ownerHere ? "Waiting for the owner" : connected < min ? `Need ${min - connected} more` : "Start game",
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),

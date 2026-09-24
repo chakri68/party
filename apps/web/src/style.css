@@ -258,3 +258,10 @@ button.danger { border-color: var(--red-on-felt); color: var(--red-on-felt); }
   background: none;
   color: var(--muted);
 }
+
+/* Owner key (home) */
+.owner-unlock { margin-top: 24px; color: var(--muted); font-size: 0.9rem; }
+.owner-unlock summary { cursor: pointer; width: fit-content; }
+.owner-unlock form { margin-top: 8px; }
+.home .forget { margin-top: 24px; font-size: 0.85rem; justify-self: center; }
+.seats .tag.owner { background: rgb(245 193 75 / 0.2); color: var(--accent); }

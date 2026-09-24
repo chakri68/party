@@ -94,3 +94,12 @@ export function recentRooms(maxAgeMs = 6 * 60 * 60 * 1000): string[] {
     .map(([code]) => code)
     .slice(0, 3);
 }
+
+/** The owner's key (see OWNER_KEY on the server). Only the owner's devices have one. */
+export function getOwnerKey(): string | null {
+  return read("ownerKey");
+}
+
+export function setOwnerKey(key: string | null) {
+  write("ownerKey", key);
+}

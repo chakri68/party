@@ -1,5 +1,5 @@
 import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
-import { isValidRoomCode } from "@games/protocol";
+import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 import { generateRoomCode } from "./codes.ts";
@@ -62,6 +62,8 @@ export class Room extends Server<Env> {
         randomToken,
         devTools: this.env.DEV_TOOLS === "1",
         logError: (err) => console.error(`room ${this.name}:`, err),
+        isOwnerKey: (key) => isOwnerKey(this.env, key),
+        ownerRequired: true,
       };
       this.#runtime = new RoomRuntime(this.name, host, GAMES, "sevens");
     }
@@ -95,6 +97,11 @@ export class Room extends Server<Env> {
   }
 }
 
+/** No secret set means nobody is the owner: fail closed, never open. */
+function isOwnerKey(env: Env, key: string | null | undefined): boolean {
+  return !!env.OWNER_KEY && !!key && safeEqual(key, env.OWNER_KEY);
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -103,6 +110,9 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
+      if (!env.OWNER_KEY) return json({ error: "This server has no owner key set yet." }, 503);
+      const key = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+      if (!isOwnerKey(env, key)) return json({ error: "That owner key didn't work." }, 403);
       const rooms = env.Room as DurableObjectNamespace<Room>;
       // ~1M codes, so a collision is rare and three in a row is someone's bad day.
       for (let attempt = 0; attempt < 8; attempt++) {

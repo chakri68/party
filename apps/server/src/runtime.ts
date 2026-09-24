@@ -63,6 +63,10 @@ export interface RoomHost {
   devTools: boolean;
   /** Where unexpected errors go. Never to clients. */
   logError(err: unknown): void;
+  /** Does this key match the owner's? Constant-time, please. */
+  isOwnerKey(key: string): boolean;
+  /** Games only start with an owner seated (on in prod; tests may turn it off). */
+  ownerRequired: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +81,7 @@ interface SeatData {
   ready: boolean;
   presence: Presence;
   joinedAt: number;
+  owner: boolean;
 }
 
 interface RoomData {
@@ -309,6 +314,8 @@ export class RoomRuntime {
       ? data.seats.find((s) => s.presence !== "left" && s.resumeToken === msg.resumeToken)
       : undefined;
     let events: GameEventEnvelope<unknown>[] = [];
+    // Re-checked on every join, so the flag can't outlive the key it came from.
+    const owner = !!msg.ownerKey && this.host.isOwnerKey(msg.ownerKey);
 
     if (seat) {
       // Newest connection wins (§11). The old one is told not to come back.
@@ -322,6 +329,7 @@ export class RoomRuntime {
       seat.name = name;
       seat.avatarSeed = msg.avatarSeed;
       seat.presence = "connected";
+      seat.owner = owner;
       this.clearTimer(GRACE_TIMER_PREFIX + seat.id);
       if (wasAway) events = this.applyGameHook((def, st) => def.onPlayerReconnected?.(st, seat!.id, this.ctx()));
       // A room whose host timed out while nobody else was around gets one now.
@@ -342,6 +350,7 @@ export class RoomRuntime {
         ready: false,
         presence: "connected",
         joinedAt: this.host.now(),
+        owner,
       };
       data.seats.push(seat);
       data.hostId ??= seat.id;
@@ -498,6 +507,12 @@ export class RoomRuntime {
     // Seats whose owner wandered off in the lobby don't get dealt in.
     data.seats = data.seats.filter((s) => s.presence === "connected");
     this.ensureHost();
+
+    // The whole point of the owner key: no owner at the table, no game.
+    if (this.host.ownerRequired && !data.seats.some((s) => s.owner && s.presence === "connected")) {
+      this.error(conn, "owner-required", "The room's owner needs to be here to start a game.");
+      return this.commit([]);
+    }
 
     const n = data.seats.length;
     if (n < def.manifest.minPlayers || n > def.manifest.maxPlayers) {
@@ -707,7 +722,7 @@ export class RoomRuntime {
       code: data.code,
       phase: data.phase,
       hostId: data.hostId,
-      seats: data.seats.map(({ resumeToken: _secret, ...pub }) => pub),
+      seats: data.seats.map(({ resumeToken: _secret, ...pub }) => ({ ...pub, owner: !!pub.owner })),
       gameId: data.gameId,
       settings: data.settings,
       roundNumber: data.match.roundNumber,

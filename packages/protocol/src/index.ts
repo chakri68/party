@@ -55,6 +55,8 @@ export interface SeatPublic {
   ready: boolean;
   presence: Presence;
   joinedAt: number;
+  /** Joined with the owner key. Games only start with an owner in the room. */
+  owner: boolean;
 }
 
 export interface RoomPublicState {
@@ -80,7 +82,7 @@ export interface RoomPublicState {
 
 export type ClientMessage =
   | { type: "hello"; protocolVersion: number }
-  | { type: "join"; name: string; avatarSeed: string; resumeToken?: string }
+  | { type: "join"; name: string; avatarSeed: string; resumeToken?: string; ownerKey?: string }
   | { type: "ready"; ready: boolean }
   | { type: "select-game"; gameId: string }
   | { type: "update-settings"; settings: unknown }
@@ -131,7 +133,8 @@ export type ErrorCode =
   | "too-early"
   | "rate-limited"
   | "not-available"
-  | "server-error";
+  | "server-error"
+  | "owner-required";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
@@ -173,11 +176,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "join":
       if (!isStr(m.name, 100) || !isStr(m.avatarSeed, 64)) return null;
       if (m.resumeToken !== undefined && !isStr(m.resumeToken, 128)) return null;
+      if (m.ownerKey !== undefined && !isStr(m.ownerKey, 256)) return null;
       return {
         type: "join",
         name: m.name,
         avatarSeed: m.avatarSeed,
         ...(m.resumeToken !== undefined && { resumeToken: m.resumeToken as string }),
+        ...(m.ownerKey !== undefined && { ownerKey: m.ownerKey as string }),
       };
     case "ready":
       return typeof m.ready === "boolean" ? { type: "ready", ready: m.ready } : null;
@@ -213,4 +218,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     default:
       return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Owner key
+// ---------------------------------------------------------------------------
+
+/** Constant-time string compare, so response timing doesn't leak the key. */
+export function safeEqual(a: string, b: string): boolean {
+  let diff = a.length ^ b.length;
+  // Out-of-range charCodeAt is NaN, and NaN | 0 is 0: short strings just pad.
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0);
+  return diff === 0;
 }

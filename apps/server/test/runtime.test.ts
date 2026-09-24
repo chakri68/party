@@ -48,6 +48,8 @@ class World {
   conns: FakeConn[] = [];
   clock = 1_000_000;
   devTools = false;
+  /** Off by default so older tests don't all need an owner; the gate has its own tests. */
+  ownerRequired = false;
   errors: unknown[] = [];
   private nextId = 0;
   private rng = seededRandomInt(42);
@@ -77,6 +79,8 @@ class World {
       randomToken: () => `t${(this.nextId++).toString().padStart(4, "0")}-fake-token-xyz`,
       devTools: this.devTools,
       logError: (err) => void this.errors.push(err),
+      isOwnerKey: (key) => key === OWNER_KEY,
+      ownerRequired: this.ownerRequired,
     };
   }
 
@@ -105,10 +109,12 @@ class World {
 
 const send = (room: RoomRuntime, c: Conn, msg: object) => room.onMessage(c, JSON.stringify(msg));
 
-async function join(world: World, room: RoomRuntime, name: string, resumeToken?: string) {
+const OWNER_KEY = "correct-horse-battery-staple";
+
+async function join(world: World, room: RoomRuntime, name: string, resumeToken?: string, ownerKey?: string) {
   const c = await world.connect(room);
   await send(room, c, { type: "hello", protocolVersion: PROTOCOL_VERSION });
-  await send(room, c, { type: "join", name, avatarSeed: name, resumeToken });
+  await send(room, c, { type: "join", name, avatarSeed: name, resumeToken, ownerKey });
   return c;
 }
 
@@ -665,5 +671,65 @@ describe("hardening", () => {
       expect(ps[0]!.last("error")!.message).toContain("52");
       expect(roomOf(ps[0]!).phase).toBe("lobby");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Owner gate: games only start with the owner in the room
+// ---------------------------------------------------------------------------
+
+describe("owner gate", () => {
+  async function setup() {
+    const world = new World();
+    world.ownerRequired = true;
+    const room = world.runtime();
+    await room.load();
+    await room.claim();
+    return { world, room };
+  }
+
+  it("refuses to start without an owner seated", async () => {
+    const { world, room } = await setup();
+    const ps = [];
+    for (const n of ["Ana", "Ben", "Cy"]) ps.push(await join(world, room, n));
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+    expect(roomOf(ps[0]!).phase).toBe("lobby");
+  });
+
+  it("a wrong key doesn't count", async () => {
+    const { world, room } = await setup();
+    const ps = [await join(world, room, "Ana", undefined, "nope")];
+    for (const n of ["Ben", "Cy"]) ps.push(await join(world, room, n));
+    expect(roomOf(ps[0]!).seats.every((s) => !s.owner)).toBe(true);
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+  });
+
+  it("starts once the owner is in, even if someone else is host", async () => {
+    const { world, room } = await setup();
+    const host = await join(world, room, "Ana");
+    await join(world, room, "Ben");
+    const owner = await join(world, room, "Chakri", undefined, OWNER_KEY);
+    expect(roomOf(host).seats.find((s) => s.name === "Chakri")!.owner).toBe(true);
+    await send(room, host, { type: "start-game" });
+    expect(roomOf(owner).phase).toBe("playing");
+  });
+
+  it("an owner who timed out of the lobby doesn't count", async () => {
+    const { world, room } = await setup();
+    const owner = await join(world, room, "Chakri", undefined, OWNER_KEY);
+    const ps = [await join(world, room, "Ana"), await join(world, room, "Ben"), await join(world, room, "Cy")];
+    await world.disconnect(room, owner);
+    await world.tick(room, GRACE_MS); // lobby grace expiry frees the seat; Ana inherits host
+    expect(roomOf(ps[0]!).hostId).toBe(ps[0]!.last("welcome")!.playerId);
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+  });
+
+  it("the owner key never shows up in room state", async () => {
+    const { world, room } = await setup();
+    const owner = await join(world, room, "Chakri", undefined, OWNER_KEY);
+    expect(JSON.stringify(owner.inbox)).not.toContain(OWNER_KEY);
   });
 });
