@@ -1,6 +1,6 @@
 import { isValidRoomCode, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode } from "@games/protocol";
 import { h, replaceChildren, type View } from "@games/ui";
-import { brandMark } from "../brand.ts";
+import { brandMark, icon } from "../brand.ts";
 import { getIdentity, getOwnerKey, recentRooms, setDisplayName, setOwnerKey } from "../identity.ts";
 import { navigate } from "../router.ts";
 
@@ -15,18 +15,13 @@ export function nameInput(value: string) {
   });
 }
 
-/** Bouncy logo over a candy wordmark. (It used to be a fan of cards; it looked like a casino.) */
+/** Logo over a lowercase wordmark with a lime full stop. */
 function hero(tagline: string) {
   return h(
     "header",
     { class: "hero" },
     brandMark(),
-    h(
-      "h1",
-      { "aria-label": "Party Games" },
-      h("span", { class: "candy", "aria-hidden": "true" }, [..."Party"].map((ch) => h("span", {}, ch))),
-      h("span", { "aria-hidden": "true" }, " Games"),
-    ),
+    h("h1", { "aria-label": "Party Games" }, "party", h("br"), "games", h("span", { class: "dot", "aria-hidden": "true" }, ".")),
     h("p", { class: "tagline" }, tagline),
   );
 }
@@ -118,7 +113,9 @@ export class HomeView implements View {
             "div",
             { class: "recent" },
             h("span", { class: "muted" }, "Pick up where you left off"),
-            recent.map((c) => h("a", { href: `/room/${c}`, class: "recent-room" }, `Rejoin ${c}`)),
+            recent.map((c) =>
+              h("a", { href: `/room/${c}`, class: "recent-room", "aria-label": `Rejoin room ${c}` }, h("span", {}, "Rejoin ", h("b", {}, c)), icon("arrow-right")),
+            ),
           )
         : null,
     );

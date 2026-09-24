@@ -9,7 +9,7 @@ import {
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
 import { avatar, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
-import { brandMark } from "../brand.ts";
+import { brandMark, icon } from "../brand.ts";
 import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
@@ -196,9 +196,9 @@ export class RoomView implements View {
     const status = this.client?.status;
     replaceChildren(
       this.header,
-      h("a", { href: "/", class: "brand", "aria-label": "Party Games home" }, brandMark(), h("span", {}, "Party Games")),
+      h("a", { href: "/", class: "brand", "aria-label": "Party Games home" }, brandMark(), h("span", {}, "party games", h("span", { class: "dot" }, "."))),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
-      h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, audio.settings.sound ? "🔊" : "🔈"),
+      h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,
@@ -287,7 +287,7 @@ export class RoomView implements View {
             client.send({ type: "nudge" });
             this.showToast(`Nudged ${target.name}.`);
           },
-        }, `👋 Nudge ${target.name}`),
+        }, `Nudge ${target.name}`),
       );
     }
     if (isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
@@ -363,7 +363,7 @@ export class RoomView implements View {
       h(
         "div",
         { class: "game-card" },
-        h("span", { class: "game-icon", "aria-hidden": "true" }, entry?.manifest.icon ?? "?"),
+        brandMark("mark game-icon"),
         h("div", {}, h("h2", {}, entry?.manifest.name ?? room.gameId), entry ? h("p", { class: "muted" }, entry.manifest.description) : null),
         rules,
       ),
@@ -425,7 +425,7 @@ export class RoomView implements View {
     return h(
       "section",
       { class: `results${winner === me ? " won" : ""}` },
-      winnerSeat ? h("div", { class: "winner-badge" }, avatar(winnerSeat.name, winnerSeat.avatarSeed), h("span", { class: "crown", "aria-hidden": "true" }, "👑")) : null,
+      winnerSeat ? h("div", { class: "winner-badge" }, avatar(winnerSeat.name, winnerSeat.avatarSeed)) : null,
       h("h2", {}, winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over"),
       h(
         "ol",

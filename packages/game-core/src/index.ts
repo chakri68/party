@@ -7,6 +7,7 @@ export interface GameManifest {
   description: string;
   minPlayers: number;
   maxPlayers: number;
+  /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
 }
 

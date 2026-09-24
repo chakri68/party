@@ -1,12 +1,13 @@
 // Dev-only debug panel (§41). Loaded via a dynamic import behind
 // `import.meta.env.DEV`, so none of this ships to production.
 //
-// Toggle with the ` key or the 🐞 button. It only ever shows *your* private
+// Toggle with the ` key or the bug button. It only ever shows *your* private
 // state; opponents' hands never reach this client, debug or not.
 
 import { motion } from "@games/animation";
 import type { RoomClient, RoomUpdate } from "@games/room-client";
 import { h, replaceChildren } from "@games/ui";
+import { icon } from "./brand.ts";
 
 const STYLE = `
 .dbg-toggle { position: fixed; left: 50%; top: 6px; transform: translateX(-50%); z-index: 1000; min-height: 32px; padding: 0 10px; opacity: .5; }
@@ -72,7 +73,7 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
     privPre,
   );
 
-  const toggle = h("button", { type: "button", class: "dbg-toggle", "aria-label": "Debug tools" }, "🐞");
+  const toggle = h("button", { type: "button", class: "dbg-toggle", "aria-label": "Debug tools" }, icon("bug"));
   const flip = () => {
     panel.hidden = !panel.hidden;
     if (!panel.hidden) refresh();
