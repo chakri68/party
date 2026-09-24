@@ -1,0 +1,291 @@
+/* Old Maid. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is om- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.old-maid {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.om-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.old-maid.my-turn .om-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Opponents ----------------------------------------------------------- */
+
+.om-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.om-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms;
+}
+.om-opp.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.om-opp.away { opacity: 0.55; }
+.om-opp-text { display: grid; line-height: 1.15; }
+.om-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.om-opp .count, .om-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.om-dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.om-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- Table: the fan you pick from, and the pairs ------------------------- */
+
+.om-opp.source { border-style: dashed; border-color: var(--accent); }
+.om-opp.out .count { color: var(--accent); font-weight: 600; }
+.om-opp.loser { border-color: var(--danger); }
+
+.om-table {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.om-fan-wrap { display: grid; gap: 8px; min-width: 0; }
+.om-fan-label { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.old-maid.my-turn .om-fan-label { color: var(--ink); font-weight: 700; }
+
+/* Overlap is set from JS (--fan-overlap) so any hand size fits the width. */
+.om-fan {
+  display: flex;
+  justify-content: center;
+  min-height: var(--card-h);
+  /* Room for the lifted card. */
+  padding-top: 14px;
+  margin-top: -14px;
+}
+.om-fan .om-card + .om-card { margin-left: var(--fan-overlap, -24px); }
+.om-fan button.om-card { cursor: default; }
+.om-fan button.om-card:disabled { opacity: 1; }
+.old-maid.my-turn .om-fan button.om-card:not(:disabled) { cursor: pointer; }
+.old-maid.my-turn .om-fan button.om-card { box-shadow: inset 0 0 0 4px var(--card), 0 0 0 2px var(--accent), 0 2px 6px rgb(0 0 0 / 0.45); }
+.om-fan .om-card.selected, .om-fan .om-card.lifted { transform: translateY(-14px); z-index: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .old-maid.my-turn .om-fan button.om-card:not(:disabled):hover { transform: translateY(-10px); z-index: 1; }
+}
+.om-fan .om-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+
+/* The pile shows its top pair, the second card offset so both read. */
+.om-pile-wrap { display: grid; justify-items: center; gap: 6px; }
+.om-pile { position: relative; width: calc(var(--card-w) + 14px); height: calc(var(--card-h) + 8px); }
+.om-pile .om-card { position: absolute; top: 0; left: 0; }
+.om-pile .om-card + .om-card { top: 8px; left: 14px; }
+.om-pile-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- Cards ---------------------------------------------------------------- */
+
+.om-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.om-card.red { color: var(--red); }
+.om-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.om-card.slot {
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+}
+.om-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.om-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.om-card .corner i { font-style: normal; font-size: 0.85em; }
+.om-card .tl { top: 4px; left: 5px; }
+.om-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.om-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.om-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+
+/* Hand cards: just for looking at. */
+.om-hand .om-card { scroll-snap-align: start; }
+.om-hand .om-card + .om-card { margin-left: var(--card-overlap); }
+.om-hand .om-card.fresh { animation: om-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+@keyframes om-fresh {
+  from { transform: translateY(-24px) scale(1.08); }
+}
+
+/* The joker: all red, "JOKER" stacked down the corners, a jester's cap in the middle. */
+.om-card.joker { color: var(--red); }
+.om-card .corner.word {
+  font-family: "Times New Roman", Times, Georgia, serif;
+  font-weight: 700;
+  font-size: 0.7rem;
+  line-height: 0.8;
+}
+/* Squeezed rather than a condensed webfont: five letters don't justify a download. */
+.om-card .corner.word span { transform: scaleX(0.72); }
+.om-card .pip.joker svg { width: 50%; height: auto; display: block; }
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.om-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.om-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+/* After the game the results panel leads; the hand is just for the record. */
+.old-maid.finished .om-dock { position: static; background: none; }
+
+.om-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.om-me { display: flex; align-items: baseline; gap: 8px; }
+.om-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.om-action { display: flex; align-items: center; gap: 10px; }
+.om-action .hint { color: var(--muted); font-size: 0.9rem; }
+.om-action .hint.strong { color: var(--ink); font-weight: 700; }
+.om-action button:not(.link) { min-width: 96px; }
+
+.om-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .old-maid {
+    --card-w: 76px;
+    --card-h: 108px;
+    --card-overlap: -24px;
+    gap: 14px;
+  }
+  .om-table { gap: 32px; padding: 20px 20px 18px; }
+  .om-card .corner { font-size: 1.1rem; }
+  .om-card .pip { font-size: 2.4rem; }
+  .om-hand { justify-content: safe center; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.old-maid .shake { animation: om-shake 300ms ease; }
+@keyframes om-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+.om-pile .om-card.landed { animation: om-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes om-land {
+  from { transform: scale(1.12) rotate(-3deg); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .old-maid .shake { animation: none; outline: 2px solid var(--red); }
+  .om-card, .om-opp { transition: none; }
+  .om-card.selected, .om-card.lifted { transform: none; outline: 2px solid var(--accent); }
+  .om-pile .om-card.landed, .om-hand .om-card.fresh { animation: none; }
+}

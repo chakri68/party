@@ -572,15 +572,21 @@ export class RoomView implements View {
     const result = room.result;
     const isHost = room.hostId === me;
     const mySeat = room.seats.find((s) => s.id === me);
-    const winner = result?.winnerIds[0];
+    // A game with a loser headlines them; everyone else simply got away.
+    const loser = result?.loserIds?.[0];
+    const winner = loser ? undefined : result?.winnerIds[0];
     const readyCount = room.seats.filter((s) => s.ready).length;
-    const winnerSeat = room.seats.find((s) => s.id === winner);
+    const featured = room.seats.find((s) => s.id === (loser ?? winner));
+    const won = loser ? loser !== me && !!result?.winnerIds.includes(me) : winner === me;
+    const headline = loser
+      ? loser === me ? "You lose" : `${seatName(room, loser)} loses`
+      : winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over";
 
     return h(
       "section",
-      { class: `results${winner === me ? " won" : ""}` },
-      winnerSeat ? h("div", { class: "winner-badge" }, avatar(winnerSeat.name, winnerSeat.avatarSeed)) : null,
-      h("h2", {}, winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over"),
+      { class: `results${won ? " won" : ""}` },
+      featured ? h("div", { class: loser ? "loser-badge" : "winner-badge" }, avatar(featured.name, featured.avatarSeed)) : null,
+      h("h2", {}, headline),
       h(
         "ol",
         { class: "standings" },

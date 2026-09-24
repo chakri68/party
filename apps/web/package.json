@@ -13,6 +13,7 @@
     "@games/audio": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/game-core": "workspace:*",
+    "@games/old-maid": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/room-client": "workspace:*",
     "@games/sevens": "workspace:*",

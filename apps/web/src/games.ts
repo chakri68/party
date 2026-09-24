@@ -3,6 +3,7 @@
 
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
+import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import type { GameClientModule } from "@games/ui";
 
@@ -27,5 +28,11 @@ export const games: Record<string, GameEntry> = {
     rules: crazyEightsRules,
     settingFields: crazyEightsSettingFields,
     loadClient: () => import("@games/crazy-eights/client").then((m) => m.default),
+  },
+  "old-maid": {
+    manifest: oldMaidManifest,
+    rules: oldMaidRules,
+    settingFields: oldMaidSettingFields,
+    loadClient: () => import("@games/old-maid/client").then((m) => m.default),
   },
 };

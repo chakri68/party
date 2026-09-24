@@ -23,6 +23,9 @@ importers:
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
+      '@games/old-maid':
+        specifier: workspace:*
+        version: link:../../games/old-maid
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -51,6 +54,9 @@ importers:
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
+      '@games/old-maid':
+        specifier: workspace:*
+        version: link:../../games/old-maid
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -69,6 +75,24 @@ importers:
         version: 8.3.0(esbuild@0.28.1)
 
   games/crazy-eights:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/old-maid:
     dependencies:
       '@games/animation':
         specifier: workspace:*

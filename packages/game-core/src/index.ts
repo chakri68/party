@@ -72,6 +72,11 @@ export type GameResult<TState, TEvent> =
 export interface GameOutcome {
   winnerIds: string[];
   /**
+   * For games decided by who loses (Old Maid). When set, the results screen
+   * headlines the loser instead of the first winner.
+   */
+  loserIds?: string[];
+  /**
    * Per-player figure for the results screen, e.g. cards left. `label`, when a
    * game sets it, is shown instead of the shell's "N cards left".
    */
