@@ -219,31 +219,12 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 .big-code { font-size: 3.4rem; font-weight: 700; letter-spacing: 0.2em; line-height: 1; margin-right: -0.2em; }
 .invite-url { font-size: 0.85rem; color: var(--muted); word-break: break-all; text-align: center; }
 .invite button { margin-top: 8px; min-width: 180px; }
-/* Game picker (host, lobby): a segmented control */
-.game-picker {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 4px;
-  padding: 4px;
-  border: 1.5px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface);
-}
-.game-picker button {
-  min-height: 40px;
-  border: none;
-  border-radius: 10px;
-  background: none;
-  color: var(--muted);
-  font-weight: 600;
-}
-.game-picker button:hover:not(:disabled, [aria-checked="true"]) { color: var(--ink); }
-.game-picker button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
 .game-card { display: flex; align-items: center; gap: 14px; }
 .game-card h2 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; }
 .game-card p { font-size: 0.9rem; }
-.game-card .link { margin-left: auto; }
+.game-card-text { flex: 1; min-width: 0; }
+.game-card-links { display: grid; justify-items: end; gap: 2px; }
+.game-card-links .link { min-height: 32px; padding: 0 2px; }
 .game-icon { width: 44px; height: 44px; }
 /* Game settings (lobby) */
 .game-settings { display: grid; gap: 8px; }
@@ -288,7 +269,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seats li.away { opacity: 0.55; }
 .seats li.empty { background: none; border-style: dashed; }
 .seats .name { font-weight: 600; }
-.seats .tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.seats .tag, .game-option .tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .seats .ready { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
 .seats .ready.yes { color: var(--accent); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -332,6 +313,33 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   box-shadow: 0 18px 60px rgb(0 0 0 / 0.55);
 }
 .dialog::backdrop { background: rgb(0 0 0 / 0.65); }
+.dialog[open] { animation: pop-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
+.dialog[open]::backdrop { animation: fade-in 200ms ease-out both; }
+@keyframes fade-in { from { opacity: 0; } }
+
+/* Game list (host, lobby). Grows with the catalogue; search appears past 6. */
+.game-list { width: min(440px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 48px)); }
+.game-search { min-height: 44px; margin-bottom: 10px; }
+.game-options { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.game-option {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+  font-weight: 400;
+  background: var(--bg);
+}
+.game-option .game-icon { width: 36px; height: 36px; }
+.game-option[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.game-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.game-option-text { display: grid; gap: 2px; min-width: 0; }
+.game-option-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.game-option-text .muted { font-size: 0.88rem; }
+.game-option-meta { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.game-option-meta.warn { color: var(--danger); }
 .dialog h2 { margin: 0 0 10px; font-size: 1.25rem; letter-spacing: -0.02em; }
 .dialog form { margin-top: 16px; display: flex; justify-content: flex-end; }
 .rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
@@ -428,5 +436,57 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button, input { transition: none; }
-  .results { animation: none; }
+  .results, .dialog[open], .dialog[open]::backdrop { animation: none; }
 }
+
+/* ---- Page transitions ------------------------------------------------------
+   View Transitions (src/transition.ts). html[data-vt] says what kind:
+   forward/back = changing page, phase = the room changing screen,
+   lobby = new data on the same screen. Reduced motion never gets here. */
+
+/* Taps land on the real page while a transition plays, not on the overlay. */
+::view-transition { pointer-events: none; }
+
+/* Names only where they help. On a page change everything moves as one;
+   named parts would stay behind as ghosts. */
+/* The room header is the same on every room screen: it stays put. */
+html:is([data-vt="phase"], [data-vt="lobby"]) .room-header { view-transition-name: room-header; }
+/* The table slides under the results panel instead of jumping. */
+html[data-vt="phase"] .game-host { view-transition-name: game-host; }
+/* Lobby blocks and seats carry their name in --vt (see RoomView.lobby). */
+html[data-vt="lobby"] .lobby [style*="--vt"] { view-transition-name: var(--vt); }
+
+::view-transition-group(*) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(.2, .8, .2, 1);
+}
+/* The UA blends old + new additively, which only works for its own
+   crossfade (opacities summing to 1). Ours don't: two dark pages would add
+   up to a grey flash. */
+html[data-vt]::view-transition-old(root),
+html[data-vt]::view-transition-new(root) { mix-blend-mode: normal; }
+
+/* Changing page: a short slide, like moving between screens. */
+html[data-vt="forward"]::view-transition-old(root) { animation: vt-out 180ms ease-in both; --vt-dx: -24px; }
+html[data-vt="forward"]::view-transition-new(root) { animation: vt-in 300ms cubic-bezier(.2, .8, .2, 1) both; --vt-dx: 32px; }
+html[data-vt="back"]::view-transition-old(root) { animation: vt-out 180ms ease-in both; --vt-dx: 24px; }
+html[data-vt="back"]::view-transition-new(root) { animation: vt-in 300ms cubic-bezier(.2, .8, .2, 1) both; --vt-dx: -32px; }
+
+/* New screen in the room: fade the old one, rise the new one in. */
+html[data-vt="phase"]::view-transition-old(root) { animation: vt-fade 150ms ease-out both; }
+html[data-vt="phase"]::view-transition-new(root) { animation: vt-rise 320ms cubic-bezier(.2, .8, .2, 1) both; }
+
+/* Lobby updates: the page holds still and only the named blocks move.
+   Anything new (a seat) grows in; anything gone shrinks out. */
+html[data-vt="lobby"]::view-transition-old(root),
+html[data-vt="lobby"]::view-transition-new(root) { animation: none; }
+html[data-vt="lobby"]::view-transition-new(*):only-child { animation: vt-grow 260ms cubic-bezier(.2, .8, .2, 1.2) both; }
+html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 180ms ease-in both; }
+
+@keyframes vt-out { to { opacity: 0; transform: translateX(var(--vt-dx)); } }
+@keyframes vt-in { from { opacity: 0; transform: translateX(var(--vt-dx)); } }
+@keyframes vt-fade { to { opacity: 0; } }
+@keyframes vt-rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes vt-grow { from { opacity: 0; transform: scale(.92); } }
+@keyframes vt-shrink { to { opacity: 0; transform: scale(.92); } }
+

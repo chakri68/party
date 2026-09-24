@@ -2,6 +2,7 @@
 
 import type { View } from "@games/ui";
 import { devAs } from "./identity.ts";
+import { transition } from "./transition.ts";
 
 type Params = Record<string, string>;
 type Factory = (params: Params) => View;
@@ -61,7 +62,7 @@ export function navigate(path: string, { replace = false } = {}) {
   const url = withDevQuery(path);
   if (replace) history.replaceState(null, "", url);
   else history.pushState(null, "", url);
-  render();
+  transition(replace ? "phase" : "forward", render);
 }
 
 /** Plain same-origin <a href="/…"> links navigate in-app; no per-link wiring needed. */
@@ -75,7 +76,8 @@ function onLinkClick(e: MouseEvent) {
 
 export function start(el: HTMLElement) {
   outlet = el;
-  window.addEventListener("popstate", render);
+  // Back/forward buttons can't say which way they went; "back" is the usual one.
+  window.addEventListener("popstate", () => transition("back", render));
   document.addEventListener("click", onLinkClick);
   render();
 }

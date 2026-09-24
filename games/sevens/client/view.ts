@@ -87,6 +87,10 @@ export class SevensView implements GameView {
     this.root.remove();
   }
 
+  whenIdle() {
+    return this.queue.idle();
+  }
+
   rejected(clientActionId: string, message: string) {
     const cardId = this.pending.get(clientActionId);
     this.pending.delete(clientActionId);

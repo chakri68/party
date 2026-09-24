@@ -13,6 +13,7 @@ import { brandMark, icon } from "../brand.ts";
 import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
+import { transition } from "../transition.ts";
 import { identityField, nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
@@ -46,6 +47,8 @@ export class RoomView implements View {
   private stuckTimer: ReturnType<typeof setTimeout> | undefined;
   private stuck = false;
   private detachDebug: (() => void) | null = null;
+  /** Which screen the body shows, so we know when a change deserves motion. */
+  private screen: string | null = null;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -78,6 +81,19 @@ export class RoomView implements View {
     this.root.remove();
   }
 
+  /**
+   * Every body swap goes through here. A new screen gets a view transition;
+   * the lobby also animates its own updates (only named blocks move). The
+   * first screen doesn't: it's already inside the router's page transition.
+   */
+  private show(screen: string, update: () => void | Promise<void>) {
+    const first = this.screen === null;
+    const kind = screen !== this.screen ? "phase" : screen === "lobby" ? "lobby" : null;
+    this.screen = screen;
+    if (first || !kind) void update();
+    else transition(kind, update);
+  }
+
   // ---- connection ---------------------------------------------------------
 
   private askName() {
@@ -96,13 +112,13 @@ export class RoomView implements View {
       setDisplayName(n);
       this.connect();
     });
-    replaceChildren(this.body, form);
+    this.show("ask-name", () => replaceChildren(this.body, form));
     input.focus();
   }
 
   private connect() {
     const me = getIdentity();
-    replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…"));
+    this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")));
     const client = new RoomClient({
       code: this.code,
       name: me.displayName,
@@ -159,25 +175,26 @@ export class RoomView implements View {
 
   private showStuck() {
     this.stuck = true;
-    this.dropGameView();
-    replaceChildren(
-      this.body,
-      h(
-        "section",
-        { class: "message" },
-        h("p", {}, "Couldn't reconnect to the room."),
-        h("p", { class: "muted" }, "Still trying in the background. Your seat is kept for a minute."),
-        h("button", { type: "button", class: "primary", onclick: () => this.client?.reconnect() }, "Try again"),
-        h("button", {
-          type: "button",
-          onclick: () => {
-            this.client?.close();
-            setResumeToken(this.code, null);
-            navigate("/");
-          },
-        }, "Leave room"),
-      ),
+    const screen = h(
+      "section",
+      { class: "message" },
+      h("p", {}, "Couldn't reconnect to the room."),
+      h("p", { class: "muted" }, "Still trying in the background. Your seat is kept for a minute."),
+      h("button", { type: "button", class: "primary", onclick: () => this.client?.reconnect() }, "Try again"),
+      h("button", {
+        type: "button",
+        onclick: () => {
+          this.client?.close();
+          setResumeToken(this.code, null);
+          navigate("/");
+        },
+      }, "Leave room"),
     );
+    // Drop the game inside the swap, so the snapshot we animate from still has it.
+    this.show("stuck", () => {
+      this.dropGameView();
+      replaceChildren(this.body, screen);
+    });
   }
 
   private leave() {
@@ -219,19 +236,37 @@ export class RoomView implements View {
     }
 
     if (room.phase === "lobby") {
-      this.dropGameView();
-      replaceChildren(this.body, this.lobby(room, me));
+      const lobby = this.lobby(room, me);
+      this.show("lobby", () => {
+        this.dropGameView();
+        replaceChildren(this.body, lobby);
+      });
       return;
     }
 
     // playing / results: the game view stays mounted so the final board is visible.
-    const panel = room.phase === "results" ? this.results(room, me) : null;
+    const props = { room, game: room.game, private: u.private, playerId: me, events: u.events, snapshot: u.snapshot };
     this.renderControls();
-    replaceChildren(this.body, panel, this.controls, this.gameHost);
-    void this.ensureGameView(room.gameId).then((view) => {
-      if (view && this.last === u) {
-        view.update({ room, game: room.game, private: u.private, playerId: me, events: u.events, snapshot: u.snapshot });
-      }
+
+    // Game just ended: let the winning move land, then bring the results in.
+    // Otherwise the panel shoves the table down mid-flight.
+    if (room.phase === "results" && this.screen === "playing" && this.gameView && !u.snapshot) {
+      const view = this.gameView;
+      view.update(props);
+      void (view.whenIdle?.() ?? Promise.resolve()).then(() => {
+        const latest = this.last;
+        if (!latest || latest.room.phase !== "results" || this.screen !== "playing") return;
+        this.show("results", () => replaceChildren(this.body, this.results(latest.room, me), this.controls, this.gameHost));
+      });
+      return;
+    }
+
+    const panel = room.phase === "results" ? this.results(room, me) : null;
+    this.show(room.phase, async () => {
+      replaceChildren(this.body, panel, this.controls, this.gameHost);
+      // Awaited so the transition's "after" picture has the game in it.
+      const view = await this.ensureGameView(room.gameId);
+      if (view && this.last === u) view.update(props);
     });
   }
 
@@ -349,34 +384,46 @@ export class RoomView implements View {
         }, "Rules")
       : null;
 
+    // Named blocks move smoothly when the lobby updates (someone joins, the
+    // game changes) instead of the page jumping. Only a name-to-be: CSS
+    // applies it during lobby transitions alone, so page changes still move
+    // the lobby as one piece. Names must be page-unique.
+    const vt = (name: string) => `--vt: ${name}`;
+
     return h(
       "section",
       { class: "lobby" },
       h(
         "div",
-        { class: "invite" },
+        { class: "invite", style: vt("lobby-invite") },
         h("span", { class: "muted" }, "Room code"),
         h("strong", { class: "big-code", "aria-label": room.code.split("").join(" ") }, room.code),
         h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
         share,
       ),
-      isHost ? this.gamePicker(room.gameId, seats.length) : null,
       h(
         "div",
-        { class: "game-card" },
+        { class: "game-card", style: vt("lobby-game") },
         brandMark("mark game-icon"),
-        h("div", {}, h("h2", {}, entry?.manifest.name ?? room.gameId), entry ? h("p", { class: "muted" }, entry.manifest.description) : null),
-        rules,
+        h("div", { class: "game-card-text" }, h("h2", {}, entry?.manifest.name ?? room.gameId), entry ? h("p", { class: "muted" }, entry.manifest.description) : null),
+        h(
+          "div",
+          { class: "game-card-links" },
+          isHost && Object.keys(games).length > 1
+            ? h("button", { type: "button", class: "link", onclick: () => this.openGameList(room.gameId, seats.length) }, "Change")
+            : null,
+          rules,
+        ),
       ),
-      this.gameSettings(room, isHost, seats.length),
-      h("h3", { class: "seats-title" }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
+      this.gameSettings(room, isHost, seats.length, vt("lobby-settings")),
+      h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
       h(
         "ul",
         { class: "seats" },
         seats.map((s) =>
           h(
             "li",
-            { class: s.presence !== "connected" ? "away" : "" },
+            { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
@@ -392,13 +439,13 @@ export class RoomView implements View {
           ),
         ),
         // Empty seats up to the minimum make "how many more?" obvious at a glance.
-        Array.from({ length: Math.max(0, min - seats.length) }, () =>
-          h("li", { class: "empty" }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
+        Array.from({ length: Math.max(0, min - seats.length) }, (_, i) =>
+          h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
         ),
       ),
       h(
         "div",
-        { class: "actions" },
+        { class: "actions", style: vt("lobby-actions") },
         h(
           "button",
           { type: "button", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
@@ -412,45 +459,88 @@ export class RoomView implements View {
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
-      h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
+      h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
     );
   }
 
   /**
-   * Host-only: which game the room plays. Games that can't seat everyone here
-   * are shown but disabled, so nobody has to find out at "Start game".
+   * Host-only: pick the room's game from a list. Built to grow: a search box
+   * shows up once there are enough games to need one, and games that can't
+   * seat everyone here say so instead of failing at "Start game".
    */
-  private gamePicker(current: string, players: number) {
+  private openGameList(current: string, players: number) {
     const all = Object.entries(games);
-    if (all.length < 2) return null;
-    return h(
-      "div",
-      { class: "game-picker", role: "radiogroup", "aria-label": "Game" },
-      all.map(([id, entry]) => {
-        const tooMany = players > entry.manifest.maxPlayers;
-        return h(
+    const search = all.length > 6
+      ? h("input", { type: "search", class: "game-search", placeholder: "Search games", "aria-label": "Search games", autocomplete: "off" })
+      : null;
+    const empty = h("p", { class: "muted center", hidden: true }, "No games match.");
+
+    const rows = all.map(([id, entry]) => {
+      const { name, description, minPlayers, maxPlayers } = entry.manifest;
+      const tooMany = players > maxPlayers;
+      const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
+      const row = h(
+        "li",
+        {},
+        h(
           "button",
           {
             type: "button",
-            role: "radio",
-            "aria-checked": String(id === current),
+            class: "game-option",
+            "aria-current": id === current ? "true" : undefined,
             disabled: tooMany && id !== current,
-            title: tooMany ? `Up to ${entry.manifest.maxPlayers} players` : undefined,
-            onclick: () => id !== current && this.client?.send({ type: "select-game", gameId: id }),
+            onclick: () => {
+              if (id !== current) this.client?.send({ type: "select-game", gameId: id });
+              dlg.close();
+            },
           },
-          entry.manifest.name,
-        );
-      }),
+          brandMark("mark game-icon"),
+          h(
+            "span",
+            { class: "game-option-text" },
+            h("span", { class: "game-option-name" }, name, id === current ? h("span", { class: "tag" }, "current") : null),
+            h("span", { class: "muted" }, description),
+            h("span", { class: `game-option-meta${tooMany ? " warn" : ""}` }, tooMany ? `Up to ${maxPlayers} players, you're ${players}` : range),
+          ),
+        ),
+      );
+      return { row, text: `${name} ${description}`.toLowerCase() };
+    });
+
+    search?.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      for (const r of rows) {
+        r.row.hidden = !!q && !r.text.includes(q);
+        if (!r.row.hidden) shown++;
+      }
+      empty.hidden = shown > 0;
+    });
+
+    const dlg = h(
+      "dialog",
+      { class: "dialog game-list", "aria-label": "Pick a game" },
+      h("h2", {}, "Pick a game"),
+      search,
+      h("ul", { class: "game-options" }, rows.map((r) => r.row)),
+      empty,
+      h("form", { method: "dialog" }, h("button", {}, "Close")),
     );
+    dlg.addEventListener("close", () => dlg.remove());
+    dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+    document.body.append(dlg);
+    dlg.showModal();
+    // Start on the current game, not the search box: on phones that'd pop the keyboard.
+    (dlg.querySelector<HTMLButtonElement>('.game-option[aria-current="true"]') ?? dlg.querySelector("button"))?.focus();
   }
 
   /** The game's own settings, rendered from its field descriptions (host edits, others read). */
-  private gameSettings(room: RoomPublicState, isHost: boolean, players: number) {
+  private gameSettings(room: RoomPublicState, isHost: boolean, players: number, style?: string) {
     const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
     if (!fields.length) return null;
     return h(
       "div",
-      { class: "game-settings" },
+      { class: "game-settings", style },
       fields.map((f) => {
         const id = `setting-${f.key}`;
         const value = isHost
@@ -529,22 +619,22 @@ export class RoomView implements View {
   }
 
   private showMessage(message: string, code?: string) {
-    this.dropGameView();
-    replaceChildren(
-      this.body,
-      h(
-        "section",
-        { class: "message" },
-        h("p", {}, message),
-        code === "replaced-by-new-connection"
-          ? h("button", { type: "button", class: "primary", onclick: () => (this.client?.reconnect(), replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…"))) }, "Use here")
-          : null,
-        code === "protocol-mismatch"
-          ? h("button", { type: "button", class: "primary", onclick: () => location.reload() }, "Refresh")
-          : null,
-        h("button", { type: "button", onclick: () => navigate("/") }, "Home"),
-      ),
+    const screen = h(
+      "section",
+      { class: "message" },
+      h("p", {}, message),
+      code === "replaced-by-new-connection"
+        ? h("button", { type: "button", class: "primary", onclick: () => (this.client?.reconnect(), this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")))) }, "Use here")
+        : null,
+      code === "protocol-mismatch"
+        ? h("button", { type: "button", class: "primary", onclick: () => location.reload() }, "Refresh")
+        : null,
+      h("button", { type: "button", onclick: () => navigate("/") }, "Home"),
     );
+    this.show("message", () => {
+      this.dropGameView();
+      replaceChildren(this.body, screen);
+    });
   }
 
   private openSettings() {

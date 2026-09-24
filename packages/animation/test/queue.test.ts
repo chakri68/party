@@ -88,4 +88,21 @@ describe("AnimationQueue", () => {
     await tick();
     expect(log).toEqual(["settled"]);
   });
+
+  it("idle() waits for everything queued, and is instant when there's nothing", async () => {
+    const log: string[] = [];
+    const q = new AnimationQueue();
+    await q.idle(); // nothing queued: resolves straight away
+    const a = controllable(log, "a");
+    q.push(a.batch);
+    let idle = false;
+    void q.idle().then(() => (idle = true));
+    await tick();
+    expect(idle).toBe(false);
+    a.finish();
+    await tick();
+    await tick();
+    expect(log).toEqual(["animate a", "settle a"]);
+    expect(idle).toBe(true);
+  });
 });

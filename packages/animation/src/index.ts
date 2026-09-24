@@ -48,6 +48,14 @@ export class AnimationQueue {
     return this.items.length + (this.running ? 1 : 0);
   }
 
+  private idlers: (() => void)[] = [];
+
+  /** Resolves once everything queued so far has animated and settled. */
+  idle(): Promise<void> {
+    if (!this.running && !this.items.length) return Promise.resolve();
+    return new Promise((resolve) => this.idlers.push(resolve));
+  }
+
   private async drain(): Promise<void> {
     this.running = true;
     while (this.items.length) {
@@ -63,6 +71,7 @@ export class AnimationQueue {
       if (generation === this.generation) batch.settle();
     }
     this.running = false;
+    for (const resolve of this.idlers.splice(0)) resolve();
   }
 }
 
