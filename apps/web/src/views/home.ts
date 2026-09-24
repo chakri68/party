@@ -1,5 +1,6 @@
 import { isValidRoomCode, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode } from "@games/protocol";
 import { h, replaceChildren, type View } from "@games/ui";
+import { brandMark } from "../brand.ts";
 import { getIdentity, getOwnerKey, recentRooms, setDisplayName, setOwnerKey } from "../identity.ts";
 import { navigate } from "../router.ts";
 
@@ -14,30 +15,18 @@ export function nameInput(value: string) {
   });
 }
 
-const FAN = [
-  { suit: "♠\uFE0E", red: false, r: -30 },
-  { suit: "♥\uFE0E", red: true, r: -10 },
-  { suit: "♦\uFE0E", red: true, r: 10 },
-  { suit: "♣\uFE0E", red: false, r: 30 },
-];
-
-/** Four sevens fanned out: the house game, as a welcome mat. */
+/** Bouncy logo over a candy wordmark. (It used to be a fan of cards; it looked like a casino.) */
 function hero(tagline: string) {
   return h(
     "header",
     { class: "hero" },
+    brandMark(),
     h(
-      "div",
-      { class: "fan", "aria-hidden": "true" },
-      FAN.map((c, i) => {
-        // Corner index carries the suit too, since the fan hides most of each face.
-        const card = h("span", { class: `fan-card${c.red ? " red" : ""}` }, h("b", {}, "7", h("i", {}, c.suit)), c.suit);
-        card.style.setProperty("--r", `${c.r}deg`);
-        card.style.setProperty("--d", `${i * 70}ms`);
-        return card;
-      }),
+      "h1",
+      { "aria-label": "Party Games" },
+      h("span", { class: "candy", "aria-hidden": "true" }, [..."Party"].map((ch) => h("span", {}, ch))),
+      h("span", { "aria-hidden": "true" }, " Games"),
     ),
-    h("h1", {}, "Party ", h("span", {}, "Games")),
     h("p", { class: "tagline" }, tagline),
   );
 }

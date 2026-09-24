@@ -28,10 +28,13 @@
   background: var(--accent);
   color: var(--accent-ink);
   font-size: 1.2rem;
-  animation: sv-glow 1.6s ease-in-out infinite;
+  box-shadow: 0 4px 0 var(--accent-shadow);
+  animation: sv-hop 1.8s ease-in-out infinite;
 }
-@keyframes sv-glow {
-  50% { box-shadow: 0 0 0 6px rgb(245 193 75 / 0.25); }
+@keyframes sv-hop {
+  0%, 70%, 100% { transform: translateY(0); }
+  80% { transform: translateY(-4px); }
+  90% { transform: translateY(0); }
 }
 
 /* ---- Opponents ----------------------------------------------------------- */
@@ -54,7 +57,7 @@
   transition: background 200ms, box-shadow 200ms;
 }
 .sv-opp.current {
-  background: rgb(245 193 75 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 .sv-opp.away { opacity: 0.55; }
@@ -81,7 +84,7 @@
   width: 9px;
   height: 13px;
   border-radius: 2px;
-  background: repeating-linear-gradient(45deg, #b54a4a 0 2px, #8c2f2f 2px 4px);
+  background: repeating-linear-gradient(45deg, var(--pink) 0 2px, #c63d7c 2px 4px);
   box-shadow: 0 0 0 1px #fff8;
 }
 
@@ -93,9 +96,11 @@
   padding: 10px 8px;
   border-radius: 16px;
   background:
-    radial-gradient(ellipse at 50% 30%, rgb(255 255 255 / 0.07), transparent 70%),
+    radial-gradient(circle, rgb(255 255 255 / 0.07) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    radial-gradient(ellipse at 50% 20%, rgb(255 255 255 / 0.08), transparent 70%),
     var(--table);
-  box-shadow: inset 0 2px 12px rgb(0 0 0 / 0.35);
+  border: 2px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.3);
 }
 .sv-row {
   display: grid;

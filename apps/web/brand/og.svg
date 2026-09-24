@@ -1,22 +1,35 @@
 <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="lamp" cx="30%" cy="10%" r="90%">
-      <stop offset="0" stop-color="#23493a"/><stop offset=".55" stop-color="#0f1b16"/><stop offset="1" stop-color="#0b1310"/>
+    <radialGradient id="spot" cx="30%" cy="0%" r="95%">
+      <stop offset="0" stop-color="#3a2a80"/><stop offset=".6" stop-color="#1c1638"/><stop offset="1" stop-color="#16122b"/>
     </radialGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity=".5"/></filter>
-    <g id="card"><rect x="-85" y="-120" width="170" height="240" rx="18" fill="#fbf7ec"/></g>
   </defs>
-  <rect width="1200" height="630" fill="url(#lamp)"/>
-  <g font-family="DejaVu Sans" font-weight="bold" filter="url(#shadow)">
-    <g transform="translate(270 560) rotate(-30) translate(0 -250)"><use href="#card"/><text x="-64" y="-72" font-size="44" fill="#1b1b1b">7</text><text x="-64" y="-30" font-size="36" fill="#1b1b1b">♠</text><text x="0" y="40" font-size="100" text-anchor="middle" fill="#1b1b1b">♠</text></g>
-    <g transform="translate(270 560) rotate(-10) translate(0 -250)"><use href="#card"/><text x="-64" y="-72" font-size="44" fill="#d63b3f">7</text><text x="-64" y="-30" font-size="36" fill="#d63b3f">♥</text><text x="0" y="40" font-size="100" text-anchor="middle" fill="#d63b3f">♥</text></g>
-    <g transform="translate(270 560) rotate(10) translate(0 -250)"><use href="#card"/><text x="-64" y="-72" font-size="44" fill="#d63b3f">7</text><text x="-64" y="-30" font-size="36" fill="#d63b3f">♦</text><text x="0" y="40" font-size="100" text-anchor="middle" fill="#d63b3f">♦</text></g>
-    <g transform="translate(270 560) rotate(30) translate(0 -250)"><use href="#card"/><text x="-64" y="-72" font-size="44" fill="#1b1b1b">7</text><text x="-64" y="-30" font-size="36" fill="#1b1b1b">♣</text><text x="0" y="40" font-size="100" text-anchor="middle" fill="#1b1b1b">♣</text></g>
+  <rect width="1200" height="630" fill="url(#spot)"/>
+  <g stroke-width="7" stroke-linecap="round" fill="none">
+    <circle cx="90" cy="90" r="14" fill="#ff5fa2"/>
+    <path d="M1080 80l22 36h-44z" fill="#3bd6ff"/>
+    <path d="M980 540c14-18 28 18 42 0s28 18 42 0" stroke="#ffd43b"/>
+    <rect x="120" y="520" width="26" height="26" rx="5" fill="#7ee081" transform="rotate(20 133 533)"/>
+    <circle cx="1130" cy="330" r="9" fill="#ffd43b"/>
+    <path d="M520 70l18 18M538 70l-18 18" stroke="#ff5fa2"/>
+    <circle cx="640" cy="560" r="8" fill="#3bd6ff"/>
   </g>
-  <g font-family="Inter" fill="#f4f1e6">
-    <text x="540" y="262" font-size="92" font-weight="800" letter-spacing="-3">Party <tspan fill="#ffc94d">Games</tspan></text>
-    <text x="544" y="336" font-size="34" font-weight="500" fill="#a8b8ad">Sevens with friends, on any phone.</text>
-    <text x="544" y="382" font-size="34" font-weight="500" fill="#a8b8ad">No accounts. Just a room code.</text>
-    <text x="544" y="490" font-size="28" font-weight="600" fill="#ffc94d">party-games.chakri.me</text>
+  <g transform="translate(120 150) scale(5.2) rotate(-6 32 32)">
+  <g transform="rotate(-14 32 36)">
+    <rect x="11" y="10" width="30" height="42" rx="6" fill="#3bd6ff"/>
+    <circle cx="26" cy="31" r="7" fill="none" stroke="#16122b" stroke-opacity=".25" stroke-width="2.5"/>
+  </g>
+  <g transform="rotate(10 32 36)">
+    <rect x="23" y="12" width="30" height="42" rx="6" fill="#fffdf7"/>
+    <path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#ff5fa2"/>
+  </g>
+  </g>
+  <g font-family="Inter" font-weight="900" font-size="112" letter-spacing="-3">
+    <text x="520" y="290"><tspan fill="#ff5fa2">P</tspan><tspan fill="#ffd43b">a</tspan><tspan fill="#3bd6ff">r</tspan><tspan fill="#7ee081">t</tspan><tspan fill="#ff5fa2">y</tspan></text>
+    <text x="520" y="400" fill="#f7f5ff">Games</text>
+  </g>
+  <g font-family="Inter" font-weight="600" font-size="34" fill="#b3aed6">
+    <text x="524" y="470">Sevens with friends, on any phone.</text>
+    <text x="524" y="515">No accounts. Just a room code.</text>
   </g>
 </svg>

@@ -2,24 +2,28 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0b1310;
-  --bg-glow: #1b3527;
-  --surface: #14201a;
-  --surface-2: #1b2a22;
-  --line: rgb(255 255 255 / 0.1);
-  --table: #1c4a34;
-  --felt-ink: #d8eadf;
-  --red-on-felt: #ff9a8f;
-  --ink: #f4f1e6;
-  --muted: #a8b8ad;
-  --accent: #ffc94d;
-  --accent-2: #ff7a5c;
-  --accent-ink: #1e1400;
-  --focus: #7cc4ff;
-  --card: #fbf7ec;
+  /* Party, not casino: late-night indigo with candy accents. No felt, no gold. */
+  --bg: #16122b;
+  --bg-glow: #2e2166;
+  --surface: #211b3f;
+  --surface-2: #2b2452;
+  --line: rgb(255 255 255 / 0.12);
+  --table: #262a6b;
+  --felt-ink: #e3e6ff;
+  --red-on-felt: #ff9bb8;
+  --ink: #f7f5ff;
+  --muted: #b3aed6;
+  --accent: #ffd43b;
+  --accent-shadow: #c99a00;
+  --accent-ink: #231900;
+  --pink: #ff5fa2;
+  --cyan: #3bd6ff;
+  --lime: #7ee081;
+  --focus: #7ee0ff;
+  --card: #fffdf7;
   --card-ink: #1b1b1b;
   --red: #c8302f; /* 5.0:1 on card cream; small board suits need ≥4.5 */
-  --radius: 14px;
+  --radius: 18px;
   /* Rounded where the platform has it (Apple), plain system elsewhere: no downloads. */
   --font: ui-rounded, "SF Pro Rounded", "Segoe UI Variable Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-family: var(--font);
@@ -35,10 +39,10 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
 body {
-  /* A warm lamp over the table, and a faint suit pattern on the cloth. */
+  /* A soft spotlight and some confetti on the floor. */
   background:
-    radial-gradient(1200px 600px at 50% -10%, var(--bg-glow), transparent 70%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' fill='%23ffffff' fill-opacity='0.022' font-family='serif' font-size='18'%3E%3Ctext x='8' y='26'%3E%E2%99%A0%3C/text%3E%3Ctext x='56' y='26'%3E%E2%99%A5%3C/text%3E%3Ctext x='32' y='74'%3E%E2%99%A6%3C/text%3E%3Ctext x='80' y='74'%3E%E2%99%A3%3C/text%3E%3C/svg%3E"),
+    radial-gradient(900px 520px at 50% -8%, var(--bg-glow), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' fill='none' stroke-width='3' stroke-linecap='round' opacity='0.13'%3E %3Ccircle cx='24' cy='30' r='5' fill='%23ff5fa2'/%3E %3Cpath d='M120 20l9 15h-18z' fill='%233bd6ff'/%3E %3Cpath d='M60 110c6-8 12 8 18 0s12 8 18 0' stroke='%23ffd43b'/%3E %3Crect x='140' y='120' width='10' height='10' rx='2' fill='%237ee081' transform='rotate(20 145 125)'/%3E %3Ccircle cx='150' cy='70' r='3' fill='%23ffd43b'/%3E %3Cpath d='M20 150l10-4' stroke='%233bd6ff'/%3E %3Ccircle cx='95' cy='60' r='2.5' fill='%237ee081'/%3E %3Cpath d='M36 88l7 7M43 88l-7 7' stroke='%23ff5fa2'/%3E %3C/svg%3E"),
     var(--bg);
   background-attachment: fixed;
 }
@@ -49,28 +53,32 @@ button, input {
   color: inherit;
 }
 button {
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
   background: var(--surface-2);
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.35);
   cursor: pointer;
-  font-weight: 600;
-  transition: transform 80ms ease, background 120ms ease, filter 120ms ease;
+  font-weight: 700;
+  transition: transform 80ms ease, box-shadow 80ms ease, filter 120ms ease;
 }
-button:hover:not(:disabled) { filter: brightness(1.12); }
-button:active:not(:disabled) { transform: scale(0.97); }
+button:hover:not(:disabled) { filter: brightness(1.1); }
+/* Press = sink into the shadow, like a real chunky button. */
+button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 rgb(0 0 0 / 0.35); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary {
-  background: linear-gradient(180deg, #ffd66e, var(--accent));
+  background: var(--accent);
   color: var(--accent-ink);
   border-color: transparent;
   font-weight: 800;
-  box-shadow: 0 2px 0 #b8860b, 0 6px 16px rgb(255 201 77 / 0.18);
+  box-shadow: 0 4px 0 var(--accent-shadow);
 }
+button.primary:active:not(:disabled) { box-shadow: 0 2px 0 var(--accent-shadow); }
 button.link {
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--muted);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -83,13 +91,13 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 input {
   min-height: 48px;
   padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
   background: var(--surface);
   width: 100%;
   font-size: 1.05rem;
 }
-input::placeholder { color: rgb(168 184 173 / 0.6); }
+input::placeholder { color: rgb(179 174 214 / 0.55); }
 
 .muted { color: var(--muted); }
 .center { text-align: center; }
@@ -111,57 +119,31 @@ input::placeholder { color: rgb(168 184 173 / 0.6); }
   display: grid;
   justify-items: center;
   text-align: center;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 10px;
 }
-.fan {
-  position: relative;
-  width: 240px;
-  height: 118px;
-  margin: 4px 0 22px;
+.hero .mark {
+  width: 104px;
+  height: 104px;
+  margin: 6px 0 2px;
+  animation: hero-bob 3.2s ease-in-out infinite;
 }
-.fan-card {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 64px;
-  height: 90px;
-  margin-left: -32px;
-  border-radius: 9px;
-  background: var(--card);
-  color: var(--card-ink);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.06);
-  transform-origin: 50% 190%;
-  transform: rotate(var(--r));
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-  animation: fan-in 600ms cubic-bezier(.2, .9, .3, 1.2) both;
-  animation-delay: var(--d);
-}
-.fan-card.red { color: var(--red); }
-.fan-card b {
-  position: absolute;
-  top: 5px;
-  left: 7px;
-  display: grid;
-  justify-items: center;
-  font-size: 0.95rem;
-  line-height: 1;
-  font-weight: 800;
-}
-.fan-card b i { font-style: normal; font-size: 0.8rem; }
-@keyframes fan-in {
-  from { transform: rotate(0deg) translateY(12px); opacity: 0; }
+@keyframes hero-bob {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50% { transform: rotate(4deg) translateY(-6px); }
 }
 .home h1 {
   margin: 0;
-  font-size: 2.6rem;
-  font-weight: 800;
+  font-size: 2.8rem;
+  font-weight: 900;
   letter-spacing: -0.03em;
   line-height: 1;
 }
-.home h1 span { color: var(--accent); }
+/* Each letter of "Party" gets its own candy colour. */
+.home h1 .candy span:nth-child(4n + 1) { color: var(--pink); }
+.home h1 .candy span:nth-child(4n + 2) { color: var(--accent); }
+.home h1 .candy span:nth-child(4n + 3) { color: var(--cyan); }
+.home h1 .candy span:nth-child(4n + 4) { color: var(--lime); }
 .tagline { margin: 0; color: var(--muted); }
 .field { display: grid; gap: 6px; }
 .field > span { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
@@ -276,7 +258,7 @@ input::placeholder { color: rgb(168 184 173 / 0.6); }
   gap: 12px;
   justify-items: center;
 }
-.results.won { background: linear-gradient(160deg, rgb(245 193 75 / 0.22), var(--surface) 60%); }
+.results.won { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, transparent), var(--surface) 60%); }
 .results h2 { margin: 0; font-size: 1.7rem; }
 .winner-badge { position: relative; }
 .winner-badge .avatar { width: 64px; height: 64px; font-size: 1.8rem; }
@@ -364,6 +346,7 @@ input::placeholder { color: rgb(168 184 173 / 0.6); }
   place-items: center;
   background: none;
   border-color: transparent;
+  box-shadow: none;
   font-size: 1.15rem;
 }
 .room-code + .icon-btn { margin-left: 4px; }
@@ -374,7 +357,7 @@ input::placeholder { color: rgb(168 184 173 / 0.6); }
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button { transition: none; }
-  .fan-card, .results, .results.won .crown { animation: none; }
+  .hero .mark, .results, .results.won .crown { animation: none; }
 }
 
 /* Turn controls (§12) */
