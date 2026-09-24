@@ -1,169 +1,266 @@
-/* Sevens — Phase 1. Uses the shell's tokens (--table, --card, --ink, --red, --accent, --muted). */
+/* Sevens. Uses the shell's tokens (--table, --card, --card-ink, --red, --accent, --muted, --focus). */
 
 .sevens {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 100%;
+  gap: 10px;
+  flex: 1;
 }
+
+/* ---- Turn indicator ------------------------------------------------------ */
 
 .sv-status {
-  font-size: 1.25rem;
-  font-weight: 700;
-  text-align: center;
-  padding: 8px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 999px;
   background: rgb(255 255 255 / 0.06);
+  font-weight: 700;
+  font-size: 1.05rem;
 }
-.sv-status.mine {
+.my-turn .sv-status {
   background: var(--accent);
   color: var(--accent-ink);
+  font-size: 1.2rem;
+  animation: sv-glow 1.6s ease-in-out infinite;
+}
+@keyframes sv-glow {
+  50% { box-shadow: 0 0 0 6px rgb(245 193 75 / 0.25); }
 }
 
-/* Board: suit label + 13 fixed columns so every seven sits in the same column. */
+/* ---- Opponents ----------------------------------------------------------- */
+
+.sv-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.sv-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.06);
+  transition: background 200ms, box-shadow 200ms;
+}
+.sv-opp.current {
+  background: rgb(245 193 75 / 0.14);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.sv-opp.away { opacity: 0.55; }
+.sv-opp-text { display: grid; line-height: 1.15; }
+.sv-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.sv-opp .count, .sv-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.16);
+  color: var(--ink);
+}
+.card-back {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, #b54a4a 0 2px, #8c2f2f 2px 4px);
+  box-shadow: 0 0 0 1px #fff8;
+}
+
+/* ---- Board ---------------------------------------------------------------- */
+
 .sv-board {
   display: grid;
   gap: 6px;
-  padding: 10px;
-  border-radius: 14px;
-  background: var(--table);
+  padding: 10px 8px;
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgb(255 255 255 / 0.07), transparent 70%),
+    var(--table);
+  box-shadow: inset 0 2px 12px rgb(0 0 0 / 0.35);
 }
 .sv-row {
   display: grid;
-  grid-template-columns: 1.4em repeat(13, minmax(0, 1fr));
+  grid-template-columns: 1.3em repeat(13, minmax(0, 1fr));
   gap: 2px;
   align-items: center;
 }
-.sv-row-suit {
-  font-size: 1.1rem;
-  color: var(--felt-ink);
-}
-.sv-row-suit.red {
-  color: var(--red-on-felt);
-}
-.sv-slot {
+.sv-row-suit { font-size: 1.1rem; text-align: center; color: var(--felt-ink); }
+.sv-row-suit.red { color: var(--red-on-felt); }
+.slot {
   aspect-ratio: 5 / 7;
   border-radius: 4px;
-  border: 1px dashed rgb(255 255 255 / 0.08);
+  border: 1px dashed rgb(255 255 255 / 0.07);
 }
-.sv-slot.seven {
-  border-color: rgb(255 255 255 / 0.28);
-}
+.slot.seven { border-color: rgb(255 255 255 / 0.3); }
 
-/* Cards. Board cards are small; hand cards are buttons and bigger. */
-.sv-card {
+/* ---- Cards ---------------------------------------------------------------- */
+
+.card {
+  background: var(--card);
+  color: var(--card-ink);
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.card.red { color: var(--red); }
+
+.card.mini {
   aspect-ratio: 5 / 7;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: var(--card);
-  color: var(--card-ink);
-  font-weight: 700;
   line-height: 1;
-  font-size: clamp(0.55rem, 2.6vw, 0.95rem);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
-  user-select: none;
+  font-size: clamp(0.55rem, 2.7vw, 1rem);
 }
-.sv-card.red {
-  color: var(--red);
-}
-.sv-card .suit {
-  font-size: 0.85em;
-}
+.card.mini b { font-weight: 800; letter-spacing: -0.04em; }
+.card.mini i { font-style: normal; font-size: 0.85em; }
 
-.sv-players {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.card.full {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
 }
-.sv-player {
+.card.full + .card.full { margin-left: var(--card-overlap); }
+.card.full .corner {
+  position: absolute;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.06);
-  font-size: 0.9rem;
+  line-height: 0.95;
+  font-size: 0.95rem;
 }
-.sv-player.current {
-  outline: 2px solid var(--accent);
+.card.full .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.card.full .corner i { font-style: normal; font-size: 0.85em; }
+.card.full .tl { top: 4px; left: 5px; }
+.card.full .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.card.full .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
 }
-.sv-player.away {
-  opacity: 0.6;
+.card.full .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+
+/* On your turn, dim what can't go down so the options pop. */
+.my-turn .card.full:not(.playable) { filter: brightness(0.62) saturate(0.6); }
+.card.full.playable { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.card.full.selected { transform: translateY(-16px); z-index: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .card.full.playable:hover { transform: translateY(-10px); z-index: 1; }
 }
-.sv-player .count {
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-.sv-player .dealer {
-  font-size: 0.7rem;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: rgb(255 255 255 / 0.15);
-}
-.sv-player .away-label {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
+.card.full:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; z-index: 2; }
+
+/* ---- Log + dock ----------------------------------------------------------- */
 
 .sv-log {
+  margin: 0;
   min-height: 1.4em;
+  text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
-  text-align: center;
 }
 
-.sv-hand-title {
-  margin: auto 0 0;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
+.sv-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
 }
+/* After the game the results panel leads; the hand is just for the record. */
+.finished .sv-dock { position: static; background: none; }
+
+.sv-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.sv-me { display: flex; align-items: baseline; gap: 8px; }
+.sv-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.sv-action .hint { color: var(--muted); font-size: 0.9rem; }
+.sv-action button { min-width: 110px; }
+
 .sv-hand {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: env(safe-area-inset-bottom);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
 }
-.sv-hand .sv-card {
-  width: 48px;
-  font-size: 1.1rem;
-  border: none;
-  cursor: pointer;
-  opacity: 0.55;
-  transition: transform 120ms ease, opacity 120ms ease;
-}
-.sv-hand .sv-card.playable {
-  opacity: 1;
-  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgb(0 0 0 / 0.4);
-}
-@media (hover: hover) {
-  .sv-hand .sv-card.playable:hover {
-    transform: translateY(-6px);
+.sv-hand .card.full { scroll-snap-align: start; }
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .sevens {
+    --card-w: 76px;
+    --card-h: 108px;
+    /* 18 cards (the most anyone holds at 3 players) still fit without scrolling. */
+    --card-overlap: -30px;
+    gap: 14px;
   }
-}
-.sv-hand .sv-card:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-.sv-pass {
-  padding: 0 18px;
-  border-radius: 8px;
-  font-weight: 700;
+  .sv-board { padding: 14px 16px; gap: 6px; }
+  /* Cap cell width: past ~46px a bigger board just shoves the hand off-screen. */
+  .sv-row {
+    gap: 4px;
+    grid-template-columns: 1.6em repeat(13, minmax(0, 46px));
+    justify-content: center;
+  }
+  .card.mini { font-size: 1rem; }
+  .sv-row-suit { font-size: 1.4rem; }
+  .card.full .corner { font-size: 1.1rem; }
+  .card.full .pip { font-size: 2.4rem; }
+  .sv-hand { justify-content: safe center; }
 }
 
-.shake {
-  animation: sv-shake 300ms ease;
-}
+/* ---- Feedback ------------------------------------------------------------- */
+
+.shake { animation: sv-shake 300ms ease; }
 @keyframes sv-shake {
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
   75% { transform: translateX(-3px); }
 }
+
 @media (prefers-reduced-motion: reduce) {
+  .my-turn .sv-status { animation: none; }
   .shake { animation: none; outline: 2px solid var(--red); }
-  .sv-hand .sv-card { transition: none; }
+  .card.full, .sv-opp { transition: none; }
 }

@@ -1,11 +1,8 @@
-import type { Presence } from "@games/protocol";
-import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { formatRank, rankName, rowBounds, SEVEN } from "../shared/rules.ts";
-import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState, type Suit } from "../shared/types.ts";
-
-// U+FE0E asks for text presentation; without it some platforms draw ♥ as an emoji.
-const SUIT_SYMBOL: Record<Suit, string> = { spades: "♠\uFE0E", hearts: "♥\uFE0E", diamonds: "♦\uFE0E", clubs: "♣\uFE0E" };
-const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
+import type { Presence, RoomPublicState } from "@games/protocol";
+import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { formatRank, rowBounds, SEVEN } from "../shared/rules.ts";
+import { SUITS, type SevensEvent, type SevensPrivateState, type SevensPublicState } from "../shared/types.ts";
+import { cardBack, cardLabel, cardShort, fullCard, isRed, miniCard, SUIT_NAME, SUIT_SYMBOL } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -14,17 +11,11 @@ const PRESENCE_LABEL: Record<Presence, string> = {
   left: "left",
 };
 
-const cardLabel = (c: Pick<Card, "suit" | "rank">) => `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`;
-const isRed = (suit: Suit) => suit === "hearts" || suit === "diamonds";
-
-function cardFace(c: Pick<Card, "suit" | "rank">, tag: "span" | "button" = "span") {
-  return h(
-    tag,
-    { class: `sv-card${isRed(c.suit) ? " red" : ""}`, "aria-label": cardLabel(c) },
-    h("span", { class: "rank" }, formatRank(c.rank)),
-    h("span", { class: "suit", "aria-hidden": "true" }, SUIT_SYMBOL[c.suit]),
-  );
-}
+/**
+ * Mouse users click to play (§17). Touch gets tap-to-select, then tap again or
+ * press Play: a stray tap mid-scroll shouldn't throw a card.
+ */
+const directPlay = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 function describe(e: SevensEvent, props: GameViewProps): string | null {
   const who = (id: string) => (id === props.playerId ? "You" : seatName(props.room, id));
@@ -32,37 +23,54 @@ function describe(e: SevensEvent, props: GameViewProps): string | null {
     case "dealt":
       return `${who(e.dealerId)} dealt.`;
     case "card-played":
-      return `${who(e.playerId)} played the ${cardLabel(e.card)}.`;
+      return `${who(e.playerId)} played ${cardShort(e.card)}.`;
     case "ghost-card-placed":
-      return `The ${cardLabel(e.card)} went down on its own.`;
+      return `${cardShort(e.card)} went down on its own.`;
     case "passed":
-      return `${who(e.playerId)} ${e.playerId === props.playerId ? "have" : "has"} nothing to play — passed.`;
+      return e.playerId === props.playerId ? "You had nothing to play, so you passed." : `${who(e.playerId)} passed.`;
     case "turn-skipped":
       return `${who(e.playerId)} got skipped by the host.`;
     case "player-removed":
-      return `${who(e.playerId)} left the game.`;
+      return `${who(e.playerId)} left. Their cards will go down on their own.`;
     case "game-over":
       return null;
   }
 }
 
-/**
- * Phase 1 view: correct, plain, and tappable. Rebuilds its own subtrees on each
- * update. Only four small regions, so there's nothing worth diffing yet.
- */
+/** Everyone but me, starting from my left: reads like the table, clockwise. */
+function fromMyLeft<T extends { id: string }>(players: T[], me: string): T[] {
+  const i = players.findIndex((p) => p.id === me);
+  return i < 0 ? players : [...players.slice(i + 1), ...players.slice(0, i)];
+}
+
 export class SevensView implements GameView {
   private api: GameClientApi;
+  private props: GameViewProps | null = null;
+
   private root = h("div", { class: "sevens" });
   private status = h("div", { class: "sv-status", role: "status", "aria-live": "polite" });
-  private board = h("div", { class: "sv-board" });
-  private players = h("div", { class: "sv-players" });
-  private log = h("div", { class: "sv-log" });
-  private hand = h("div", { class: "sv-hand", role: "group", "aria-label": "Your hand" });
+  private opponents = h("div", { class: "sv-opponents", role: "list", "aria-label": "Other players" });
+  private board = h("div", { class: "sv-board", role: "group", "aria-label": "Board" });
+  private log = h("p", { class: "sv-log", "aria-live": "polite" });
+  private me = h("div", { class: "sv-me" });
+  private action = h("div", { class: "sv-action" });
+  private hand = h("div", { class: "sv-hand", role: "toolbar", "aria-label": "Your hand" });
+
+  /** Keyed so updates keep scroll position, focus and selection (§8). */
+  private cards = new Map<string, HTMLButtonElement>();
+  private selected: string | null = null;
   private pending = new Map<string, string>(); // clientActionId → cardId
 
   constructor(api: GameClientApi) {
     this.api = api;
-    this.root.append(this.status, this.board, this.players, this.log, h("h2", { class: "sv-hand-title" }, "Your hand"), this.hand);
+    this.root.append(
+      this.status,
+      this.opponents,
+      this.board,
+      this.log,
+      h("div", { class: "sv-dock" }, h("div", { class: "sv-dock-head" }, this.me, this.action), this.hand),
+    );
+    this.hand.addEventListener("keydown", this.onHandKey);
   }
 
   mount(container: HTMLElement) {
@@ -76,7 +84,7 @@ export class SevensView implements GameView {
   rejected(clientActionId: string, message: string) {
     const cardId = this.pending.get(clientActionId);
     this.pending.delete(clientActionId);
-    const btn = cardId && this.hand.querySelector<HTMLElement>(`[data-card="${cardId}"]`);
+    const btn = cardId ? this.cards.get(cardId) : undefined;
     if (btn) {
       btn.classList.remove("shake");
       void btn.offsetWidth; // restart the animation
@@ -86,19 +94,73 @@ export class SevensView implements GameView {
   }
 
   update(props: GameViewProps) {
+    this.props = props;
     const game = props.game as SevensPublicState;
     const priv = props.private as SevensPrivateState | null;
     const myTurn = game.currentPlayerId === props.playerId;
+    this.root.classList.toggle("my-turn", myTurn);
+    this.root.classList.toggle("finished", game.currentPlayerId === null);
 
-    // Status line
+    this.renderStatus(props.room, game, myTurn);
+    this.renderOpponents(props, game);
+    this.renderBoard(game);
+    this.renderHand(priv, myTurn);
+    this.renderDock(props, game, priv, myTurn);
+
+    const lines = (props.events as SevensEvent[]).map((e) => describe(e, props)).filter(Boolean);
+    if (lines.length) this.log.textContent = lines.slice(-2).join(" ");
+  }
+
+  // ---- regions ------------------------------------------------------------
+
+  private renderStatus(room: RoomPublicState, game: SevensPublicState, myTurn: boolean) {
     // Once finished, the room's results panel announces the winner.
     this.status.hidden = game.currentPlayerId === null;
-    const awaited = props.room.seats.find((s) => s.id === game.currentPlayerId);
-    const awaitedAway = awaited && awaited.presence !== "connected" ? ` (${PRESENCE_LABEL[awaited.presence]})` : "…";
-    this.status.textContent = this.status.hidden ? "" : myTurn ? "Your turn" : `Waiting for ${seatName(props.room, game.currentPlayerId)}${awaitedAway}`;
-    this.status.classList.toggle("mine", myTurn);
+    if (this.status.hidden) return;
+    const seat = room.seats.find((s) => s.id === game.currentPlayerId);
+    const away = seat && seat.presence !== "connected" ? ` (${PRESENCE_LABEL[seat.presence]})` : "";
+    replaceChildren(
+      this.status,
+      myTurn
+        ? h("span", {}, "Your turn")
+        : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}'s turn${away}`)],
+    );
+  }
 
-    // Board: fixed columns so the seven lines up across suits (§15).
+  private renderOpponents(props: GameViewProps, game: SevensPublicState) {
+    replaceChildren(
+      this.opponents,
+      fromMyLeft(game.players, props.playerId).map((p) => {
+        const seat = props.room.seats.find((s) => s.id === p.id);
+        const away = seat && seat.presence !== "connected" && !p.removed;
+        const name = seat?.name ?? "?";
+        const current = p.id === game.currentPlayerId;
+        return h(
+          "div",
+          {
+            class: `sv-opp${current ? " current" : ""}${away || p.removed ? " away" : ""}`,
+            role: "listitem",
+            "aria-label": `${name}: ${p.removed ? "left" : `${p.cardCount} cards`}${current ? ", playing now" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
+          },
+          seat ? avatar(name, seat.avatarSeed) : null,
+          h(
+            "div",
+            { class: "sv-opp-text", "aria-hidden": "true" },
+            h("span", { class: "name" }, name, p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null),
+            h(
+              "span",
+              { class: "count" },
+              p.removed ? "left" : [cardBack(), ` ${p.cardCount}`],
+              away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  private renderBoard(game: SevensPublicState) {
+    // Fixed columns so every seven sits in the same place (§15).
     const { min, max } = rowBounds(game.acePosition);
     replaceChildren(
       this.board,
@@ -107,65 +169,128 @@ export class SevensView implements GameView {
         const cells = [];
         for (let r = min; r <= max; r++) {
           const played = row && r >= row.low && r <= row.high;
-          cells.push(
-            played
-              ? cardFace({ suit, rank: r })
-              : h("span", { class: `sv-slot${r === SEVEN ? " seven" : ""}`, "aria-hidden": "true" }),
-          );
+          cells.push(played ? miniCard({ suit, rank: r }) : h("span", { class: `slot${r === SEVEN ? " seven" : ""}`, "aria-hidden": "true" }));
         }
         return h(
           "div",
-          { class: "sv-row", "aria-label": `${SUIT_NAME[suit]}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}` },
+          {
+            class: "sv-row",
+            role: "group",
+            "aria-label": `${SUIT_NAME[suit]}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}`,
+          },
           h("span", { class: `sv-row-suit${isRed(suit) ? " red" : ""}`, "aria-hidden": "true" }, SUIT_SYMBOL[suit]),
           cells,
         );
       }),
     );
-
-    // Players, joined with room seats for names/presence (§7).
-    replaceChildren(
-      this.players,
-      game.players.map((p) => {
-        const seat = props.room.seats.find((s) => s.id === p.id);
-        const away = seat && seat.presence !== "connected" && !p.removed;
-        return h(
-          "div",
-          {
-            class: `sv-player${p.id === game.currentPlayerId ? " current" : ""}${p.id === props.playerId ? " me" : ""}${away ? " away" : ""}`,
-          },
-          h("span", { class: "name" }, p.id === props.playerId ? "You" : (seat?.name ?? "?")),
-          p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null,
-          h("span", { class: "count" }, p.removed ? "left" : `${p.cardCount}`),
-          away ? h("span", { class: "away-label" }, PRESENCE_LABEL[seat.presence]) : null,
-        );
-      }),
-    );
-
-    // Log: latest thing that happened
-    const lines = (props.events as SevensEvent[]).map((e) => describe(e, props)).filter(Boolean);
-    if (lines.length) this.log.textContent = lines.join(" ");
-
-    // Hand
-    const playable = new Set(priv?.playableCardIds ?? []);
-    replaceChildren(
-      this.hand,
-      (priv?.hand ?? []).map((card) => {
-        const canPlay = myTurn && playable.has(card.id);
-        const btn = cardFace(card, "button");
-        btn.dataset.card = card.id;
-        if (canPlay) btn.classList.add("playable");
-        btn.addEventListener("click", () => {
-          if (!myTurn) {
-            this.log.textContent = "Not your turn yet.";
-            return;
-          }
-          this.pending.set(this.api.act({ type: "play-card", cardId: card.id }), card.id);
-        });
-        return btn;
-      }),
-      priv?.canPass
-        ? h("button", { class: "sv-pass", onclick: () => this.api.act({ type: "pass" }) }, "Pass")
-        : null,
-    );
   }
+
+  private renderHand(priv: SevensPrivateState | null, myTurn: boolean) {
+    const hand = priv?.hand ?? [];
+    const playable = new Set(priv?.playableCardIds ?? []);
+    const keep = new Set(hand.map((c) => c.id));
+
+    for (const [id, btn] of this.cards) {
+      if (!keep.has(id)) {
+        btn.remove();
+        this.cards.delete(id);
+      }
+    }
+    if (this.selected && (!keep.has(this.selected) || !myTurn)) this.selected = null;
+
+    hand.forEach((card, i) => {
+      let btn = this.cards.get(card.id);
+      if (!btn) {
+        btn = fullCard(card);
+        btn.addEventListener("click", () => this.onCardTap(card.id));
+        this.cards.set(card.id, btn);
+      }
+      const canPlay = myTurn && playable.has(card.id);
+      btn.classList.toggle("playable", canPlay);
+      btn.classList.toggle("selected", this.selected === card.id);
+      btn.setAttribute("aria-label", `${cardLabel(card)}${canPlay ? ", playable" : ""}`);
+      btn.setAttribute("aria-pressed", String(this.selected === card.id));
+      if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
+    });
+
+    // Roving tabindex: one tab stop into the hand, arrows within it (§38).
+    const focusTarget =
+      (this.selected && this.cards.get(this.selected)) ||
+      [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
+      this.hand.firstElementChild;
+    for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+  }
+
+  private renderDock(props: GameViewProps, game: SevensPublicState, priv: SevensPrivateState | null, myTurn: boolean) {
+    const mine = game.players.find((p) => p.id === props.playerId);
+    replaceChildren(
+      this.me,
+      h("span", { class: "you" }, "Your hand"),
+      mine ? h("span", { class: "count" }, `${mine.cardCount} ${mine.cardCount === 1 ? "card" : "cards"}`) : null,
+      mine && game.dealerId === props.playerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null,
+    );
+
+    let action: Node | null = null;
+    if (game.currentPlayerId === null) {
+      action = null;
+    } else if (!myTurn) {
+      action = h("span", { class: "hint" }, "Not your turn yet");
+    } else if (priv?.canPass) {
+      action = h("button", { type: "button", class: "primary", onclick: () => this.api.act({ type: "pass" }) }, "Pass");
+    } else if (this.selected) {
+      const card = priv?.hand.find((c) => c.id === this.selected);
+      action = h("button", { type: "button", class: "primary", onclick: () => this.playSelected() }, `Play ${card ? cardShort(card) : ""}`);
+    } else {
+      action = h("span", { class: "hint" }, directPlay() ? "Click a highlighted card" : "Tap a highlighted card");
+    }
+    replaceChildren(this.action, action);
+  }
+
+  // ---- interaction --------------------------------------------------------
+
+  private onCardTap(cardId: string) {
+    const props = this.props;
+    if (!props) return;
+    const game = props.game as SevensPublicState;
+    const priv = props.private as SevensPrivateState | null;
+    if (game.currentPlayerId !== props.playerId) {
+      this.log.textContent = "Not your turn yet.";
+      return;
+    }
+    const playable = priv?.playableCardIds.includes(cardId);
+    // Mouse: straight in. Touch: select first, second tap plays. Unplayable cards
+    // still go to the server so the rejection (and its shake) comes from one place.
+    if (directPlay() || this.selected === cardId || !playable) {
+      this.selected = cardId;
+      this.playSelected();
+      return;
+    }
+    this.selected = cardId;
+    this.update(props);
+  }
+
+  private playSelected() {
+    const cardId = this.selected;
+    if (!cardId) return;
+    this.selected = null;
+    this.pending.set(this.api.act({ type: "play-card", cardId }), cardId);
+    if (this.props) this.update(this.props);
+  }
+
+  private onHandKey = (e: KeyboardEvent) => {
+    const buttons = [...this.hand.children] as HTMLButtonElement[];
+    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    const next =
+      e.key === "ArrowRight" ? buttons[i + 1]
+      : e.key === "ArrowLeft" ? buttons[i - 1]
+      : e.key === "Home" ? buttons[0]
+      : e.key === "End" ? buttons.at(-1)
+      : undefined;
+    if (!next) return;
+    e.preventDefault();
+    for (const b of buttons) b.tabIndex = b === next ? 0 : -1;
+    next.focus();
+    next.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
 }

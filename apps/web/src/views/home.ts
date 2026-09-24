@@ -1,6 +1,6 @@
 import { isValidRoomCode, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode } from "@games/protocol";
-import { h, type View } from "@games/ui";
-import { getIdentity, setDisplayName } from "../identity.ts";
+import { h, replaceChildren, type View } from "@games/ui";
+import { getIdentity, recentRooms, setDisplayName } from "../identity.ts";
 import { navigate } from "../router.ts";
 
 export function nameInput(value: string) {
@@ -75,7 +75,9 @@ export class HomeView implements View {
       if (takeName()) navigate(`/room/${c}`);
     });
 
-    this.root.append(
+    const recent = recentRooms();
+    replaceChildren(
+      this.root,
       h("h1", {}, "Party Games"),
       h("p", { class: "tagline" }, "No accounts. Just a name and a room code."),
       h("label", { class: "field" }, h("span", {}, "Name"), name),
@@ -83,6 +85,14 @@ export class HomeView implements View {
       h("div", { class: "or" }, "or join one"),
       joinForm,
       error,
+      recent.length
+        ? h(
+            "div",
+            { class: "recent" },
+            h("span", { class: "muted" }, "Pick up where you left off"),
+            recent.map((c) => h("a", { href: `/room/${c}`, class: "recent-room" }, `Rejoin ${c}`)),
+          )
+        : null,
     );
     container.append(this.root);
     (name.value ? code : name).focus();

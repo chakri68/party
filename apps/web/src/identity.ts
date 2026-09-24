@@ -53,21 +53,44 @@ export function setDisplayName(name: string): LocalIdentity {
   return next;
 }
 
-function tokens(): Record<string, string> {
+interface StoredToken {
+  token: string;
+  /** Last time we were in this room; drives the "rejoin" list on the home screen. */
+  at: number;
+}
+
+function tokens(): Record<string, StoredToken> {
   try {
-    return JSON.parse(read("tokens") ?? "{}") as Record<string, string>;
+    const raw = JSON.parse(read("tokens") ?? "{}") as Record<string, StoredToken | string>;
+    // Phase 1 stored bare strings.
+    return Object.fromEntries(
+      Object.entries(raw).map(([code, v]) => [code, typeof v === "string" ? { token: v, at: 0 } : v]),
+    );
   } catch {
     return {};
   }
 }
 
 export function getResumeToken(code: string): string | undefined {
-  return tokens()[code];
+  return tokens()[code]?.token;
 }
 
 export function setResumeToken(code: string, token: string | null) {
   const all = tokens();
   if (token === null) delete all[code];
-  else all[code] = token;
+  else all[code] = { token, at: Date.now() };
   write("tokens", JSON.stringify(all));
+}
+
+/**
+ * Rooms we still hold a seat token for, newest first. A room frees its code after
+ * 6 h idle, so older entries are almost certainly dead and not worth offering.
+ */
+export function recentRooms(maxAgeMs = 6 * 60 * 60 * 1000): string[] {
+  const now = Date.now();
+  return Object.entries(tokens())
+    .filter(([, t]) => now - t.at < maxAgeMs)
+    .sort((a, b) => b[1].at - a[1].at)
+    .map(([code]) => code)
+    .slice(0, 3);
 }

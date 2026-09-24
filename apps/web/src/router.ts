@@ -31,11 +31,25 @@ function match(path: string): { factory: Factory; params: Params } | null {
   return null;
 }
 
+export const APP_TITLE = "Party Games";
+
 function render() {
+  const found = match(location.pathname);
+  if (!found) return navigate("/", { replace: true });
   current?.destroy();
-  const found = match(location.pathname) ?? match("/")!;
+  document.title = APP_TITLE; // views may refine it
   current = found.factory(found.params);
   current.mount(outlet);
+  window.scrollTo(0, 0);
+  // Screen readers otherwise stay parked on whatever was clicked (§38). Views
+  // that focus something useful themselves (an input) win.
+  if (!outlet.contains(document.activeElement)) {
+    const main = outlet.querySelector("main");
+    if (main) {
+      main.tabIndex = -1;
+      main.focus({ preventScroll: true });
+    }
+  }
 }
 
 /** Keeps the dev-only `?as=` identity namespace across navigation. */
@@ -50,8 +64,18 @@ export function navigate(path: string, { replace = false } = {}) {
   render();
 }
 
+/** Plain same-origin <a href="/…"> links navigate in-app; no per-link wiring needed. */
+function onLinkClick(e: MouseEvent) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = (e.target as Element).closest("a");
+  if (!a || a.target || a.origin !== location.origin || a.hasAttribute("download")) return;
+  e.preventDefault();
+  if (a.pathname !== location.pathname) navigate(a.pathname);
+}
+
 export function start(el: HTMLElement) {
   outlet = el;
   window.addEventListener("popstate", render);
+  document.addEventListener("click", onLinkClick);
   render();
 }

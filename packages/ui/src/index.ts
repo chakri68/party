@@ -84,3 +84,42 @@ export function replaceChildren(el: Element, ...children: (Child | Child[])[]): 
 export function seatName(room: RoomPublicState, playerId: string | null | undefined): string {
   return room.seats.find((s) => s.id === playerId)?.name ?? "Someone";
 }
+
+// ---------------------------------------------------------------------------
+// Avatars
+// ---------------------------------------------------------------------------
+
+/** Stable hue from a seed, so a player keeps their colour across rooms. */
+export function avatarHue(seed: string): number {
+  let hash = 0;
+  for (const ch of seed) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 360;
+}
+
+/** A coloured initial. Decorative: the name next to it carries the meaning. */
+export function avatar(name: string, seed: string, size: "sm" | "md" = "md"): HTMLElement {
+  const el = h("span", { class: `avatar avatar-${size}`, "aria-hidden": "true" }, [...name][0]?.toUpperCase() ?? "?");
+  el.style.setProperty("--hue", String(avatarHue(seed)));
+  return el;
+}
+
+// ---------------------------------------------------------------------------
+// Dialog
+// ---------------------------------------------------------------------------
+
+/** Opens a modal <dialog> (focus trap and Esc for free) and removes it on close. */
+export function openDialog(title: string, ...body: (Child | Child[])[]): HTMLDialogElement {
+  const dlg = h(
+    "dialog",
+    { class: "dialog", "aria-label": title },
+    h("h2", {}, title),
+    h("div", { class: "dialog-body" }, ...body),
+    h("form", { method: "dialog" }, h("button", { class: "primary" }, "Got it")),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  // Click on the backdrop closes it too.
+  dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+  document.body.append(dlg);
+  dlg.showModal();
+  return dlg;
+}

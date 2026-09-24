@@ -8,8 +8,8 @@ import type { RoomClient, RoomUpdate } from "@games/room-client";
 import { h, replaceChildren } from "@games/ui";
 
 const STYLE = `
-.dbg-toggle { position: fixed; right: 12px; bottom: 12px; z-index: 1000; min-height: 36px; padding: 0 10px; opacity: .6; }
-.dbg { position: fixed; inset: auto 12px 56px auto; z-index: 1000; width: min(420px, calc(100vw - 24px));
+.dbg-toggle { position: fixed; left: 50%; top: 6px; transform: translateX(-50%); z-index: 1000; min-height: 32px; padding: 0 10px; opacity: .5; }
+.dbg { position: fixed; inset: 44px auto auto 50%; transform: translateX(-50%); z-index: 1000; width: min(420px, calc(100vw - 24px));
   max-height: 70dvh; overflow: auto; padding: 12px; border-radius: 12px; background: #0b0f0dee;
   border: 1px solid #fff3; font: 12px/1.4 ui-monospace, monospace; display: grid; gap: 10px; }
 .dbg[hidden] { display: none; }

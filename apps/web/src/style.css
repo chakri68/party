@@ -24,6 +24,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Author `display` rules otherwise beat the attribute, and hidden things show. */
+[hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; background: var(--bg); }
 #app { min-height: 100dvh; }
 
@@ -115,22 +117,54 @@ input {
   gap: 14px;
 }
 
+/* Avatars: a coloured initial; hue comes from the player's seed. */
+.avatar {
+  --hue: 200;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: hsl(var(--hue) 55% 42%);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+}
+.avatar-md { width: 34px; height: 34px; font-size: 0.95rem; }
+.avatar-sm { width: 24px; height: 24px; font-size: 0.75rem; }
+.avatar.ghost { background: none; border: 2px dashed rgb(255 255 255 / 0.2); }
+
 /* Lobby */
 .lobby { max-width: 480px; width: 100%; margin: 0 auto; display: grid; gap: 14px; }
-.lobby h2 { margin: 8px 0 0; }
 .lobby p { margin: 0; }
-.big-code { display: grid; justify-items: center; gap: 2px; padding: 12px; }
-.big-code strong { font-size: 3rem; letter-spacing: 0.25em; line-height: 1; }
+.invite {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.big-code { font-size: 3.2rem; letter-spacing: 0.22em; line-height: 1; margin-right: -0.22em; }
+.invite-url { font-size: 0.85rem; color: var(--muted); word-break: break-all; text-align: center; }
+.invite button { margin-top: 6px; min-width: 180px; }
+.game-card { display: flex; align-items: center; gap: 12px; }
+.game-card h2 { margin: 0; font-size: 1.2rem; }
+.game-card p { font-size: 0.9rem; }
+.game-card .link { margin-left: auto; }
+.game-icon { font-size: 2.4rem; line-height: 1; }
+.seats-title { margin: 4px 0 -6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .seats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .seats li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 12px;
   border-radius: 10px;
   background: var(--surface);
 }
 .seats li.away { opacity: 0.55; }
+.seats li.empty { background: none; border: 1px dashed rgb(255 255 255 / 0.12); }
 .seats .name { font-weight: 600; }
 .seats .tag { font-size: 0.7rem; padding: 1px 6px; border-radius: 6px; background: rgb(255 255 255 / 0.12); }
 .seats .ready { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
@@ -138,18 +172,58 @@ input {
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .actions > button { flex: 1; }
 .actions > button.link { flex: 0 0 100%; }
+.actions .waiting { flex: 1; text-align: center; }
 
 /* Results */
 .results {
-  padding: 16px;
+  padding: 18px 16px;
   border-radius: var(--radius);
   background: var(--surface);
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  justify-items: center;
 }
-.results h2 { margin: 0; text-align: center; font-size: 1.6rem; }
-.standings { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
-.standings li span:last-child { float: right; }
+.results.won { background: linear-gradient(160deg, rgb(245 193 75 / 0.22), var(--surface) 60%); }
+.results h2 { margin: 0; font-size: 1.7rem; }
+.winner-badge { position: relative; }
+.winner-badge .avatar { width: 64px; height: 64px; font-size: 1.8rem; }
+.winner-badge .crown { position: absolute; top: -18px; left: 50%; transform: translateX(-50%) rotate(-8deg); font-size: 1.6rem; }
+.standings { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 100%; max-width: 360px; }
+.standings li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; }
+.standings li.me { background: rgb(255 255 255 / 0.06); }
+.standings .place { width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.standings .name { flex: 1; font-weight: 600; }
+.results .actions { width: 100%; max-width: 360px; }
+
+/* Dialog */
+.dialog {
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+.dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+.dialog h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.dialog form { margin-top: 14px; display: flex; justify-content: flex-end; }
+.rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+
+/* Home: rejoin */
+.recent { display: grid; gap: 6px; margin-top: 12px; }
+.recent .muted { font-size: 0.85rem; }
+.recent-room {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
 
 /* Toast */
 .toast {

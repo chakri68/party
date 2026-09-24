@@ -8,10 +8,10 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { h, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { avatar, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
-import { navigate } from "../router.ts";
+import { APP_TITLE, navigate } from "../router.ts";
 import { nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
@@ -59,6 +59,7 @@ export class RoomView implements View {
       // Tidy lower-case links to the canonical URL.
       history.replaceState(null, "", location.pathname.replace(/[^/]+$/, this.code) + location.search);
     }
+    document.title = `${this.code} · ${APP_TITLE}`;
     this.renderHeader();
     if (getIdentity().displayName) this.connect();
     else this.askName();
@@ -193,7 +194,7 @@ export class RoomView implements View {
     const status = this.client?.status;
     replaceChildren(
       this.header,
-      h("a", { href: "/", class: "brand", onclick: (e: Event) => (e.preventDefault(), navigate("/")) }, "Party Games"),
+      h("a", { href: "/", class: "brand" }, "Party Games"),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
@@ -313,40 +314,66 @@ export class RoomView implements View {
     const entry = games[room.gameId];
     const isHost = room.hostId === me;
     const mySeat = room.seats.find((s) => s.id === me);
-    const connected = room.seats.filter((s) => s.presence === "connected").length;
+    const seats = room.seats.filter((s) => s.presence !== "left");
+    const connected = seats.filter((s) => s.presence === "connected").length;
     const min = entry?.manifest.minPlayers ?? 2;
+    const max = entry?.manifest.maxPlayers ?? 8;
     const url = `${location.origin}/room/${room.code}`;
 
-    const share = h("button", { type: "button" }, "Copy invite link");
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
+    const copyLabel = canShare ? "Share invite" : "Copy link";
+    const share = h("button", { type: "button", class: "primary" }, copyLabel);
     share.addEventListener("click", async () => {
-      const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
       try {
-        if (nav.share && matchMedia("(pointer: coarse)").matches) {
-          await nav.share({ title: "Join my game", text: `Room ${room.code}`, url });
+        if (canShare) {
+          await nav.share!({ title: "Join my game", text: `Join room ${room.code}`, url });
         } else {
           await navigator.clipboard.writeText(url);
-          this.showToast("Link copied.");
+          share.textContent = "Copied ✓";
+          setTimeout(() => (share.textContent = copyLabel), 1500);
         }
       } catch {
-        // User dismissed the share sheet; nothing to do.
+        // Share sheet dismissed, or clipboard blocked: the link is on screen anyway.
       }
     });
+
+    const rules = entry
+      ? h("button", {
+          type: "button",
+          class: "link",
+          onclick: () => openDialog(`How to play ${entry.manifest.name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
+        }, "Rules")
+      : null;
 
     return h(
       "section",
       { class: "lobby" },
-      h("div", { class: "big-code" }, h("span", { class: "muted" }, "Room code"), h("strong", {}, room.code)),
-      share,
-      h("h2", {}, entry ? `${entry.manifest.icon} ${entry.manifest.name}` : room.gameId),
-      entry ? h("p", { class: "muted" }, entry.manifest.description) : null,
+      h(
+        "div",
+        { class: "invite" },
+        h("span", { class: "muted" }, "Room code"),
+        h("strong", { class: "big-code", "aria-label": room.code.split("").join(" ") }, room.code),
+        h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
+        share,
+      ),
+      h(
+        "div",
+        { class: "game-card" },
+        h("span", { class: "game-icon", "aria-hidden": "true" }, entry?.manifest.icon ?? "?"),
+        h("div", {}, h("h2", {}, entry?.manifest.name ?? room.gameId), entry ? h("p", { class: "muted" }, entry.manifest.description) : null),
+        rules,
+      ),
+      h("h3", { class: "seats-title" }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
       h(
         "ul",
         { class: "seats" },
-        room.seats.filter((s) => s.presence !== "left").map((s) =>
+        seats.map((s) =>
           h(
             "li",
             { class: s.presence !== "connected" ? "away" : "" },
-            h("span", { class: "name" }, s.name, s.id === me ? " (you)" : ""),
+            avatar(s.name, s.avatarSeed),
+            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
             h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? "ready ✓" : "not ready"),
             isHost && s.id !== me
@@ -359,14 +386,18 @@ export class RoomView implements View {
               : null,
           ),
         ),
+        // Empty seats up to the minimum make "how many more?" obvious at a glance.
+        Array.from({ length: Math.max(0, min - seats.length) }, () =>
+          h("li", { class: "empty" }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
+        ),
       ),
       h(
         "div",
         { class: "actions" },
         h(
           "button",
-          { type: "button", onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
-          mySeat?.ready ? "Not ready" : "Ready",
+          { type: "button", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
+          mySeat?.ready ? "Not ready" : "I'm ready",
         ),
         isHost
           ? h(
@@ -374,7 +405,7 @@ export class RoomView implements View {
               { type: "button", class: "primary", disabled: connected < min, onclick: () => this.client?.send({ type: "start-game" }) },
               connected < min ? `Need ${min - connected} more` : "Start game",
             )
-          : h("p", { class: "muted" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
+          : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
       h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
     );
@@ -386,24 +417,27 @@ export class RoomView implements View {
     const mySeat = room.seats.find((s) => s.id === me);
     const winner = result?.winnerIds[0];
     const readyCount = room.seats.filter((s) => s.ready).length;
+    const winnerSeat = room.seats.find((s) => s.id === winner);
 
     return h(
       "section",
-      { class: "results" },
-      h("h2", {}, winner ? (winner === me ? "You win! 🎉" : `${seatName(room, winner)} wins`) : "Game over"),
+      { class: `results${winner === me ? " won" : ""}` },
+      winnerSeat ? h("div", { class: "winner-badge" }, avatar(winnerSeat.name, winnerSeat.avatarSeed), h("span", { class: "crown", "aria-hidden": "true" }, "👑")) : null,
+      h("h2", {}, winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over"),
       h(
         "ol",
         { class: "standings" },
-        (result?.standings ?? []).map((s) =>
-          h(
+        (result?.standings ?? []).map((s, i) => {
+          const seat = room.seats.find((x) => x.id === s.playerId);
+          return h(
             "li",
-            {},
-            h("span", {}, s.playerId === me ? "You" : seatName(room, s.playerId)),
-            h("span", { class: "muted" }, room.seats.find((x) => x.id === s.playerId)?.presence === "left"
-              ? "left"
-              : `${s.value} ${s.value === 1 ? "card" : "cards"}`),
-          ),
-        ),
+            { class: s.playerId === me ? "me" : "" },
+            h("span", { class: "place" }, String(i + 1)),
+            seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
+            h("span", { class: "name" }, s.playerId === me ? "You" : seatName(room, s.playerId)),
+            h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`),
+          );
+        }),
       ),
       h(
         "div",
@@ -415,7 +449,7 @@ export class RoomView implements View {
             ]
           : h(
               "button",
-              { type: "button", class: mySeat?.ready ? "" : "primary", onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
+              { type: "button", class: mySeat?.ready ? "" : "primary", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
               mySeat?.ready ? "Waiting for host…" : "Play again",
             ),
         h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
