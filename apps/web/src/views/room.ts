@@ -14,6 +14,8 @@ import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../
 import { navigate } from "../router.ts";
 import { nameInput } from "./home.ts";
 
+const STUCK_AFTER_MS = 15_000;
+
 const FATAL_COPY: Record<string, string> = {
   "room-not-found": "That room doesn't exist (or everyone left and it closed).",
   "room-full": "This room is full.",
@@ -39,6 +41,10 @@ export class RoomView implements View {
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   /** Re-checks the nudge/skip thresholds while a game runs (§12.2). */
   private ticker: ReturnType<typeof setInterval> | undefined;
+  /** Fires if we've been trying to reconnect for too long (§36). */
+  private stuckTimer: ReturnType<typeof setTimeout> | undefined;
+  private stuck = false;
+  private detachDebug: (() => void) | null = null;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -62,7 +68,9 @@ export class RoomView implements View {
 
   destroy() {
     clearTimeout(this.toastTimer);
+    clearTimeout(this.stuckTimer);
     clearInterval(this.ticker);
+    this.detachDebug?.();
     this.client?.close();
     this.gameView?.destroy();
     this.root.remove();
@@ -101,10 +109,26 @@ export class RoomView implements View {
     });
     this.client = client;
 
-    client.on("status", () => this.renderHeader());
+    client.on("status", (status) => {
+      this.renderHeader();
+      if (status === "open") {
+        clearTimeout(this.stuckTimer);
+        this.stuckTimer = undefined;
+        if (this.stuck) {
+          this.stuck = false;
+          this.render();
+        }
+      } else if (status !== "closed") {
+        this.stuckTimer ??= setTimeout(() => this.showStuck(), STUCK_AFTER_MS);
+      }
+    });
     client.on("welcome", ({ resumeToken }) => setResumeToken(this.code, resumeToken));
     client.on("update", (u) => {
+      const prev = this.last;
       this.last = u;
+      if (prev && prev.room.hostId !== client.playerId && u.room.hostId === client.playerId) {
+        this.showToast("You're the host now.");
+      }
       this.render();
     });
     client.on("rejected", ({ clientActionId, message }) => this.gameView?.rejected(clientActionId, message));
@@ -118,8 +142,39 @@ export class RoomView implements View {
     client.on("fatal", ({ code, message }) => {
       // A seat that no longer exists isn't worth resuming.
       if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
-      this.showMessage(FATAL_COPY[code] ?? message, code === "replaced-by-new-connection");
+      this.showMessage(FATAL_COPY[code] ?? message, code);
     });
+
+    // Dev-only panel (§41). The DEV check is static, so production builds drop
+    // the import entirely.
+    if (import.meta.env.DEV) {
+      void import("../debug.ts").then((m) => {
+        if (this.client === client) this.detachDebug = m.attachDebug(client, () => this.last);
+      });
+    }
+  }
+
+  private showStuck() {
+    this.stuck = true;
+    this.dropGameView();
+    replaceChildren(
+      this.body,
+      h(
+        "section",
+        { class: "message" },
+        h("p", {}, "Couldn't reconnect to the room."),
+        h("p", { class: "muted" }, "Still trying in the background. Your seat is kept for a minute."),
+        h("button", { type: "button", class: "primary", onclick: () => this.client?.reconnect() }, "Try again"),
+        h("button", {
+          type: "button",
+          onclick: () => {
+            this.client?.close();
+            setResumeToken(this.code, null);
+            navigate("/");
+          },
+        }, "Leave room"),
+      ),
+    );
   }
 
   private leave() {
@@ -149,7 +204,7 @@ export class RoomView implements View {
   private render() {
     const u = this.last;
     const me = this.client?.playerId;
-    if (!u || !me) return;
+    if (!u || !me || this.stuck) return;
     const room = u.room;
 
     if (room.phase === "playing") {
@@ -368,7 +423,7 @@ export class RoomView implements View {
     );
   }
 
-  private showMessage(message: string, useHere = false) {
+  private showMessage(message: string, code?: string) {
     this.dropGameView();
     replaceChildren(
       this.body,
@@ -376,8 +431,11 @@ export class RoomView implements View {
         "section",
         { class: "message" },
         h("p", {}, message),
-        useHere
+        code === "replaced-by-new-connection"
           ? h("button", { type: "button", class: "primary", onclick: () => (this.client?.reconnect(), replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…"))) }, "Use here")
+          : null,
+        code === "protocol-mismatch"
+          ? h("button", { type: "button", class: "primary", onclick: () => location.reload() }, "Refresh")
           : null,
         h("button", { type: "button", onclick: () => navigate("/") }, "Home"),
       ),

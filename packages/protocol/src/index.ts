@@ -91,7 +91,12 @@ export type ClientMessage =
   | { type: "remove-player"; playerId: string }
   | { type: "return-to-lobby" }
   | { type: "leave" }
-  | { type: "ping"; timestamp: number };
+  | { type: "ping"; timestamp: number }
+  /**
+   * Dev only (§41), refused unless the server runs with DEV_TOOLS=1. Starts a
+   * game from a seed (reproducible deal) or an exact deck order.
+   */
+  | { type: "debug-start"; seed?: number; deck?: string[] };
 
 export type ServerMessage =
   | { type: "welcome"; playerId: string; resumeToken: string }
@@ -125,7 +130,8 @@ export type ErrorCode =
   | "removed"
   | "too-early"
   | "rate-limited"
-  | "not-available";
+  | "not-available"
+  | "server-error";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
@@ -147,8 +153,12 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
 const isStr = (v: unknown, max = 256): v is string => typeof v === "string" && v.length <= max;
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
+/** Nothing legitimate comes close; this just stops a client from making us parse megabytes. */
+export const MAX_MESSAGE_LENGTH = 8192;
+
 /** Parses untrusted input into a ClientMessage, or null. Game payloads stay `unknown`. */
 export function parseClientMessage(raw: string): ClientMessage | null {
+  if (raw.length > MAX_MESSAGE_LENGTH) return null;
   let m: unknown;
   try {
     m = JSON.parse(raw);
@@ -184,6 +194,17 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isStr(m.playerId, 64) ? { type: m.type, playerId: m.playerId } : null;
     case "ping":
       return isNum(m.timestamp) ? { type: "ping", timestamp: m.timestamp } : null;
+    case "debug-start": {
+      if (m.seed !== undefined && !isNum(m.seed)) return null;
+      if (m.deck !== undefined && !(Array.isArray(m.deck) && m.deck.length <= 256 && m.deck.every((c) => isStr(c, 16)))) {
+        return null;
+      }
+      return {
+        type: "debug-start",
+        ...(m.seed !== undefined && { seed: m.seed as number }),
+        ...(m.deck !== undefined && { deck: m.deck as string[] }),
+      };
+    }
     case "start-game":
     case "nudge":
     case "return-to-lobby":

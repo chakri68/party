@@ -1,4 +1,4 @@
-import { seededRandomInt } from "@games/game-core";
+import { seededRandomInt, type AnyGameDefinition } from "@games/game-core";
 import {
   GRACE_MS,
   NUDGE_AFTER_MS,
@@ -8,7 +8,7 @@ import {
   type ServerMessage,
 } from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
-import type { SevensPrivateState, SevensPublicState } from "@games/sevens/shared";
+import { makeDeck, type SevensPrivateState, type SevensPublicState } from "@games/sevens/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CLEANUP_AFTER_MS, RoomRuntime, type Conn, type ConnState, type RoomHost } from "../src/runtime.ts";
 
@@ -47,14 +47,25 @@ class World {
   alarm: number | null = null;
   conns: FakeConn[] = [];
   clock = 1_000_000;
+  devTools = false;
+  errors: unknown[] = [];
   private nextId = 0;
   private rng = seededRandomInt(42);
+
+  /** Makes the next storage write throw, as a flaky disk would. */
+  failNextPut = false;
 
   host(): RoomHost {
     return {
       storage: {
         get: async <T>(k: string) => structuredClone(this.store.get(k)) as T | undefined,
-        put: async (k, v) => void this.store.set(k, structuredClone(v)),
+        put: async (k, v) => {
+          if (this.failNextPut) {
+            this.failNextPut = false;
+            throw new Error("storage write failed");
+          }
+          this.store.set(k, structuredClone(v));
+        },
         deleteAll: async () => this.store.clear(),
         setAlarm: async (at) => void (this.alarm = at),
         deleteAlarm: async () => void (this.alarm = null),
@@ -64,11 +75,13 @@ class World {
       randomInt: (max) => this.rng(max),
       // Unique in the first 12 chars too: seat ids are token prefixes.
       randomToken: () => `t${(this.nextId++).toString().padStart(4, "0")}-fake-token-xyz`,
+      devTools: this.devTools,
+      logError: (err) => void this.errors.push(err),
     };
   }
 
-  runtime() {
-    return new RoomRuntime("K7DX", this.host(), { sevens: sevensGame }, "sevens");
+  runtime(games: Record<string, AnyGameDefinition> = { sevens: sevensGame }) {
+    return new RoomRuntime("K7DX", this.host(), games, "sevens");
   }
 
   async connect(room: RoomRuntime): Promise<FakeConn> {
@@ -548,5 +561,109 @@ describe("kicking from the lobby", () => {
     expect(b.last("error")).toMatchObject({ code: "removed", fatal: true });
     expect(b.closed).not.toBeNull();
     expect(roomOf(a).seats.map((s) => s.name)).toEqual(["Ana"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4: hardening
+// ---------------------------------------------------------------------------
+
+describe("hardening", () => {
+  async function setup(opts: { devTools?: boolean; games?: Record<string, AnyGameDefinition> } = {}) {
+    const world = new World();
+    world.devTools = opts.devTools ?? false;
+    const room = world.runtime(opts.games);
+    await room.load();
+    await room.claim();
+    const ps: FakeConn[] = [];
+    for (const n of ["Ana", "Ben", "Cy", "Dee"]) ps.push(await join(world, room, n));
+    return { world, room, ps };
+  }
+
+  it("refuses oversized messages without parsing them", async () => {
+    const { room, ps } = await setup();
+    await room.onMessage(ps[0]!, JSON.stringify({ type: "join", name: "x".repeat(10_000), avatarSeed: "a" }));
+    expect(ps[0]!.last("error")?.code).toBe("bad-message");
+  });
+
+  it("rolls back a half-applied transition when a game throws, and keeps going", async () => {
+    let explode = false;
+    const flaky: AnyGameDefinition = {
+      ...sevensGame,
+      // Runs after the runtime has already swapped in the new game state.
+      getAwaitedPlayerIds: (st) => {
+        if (explode) throw new Error("kaboom");
+        return sevensGame.getAwaitedPlayerIds(st);
+      },
+    };
+    const { world, room, ps } = await setup({ games: { sevens: flaky } });
+    await send(room, ps[0]!, { type: "start-game" });
+
+    const cur = ps.find((p) => p.last("welcome")!.playerId === gameOf(ps[0]!).currentPlayerId)!;
+    const card = privOf(cur).playableCardIds[0]!;
+    const version = cur.last("update")!.stateVersion;
+    explode = true;
+    await send(room, cur, { type: "game-action", clientActionId: "a", action: { type: "play-card", cardId: card } });
+    expect(cur.last("error")).toMatchObject({ code: "server-error", fatal: false });
+    expect(cur.last("error")!.message).not.toContain("kaboom");
+    expect(world.errors).toHaveLength(1);
+    expect(cur.last("update")!.stateVersion).toBe(version); // nothing was broadcast
+
+    // The play never happened: retrying it works.
+    explode = false;
+    await send(room, cur, { type: "game-action", clientActionId: "b", action: { type: "play-card", cardId: card } });
+    expect(cur.last("update")!.events[0]).toMatchObject({ type: "card-played", card: { id: card } });
+  });
+
+  it("a failed alarm rolls back and rethrows so the DO retries it", async () => {
+    const { world, room, ps } = await setup();
+    await world.disconnect(room, ps[3]!);
+    world.clock += GRACE_MS;
+    world.failNextPut = true;
+    await expect(room.onAlarm()).rejects.toThrow("storage write failed");
+    // Seat is still there (rolled back), and the retry succeeds.
+    await room.onAlarm();
+    expect(roomOf(ps[0]!).seats.map((s) => s.name)).toEqual(["Ana", "Ben", "Cy"]);
+  });
+
+  describe("debug-start (§41)", () => {
+    it("is refused unless the server runs with dev tools", async () => {
+      const { room, ps } = await setup();
+      await send(room, ps[0]!, { type: "debug-start", seed: 1 });
+      expect(ps[0]!.last("error")?.code).toBe("not-available");
+      expect(roomOf(ps[0]!).phase).toBe("lobby");
+    });
+
+    it("is host-only", async () => {
+      const { room, ps } = await setup({ devTools: true });
+      await send(room, ps[1]!, { type: "debug-start", seed: 1 });
+      expect(ps[1]!.last("error")?.code).toBe("not-host");
+    });
+
+    it("a seed reproduces the exact deal", async () => {
+      const deal = async () => {
+        const { room, ps } = await setup({ devTools: true });
+        await send(room, ps[0]!, { type: "debug-start", seed: 1234 });
+        return { dealer: gameOf(ps[0]!).dealerId, hands: ps.map((p) => privOf(p).hand.map((c) => c.id)) };
+      };
+      expect(await deal()).toEqual(await deal());
+    });
+
+    it("deals an exact deck order round-robin", async () => {
+      const deck = makeDeck("high").map((c) => c.id).reverse();
+      const { room, ps } = await setup({ devTools: true });
+      await send(room, ps[0]!, { type: "debug-start", deck });
+      const hand = new Set(privOf(ps[0]!).hand.map((c) => c.id));
+      const offset = deck.findIndex((id) => hand.has(id));
+      expect([...hand].sort()).toEqual(deck.filter((_, i) => i % 4 === offset % 4).sort());
+    });
+
+    it("explains a bad deck and stays in the lobby", async () => {
+      const { room, ps } = await setup({ devTools: true });
+      await send(room, ps[0]!, { type: "debug-start", deck: ["hearts-7", "hearts-7"] });
+      expect(ps[0]!.last("error")).toMatchObject({ code: "bad-message" });
+      expect(ps[0]!.last("error")!.message).toContain("52");
+      expect(roomOf(ps[0]!).phase).toBe("lobby");
+    });
   });
 });

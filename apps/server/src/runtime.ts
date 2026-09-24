@@ -1,7 +1,14 @@
 // The room runtime (§4, §10–12, §20, §23). Transport- and storage-agnostic so it
 // can be tested with fakes; `index.ts` adapts it to PartyServer.
 
-import type { AnyGameDefinition, GameContext, GameEventEnvelope, GameTransition } from "@games/game-core";
+import {
+  seededRandomInt,
+  type AnyGameDefinition,
+  type CreateGameOptions,
+  type GameContext,
+  type GameEventEnvelope,
+  type GameTransition,
+} from "@games/game-core";
 import {
   FATAL_ERRORS,
   GRACE_MS,
@@ -52,6 +59,10 @@ export interface RoomHost {
   randomInt(maxExclusive: number): number;
   /** ≥128 bits, URL-safe. */
   randomToken(): string;
+  /** §41 debug messages. Only ever true under `wrangler dev`. */
+  devTools: boolean;
+  /** Where unexpected errors go. Never to clients. */
+  logError(err: unknown): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +134,15 @@ export class RoomRuntime {
     return next;
   }
 
+  /**
+   * A handler that throws may have half-mutated `data`. Storage only ever holds
+   * fully committed transitions, so reloading from it is a free rollback.
+   */
+  private async recover(err: unknown): Promise<void> {
+    this.host.logError(err);
+    this.data = (await this.host.storage.get<RoomData>(STORAGE_KEY)) ?? null;
+  }
+
   // ---- lifecycle ----------------------------------------------------------
 
   load(): Promise<void> {
@@ -192,61 +212,83 @@ export class RoomRuntime {
       if (!this.data) return this.fatal(conn, "room-not-found", "That room doesn't exist.");
       if (msg.type === "hello") return this.onHello(conn, msg.protocolVersion);
       if (!conn.state?.hello) return this.fatal(conn, "protocol-mismatch", "Please refresh the page.");
-      if (msg.type === "join") return this.onJoin(conn, msg);
 
-      const seat = this.seatOf(conn);
-      if (!seat) return this.error(conn, "not-joined", "Join the room first.");
-      await this.onSeatedMessage(conn, seat, msg);
+      try {
+        if (msg.type === "join") return await this.onJoin(conn, msg);
+        const seat = this.seatOf(conn);
+        if (!seat) return this.error(conn, "not-joined", "Join the room first.");
+        await this.onSeatedMessage(conn, seat, msg);
+      } catch (err) {
+        await this.recover(err);
+        this.error(conn, "server-error", "Something went wrong on our end. Try that again.");
+      }
     });
   }
 
   onClose(conn: Conn): Promise<void> {
     return this.run(async () => {
-      if (!this.data) return;
-      const playerId = conn.state?.playerId;
-      const others = this.liveConns().filter((c) => c.id !== conn.id);
-      const seat = this.data.seats.find((s) => s.id === playerId);
-
-      // A replaced tab closing mustn't mark the player as gone.
-      if (seat && seat.presence === "connected" && !others.some((c) => c.state?.playerId === seat.id)) {
-        seat.presence = "reconnecting";
-        this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
-        const events = this.applyGameHook((def, st) => def.onPlayerDisconnected?.(st, seat.id, this.ctx()));
-        await this.commit(events, others);
-      }
-      if (!others.some((c) => c.state?.playerId)) {
-        this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
-        await this.persist();
+      try {
+        await this.handleClose(conn);
+      } catch (err) {
+        await this.recover(err);
       }
     });
   }
 
+  private async handleClose(conn: Conn): Promise<void> {
+    if (!this.data) return;
+    const playerId = conn.state?.playerId;
+    const others = this.liveConns().filter((c) => c.id !== conn.id);
+    const seat = this.data.seats.find((s) => s.id === playerId);
+
+    // A replaced tab closing mustn't mark the player as gone.
+    if (seat && seat.presence === "connected" && !others.some((c) => c.state?.playerId === seat.id)) {
+      seat.presence = "reconnecting";
+      this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
+      const events = this.applyGameHook((def, st) => def.onPlayerDisconnected?.(st, seat.id, this.ctx()));
+      await this.commit(events, others);
+    }
+    if (!others.some((c) => c.state?.playerId)) {
+      this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
+      await this.persist();
+    }
+  }
+
   onAlarm(): Promise<void> {
     return this.run(async () => {
-      if (!this.data) return;
-      const now = this.host.now();
-      const due = Object.entries(this.data.timers)
-        .filter(([, at]) => at <= now)
-        .sort((a, b) => a[1] - b[1]);
-      const events: GameEventEnvelope<unknown>[] = [];
-      for (const [key] of due) {
-        delete this.data.timers[key];
-        if (key === CLEANUP_TIMER) {
-          // Nobody's been here for hours: forget the room and free its code.
-          this.data = null;
-          await this.host.storage.deleteAll();
-          return;
-        }
-        if (key.startsWith(GRACE_TIMER_PREFIX)) {
-          this.onGraceExpired(key.slice(GRACE_TIMER_PREFIX.length));
-        }
-        if (key.startsWith(GAME_TIMER_PREFIX)) {
-          const timerId = key.slice(GAME_TIMER_PREFIX.length);
-          events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
-        }
+      try {
+        await this.handleAlarm();
+      } catch (err) {
+        await this.recover(err);
+        throw err; // Durable Objects retry failed alarms with backoff.
       }
-      await this.commit(events);
     });
+  }
+
+  private async handleAlarm(): Promise<void> {
+    if (!this.data) return;
+    const now = this.host.now();
+    const due = Object.entries(this.data.timers)
+      .filter(([, at]) => at <= now)
+      .sort((a, b) => a[1] - b[1]);
+    const events: GameEventEnvelope<unknown>[] = [];
+    for (const [key] of due) {
+      delete this.data.timers[key];
+      if (key === CLEANUP_TIMER) {
+        // Nobody's been here for hours: forget the room and free its code.
+        this.data = null;
+        await this.host.storage.deleteAll();
+        return;
+      }
+      if (key.startsWith(GRACE_TIMER_PREFIX)) {
+        this.onGraceExpired(key.slice(GRACE_TIMER_PREFIX.length));
+      }
+      if (key.startsWith(GAME_TIMER_PREFIX)) {
+        const timerId = key.slice(GAME_TIMER_PREFIX.length);
+        events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
+      }
+    }
+    await this.commit(events);
   }
 
   // ---- messages -----------------------------------------------------------
@@ -437,6 +479,11 @@ export class RoomRuntime {
         return this.commit(this.removeSeat(target));
       }
 
+      case "debug-start":
+        if (!this.host.devTools) return this.error(conn, "not-available", "Debug tools are off.");
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        return this.startGame(conn, { seed: msg.seed, deck: msg.deck });
+
       case "hello":
       case "join":
       case "ping":
@@ -444,7 +491,7 @@ export class RoomRuntime {
     }
   }
 
-  private async startGame(conn: Conn): Promise<void> {
+  private async startGame(conn: Conn, debug?: { seed?: number; deck?: string[] }): Promise<void> {
     const data = this.data!;
     const def = this.games[data.gameId]!;
 
@@ -458,19 +505,32 @@ export class RoomRuntime {
       return this.commit([]);
     }
 
-    const ctx = this.ctx();
-    if (data.match.roundNumber === 0) data.match.nextDealerSeat = ctx.randomInt(n);
+    // A debug seed makes the whole deal reproducible, dealer included.
+    const ctx = debug?.seed === undefined
+      ? this.ctx()
+      : { now: this.host.now(), randomInt: seededRandomInt(debug.seed) };
+    if (data.match.roundNumber === 0 || debug?.seed !== undefined) data.match.nextDealerSeat = ctx.randomInt(n);
     const dealerSeat = data.match.nextDealerSeat % n;
     data.match.roundNumber++;
     data.match.nextDealerSeat = (dealerSeat + 1) % n;
 
     const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
-    const transition = def.createGame(
-      data.seats.map((s) => ({ id: s.id })),
-      settings,
-      { roundNumber: data.match.roundNumber, dealerSeat },
-      ctx,
-    );
+    const options: CreateGameOptions | undefined = debug?.deck ? { deck: debug.deck } : undefined;
+    let transition: GameTransition<unknown, unknown>;
+    try {
+      transition = def.createGame(
+        data.seats.map((s) => ({ id: s.id })),
+        settings,
+        { roundNumber: data.match.roundNumber, dealerSeat },
+        ctx,
+        options,
+      );
+    } catch (err) {
+      if (!debug) throw err;
+      // A bad debug deck is the developer's typo, not a server fault; say what's wrong.
+      await this.recover(err);
+      return this.error(conn, "bad-message", err instanceof Error ? err.message : "Bad debug deck.");
+    }
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
     this.resetReady();

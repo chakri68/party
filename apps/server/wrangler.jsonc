@@ -10,6 +10,8 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/parties/*"]
   },
+  // Dev-only debug messages (§41). `pnpm dev` passes --var DEV_TOOLS:1; deploys never do.
+  "vars": { "DEV_TOOLS": "0" },
   "durable_objects": {
     "bindings": [{ "name": "Room", "class_name": "Room" }]
   },

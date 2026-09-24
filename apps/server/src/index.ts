@@ -60,6 +60,8 @@ export class Room extends Server<Env> {
         now: () => Date.now(),
         randomInt: secureRandomInt,
         randomToken,
+        devTools: this.env.DEV_TOOLS === "1",
+        logError: (err) => console.error(`room ${this.name}:`, err),
       };
       this.#runtime = new RoomRuntime(this.name, host, GAMES, "sevens");
     }

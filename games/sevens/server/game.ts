@@ -17,6 +17,7 @@ import {
 } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
+  type AcePosition,
   type Card,
   type SevensAction,
   type SevensEvent,
@@ -118,6 +119,19 @@ function settle(state: State, events: Events, includeCurrent = false): Transitio
 // Validation
 // ---------------------------------------------------------------------------
 
+/**
+ * Injected decks (tests, dev tools) may be Cards or card ids. Either way they
+ * must be the full 52: a short deck would break the no-deadlock property.
+ */
+function normalizeDeck(input: unknown[], acePosition: AcePosition): Card[] {
+  const cards = input.map((c) => (typeof c === "string" ? parseCardId(c, acePosition) : (c as Card)));
+  const ids = new Set(cards.map((c) => c?.id));
+  if (cards.length !== 52 || ids.size !== 52 || cards.some((c) => !c || !parseCardId(c.id, acePosition))) {
+    throw new Error("A deck must be exactly the 52 cards, each once (e.g. \"hearts-7\").");
+  }
+  return cards as Card[];
+}
+
 function parseSettings(input: unknown): SevensSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
@@ -164,7 +178,9 @@ export const sevensGame: GameDefinition<
     if (n < sevensManifest.minPlayers || n > sevensManifest.maxPlayers) {
       throw new Error(`sevens: needs ${sevensManifest.minPlayers}–${sevensManifest.maxPlayers} players, got ${n}`);
     }
-    const deck = (options?.deck as Card[] | undefined) ?? shuffle(makeDeck(settings.acePosition), ctx.randomInt);
+    const deck = options?.deck
+      ? normalizeDeck(options.deck, settings.acePosition)
+      : shuffle(makeDeck(settings.acePosition), ctx.randomInt);
     const dealerIndex = ((match.dealerSeat % n) + n) % n;
 
     // Deal clockwise, starting left of the dealer.

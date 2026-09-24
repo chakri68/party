@@ -42,6 +42,14 @@ type Listener<T> = (payload: T) => void;
 
 const PING_EVERY_MS = 20_000;
 
+/** Dev-only network misbehaviour (§41). Zeroes are a no-op, so prod never pays for it. */
+export interface NetworkSimulation {
+  /** Added to every message, both directions. Order is preserved. */
+  latencyMs: number;
+  /** Fraction of incoming `update`s silently dropped. The next one self-heals. */
+  dropRate: number;
+}
+
 /**
  * One room connection. Replays hello + join on every reconnect, drops stale
  * updates by stateVersion (§19) and stops reconnecting after fatal errors.
@@ -51,6 +59,7 @@ export class RoomClient {
   playerId: string | null = null;
   /** serverTime − local time, from the last pong. For §12.2 thresholds. */
   clockOffset = 0;
+  simulate: NetworkSimulation = { latencyMs: 0, dropRate: 0 };
 
   private socket: PartySocket;
   private lastVersion = -1;
@@ -69,6 +78,10 @@ export class RoomClient {
     this.socket.addEventListener("open", this.onOpen);
     this.socket.addEventListener("message", this.onMessage);
     this.socket.addEventListener("close", this.onClose);
+    // Phones freeze sockets while locked and PartySocket's backoff can be long by
+    // then; the moment the page is back (or the network is), try again now.
+    document.addEventListener("visibilitychange", this.onWake);
+    window.addEventListener("online", this.onWake);
   }
 
   on<K extends keyof RoomClientEvents>(event: K, fn: Listener<RoomClientEvents[K]>): () => void {
@@ -79,7 +92,10 @@ export class RoomClient {
   }
 
   send(msg: ClientMessage): void {
-    if (this.status === "open") this.socket.send(JSON.stringify(msg));
+    if (this.status !== "open") return;
+    const raw = JSON.stringify(msg);
+    if (this.simulate.latencyMs) setTimeout(() => this.socket.send(raw), this.simulate.latencyMs);
+    else this.socket.send(raw);
   }
 
   /** Sends a game action; returns its id so a rejection can be matched to the tap. */
@@ -98,6 +114,8 @@ export class RoomClient {
 
   close(): void {
     clearInterval(this.pingTimer);
+    document.removeEventListener("visibilitychange", this.onWake);
+    window.removeEventListener("online", this.onWake);
     this.socket.removeEventListener("open", this.onOpen);
     this.socket.removeEventListener("message", this.onMessage);
     this.socket.removeEventListener("close", this.onClose);
@@ -129,10 +147,20 @@ export class RoomClient {
     if (this.status !== "closed") this.setStatus("reconnecting");
   };
 
+  private onWake = () => {
+    if (document.visibilityState !== "visible") return;
+    if (this.status === "reconnecting") this.socket.reconnect();
+  };
+
   private onMessage = (e: MessageEvent) => {
+    if (this.simulate.latencyMs) setTimeout(() => this.handle(e.data as string), this.simulate.latencyMs);
+    else this.handle(e.data as string);
+  };
+
+  private handle(raw: string) {
     let msg: ServerMessage;
     try {
-      msg = JSON.parse(e.data as string) as ServerMessage;
+      msg = JSON.parse(raw) as ServerMessage;
     } catch {
       return;
     }
@@ -142,6 +170,7 @@ export class RoomClient {
         this.emit("welcome", msg);
         break;
       case "update":
+        if (this.simulate.dropRate && Math.random() < this.simulate.dropRate) return;
         if (msg.stateVersion <= this.lastVersion) return;
         this.lastVersion = msg.stateVersion;
         this.emit("update", msg);
@@ -167,7 +196,7 @@ export class RoomClient {
         }
         break;
     }
-  };
+  }
 
   private ping = () => this.send({ type: "ping", timestamp: Date.now() });
 
