@@ -11,6 +11,7 @@
   "dependencies": {
     "@games/animation": "workspace:*",
     "@games/audio": "workspace:*",
+    "@games/crazy-eights": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/room-client": "workspace:*",

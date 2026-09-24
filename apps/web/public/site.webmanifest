@@ -1,7 +1,7 @@
 {
   "name": "Party Games",
   "short_name": "Party Games",
-  "description": "Sevens with friends, on any phone. No accounts, just a room code.",
+  "description": "Sevens and Crazy Eights with friends, on any phone. No accounts, just a room code.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

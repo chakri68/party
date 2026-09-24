@@ -17,6 +17,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@games/crazy-eights':
+        specifier: workspace:*
+        version: link:../../games/crazy-eights
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -42,6 +45,9 @@ importers:
       '@games/audio':
         specifier: workspace:*
         version: link:../../packages/audio
+      '@games/crazy-eights':
+        specifier: workspace:*
+        version: link:../../games/crazy-eights
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -61,6 +67,24 @@ importers:
       vite:
         specifier: ^8.3.0
         version: 8.3.0(esbuild@0.28.1)
+
+  games/crazy-eights:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
 
   games/sevens:
     dependencies:

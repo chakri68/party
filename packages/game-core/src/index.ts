@@ -71,8 +71,11 @@ export type GameResult<TState, TEvent> =
 
 export interface GameOutcome {
   winnerIds: string[];
-  /** Per-player figure for the results screen, e.g. cards left. */
-  standings: { playerId: string; value: number }[];
+  /**
+   * Per-player figure for the results screen, e.g. cards left. `label`, when a
+   * game sets it, is shown instead of the shell's "N cards left".
+   */
+  standings: { playerId: string; value: number; label?: string }[];
 }
 
 export interface CreateGameOptions {

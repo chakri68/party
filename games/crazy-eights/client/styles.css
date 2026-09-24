@@ -1,0 +1,328 @@
+/* Crazy Eights. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is ce- prefixed: Sevens' stylesheet may be loaded in the same tab. */
+
+.crazy-eights {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -18px;
+  --table-card-w: 76px;
+  --table-card-h: 108px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.ce-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.crazy-eights.my-turn .ce-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Opponents ----------------------------------------------------------- */
+
+.ce-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.ce-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms;
+}
+.ce-opp.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ce-opp.away { opacity: 0.55; }
+.ce-opp-text { display: grid; line-height: 1.15; }
+.ce-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.ce-opp .count, .ce-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ce-dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.ce-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- Table: stock, pile, suit to follow ----------------------------------- */
+
+.ce-table {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  justify-content: center;
+  align-items: center;
+  column-gap: 28px;
+  row-gap: 12px;
+  padding: 18px 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.ce-stock {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 0;
+  min-height: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: default;
+}
+.ce-stock.can-draw { cursor: pointer; }
+.ce-stock:disabled { opacity: 1; }
+.ce-stock .ce-card { width: var(--table-card-w); height: var(--table-card-h); }
+/* A little depth, so it reads as a pile rather than a card. */
+.ce-stock:not(.empty) .ce-card.back {
+  box-shadow: 2px 2px 0 -1px var(--card-ink), 3px 3px 0 -1px var(--accent), 0 4px 10px rgb(0 0 0 / 0.45);
+}
+.ce-stock.can-draw .ce-card { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .ce-stock.can-draw:hover .ce-card { transform: translateY(-4px); }
+}
+.ce-stock-count { font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ce-pile { width: var(--table-card-w); height: var(--table-card-h); align-self: start; }
+.ce-pile .ce-card { width: 100%; height: 100%; }
+
+.ce-suit-badge {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 4px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.ce-suit-badge .sym { font-size: 1.2rem; line-height: 1; color: var(--ink); }
+.ce-suit-badge.red .sym { color: var(--danger); }
+.ce-suit-badge.called {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---- Cards ---------------------------------------------------------------- */
+
+.ce-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.ce-card.red { color: var(--red); }
+.ce-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.ce-card.slot {
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+}
+.ce-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.ce-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.ce-card .corner i { font-style: normal; font-size: 0.85em; }
+.ce-card .tl { top: 4px; left: 5px; }
+.ce-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.ce-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.ce-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+.ce-table .ce-card .corner { font-size: 1.1rem; }
+.ce-table .ce-card .pip { font-size: 2.4rem; }
+
+/* Hand cards */
+.ce-hand .ce-card { cursor: pointer; scroll-snap-align: start; }
+.ce-hand .ce-card + .ce-card { margin-left: var(--card-overlap); }
+/* On your turn, dim what can't go down so the options pop. */
+.crazy-eights.my-turn .ce-hand .ce-card:not(.playable) { filter: brightness(0.62) saturate(0.6); }
+.ce-hand .ce-card.playable { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.ce-hand .ce-card.selected { transform: translateY(-16px); z-index: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .ce-hand .ce-card.playable:hover { transform: translateY(-10px); z-index: 1; }
+}
+.ce-hand .ce-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.ce-hand .ce-card.fresh { animation: ce-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes ce-fresh {
+  from { transform: translateY(-24px) scale(1.08); }
+}
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.ce-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.ce-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+/* After the game the results panel leads; the hand is just for the record. */
+.crazy-eights.finished .ce-dock { position: static; background: none; }
+
+.ce-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.ce-me { display: flex; align-items: baseline; gap: 8px; }
+.ce-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.ce-action { display: flex; align-items: center; gap: 10px; }
+.ce-action .hint { color: var(--muted); font-size: 0.9rem; }
+.ce-action .hint.strong { color: var(--ink); font-weight: 700; }
+.ce-action button:not(.link) { min-width: 96px; }
+
+/* Suit picker: four big targets, right above the hand. */
+.ce-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  /* Clear of the lifted eight: the hand below pulls itself up for lift room. */
+  margin-bottom: 14px;
+}
+.ce-picker[hidden] { display: none; }
+.ce-pick {
+  min-height: 52px;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.ce-pick.red { color: var(--danger); }
+
+.ce-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .crazy-eights {
+    --card-w: 76px;
+    --card-h: 108px;
+    --card-overlap: -24px;
+    --table-card-w: 96px;
+    --table-card-h: 136px;
+    gap: 14px;
+  }
+  .ce-table { column-gap: 40px; padding: 24px 16px 18px; }
+  .ce-card .corner { font-size: 1.1rem; }
+  .ce-card .pip { font-size: 2.4rem; }
+  .ce-table .ce-card .pip { font-size: 3rem; }
+  .ce-hand { justify-content: safe center; }
+  .ce-picker { max-width: 420px; justify-self: end; width: 100%; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.crazy-eights .shake { animation: ce-shake 300ms ease; }
+@keyframes ce-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+.ce-pile .ce-card.landed { animation: ce-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes ce-land {
+  from { transform: scale(1.12) rotate(-3deg); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crazy-eights .shake { animation: none; outline: 2px solid var(--red); }
+  .ce-card, .ce-opp { transition: none; }
+  .ce-pile .ce-card.landed, .ce-hand .ce-card.fresh { animation: none; }
+}

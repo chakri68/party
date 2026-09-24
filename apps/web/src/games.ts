@@ -1,6 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
+import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import type { GameClientModule } from "@games/ui";
@@ -20,5 +21,11 @@ export const games: Record<string, GameEntry> = {
     rules: sevensRules,
     settingFields: sevensSettingFields,
     loadClient: () => import("@games/sevens/client").then((m) => m.default),
+  },
+  "crazy-eights": {
+    manifest: crazyEightsManifest,
+    rules: crazyEightsRules,
+    settingFields: crazyEightsSettingFields,
+    loadClient: () => import("@games/crazy-eights/client").then((m) => m.default),
   },
 };

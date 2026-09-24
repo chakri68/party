@@ -181,7 +181,7 @@ export class RoomView implements View {
   }
 
   private leave() {
-    if (this.last?.room.phase === "playing" && !confirm("Leave the game? Your cards will be played out automatically.")) {
+    if (this.last?.room.phase === "playing" && !confirm("Leave the game? You'll be out for the rest of this round.")) {
       return;
     }
     this.client?.send({ type: "leave" });
@@ -302,7 +302,7 @@ export class RoomView implements View {
             type: "button",
             class: "danger",
             onclick: () => {
-              if (confirm(`Remove ${s.name}? Their cards will be played out automatically.`)) {
+              if (confirm(`Remove ${s.name}? They'll be out for the rest of this round.`)) {
                 client.send({ type: "remove-player", playerId: s.id });
               }
             },
@@ -360,6 +360,7 @@ export class RoomView implements View {
         h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
         share,
       ),
+      isHost ? this.gamePicker(room.gameId, seats.length) : null,
       h(
         "div",
         { class: "game-card" },
@@ -412,6 +413,34 @@ export class RoomView implements View {
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
       h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
+    );
+  }
+
+  /**
+   * Host-only: which game the room plays. Games that can't seat everyone here
+   * are shown but disabled, so nobody has to find out at "Start game".
+   */
+  private gamePicker(current: string, players: number) {
+    const all = Object.entries(games);
+    if (all.length < 2) return null;
+    return h(
+      "div",
+      { class: "game-picker", role: "radiogroup", "aria-label": "Game" },
+      all.map(([id, entry]) => {
+        const tooMany = players > entry.manifest.maxPlayers;
+        return h(
+          "button",
+          {
+            type: "button",
+            role: "radio",
+            "aria-checked": String(id === current),
+            disabled: tooMany && id !== current,
+            title: tooMany ? `Up to ${entry.manifest.maxPlayers} players` : undefined,
+            onclick: () => id !== current && this.client?.send({ type: "select-game", gameId: id }),
+          },
+          entry.manifest.name,
+        );
+      }),
     );
   }
 
@@ -473,7 +502,7 @@ export class RoomView implements View {
             h("span", { class: "place" }, String(i + 1)),
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "name" }, s.playerId === me ? "You" : seatName(room, s.playerId)),
-            h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`),
+            h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.label ?? (s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`)),
           );
         }),
       ),

@@ -199,6 +199,27 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 .big-code { font-size: 3.4rem; font-weight: 700; letter-spacing: 0.2em; line-height: 1; margin-right: -0.2em; }
 .invite-url { font-size: 0.85rem; color: var(--muted); word-break: break-all; text-align: center; }
 .invite button { margin-top: 8px; min-width: 180px; }
+/* Game picker (host, lobby): a segmented control */
+.game-picker {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.game-picker button {
+  min-height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+}
+.game-picker button:hover:not(:disabled, [aria-checked="true"]) { color: var(--ink); }
+.game-picker button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
 .game-card { display: flex; align-items: center; gap: 14px; }
 .game-card h2 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; }
 .game-card p { font-size: 0.9rem; }

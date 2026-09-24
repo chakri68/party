@@ -9,6 +9,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@games/crazy-eights": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/sevens": "workspace:*",

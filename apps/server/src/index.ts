@@ -1,3 +1,4 @@
+import { crazyEightsGame } from "@games/crazy-eights/server";
 import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
@@ -8,6 +9,7 @@ import { RoomRuntime, type Conn, type ConnState, type RoomHost } from "./runtime
 /** Server half of the game registry (§43). */
 const GAMES: Record<string, AnyGameDefinition> = {
   sevens: sevensGame,
+  "crazy-eights": crazyEightsGame,
 };
 
 function randomToken(): string {
