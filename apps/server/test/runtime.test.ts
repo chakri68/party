@@ -693,7 +693,7 @@ describe("owner gate", () => {
     const ps = [];
     for (const n of ["Ana", "Ben", "Cy"]) ps.push(await join(world, room, n));
     await send(room, ps[0]!, { type: "start-game" });
-    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+    expect(ps[0]!.last("error")?.code).toBe("cannot-start");
     expect(roomOf(ps[0]!).phase).toBe("lobby");
   });
 
@@ -701,9 +701,9 @@ describe("owner gate", () => {
     const { world, room } = await setup();
     const ps = [await join(world, room, "Ana", undefined, "nope")];
     for (const n of ["Ben", "Cy"]) ps.push(await join(world, room, n));
-    expect(roomOf(ps[0]!).seats.every((s) => !s.owner)).toBe(true);
+    expect(roomOf(ps[0]!).canStart).toBe(false);
     await send(room, ps[0]!, { type: "start-game" });
-    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+    expect(ps[0]!.last("error")?.code).toBe("cannot-start");
   });
 
   it("starts once the owner is in, even if someone else is host", async () => {
@@ -711,7 +711,7 @@ describe("owner gate", () => {
     const host = await join(world, room, "Ana");
     await join(world, room, "Ben");
     const owner = await join(world, room, "Chakri", undefined, OWNER_KEY);
-    expect(roomOf(host).seats.find((s) => s.name === "Chakri")!.owner).toBe(true);
+    expect(roomOf(host).canStart).toBe(true);
     await send(room, host, { type: "start-game" });
     expect(roomOf(owner).phase).toBe("playing");
   });
@@ -724,12 +724,17 @@ describe("owner gate", () => {
     await world.tick(room, GRACE_MS); // lobby grace expiry frees the seat; Ana inherits host
     expect(roomOf(ps[0]!).hostId).toBe(ps[0]!.last("welcome")!.playerId);
     await send(room, ps[0]!, { type: "start-game" });
-    expect(ps[0]!.last("error")?.code).toBe("owner-required");
+    expect(ps[0]!.last("error")?.code).toBe("cannot-start");
   });
 
-  it("the owner key never shows up in room state", async () => {
+  it("nothing on the wire mentions an owner, let alone the key", async () => {
     const { world, room } = await setup();
     const owner = await join(world, room, "Chakri", undefined, OWNER_KEY);
-    expect(JSON.stringify(owner.inbox)).not.toContain(OWNER_KEY);
+    const friend = await join(world, room, "Ana");
+    for (const c of [owner, friend]) {
+      const wire = JSON.stringify(c.inbox);
+      expect(wire).not.toContain(OWNER_KEY);
+      expect(wire.toLowerCase()).not.toContain("owner");
+    }
   });
 });

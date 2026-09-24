@@ -110,9 +110,9 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
-      if (!env.OWNER_KEY) return json({ error: "This server has no owner key set yet." }, 503);
+      if (!env.OWNER_KEY) return json({ error: "Couldn't create a room." }, 503); // no OWNER_KEY secret set
       const key = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-      if (!isOwnerKey(env, key)) return json({ error: "That owner key didn't work." }, 403);
+      if (!isOwnerKey(env, key)) return json({ error: "Couldn't create a room." }, 403);
       const rooms = env.Room as DurableObjectNamespace<Room>;
       // ~1M codes, so a collision is rare and three in a row is someone's bad day.
       for (let attempt = 0; attempt < 8; attempt++) {

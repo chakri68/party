@@ -85,24 +85,8 @@ export class HomeView implements View {
       if (this.takeName()) navigate(`/room/${c}`);
     });
 
-    let ownerBlock: Node;
-    if (isOwner) {
-      const create = h("button", { type: "button", class: "primary" }, "Create room");
-      create.addEventListener("click", () => void this.createRoom(create));
-      ownerBlock = create;
-    } else {
-      // Tucked away: friends only ever need the code.
-      const key = h("input", { type: "password", name: "owner-key", placeholder: "Owner key", autocomplete: "current-password" });
-      const unlock = h("form", { class: "join" }, key, h("button", { type: "submit" }, "Unlock"));
-      unlock.addEventListener("submit", (e) => {
-        e.preventDefault();
-        if (!key.value.trim()) return key.focus();
-        setOwnerKey(key.value.trim());
-        this.error.textContent = "";
-        this.render();
-      });
-      ownerBlock = h("details", { class: "owner-unlock" }, h("summary", {}, "I'm the owner"), unlock);
-    }
+    const create = h("button", { type: "button", class: "primary" }, "Create room");
+    create.addEventListener("click", () => void this.createRoom(create));
 
     const recent = recentRooms();
     replaceChildren(
@@ -110,7 +94,7 @@ export class HomeView implements View {
       h("h1", {}, "Party Games"),
       h("p", { class: "tagline" }, isOwner ? "No accounts. Just a name and a room code." : "Got a room code? Pop it in."),
       h("label", { class: "field" }, h("span", {}, "Name"), this.name),
-      isOwner ? [ownerBlock, h("div", { class: "or" }, "or join one")] : null,
+      isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
       joinForm,
       this.error,
       recent.length
@@ -121,9 +105,6 @@ export class HomeView implements View {
             recent.map((c) => h("a", { href: `/room/${c}`, class: "recent-room" }, `Rejoin ${c}`)),
           )
         : null,
-      isOwner
-        ? h("button", { type: "button", class: "link forget", onclick: () => (setOwnerKey(null), this.render()) }, "Forget owner key on this device")
-        : ownerBlock,
     );
   }
 

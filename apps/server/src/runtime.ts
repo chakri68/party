@@ -508,9 +508,10 @@ export class RoomRuntime {
     data.seats = data.seats.filter((s) => s.presence === "connected");
     this.ensureHost();
 
-    // The whole point of the owner key: no owner at the table, no game.
-    if (this.host.ownerRequired && !data.seats.some((s) => s.owner && s.presence === "connected")) {
-      this.error(conn, "owner-required", "The room's owner needs to be here to start a game.");
+    // The whole point of the owner key: no owner at the table, no game. The copy
+    // stays vague on purpose; nobody needs to know why.
+    if (!this.ownerHere()) {
+      this.error(conn, "cannot-start", "Can't start just yet.");
       return this.commit([]);
     }
 
@@ -722,7 +723,7 @@ export class RoomRuntime {
       code: data.code,
       phase: data.phase,
       hostId: data.hostId,
-      seats: data.seats.map(({ resumeToken: _secret, ...pub }) => ({ ...pub, owner: !!pub.owner })),
+      seats: data.seats.map(({ resumeToken: _secret, owner: _owner, ...pub }) => pub),
       gameId: data.gameId,
       settings: data.settings,
       roundNumber: data.match.roundNumber,
@@ -730,7 +731,12 @@ export class RoomRuntime {
       awaitingSince: data.awaitingSince,
       game: def ? def.getPublicState(data.game!.state) : null,
       result: def ? def.getResult(data.game!.state) : null,
+      canStart: this.ownerHere(),
     };
+  }
+
+  private ownerHere(): boolean {
+    return !this.host.ownerRequired || this.data!.seats.some((s) => s.owner && s.presence === "connected");
   }
 
   private liveConns(): Conn[] {

@@ -103,3 +103,16 @@ export function getOwnerKey(): string | null {
 export function setOwnerKey(key: string | null) {
   write("ownerKey", key);
 }
+
+/**
+ * `/#owner=<key>` stores the key on this device; `/#owner=` forgets it. The
+ * fragment never reaches the server, and it's wiped from the address bar (and
+ * history entry) straight away. There's deliberately no UI for any of this.
+ */
+export function claimOwnerKeyFromUrl() {
+  const match = /^#owner=(.*)$/.exec(location.hash);
+  if (!match) return;
+  const key = decodeURIComponent(match[1] ?? "").trim();
+  setOwnerKey(key || null);
+  history.replaceState(null, "", location.pathname + location.search);
+}

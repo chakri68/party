@@ -320,7 +320,6 @@ export class RoomView implements View {
     const min = entry?.manifest.minPlayers ?? 2;
     const max = entry?.manifest.maxPlayers ?? 8;
     const url = `${location.origin}/room/${room.code}`;
-    const ownerHere = seats.some((s) => s.owner && s.presence === "connected");
 
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
     const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
@@ -377,7 +376,6 @@ export class RoomView implements View {
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            s.owner ? h("span", { class: "tag owner", title: "Owner: games need them here" }, "owner") : null,
             h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? "ready ✓" : "not ready"),
             isHost && s.id !== me
               ? h("button", {
@@ -405,8 +403,8 @@ export class RoomView implements View {
         isHost
           ? h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min || !ownerHere, onclick: () => this.client?.send({ type: "start-game" }) },
-              !ownerHere ? "Waiting for the owner" : connected < min ? `Need ${min - connected} more` : "Start game",
+              { type: "button", class: "primary", disabled: connected < min || !room.canStart, onclick: () => this.client?.send({ type: "start-game" }) },
+              connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Waiting for players…",
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
@@ -447,7 +445,11 @@ export class RoomView implements View {
         { class: "actions" },
         isHost
           ? [
-              h("button", { type: "button", class: "primary", onclick: () => this.client?.send({ type: "start-game" }) }, `Rematch${readyCount ? ` (${readyCount} ready)` : ""}`),
+              h(
+                "button",
+                { type: "button", class: "primary", disabled: !room.canStart, onclick: () => this.client?.send({ type: "start-game" }) },
+                room.canStart ? `Rematch${readyCount ? ` (${readyCount} ready)` : ""}` : "Waiting for players…",
+              ),
               h("button", { type: "button", onclick: () => this.client?.send({ type: "return-to-lobby" }) }, "Back to lobby"),
             ]
           : h(

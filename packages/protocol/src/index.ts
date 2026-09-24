@@ -55,8 +55,6 @@ export interface SeatPublic {
   ready: boolean;
   presence: Presence;
   joinedAt: number;
-  /** Joined with the owner key. Games only start with an owner in the room. */
-  owner: boolean;
 }
 
 export interface RoomPublicState {
@@ -74,6 +72,11 @@ export interface RoomPublicState {
   /** The active game's public projection, present in `playing` and `results`. */
   game: unknown | null;
   result: GameOutcome | null;
+  /**
+   * Server-side start conditions beyond player count are met (today: the owner
+   * is here). Deliberately vague on the wire, since it ends up in the UI.
+   */
+  canStart: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +137,7 @@ export type ErrorCode =
   | "rate-limited"
   | "not-available"
   | "server-error"
-  | "owner-required";
+  | "cannot-start";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
