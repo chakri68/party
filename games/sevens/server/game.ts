@@ -8,15 +8,19 @@ import {
 import { sevensManifest } from "../shared/manifest.ts";
 import {
   compareCards,
+  emptyBoard,
   getPlayableCards,
   isBoardEmpty,
+  isSevenOfDiamonds,
   makeDeck,
   parseCardId,
   placeCard,
-  SEVEN_OF_DIAMONDS,
+  resolveDecks,
 } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
+  MAX_DECKS,
+  SUITS,
   type AcePosition,
   type Card,
   type SevensAction,
@@ -47,6 +51,22 @@ function clone(state: State): State {
   return structuredClone(state);
 }
 
+/**
+ * Games stored before multi-deck support had one row per suit (`{low, high} |
+ * null`) and no `decks`. Upgrade them as they're read rather than crash a room
+ * that was mid-round during a deploy.
+ */
+function upgrade(state: State): State {
+  if (typeof state.decks === "number") return state;
+  const legacy = state.board as unknown as Record<string, { low: number; high: number } | null>;
+  const s = clone(state);
+  s.decks = 1;
+  s.settings = { ...DEFAULT_SETTINGS, ...s.settings, decks: 1 };
+  s.board = Object.fromEntries(SUITS.map((suit) => [suit, [legacy[suit] ?? null]])) as State["board"];
+  for (const p of s.players) p.hand = p.hand.map((c) => ({ ...c, copy: c.copy ?? 0 }));
+  return s;
+}
+
 function current(state: State) {
   return state.players[state.turnIndex]!;
 }
@@ -70,16 +90,19 @@ function finish(state: State, winnerId: string | null, events: Events): void {
  * each placement can unlock the next card (§12.1).
  */
 function placeGhostCards(state: State, events: Events): void {
+  // One card at a time, re-checking after each: with several decks, two copies
+  // of the same card can both look playable until the first one takes the spot.
   for (let placed = true; placed; ) {
     placed = false;
     for (const p of state.players) {
       if (!p.removed) continue;
-      for (const card of playable(state, p.hand)) {
-        p.hand = p.hand.filter((c) => c.id !== card.id);
-        state.board = placeCard(state.board, card);
-        events.push(pub({ type: "ghost-card-placed", playerId: p.id, card }));
-        placed = true;
-      }
+      const card = playable(state, p.hand)[0];
+      if (!card) continue;
+      p.hand = p.hand.filter((c) => c.id !== card.id);
+      const next = placeCard(state.board, card);
+      state.board = next.board;
+      events.push(pub({ type: "ghost-card-placed", playerId: p.id, card, row: next.row }));
+      placed = true;
     }
   }
 }
@@ -92,7 +115,7 @@ function placeGhostCards(state: State, events: Events): void {
 function advanceTurn(state: State, events: Events, includeCurrent = false): void {
   const n = state.players.length;
   const from = state.turnIndex;
-  // Two full laps is generous: with all 52 cards dealt someone can always move
+  // Two full laps is generous: with every card dealt someone can always move
   // (§13.2 no-deadlock). Hitting the bound means a rules bug, not a game state.
   for (let step = includeCurrent ? 0 : 1; step <= 2 * n; step++) {
     const idx = (from + step) % n;
@@ -121,13 +144,19 @@ function settle(state: State, events: Events, includeCurrent = false): Transitio
 
 /**
  * Injected decks (tests, dev tools) may be Cards or card ids. Either way they
- * must be the full 52: a short deck would break the no-deadlock property.
+ * must be every card of every deck exactly once: a short deck would break the
+ * no-deadlock property.
  */
-function normalizeDeck(input: unknown[], acePosition: AcePosition): Card[] {
+function normalizeDeck(input: unknown[], acePosition: AcePosition, decks: number): Card[] {
   const cards = input.map((c) => (typeof c === "string" ? parseCardId(c, acePosition) : (c as Card)));
-  const ids = new Set(cards.map((c) => c?.id));
-  if (cards.length !== 52 || ids.size !== 52 || cards.some((c) => !c || !parseCardId(c.id, acePosition))) {
-    throw new Error("A deck must be exactly the 52 cards, each once (e.g. \"hearts-7\").");
+  const want = 52 * decks;
+  const valid = cards.every((c) => c && parseCardId(c.id, acePosition) && c.copy < decks);
+  if (cards.length !== want || new Set(cards.map((c) => c?.id)).size !== want || !valid) {
+    throw new Error(
+      decks === 1
+        ? "A deck must be exactly the 52 cards, each once (e.g. \"hearts-7\")."
+        : `${decks} decks means exactly ${want} cards, each once (second deck ids end in ~1, e.g. "hearts-7~1").`,
+    );
   }
   return cards as Card[];
 }
@@ -140,9 +169,10 @@ function parseSettings(input: unknown): SevensSettings | null {
     (s.startingRule === "dealer-left" || s.startingRule === "seven-of-diamonds") &&
     (s.acePosition === "high" || s.acePosition === "low") &&
     typeof s.forcedPlay === "boolean" &&
-    (s.scoring === "winner-only" || s.scoring === "remaining-cards");
+    (s.scoring === "winner-only" || s.scoring === "remaining-cards") &&
+    (s.decks === "auto" || (Number.isInteger(s.decks) && s.decks >= 1 && s.decks <= MAX_DECKS));
   return ok
-    ? { startingRule: s.startingRule, acePosition: s.acePosition, forcedPlay: s.forcedPlay, scoring: s.scoring }
+    ? { startingRule: s.startingRule, acePosition: s.acePosition, forcedPlay: s.forcedPlay, scoring: s.scoring, decks: s.decks }
     : null;
 }
 
@@ -178,9 +208,10 @@ export const sevensGame: GameDefinition<
     if (n < sevensManifest.minPlayers || n > sevensManifest.maxPlayers) {
       throw new Error(`sevens: needs ${sevensManifest.minPlayers}–${sevensManifest.maxPlayers} players, got ${n}`);
     }
+    const decks = resolveDecks(settings.decks ?? "auto", n);
     const deck = options?.deck
-      ? normalizeDeck(options.deck, settings.acePosition)
-      : shuffle(makeDeck(settings.acePosition), ctx.randomInt);
+      ? normalizeDeck(options.deck, settings.acePosition, decks)
+      : shuffle(makeDeck(settings.acePosition, decks), ctx.randomInt);
     const dealerIndex = ((match.dealerSeat % n) + n) % n;
 
     // Deal clockwise, starting left of the dealer.
@@ -189,7 +220,7 @@ export const sevensGame: GameDefinition<
 
     let turnIndex = (dealerIndex + 1) % n;
     if (settings.startingRule === "seven-of-diamonds") {
-      const holder = hands.findIndex((h) => h.some((c) => c.id === SEVEN_OF_DIAMONDS));
+      const holder = hands.findIndex((h) => h.some(isSevenOfDiamonds));
       if (holder >= 0) turnIndex = holder;
     }
 
@@ -197,7 +228,8 @@ export const sevensGame: GameDefinition<
       phase: "playing",
       settings,
       players: players.map((p, i) => ({ id: p.id, hand: hands[i]!.sort(compareCards), removed: false })),
-      board: { spades: null, hearts: null, diamonds: null, clubs: null },
+      board: emptyBoard(decks),
+      decks,
       dealerIndex,
       turnIndex,
       winnerId: null,
@@ -214,7 +246,8 @@ export const sevensGame: GameDefinition<
     return settle(state, events, true);
   },
 
-  handleAction(prev, playerId, action) {
+  handleAction(stored, playerId, action) {
+    const prev = upgrade(stored);
     if (prev.phase !== "playing") return reject("game-finished", "The game is over.");
     const seat = prev.players.findIndex((p) => p.id === playerId);
     if (seat < 0 || prev.players[seat]!.removed) return reject("not-in-game", "You're not in this game.");
@@ -244,8 +277,9 @@ export const sevensGame: GameDefinition<
     }
 
     me.hand = me.hand.filter((c) => c.id !== card.id);
-    state.board = placeCard(state.board, card);
-    events.push(pub({ type: "card-played", playerId, card }));
+    const placed = placeCard(state.board, card);
+    state.board = placed.board;
+    events.push(pub({ type: "card-played", playerId, card, row: placed.row }));
 
     if (me.hand.length === 0) {
       finish(state, playerId, events);
@@ -254,14 +288,16 @@ export const sevensGame: GameDefinition<
     return { ok: true, transition: settle(state, events) };
   },
 
-  skipTurn(prev, playerId) {
+  skipTurn(stored, playerId) {
+    const prev = upgrade(stored);
     if (prev.phase !== "playing" || current(prev).id !== playerId) return { state: prev, events: [] };
     const state = clone(prev);
     // Host skips are exempt from forced play (§12.2).
     return settle(state, [pub({ type: "turn-skipped", playerId })]);
   },
 
-  onPlayerRemoved(prev, playerId) {
+  onPlayerRemoved(stored, playerId) {
+    const prev = upgrade(stored);
     const idx = prev.players.findIndex((p) => p.id === playerId);
     if (prev.phase !== "playing" || idx < 0 || prev.players[idx]!.removed) return { state: prev, events: [] };
 
@@ -281,10 +317,12 @@ export const sevensGame: GameDefinition<
     return { state, events };
   },
 
-  getPublicState(state) {
+  getPublicState(stored) {
+    const state = upgrade(stored);
     return {
       players: state.players.map((p) => ({ id: p.id, cardCount: p.hand.length, removed: p.removed })),
       board: state.board,
+      decks: state.decks,
       currentPlayerId: state.phase === "playing" ? current(state).id : null,
       dealerId: state.players[state.dealerIndex]!.id,
       winnerId: state.winnerId,
@@ -292,7 +330,8 @@ export const sevensGame: GameDefinition<
     };
   },
 
-  getPrivateState(state, playerId) {
+  getPrivateState(stored, playerId) {
+    const state = upgrade(stored);
     const p = state.players.find((x) => x.id === playerId);
     if (!p) return { hand: [], playableCardIds: [], canPass: false };
     const myTurn = state.phase === "playing" && current(state).id === playerId;

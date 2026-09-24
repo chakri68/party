@@ -11,6 +11,20 @@ export interface GameManifest {
   icon: string;
 }
 
+/**
+ * One host-configurable setting, described as data so the lobby can render it
+ * without knowing the game. `patch` is what goes to `update-settings`.
+ */
+export interface SettingField {
+  key: string;
+  label: string;
+  /** Index into `options` of the current value. */
+  selected: number;
+  options: { label: string; patch: Record<string, unknown> }[];
+  /** A short consequence of the current choice, e.g. "13 cards each". */
+  hint?: string;
+}
+
 export interface GamePlayer {
   id: string;
 }

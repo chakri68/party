@@ -172,12 +172,12 @@ export class SevensView implements GameView {
           await this.dealIn();
           break;
         case "card-played":
-          await this.flyCard(e.playerId, e.card, quick ? 180 : 340);
+          await this.flyCard(e.playerId, e.card, e.row ?? 0, quick ? 180 : 340);
           audio.play("card-place");
           if (e.playerId === props.playerId) audio.buzz(12);
           break;
         case "ghost-card-placed":
-          await this.flyCard(e.playerId, e.card, quick ? 140 : 220);
+          await this.flyCard(e.playerId, e.card, e.row ?? 0, quick ? 140 : 220);
           audio.play("card-place");
           break;
         case "passed":
@@ -203,8 +203,8 @@ export class SevensView implements GameView {
     return this.opponents.querySelector(`[data-player="${CSS.escape(playerId)}"] .avatar`) ?? this.status;
   }
 
-  private async flyCard(playerId: string, card: Card, duration: number) {
-    const cell = this.board.querySelector(`[data-cell="${card.suit}-${card.rank}"]`);
+  private async flyCard(playerId: string, card: Card, row: number, duration: number) {
+    const cell = this.board.querySelector(`[data-cell="${card.suit}-${row}-${card.rank}"]`);
     if (!cell || !this.props) return;
     const to = cell.getBoundingClientRect();
     const mine = playerId === this.props.playerId ? this.cards.get(card.id) : undefined;
@@ -220,7 +220,7 @@ export class SevensView implements GameView {
     await fly(miniCard(card), from, to, duration);
     // Land it for real now, so the next flight in this batch sees it on the table.
     const landed = miniCard(card);
-    landed.dataset.cell = `${card.suit}-${card.rank}`;
+    landed.dataset.cell = `${card.suit}-${row}-${card.rank}`;
     landed.classList.add("landed");
     cell.replaceWith(landed);
   }
@@ -300,26 +300,33 @@ export class SevensView implements GameView {
     const { min, max } = rowBounds(game.acePosition);
     replaceChildren(
       this.board,
-      SUITS.map((suit) => {
-        const row = game.board[suit];
-        const cells = [];
-        for (let r = min; r <= max; r++) {
-          const played = row && r >= row.low && r <= row.high;
-          const cell = played ? miniCard({ suit, rank: r }) : h("span", { class: `slot${r === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
-          cell.dataset.cell = `${suit}-${r}`;
-          cells.push(cell);
-        }
-        return h(
+      // One row per deck under each suit; the suit symbol only on its first row.
+      SUITS.map((suit) =>
+        h(
           "div",
-          {
-            class: "sv-row",
-            role: "group",
-            "aria-label": `${SUIT_NAME[suit]}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}`,
-          },
-          h("span", { class: `sv-row-suit${isRed(suit) ? " red" : ""}`, "aria-hidden": "true" }, SUIT_SYMBOL[suit]),
-          cells,
-        );
-      }),
+          { class: "sv-suit" },
+          (game.board[suit] ?? [null]).map((row, i) => {
+            const cells = [];
+            for (let r = min; r <= max; r++) {
+              const played = row && r >= row.low && r <= row.high;
+              const cell = played ? miniCard({ suit, rank: r }) : h("span", { class: `slot${r === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
+              cell.dataset.cell = `${suit}-${i}-${r}`;
+              cells.push(cell);
+            }
+            const which = game.decks > 1 ? ` row ${i + 1}` : "";
+            return h(
+              "div",
+              {
+                class: "sv-row",
+                role: "group",
+                "aria-label": `${SUIT_NAME[suit]}${which}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}`,
+              },
+              h("span", { class: `sv-row-suit${isRed(suit) ? " red" : ""}`, "aria-hidden": "true" }, i === 0 ? SUIT_SYMBOL[suit] : ""),
+              cells,
+            );
+          }),
+        ),
+      ),
     );
   }
 

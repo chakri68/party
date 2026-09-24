@@ -11,18 +11,26 @@ export const SUITS: readonly Suit[] = ["spades", "hearts", "diamonds", "clubs"];
 export type Rank = number;
 
 export interface Card {
-  id: string; // "clubs-7", "hearts-A"
+  /** "clubs-7", "hearts-A"; later decks add a suffix: "clubs-7~1". */
+  id: string;
   suit: Suit;
   rank: Rank;
+  /** Which deck this copy came from (0-based). Copies are otherwise identical. */
+  copy: number;
 }
 
 export type AcePosition = "high" | "low";
+
+export type DeckSetting = "auto" | 1 | 2 | 3;
+export const MAX_DECKS = 3;
 
 export interface SevensSettings {
   startingRule: "dealer-left" | "seven-of-diamonds";
   acePosition: AcePosition;
   forcedPlay: boolean;
   scoring: "winner-only" | "remaining-cards";
+  /** "auto" picks by player count (see resolveDecks). */
+  decks: DeckSetting;
 }
 
 export const DEFAULT_SETTINGS: SevensSettings = {
@@ -30,10 +38,19 @@ export const DEFAULT_SETTINGS: SevensSettings = {
   acePosition: "high",
   forcedPlay: true,
   scoring: "winner-only",
+  decks: "auto",
 };
 
-/** A suit is started when its range is non-null. low/high are the exposed ends. */
-export type SevensBoardState = Record<Suit, { low: Rank; high: Rank } | null>;
+export interface RowRange {
+  low: Rank;
+  high: Rank;
+}
+
+/**
+ * One row per deck for every suit: `board.hearts[1]` is the second hearts row.
+ * A row is started (by a seven) when non-null; low/high are its exposed ends.
+ */
+export type SevensBoardState = Record<Suit, (RowRange | null)[]>;
 
 export interface SevensPlayerState {
   id: string;
@@ -47,6 +64,8 @@ export interface SevensServerState {
   settings: SevensSettings;
   players: SevensPlayerState[];
   board: SevensBoardState;
+  /** Resolved deck count for this game. */
+  decks: number;
   dealerIndex: number;
   turnIndex: number;
   winnerId: string | null;
@@ -56,6 +75,7 @@ export interface SevensServerState {
 export interface SevensPublicState {
   players: { id: string; cardCount: number; removed: boolean }[];
   board: SevensBoardState;
+  decks: number;
   currentPlayerId: string | null;
   dealerId: string;
   winnerId: string | null;
@@ -72,8 +92,8 @@ export type SevensAction = { type: "play-card"; cardId: string } | { type: "pass
 
 export type SevensEvent =
   | { type: "dealt"; dealerId: string; handSizes: Record<string, number> }
-  | { type: "card-played"; playerId: string; card: Card }
-  | { type: "ghost-card-placed"; playerId: string; card: Card }
+  | { type: "card-played"; playerId: string; card: Card; row: number }
+  | { type: "ghost-card-placed"; playerId: string; card: Card; row: number }
   | { type: "passed"; playerId: string; auto: boolean }
   | { type: "turn-skipped"; playerId: string }
   | { type: "player-removed"; playerId: string }

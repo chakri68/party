@@ -367,6 +367,7 @@ export class RoomView implements View {
         h("div", {}, h("h2", {}, entry?.manifest.name ?? room.gameId), entry ? h("p", { class: "muted" }, entry.manifest.description) : null),
         rules,
       ),
+      this.gameSettings(room, isHost, seats.length),
       h("h3", { class: "seats-title" }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
       h(
         "ul",
@@ -411,6 +412,40 @@ export class RoomView implements View {
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
       h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
+    );
+  }
+
+  /** The game's own settings, rendered from its field descriptions (host edits, others read). */
+  private gameSettings(room: RoomPublicState, isHost: boolean, players: number) {
+    const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
+    if (!fields.length) return null;
+    return h(
+      "div",
+      { class: "game-settings" },
+      fields.map((f) => {
+        const id = `setting-${f.key}`;
+        const value = isHost
+          ? (() => {
+              const select = h(
+                "select",
+                { id },
+                f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
+              );
+              select.addEventListener("change", () => {
+                const patch = f.options[Number(select.value)]?.patch;
+                if (patch) this.client?.send({ type: "update-settings", settings: { ...(room.settings as object), ...patch } });
+              });
+              return select;
+            })()
+          : h("span", { id, class: "setting-value" }, f.options[f.selected]?.label ?? "");
+        return h(
+          "div",
+          { class: "setting" },
+          h("label", { for: id }, f.label),
+          value,
+          f.hint ? h("span", { class: "muted setting-hint" }, f.hint) : null,
+        );
+      }),
     );
   }
 

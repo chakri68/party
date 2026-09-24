@@ -1,10 +1,13 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { sevensGame as sevens } from "../server/game.ts";
-import { emptyBoard, getPlayableCards, makeDeck, parseCardId } from "../shared/rules.ts";
+import { emptyBoard, getPlayableCards, makeCard, makeDeck, parseCardId } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
+  SUITS,
+  type RowRange,
   type SevensBoardState,
+  type Suit,
   type SevensServerState,
   type SevensSettings,
 } from "../shared/types.ts";
@@ -12,10 +15,10 @@ import {
 const ctx = (seed = 1): GameContext => ({ now: 0, randomInt: seededRandomInt(seed) });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
 
-/** Builds a mid-game state directly, bypassing the deal. */
+/** Builds a mid-game state directly, bypassing the deal. One deck; one range per suit. */
 function stateWith(
   hands: string[][],
-  opts: { board?: Partial<SevensBoardState>; turn?: number; settings?: Partial<SevensSettings> } = {},
+  opts: { board?: Partial<Record<Suit, RowRange | null>>; turn?: number; settings?: Partial<SevensSettings> } = {},
 ): SevensServerState {
   const settings = { ...DEFAULT_SETTINGS, ...opts.settings };
   return {
@@ -26,7 +29,8 @@ function stateWith(
       hand: ids.map((id) => parseCardId(id, settings.acePosition)!),
       removed: false,
     })),
-    board: { ...emptyBoard(), ...opts.board },
+    board: Object.fromEntries(SUITS.map((s) => [s, [opts.board?.[s] ?? null]])) as SevensBoardState,
+    decks: 1,
     dealerIndex: 0,
     turnIndex: opts.turn ?? 0,
     winnerId: null,
@@ -117,7 +121,7 @@ describe("handleAction", () => {
 
   it("applies a legal play and advances the turn", () => {
     const t = ok(play(base(), "p0", "clubs-7"));
-    expect(t.state.board.clubs).toEqual({ low: 7, high: 7 });
+    expect(t.state.board.clubs).toEqual([{ low: 7, high: 7 }]);
     expect(t.state.players[0]!.hand.map((c) => c.id)).not.toContain("clubs-7");
     expect(t.state.turnIndex).toBe(1);
     expect(eventTypes(t)).toEqual(["card-played"]);
@@ -202,7 +206,7 @@ describe("onPlayerRemoved", () => {
     });
     const t = sevens.onPlayerRemoved!(s, "p1", ctx());
     expect(eventTypes(t)).toEqual(["player-removed", "ghost-card-placed", "ghost-card-placed", "ghost-card-placed"]);
-    expect(t.state.board.clubs).toEqual({ low: 7, high: 10 });
+    expect(t.state.board.clubs).toEqual([{ low: 7, high: 10 }]);
     expect(t.state.players[1]!.hand).toHaveLength(0);
     // Emptied ghost hand is not a win.
     expect(t.state.phase).toBe("playing");
@@ -216,14 +220,14 @@ describe("onPlayerRemoved", () => {
 
     const t = ok(play(removed.state, "p0", "clubs-7"));
     expect(eventTypes(t)).toContain("ghost-card-placed");
-    expect(t.state.board.clubs).toEqual({ low: 7, high: 8 });
+    expect(t.state.board.clubs).toEqual([{ low: 7, high: 8 }]);
   });
 
   it("skips a removed player's turns", () => {
     const s = stateWith([["clubs-7", "clubs-9"], ["hearts-7"], ["clubs-8", "hearts-8"], ["spades-7"]]);
     const removed = sevens.onPlayerRemoved!(s, "p1", ctx()).state;
     // hearts-7 was a ghost and went straight down.
-    expect(removed.board.hearts).toEqual({ low: 7, high: 7 });
+    expect(removed.board.hearts).toEqual([{ low: 7, high: 7 }]);
     const t = ok(play(removed, "p0", "clubs-7"));
     expect(t.state.players[t.state.turnIndex]!.id).toBe("p2");
   });
@@ -250,16 +254,17 @@ describe("no-deadlock property", () => {
   it("someone can always move until the game ends, across random games with removals", () => {
     for (let seed = 1; seed <= 400; seed++) {
       const rng = seededRandomInt(seed);
-      const n = 3 + rng(6); // 3–8
+      const n = 2 + rng(15); // 2–16
       const settings: SevensSettings = {
         ...DEFAULT_SETTINGS,
         acePosition: rng(2) ? "high" : "low",
         startingRule: rng(2) ? "dealer-left" : "seven-of-diamonds",
+        decks: (["auto", 1, 2, 3] as const)[rng(4)]!,
       };
       let state = sevens.createGame(players(n), settings, { roundNumber: 1, dealerSeat: rng(n) }, ctx(seed)).state;
 
       for (let steps = 0; state.phase === "playing"; steps++) {
-        expect(steps).toBeLessThan(600);
+        expect(steps).toBeLessThan(2000);
         const cur = state.players[state.turnIndex]!;
         expect(cur.removed).toBe(false);
         const legal = sevens.getPrivateState(state, cur.id).playableCardIds;
@@ -275,5 +280,86 @@ describe("no-deadlock property", () => {
       }
       expect(state.winnerId).not.toBeNull();
     }
+  });
+});
+
+describe("several decks", () => {
+  const start = (n: number, decks: SevensSettings["decks"] = "auto") =>
+    sevens.createGame(players(n), { ...DEFAULT_SETTINGS, decks }, { roundNumber: 1, dealerSeat: 0 }, ctx(3)).state;
+
+  it("two players split one deck", () => {
+    const s = start(2);
+    expect(s.decks).toBe(1);
+    expect(s.players.map((p) => p.hand.length)).toEqual([26, 26]);
+  });
+
+  it("auto uses two decks for 7–12 players, three beyond", () => {
+    const seven = start(7);
+    expect(seven.decks).toBe(2);
+    expect(seven.players.reduce((a, p) => a + p.hand.length, 0)).toBe(104);
+    expect(Object.values(seven.board).every((rows) => rows.length === 2)).toBe(true);
+    expect(start(16).decks).toBe(3);
+  });
+
+  it("the host's explicit deck count wins over auto", () => {
+    expect(start(4, 2).decks).toBe(2);
+    expect(start(10, 1).decks).toBe(1);
+  });
+
+  it("play events say which row the card landed in", () => {
+    const s = start(4, 2);
+    const cur = s.players[s.turnIndex]!;
+    const card = getPlayableCards(cur.hand, s.board)[0]!;
+    const t = ok(play(s, cur.id, card.id));
+    const ev = t.events.find((e) => e.event.type === "card-played")!.event as { row: number };
+    expect([0, 1]).toContain(ev.row);
+  });
+
+  it("duplicate ghost cards go down one at a time, never both into one gap", () => {
+    // Two decks; hearts has one row 7–7. The removed player holds both 8♥s:
+    // one extends that row, the other has to wait for a second 7♥.
+    const s: SevensServerState = {
+      phase: "playing",
+      settings: { ...DEFAULT_SETTINGS, decks: 2 },
+      decks: 2,
+      players: [
+        { id: "p0", hand: [makeCard("hearts", 7, 1), makeCard("spades", 7)], removed: false },
+        { id: "p1", hand: [makeCard("hearts", 8, 0), makeCard("hearts", 8, 1)], removed: false },
+        { id: "p2", hand: [makeCard("clubs", 7), makeCard("clubs", 7, 1)], removed: false },
+      ],
+      board: { ...emptyBoard(2), hearts: [{ low: 7, high: 7 }, null] },
+      dealerIndex: 0,
+      turnIndex: 0,
+      winnerId: null,
+      turnNumber: 0,
+    };
+    const removed = sevens.onPlayerRemoved!(s, "p1", ctx());
+    expect(removed.state.board.hearts).toEqual([{ low: 7, high: 8 }, null]);
+    expect(removed.state.players[1]!.hand).toHaveLength(1);
+
+    // Opening the second hearts row lets the other ghost 8♥ follow.
+    const t = ok(play(removed.state, "p0", "hearts-7~1"));
+    expect(t.state.board.hearts).toEqual([{ low: 7, high: 8 }, { low: 7, high: 8 }]);
+    expect(t.state.players[1]!.hand).toHaveLength(0);
+  });
+
+  it("upgrades a game stored before multi-deck support", () => {
+    const legacy = {
+      phase: "playing",
+      settings: { startingRule: "dealer-left", acePosition: "high", forcedPlay: true, scoring: "winner-only" },
+      players: [
+        { id: "p0", hand: [{ id: "clubs-8", suit: "clubs", rank: 8 }], removed: false },
+        { id: "p1", hand: [{ id: "hearts-7", suit: "hearts", rank: 7 }], removed: false },
+      ],
+      board: { spades: null, hearts: null, diamonds: null, clubs: { low: 7, high: 7 } },
+      dealerIndex: 0,
+      turnIndex: 0,
+      winnerId: null,
+      turnNumber: 3,
+    } as unknown as SevensServerState;
+    expect(sevens.getPublicState(legacy).board.clubs).toEqual([{ low: 7, high: 7 }]);
+    const t = ok(play(legacy, "p0", "clubs-8"));
+    expect(t.state.decks).toBe(1);
+    expect(t.state.phase).toBe("finished");
   });
 });

@@ -177,13 +177,15 @@ describe("room runtime", () => {
       expect(a.last("update")!.snapshot).toBe(false);
     });
 
-    it("only the host can start, and only with enough players", async () => {
+    it("only the host can start, and only with enough players (2+)", async () => {
       const a = await join(world, room, "Ana");
+      await send(room, a, { type: "start-game" });
+      expect(a.last("error")?.code).toBe("not-enough-players");
       const b = await join(world, room, "Ben");
       await send(room, b, { type: "start-game" });
       expect(b.last("error")?.code).toBe("not-host");
       await send(room, a, { type: "start-game" });
-      expect(a.last("error")?.code).toBe("not-enough-players");
+      expect(roomOf(a).phase).toBe("playing");
     });
 
     describe("in a game", () => {

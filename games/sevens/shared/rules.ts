@@ -1,4 +1,12 @@
-import { SUITS, type AcePosition, type Card, type Rank, type SevensBoardState, type Suit } from "./types.ts";
+import {
+  SUITS,
+  type AcePosition,
+  type Card,
+  type DeckSetting,
+  type Rank,
+  type SevensBoardState,
+  type Suit,
+} from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Cards
@@ -25,40 +33,47 @@ export function rankName(rank: Rank): string {
   return FACE_NAMES[rank] ?? NUMBER_NAMES[rank] ?? String(rank);
 }
 
-export function formatCardId(suit: Suit, rank: Rank): string {
-  return `${suit}-${formatRank(rank)}`;
+/** "hearts-8" for the first deck, "hearts-8~1" for the second, and so on. */
+export function formatCardId(suit: Suit, rank: Rank, copy = 0): string {
+  return `${suit}-${formatRank(rank)}${copy ? `~${copy}` : ""}`;
 }
 
 export function parseCardId(id: string, acePosition: AcePosition): Card | null {
-  const dash = id.indexOf("-");
-  if (dash < 0) return null;
-  const suit = id.slice(0, dash) as Suit;
-  const label = id.slice(dash + 1);
+  const m = /^([a-z]+)-(A|J|Q|K|10|[2-9])(?:~([1-9]))?$/.exec(id);
+  if (!m) return null;
+  const suit = m[1] as Suit;
   if (!SUITS.includes(suit)) return null;
-  let rank: number;
-  if (label === "A") rank = aceRank(acePosition);
-  else if (label === "J") rank = 11;
-  else if (label === "Q") rank = 12;
-  else if (label === "K") rank = 13;
-  else if (/^(?:[2-9]|10)$/.test(label)) rank = Number(label);
-  else return null;
-  return { id, suit, rank };
+  const label = m[2]!;
+  const rank =
+    label === "A" ? aceRank(acePosition) : label === "J" ? 11 : label === "Q" ? 12 : label === "K" ? 13 : Number(label);
+  return { id, suit, rank, copy: m[3] ? Number(m[3]) : 0 };
 }
 
-export function makeCard(suit: Suit, rank: Rank): Card {
-  return { id: formatCardId(suit, rank), suit, rank };
+export function makeCard(suit: Suit, rank: Rank, copy = 0): Card {
+  return { id: formatCardId(suit, rank, copy), suit, rank, copy };
 }
 
-/** All 52 cards, in suit/rank order. */
-export function makeDeck(acePosition: AcePosition): Card[] {
+/** `decks` × 52 cards, in deck/suit/rank order. */
+export function makeDeck(acePosition: AcePosition, decks = 1): Card[] {
   const { min, max } = rowBounds(acePosition);
   const deck: Card[] = [];
-  for (const suit of SUITS) for (let r = min; r <= max; r++) deck.push(makeCard(suit, r));
+  for (let copy = 0; copy < decks; copy++) {
+    for (const suit of SUITS) for (let r = min; r <= max; r++) deck.push(makeCard(suit, r, copy));
+  }
   return deck;
 }
 
 export function compareCards(a: Card, b: Card): number {
-  return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit) || a.rank - b.rank;
+  return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit) || a.rank - b.rank || a.copy - b.copy;
+}
+
+/**
+ * "auto" keeps hands a sensible size: one deck up to 6 players (≥8 cards
+ * each), two up to 12, three beyond.
+ */
+export function resolveDecks(setting: DeckSetting, players: number): number {
+  if (setting !== "auto") return setting;
+  return players <= 6 ? 1 : players <= 12 ? 2 : 3;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,55 +81,55 @@ export function compareCards(a: Card, b: Card): number {
 // ---------------------------------------------------------------------------
 
 export const SEVEN: Rank = 7;
-export const SEVEN_OF_DIAMONDS = "diamonds-7";
 
-export function emptyBoard(): SevensBoardState {
-  return { spades: null, hearts: null, diamonds: null, clubs: null };
+export const isSevenOfDiamonds = (c: Pick<Card, "suit" | "rank">) => c.suit === "diamonds" && c.rank === SEVEN;
+
+export function emptyBoard(decks = 1): SevensBoardState {
+  const rows = () => Array.from({ length: decks }, () => null);
+  return { spades: rows(), hearts: rows(), diamonds: rows(), clubs: rows() };
 }
 
 export function isBoardEmpty(board: SevensBoardState): boolean {
-  return SUITS.every((s) => board[s] === null);
+  return SUITS.every((s) => board[s].every((row) => row === null));
 }
 
 /**
- * A Seven opens its suit; anything else must sit directly next to an exposed end.
+ * Where `card` would go, or -1. A Seven opens the first unstarted row of its
+ * suit; anything else extends the first row it sits directly next to. With
+ * several decks the copies are identical, so first-fit is as good as any.
  * Cards outside the row bounds don't exist, so no bounds check is needed.
  */
-export function isPlayable(card: Card, board: SevensBoardState): boolean {
-  const row = board[card.suit];
-  if (!row) return card.rank === SEVEN;
-  return card.rank === row.low - 1 || card.rank === row.high + 1;
+export function findRow(card: Pick<Card, "suit" | "rank">, board: SevensBoardState): number {
+  const rows = board[card.suit];
+  if (card.rank === SEVEN) return rows.findIndex((row) => row === null);
+  return rows.findIndex((row) => row !== null && (card.rank === row.low - 1 || card.rank === row.high + 1));
+}
+
+export function isPlayable(card: Pick<Card, "suit" | "rank">, board: SevensBoardState): boolean {
+  return findRow(card, board) >= 0;
 }
 
 /**
  * Playable cards in a hand. With "seven-of-diamonds", the opening play of the
- * game must be exactly that card.
+ * game must be a seven of diamonds (any copy).
  */
 export function getPlayableCards(
   hand: readonly Card[],
   board: SevensBoardState,
   startingRule: "dealer-left" | "seven-of-diamonds" = "dealer-left",
 ): Card[] {
-  if (startingRule === "seven-of-diamonds" && isBoardEmpty(board)) {
-    return hand.filter((c) => c.id === SEVEN_OF_DIAMONDS);
-  }
+  if (startingRule === "seven-of-diamonds" && isBoardEmpty(board)) return hand.filter(isSevenOfDiamonds);
   return hand.filter((c) => isPlayable(c, board));
 }
 
-/** Returns a new board with `card` placed. Caller must have checked `isPlayable`. */
-export function placeCard(board: SevensBoardState, card: Card): SevensBoardState {
-  const row = board[card.suit];
-  const next = row
-    ? { low: Math.min(row.low, card.rank), high: Math.max(row.high, card.rank) }
+/** Places `card` (caller checked it's playable) and says which row it went to. */
+export function placeCard(board: SevensBoardState, card: Pick<Card, "suit" | "rank">): { board: SevensBoardState; row: number } {
+  const row = findRow(card, board);
+  if (row < 0) throw new Error(`sevens: ${card.suit} ${card.rank} doesn't fit`);
+  const rows = [...board[card.suit]];
+  const cur = rows[row];
+  rows[row] = cur
+    ? { low: Math.min(cur.low, card.rank), high: Math.max(cur.high, card.rank) }
     : { low: card.rank, high: card.rank };
-  return { ...board, [card.suit]: next };
-}
-
-/** Ranks currently on the board for a suit, low → high. */
-export function playedRanks(board: SevensBoardState, suit: Suit): Rank[] {
-  const row = board[suit];
-  if (!row) return [];
-  const out: Rank[] = [];
-  for (let r = row.low; r <= row.high; r++) out.push(r);
-  return out;
+  return { board: { ...board, [card.suit]: rows }, row };
 }

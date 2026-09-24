@@ -95,6 +95,8 @@
   border-radius: 16px;
   background: var(--surface);
 }
+/* A suit's rows (one per deck) sit tight together; suits get a bit more air. */
+.sv-suit { display: grid; gap: 2px; }
 .sv-row {
   display: grid;
   grid-template-columns: 1.3em repeat(13, minmax(0, 1fr));
