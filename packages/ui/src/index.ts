@@ -23,6 +23,8 @@ export interface GameViewProps {
   playerId: string;
   /** Events that produced this state; drive animations, never settled UI (§7). */
   events: unknown[];
+  /** A full resync (reconnect): drop queued animations and show this as-is (§12). */
+  snapshot: boolean;
 }
 
 export interface GameClientApi {

@@ -13,6 +13,8 @@
   "dependencies": {
     "@games/game-core": "workspace:*",
     "@games/ui": "workspace:*",
-    "@games/protocol": "workspace:*"
+    "@games/protocol": "workspace:*",
+    "@games/animation": "workspace:*",
+    "@games/audio": "workspace:*"
   }
 }

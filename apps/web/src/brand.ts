@@ -1,0 +1,22 @@
+// The logo mark: two fanned cards, a heart on the front one. Paths only (no
+// text), so it renders the same in the header, favicon and share image.
+// public/favicon.svg and the PNG icons are drawn from this same geometry.
+
+export const MARK_SVG = `
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <g transform="rotate(-14 32 36)">
+    <rect x="11" y="10" width="30" height="42" rx="5" fill="#ffc94d"/>
+    <rect x="14" y="13" width="24" height="36" rx="3" fill="none" stroke="#8a5a00" stroke-opacity=".35" stroke-width="1.5"/>
+  </g>
+  <g transform="rotate(10 32 36)">
+    <rect x="23" y="12" width="30" height="42" rx="5" fill="#fbf7ec"/>
+    <path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#e5484d"/>
+  </g>
+</svg>`;
+
+export function brandMark(className = "mark"): HTMLElement {
+  const span = document.createElement("span");
+  span.className = className;
+  span.innerHTML = MARK_SVG;
+  return span;
+}

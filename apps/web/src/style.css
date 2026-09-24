@@ -1,32 +1,47 @@
-/* Shell styles. Deliberately understated so games bring their own personality (§39). */
+/* Shell styles: a playful tabletop, kept quiet enough that games bring their own personality (§39). */
 
 :root {
   color-scheme: dark;
-  --bg: #0f1713;
-  --surface: #17221c;
-  --table: #1d3a2b;
-  --felt-ink: #d5e6dc;
-  --red-on-felt: #ff8f8f;
-  --ink: #eef3ef;
-  --muted: #9fb2a6;
-  --accent: #f5c14b;
-  --accent-ink: #1b1400;
+  --bg: #0b1310;
+  --bg-glow: #1b3527;
+  --surface: #14201a;
+  --surface-2: #1b2a22;
+  --line: rgb(255 255 255 / 0.1);
+  --table: #1c4a34;
+  --felt-ink: #d8eadf;
+  --red-on-felt: #ff9a8f;
+  --ink: #f4f1e6;
+  --muted: #a8b8ad;
+  --accent: #ffc94d;
+  --accent-2: #ff7a5c;
+  --accent-ink: #1e1400;
   --focus: #7cc4ff;
-  --card: #fbfaf5;
+  --card: #fbf7ec;
   --card-ink: #1b1b1b;
-  --red: #c62828;
-  --radius: 12px;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --red: #c8302f; /* 5.0:1 on card cream; small board suits need ≥4.5 */
+  --radius: 14px;
+  /* Rounded where the platform has it (Apple), plain system elsewhere: no downloads. */
+  --font: ui-rounded, "SF Pro Rounded", "Segoe UI Variable Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
   line-height: 1.4;
   background: var(--bg);
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 * { box-sizing: border-box; }
 /* Author `display` rules otherwise beat the attribute, and hidden things show. */
 [hidden] { display: none !important; }
-html, body { margin: 0; min-height: 100%; background: var(--bg); }
+html, body { margin: 0; min-height: 100%; }
+body {
+  /* A warm lamp over the table, and a faint suit pattern on the cloth. */
+  background:
+    radial-gradient(1200px 600px at 50% -10%, var(--bg-glow), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' fill='%23ffffff' fill-opacity='0.022' font-family='serif' font-size='18'%3E%3Ctext x='8' y='26'%3E%E2%99%A0%3C/text%3E%3Ctext x='56' y='26'%3E%E2%99%A5%3C/text%3E%3Ctext x='32' y='74'%3E%E2%99%A6%3C/text%3E%3Ctext x='80' y='74'%3E%E2%99%A3%3C/text%3E%3C/svg%3E"),
+    var(--bg);
+  background-attachment: fixed;
+}
 #app { min-height: 100dvh; }
 
 button, input {
@@ -36,57 +51,126 @@ button, input {
 button {
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid rgb(255 255 255 / 0.15);
-  border-radius: 10px;
-  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
   cursor: pointer;
+  font-weight: 600;
+  transition: transform 80ms ease, background 120ms ease, filter 120ms ease;
 }
+button:hover:not(:disabled) { filter: brightness(1.12); }
+button:active:not(:disabled) { transform: scale(0.97); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary {
-  background: var(--accent);
+  background: linear-gradient(180deg, #ffd66e, var(--accent));
   color: var(--accent-ink);
   border-color: transparent;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 2px 0 #b8860b, 0 6px 16px rgb(255 201 77 / 0.18);
 }
 button.link {
   background: none;
   border: none;
   color: var(--muted);
   text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 500;
 }
-button:focus-visible, input:focus-visible, a:focus-visible {
+button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid rgb(255 255 255 / 0.2);
-  border-radius: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   background: var(--surface);
   width: 100%;
+  font-size: 1.05rem;
 }
+input::placeholder { color: rgb(168 184 173 / 0.6); }
 
 .muted { color: var(--muted); }
 .center { text-align: center; }
+
+/* Brand mark */
+.mark { display: inline-flex; flex: 0 0 auto; }
+.mark svg { width: 100%; height: 100%; }
 
 /* Home */
 .home {
   max-width: 420px;
   margin: 0 auto;
-  padding: 48px 16px;
+  padding: 28px 16px 48px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-.home h1 { margin: 0; font-size: 2.2rem; letter-spacing: -0.02em; }
-.tagline { margin: 0 0 12px; color: var(--muted); }
+.hero {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.fan {
+  position: relative;
+  width: 240px;
+  height: 118px;
+  margin: 4px 0 22px;
+}
+.fan-card {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 64px;
+  height: 90px;
+  margin-left: -32px;
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--card-ink);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.06);
+  transform-origin: 50% 190%;
+  transform: rotate(var(--r));
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+  animation: fan-in 600ms cubic-bezier(.2, .9, .3, 1.2) both;
+  animation-delay: var(--d);
+}
+.fan-card.red { color: var(--red); }
+.fan-card b {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  display: grid;
+  justify-items: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  font-weight: 800;
+}
+.fan-card b i { font-style: normal; font-size: 0.8rem; }
+@keyframes fan-in {
+  from { transform: rotate(0deg) translateY(12px); opacity: 0; }
+}
+.home h1 {
+  margin: 0;
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.home h1 span { color: var(--accent); }
+.tagline { margin: 0; color: var(--muted); }
 .field { display: grid; gap: 6px; }
-.field > span { font-size: 0.85rem; color: var(--muted); }
+.field > span { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 .or { text-align: center; color: var(--muted); font-size: 0.85rem; }
 .join { display: flex; gap: 8px; }
-.code-input { text-transform: uppercase; letter-spacing: 0.3em; font-weight: 700; text-align: center; }
+.join button { min-width: 88px; }
+.code-input { text-transform: uppercase; letter-spacing: 0.3em; font-weight: 800; text-align: center; }
 .form-error { color: var(--red-on-felt); min-height: 1.4em; margin: 0; }
+.footer { margin-top: auto; padding-top: 24px; text-align: center; font-size: 0.8rem; color: var(--muted); }
 
 /* Room shell */
 .room {
@@ -103,7 +187,16 @@ input {
   gap: 12px;
   padding: 12px 0;
 }
-.brand { color: var(--muted); text-decoration: none; font-weight: 600; }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.brand .mark { width: 30px; height: 30px; }
 .room-code { margin-left: auto; font-weight: 800; letter-spacing: 0.15em; }
 .conn { font-size: 0.8rem; color: var(--accent); }
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -241,8 +334,47 @@ input {
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* Transient bubbles from @games/animation ("Pass"). */
+.anim-bubble {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 800;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.4);
+}
+
+.results { animation: pop-in 420ms cubic-bezier(.2, .9, .3, 1.25) both; }
+.results.won .crown { animation: crown 900ms cubic-bezier(.2, .9, .3, 1.4) 200ms both; }
+@keyframes pop-in {
+  from { transform: translateY(12px) scale(.96); opacity: 0; }
+}
+@keyframes crown {
+  from { transform: translateX(-50%) translateY(-24px) rotate(-30deg); opacity: 0; }
+}
+
+/* Settings */
+.room-header .icon-btn {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: none;
+  border-color: transparent;
+  font-size: 1.15rem;
+}
+.room-code + .icon-btn { margin-left: 4px; }
+.settings { display: grid; gap: 14px; min-width: min(300px, 80vw); }
+.settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+.settings input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+.settings input[type="range"] { width: 150px; min-height: 0; padding: 0; accent-color: var(--accent); }
+
 @media (prefers-reduced-motion: reduce) {
-  .toast { transition: none; }
+  .toast, button { transition: none; }
+  .fan-card, .results, .results.won .crown { animation: none; }
 }
 
 /* Turn controls (§12) */

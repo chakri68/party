@@ -14,6 +14,34 @@ export function nameInput(value: string) {
   });
 }
 
+const FAN = [
+  { suit: "♠\uFE0E", red: false, r: -30 },
+  { suit: "♥\uFE0E", red: true, r: -10 },
+  { suit: "♦\uFE0E", red: true, r: 10 },
+  { suit: "♣\uFE0E", red: false, r: 30 },
+];
+
+/** Four sevens fanned out: the house game, as a welcome mat. */
+function hero(tagline: string) {
+  return h(
+    "header",
+    { class: "hero" },
+    h(
+      "div",
+      { class: "fan", "aria-hidden": "true" },
+      FAN.map((c, i) => {
+        // Corner index carries the suit too, since the fan hides most of each face.
+        const card = h("span", { class: `fan-card${c.red ? " red" : ""}` }, h("b", {}, "7", h("i", {}, c.suit)), c.suit);
+        card.style.setProperty("--r", `${c.r}deg`);
+        card.style.setProperty("--d", `${i * 70}ms`);
+        return card;
+      }),
+    ),
+    h("h1", {}, "Party ", h("span", {}, "Games")),
+    h("p", { class: "tagline" }, tagline),
+  );
+}
+
 export class HomeView implements View {
   private root = h("main", { class: "home" });
   // Kept across re-renders so typed values survive unlocking/forgetting the key.
@@ -91,8 +119,7 @@ export class HomeView implements View {
     const recent = recentRooms();
     replaceChildren(
       this.root,
-      h("h1", {}, "Party Games"),
-      h("p", { class: "tagline" }, isOwner ? "No accounts. Just a name and a room code." : "Got a room code? Pop it in."),
+      hero(isOwner ? "No accounts. Just a name and a room code." : "Got a room code? Pop it in."),
       h("label", { class: "field" }, h("span", {}, "Name"), this.name),
       isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
       joinForm,

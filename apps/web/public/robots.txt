@@ -1,0 +1,8 @@
+# Rooms are short-lived and private; only the front page is worth indexing.
+User-agent: *
+Allow: /$
+Disallow: /room/
+Disallow: /api/
+Disallow: /parties/
+
+Sitemap: https://party-games.chakri.me/sitemap.xml

@@ -133,6 +133,38 @@ export default {
       return (await routePartykitRequest(request, env)) ?? new Response("Not Found", { status: 404 });
     }
 
+    const room = /^\/room\/([^/]+)\/?$/.exec(url.pathname);
+    if (room) return roomPage(request, env, room[1]!.toUpperCase());
+
     return new Response("Not Found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+/** Always https: previews shouldn't point at plain http, whatever the hop in front says. */
+function canonical(request: Request, path: string): string {
+  const url = new URL(path, request.url);
+  url.protocol = "https:";
+  return url.href;
+}
+
+/**
+ * The SPA shell, with link-preview tags naming the room. Chat apps don't run
+ * JS, so this is the only way "Join room K7DX" shows up in a group chat.
+ */
+async function roomPage(request: Request, env: Env, code: string): Promise<Response> {
+  const shell = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
+  if (!isValidRoomCode(code)) return shell;
+  const title = `Join room ${code} · Party Games`;
+  const description = "Tap to join the game. No account needed, just pick a name.";
+  const set = (value: string): HTMLRewriterElementContentHandlers => ({
+    element: (el) => void el.setAttribute("content", value),
+  });
+  return new HTMLRewriter()
+    .on("title", { element: (el) => void el.setInnerContent(title) })
+    .on('meta[property="og:title"], meta[name="twitter:title"]', set(title))
+    .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', set(description))
+    .on('meta[property="og:url"]', set(canonical(request, `/room/${code}`)))
+    // Rooms are private and short-lived: preview yes, index no.
+    .on("head", { element: (el) => void el.append('<meta name="robots" content="noindex" />', { html: true }) })
+    .transform(shell);
+}

@@ -2,13 +2,39 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#14201a" />
     <title>Party Games</title>
+    <meta name="description" content="Sevens with friends, on any phone. No accounts, just a room code." />
+    <link rel="canonical" href="https://party-games.chakri.me/" />
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0b1310" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Party Games" />
+
+    <!-- Link previews (group chats!). The worker rewrites these for /room/:code. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Party Games" />
+    <meta property="og:title" content="Party Games" />
+    <meta property="og:description" content="Sevens with friends, on any phone. No accounts, just a room code." />
+    <meta property="og:url" content="https://party-games.chakri.me/" />
+    <meta property="og:image" content="https://party-games.chakri.me/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Four sevens fanned out beside the words Party Games" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Party Games" />
+    <meta name="twitter:description" content="Sevens with friends, on any phone. No accounts, just a room code." />
+    <meta name="twitter:image" content="https://party-games.chakri.me/og-image.png" />
   </head>
   <body>
     <div id="app"></div>
+    <noscript>Party Games needs JavaScript to deal the cards.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

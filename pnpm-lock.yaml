@@ -64,6 +64,12 @@ importers:
 
   games/sevens:
     dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core

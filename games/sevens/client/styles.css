@@ -264,3 +264,17 @@
   .shake { animation: none; outline: 2px solid var(--red); }
   .card.full, .sv-opp { transition: none; }
 }
+
+/* ---- Motion (Phase 5) ---------------------------------------------------- */
+
+.card.mini.landed { animation: sv-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes sv-land {
+  from { transform: scale(1.18); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+.sv-opp.current .avatar { animation: sv-bob 1.6s ease-in-out infinite; }
+@keyframes sv-bob {
+  50% { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.mini.landed, .sv-opp.current .avatar { animation: none; }
+}

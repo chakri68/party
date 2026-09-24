@@ -4,6 +4,7 @@
 // Toggle with the ` key or the 🐞 button. It only ever shows *your* private
 // state; opponents' hands never reach this client, debug or not.
 
+import { motion } from "@games/animation";
 import type { RoomClient, RoomUpdate } from "@games/room-client";
 import { h, replaceChildren } from "@games/ui";
 
@@ -32,6 +33,9 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
   const drop = h("input", { type: "number", min: 0, max: 90, step: 5, value: client.simulate.dropRate * 100 });
   drop.addEventListener("input", () => (client.simulate.dropRate = (Number(drop.value) || 0) / 100));
 
+  const animations = h("input", { type: "checkbox", checked: motion.enabled });
+  animations.addEventListener("change", () => (motion.enabled = animations.checked));
+
   const seed = h("input", { type: "number", placeholder: "seed" });
   const deck = h("textarea", { placeholder: "52 card ids, comma/space separated, dealt round-robin from left of dealer" });
 
@@ -44,6 +48,7 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
       h("button", { type: "button", onclick: () => client.reconnect() }, "Force reconnect"),
     ),
     h("div", { class: "row" }, "Latency ms", latency, "Drop %", drop),
+    h("label", { class: "row" }, animations, "Animations (off = skip straight to state)"),
     h("h3", {}, "Deal (host, server needs DEV_TOOLS=1)"),
     h("div", { class: "row" },
       seed,

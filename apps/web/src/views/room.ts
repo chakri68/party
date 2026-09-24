@@ -9,6 +9,7 @@ import {
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
 import { avatar, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { brandMark } from "../brand.ts";
 import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
@@ -195,8 +196,9 @@ export class RoomView implements View {
     const status = this.client?.status;
     replaceChildren(
       this.header,
-      h("a", { href: "/", class: "brand" }, "Party Games"),
+      h("a", { href: "/", class: "brand", "aria-label": "Party Games home" }, brandMark(), h("span", {}, "Party Games")),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
+      h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, audio.settings.sound ? "🔊" : "🔈"),
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,
@@ -228,7 +230,7 @@ export class RoomView implements View {
     replaceChildren(this.body, panel, this.controls, this.gameHost);
     void this.ensureGameView(room.gameId).then((view) => {
       if (view && this.last === u) {
-        view.update({ room, game: room.game, private: u.private, playerId: me, events: u.events });
+        view.update({ room, game: room.game, private: u.private, playerId: me, events: u.events, snapshot: u.snapshot });
       }
     });
   }
@@ -477,6 +479,37 @@ export class RoomView implements View {
           ? h("button", { type: "button", class: "primary", onclick: () => location.reload() }, "Refresh")
           : null,
         h("button", { type: "button", onclick: () => navigate("/") }, "Home"),
+      ),
+    );
+  }
+
+  private openSettings() {
+    const sound = h("input", { type: "checkbox", checked: audio.settings.sound });
+    const volume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.volume, "aria-label": "Volume" });
+    const haptics = h("input", { type: "checkbox", checked: audio.settings.haptics });
+    sound.addEventListener("change", () => {
+      audio.update({ sound: sound.checked });
+      volume.disabled = !sound.checked;
+      if (sound.checked) audio.play("card-place");
+      this.renderHeader();
+    });
+    volume.disabled = !audio.settings.sound;
+    volume.addEventListener("change", () => {
+      audio.update({ volume: Number(volume.value) });
+      audio.play("card-place"); // hear what you picked
+    });
+    haptics.addEventListener("change", () => {
+      audio.update({ haptics: haptics.checked });
+      if (haptics.checked) audio.buzz(30);
+    });
+    openDialog(
+      "Settings",
+      h(
+        "div",
+        { class: "settings" },
+        h("label", {}, "Sounds", sound),
+        h("label", {}, "Volume", volume),
+        audio.canVibrate ? h("label", {}, "Vibration", haptics) : null,
       ),
     );
   }
