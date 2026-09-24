@@ -34,6 +34,7 @@ function write(k: string, v: string | null) {
 }
 
 const randomId = () => crypto.randomUUID();
+const newAvatarSeed = () => randomId().slice(0, 8);
 
 export function getIdentity(): LocalIdentity {
   try {
@@ -42,13 +43,20 @@ export function getIdentity(): LocalIdentity {
   } catch {
     // fall through and mint a fresh one
   }
-  const fresh: LocalIdentity = { clientId: randomId(), displayName: devAs ?? "", avatarSeed: randomId().slice(0, 8) };
+  const fresh: LocalIdentity = { clientId: randomId(), displayName: devAs ?? "", avatarSeed: newAvatarSeed() };
   write("identity", JSON.stringify(fresh));
   return fresh;
 }
 
 export function setDisplayName(name: string): LocalIdentity {
   const next = { ...getIdentity(), displayName: name };
+  write("identity", JSON.stringify(next));
+  return next;
+}
+
+/** A new face. The seed is all the avatar is; see `faceSvg`. */
+export function rerollAvatar(): LocalIdentity {
+  const next = { ...getIdentity(), avatarSeed: newAvatarSeed() };
   write("identity", JSON.stringify(next));
   return next;
 }

@@ -13,7 +13,7 @@ import { brandMark, icon } from "../brand.ts";
 import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
-import { nameInput } from "./home.ts";
+import { identityField, nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
 
@@ -86,7 +86,7 @@ export class RoomView implements View {
       "form",
       { class: "ask-name" },
       h("h2", {}, `Joining ${this.code}`),
-      h("label", { class: "field" }, h("span", {}, "Your name"), input),
+      identityField(input),
       h("button", { type: "submit", class: "primary" }, "Join"),
     );
     form.addEventListener("submit", (e) => {

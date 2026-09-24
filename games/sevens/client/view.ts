@@ -167,7 +167,9 @@ export class SevensView implements GameView {
     for (const e of events) {
       switch (e.type) {
         case "dealt":
-          // Paint the new hands first, then fan them in from the table.
+          // Shuffle, give the riffle a beat, then paint the new hands and fan them in.
+          audio.play("shuffle");
+          await new Promise((r) => setTimeout(r, 380));
           this.render(props, { quiet: true });
           await this.dealIn();
           break;
@@ -192,7 +194,7 @@ export class SevensView implements GameView {
 
   private eventSounds(events: SevensEvent[]) {
     const types = new Set(events.map((e) => e.type));
-    if (types.has("dealt")) audio.play("deal");
+    if (types.has("dealt")) audio.play("shuffle");
     if (types.has("card-played") || types.has("ghost-card-placed")) audio.play("card-place");
     if (types.has("passed")) audio.play("pass");
   }

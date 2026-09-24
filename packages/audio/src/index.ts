@@ -1,10 +1,11 @@
 // Central audio + haptics (§28–29). Games call `audio.play(...)` and
 // `audio.buzz(...)`; nobody else touches AudioContext or navigator.vibrate.
 //
-// Every sound is synthesised with WebAudio: tiny, no asset downloads, and easy
-// to keep in one consistent "felt table" register.
+// Physical things (cards, chips) are recordings; UI cues (your turn, nudge,
+// reject) are synthesised with WebAudio. Recordings load after the first tap
+// and, until they have (or if they can't), the synth stands in for them.
 
-export type SoundId = "card-place" | "deal" | "your-turn" | "pass" | "win" | "game-over" | "reject" | "nudge";
+export type SoundId = "card-place" | "deal" | "shuffle" | "your-turn" | "pass" | "win" | "game-over" | "reject" | "nudge";
 
 export interface FeedbackSettings {
   sound: boolean;
@@ -72,6 +73,9 @@ const VOICES: Record<SoundId, Voice> = {
     tone(c, o, t, { freq: 170, to: 80, dur: 0.09, gain: 0.35 });
   },
   deal: (c, o, t) => noise(c, o, t, { dur: 0.035, gain: 0.25, freq: 4200 }),
+  shuffle: (c, o, t) => {
+    for (let i = 0; i < 6; i++) noise(c, o, t + i * 0.05, { dur: 0.04, gain: 0.2, freq: 3800 });
+  },
   "your-turn": (c, o, t) => {
     tone(c, o, t, { freq: 659, dur: 0.14, type: "triangle", gain: 0.22 });
     tone(c, o, t + 0.11, { freq: 988, dur: 0.22, type: "triangle", gain: 0.2 });
@@ -96,6 +100,40 @@ const VOICES: Record<SoundId, Voice> = {
 };
 
 // ---------------------------------------------------------------------------
+// Recordings
+// ---------------------------------------------------------------------------
+
+/**
+ * `start` skips each file's lead-in silence (measured with ffmpeg's
+ * silencedetect), so the sound lands with the animation instead of after it.
+ * `new URL(…, import.meta.url)` lets Vite fingerprint and ship the files.
+ */
+const SAMPLES = {
+  "card-place": { url: new URL("./sounds/card-place.mp3", import.meta.url).href, start: 0.045 },
+  "card-take-1": { url: new URL("./sounds/card-take-1.mp3", import.meta.url).href, start: 0.15 },
+  "card-take-2": { url: new URL("./sounds/card-take-2.mp3", import.meta.url).href, start: 0.19 },
+  "card-take-3": { url: new URL("./sounds/card-take-3.mp3", import.meta.url).href, start: 0.02 },
+  shuffle: { url: new URL("./sounds/shuffle.mp3", import.meta.url).href, start: 0.02 },
+  "chips-rake": { url: new URL("./sounds/chips-rake.mp3", import.meta.url).href, start: 0.13 },
+  "chips-place": { url: new URL("./sounds/chips-place.mp3", import.meta.url).href, start: 0.035 },
+} as const;
+
+type SampleId = keyof typeof SAMPLES;
+
+/**
+ * Which recording(s) a sound uses. Several ids = pick one at random, so a run
+ * of draws doesn't sound like a loop. `layer` keeps the synth playing too.
+ */
+const RECORDED: Partial<Record<SoundId, { ids: SampleId[]; gain?: number; layer?: boolean }>> = {
+  "card-place": { ids: ["card-place"] },
+  deal: { ids: ["card-take-1", "card-take-2", "card-take-3"], gain: 0.8 },
+  shuffle: { ids: ["shuffle"] },
+  // The winner rakes in the pot; everyone else pays up.
+  win: { ids: ["chips-rake"], gain: 0.9, layer: true },
+  "game-over": { ids: ["chips-place"], gain: 0.8, layer: true },
+};
+
+// ---------------------------------------------------------------------------
 // Manager
 // ---------------------------------------------------------------------------
 
@@ -103,6 +141,7 @@ class Feedback {
   settings: FeedbackSettings = typeof localStorage === "undefined" ? { ...DEFAULTS } : load();
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private buffers = new Map<SampleId, AudioBuffer>();
 
   /**
    * Browsers keep audio locked until a user gesture (§28). Called on the first
@@ -115,13 +154,42 @@ class Feedback {
       this.master = this.ctx.createGain();
       this.master.connect(this.ctx.destination);
       this.applyVolume();
+      void this.loadSamples(this.ctx);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
 
+  /** ~120 KB all in; each one is optional, since the synth covers for it. */
+  private async loadSamples(ctx: AudioContext) {
+    await Promise.all(
+      (Object.keys(SAMPLES) as SampleId[]).map(async (id) => {
+        try {
+          const res = await fetch(SAMPLES[id].url);
+          if (res.ok) this.buffers.set(id, await ctx.decodeAudioData(await res.arrayBuffer()));
+        } catch {
+          // Offline, blocked, or a codec the browser won't decode: synth it is.
+        }
+      }),
+    );
+  }
+
   play(sound: SoundId): void {
     if (!this.settings.sound || !this.ctx || !this.master || this.ctx.state !== "running") return;
-    VOICES[sound](this.ctx, this.master, this.ctx.currentTime + 0.005);
+    const t = this.ctx.currentTime + 0.005;
+    const rec = RECORDED[sound];
+    const loaded = rec?.ids.filter((id) => this.buffers.has(id)) ?? [];
+    if (!rec || !loaded.length || rec.layer) VOICES[sound](this.ctx, this.master, t);
+    if (!rec || !loaded.length) return;
+
+    const id = loaded[Math.floor(Math.random() * loaded.length)]!;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.buffers.get(id)!;
+    // A hair of pitch wobble, so repeats don't sound copy-pasted.
+    src.playbackRate.value = 0.96 + Math.random() * 0.08;
+    const g = this.ctx.createGain();
+    g.gain.value = rec.gain ?? 1;
+    src.connect(g).connect(this.master);
+    src.start(t, SAMPLES[id].start);
   }
 
   /** Optional haptics (§29). Silently nothing where unsupported (iOS Safari). */

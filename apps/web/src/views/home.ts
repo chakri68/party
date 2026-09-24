@@ -1,7 +1,8 @@
 import { isValidRoomCode, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode } from "@games/protocol";
-import { h, replaceChildren, type View } from "@games/ui";
+import { avatar, h, replaceChildren, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
-import { getIdentity, getOwnerKey, recentRooms, setDisplayName, setOwnerKey } from "../identity.ts";
+import { getIdentity, getOwnerKey, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } from "../identity.ts";
+import { randomName } from "../names.ts";
 import { navigate } from "../router.ts";
 
 export function nameInput(value: string) {
@@ -13,6 +14,41 @@ export function nameInput(value: string) {
     required: true,
     value,
   });
+}
+
+/**
+ * Face + name + dice. Tap the face for a new one; the dice rolls both. The face
+ * is saved straight away (it's just a seed); the name waits for submit, like
+ * anything typed would.
+ */
+export function identityField(input: HTMLInputElement): HTMLElement {
+  const face = h("button", { type: "button", class: "face-btn", "aria-label": "New face" });
+  const showFace = (spin: boolean) => {
+    const me = getIdentity();
+    replaceChildren(face, avatar(me.displayName, me.avatarSeed, "lg"));
+    if (spin) face.firstElementChild?.animate([{ transform: "rotate(-200deg) scale(.6)" }, { transform: "none" }], { duration: 320, easing: "cubic-bezier(.2,.8,.2,1.2)" });
+  };
+  face.addEventListener("click", () => {
+    rerollAvatar();
+    showFace(true);
+  });
+  showFace(false);
+
+  const dice = h("button", { type: "button", class: "icon-btn dice-btn", "aria-label": "Random name and face" }, icon("dice"));
+  dice.addEventListener("click", () => {
+    input.value = randomName(input.value);
+    rerollAvatar();
+    showFace(true);
+    dice.animate([{ transform: "rotate(0)" }, { transform: "rotate(360deg)" }], { duration: 360, easing: "ease-out" });
+  });
+
+  return h(
+    "div",
+    { class: "identity" },
+    face,
+    h("label", { class: "field" }, h("span", {}, "Name"), input),
+    dice,
+  );
 }
 
 /** Logo over a lowercase wordmark with a lime full stop. */
@@ -30,6 +66,7 @@ export class HomeView implements View {
   private root = h("main", { class: "home" });
   // Kept across re-renders so typed values survive unlocking/forgetting the key.
   private name = nameInput(getIdentity().displayName);
+  private identity = identityField(this.name);
   private code = h("input", {
     name: "code",
     placeholder: "ABCD",
@@ -104,7 +141,7 @@ export class HomeView implements View {
     replaceChildren(
       this.root,
       hero(isOwner ? "No accounts. Just a name and a room code." : "Got a room code? Pop it in."),
-      h("label", { class: "field" }, h("span", {}, "Name"), this.name),
+      this.identity,
       isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
       joinForm,
       this.error,

@@ -1,4 +1,7 @@
 import type { RoomPublicState } from "@games/protocol";
+import { faceSvg } from "./faces.ts";
+
+export { faceSvg };
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)
@@ -91,17 +94,13 @@ export function seatName(room: RoomPublicState, playerId: string | null | undefi
 // Avatars
 // ---------------------------------------------------------------------------
 
-/** Stable hue from a seed, so a player keeps their colour across rooms. */
-export function avatarHue(seed: string): number {
-  let hash = 0;
-  for (const ch of seed) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-  return Math.abs(hash) % 360;
-}
-
-/** A coloured initial. Decorative: the name next to it carries the meaning. */
-export function avatar(name: string, seed: string, size: "sm" | "md" = "md"): HTMLElement {
-  const el = h("span", { class: `avatar avatar-${size}`, "aria-hidden": "true" }, [...name][0]?.toUpperCase() ?? "?");
-  el.style.setProperty("--hue", String(avatarHue(seed)));
+/**
+ * A generated face from the player's seed (the name, if there's no seed).
+ * Decorative: the name next to it carries the meaning.
+ */
+export function avatar(name: string, seed: string, size: "sm" | "md" | "lg" = "md"): HTMLElement {
+  const el = h("span", { class: `avatar avatar-${size}`, "aria-hidden": "true" });
+  el.innerHTML = faceSvg(seed || name);
   return el;
 }
 
