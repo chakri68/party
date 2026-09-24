@@ -1,0 +1,23 @@
+{
+  "name": "@games/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p . && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@games/animation": "workspace:*",
+    "@games/audio": "workspace:*",
+    "@games/game-core": "workspace:*",
+    "@games/protocol": "workspace:*",
+    "@games/room-client": "workspace:*",
+    "@games/sevens": "workspace:*",
+    "@games/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
+  }
+}

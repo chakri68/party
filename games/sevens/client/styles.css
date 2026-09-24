@@ -1,0 +1,169 @@
+/* Sevens — Phase 1. Uses the shell's tokens (--table, --card, --ink, --red, --accent, --muted). */
+
+.sevens {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.sv-status {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.06);
+}
+.sv-status.mine {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Board: suit label + 13 fixed columns so every seven sits in the same column. */
+.sv-board {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--table);
+}
+.sv-row {
+  display: grid;
+  grid-template-columns: 1.4em repeat(13, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+.sv-row-suit {
+  font-size: 1.1rem;
+  color: var(--felt-ink);
+}
+.sv-row-suit.red {
+  color: var(--red-on-felt);
+}
+.sv-slot {
+  aspect-ratio: 5 / 7;
+  border-radius: 4px;
+  border: 1px dashed rgb(255 255 255 / 0.08);
+}
+.sv-slot.seven {
+  border-color: rgb(255 255 255 / 0.28);
+}
+
+/* Cards. Board cards are small; hand cards are buttons and bigger. */
+.sv-card {
+  aspect-ratio: 5 / 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--card-ink);
+  font-weight: 700;
+  line-height: 1;
+  font-size: clamp(0.55rem, 2.6vw, 0.95rem);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  user-select: none;
+}
+.sv-card.red {
+  color: var(--red);
+}
+.sv-card .suit {
+  font-size: 0.85em;
+}
+
+.sv-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sv-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.06);
+  font-size: 0.9rem;
+}
+.sv-player.current {
+  outline: 2px solid var(--accent);
+}
+.sv-player.away {
+  opacity: 0.6;
+}
+.sv-player .count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.sv-player .dealer {
+  font-size: 0.7rem;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.15);
+}
+.sv-player .away-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.sv-log {
+  min-height: 1.4em;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.sv-hand-title {
+  margin: auto 0 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.sv-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sv-hand .sv-card {
+  width: 48px;
+  font-size: 1.1rem;
+  border: none;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.sv-hand .sv-card.playable {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgb(0 0 0 / 0.4);
+}
+@media (hover: hover) {
+  .sv-hand .sv-card.playable:hover {
+    transform: translateY(-6px);
+  }
+}
+.sv-hand .sv-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.sv-pass {
+  padding: 0 18px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.shake {
+  animation: sv-shake 300ms ease;
+}
+@keyframes sv-shake {
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shake { animation: none; outline: 2px solid var(--red); }
+  .sv-hand .sv-card { transition: none; }
+}

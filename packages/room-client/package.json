@@ -1,0 +1,12 @@
+{
+  "name": "@games/room-client",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": { "@games/protocol": "workspace:*", "partysocket": "^1.3.0" }
+}

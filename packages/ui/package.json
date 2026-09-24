@@ -1,0 +1,12 @@
+{
+  "name": "@games/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": { "@games/protocol": "workspace:*" }
+}

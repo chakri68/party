@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Only for crypto via game-core; nothing here may depend on the DOM itself.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["src"]
+}

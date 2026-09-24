@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+spec.md
+# Wrangler local state
+.wrangler

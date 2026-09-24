@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Runtime types come from worker-configuration.d.ts (`pnpm types`), not DOM.
+    "types": []
+  },
+  "include": ["src", "test", "worker-configuration.d.ts"]
+}

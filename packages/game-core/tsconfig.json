@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Only for crypto.getRandomValues; nothing here may depend on the DOM itself.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["src"]
+}
