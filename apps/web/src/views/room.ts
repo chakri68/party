@@ -13,7 +13,7 @@ import { brandMark, icon } from "../brand.ts";
 import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
-import { transition } from "../transition.ts";
+import { canTransition, transition } from "../transition.ts";
 import { identityField, nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
@@ -256,12 +256,16 @@ export class RoomView implements View {
       void (view.whenIdle?.() ?? Promise.resolve()).then(() => {
         const latest = this.last;
         if (!latest || latest.room.phase !== "results" || this.screen !== "playing") return;
-        this.show("results", () => replaceChildren(this.body, this.results(latest.room, me), this.controls, this.gameHost));
+        const panel = this.results(latest.room, me, !canTransition());
+        this.show("results", () => replaceChildren(this.body, panel, this.controls, this.gameHost));
       });
       return;
     }
 
-    const panel = room.phase === "results" ? this.results(room, me) : null;
+    // The panel pops in by itself only when it's new and no view transition
+    // brings it in; otherwise it would rise twice, or again on every update.
+    const arriving = this.screen !== null && this.screen !== "results" && !canTransition();
+    const panel = room.phase === "results" ? this.results(room, me, arriving) : null;
     this.show(room.phase, async () => {
       replaceChildren(this.body, panel, this.controls, this.gameHost);
       // Awaited so the transition's "after" picture has the game in it.
@@ -568,7 +572,7 @@ export class RoomView implements View {
     );
   }
 
-  private results(room: RoomPublicState, me: string) {
+  private results(room: RoomPublicState, me: string, pop: boolean) {
     const result = room.result;
     const isHost = room.hostId === me;
     const mySeat = room.seats.find((s) => s.id === me);
@@ -584,7 +588,7 @@ export class RoomView implements View {
 
     return h(
       "section",
-      { class: `results${won ? " won" : ""}` },
+      { class: `results${won ? " won" : ""}${pop ? " pop" : ""}` },
       featured ? h("div", { class: loser ? "loser-badge" : "winner-badge" }, avatar(featured.name, featured.avatarSeed)) : null,
       h("h2", {}, headline),
       h(

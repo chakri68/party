@@ -267,9 +267,10 @@
 
 /* ---- Motion (Phase 5) ---------------------------------------------------- */
 
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
 .card.mini.landed { animation: sv-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes sv-land {
-  from { transform: scale(1.18); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 @media (prefers-reduced-motion: reduce) {
   .card.mini.landed { animation: none; }

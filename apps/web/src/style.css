@@ -418,7 +418,8 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.45);
 }
 
-.results { animation: pop-in 380ms cubic-bezier(.2, .8, .2, 1) both; }
+/* Only without a view transition; with one, the page's rise already brings it in. */
+.results.pop { animation: pop-in 380ms cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes pop-in {
   from { transform: translateY(10px) scale(.97); opacity: 0; }
 }

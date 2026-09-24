@@ -190,7 +190,9 @@
 /* Hand cards: just for looking at. */
 .om-hand .om-card { scroll-snap-align: start; }
 .om-hand .om-card + .om-card { margin-left: var(--card-overlap); }
-.om-hand .om-card.fresh { animation: om-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+/* .fresh marks what you just took; .arrive drops it in when there was no flight to watch. */
+.om-hand .om-card.fresh { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.om-hand .om-card.arrive { animation: om-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
 @keyframes om-fresh {
   from { transform: translateY(-24px) scale(1.08); }
 }
@@ -278,14 +280,15 @@
   75% { transform: translateX(-3px); }
 }
 
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
 .om-pile .om-card.landed { animation: om-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes om-land {
-  from { transform: scale(1.12) rotate(-3deg); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .old-maid .shake { animation: none; outline: 2px solid var(--red); }
   .om-card, .om-opp { transition: none; }
   .om-card.selected, .om-card.lifted { transform: none; outline: 2px solid var(--accent); }
-  .om-pile .om-card.landed, .om-hand .om-card.fresh { animation: none; }
+  .om-pile .om-card.landed, .om-hand .om-card.arrive { animation: none; }
 }

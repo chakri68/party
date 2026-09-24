@@ -81,11 +81,18 @@ export class AnimationQueue {
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** How big a flight arrives when something else takes over the landing. */
+export const LAND_SCALE = 1.12;
+
 /**
  * Flies `ghost` from one rect to another in a fixed layer, using transforms
  * only (§18), then removes it. The ghost is sized to `to` and scaled at `from`.
+ *
+ * `handoff`: the caller puts a real element down where the ghost ends, with
+ * its own landing animation starting at `scale(LAND_SCALE)`. The ghost stops
+ * there instead of settling itself, so the card bounces once, not twice.
  */
-export async function fly(ghost: HTMLElement, from: DOMRect, to: DOMRect, duration = 320): Promise<void> {
+export async function fly(ghost: HTMLElement, from: DOMRect, to: DOMRect, duration = 320, { handoff = false } = {}): Promise<void> {
   Object.assign(ghost.style, {
     position: "fixed",
     left: `${to.left}px`,
@@ -102,17 +109,29 @@ export async function fly(ghost: HTMLElement, from: DOMRect, to: DOMRect, durati
   const dy = from.top + from.height / 2 - (to.top + to.height / 2);
   const s = Math.max(from.width / Math.max(to.width, 1), 0.2);
   try {
+    const start = { transform: `translate3d(${dx}px, ${dy}px, 0) scale(${s}) rotate(-6deg)` };
+    const arrive = { transform: `translate3d(0, 0, 0) scale(${LAND_SCALE}) rotate(0deg)` };
     await ghost.animate(
-      [
-        { transform: `translate3d(${dx}px, ${dy}px, 0) scale(${s}) rotate(-6deg)` },
-        { transform: "translate3d(0, 0, 0) scale(1.12) rotate(0deg)", offset: 0.85 },
-        { transform: "translate3d(0, 0, 0) scale(1)" },
-      ],
-      { duration, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" },
+      handoff ? [start, arrive] : [start, { ...arrive, offset: 0.85 }, { transform: "translate3d(0, 0, 0) scale(1) rotate(0deg)" }],
+      // Handed off, it's only the 85% that used to reach the table.
+      { duration: handoff ? Math.round(duration * 0.85) : duration, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" },
     ).finished;
   } finally {
     ghost.remove();
   }
+}
+
+/**
+ * Plays a one-off CSS animation class (a landing pop, a fresh-card dip) and
+ * takes it off again after, so the element can be kept across renders
+ * without the animation replaying every time it's re-attached.
+ */
+export function once<T extends Element>(el: T, className: string): T {
+  el.classList.add(className);
+  const done = () => el.classList.remove(className);
+  el.addEventListener("animationend", done, { once: true });
+  el.addEventListener("animationcancel", done, { once: true });
+  return el;
 }
 
 /** A short-lived bubble over an element ("Pass"), without moving layout. */

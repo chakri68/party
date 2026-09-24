@@ -1,9 +1,9 @@
-import { AnimationQueue, bubble, fly } from "@games/animation";
+import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatRank, rowBounds, SEVEN } from "../shared/rules.ts";
-import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState } from "../shared/types.ts";
+import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState, type Suit } from "../shared/types.ts";
 import { cardBack, cardLabel, cardShort, fullCard, isRed, miniCard, SUIT_NAME, SUIT_SYMBOL } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
@@ -17,6 +17,9 @@ const PRESENCE_LABEL: Record<Presence, string> = {
  * Mouse users click to play (§17). Touch gets tap-to-select, then tap again or
  * press Play: a stray tap mid-scroll shouldn't throw a card.
  */
+/** A dealt card is mostly see-through for its first ~80ms of rise. */
+const DEAL_SOUND_LAG = 80;
+
 const directPlay = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 function describe(e: SevensEvent, props: GameViewProps): string | null {
@@ -40,6 +43,13 @@ function describe(e: SevensEvent, props: GameViewProps): string | null {
 }
 
 /** Everyone but me, starting from my left: reads like the table, clockwise. */
+/**
+ * Which sounds a render makes. "all": nothing was acted out, so the events'
+ * sounds play here. "cues": the animations made those, only the turn chime
+ * and the ending are left. "none": a redraw mid-show, or of the same state.
+ */
+type Sounds = "all" | "cues" | "none";
+
 function fromMyLeft<T extends { id: string }>(players: T[], me: string): T[] {
   const i = players.findIndex((p) => p.id === me);
   return i < 0 ? players : [...players.slice(i + 1), ...players.slice(0, i)];
@@ -112,7 +122,7 @@ export class SevensView implements GameView {
     const freshDeal = !this.props && events.some((e) => e.type === "dealt");
     if (props.snapshot || (!this.props && !freshDeal)) {
       this.queue.clear();
-      this.render(props, { quiet: true });
+      this.render(props, "none");
       return;
     }
     let acted = false;
@@ -124,11 +134,11 @@ export class SevensView implements GameView {
           }
         : undefined,
       // Sounds ride on the animations; if those were skipped, play them here.
-      settle: () => this.render(props, { quiet: acted }),
+      settle: () => this.render(props, acted ? "cues" : "all"),
     });
   }
 
-  private render(props: GameViewProps, { quiet }: { quiet: boolean }) {
+  private render(props: GameViewProps, sounds: Sounds) {
     this.props = props;
     const game = props.game as SevensPublicState;
     const priv = props.private as SevensPrivateState | null;
@@ -146,8 +156,8 @@ export class SevensView implements GameView {
     const lines = events.map((e) => describe(e, props)).filter(Boolean);
     if (lines.length) this.log.textContent = lines.slice(-2).join(" ");
 
-    if (!props.snapshot) {
-      if (!quiet) this.eventSounds(events);
+    if (sounds !== "none") {
+      if (sounds === "all") this.eventSounds(events);
       const over = events.find((e) => e.type === "game-over");
       if (over) {
         const won = over.type === "game-over" && over.winnerId === props.playerId;
@@ -159,7 +169,8 @@ export class SevensView implements GameView {
         audio.buzz(25);
       }
     }
-    this.wasMyTurn = myTurn;
+    // Mid-show redraws leave it alone, so the chime waits for the settled turn.
+    if (sounds !== "none" || props.snapshot) this.wasMyTurn = myTurn;
   }
 
   // ---- animation (§18) ----------------------------------------------------
@@ -171,11 +182,10 @@ export class SevensView implements GameView {
     for (const e of events) {
       switch (e.type) {
         case "dealt":
-          // Shuffle, give the riffle a beat, then paint the new hands and fan them in.
+          // Paint the new table now (hand held back), give the riffle a beat, fan the hand in.
           audio.play("shuffle");
-          await new Promise((r) => setTimeout(r, 380));
-          this.render(props, { quiet: true });
-          await this.dealIn();
+          this.render(props, "none");
+          await this.dealIn(380);
           break;
         case "card-played":
           await this.flyCard(e.playerId, e.card, e.row ?? 0, quick ? 180 : 340);
@@ -190,6 +200,10 @@ export class SevensView implements GameView {
           audio.play("pass");
           await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "Nothing to play" : "Pass");
           break;
+        case "turn-skipped":
+          audio.play("pass");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          break;
         default:
           break;
       }
@@ -200,7 +214,7 @@ export class SevensView implements GameView {
     const types = new Set(events.map((e) => e.type));
     if (types.has("dealt")) audio.play("shuffle");
     if (types.has("card-played") || types.has("ghost-card-placed")) audio.play("card-place");
-    if (types.has("passed")) audio.play("pass");
+    if (types.has("passed") || types.has("turn-skipped")) audio.play("pass");
   }
 
   /** Where a player "sits" on screen: their chip, or your dock. */
@@ -223,11 +237,10 @@ export class SevensView implements GameView {
       const r = this.anchorFor(playerId, this.props).getBoundingClientRect();
       from = new DOMRect(r.left + r.width / 2 - to.width * 0.35, r.top + r.height / 2 - to.height * 0.35, to.width * 0.7, to.height * 0.7);
     }
-    await fly(miniCard(card), from, to, duration);
+    await fly(miniCard(card), from, to, duration, { handoff: true });
     // Land it for real now, so the next flight in this batch sees it on the table.
-    const landed = miniCard(card);
+    const landed = once(miniCard(card), "landed");
     landed.dataset.cell = `${card.suit}-${row}-${card.rank}`;
-    landed.classList.add("landed");
     cell.replaceWith(landed);
   }
 
@@ -236,17 +249,19 @@ export class SevensView implements GameView {
    * table: the hand is a scroller and clips anything outside it, so rising out
    * of its bottom edge looks deliberate instead of cut off.
    */
-  private async dealIn() {
+  private async dealIn(after = 0) {
     const cards = [...this.hand.children] as HTMLElement[];
     const step = Math.min(35, 500 / Math.max(cards.length, 1));
     const flights = cards.map((el, i) => {
-      if (i % 3 === 0) setTimeout(() => audio.play("deal"), i * step);
+      const delay = after + i * step;
+      // Timed to when the card shows, not when its (invisible) rise starts.
+      if (i % 3 === 0) setTimeout(() => audio.play("deal"), delay + DEAL_SOUND_LAG);
       return el.animate(
         [
           { transform: "translateY(110%) rotate(-8deg)", opacity: 0 },
           { transform: "none", opacity: 1 },
         ],
-        { duration: 360, delay: i * step, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
+        { duration: 360, delay, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
       ).finished;
     });
     await Promise.all(flights).catch(() => {});
@@ -304,6 +319,25 @@ export class SevensView implements GameView {
   private renderBoard(game: SevensPublicState) {
     // Fixed columns so every seven sits in the same place (§15).
     const { min, max } = rowBounds(game.acePosition);
+    // Same layout as last time: swap only the cells that changed, so a card
+    // that just landed keeps its landing instead of being rebuilt mid-pop.
+    const shape = `${min}:${max}:${SUITS.map((s) => (game.board[s] ?? [null]).length).join(",")}`;
+    if (this.board.dataset.shape === shape) {
+      SUITS.forEach((suit) =>
+        (game.board[suit] ?? [null]).forEach((row, i) => {
+          for (let r = min; r <= max; r++) {
+            const key = `${suit}-${i}-${r}`;
+            const cell = this.board.querySelector<HTMLElement>(`[data-cell="${key}"]`);
+            const played = !!row && r >= row.low && r <= row.high;
+            if (cell && cell.classList.contains("card") !== played) cell.replaceWith(this.cell(suit, i, r, played));
+          }
+          const label = this.board.querySelector(`[data-row="${suit}-${i}"]`);
+          label?.setAttribute("aria-label", this.rowLabel(game, suit, i));
+        }),
+      );
+      return;
+    }
+    this.board.dataset.shape = shape;
     replaceChildren(
       this.board,
       // One row per deck under each suit; the suit symbol only on its first row.
@@ -313,20 +347,10 @@ export class SevensView implements GameView {
           { class: "sv-suit" },
           (game.board[suit] ?? [null]).map((row, i) => {
             const cells = [];
-            for (let r = min; r <= max; r++) {
-              const played = row && r >= row.low && r <= row.high;
-              const cell = played ? miniCard({ suit, rank: r }) : h("span", { class: `slot${r === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
-              cell.dataset.cell = `${suit}-${i}-${r}`;
-              cells.push(cell);
-            }
-            const which = game.decks > 1 ? ` row ${i + 1}` : "";
+            for (let r = min; r <= max; r++) cells.push(this.cell(suit, i, r, !!row && r >= row.low && r <= row.high));
             return h(
               "div",
-              {
-                class: "sv-row",
-                role: "group",
-                "aria-label": `${SUIT_NAME[suit]}${which}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}`,
-              },
+              { class: "sv-row", role: "group", "data-row": `${suit}-${i}`, "aria-label": this.rowLabel(game, suit, i) },
               h("span", { class: `sv-row-suit${isRed(suit) ? " red" : ""}`, "aria-hidden": "true" }, i === 0 ? SUIT_SYMBOL[suit] : ""),
               cells,
             );
@@ -334,6 +358,18 @@ export class SevensView implements GameView {
         ),
       ),
     );
+  }
+
+  private cell(suit: Suit, row: number, rank: number, played: boolean): HTMLElement {
+    const cell = played ? miniCard({ suit, rank }) : h("span", { class: `slot${rank === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
+    cell.dataset.cell = `${suit}-${row}-${rank}`;
+    return cell;
+  }
+
+  private rowLabel(game: SevensPublicState, suit: Suit, i: number): string {
+    const row = (game.board[suit] ?? [null])[i];
+    const which = game.decks > 1 ? ` row ${i + 1}` : "";
+    return `${SUIT_NAME[suit]}${which}: ${row ? `${formatRank(row.low)} to ${formatRank(row.high)}` : "not started"}`;
   }
 
   private renderHand(priv: SevensPrivateState | null, myTurn: boolean) {
@@ -417,7 +453,7 @@ export class SevensView implements GameView {
       return;
     }
     this.selected = cardId;
-    this.render(props, { quiet: true });
+    this.render(props, "none");
   }
 
   private playSelected() {
@@ -425,7 +461,7 @@ export class SevensView implements GameView {
     if (!cardId) return;
     this.selected = null;
     this.pending.set(this.api.act({ type: "play-card", cardId }), cardId);
-    if (this.props) this.render(this.props, { quiet: true });
+    if (this.props) this.render(this.props, "none");
   }
 
   private onHandKey = (e: KeyboardEvent) => {

@@ -20,6 +20,11 @@ type Update = () => void | Promise<void>;
 let running = false;
 let waiting: { kind: TransitionKind; update: Update } | null = null;
 
+/** Whether `transition` would animate right now, rather than just run the update. */
+export function canTransition(): boolean {
+  return !!document.startViewTransition && motionAllowed() && document.visibilityState === "visible";
+}
+
 /**
  * Runs `update` inside a view transition, or just runs it: no API, reduced
  * motion, or animations switched off in the debug panel. `update` may be
@@ -31,7 +36,7 @@ let waiting: { kind: TransitionKind; update: Update } | null = null;
  * backlog of animations.
  */
 export function transition(kind: TransitionKind, update: Update): void {
-  if (!document.startViewTransition || !motionAllowed() || document.visibilityState !== "visible") {
+  if (!canTransition()) {
     void update();
     return;
   }

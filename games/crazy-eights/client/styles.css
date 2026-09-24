@@ -205,8 +205,9 @@
   font-size: 1.9rem;
 }
 .ce-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
-.ce-table .ce-card .corner { font-size: 1.1rem; }
-.ce-table .ce-card .pip { font-size: 2.4rem; }
+/* .on-table: a card flying to the pile, dressed as the one it turns into. */
+.ce-table .ce-card .corner, .ce-card.on-table .corner { font-size: 1.1rem; }
+.ce-table .ce-card .pip, .ce-card.on-table .pip { font-size: 2.4rem; }
 
 /* Hand cards */
 .ce-hand .ce-card { cursor: pointer; scroll-snap-align: start; }
@@ -302,7 +303,7 @@
   .ce-table { column-gap: 40px; padding: 24px 16px 18px; }
   .ce-card .corner { font-size: 1.1rem; }
   .ce-card .pip { font-size: 2.4rem; }
-  .ce-table .ce-card .pip { font-size: 3rem; }
+  .ce-table .ce-card .pip, .ce-card.on-table .pip { font-size: 3rem; }
   .ce-hand { justify-content: safe center; }
   .ce-picker { max-width: 420px; justify-self: end; width: 100%; }
 }
@@ -316,9 +317,10 @@
   75% { transform: translateX(-3px); }
 }
 
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
 .ce-pile .ce-card.landed { animation: ce-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes ce-land {
-  from { transform: scale(1.12) rotate(-3deg); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,8 @@
-import { AnimationQueue, bubble, fly } from "@games/animation";
+import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { compareCards } from "../shared/rules.ts";
 import {
   EIGHT,
   SUITS,
@@ -25,6 +26,9 @@ const PRESENCE_LABEL: Record<Presence, string> = {
  * press Play: a stray tap mid-scroll shouldn't throw a card. Eights always go
  * through the suit picker, which doubles as the confirmation.
  */
+/** A dealt card is mostly see-through for its first ~80ms of rise. */
+const DEAL_SOUND_LAG = 80;
+
 const directPlay = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 function describe(e: CrazyEightsEvent, props: GameViewProps): string | null {
@@ -52,6 +56,13 @@ function describe(e: CrazyEightsEvent, props: GameViewProps): string | null {
       return e.reason === "blocked" ? "Nobody can play and the stock's gone. Lowest hand wins." : null;
   }
 }
+
+/**
+ * Which sounds a render makes. "all": nothing was acted out, so the events'
+ * sounds play here. "cues": the animations made those, only the turn chime
+ * and the ending are left. "none": a redraw mid-show, or of the same state.
+ */
+type Sounds = "all" | "cues" | "none";
 
 /** Everyone but me, starting from my left: reads like the table, clockwise. */
 function fromMyLeft<T extends { id: string }>(players: T[], me: string): T[] {
@@ -141,7 +152,7 @@ export class CrazyEightsView implements GameView {
     const freshDeal = !this.props && events.some((e) => e.type === "dealt");
     if (props.snapshot || (!this.props && !freshDeal)) {
       this.queue.clear();
-      this.render(props, { quiet: true });
+      this.render(props, "none");
       return;
     }
     let acted = false;
@@ -153,11 +164,11 @@ export class CrazyEightsView implements GameView {
           }
         : undefined,
       // Sounds ride on the animations; if those were skipped, play them here.
-      settle: () => this.render(props, { quiet: acted }),
+      settle: () => this.render(props, acted ? "cues" : "all"),
     });
   }
 
-  private render(props: GameViewProps, { quiet }: { quiet: boolean }) {
+  private render(props: GameViewProps, sounds: Sounds) {
     this.props = props;
     const game = props.game as CrazyEightsPublicState;
     const priv = props.private as CrazyEightsPrivateState | null;
@@ -176,8 +187,8 @@ export class CrazyEightsView implements GameView {
     const lines = events.map((e) => describe(e, props)).filter(Boolean);
     if (lines.length) this.log.textContent = lines.slice(-2).join(" ");
 
-    if (!props.snapshot) {
-      if (!quiet) this.eventSounds(events);
+    if (sounds !== "none") {
+      if (sounds === "all") this.eventSounds(events);
       const over = events.find((e) => e.type === "game-over");
       if (over?.type === "game-over") {
         const won = over.winnerIds.includes(props.playerId);
@@ -189,38 +200,44 @@ export class CrazyEightsView implements GameView {
         audio.buzz(25);
       }
     }
-    this.wasMyTurn = myTurn;
+    // Mid-show redraws leave it alone, so the chime waits for the settled turn.
+    if (sounds !== "none" || props.snapshot) this.wasMyTurn = myTurn;
   }
 
   // ---- animation (§18) ----------------------------------------------------
 
   /** Acts out one update's events, in order, against the still-old DOM. */
   private async act(events: CrazyEightsEvent[], props: GameViewProps) {
-    for (const e of events) {
+    for (const [i, e] of events.entries()) {
       switch (e.type) {
         case "dealt":
-          // Shuffle, give the riffle a beat, then paint the new hands and fan them in.
+          // Paint the new table now (hand held back), give the riffle a beat, fan the hand in.
           audio.play("shuffle");
-          await new Promise((r) => setTimeout(r, 380));
-          this.render(props, { quiet: true });
-          await this.dealIn();
+          this.render(props, "none");
+          await this.dealIn(380);
           break;
         case "card-played":
           await this.flyToPile(e.playerId, e.card);
           audio.play("card-place");
           if (e.playerId === props.playerId) audio.buzz(12);
           break;
-        case "drew":
+        case "drew": {
+          const drawn = events.slice(i + 1).find((x) => x.type === "you-drew");
           audio.play("deal");
-          await this.flyFromStock(e.playerId);
+          await this.flyFromStock(e.playerId, e.playerId === props.playerId && drawn?.type === "you-drew" ? drawn.card : null);
           break;
+        }
         case "reshuffled":
-          audio.play("deal");
+          audio.play("shuffle");
           await bubble(this.stock, "Reshuffled");
           break;
         case "passed":
           audio.play("pass");
           await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "Nothing to play" : "Pass");
+          break;
+        case "turn-skipped":
+          audio.play("pass");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped");
           break;
         default:
           break;
@@ -230,10 +247,10 @@ export class CrazyEightsView implements GameView {
 
   private eventSounds(events: CrazyEightsEvent[]) {
     const types = new Set(events.map((e) => e.type));
-    if (types.has("dealt")) audio.play("shuffle");
+    if (types.has("dealt") || types.has("reshuffled")) audio.play("shuffle");
     if (types.has("drew")) audio.play("deal");
     if (types.has("card-played")) audio.play("card-place");
-    if (types.has("passed")) audio.play("pass");
+    if (types.has("passed") || types.has("turn-skipped")) audio.play("pass");
   }
 
   /** Where a player "sits" on screen: their chip, or your dock. */
@@ -259,40 +276,64 @@ export class CrazyEightsView implements GameView {
     } else {
       from = this.cardRectAt(this.anchorFor(playerId, this.props), to);
     }
-    await fly(cardFace(card), from, to, 340);
+    // Dressed as a table card, so the corners don't change size as it lands.
+    const ghost = cardFace(card);
+    ghost.classList.add("on-table");
+    await fly(ghost, from, to, 340, { handoff: true });
     // Land it now, so the next flight in this batch sees it on top.
-    const landed = cardFace(card);
-    landed.classList.add("landed");
-    replaceChildren(this.pile, landed);
+    replaceChildren(this.pile, once(this.pileCard(card), "landed"));
   }
 
-  private async flyFromStock(playerId: string) {
-    if (!this.props) return;
+  /** The pile's top card, keyed so a redraw of the same card leaves it (and its landing) alone. */
+  private pileCard(card: Pick<Card, "suit" | "rank">): HTMLElement {
+    const el = cardFace(card);
+    el.dataset.face = `${card.suit}-${card.rank}`;
+    return el;
+  }
+
+  /**
+   * A draw. Yours goes into its sorted place in the hand (put there first,
+   * hidden, so the flight has a real target and the hand makes room);
+   * anyone else's goes onto their chip.
+   */
+  private async flyFromStock(playerId: string, card: Card | null) {
+    const props = this.props;
+    if (!props) return;
     const from = this.stock.getBoundingClientRect();
-    const target = playerId === this.props.playerId ? this.hand : this.anchorFor(playerId, this.props);
-    const r = target.getBoundingClientRect();
-    // Into the hand's right edge, or onto the opponent's chip.
-    const to =
-      target === this.hand
-        ? new DOMRect(Math.min(r.right, innerWidth) - from.width - 8, r.top + 20, from.width, from.height)
-        : this.cardRectAt(target, from);
-    await fly(cardBackFull(), from, to, 280);
+    if (playerId !== props.playerId) {
+      await fly(cardBackFull(), from, this.cardRectAt(this.anchorFor(playerId, props), from), 280);
+      return;
+    }
+    const hand = (props.private as CrazyEightsPrivateState | null)?.hand ?? [];
+    if (!card || this.cards.has(card.id)) return;
+    const next = hand.find((c) => compareCards(c, card) > 0 && this.cards.has(c.id));
+    const btn = this.handButton(card);
+    btn.style.visibility = "hidden";
+    this.hand.insertBefore(btn, next ? this.cards.get(next.id)! : null);
+    btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+    try {
+      await fly(cardBackFull(), from, btn.getBoundingClientRect(), 280);
+    } finally {
+      btn.style.visibility = "";
+    }
   }
 
   /**
    * Cards slide up into the hand one by one. From below rather than from the
    * table: the hand is a scroller and clips anything outside it.
    */
-  private async dealIn() {
+  private async dealIn(after = 0) {
     const cards = [...this.hand.children] as HTMLElement[];
     const flights = cards.map((el, i) => {
-      setTimeout(() => audio.play("deal"), i * 70);
+      const delay = after + i * 70;
+      // Timed to when the card shows, not when its (invisible) rise starts.
+      setTimeout(() => audio.play("deal"), delay + DEAL_SOUND_LAG);
       return el.animate(
         [
           { transform: "translateY(110%) rotate(-8deg)", opacity: 0 },
           { transform: "none", opacity: 1 },
         ],
-        { duration: 360, delay: i * 70, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
+        { duration: 360, delay, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
       ).finished;
     });
     await Promise.all(flights).catch(() => {});
@@ -363,7 +404,8 @@ export class CrazyEightsView implements GameView {
       h("span", { class: "ce-stock-count", "aria-hidden": "true" }, game.stockCount ? String(game.stockCount) : left ? "reshuffle" : "empty"),
     );
 
-    replaceChildren(this.pile, cardFace(game.topCard));
+    const top = this.pile.firstElementChild as HTMLElement | null;
+    if (top?.dataset.face !== `${game.topCard.suit}-${game.topCard.rank}`) replaceChildren(this.pile, this.pileCard(game.topCard));
 
     // The suit to follow. Loud after an eight, since that's the one people miss.
     const suit = game.activeSuit;
@@ -382,7 +424,6 @@ export class CrazyEightsView implements GameView {
     const keep = new Set(hand.map((c) => c.id));
 
     for (const [id, btn] of this.cards) {
-      btn.classList.remove("fresh");
       if (!keep.has(id)) {
         btn.remove();
         this.cards.delete(id);
@@ -397,13 +438,8 @@ export class CrazyEightsView implements GameView {
     hand.forEach((card, i) => {
       let btn = this.cards.get(card.id);
       if (!btn) {
-        btn = handCard(card);
-        btn.addEventListener("click", () => this.onCardTap(card.id));
-        this.cards.set(card.id, btn);
-        if (drawing) {
-          btn.classList.add("fresh");
-          fresh = btn;
-        }
+        btn = this.handButton(card);
+        if (drawing) fresh = once(btn, "fresh");
       }
       const canPlay = myTurn && playable.has(card.id);
       const picked = this.selected === card.id || this.calling === card.id;
@@ -421,6 +457,13 @@ export class CrazyEightsView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+  }
+
+  private handButton(card: Card): HTMLButtonElement {
+    const btn = handCard(card);
+    btn.addEventListener("click", () => this.onCardTap(card.id));
+    this.cards.set(card.id, btn);
+    return btn;
   }
 
   private renderDock(props: GameViewProps, game: CrazyEightsPublicState, priv: CrazyEightsPrivateState | null, myTurn: boolean) {
@@ -469,7 +512,7 @@ export class CrazyEightsView implements GameView {
   }
 
   private rerender() {
-    if (this.props) this.render(this.props, { quiet: true });
+    if (this.props) this.render(this.props, "none");
   }
 
   private onCardTap(cardId: string) {

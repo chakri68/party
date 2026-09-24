@@ -1,8 +1,8 @@
-import { AnimationQueue, bubble, fly } from "@games/animation";
+import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { ordinal } from "../shared/rules.ts";
+import { compareCards, ordinal } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort } from "./cards.ts";
 
@@ -17,6 +17,9 @@ const PRESENCE_LABEL: Record<Presence, string> = {
  * Mouse users click to take (§17). Touch gets tap-to-lift, then tap again or
  * press Take: a stray tap mid-scroll shouldn't pick your card for you.
  */
+/** A dealt card is mostly see-through for its first ~80ms of rise. */
+const DEAL_SOUND_LAG = 80;
+
 const directPlay = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 function describe(e: OldMaidEvent, props: GameViewProps): string | null {
@@ -49,6 +52,18 @@ function describe(e: OldMaidEvent, props: GameViewProps): string | null {
   }
 }
 
+/**
+ * Which sounds a render makes. "all": nothing was acted out, so the events'
+ * sounds play here. "cues": the animations made those, only the turn chime
+ * and the ending are left. "none": a redraw mid-show, or of the same state.
+ */
+type Sounds = "all" | "cues" | "none";
+
+/** How far the pile's second card sits from its first (matches .om-pile in styles.css). */
+const PILE_OFFSET = { x: 14, y: 8 };
+
+const pairKey = (pair: Card[]) => pair.map((c) => c.id).join("+");
+
 /** Everyone but me, starting from my left: reads like the table, clockwise. */
 function fromMyLeft<T extends { id: string }>(players: T[], me: string): T[] {
   const i = players.findIndex((p) => p.id === me);
@@ -77,6 +92,10 @@ export class OldMaidView implements GameView {
   private slots: HTMLButtonElement[] = [];
   private selected: number | null = null;
   private pending = new Set<string>();
+  /** Cards that came in this update: highlighted until the next one. */
+  private fresh = new Set<string>();
+  /** Pairs the pile says are down, so flights can count up from it. */
+  private pairsDown = 0;
 
   /** Events act out first, settled state lands after (§19). */
   private queue = new AnimationQueue();
@@ -122,7 +141,7 @@ export class OldMaidView implements GameView {
     }
     // Unlock the fan for another go.
     this.selected = null;
-    if (this.props) this.render(this.props, { quiet: true });
+    if (this.props) this.render(this.props, "none");
     this.log.textContent = message;
     audio.play("reject");
     audio.buzz([30, 40, 30]);
@@ -135,7 +154,8 @@ export class OldMaidView implements GameView {
     const freshDeal = !this.props && events.some((e) => e.type === "dealt");
     if (props.snapshot || (!this.props && !freshDeal)) {
       this.queue.clear();
-      this.render(props, { quiet: true });
+      this.fresh.clear();
+      this.render(props, "none");
       return;
     }
     let acted = false;
@@ -143,15 +163,19 @@ export class OldMaidView implements GameView {
       animate: events.length
         ? async () => {
             acted = true;
+            this.fresh.clear();
             await this.act(events, props);
           }
         : undefined,
       // Sounds ride on the animations; if those were skipped, play them here.
-      settle: () => this.render(props, { quiet: acted }),
+      settle: () => {
+        if (!acted) this.fresh.clear();
+        this.render(props, acted ? "cues" : "all");
+      },
     });
   }
 
-  private render(props: GameViewProps, { quiet }: { quiet: boolean }) {
+  private render(props: GameViewProps, sounds: Sounds) {
     // A new state from the server means a new fan: forget the lifted card.
     if (props !== this.props) this.selected = null;
     this.props = props;
@@ -172,8 +196,8 @@ export class OldMaidView implements GameView {
     const lines = events.map((e) => describe(e, props)).filter(Boolean);
     if (lines.length) this.log.textContent = lines.slice(-2).join(" ");
 
-    if (!props.snapshot) {
-      if (!quiet) this.eventSounds(events);
+    if (sounds !== "none") {
+      if (sounds === "all") this.eventSounds(events);
       const over = events.find((e) => e.type === "game-over");
       if (over?.type === "game-over" && over.loserId) {
         const lost = over.loserId === props.playerId;
@@ -185,28 +209,31 @@ export class OldMaidView implements GameView {
         audio.buzz(25);
       }
     }
-    this.wasMyTurn = myTurn;
+    // Mid-show redraws leave it alone, so the chime waits for the settled turn.
+    if (sounds !== "none" || props.snapshot) this.wasMyTurn = myTurn;
   }
 
   // ---- animation (§18) ----------------------------------------------------
 
   /** Acts out one update's events, in order, against the still-old DOM. */
   private async act(events: OldMaidEvent[], props: GameViewProps) {
-    for (const e of events) {
+    for (const [i, e] of events.entries()) {
       switch (e.type) {
         case "dealt":
-          // Shuffle, give the riffle a beat, then paint the new hands and fan them in.
+          // The table as dealt, pairs still in hand: they go down next, on camera.
+          // Painted now (hand held back), the riffle gets a beat, then the hand fans in.
           audio.play("shuffle");
-          await new Promise((r) => setTimeout(r, 380));
-          this.render(props, { quiet: true });
-          await this.dealIn();
+          this.render(this.asDealt(e, events, props), "none");
+          await this.dealIn(380);
           break;
         case "took": {
           // Only the taker and the one taken from get to see the card.
-          const mine = events.find((x) => x.type === "you-took" || x.type === "taken-from-you") as
-            | Extract<OldMaidEvent, { type: "you-took" | "taken-from-you" }>
-            | undefined;
-          audio.play("deal");
+          const mine = events
+            .slice(i + 1)
+            .find(
+              (x): x is Extract<OldMaidEvent, { type: "you-took" | "taken-from-you" }> =>
+                (x.type === "you-took" && x.fromId === e.fromId) || (x.type === "taken-from-you" && x.byId === e.playerId),
+            );
           if (e.playerId === props.playerId) audio.buzz(12);
           await this.flyTake(e.playerId, e.fromId, e.slot, mine?.card ?? null);
           if (mine?.card.suit === "joker") {
@@ -219,13 +246,13 @@ export class OldMaidView implements GameView {
           break;
         }
         case "discarded":
-          audio.play("card-place");
           await this.flyPairs(e.playerId, e.pairs);
           break;
         case "went-out":
           await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "You're out!" : "Out!");
           break;
         case "turn-skipped":
+          audio.play("pass");
           await bubble(this.anchorFor(e.playerId, props), "Skipped");
           break;
         default:
@@ -239,6 +266,29 @@ export class OldMaidView implements GameView {
     if (types.has("dealt")) audio.play("shuffle");
     if (types.has("took")) audio.play("deal");
     if (types.has("discarded")) audio.play("card-place");
+    if (types.has("turn-skipped")) audio.play("pass");
+  }
+
+  /**
+   * This update's state as it stood right after the deal: hands at their
+   * dealt sizes, your pairs still in yours, nothing on the pile.
+   */
+  private asDealt(dealt: Extract<OldMaidEvent, { type: "dealt" }>, events: OldMaidEvent[], props: GameViewProps): GameViewProps {
+    const game = props.game as OldMaidPublicState;
+    const priv = props.private as OldMaidPrivateState | null;
+    const paired = events.flatMap((x) => (x.type === "discarded" && x.playerId === props.playerId ? x.pairs.flat() : []));
+    return {
+      ...props,
+      game: {
+        ...game,
+        players: game.players.map((p) => ({ ...p, cardCount: dealt.handSizes[p.id] ?? p.cardCount, outPlace: null })),
+        discardCount: 0,
+        lastPair: null,
+        loserId: null,
+        loserCard: null,
+      } satisfies OldMaidPublicState,
+      private: priv && { ...priv, hand: [...priv.hand, ...paired].sort(compareCards) },
+    };
   }
 
   /** Where a player "sits" on screen: their chip, or your dock. */
@@ -251,12 +301,6 @@ export class OldMaidView implements GameView {
   private cardRectAt(anchor: Element, like: DOMRect): DOMRect {
     const r = anchor.getBoundingClientRect();
     return new DOMRect(r.left + r.width / 2 - like.width * 0.3, r.top + r.height / 2 - like.height * 0.3, like.width * 0.6, like.height * 0.6);
-  }
-
-  /** A card-sized rect at the right end of your hand, where new cards show up. */
-  private handEnd(like: DOMRect): DOMRect {
-    const r = this.hand.getBoundingClientRect();
-    return new DOMRect(Math.min(r.right, innerWidth) - like.width - 8, r.top + 20, like.width, like.height);
   }
 
   /**
@@ -282,8 +326,28 @@ export class OldMaidView implements GameView {
       from = ownCard ? ownCard.getBoundingClientRect() : this.cardRectAt(this.anchorFor(fromId, props), size);
     }
     if (ownCard) ownCard.style.visibility = "hidden"; // settle removes it
-    const to = takerId === me ? this.handEnd(size) : this.cardRectAt(this.anchorFor(takerId, props), size);
-    await fly(card ? cardFace(card) : cardBackFull(), from, to, 340);
+    // The sound goes with the card leaving, not with the beat before it.
+    audio.play("deal");
+
+    if (takerId !== me || !card || this.cards.has(card.id)) {
+      await fly(card ? cardFace(card) : cardBackFull(), from, this.cardRectAt(this.anchorFor(takerId, props), size), 340);
+      return;
+    }
+    // Yours: put it in its sorted spot first, hidden, so the flight has a real
+    // target, the hand makes room, and a pair it makes can leave from there.
+    const hand = (props.private as OldMaidPrivateState | null)?.hand ?? [];
+    const next = hand.find((c) => compareCards(c, card) > 0 && this.cards.has(c.id));
+    const el = this.handCard(card);
+    el.style.visibility = "hidden";
+    this.hand.insertBefore(el, next ? this.cards.get(next.id)! : null);
+    this.fresh.add(card.id);
+    el.classList.add("fresh");
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    try {
+      await fly(cardFace(card), from, el.getBoundingClientRect(), 340);
+    } finally {
+      el.style.visibility = "";
+    }
   }
 
   /**
@@ -294,32 +358,54 @@ export class OldMaidView implements GameView {
   private async flyPairs(playerId: string, pairs: Card[][]) {
     const props = this.props;
     if (!props) return;
-    const to = this.pile.getBoundingClientRect();
+    // Where each card of a pair sits on the pile: the second one offset (see .om-pile).
+    const pile = this.pile.getBoundingClientRect();
+    const w = pile.width - PILE_OFFSET.x;
+    const h = pile.height - PILE_OFFSET.y;
+    const spots = [new DOMRect(pile.left, pile.top, w, h), new DOMRect(pile.left + PILE_OFFSET.x, pile.top + PILE_OFFSET.y, w, h)];
+    // Same length flights, launched in order, so they land in order too.
     await Promise.all(
-      pairs.flat().map((card, i) => {
-        const el = playerId === props.playerId ? this.cards.get(card.id) : undefined;
-        const from = el ? el.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), to);
-        if (el) el.style.visibility = "hidden";
-        return new Promise((r) => setTimeout(r, i * 50)).then(() => fly(cardFace(card), from, to, 300));
-      }),
+      pairs.map((pair, p) =>
+        Promise.all(
+          pair.map(async (card, c) => {
+            const el = playerId === props.playerId ? this.cards.get(card.id) : undefined;
+            const to = spots[c] ?? spots[0]!;
+            const from = el ? el.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), to);
+            if (el) el.style.visibility = "hidden";
+            await new Promise((r) => setTimeout(r, (p * 2 + c) * 50));
+            await fly(cardFace(card), from, to, 300, { handoff: true });
+            const landed = once(cardFace(card), "landed");
+            if (c === 0) {
+              replaceChildren(this.pile, landed);
+              delete this.pile.dataset.pair;
+            } else {
+              this.pile.append(landed);
+              this.pile.dataset.pair = pairKey(pair);
+              this.setPairsDown(this.pairsDown + 1);
+              audio.play("card-place");
+            }
+          }),
+        ),
+      ),
     );
-    this.showPair(pairs.at(-1) ?? null, true);
   }
 
   /**
    * Cards slide up into the hand one by one. From below rather than from the
    * table: the hand is a scroller and clips anything outside it.
    */
-  private async dealIn() {
+  private async dealIn(after = 0) {
     const cards = [...this.hand.children] as HTMLElement[];
     const flights = cards.map((el, i) => {
-      setTimeout(() => audio.play("deal"), i * 50);
+      const delay = after + i * 50;
+      // Timed to when the card shows, not when its (invisible) rise starts.
+      setTimeout(() => audio.play("deal"), delay + DEAL_SOUND_LAG);
       return el.animate(
         [
           { transform: "translateY(110%) rotate(-8deg)", opacity: 0 },
           { transform: "none", opacity: 1 },
         ],
-        { duration: 360, delay: i * 50, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
+        { duration: 360, delay, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" },
       ).finished;
     });
     await Promise.all(flights).catch(() => {});
@@ -429,19 +515,20 @@ export class OldMaidView implements GameView {
     this.fan.style.setProperty("--fan-overlap", `${Math.min(0, step - card)}px`);
   }
 
-  private showPair(pair: Card[] | null, landed = false) {
-    const cards = (pair ?? []).map((c) => {
-      const el = cardFace(c);
-      if (landed) el.classList.add("landed");
-      return el;
-    });
-    replaceChildren(this.pile, cards.length ? cards : h("span", { class: "om-card slot", "aria-hidden": "true" }));
+  private setPairsDown(pairs: number) {
+    this.pairsDown = pairs;
+    this.pileCount.textContent = pairs ? `${pairs} ${pairs === 1 ? "pair" : "pairs"} down` : "No pairs yet";
   }
 
   private renderPile(game: OldMaidPublicState) {
-    this.showPair(game.lastPair);
+    // Already showing (it just landed): leave it be, landing and all.
+    const key = game.lastPair ? pairKey(game.lastPair) : "";
+    if (this.pile.dataset.pair !== key) {
+      this.pile.dataset.pair = key;
+      replaceChildren(this.pile, game.lastPair ? game.lastPair.map((c) => cardFace(c)) : h("span", { class: "om-card slot", "aria-hidden": "true" }));
+    }
     const pairs = game.discardCount / 2;
-    this.pileCount.textContent = pairs ? `${pairs} ${pairs === 1 ? "pair" : "pairs"} down` : "No pairs yet";
+    this.setPairsDown(pairs);
     this.pile.setAttribute("role", "img");
     this.pile.setAttribute(
       "aria-label",
@@ -454,7 +541,6 @@ export class OldMaidView implements GameView {
     const keep = new Set(hand.map((c) => c.id));
 
     for (const [id, el] of this.cards) {
-      el.classList.remove("fresh");
       if (!keep.has(id)) {
         el.remove();
         this.cards.delete(id);
@@ -462,22 +548,29 @@ export class OldMaidView implements GameView {
     }
 
     // Cards that show up mid-game were taken: flag them so they're easy to spot.
+    // (Ones that flew in are already here, flagged by the flight.)
     const taking = this.cards.size > 0;
     let fresh: HTMLElement | null = null;
     hand.forEach((card, i) => {
       let el = this.cards.get(card.id);
       if (!el) {
-        el = cardFace(card);
-        el.setAttribute("role", "listitem");
-        this.cards.set(card.id, el);
+        el = this.handCard(card);
         if (taking) {
-          el.classList.add("fresh");
-          fresh = el;
+          this.fresh.add(card.id);
+          fresh = once(el, "arrive");
         }
       }
+      el.classList.toggle("fresh", this.fresh.has(card.id));
       if (this.hand.children[i] !== el) this.hand.insertBefore(el, this.hand.children[i] ?? null);
     });
     (fresh as HTMLElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  private handCard(card: Card): HTMLElement {
+    const el = cardFace(card);
+    el.setAttribute("role", "listitem");
+    this.cards.set(card.id, el);
+    return el;
   }
 
   private renderDock(props: GameViewProps, game: OldMaidPublicState, myTurn: boolean) {
@@ -512,7 +605,7 @@ export class OldMaidView implements GameView {
       return;
     }
     this.selected = slot;
-    this.render(this.props!, { quiet: true });
+    this.render(this.props!, "none");
     this.slots[slot]?.focus();
   }
 
