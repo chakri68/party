@@ -3,6 +3,11 @@
   "name": "party-games",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
+  // Cloudflare creates the DNS record and certificate for this itself.
+  "routes": [{ "pattern": "party-games.chakri.me", "custom_domain": true }],
+  // One canonical URL: the custom domain. (Owner keys are per-origin anyway.)
+  "workers_dev": false,
+  "preview_urls": false,
   // The built web app. API and room sockets hit the worker; everything else is
   // static, with unknown paths falling back to index.html for /room/:code.
   "assets": {
