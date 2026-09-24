@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @games/server --filter @games/web dev",
     "build": "pnpm --filter @games/web build",
-    "deploy": "pnpm build && pnpm --filter @games/server deploy",
+    "deploy": "pnpm build && pnpm --filter @games/server run deploy",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "pnpm -r --parallel typecheck"
