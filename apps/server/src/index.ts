@@ -1,5 +1,6 @@
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
+import { goFishGame } from "@games/go-fish/server";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { oldMaidGame } from "@games/old-maid/server";
 import { scribblGame } from "@games/scribbl/server";
@@ -13,6 +14,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   sevens: sevensGame,
   "crazy-eights": crazyEightsGame,
   "old-maid": oldMaidGame,
+  "go-fish": goFishGame,
   scribbl: scribblGame,
 };
 

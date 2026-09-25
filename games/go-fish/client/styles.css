@@ -1,0 +1,299 @@
+/* Go Fish. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is gf- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.go-fish {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -18px;
+  --book-step: 14px; /* BOOK_STEP in view.ts */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.gf-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.go-fish.my-turn .gf-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Opponents: also who you ask ----------------------------------------- */
+
+.gf-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.gf-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: inherit;
+  text-align: left;
+  transition: border-color 150ms, background 150ms;
+}
+.gf-opp:disabled { opacity: 1; cursor: default; }
+.gf-opp.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+/* On your turn, whoever you could ask gets a dashed ring; the one you picked, a solid one. */
+.gf-opp.askable { border-style: dashed; border-color: var(--accent); }
+.gf-opp.picked { border-style: solid; background: var(--accent); color: var(--accent-ink); }
+.gf-opp.picked .count { color: inherit; }
+.gf-opp.away { opacity: 0.55; }
+.gf-opp-text { display: grid; line-height: 1.15; }
+.gf-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.gf-opp .count, .gf-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.gf-dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.gf-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- Table: the pond, and the latest book --------------------------------- */
+
+.gf-table {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 28px;
+  padding: 16px 12px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.gf-spot { display: grid; justify-items: center; gap: 6px; }
+.gf-pond { display: grid; justify-items: center; gap: 6px; }
+/* A little depth, so it reads as a pile rather than a card. */
+.gf-pond:not(.empty) .gf-card.back {
+  box-shadow: 2px 2px 0 -1px var(--card-ink), 3px 3px 0 -1px var(--accent), 0 4px 10px rgb(0 0 0 / 0.45);
+}
+.gf-pond-count, .gf-book-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A book, fanned so all four read. */
+.gf-book { position: relative; width: calc(var(--card-w) + 3 * var(--book-step)); height: var(--card-h); }
+.gf-book .gf-card { position: absolute; top: 0; left: 0; }
+.gf-book .gf-card:nth-child(2) { left: var(--book-step); }
+.gf-book .gf-card:nth-child(3) { left: calc(2 * var(--book-step)); }
+.gf-book .gf-card:nth-child(4) { left: calc(3 * var(--book-step)); }
+
+/* What's been asked lately: the table's memory. */
+.gf-heard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.gf-heard[hidden] { display: none; }
+.gf-heard li { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.gf-heard li:first-child { color: var(--ink); }
+.gf-heard b {
+  min-width: 1.6em;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.gf-heard li.hit .answer { color: var(--accent); font-weight: 600; }
+
+/* ---- Cards ---------------------------------------------------------------- */
+
+.gf-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.gf-card.red { color: var(--red); }
+.gf-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.gf-card.slot {
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+}
+.gf-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.gf-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.gf-card .corner i { font-style: normal; font-size: 0.85em; }
+.gf-card .tl { top: 4px; left: 5px; }
+.gf-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.gf-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.gf-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+
+/* Hand cards: tapping one picks its rank, and the whole rank lifts. */
+.gf-hand .gf-card { cursor: default; scroll-snap-align: start; }
+.gf-hand .gf-card:disabled { opacity: 1; cursor: default; }
+.go-fish.my-turn .gf-hand .gf-card.askable:not(:disabled) { cursor: pointer; }
+.gf-hand .gf-card + .gf-card { margin-left: var(--card-overlap); }
+.gf-hand .gf-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+@media (hover: hover) and (pointer: fine) {
+  .go-fish.my-turn .gf-hand .gf-card.askable:not(:disabled):not(.selected):hover { transform: translateY(-10px); z-index: 1; }
+}
+.gf-hand .gf-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.gf-hand .gf-card.fresh { animation: gf-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes gf-fresh {
+  from { transform: translateY(-24px) scale(1.08); }
+}
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.gf-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.gf-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+/* After the game the results panel leads; the hand is just for the record. */
+.go-fish.finished .gf-dock { position: static; background: none; }
+
+.gf-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.gf-me { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.gf-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.gf-action { display: flex; align-items: center; gap: 10px; }
+.gf-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; }
+.gf-action .hint.strong { color: var(--ink); font-weight: 700; }
+.gf-action button { padding: 0 14px; }
+
+.gf-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .go-fish {
+    --card-w: 76px;
+    --card-h: 108px;
+    --card-overlap: -24px;
+    gap: 14px;
+  }
+  .gf-table { gap: 48px; padding: 20px 20px 16px; }
+  .gf-card .corner { font-size: 1.1rem; }
+  .gf-card .pip { font-size: 2.4rem; }
+  .gf-hand { justify-content: safe center; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.go-fish .shake { animation: gf-shake 300ms ease; }
+@keyframes gf-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
+.gf-book .gf-card.landed { animation: gf-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes gf-land {
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .go-fish .shake { animation: none; outline: 2px solid var(--red); }
+  .gf-card, .gf-opp { transition: none; }
+  .gf-hand .gf-card.selected { transform: none; }
+  .gf-book .gf-card.landed, .gf-hand .gf-card.fresh { animation: none; }
+}

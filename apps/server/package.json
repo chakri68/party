@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@games/crazy-eights": "workspace:*",
+    "@games/go-fish": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/old-maid": "workspace:*",
     "@games/protocol": "workspace:*",

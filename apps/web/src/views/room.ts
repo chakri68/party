@@ -630,9 +630,13 @@ export class RoomView implements View {
     const winner = loser ? undefined : result?.winnerIds[0];
     const readyCount = room.seats.filter((s) => s.ready).length;
     const featured = room.seats.find((s) => s.id === (loser ?? winner));
-    const won = loser ? loser !== me && !!result?.winnerIds.includes(me) : winner === me;
+    const won = loser ? loser !== me && !!result?.winnerIds.includes(me) : !!result?.winnerIds.includes(me);
+    // A shared win names everyone in it, you first if you're one.
+    const tied = loser ? [] : [...(result?.winnerIds ?? [])].sort((a, b) => Number(b === me) - Number(a === me));
+    const names = (ids: string[]) => ids.map((id) => (id === me ? "You" : seatName(room, id))).join(ids.length > 2 ? ", " : " and ").replace(/, ([^,]*)$/, " and $1");
     const headline = loser
       ? loser === me ? "You lose" : `${seatName(room, loser)} loses`
+      : tied.length > 1 ? `${names(tied)} tie`
       : winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over";
 
     return h(
