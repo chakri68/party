@@ -1,0 +1,344 @@
+/* Cheat. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is ch- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.cheat {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.ch-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.cheat.my-turn .ch-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+/* Someone could call it: the claim is the thing to look at. */
+.cheat.can-call .ch-status { border-color: var(--danger); }
+
+/* ---- Opponents ----------------------------------------------------------- */
+
+.ch-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.ch-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms;
+}
+.ch-opp.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ch-opp.winner { border-color: var(--accent); }
+.ch-opp.away { opacity: 0.55; }
+.ch-opp-text { display: grid; line-height: 1.15; }
+.ch-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.ch-opp .count, .ch-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ch-opp .passed-label { color: var(--ink); }
+.ch-dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.ch-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- Table: the pile, and the play on top of it -------------------------- */
+
+.ch-table {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+/* A few backs, each nudged over, so a big pile looks like one. */
+.ch-pile-wrap { display: grid; justify-items: center; gap: 6px; }
+.ch-pile { position: relative; width: calc(var(--card-w) + 8px); height: calc(var(--card-h) + 8px); }
+.ch-pile .ch-card { position: absolute; top: 0; left: 0; }
+.ch-pile .ch-card:nth-child(2) { top: 4px; left: 4px; }
+.ch-pile .ch-card:nth-child(3) { top: 8px; left: 8px; }
+.ch-pile-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ch-play-wrap { display: grid; gap: 8px; min-width: 0; justify-items: center; }
+.ch-play-label { margin: 0; text-align: center; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; }
+.cheat.window .ch-play-label { color: var(--ink); font-weight: 700; }
+.ch-play {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: var(--card-h);
+}
+.ch-play .ch-card + .ch-card { margin-left: -28px; }
+/* Accepted: it's just the top of the pile now. Called: kept up for the record. */
+.ch-play.settled .ch-card { filter: brightness(0.8); }
+.ch-play.old .ch-card { filter: brightness(0.7) saturate(0.7); }
+/* Yours, face up to you only. */
+.ch-play .ch-card.mine { box-shadow: 0 0 0 2px var(--line), 0 2px 6px rgb(0 0 0 / 0.45); }
+.ch-play .ch-card.wrong { box-shadow: 0 0 0 3px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
+.ch-play .ch-card.flip { animation: ch-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes ch-flip {
+  from { transform: rotateY(90deg) scale(1.08); }
+}
+.ch-verdict {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  padding: 3px 12px;
+  border: 2.5px solid currentColor;
+  border-radius: 8px;
+  background: var(--bg);
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.ch-verdict.lie { color: var(--danger); }
+.ch-verdict.true { color: var(--accent); }
+.ch-verdict.stamp { animation: ch-stamp 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes ch-stamp {
+  from { transform: translate(-50%, -50%) rotate(-8deg) scale(1.8); opacity: 0; }
+}
+
+/* The call window, draining. */
+.ch-bar {
+  width: min(220px, 100%);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ch-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+.ch-bar.low span { background: var(--danger); }
+
+/* ---- Cards ---------------------------------------------------------------- */
+
+.ch-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.ch-card.red { color: var(--red); }
+.ch-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.ch-card.slot {
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.ch-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.ch-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.ch-card .corner i { font-style: normal; font-size: 0.85em; }
+.ch-card .tl { top: 4px; left: 5px; }
+.ch-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.ch-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.ch-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+
+/* Hand cards: pick up to four on your turn. */
+.ch-hand .ch-card { cursor: default; scroll-snap-align: start; }
+.ch-hand .ch-card + .ch-card { margin-left: var(--card-overlap); }
+.ch-hand .ch-card.playable { cursor: pointer; }
+.ch-hand .ch-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+@media (hover: hover) and (pointer: fine) {
+  .ch-hand .ch-card.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
+}
+.ch-hand .ch-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.ch-hand .ch-card.fresh { animation: ch-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes ch-fresh {
+  from { transform: translateY(-24px) scale(1.08); }
+}
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.ch-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.ch-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+/* After the game the results panel leads; the hand is just for the record. */
+.cheat.finished .ch-dock { position: static; background: none; }
+
+.ch-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.ch-me { display: flex; align-items: baseline; gap: 8px; flex: 0 0 auto; }
+.ch-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.ch-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.ch-action .hint { color: var(--muted); font-size: 0.9rem; }
+.ch-action .hint.strong { color: var(--ink); font-weight: 700; }
+/* Three claims side by side: narrow enough for a phone. */
+.ch-action.claims button { padding-inline: 10px; }
+
+/* The big one. Red, and in reach of a thumb. */
+button.ch-call {
+  min-width: 120px;
+  min-height: 48px;
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #1b0606;
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a; }
+
+.ch-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .cheat {
+    --card-w: 76px;
+    --card-h: 108px;
+    --card-overlap: -24px;
+    gap: 14px;
+  }
+  .ch-table { gap: 32px; padding: 20px 20px 18px; }
+  .ch-card .corner { font-size: 1.1rem; }
+  .ch-card .pip { font-size: 2.4rem; }
+  .ch-play .ch-card + .ch-card { margin-left: -36px; }
+  .ch-hand { justify-content: safe center; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.cheat .shake { animation: ch-shake 300ms ease; }
+@keyframes ch-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
+.ch-play .ch-card.landed { animation: ch-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes ch-land {
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+
+/* The shout over the caller's head. */
+.anim-bubble.ch-shout { background: var(--danger); color: #1b0606; font-size: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cheat .shake { animation: none; outline: 2px solid var(--red); }
+  .ch-card, .ch-opp { transition: none; }
+  .ch-card.selected { transform: none; outline: 2px solid var(--accent); }
+  .ch-play .ch-card.landed, .ch-play .ch-card.flip, .ch-verdict.stamp, .ch-hand .ch-card.fresh { animation: none; }
+  .ch-bar span { transition: none; }
+}

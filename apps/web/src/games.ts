@@ -1,6 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
+import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
@@ -55,5 +56,11 @@ export const games: Record<string, GameEntry> = {
     rules: passTheBombRules,
     settingFields: passTheBombSettingFields,
     loadClient: () => import("@games/pass-the-bomb/client").then((m) => m.default),
+  },
+  cheat: {
+    manifest: cheatManifest,
+    rules: cheatRules,
+    settingFields: cheatSettingFields,
+    loadClient: () => import("@games/cheat/client").then((m) => m.default),
   },
 };

@@ -1,3 +1,4 @@
+import { cheatGame } from "@games/cheat/server";
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
 import { goFishGame } from "@games/go-fish/server";
@@ -18,6 +19,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   "go-fish": goFishGame,
   scribbl: scribblGame,
   "pass-the-bomb": passTheBombGame,
+  cheat: cheatGame,
 };
 
 function randomToken(): string {

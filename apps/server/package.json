@@ -9,6 +9,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/go-fish": "workspace:*",
     "@games/game-core": "workspace:*",
