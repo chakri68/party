@@ -1,0 +1,238 @@
+/* Scribbl. Uses the shell's tokens (--surface, --line, --ink, --muted, --accent, --danger, --card).
+   Everything is sb- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.scribbl {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "stage" "tools" "side";
+  align-content: start;
+}
+
+.sb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Top bar: round, the word, the clock -------------------------------- */
+
+.sb-top {
+  grid-area: top;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.sb-round { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sb-timer {
+  justify-self: end;
+  min-width: 2.2em;
+  text-align: right;
+  font-weight: 700;
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+  transition: color 150ms;
+}
+.sb-timer.low { color: var(--danger); }
+.sb-word { display: flex; align-items: baseline; gap: 8px; justify-content: center; min-width: 0; }
+.sb-letters { display: flex; gap: 4px; font-weight: 700; font-size: 1.25rem; letter-spacing: 0; }
+.sb-letters .l { display: inline-block; min-width: 0.7em; text-align: center; text-transform: lowercase; }
+.sb-letters .l.blank { border-bottom: 2.5px solid var(--ink); height: 1.15em; }
+.sb-letters .gap { width: 0.6em; }
+.sb-letters.known { color: var(--accent); }
+.sb-letters.revealed { display: block; letter-spacing: 0.02em; }
+.sb-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- The page ----------------------------------------------------------- */
+
+.sb-stage {
+  grid-area: stage;
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 1.5px var(--line);
+}
+.sb-canvas { display: block; width: 100%; height: 100%; }
+/* Only the drawer's canvas swallows touches; everyone else can scroll past it. */
+.scribbl.can-draw .sb-canvas { touch-action: none; cursor: crosshair; }
+.sb-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 250ms linear, background 150ms;
+}
+.sb-bar.low { background: var(--danger); }
+
+.sb-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+.sb-overlay.show { opacity: 1; pointer-events: auto; background: rgb(14 14 12 / 0.78); }
+/* The reveal leaves the drawing showing through. */
+.sb-overlay.show.reveal { background: rgb(14 14 12 / 0.55); }
+.sb-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  text-align: center;
+  animation: sb-pop 240ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.sb-card h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
+.sb-card p { margin: 0; }
+.sb-answer { font-size: 1.8rem !important; color: var(--accent); }
+.sb-choices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.sb-choice { min-width: 110px; }
+.sb-choice:hover:not(:disabled) { border-color: var(--accent); }
+.sb-scored { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-width: 180px; font-size: 0.9rem; }
+.sb-scored li { display: flex; justify-content: space-between; gap: 16px; }
+.sb-scored b { color: var(--accent); font-variant-numeric: tabular-nums; }
+@keyframes sb-pop {
+  from { transform: translateY(8px) scale(.96); opacity: 0; }
+}
+
+/* ---- Tools -------------------------------------------------------------- */
+
+.sb-tools { grid-area: tools; display: grid; gap: 8px; }
+.sb-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.sb-swatch {
+  min-height: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--c);
+}
+.sb-swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.sb-tool-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sb-size {
+  min-height: 40px;
+  width: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.sb-size span { width: var(--d); height: var(--d); border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px var(--line); }
+.sb-size[aria-pressed="true"], .sb-tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.sb-tool { min-height: 40px; padding: 0 14px; font-size: 0.9rem; }
+.sb-tool.danger { color: var(--danger); }
+
+/* Phones: sizes and actions share one row. */
+@media (max-width: 480px) {
+  .sb-tool-row { gap: 5px; flex-wrap: nowrap; }
+  .sb-size { width: 34px; min-height: 36px; flex: 0 0 auto; }
+  .sb-tool { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 6px; font-size: 0.82rem; }
+  .sb-swatch { width: 28px; height: 28px; }
+}
+
+/* ---- Scores and chat ---------------------------------------------------- */
+
+.sb-side { grid-area: side; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.sb-players {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sb-player {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  transition: border-color 150ms, background 150ms;
+}
+.sb-player .name { font-weight: 600; }
+.sb-player .score { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+.sb-player .tag { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.sb-player.drawer { border-style: dashed; border-color: var(--accent); }
+.sb-player.drawer .tag { color: var(--accent); }
+.sb-player.guessed { border-color: var(--accent); background: var(--accent-soft); }
+.sb-player.guessed .tag { background: var(--accent); color: var(--accent-ink); }
+.sb-player.away { opacity: 0.55; }
+
+.sb-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.sb-log {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 120px;
+  max-height: 32dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.sb-line { padding: 2px 6px; border-radius: 6px; line-height: 1.35; }
+.sb-line.info { color: var(--muted); }
+.sb-line.good { color: var(--accent); font-weight: 600; }
+.sb-line.close { color: #ffc56b; font-weight: 600; }
+.sb-line.secret { background: var(--accent-soft); }
+.sb-line.err { color: var(--danger); }
+.sb-form { display: flex; gap: 6px; padding: 6px; border-top: 1.5px solid var(--line); }
+.sb-input { min-height: 44px; font-size: 1rem; }
+.sb-input:disabled { opacity: 0.55; }
+.sb-send { min-height: 44px; padding: 0 16px; }
+
+/* ---- Wide screens: the page on the left, the room on the right ---------- */
+
+@media (min-width: 760px) {
+  .scribbl {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    grid-template-areas: "top top" "stage side" "tools side";
+  }
+  /* Sized by the page next to it, not by how much chat there's been. */
+  .sb-side { contain: size; }
+  .sb-players { flex-direction: column; overflow: visible; }
+  .sb-player { padding: 3px 12px 3px 3px; }
+  .sb-log { max-height: none; flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-card { animation: none; }
+  .sb-bar, .sb-overlay { transition: none; }
+}

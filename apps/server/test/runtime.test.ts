@@ -7,6 +7,8 @@ import {
   SKIP_AFTER_MS,
   type ServerMessage,
 } from "@games/protocol";
+import { scribblGame } from "@games/scribbl/server";
+import type { ScribblPrivateState, ScribblPublicState } from "@games/scribbl/shared";
 import { sevensGame } from "@games/sevens/server";
 import { makeDeck, type SevensPrivateState, type SevensPublicState } from "@games/sevens/shared";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -554,6 +556,61 @@ describe("mid-game absence", () => {
       await playOnce();
       expect(roomOf(ps[0]!).awaitingSince).toBe(since + 5_000);
     });
+  });
+});
+
+describe("ephemeral streams (§35)", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let players: FakeConn[];
+  let drawer: FakeConn;
+  let others: FakeConn[];
+
+  beforeEach(async () => {
+    world = new World();
+    room = new RoomRuntime("K7DX", world.host(), { scribbl: scribblGame }, "scribbl");
+    await room.load();
+    await room.claim();
+    players = [];
+    for (const name of ["Ana", "Ben", "Cy"]) players.push(await join(world, room, name));
+    await send(room, players[0]!, { type: "start-game" });
+    const id = (roomOf(players[0]!).game as ScribblPublicState).drawerId;
+    drawer = players.find((p) => p.last("welcome")!.playerId === id)!;
+    others = players.filter((p) => p !== drawer);
+    await send(room, drawer, { type: "game-action", clientActionId: "c1", action: { type: "choose", index: 0 } });
+  });
+
+  const turn = () => (roomOf(players[0]!).game as ScribblPublicState).turn;
+  const stroke = () => ({ turn: turn(), op: "start", id: 0, color: 3, size: 1, points: [1, 2, 3, 4] });
+
+  it("relays the drawer's strokes to everyone else, outside the versioned updates", async () => {
+    const versions = players.map((p) => p.last("update")!.stateVersion);
+    await send(room, drawer, { type: "stream", data: stroke() });
+    for (const p of others) expect(p.last("stream")).toEqual({ type: "stream", from: drawer.last("welcome")!.playerId, data: stroke() });
+    expect(drawer.of("stream")).toEqual([]);
+    expect(players.map((p) => p.last("update")!.stateVersion)).toEqual(versions);
+  });
+
+  it("drops what the game won't take, silently", async () => {
+    await send(room, others[0]!, { type: "stream", data: stroke() });
+    await send(room, drawer, { type: "stream", data: { junk: true } });
+    for (const p of players) {
+      expect(p.of("stream")).toEqual([]);
+      expect(p.of("error")).toEqual([]);
+    }
+  });
+
+  it("only snapshots carry the drawing, and it survives a restart", async () => {
+    await send(room, drawer, { type: "stream", data: stroke() });
+    await send(room, others[0]!, { type: "game-action", clientActionId: "g1", action: { type: "guess", text: "a boat?" } });
+    expect(others[1]!.last("update")!.stream).toBeUndefined();
+
+    const reloaded = new RoomRuntime("K7DX", world.host(), { scribbl: scribblGame }, "scribbl");
+    await reloaded.load();
+    const cy = others[1]!;
+    const back = await join(world, reloaded, "Cy", cy.last("welcome")!.resumeToken);
+    expect(back.last("update")).toMatchObject({ snapshot: true, stream: { turn: turn(), nextId: 1, strokes: [{ id: 0, points: [1, 2, 3, 4] }] } });
+    expect((back.last("update")!.private as ScribblPrivateState).chat.at(-1)).toMatchObject({ kind: "msg", text: "a boat?" });
   });
 });
 

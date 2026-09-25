@@ -27,6 +27,21 @@ const FATAL_COPY: Record<string, string> = {
   removed: "The host removed you from this room.",
 };
 
+/**
+ * replaceChildren, except children already in place stay put. Moving an
+ * element through the DOM resets its scroll (and a game's chat log with it)
+ * even when it lands right back where it was.
+ */
+function arrange(parent: Element, ...nodes: (Node | null)[]): void {
+  const want = nodes.filter((n): n is Node => n !== null);
+  for (const child of [...parent.childNodes]) if (!want.includes(child)) child.remove();
+  let at = parent.firstChild;
+  for (const node of want) {
+    if (node === at) at = at.nextSibling;
+    else parent.insertBefore(node, at);
+  }
+}
+
 export class RoomView implements View {
   private code: string;
   private root = h("main", { class: "room" });
@@ -38,6 +53,10 @@ export class RoomView implements View {
   private last: RoomUpdate | null = null;
   private gameView: GameView | null = null;
   private gameViewFor: string | null = null;
+  /** The view has had its first update, so stream data has something to land on. */
+  private gameViewFed = false;
+  /** Stream data that beat that first update: the view's code loads lazily. */
+  private streamBacklog: { from: string; data: unknown }[] = [];
   private gameHost = h("div", { class: "game-host" });
   private controls = h("div", { class: "turn-controls", "aria-live": "polite" });
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -145,10 +164,16 @@ export class RoomView implements View {
     client.on("update", (u) => {
       const prev = this.last;
       this.last = u;
+      // A snapshot already has everything the backlog would add.
+      if (u.snapshot) this.streamBacklog = [];
       if (prev && prev.room.hostId !== client.playerId && u.room.hostId === client.playerId) {
         this.showToast("You're the host now.");
       }
       this.render();
+    });
+    client.on("stream", (m) => {
+      if (this.gameView && this.gameViewFed) this.gameView.stream?.(m.from, m.data);
+      else if (this.last?.room.phase === "playing") this.streamBacklog.push(m);
     });
     client.on("rejected", ({ clientActionId, message }) => this.gameView?.rejected(clientActionId, message));
     client.on("error", ({ message }) => this.showToast(message));
@@ -245,7 +270,7 @@ export class RoomView implements View {
     }
 
     // playing / results: the game view stays mounted so the final board is visible.
-    const props = { room, game: room.game, private: u.private, playerId: me, events: u.events, snapshot: u.snapshot };
+    const props = { room, game: room.game, private: u.private, playerId: me, events: u.events, snapshot: u.snapshot, stream: u.stream };
     this.renderControls();
 
     // Game just ended: let the winning move land, then bring the results in.
@@ -257,7 +282,7 @@ export class RoomView implements View {
         const latest = this.last;
         if (!latest || latest.room.phase !== "results" || this.screen !== "playing") return;
         const panel = this.results(latest.room, me, !canTransition());
-        this.show("results", () => replaceChildren(this.body, panel, this.controls, this.gameHost));
+        this.show("results", () => arrange(this.body, panel, this.controls, this.gameHost));
       });
       return;
     }
@@ -267,31 +292,55 @@ export class RoomView implements View {
     const arriving = this.screen !== null && this.screen !== "results" && !canTransition();
     const panel = room.phase === "results" ? this.results(room, me, arriving) : null;
     this.show(room.phase, async () => {
-      replaceChildren(this.body, panel, this.controls, this.gameHost);
+      arrange(this.body, panel, this.controls, this.gameHost);
       // Awaited so the transition's "after" picture has the game in it.
       const view = await this.ensureGameView(room.gameId);
-      if (view && this.last === u) view.update(props);
+      if (view && this.last === u) {
+        view.update(props);
+        this.gameViewFed = true;
+        const backlog = this.streamBacklog;
+        this.streamBacklog = [];
+        for (const m of backlog) view.stream?.(m.from, m.data);
+      }
     });
   }
 
-  private async ensureGameView(gameId: string): Promise<GameView | null> {
-    if (this.gameView && this.gameViewFor === gameId) return this.gameView;
+  /** Mid-load, so a second update doesn't start a second load (and a second view). */
+  private gameViewLoading: Promise<GameView | null> | null = null;
+
+  private ensureGameView(gameId: string): Promise<GameView | null> {
+    if (this.gameViewFor === gameId) {
+      if (this.gameView) return Promise.resolve(this.gameView);
+      if (this.gameViewLoading) return this.gameViewLoading;
+    }
     this.dropGameView();
     this.gameViewFor = gameId;
     const entry = games[gameId];
-    if (!entry) return null;
-    const mod = await entry.loadClient();
-    if (this.gameViewFor !== gameId || !this.client) return null; // navigated away mid-load
-    const client = this.client;
-    this.gameView = mod.createView({ act: (action) => client.act(action) });
-    this.gameView.mount(this.gameHost);
-    return this.gameView;
+    if (!entry) return Promise.resolve(null);
+    const loading = entry.loadClient().then((mod) => {
+      // Navigated away, or dropped for another game, mid-load.
+      if (this.gameViewLoading !== loading || !this.client) return null;
+      this.gameViewLoading = null;
+      const client = this.client;
+      this.gameView = mod.createView({
+        act: (action) => client.act(action),
+        stream: (data) => client.stream(data),
+        serverNow: () => client.serverNow(),
+      });
+      this.gameView.mount(this.gameHost);
+      return this.gameView;
+    });
+    this.gameViewLoading = loading;
+    return loading;
   }
 
   private dropGameView() {
     this.gameView?.destroy();
     this.gameView = null;
     this.gameViewFor = null;
+    this.gameViewLoading = null;
+    this.gameViewFed = false;
+    this.streamBacklog = [];
   }
 
   /**

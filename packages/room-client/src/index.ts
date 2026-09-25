@@ -15,6 +15,8 @@ export interface RoomUpdate {
   room: RoomPublicState;
   private: unknown | null;
   events: unknown[];
+  /** Snapshots only: the game's stream history. */
+  stream?: unknown;
 }
 
 export interface RoomClientEvents {
@@ -27,6 +29,8 @@ export interface RoomClientEvents {
   /** The server closed us for good; auto-reconnect is off. */
   fatal: { code: ErrorCode; message: string };
   nudged: { byPlayerId: string };
+  /** Another player's ephemeral game data (§35). */
+  stream: { from: string; data: unknown };
 }
 
 export interface RoomClientOptions {
@@ -107,6 +111,16 @@ export class RoomClient {
     return clientActionId;
   }
 
+  /** Ephemeral game data (§35). Dropped, not queued, while the socket's down. */
+  stream(data: unknown): void {
+    this.send({ type: "stream", data });
+  }
+
+  /** Best guess at the server's clock, for countdowns. */
+  serverNow(): number {
+    return Date.now() + this.clockOffset;
+  }
+
   /** Reconnect after a fatal close, e.g. the "Use here" button (§11). */
   reconnect(): void {
     this.lastVersion = -1;
@@ -184,6 +198,9 @@ export class RoomClient {
         break;
       case "nudged":
         this.emit("nudged", msg);
+        break;
+      case "stream":
+        this.emit("stream", msg);
         break;
       case "pong":
         this.clockOffset = msg.serverTime - (msg.timestamp + Date.now()) / 2;

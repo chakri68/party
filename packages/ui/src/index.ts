@@ -28,11 +28,17 @@ export interface GameViewProps {
   events: unknown[];
   /** A full resync (reconnect): drop queued animations and show this as-is (§12). */
   snapshot: boolean;
+  /** With a snapshot, the game's stream history (e.g. the drawing so far). */
+  stream?: unknown;
 }
 
 export interface GameClientApi {
   /** Sends a game action; returns its clientActionId. */
   act(action: unknown): string;
+  /** Sends ephemeral data (§35). No reply; the others get it via `GameView.stream`. */
+  stream(data: unknown): void;
+  /** The server's clock, give or take a round trip. For countdowns. */
+  serverNow(): number;
 }
 
 export interface GameView extends View<GameViewProps> {
@@ -44,6 +50,8 @@ export interface GameView extends View<GameViewProps> {
    * move isn't cut off mid-flight.
    */
   whenIdle?(): Promise<void>;
+  /** Another player's ephemeral data, in order, after the update it follows. */
+  stream?(from: string, data: unknown): void;
 }
 
 export interface GameClientModule {

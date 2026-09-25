@@ -16,6 +16,7 @@
     "@games/old-maid": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/room-client": "workspace:*",
+    "@games/scribbl": "workspace:*",
     "@games/sevens": "workspace:*",
     "@games/ui": "workspace:*"
   },

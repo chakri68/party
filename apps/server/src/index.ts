@@ -2,6 +2,7 @@ import { crazyEightsGame } from "@games/crazy-eights/server";
 import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { oldMaidGame } from "@games/old-maid/server";
+import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 import { generateRoomCode } from "./codes.ts";
@@ -12,6 +13,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   sevens: sevensGame,
   "crazy-eights": crazyEightsGame,
   "old-maid": oldMaidGame,
+  scribbl: scribblGame,
 };
 
 function randomToken(): string {

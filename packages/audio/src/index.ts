@@ -5,7 +5,9 @@
 // reject) are synthesised with WebAudio. Recordings load after the first tap
 // and, until they have (or if they can't), the synth stands in for them.
 
-export type SoundId = "card-place" | "deal" | "shuffle" | "your-turn" | "pass" | "win" | "game-over" | "reject" | "nudge";
+export type SoundId =
+  | "card-place" | "deal" | "shuffle" | "your-turn" | "pass" | "win" | "game-over" | "reject" | "nudge"
+  | "correct" | "tick";
 
 export interface FeedbackSettings {
   sound: boolean;
@@ -89,6 +91,13 @@ const VOICES: Record<SoundId, Voice> = {
     tone(c, o, t, { freq: 880, dur: 0.08, gain: 0.2 });
     tone(c, o, t + 0.12, { freq: 880, dur: 0.1, gain: 0.2 });
   },
+  // Someone got it: a quick bright hop up a fifth.
+  correct: (c, o, t) => {
+    tone(c, o, t, { freq: 784, dur: 0.1, type: "triangle", gain: 0.18 });
+    tone(c, o, t + 0.07, { freq: 1175, dur: 0.2, type: "triangle", gain: 0.16 });
+  },
+  // The clock's running out. Quiet on purpose: it plays once a second.
+  tick: (c, o, t) => tone(c, o, t, { freq: 1400, dur: 0.03, type: "square", gain: 0.035 }),
   win: (c, o, t) => {
     [523, 659, 784, 1047].forEach((f, i) => tone(c, o, t + i * 0.09, { freq: f, dur: 0.28, type: "triangle", gain: 0.2 }));
     tone(c, o, t + 0.36, { freq: 1568, dur: 0.5, gain: 0.08 });

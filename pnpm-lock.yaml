@@ -29,6 +29,9 @@ importers:
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@games/scribbl':
+        specifier: workspace:*
+        version: link:../../games/scribbl
       '@games/sevens':
         specifier: workspace:*
         version: link:../../games/sevens
@@ -63,6 +66,9 @@ importers:
       '@games/room-client':
         specifier: workspace:*
         version: link:../../packages/room-client
+      '@games/scribbl':
+        specifier: workspace:*
+        version: link:../../games/scribbl
       '@games/sevens':
         specifier: workspace:*
         version: link:../../games/sevens
@@ -93,6 +99,24 @@ importers:
         version: link:../../packages/ui
 
   games/old-maid:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/scribbl:
     dependencies:
       '@games/animation':
         specifier: workspace:*

@@ -1,6 +1,6 @@
 import type { GameOutcome } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -91,6 +91,8 @@ export type ClientMessage =
   | { type: "update-settings"; settings: unknown }
   | { type: "start-game" }
   | { type: "game-action"; clientActionId: string; action: unknown }
+  /** Ephemeral game data (§35): no version, no reply, relayed to the others if the game takes it. */
+  | { type: "stream"; data: unknown }
   | { type: "nudge" }
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
@@ -112,7 +114,10 @@ export type ServerMessage =
       room: RoomPublicState;
       private: unknown | null;
       events: unknown[];
+      /** Snapshots only: the game's stream history (see `getStreamSnapshot`). */
+      stream?: unknown;
     }
+  | { type: "stream"; from: string; data: unknown }
   | { type: "action-rejected"; clientActionId: string; code: string; message: string }
   | { type: "nudged"; byPlayerId: string }
   | { type: "error"; code: ErrorCode; message: string; fatal: boolean }
@@ -197,6 +202,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isStr(m.clientActionId, 64)
         ? { type: "game-action", clientActionId: m.clientActionId, action: m.action }
         : null;
+    case "stream":
+      return { type: "stream", data: m.data };
     case "skip-turn":
     case "remove-player":
       return isStr(m.playerId, 64) ? { type: m.type, playerId: m.playerId } : null;

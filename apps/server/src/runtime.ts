@@ -422,6 +422,22 @@ export class RoomRuntime {
         return this.commit(events);
       }
 
+      case "stream": {
+        // Best-effort (§35): anything out of place is dropped without a word.
+        if (data.phase !== "playing" || !data.game) return;
+        const out = this.games[data.game.gameId]!.onStream?.(data.game.state, seat.id, msg.data);
+        if (!out) return;
+        data.game.state = out.state;
+        // Not a transition: no version bump, no update. Persisted all the same,
+        // so a snapshot after an eviction still has the drawing.
+        await this.persist();
+        for (const c of this.liveConns()) {
+          const pid = c.state?.playerId;
+          if (pid && pid !== seat.id) c.send({ type: "stream", from: seat.id, data: out.relay });
+        }
+        return;
+      }
+
       case "return-to-lobby":
         if (!hostOnly() || !inPhase("playing", "results")) return;
         data.phase = "lobby";
@@ -712,6 +728,7 @@ export class RoomRuntime {
           : events
               .filter((e) => e.visibility.kind === "public" || e.visibility.playerId === playerId)
               .map((e) => e.event),
+        ...(snapshot && def?.getStreamSnapshot && { stream: def.getStreamSnapshot(data.game!.state) }),
       });
     }
   }

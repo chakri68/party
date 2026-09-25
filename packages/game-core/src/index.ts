@@ -118,6 +118,19 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
 
   skipTurn?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
 
+  /**
+   * High-frequency, best-effort input (drawing strokes, §35). The game checks it
+   * and folds it into state; `relay` goes to everyone else as-is, outside the
+   * versioned update stream. Null drops it silently: by the time a stale chunk
+   * lands, the sender has moved on anyway.
+   */
+  onStream?(state: TState, playerId: string, data: unknown): { state: TState; relay: unknown } | null;
+  /**
+   * The stream's history, e.g. the drawing so far. Only snapshots carry it:
+   * every chat line would otherwise resend the whole picture to everyone.
+   */
+  getStreamSnapshot?(state: TState): unknown;
+
   getPublicState(state: TState): TPublicState;
   getPrivateState(state: TState, playerId: string): TPrivateState;
   getAwaitedPlayerIds(state: TState): string[];
