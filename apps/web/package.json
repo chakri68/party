@@ -17,6 +17,7 @@
     "@games/game-core": "workspace:*",
     "@games/old-maid": "workspace:*",
     "@games/pass-the-bomb": "workspace:*",
+    "@games/president": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/room-client": "workspace:*",
     "@games/scribbl": "workspace:*",

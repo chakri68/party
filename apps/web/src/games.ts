@@ -7,6 +7,7 @@ import type { GameManifest, SettingField } from "@games/game-core";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
+import { presidentManifest, presidentRules, presidentSettingFields } from "@games/president/shared";
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import type { GameClientModule } from "@games/ui";
@@ -44,6 +45,12 @@ export const games: Record<string, GameEntry> = {
     rules: goFishRules,
     settingFields: goFishSettingFields,
     loadClient: () => import("@games/go-fish/client").then((m) => m.default),
+  },
+  president: {
+    manifest: presidentManifest,
+    rules: presidentRules,
+    settingFields: presidentSettingFields,
+    loadClient: () => import("@games/president/client").then((m) => m.default),
   },
   scribbl: {
     manifest: scribblManifest,

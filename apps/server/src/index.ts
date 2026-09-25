@@ -5,6 +5,7 @@ import { goFishGame } from "@games/go-fish/server";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { oldMaidGame } from "@games/old-maid/server";
 import { passTheBombGame } from "@games/pass-the-bomb/server";
+import { presidentGame } from "@games/president/server";
 import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
@@ -17,6 +18,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   "crazy-eights": crazyEightsGame,
   "old-maid": oldMaidGame,
   "go-fish": goFishGame,
+  president: presidentGame,
   scribbl: scribblGame,
   "pass-the-bomb": passTheBombGame,
   cheat: cheatGame,

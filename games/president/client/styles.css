@@ -1,0 +1,299 @@
+/* President. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is pr- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.president {
+  --card-w: 58px;
+  --card-h: 84px;
+  --card-overlap: -26px;
+  --table-card-w: 64px;
+  --table-card-h: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.pr-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.president.my-turn .pr-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Opponents ----------------------------------------------------------- */
+
+.pr-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.pr-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.pr-opp.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.pr-opp.passed { opacity: 0.7; }
+.pr-opp.away { opacity: 0.55; }
+.pr-opp-text { display: grid; line-height: 1.15; }
+.pr-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.pr-opp .count, .pr-me .count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pr-opp.out .count { color: var(--accent); font-weight: 600; }
+.pr-opp .pts { color: var(--muted); font-weight: 400; }
+.pr-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Titles: up the table in accent, down it in danger. Citizens get no badge. */
+.pr-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pr-title.up { border-color: var(--accent); color: var(--accent); }
+.pr-title.down { border-color: var(--danger); color: var(--danger); }
+.pr-title.plain { border-color: var(--line); color: var(--muted); }
+
+/* ---- Table: the set to beat, or the recap between rounds ------------------ */
+
+.pr-table {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 12px 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  min-height: 170px;
+}
+.pr-round {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.pr-pile-wrap { display: grid; justify-items: center; gap: 8px; }
+.pr-pile-wrap[hidden] { display: none; }
+.pr-pile { display: flex; justify-content: center; min-height: var(--table-card-h); }
+.pr-pile .pr-card { width: var(--table-card-w); height: var(--table-card-h); }
+.pr-pile .pr-card + .pr-card { margin-left: -22px; }
+.pr-pile-caption { margin: 0; font-size: 0.85rem; color: var(--muted); text-align: center; min-height: 1.3em; }
+
+.pr-recap { display: grid; gap: 8px; width: 100%; max-width: 360px; }
+.pr-recap[hidden] { display: none; }
+.pr-recap h3 { margin: 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: center; }
+.pr-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pr-order li { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; font-size: 0.9rem; }
+.pr-order li.me { background: rgb(255 255 255 / 0.05); }
+.pr-order .place { width: 2.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-order .who { flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-swaps { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; font-size: 0.82rem; color: var(--muted); }
+.pr-swaps li { display: grid; gap: 1px; }
+.pr-swaps li:not(.done) span + span { color: var(--ink); font-weight: 600; }
+
+/* ---- Cards ---------------------------------------------------------------- */
+
+.pr-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.pr-card.red { color: var(--red); }
+.pr-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.pr-card.slot {
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+}
+.pr-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.pr-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.pr-card .corner i { font-style: normal; font-size: 0.85em; }
+.pr-card .tl { top: 4px; left: 5px; }
+.pr-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.pr-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.pr-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+
+/* Hand cards */
+.pr-hand .pr-card { cursor: pointer; scroll-snap-align: start; }
+.pr-hand .pr-card + .pr-card { margin-left: var(--card-overlap); }
+/* On your turn, dim what can't go down so the options pop. */
+.president.my-turn .pr-hand .pr-card:not(.playable) { filter: brightness(0.62) saturate(0.6); }
+.pr-hand .pr-card.playable { box-shadow: 0 0 0 2px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.pr-hand .pr-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.55); }
+/* Just handed to you in the exchange. */
+.pr-hand .pr-card.got::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--card);
+}
+@media (hover: hover) and (pointer: fine) {
+  .pr-hand .pr-card.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
+}
+.pr-hand .pr-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.pr-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pr-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+/* After the game the results panel leads; the hand is just for the record. */
+.president.finished .pr-dock { position: static; background: none; }
+
+.pr-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.pr-me { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.pr-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.pr-action { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.pr-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; }
+.pr-action .hint.strong { color: var(--ink); font-weight: 700; }
+.pr-action button { min-width: 72px; }
+
+.pr-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for selected cards to lift and for focus rings. */
+  padding: 20px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .president {
+    --card-w: 76px;
+    --card-h: 108px;
+    --card-overlap: -30px;
+    --table-card-w: 84px;
+    --table-card-h: 120px;
+    gap: 14px;
+  }
+  .pr-table { padding: 16px 16px 18px; min-height: 210px; }
+  .pr-card .corner { font-size: 1.1rem; }
+  .pr-card .pip { font-size: 2.4rem; }
+  .pr-pile .pr-card + .pr-card { margin-left: -26px; }
+  .pr-hand { justify-content: safe center; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.president .shake { animation: pr-shake 300ms ease; }
+@keyframes pr-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
+.pr-pile .pr-card.landed { animation: pr-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes pr-land {
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .president .shake { animation: none; outline: 2px solid var(--red); }
+  .pr-card, .pr-opp { transition: none; }
+  .pr-pile .pr-card.landed { animation: none; }
+}

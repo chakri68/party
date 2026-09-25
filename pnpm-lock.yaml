@@ -35,6 +35,9 @@ importers:
       '@games/pass-the-bomb':
         specifier: workspace:*
         version: link:../../games/pass-the-bomb
+      '@games/president':
+        specifier: workspace:*
+        version: link:../../games/president
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -78,6 +81,9 @@ importers:
       '@games/pass-the-bomb':
         specifier: workspace:*
         version: link:../../games/pass-the-bomb
+      '@games/president':
+        specifier: workspace:*
+        version: link:../../games/president
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -171,6 +177,24 @@ importers:
         version: link:../../packages/ui
 
   games/pass-the-bomb:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/president:
     dependencies:
       '@games/animation':
         specifier: workspace:*
