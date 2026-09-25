@@ -15,6 +15,7 @@
     "@games/go-fish": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/old-maid": "workspace:*",
+    "@games/pass-the-bomb": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/room-client": "workspace:*",
     "@games/scribbl": "workspace:*",

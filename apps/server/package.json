@@ -13,6 +13,7 @@
     "@games/go-fish": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/old-maid": "workspace:*",
+    "@games/pass-the-bomb": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/scribbl": "workspace:*",
     "@games/sevens": "workspace:*",

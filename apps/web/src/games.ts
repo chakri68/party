@@ -5,6 +5,7 @@ import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from 
 import type { GameManifest, SettingField } from "@games/game-core";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
+import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import type { GameClientModule } from "@games/ui";
@@ -48,5 +49,11 @@ export const games: Record<string, GameEntry> = {
     rules: scribblRules,
     settingFields: scribblSettingFields,
     loadClient: () => import("@games/scribbl/client").then((m) => m.default),
+  },
+  "pass-the-bomb": {
+    manifest: passTheBombManifest,
+    rules: passTheBombRules,
+    settingFields: passTheBombSettingFields,
+    loadClient: () => import("@games/pass-the-bomb/client").then((m) => m.default),
   },
 };

@@ -7,7 +7,7 @@
 
 export type SoundId =
   | "card-place" | "deal" | "shuffle" | "your-turn" | "pass" | "win" | "game-over" | "reject" | "nudge"
-  | "correct" | "tick";
+  | "correct" | "tick" | "boom";
 
 export interface FeedbackSettings {
   sound: boolean;
@@ -98,6 +98,12 @@ const VOICES: Record<SoundId, Voice> = {
   },
   // The clock's running out. Quiet on purpose: it plays once a second.
   tick: (c, o, t) => tone(c, o, t, { freq: 1400, dur: 0.03, type: "square", gain: 0.035 }),
+  // Something went off: a crack, a long low rumble, and the thump under both.
+  boom: (c, o, t) => {
+    noise(c, o, t, { dur: 0.12, gain: 0.6, freq: 2600 });
+    noise(c, o, t + 0.02, { dur: 1.1, gain: 0.9, freq: 180 });
+    tone(c, o, t, { freq: 120, to: 32, dur: 0.7, gain: 0.5 });
+  },
   win: (c, o, t) => {
     [523, 659, 784, 1047].forEach((f, i) => tone(c, o, t + i * 0.09, { freq: f, dur: 0.28, type: "triangle", gain: 0.2 }));
     tone(c, o, t + 0.36, { freq: 1568, dur: 0.5, gain: 0.08 });

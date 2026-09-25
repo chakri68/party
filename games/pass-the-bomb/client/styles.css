@@ -1,0 +1,197 @@
+/* Pass the Bomb. Uses the shell's tokens (--surface, --line, --ink, --muted, --accent, --danger).
+   Everything is pb- prefixed: other games' stylesheets may be loaded in the same tab.
+   Fire is the one colour that isn't the accent: sparks and bangs are allowed to be orange. */
+
+.pass-the-bomb {
+  --fire: #ffb347;
+  --fire-hot: #fff3c4;
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto;
+  justify-items: center;
+  text-align: center;
+}
+
+.pb-top {
+  justify-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The bomb ------------------------------------------------------------ */
+
+/* Sized off the viewport height too, so the input stays above a phone's keyboard. */
+.pb-stage {
+  position: relative;
+  width: min(200px, 30dvh, 52vw);
+  aspect-ratio: 1;
+}
+.pb-bomb, .pb-burst { position: absolute; inset: 0; }
+.pb-bomb svg, .pb-burst svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.pb-body { fill: #22211c; stroke: #3d3b33; stroke-width: 2.5; }
+.pb-cap { fill: #3d3b33; }
+.pb-shine { fill: none; stroke: rgb(255 255 255 / 0.18); stroke-width: 5; stroke-linecap: round; }
+.pb-fuse { fill: none; stroke: #b9a77a; stroke-width: 3.5; stroke-linecap: round; }
+.pb-spark-rays { fill: var(--fire); }
+.pb-spark-core { fill: var(--fire-hot); }
+.pb-spark { animation: pb-spark 180ms steps(2) infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes pb-spark {
+  from { transform: scale(0.75) rotate(0deg); opacity: 0.8; }
+  to { transform: scale(1.15) rotate(22deg); opacity: 1; }
+}
+/* The one holding it gets the edge-of-the-seat version. */
+.pb-stage.mine .pb-bomb { animation: pb-jitter 1s ease-in-out infinite; }
+@keyframes pb-jitter {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-2.5deg); }
+  75% { transform: rotate(2.5deg); }
+}
+
+.pb-cluster {
+  position: absolute;
+  /* The body's centre, not the box's: the fuse takes the top right. */
+  left: 46.7%;
+  top: 60%;
+  translate: -50% -50%;
+  font-size: clamp(1.6rem, 9vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgb(198 244 50 / 0.45);
+  pointer-events: none;
+}
+
+/* A word landed: the bomb hops to its next holder. */
+.pb-stage.hop .pb-bomb, .pb-stage.hop .pb-cluster { animation: pb-hop 360ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes pb-hop {
+  35% { transform: translateY(-14%) rotate(-10deg) scale(0.92); }
+}
+/* A fresh fuse. */
+.pb-stage.lit .pb-bomb, .pb-stage.lit .pb-cluster { animation: pb-lit 420ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes pb-lit {
+  from { transform: scale(0.4); opacity: 0; }
+}
+
+/* ---- The bang ------------------------------------------------------------ */
+
+.pb-burst-outer { fill: var(--fire); }
+.pb-burst-inner { fill: var(--fire-hot); }
+.pb-burst:not([hidden]) { animation: pb-burst 700ms cubic-bezier(.1, .9, .2, 1) both; }
+.pb-burst:not([hidden]) svg { animation: pb-flicker 140ms steps(2) 5; }
+@keyframes pb-burst {
+  from { transform: scale(0.2) rotate(-20deg); opacity: 0; }
+  30% { transform: scale(1.25) rotate(4deg); opacity: 1; }
+  to { transform: scale(1) rotate(0deg); }
+}
+@keyframes pb-flicker {
+  50% { transform: scale(1.06) rotate(6deg); }
+}
+
+.pb-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 35%, var(--fire-hot), var(--fire) 35%, transparent 75%);
+  animation: pb-flash 650ms ease-out both;
+}
+@keyframes pb-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+
+.pass-the-bomb.quake { animation: pb-quake 480ms cubic-bezier(.3, .6, .3, 1); }
+@keyframes pb-quake {
+  10% { transform: translate(-9px, 5px) rotate(-0.6deg); }
+  25% { transform: translate(8px, -6px) rotate(0.5deg); }
+  40% { transform: translate(-6px, 3px); }
+  60% { transform: translate(4px, -2px); }
+  80% { transform: translate(-2px, 1px); }
+}
+
+/* ---- Words --------------------------------------------------------------- */
+
+.pb-status { margin: 0; font-weight: 700; font-size: 1.05rem; min-height: 1.5em; }
+.pass-the-bomb.holding .pb-status { color: var(--accent); }
+.pb-stage.boom ~ .pb-status { color: var(--fire); }
+
+.pb-typing {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.pb-typing mark { background: none; color: var(--accent); }
+/* Your own typing's in the box already. */
+.pass-the-bomb.holding .pb-typing { display: none; }
+
+.pb-form { justify-self: stretch; display: flex; gap: 6px; }
+.pb-input {
+  min-height: 50px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pb-input::placeholder { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.pass-the-bomb.holding .pb-input { border-color: var(--accent); }
+.pb-send { min-height: 50px; padding: 0 18px; }
+.pb-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+.pb-last { margin: 0; font-size: 0.85rem; color: var(--muted); min-height: 1.2em; }
+.pb-last b { color: var(--ink); letter-spacing: 0.04em; }
+
+.pass-the-bomb .shake { animation: pb-shake 300ms ease; }
+@keyframes pb-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+.pb-bubble { font-weight: 700; letter-spacing: 0.04em; }
+
+/* ---- Players ------------------------------------------------------------- */
+
+.pb-players {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.pb-player {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.pb-player .name { font-weight: 600; }
+.pb-player .pips { display: flex; gap: 3px; }
+.pb-player .pip { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.pb-player .pip.on { background: var(--accent); border-color: var(--accent); }
+.pb-player .tag { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.pb-player.has { border-color: var(--accent); background: var(--accent-soft); }
+.pb-player.out { opacity: 0.45; }
+.pb-player.away { opacity: 0.6; border-style: dashed; }
+.pb-player.hit { border-color: var(--fire); background: rgb(255 179 71 / 0.16); animation: pb-shake 360ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-spark, .pb-stage.mine .pb-bomb, .pb-burst:not([hidden]), .pb-burst:not([hidden]) svg { animation: none; }
+  .pb-stage.hop .pb-bomb, .pb-stage.hop .pb-cluster, .pb-stage.lit .pb-bomb, .pb-stage.lit .pb-cluster { animation: none; }
+  .pass-the-bomb .shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+  .pb-player.hit { animation: none; }
+}
