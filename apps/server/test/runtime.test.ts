@@ -492,6 +492,21 @@ describe("mid-game absence", () => {
     expect(r.result!.winnerIds).toEqual([idOf(ps[0]!)]);
   });
 
+  it("the host can end a game midway; stragglers don't follow into the lobby", async () => {
+    await send(room, ps[1]!, { type: "return-to-lobby" });
+    expect(ps[1]!.last("error")?.code).toBe("not-host");
+
+    await send(room, ps[3]!, { type: "leave" });
+    await world.disconnect(room, ps[2]!);
+    await world.tick(room, GRACE_MS);
+    await send(room, ps[0]!, { type: "return-to-lobby" });
+
+    const r = roomOf(ps[0]!);
+    expect(r).toMatchObject({ phase: "lobby", game: null, awaitingPlayerIds: [] });
+    expect(r.seats.map((s) => s.id)).toEqual([idOf(ps[0]!), idOf(ps[1]!)]);
+    expect(roomOf(ps[1]!).phase).toBe("lobby");
+  });
+
   it("a host leaving mid-game hands host on", async () => {
     await send(room, ps[0]!, { type: "leave" });
     expect(roomOf(ps[1]!).hostId).toBe(idOf(ps[1]!));
@@ -598,6 +613,13 @@ describe("ephemeral streams (§35)", () => {
       expect(p.of("stream")).toEqual([]);
       expect(p.of("error")).toEqual([]);
     }
+  });
+
+  it("ending the game midway takes its timers with it", async () => {
+    expect(world.alarm).not.toBeNull();
+    await send(room, players[0]!, { type: "return-to-lobby" });
+    expect(roomOf(players[0]!).phase).toBe("lobby");
+    expect(world.alarm).toBeNull();
   });
 
   it("only snapshots carry the drawing, and it survives a restart", async () => {

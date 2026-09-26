@@ -439,10 +439,14 @@ export class RoomRuntime {
       }
 
       case "return-to-lobby":
+        // Mid-game too: the host can bail on a game that's dragging.
         if (!hostOnly() || !inPhase("playing", "results")) return;
         data.phase = "lobby";
         data.game = null;
-        data.seats = this.activeSeats();
+        // An abandoned game's timers would otherwise fire into the lobby.
+        for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
+        // Disconnected seats were only kept for the game; their grace is long spent.
+        data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
         this.resetReady();
         this.setAwaiting([]);
         return this.commit([]);

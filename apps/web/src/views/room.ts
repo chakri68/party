@@ -168,6 +168,8 @@ export class RoomView implements View {
       if (u.snapshot) this.streamBacklog = [];
       if (prev && prev.room.hostId !== client.playerId && u.room.hostId === client.playerId) {
         this.showToast("You're the host now.");
+      } else if (prev?.room.phase === "playing" && u.room.phase === "lobby" && u.room.hostId !== client.playerId) {
+        this.showToast(`${seatName(u.room, u.room.hostId)} ended the game.`);
       }
       this.render();
     });
@@ -397,6 +399,14 @@ export class RoomView implements View {
           }, `Remove ${s.name}`),
         );
       }
+      // The escape hatch for a game that's gone stale: everyone back to the lobby.
+      items.push(
+        h("button", {
+          type: "button",
+          class: "link end-game",
+          onclick: () => confirm("End this game for everyone and head back to the lobby?") && client.send({ type: "return-to-lobby" }),
+        }, "End game"),
+      );
     }
     replaceChildren(this.controls, items);
   }

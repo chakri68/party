@@ -446,6 +446,8 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .turn-controls:empty { display: none; }
 .turn-controls p { flex: 0 0 100%; margin: 0; }
 .turn-controls button { flex: 1; }
+/* Sits on its own line under the turn buttons, quiet enough not to be hit by accident. */
+.turn-controls .end-game { flex: 0 0 100%; }
 button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
 .seats .kick {
   min-height: 36px;
