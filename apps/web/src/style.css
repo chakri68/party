@@ -365,6 +365,38 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dialog form { margin-top: 16px; display: flex; justify-content: flex-end; }
 .rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
 
+/* Home: host your own (main site, no owner key) */
+.host-own {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.host-own h2 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
+.host-own p { margin: 0; color: var(--muted); line-height: 1.45; }
+.host-own .fine { font-size: 0.85rem; }
+.host-own a { color: var(--ink); text-underline-offset: 3px; }
+.command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+}
+.command code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font: 600 0.9rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--accent);
+}
+.copy-btn { min-height: 40px; padding: 0 14px; font-size: 0.85rem; }
+
 /* Home: rejoin */
 .recent { display: grid; gap: 6px; margin-top: 16px; }
 .recent .muted { font-size: 0.8rem; }

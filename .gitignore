@@ -27,3 +27,5 @@ dist-ssr
 spec.md
 # Wrangler local state
 .wrangler
+# Self-host config written by scripts/host.mjs
+wrangler.selfhost.json

@@ -51,6 +51,42 @@ export function identityField(input: HTMLInputElement): HTMLElement {
   );
 }
 
+/** Set by the self-host CLI (scripts/host.mjs). There, everyone is a guest of the host. */
+const SELF_HOSTED = import.meta.env.VITE_SELF_HOSTED === "1";
+const HOST_COMMAND = "npx github:chakri68/party";
+
+/**
+ * On the main site only the owner creates rooms, so everyone else without a
+ * code gets the one-liner to run their own.
+ */
+function hostYourOwn(): HTMLElement {
+  const command = h("code", {}, HOST_COMMAND);
+  const copy = h("button", { type: "button", class: "copy-btn" }, "Copy");
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(HOST_COMMAND);
+      copy.textContent = "Copied";
+    } catch {
+      // Clipboard blocked: select it so a long-press/Ctrl+C does the rest.
+      getSelection()?.selectAllChildren(command);
+    }
+  });
+  return h(
+    "section",
+    { class: "host-own" },
+    h("h2", {}, "Host your own"),
+    h("p", {}, "Rooms here are invite-only. Run this in a terminal on your laptop and you'll get your own link to share. Free, no account."),
+    h("div", { class: "command" }, command, copy),
+    h(
+      "p",
+      { class: "fine" },
+      "Needs ",
+      h("a", { href: "https://nodejs.org", target: "_blank", rel: "noopener" }, "Node.js 22+"),
+      ". Keep the window open while you play.",
+    ),
+  );
+}
+
 /** Logo over a lowercase wordmark with a lime full stop. */
 function hero(tagline: string) {
   return h(
@@ -121,6 +157,7 @@ export class HomeView implements View {
 
   private render() {
     const isOwner = !!getOwnerKey();
+    const pitch = !isOwner && !SELF_HOSTED;
 
     const joinForm = h("form", { class: "join" }, this.code, h("button", { type: "submit", class: isOwner ? "" : "primary" }, "Join"));
     joinForm.addEventListener("submit", (e) => {
@@ -140,7 +177,8 @@ export class HomeView implements View {
     const recent = recentRooms();
     replaceChildren(
       this.root,
-      hero(isOwner ? "No accounts. Just a name and a room code." : "Got a room code? Pop it in."),
+      hero(isOwner ? "No accounts. Just a name and a room code." : pitch ? "Card games and doodles with friends, on any phone." : "Got a room code? Pop it in."),
+      pitch ? [hostYourOwn(), h("div", { class: "or" }, "got a room code?")] : null,
       this.identity,
       isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
       joinForm,
