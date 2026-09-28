@@ -114,9 +114,9 @@ const GAME_TIMER_PREFIX = "game:";
 const GRACE_TIMER_PREFIX = "grace:";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
-/** Chat flood guard: this many lines per window, per seat. */
-const CHAT_BURST = 5;
-const CHAT_WINDOW_MS = 5_000;
+/** Flood guards: this many per window, per seat. Emotes are meant to be mashed. */
+const CHAT_LIMIT = { burst: 5, windowMs: 5_000 };
+const EMOTE_LIMIT = { burst: 10, windowMs: 3_000 };
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_POLICY = 4000;
@@ -129,8 +129,8 @@ export class RoomRuntime {
   private data: RoomData | null = null;
   /** Serialises handlers: every await point is otherwise a chance to interleave. */
   private queue: Promise<unknown> = Promise.resolve();
-  /** Seat → recent chat times. In memory: an eviction forgiving a spammer is fine. */
-  private chatTimes = new Map<string, number[]>();
+  /** "kind:seat" → recent send times. In memory: an eviction forgiving a spammer is fine. */
+  private sendTimes = new Map<string, number[]>();
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -457,10 +457,8 @@ export class RoomRuntime {
         if (data.phase === "playing" && data.game && this.games[data.game.gameId]!.manifest.ownChat) {
           return this.error(conn, "wrong-phase", "Chat's in the game for this one.");
         }
+        if (!this.allow("chat", seat.id, CHAT_LIMIT)) return this.error(conn, "rate-limited", "Easy there. Give it a second.");
         const now = this.host.now();
-        const recent = (this.chatTimes.get(seat.id) ?? []).filter((t) => now - t < CHAT_WINDOW_MS);
-        if (recent.length >= CHAT_BURST) return this.error(conn, "rate-limited", "Easy there. Give it a second.");
-        this.chatTimes.set(seat.id, [...recent, now]);
         const chat = (data.chat ??= { nextId: 0, messages: [] });
         const line: ChatMessage = {
           id: chat.nextId++,
@@ -475,6 +473,15 @@ export class RoomRuntime {
         if (chat.messages.length > CHAT_KEEP) chat.messages.splice(0, chat.messages.length - CHAT_KEEP);
         await this.persist();
         return this.broadcastChat([line]);
+      }
+
+      case "emote": {
+        // Over the limit just drops: a toast per extra tap would be worse than the spam.
+        if (!this.allow("emote", seat.id, EMOTE_LIMIT)) return;
+        for (const c of this.liveConns()) {
+          if (c.state?.playerId) c.send({ type: "emote", from: seat.id, emoji: msg.emoji });
+        }
+        return;
       }
 
       case "react": {
@@ -785,6 +792,16 @@ export class RoomRuntime {
         ...(snapshot && def?.getStreamSnapshot && { stream: def.getStreamSnapshot(data.game!.state) }),
       });
     }
+  }
+
+  /** Sliding-window rate limit. Records the send when it's allowed. */
+  private allow(kind: string, seatId: string, limit: { burst: number; windowMs: number }): boolean {
+    const key = `${kind}:${seatId}`;
+    const now = this.host.now();
+    const recent = (this.sendTimes.get(key) ?? []).filter((t) => now - t < limit.windowMs);
+    if (recent.length >= limit.burst) return false;
+    this.sendTimes.set(key, [...recent, now]);
+    return true;
   }
 
   /** Like streams, chat rides outside the versioned updates: no bump, just the lines. */

@@ -746,6 +746,30 @@ describe("room chat", () => {
     expect(Object.keys(lines(a)[0]!.reactions)).toEqual(["😂"]);
   });
 
+  it("floats emotes to everyone, sender included, and keeps none of them", async () => {
+    const version = b.last("update")!.stateVersion;
+    await send(room, a, { type: "emote", emoji: "🔥" });
+    for (const c of [a, b]) expect(c.last("emote")).toEqual({ type: "emote", from: a.last("welcome")!.playerId, emoji: "🔥" });
+    expect(b.last("update")!.stateVersion).toBe(version);
+    const c = await join(world, room, "Cy");
+    expect(c.of("emote")).toEqual([]);
+    expect(lines(c)).toEqual([]);
+    await send(room, a, { type: "emote", emoji: "🍆" });
+    expect(a.last("error")).toMatchObject({ code: "bad-message" });
+  });
+
+  it("lets emotes be mashed, to a point, without a word", async () => {
+    for (let i = 0; i < 15; i++) await send(room, a, { type: "emote", emoji: "😂" });
+    expect(b.of("emote")).toHaveLength(10);
+    expect(a.of("error")).toEqual([]);
+    // Its own budget: mashing doesn't eat into chat.
+    await send(room, a, { type: "chat", text: "sorry" });
+    expect(lines(b)[0]!.text).toBe("sorry");
+    world.clock += 3_000;
+    await send(room, a, { type: "emote", emoji: "😂" });
+    expect(b.of("emote")).toHaveLength(11);
+  });
+
   it("lines outlive the seat that sent them", async () => {
     await send(room, b, { type: "chat", text: "brb" });
     await send(room, b, { type: "leave" });

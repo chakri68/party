@@ -15,6 +15,7 @@ import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToke
 import { APP_TITLE, navigate } from "../router.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
+import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
@@ -70,6 +71,7 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
+  private emotes: Emotes | null = null;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -98,6 +100,7 @@ export class RoomView implements View {
     clearInterval(this.ticker);
     this.detachDebug?.();
     this.chat?.destroy();
+    this.emotes?.destroy();
     this.client?.close();
     this.gameView?.destroy();
     this.root.remove();
@@ -160,6 +163,15 @@ export class RoomView implements View {
     this.chat = chat;
     this.root.append(chat.panel);
     client.on("chat", ({ messages, replace }) => chat.receive(messages, replace));
+
+    const emotes = new Emotes({
+      send: (emoji) => client.send({ type: "emote", emoji }),
+      me: () => client.playerId,
+      nameOf: (id) => (this.last ? seatName(this.last.room, id) : "Someone"),
+    });
+    this.emotes = emotes;
+    this.root.append(emotes.layer);
+    client.on("emote", ({ from, emoji }) => emotes.show(from, emoji));
 
     client.on("status", (status) => {
       this.renderHeader();
@@ -262,7 +274,7 @@ export class RoomView implements View {
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       // Once seated: before that there's nobody to talk as.
-      this.client?.playerId && status !== "closed" ? this.chat?.button : null,
+      this.client?.playerId && status !== "closed" ? [this.emotes?.wrap, this.chat?.button] : null,
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,

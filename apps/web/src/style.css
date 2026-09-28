@@ -706,3 +706,70 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 @media (prefers-reduced-motion: reduce) {
   .chat-panel, .chat-picker { animation: none; }
 }
+
+/* ---- Floating reactions ---------------------------------------------------- */
+
+.emote-wrap { position: relative; display: inline-flex; }
+.emote-bar {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 25;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  animation: pop-in 160ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.emote-bar button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font-size: 1.5rem;
+}
+.emote-bar button:hover { background: var(--line); }
+.emote-bar button:active { transform: scale(1.25); }
+
+.emote-layer { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.emote {
+  position: absolute;
+  bottom: -60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: emote-float 2.8s cubic-bezier(.3, .6, .4, 1) forwards;
+}
+.emote-glyph { font-size: calc(2.6rem * var(--s, 1)); line-height: 1; filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.45)); }
+.emote-name {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+@keyframes emote-float {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  10% { transform: translate(calc(var(--dx) * 0.1), -10vh) scale(1.1); opacity: 1; }
+  25% { transform: translate(calc(var(--dx) * -0.3), -22vh) scale(1); }
+  50% { transform: translate(calc(var(--dx) * 0.6), -40vh); }
+  75% { transform: translate(calc(var(--dx) * -0.2), -55vh); opacity: 1; }
+  100% { transform: translate(var(--dx), -68vh); opacity: 0; }
+}
+/* Reduced motion: no flight, just a quiet appearance near the bottom. */
+@keyframes emote-fade {
+  0%, 100% { opacity: 0; }
+  15%, 75% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emote { bottom: 90px; animation-name: emote-fade; }
+  .emote-bar { animation: none; }
+}

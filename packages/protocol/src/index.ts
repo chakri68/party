@@ -1,6 +1,6 @@
 import type { GameOutcome } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -128,6 +128,8 @@ export type ClientMessage =
   | { type: "chat"; text: string }
   /** Toggles: reacting twice with the same emoji takes it back. */
   | { type: "react"; messageId: number; emoji: Reaction }
+  /** A floating emoji for the whole room. Not kept anywhere. */
+  | { type: "emote"; emoji: Reaction }
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
   | { type: "return-to-lobby" }
@@ -159,6 +161,8 @@ export type ServerMessage =
    * join); otherwise new or changed lines, matched by id.
    */
   | { type: "chat"; messages: ChatMessage[]; replace: boolean }
+  /** Echoed to the sender too, so everyone sees the same thing. */
+  | { type: "emote"; from: string; emoji: Reaction }
   | { type: "error"; code: ErrorCode; message: string; fatal: boolean }
   | { type: "pong"; timestamp: number; serverTime: number };
 
@@ -247,6 +251,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isStr(m.text, CHAT_MAX_LENGTH * 4) ? { type: "chat", text: m.text } : null;
     case "react":
       return isNum(m.messageId) && isReaction(m.emoji) ? { type: "react", messageId: m.messageId, emoji: m.emoji } : null;
+    case "emote":
+      return isReaction(m.emoji) ? { type: "emote", emoji: m.emoji } : null;
     case "skip-turn":
     case "remove-player":
       return isStr(m.playerId, 64) ? { type: m.type, playerId: m.playerId } : null;

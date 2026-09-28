@@ -2,6 +2,7 @@ import {
   PROTOCOL_VERSION,
   type ChatMessage,
   type ClientMessage,
+  type Reaction,
   type ErrorCode,
   type RoomPublicState,
   type ServerMessage,
@@ -34,6 +35,8 @@ export interface RoomClientEvents {
   stream: { from: string; data: unknown };
   /** Room chat: the full history (`replace`) or new/changed lines. */
   chat: { messages: ChatMessage[]; replace: boolean };
+  /** A floating emoji from someone in the room (you included). */
+  emote: { from: string; emoji: Reaction };
 }
 
 export interface RoomClientOptions {
@@ -207,6 +210,9 @@ export class RoomClient {
         break;
       case "chat":
         this.emit("chat", msg);
+        break;
+      case "emote":
+        this.emit("emote", msg);
         break;
       case "pong":
         this.clockOffset = msg.serverTime - (msg.timestamp + Date.now()) / 2;
