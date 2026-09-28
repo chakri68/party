@@ -46,17 +46,30 @@ export class Emotes {
   show(from: string, emoji: Reaction) {
     if (this.layer.childElementCount >= MAX_FLOATING) return;
     const who = from === this.opts.me() ? "you" : this.opts.nameOf(from);
+    // One smooth rise and, separately, a slow side-to-side sway. Waypoints in a
+    // single keyframe list would ease in and out at every stop: lurch, lurch.
+    const sway = 0.9 + Math.random() * 0.6;
     const el = h(
       "span",
       {
         class: "emote",
-        // Somewhere along the bottom, a little sideways drift, a little size and pace jitter.
-        style: `left: ${8 + Math.random() * 84}%; --dx: ${(Math.random() - 0.5) * 80}px; --s: ${0.85 + Math.random() * 0.4}; animation-duration: ${2.4 + Math.random() * 0.8}s`,
+        style: `left: ${8 + Math.random() * 84}%; --dur: ${2.6 + Math.random() * 0.8}s`,
       },
-      h("span", { class: "emote-glyph" }, emoji),
-      h("span", { class: "emote-name" }, who),
+      h(
+        "span",
+        {
+          class: "emote-sway",
+          // Random amplitude, and a random phase so a burst doesn't sway in lockstep.
+          style: `--dx: ${(Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 18)}px; animation-duration: ${sway}s; animation-delay: -${Math.random() * sway}s`,
+        },
+        h("span", { class: "emote-glyph", style: `--s: ${0.85 + Math.random() * 0.4}` }, emoji),
+        h("span", { class: "emote-name" }, who),
+      ),
     );
-    el.addEventListener("animationend", () => el.remove());
+    // Children's animations bubble up here too; only the fade-out means it's over.
+    el.addEventListener("animationend", (e) => {
+      if (e.target === el && e.animationName === "emote-life") el.remove();
+    });
     this.layer.append(el);
   }
 

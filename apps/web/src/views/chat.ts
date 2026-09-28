@@ -4,6 +4,9 @@ import { icon } from "../brand.ts";
 
 /** Lines from the same person this close together share one name tag. */
 const GROUP_MS = 2 * 60_000;
+/** Drag the panel this far (a share of its size), or flick it, and it closes. */
+const DISMISS_SHARE = 0.3;
+const FLICK_PX_PER_MS = 0.5;
 /** Up to this many emoji and nothing else: shown big, like every chat app does. */
 const BIG_EMOJI_MAX = 3;
 const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|‍|️|\s)+$/u;
@@ -43,6 +46,11 @@ export class RoomChat {
   /** The line whose reaction picker is open. */
   private picking: number | null = null;
   private opts: RoomChatOptions;
+  private head = h("header", { class: "chat-head" });
+  /** Where the drag started, and the last move, for flick speed. */
+  private drag: { x: number; y: number; lastD: number; lastT: number; speed: number } | null = null;
+  /** A dismiss sliding out. A timer, not transitionend: that one doesn't always come. */
+  private closing: ReturnType<typeof setTimeout> | undefined;
 
   constructor(opts: RoomChatOptions) {
     this.opts = opts;
@@ -55,18 +63,28 @@ export class RoomChat {
       this.opts.send(text);
       this.input.value = "";
     });
+    // Forms send on Enter by themselves, mostly. Not every keyboard (or IME) agrees.
+    this.input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+      e.preventDefault();
+      form.requestSubmit();
+    });
     this.panel.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       if (this.picking !== null) this.pick(null);
       else this.toggle(false);
     });
+    this.head.append(
+      h("span", { class: "chat-grip", "aria-hidden": "true" }),
+      h("h2", {}, "Chat"),
+      h("button", { type: "button", class: "icon-btn", "aria-label": "Close chat", onclick: () => this.toggle(false) }, icon("close")),
+    );
+    this.head.addEventListener("pointerdown", this.onDragStart);
+    this.head.addEventListener("pointermove", this.onDragMove);
+    this.head.addEventListener("pointerup", this.onDragEnd);
+    this.head.addEventListener("pointercancel", this.onDragEnd);
     this.panel.append(
-      h(
-        "header",
-        { class: "chat-head" },
-        h("h2", {}, "Chat"),
-        h("button", { type: "button", class: "icon-btn", "aria-label": "Close chat", onclick: () => this.toggle(false) }, icon("close")),
-      ),
+      this.head,
       this.empty,
       this.log,
       form,
@@ -80,6 +98,8 @@ export class RoomChat {
 
   toggle(open = !this.isOpen) {
     const was = this.isOpen;
+    clearTimeout(this.closing);
+    this.panel.style.translate = "";
     this.panel.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -131,6 +151,7 @@ export class RoomChat {
   }
 
   destroy() {
+    clearTimeout(this.closing);
     this.panel.remove();
   }
 
@@ -217,6 +238,51 @@ export class RoomChat {
     }
     if (id !== null) this.lines.get(id)?.querySelector<HTMLButtonElement>(".chat-picker button")?.focus();
   }
+
+  // ---- drag to dismiss ------------------------------------------------------
+  // Down on phones (it's a bottom sheet), right on wide screens (a side panel).
+
+  private get wide(): boolean {
+    return matchMedia("(min-width: 760px)").matches;
+  }
+
+  private onDragStart = (e: PointerEvent) => {
+    if (e.button !== 0 || this.panel.hidden || (e.target as Element).closest("button")) return;
+    this.head.setPointerCapture(e.pointerId);
+    this.drag = { x: e.clientX, y: e.clientY, lastD: 0, lastT: e.timeStamp, speed: 0 };
+    this.panel.classList.add("dragging");
+  };
+
+  private onDragMove = (e: PointerEvent) => {
+    const drag = this.drag;
+    if (!drag) return;
+    const wide = this.wide;
+    // Only away from the edge it's docked to; pulling the other way does nothing.
+    const d = Math.max(0, wide ? e.clientX - drag.x : e.clientY - drag.y);
+    const dt = e.timeStamp - drag.lastT;
+    if (dt > 0) drag.speed = (d - drag.lastD) / dt;
+    drag.lastD = d;
+    drag.lastT = e.timeStamp;
+    this.panel.style.translate = wide ? `${d}px 0` : `0 ${d}px`;
+  };
+
+  private onDragEnd = (e: PointerEvent) => {
+    const drag = this.drag;
+    if (!drag) return;
+    this.drag = null;
+    this.panel.classList.remove("dragging");
+    const size = this.wide ? this.panel.offsetWidth : this.panel.offsetHeight;
+    const dismiss = e.type === "pointerup" && drag.lastD > 0 &&
+      (drag.lastD > size * DISMISS_SHARE || (drag.lastD > 24 && drag.speed > FLICK_PX_PER_MS));
+    if (!dismiss) {
+      this.panel.style.translate = ""; // springs back (see .chat-panel's transition)
+      return;
+    }
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return this.toggle(false);
+    // Off it goes the rest of the way (the panel's 200ms transition), then it's really closed.
+    this.panel.style.translate = this.wide ? "calc(100% + 24px) 0" : "0 100%";
+    this.closing = setTimeout(() => this.toggle(false), 200);
+  };
 
   private nearEnd(): boolean {
     return this.log.scrollHeight - this.log.scrollTop - this.log.clientHeight < 48;

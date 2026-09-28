@@ -160,6 +160,8 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
   letter-spacing: -0.03em;
 }
 .brand .mark { width: 28px; height: 28px; }
+/* Phones: four header buttons and a wordmark don't fit on one line. The mark stays; the link keeps its label. */
+@media (max-width: 440px) { .room-header .brand > span:not(.mark) { display: none; } }
 .room-code { margin-left: auto; font-weight: 700; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
 .conn { font-size: 0.8rem; color: var(--accent); }
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -582,7 +584,10 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
   box-shadow: 0 -12px 32px rgb(0 0 0 / 0.5);
   padding-bottom: env(safe-area-inset-bottom);
   animation: chat-up 220ms cubic-bezier(.2, .8, .2, 1) both;
+  /* Springing back, or finishing a dismiss. Off while a finger's on it. */
+  transition: translate 200ms cubic-bezier(.2, .8, .2, 1);
 }
+.chat-panel.dragging { transition: none; user-select: none; }
 @keyframes chat-up { from { transform: translateY(24px); opacity: 0; } }
 @media (min-width: 760px) {
   .chat-panel {
@@ -597,12 +602,29 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 }
 
 .chat-head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 8px 8px 16px;
   border-bottom: 1.5px solid var(--line);
+  /* The drag handle: the page mustn't scroll or pull-to-refresh under it. */
+  touch-action: none;
+  cursor: grab;
 }
+.dragging .chat-head { cursor: grabbing; }
+/* The grip only makes sense on the bottom sheet. */
+.chat-grip {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 999px;
+  background: var(--line);
+}
+@media (min-width: 760px) { .chat-grip { display: none; } }
 .chat-head h2 { margin: 0; font-size: 1rem; letter-spacing: -0.02em; }
 .chat-panel .icon-btn {
   min-height: 40px;
@@ -668,22 +690,25 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 .chat-line:hover .chat-react-btn, .chat-react-btn:focus-visible, .chat-react-btn[aria-expanded="true"] { opacity: 1; }
 .chat-react-btn:hover { color: var(--ink); }
 
-.chat-picker, .chat-reactions { display: flex; flex-wrap: wrap; gap: 4px; }
+.chat-reactions { display: flex; flex-wrap: wrap; gap: 4px; }
+/* One row, always: it's sized by its six buttons, not squeezed to the bubble. */
 .chat-picker {
-  padding: 4px;
+  display: flex;
+  width: max-content;
+  padding: 3px;
   border: 1.5px solid var(--line);
   border-radius: 999px;
   background: var(--surface-2);
   animation: pop-in 160ms cubic-bezier(.2, .8, .2, 1) both;
 }
 .chat-picker button {
-  min-height: 36px;
-  min-width: 36px;
+  min-height: 34px;
+  min-width: 34px;
   padding: 0;
   border: none;
   border-radius: 999px;
   background: none;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
 }
 .chat-picker button:hover { background: var(--line); }
 .chat-picker button[aria-pressed="true"] { background: var(--accent-soft); }
@@ -704,7 +729,7 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 .chat-send { min-height: 44px; padding: 0 16px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-panel, .chat-picker { animation: none; }
+  .chat-panel, .chat-picker { animation: none; transition: none; }
 }
 
 /* ---- Floating reactions ---------------------------------------------------- */
@@ -737,16 +762,28 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 .emote-bar button:active { transform: scale(1.25); }
 
 .emote-layer { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+/* Three layers, three jobs: the outer one rises and fades, the middle one
+   sways, the glyph pops in. Each is a single smooth motion. */
 .emote {
   position: absolute;
   bottom: -60px;
+  animation:
+    emote-rise var(--dur, 3s) cubic-bezier(.25, .55, .45, 1) forwards,
+    emote-life var(--dur, 3s) linear forwards;
+}
+.emote-sway {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  animation: emote-float 2.8s cubic-bezier(.3, .6, .4, 1) forwards;
+  animation: emote-sway 1.2s ease-in-out infinite alternate;
 }
-.emote-glyph { font-size: calc(2.6rem * var(--s, 1)); line-height: 1; filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.45)); }
+.emote-glyph {
+  font-size: calc(2.6rem * var(--s, 1));
+  line-height: 1;
+  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.45));
+  animation: emote-pop 380ms cubic-bezier(.2, .8, .2, 1.4) both;
+}
 .emote-name {
   padding: 1px 7px;
   border-radius: 999px;
@@ -756,20 +793,19 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
   font-weight: 600;
   white-space: nowrap;
 }
-@keyframes emote-float {
-  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
-  10% { transform: translate(calc(var(--dx) * 0.1), -10vh) scale(1.1); opacity: 1; }
-  25% { transform: translate(calc(var(--dx) * -0.3), -22vh) scale(1); }
-  50% { transform: translate(calc(var(--dx) * 0.6), -40vh); }
-  75% { transform: translate(calc(var(--dx) * -0.2), -55vh); opacity: 1; }
-  100% { transform: translate(var(--dx), -68vh); opacity: 0; }
+@keyframes emote-rise { to { translate: 0 -72vh; } }
+@keyframes emote-life {
+  0% { opacity: 0; }
+  8%, 65% { opacity: 1; }
+  100% { opacity: 0; }
 }
+@keyframes emote-sway {
+  from { translate: calc(var(--dx) * -1) 0; }
+  to { translate: var(--dx) 0; }
+}
+@keyframes emote-pop { from { scale: 0.4; } }
 /* Reduced motion: no flight, just a quiet appearance near the bottom. */
-@keyframes emote-fade {
-  0%, 100% { opacity: 0; }
-  15%, 75% { opacity: 1; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .emote { bottom: 90px; animation-name: emote-fade; }
-  .emote-bar { animation: none; }
+  .emote { bottom: 90px; animation: emote-life var(--dur, 3s) linear forwards; }
+  .emote-sway, .emote-glyph, .emote-bar { animation: none; }
 }
