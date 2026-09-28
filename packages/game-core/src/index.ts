@@ -9,6 +9,11 @@ export interface GameManifest {
   maxPlayers: number;
   /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
+  /**
+   * The game runs its own chat, and the room's would be a way around it (typing
+   * the answer). Room chat goes read-only while a round's on.
+   */
+  ownChat?: boolean;
 }
 
 /**

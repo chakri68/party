@@ -14,6 +14,7 @@ import { games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
 import { canTransition, transition } from "../transition.ts";
+import { RoomChat } from "./chat.ts";
 import { identityField, nameInput } from "./home.ts";
 
 const STUCK_AFTER_MS = 15_000;
@@ -68,6 +69,7 @@ export class RoomView implements View {
   private detachDebug: (() => void) | null = null;
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
+  private chat: RoomChat | null = null;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -95,6 +97,7 @@ export class RoomView implements View {
     clearTimeout(this.stuckTimer);
     clearInterval(this.ticker);
     this.detachDebug?.();
+    this.chat?.destroy();
     this.client?.close();
     this.gameView?.destroy();
     this.root.remove();
@@ -147,6 +150,17 @@ export class RoomView implements View {
     });
     this.client = client;
 
+    const chat = new RoomChat({
+      send: (text) => client.send({ type: "chat", text }),
+      react: (messageId, emoji) => client.send({ type: "react", messageId, emoji }),
+      me: () => client.playerId,
+      nameOf: (id) => (this.last ? seatName(this.last.room, id) : "Someone"),
+      peek: (m) => this.showToast(`${m.name}: ${m.text}`),
+    });
+    this.chat = chat;
+    this.root.append(chat.panel);
+    client.on("chat", ({ messages, replace }) => chat.receive(messages, replace));
+
     client.on("status", (status) => {
       this.renderHeader();
       if (status === "open") {
@@ -160,7 +174,10 @@ export class RoomView implements View {
         this.stuckTimer ??= setTimeout(() => this.showStuck(), STUCK_AFTER_MS);
       }
     });
-    client.on("welcome", ({ resumeToken }) => setResumeToken(this.code, resumeToken));
+    client.on("welcome", ({ resumeToken }) => {
+      setResumeToken(this.code, resumeToken);
+      this.renderHeader();
+    });
     client.on("update", (u) => {
       const prev = this.last;
       this.last = u;
@@ -218,6 +235,7 @@ export class RoomView implements View {
       }, "Leave room"),
     );
     // Drop the game inside the swap, so the snapshot we animate from still has it.
+    this.chat?.toggle(false);
     this.show("stuck", () => {
       this.dropGameView();
       replaceChildren(this.body, screen);
@@ -243,6 +261,8 @@ export class RoomView implements View {
       h("a", { href: "/", class: "brand", "aria-label": "Party Games home" }, brandMark(), h("span", {}, "party games", h("span", { class: "dot" }, "."))),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
+      // Once seated: before that there's nobody to talk as.
+      this.client?.playerId && status !== "closed" ? this.chat?.button : null,
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,
@@ -254,6 +274,9 @@ export class RoomView implements View {
     const me = this.client?.playerId;
     if (!u || !me || this.stuck) return;
     const room = u.room;
+
+    const ownChat = room.phase === "playing" && !!games[room.gameId]?.manifest.ownChat;
+    this.chat?.lock(ownChat ? "Paused for this game" : null);
 
     if (room.phase === "playing") {
       this.ticker ??= setInterval(() => this.renderControls(), 1000);
@@ -692,6 +715,7 @@ export class RoomView implements View {
   }
 
   private showMessage(message: string, code?: string) {
+    this.chat?.toggle(false);
     const screen = h(
       "section",
       { class: "message" },

@@ -10,6 +10,8 @@ import {
   type GameTransition,
 } from "@games/game-core";
 import {
+  CHAT_KEEP,
+  cleanChatText,
   FATAL_ERRORS,
   GRACE_MS,
   normalizeName,
@@ -17,6 +19,7 @@ import {
   NUDGE_COOLDOWN_MS,
   parseClientMessage,
   PROTOCOL_VERSION,
+  type ChatMessage,
   type ClientMessage,
   type ErrorCode,
   type Presence,
@@ -101,6 +104,8 @@ interface RoomData {
   lastNudgeAt: number;
   /** Timer table (§4): key → due time. The one DO alarm tracks the earliest. */
   timers: Record<string, number>;
+  /** Optional: rooms stored before chat existed don't have it. */
+  chat?: { nextId: number; messages: ChatMessage[] };
 }
 
 const STORAGE_KEY = "room";
@@ -108,6 +113,10 @@ const CLEANUP_TIMER = "cleanup";
 const GAME_TIMER_PREFIX = "game:";
 const GRACE_TIMER_PREFIX = "grace:";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
+
+/** Chat flood guard: this many lines per window, per seat. */
+const CHAT_BURST = 5;
+const CHAT_WINDOW_MS = 5_000;
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_POLICY = 4000;
@@ -120,6 +129,8 @@ export class RoomRuntime {
   private data: RoomData | null = null;
   /** Serialises handlers: every await point is otherwise a chance to interleave. */
   private queue: Promise<unknown> = Promise.resolve();
+  /** Seat → recent chat times. In memory: an eviction forgiving a spammer is fine. */
+  private chatTimes = new Map<string, number[]>();
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -359,6 +370,7 @@ export class RoomRuntime {
     conn.setState({ hello: true, playerId: seat.id });
     conn.send({ type: "welcome", playerId: seat.id, resumeToken: seat.resumeToken });
     await this.commit(events, undefined, conn.id);
+    conn.send({ type: "chat", messages: data.chat?.messages ?? [], replace: true });
   }
 
   private async onSeatedMessage(conn: Conn, seat: SeatData, msg: ClientMessage): Promise<void> {
@@ -436,6 +448,44 @@ export class RoomRuntime {
           if (pid && pid !== seat.id) c.send({ type: "stream", from: seat.id, data: out.relay });
         }
         return;
+      }
+
+      case "chat": {
+        const text = cleanChatText(msg.text);
+        if (!text) return;
+        // Otherwise the room's chat is a way to hand out the game's answers.
+        if (data.phase === "playing" && data.game && this.games[data.game.gameId]!.manifest.ownChat) {
+          return this.error(conn, "wrong-phase", "Chat's in the game for this one.");
+        }
+        const now = this.host.now();
+        const recent = (this.chatTimes.get(seat.id) ?? []).filter((t) => now - t < CHAT_WINDOW_MS);
+        if (recent.length >= CHAT_BURST) return this.error(conn, "rate-limited", "Easy there. Give it a second.");
+        this.chatTimes.set(seat.id, [...recent, now]);
+        const chat = (data.chat ??= { nextId: 0, messages: [] });
+        const line: ChatMessage = {
+          id: chat.nextId++,
+          from: seat.id,
+          name: seat.name,
+          avatarSeed: seat.avatarSeed,
+          text,
+          at: now,
+          reactions: {},
+        };
+        chat.messages.push(line);
+        if (chat.messages.length > CHAT_KEEP) chat.messages.splice(0, chat.messages.length - CHAT_KEEP);
+        await this.persist();
+        return this.broadcastChat([line]);
+      }
+
+      case "react": {
+        const line = data.chat?.messages.find((m) => m.id === msg.messageId);
+        if (!line) return; // scrolled off the top, most likely: nothing to say
+        const who = line.reactions[msg.emoji] ?? [];
+        const next = who.includes(seat.id) ? who.filter((id) => id !== seat.id) : [...who, seat.id];
+        if (next.length) line.reactions[msg.emoji] = next;
+        else delete line.reactions[msg.emoji];
+        await this.persist();
+        return this.broadcastChat([line]);
       }
 
       case "return-to-lobby":
@@ -735,6 +785,11 @@ export class RoomRuntime {
         ...(snapshot && def?.getStreamSnapshot && { stream: def.getStreamSnapshot(data.game!.state) }),
       });
     }
+  }
+
+  /** Like streams, chat rides outside the versioned updates: no bump, just the lines. */
+  private broadcastChat(messages: ChatMessage[]): void {
+    for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "chat", messages, replace: false });
   }
 
   private publicState(): RoomPublicState {

@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  type ChatMessage,
   type ClientMessage,
   type ErrorCode,
   type RoomPublicState,
@@ -31,6 +32,8 @@ export interface RoomClientEvents {
   nudged: { byPlayerId: string };
   /** Another player's ephemeral game data (§35). */
   stream: { from: string; data: unknown };
+  /** Room chat: the full history (`replace`) or new/changed lines. */
+  chat: { messages: ChatMessage[]; replace: boolean };
 }
 
 export interface RoomClientOptions {
@@ -201,6 +204,9 @@ export class RoomClient {
         break;
       case "stream":
         this.emit("stream", msg);
+        break;
+      case "chat":
+        this.emit("chat", msg);
         break;
       case "pong":
         this.clockOffset = msg.serverTime - (msg.timestamp + Date.now()) / 2;

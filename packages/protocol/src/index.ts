@@ -1,6 +1,6 @@
 import type { GameOutcome } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -25,6 +25,37 @@ export const MAX_NAME_LENGTH = 20;
 export function normalizeName(input: string): string {
   return input.trim().replace(/\s+/g, " ").slice(0, MAX_NAME_LENGTH);
 }
+
+// ---------------------------------------------------------------------------
+// Room chat
+// ---------------------------------------------------------------------------
+
+export const CHAT_MAX_LENGTH = 200;
+/** Lines the server keeps; older ones fall off the top. */
+export const CHAT_KEEP = 100;
+/** The whole reaction menu. A fixed set, so nobody reacts with a 4KB string. */
+export const REACTIONS = ["👍", "😂", "❤️", "😮", "😭", "🔥"] as const;
+export type Reaction = (typeof REACTIONS)[number];
+
+export interface ChatMessage {
+  id: number;
+  from: string;
+  /** As they were when they said it, so lines outlive the seat. */
+  name: string;
+  avatarSeed: string;
+  text: string;
+  at: number;
+  /** Emoji → who reacted with it. Empty lists are dropped. */
+  reactions: Partial<Record<Reaction, string[]>>;
+}
+
+/** One line, no control characters, capped (by code point, so emoji don't split). */
+export function cleanChatText(input: string): string {
+  const flat = input.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
+  return [...flat].slice(0, CHAT_MAX_LENGTH).join("").trim();
+}
+
+export const isReaction = (v: unknown): v is Reaction => (REACTIONS as readonly unknown[]).includes(v);
 
 // ---------------------------------------------------------------------------
 // Room state (§20)
@@ -94,6 +125,9 @@ export type ClientMessage =
   /** Ephemeral game data (§35): no version, no reply, relayed to the others if the game takes it. */
   | { type: "stream"; data: unknown }
   | { type: "nudge" }
+  | { type: "chat"; text: string }
+  /** Toggles: reacting twice with the same emoji takes it back. */
+  | { type: "react"; messageId: number; emoji: Reaction }
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
   | { type: "return-to-lobby" }
@@ -120,6 +154,11 @@ export type ServerMessage =
   | { type: "stream"; from: string; data: unknown }
   | { type: "action-rejected"; clientActionId: string; code: string; message: string }
   | { type: "nudged"; byPlayerId: string }
+  /**
+   * Room chat, outside the versioned updates. `replace`: the full history (on
+   * join); otherwise new or changed lines, matched by id.
+   */
+  | { type: "chat"; messages: ChatMessage[]; replace: boolean }
   | { type: "error"; code: ErrorCode; message: string; fatal: boolean }
   | { type: "pong"; timestamp: number; serverTime: number };
 
@@ -204,6 +243,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         : null;
     case "stream":
       return { type: "stream", data: m.data };
+    case "chat":
+      return isStr(m.text, CHAT_MAX_LENGTH * 4) ? { type: "chat", text: m.text } : null;
+    case "react":
+      return isNum(m.messageId) && isReaction(m.emoji) ? { type: "react", messageId: m.messageId, emoji: m.emoji } : null;
     case "skip-turn":
     case "remove-player":
       return isStr(m.playerId, 64) ? { type: m.type, playerId: m.playerId } : null;

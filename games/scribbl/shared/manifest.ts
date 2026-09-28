@@ -7,4 +7,5 @@ export const scribblManifest: GameManifest = {
   minPlayers: 2,
   maxPlayers: 12,
   icon: "pencil",
+  ownChat: true,
 };

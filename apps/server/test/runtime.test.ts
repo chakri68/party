@@ -1,5 +1,7 @@
 import { seededRandomInt, type AnyGameDefinition } from "@games/game-core";
 import {
+  CHAT_KEEP,
+  CHAT_MAX_LENGTH,
   GRACE_MS,
   NUDGE_AFTER_MS,
   NUDGE_COOLDOWN_MS,
@@ -648,6 +650,107 @@ describe("kicking from the lobby", () => {
     expect(b.last("error")).toMatchObject({ code: "removed", fatal: true });
     expect(b.closed).not.toBeNull();
     expect(roomOf(a).seats.map((s) => s.name)).toEqual(["Ana"]);
+  });
+});
+
+describe("room chat", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let a: FakeConn;
+  let b: FakeConn;
+
+  beforeEach(async () => {
+    world = new World();
+    room = world.runtime({ sevens: sevensGame, scribbl: scribblGame });
+    await room.load();
+    await room.claim();
+    a = await join(world, room, "Ana");
+    b = await join(world, room, "Ben");
+  });
+
+  const lines = (c: FakeConn) => c.last("chat")!.messages;
+
+  it("sends to everyone, cleaned up, without bumping the state version", async () => {
+    const version = b.last("update")!.stateVersion;
+    await send(room, a, { type: "chat", text: "  hi\n\tthere\u0000 " });
+    for (const c of [a, b]) {
+      expect(c.last("chat")).toMatchObject({ replace: false, messages: [{ id: 0, name: "Ana", text: "hi there", reactions: {} }] });
+    }
+    expect(b.last("update")!.stateVersion).toBe(version);
+    const before = a.of("chat").length;
+    await send(room, a, { type: "chat", text: " \n " });
+    expect(a.of("chat")).toHaveLength(before);
+  });
+
+  it("caps length by code point, so an emoji never gets cut in half", async () => {
+    await send(room, a, { type: "chat", text: "😂".repeat(300) });
+    expect([...lines(a)[0]!.text]).toHaveLength(CHAT_MAX_LENGTH);
+  });
+
+  it("hands the history to whoever joins, and it survives a restart", async () => {
+    await send(room, a, { type: "chat", text: "first" });
+    await send(room, b, { type: "chat", text: "second" });
+    const reloaded = world.runtime({ sevens: sevensGame, scribbl: scribblGame });
+    await reloaded.load();
+    const c = await join(world, reloaded, "Cy");
+    expect(c.last("chat")).toMatchObject({ replace: true, messages: [{ text: "first" }, { text: "second" }] });
+  });
+
+  it("keeps only the last CHAT_KEEP lines", async () => {
+    for (let i = 0; i < CHAT_KEEP + 3; i++) {
+      await send(room, i % 2 ? a : b, { type: "chat", text: `line ${i}` });
+      world.clock += 1_000; // stay under the flood guard
+    }
+    const c = await join(world, room, "Cy");
+    expect(lines(c)).toHaveLength(CHAT_KEEP);
+    expect(lines(c)[0]!.text).toBe("line 3");
+  });
+
+  it("reactions toggle per person, and only from the menu", async () => {
+    await send(room, a, { type: "chat", text: "gg" });
+    const [ana, ben] = [a, b].map((c) => c.last("welcome")!.playerId);
+    await send(room, a, { type: "react", messageId: 0, emoji: "🔥" });
+    await send(room, b, { type: "react", messageId: 0, emoji: "🔥" });
+    expect(lines(a)[0]!.reactions).toEqual({ "🔥": [ana, ben] });
+    await send(room, a, { type: "react", messageId: 0, emoji: "🔥" });
+    await send(room, b, { type: "react", messageId: 0, emoji: "🔥" });
+    expect(lines(b)[0]!.reactions).toEqual({});
+    await send(room, a, { type: "react", messageId: 0, emoji: "🍆" });
+    expect(a.last("error")).toMatchObject({ code: "bad-message" });
+    await send(room, a, { type: "react", messageId: 99, emoji: "👍" });
+    expect(lines(a)[0]!.reactions).toEqual({});
+  });
+
+  it("slows down a flood", async () => {
+    for (let i = 0; i < 6; i++) await send(room, a, { type: "chat", text: `spam ${i}` });
+    expect(b.of("chat").at(-1)!.messages[0]!.text).toBe("spam 4");
+    expect(a.last("error")).toMatchObject({ code: "rate-limited" });
+    world.clock += 5_000;
+    await send(room, a, { type: "chat", text: "ok now" });
+    expect(lines(b)[0]!.text).toBe("ok now");
+  });
+
+  it("keeps talking through a game, but not through one with its own chat", async () => {
+    await send(room, a, { type: "start-game" });
+    await send(room, b, { type: "chat", text: "your turn" });
+    expect(lines(a)[0]!.text).toBe("your turn");
+
+    await send(room, a, { type: "return-to-lobby" });
+    await send(room, a, { type: "select-game", gameId: "scribbl" });
+    await send(room, a, { type: "start-game" });
+    await send(room, b, { type: "chat", text: "it's a boat" });
+    expect(b.last("error")).toMatchObject({ code: "wrong-phase" });
+    expect(lines(a)[0]!.text).toBe("your turn");
+    // Reactions can't spell anything, so they still go.
+    await send(room, b, { type: "react", messageId: 0, emoji: "😂" });
+    expect(Object.keys(lines(a)[0]!.reactions)).toEqual(["😂"]);
+  });
+
+  it("lines outlive the seat that sent them", async () => {
+    await send(room, b, { type: "chat", text: "brb" });
+    await send(room, b, { type: "leave" });
+    const c = await join(world, room, "Cy");
+    expect(lines(c)).toMatchObject([{ name: "Ben", text: "brb" }]);
   });
 });
 
