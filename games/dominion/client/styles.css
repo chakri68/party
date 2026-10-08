@@ -327,7 +327,57 @@
 .dm-pop span { flex: 1; height: 8px; border-radius: 2px; background: #2a3646; }
 .dm-pop span.on { background: var(--dm-gold); }
 
-.dm-reward { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgb(242 193 78 / 0.12); }
+.dm-reward-btn { width: 100%; margin-top: 10px; }
+
+/* ---- City reward popup ------------------------------------------------------ */
+
+.dm-rewardpop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(8 12 18 / 0.45);
+}
+.dm-rewardpop[hidden] { display: none; }
+.dm-rw-card {
+  width: min(460px, 100%);
+  padding: 20px 20px 12px;
+  text-align: center;
+  animation: dm-rise 260ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes dm-rise { from { transform: translateY(12px) scale(.97); opacity: 0; } }
+.dm-rw-kicker { margin: 0; color: var(--dm-gold); font-weight: 700; }
+.dm-rw-card h2 { margin: 2px 0 0; font-size: 1.5rem; letter-spacing: -0.02em; }
+.dm-rw-card > .dm-muted { margin: 4px 0 14px; font-size: 0.9rem; }
+.dm-rw-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dm-rw-choice {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  min-height: 0;
+  padding: 14px 10px 12px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.dm-rw-choice strong { font-size: 1.05rem; }
+.dm-rw-choice > span:last-child { color: var(--dm-muted); font-size: 0.82rem; }
+.dm-rw-choice:focus-visible { outline: 2px solid var(--dm-gold); outline-offset: 3px; }
+.dm-rw-art { width: 84px; height: 64px; object-fit: contain; filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.35)); }
+.dm-rw-coin { width: 52px; height: 52px; margin: 6px 0; }
+.dm-rw-later {
+  margin-top: 8px;
+  min-height: 44px;
+  border: none;
+  background: none;
+  color: var(--dm-muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.dm-rw-later:hover:not(:disabled) { border: none; color: var(--dm-ink); }
 
 /* ---- Research screen ---------------------------------------------------------
    A screen over the map, not a dialog. Round nodes carry the art of what they
@@ -483,4 +533,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dm-slab, .dm-player::before, .dm-log { transition: none; }
+  .dm-rw-card { animation: none; }
 }

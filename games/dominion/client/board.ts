@@ -185,10 +185,11 @@ export class Board {
     return r >= 0 && c >= 0 && r < size && c < size ? indexOf(r, c, size) : null;
   }
 
-  centerOn(i: number): void {
+  /** `raise` lifts the tile that many screen px above centre (to clear an overlay). */
+  centerOn(i: number, raise = 0): void {
     const [x, y] = this.world(i);
     this.cam.x = x;
-    this.cam.y = y;
+    this.cam.y = y + raise / this.cam.zoom;
     this.clampCamera();
     this.invalidate();
   }

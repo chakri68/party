@@ -25,9 +25,11 @@ import type {
   KnownCity,
   KnownTile,
   KnownUnit,
+  RewardChoice,
   TechId,
 } from "../shared/types.ts";
 import { Board, type BoardModel, type PlayerLook } from "./board.ts";
+import { spriteUrl, type SpriteKey } from "./assets.ts";
 import { techScreen } from "./techweb.ts";
 
 /** Actions without the turn stamp; the view adds it on the way out. */
@@ -79,6 +81,10 @@ export class DominionView implements GameView {
   private clock = 0;
   private pending = new Map<string, string>();
   private logTimer = 0;
+  /** City reward popup; `dismissedReward` is the one put off for this turn. */
+  private rewardEl = h("div", { class: "dm-rewardpop", role: "dialog", "aria-modal": "false", "aria-labelledby": "dm-reward-title" });
+  private dismissedReward: string | null = null;
+  private shownReward: string | null = null;
   /** The research screen, while it's open. */
   private techView: { el: HTMLElement; destroy(): void } | null = null;
 
@@ -104,10 +110,16 @@ export class DominionView implements GameView {
       this.banner,
       this.log,
       this.bottom,
+      this.rewardEl,
       this.a11y,
     );
     this.root.append(this.stage);
     this.stage.addEventListener("keydown", this.onKey);
+    this.rewardEl.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      this.rewardEl.querySelector<HTMLElement>(".dm-rw-later")?.click();
+    });
   }
 
   mount(container: HTMLElement) {
@@ -410,6 +422,7 @@ export class DominionView implements GameView {
     this.renderHud();
     this.renderPlayers();
     this.renderPanel();
+    this.renderReward();
     this.renderA11y();
     // Only on a new selection: panning away from a selected tile is the player's call.
     if (this.selected !== null && this.selected !== this.cleared) this.board.keepClear(this.selected, this.bottom.offsetHeight + 14);
@@ -491,6 +504,85 @@ export class DominionView implements GameView {
       h("span", { class: "dm-end-sub" }, myTurn ? (idle ? `${plural(idle, "unit")} ready` : "All units used") : current ? `${current.name}'s move` : ""),
     );
     this.renderClock();
+  }
+
+  /**
+   * A city levelled up: the choice comes to the player rather than waiting in
+   * the inspector. One at a time, oldest first; "Decide later" puts it off for
+   * this turn (ending the turn still takes the first option).
+   */
+  private renderReward() {
+    const p = this.priv;
+    const city = p?.myTurn ? p.cities.find((c) => c.mine?.pendingRewards.length) : undefined;
+    const level = city?.mine?.pendingRewards[0];
+    const key = city && level !== undefined ? `${city.mine!.id}:${level}:${p!.turn}` : null;
+    if (!p || !city || level === undefined || key === this.dismissedReward || this.techView) {
+      this.rewardEl.hidden = true;
+      this.shownReward = null;
+      return;
+    }
+    this.rewardEl.hidden = false;
+    if (key === this.shownReward) return;
+    this.shownReward = key;
+    if (!this.centered) this.board.setZoom(this.stage.clientWidth > 900 ? 1.6 : 1.15);
+    // The card sits mid-screen; put the city just above it so you see what grew.
+    this.board.centerOn(city.at, Math.min(220, this.stage.clientHeight * 0.28));
+    this.centered = true; // the opening "go home" mustn't undo this
+
+    const me = this.player(p.me);
+    const art: Record<RewardChoice, SpriteKey | null> = {
+      workshop: { id: "improvement.lumber_camp.default" },
+      scout: { id: `unit.cavalry.${me.kind}.idle`, color: me.color },
+      treasury: null,
+      walls: { id: `city.${me.kind}.tier1`, color: me.color },
+      population: { id: "resource.crops.default" },
+      borders: { id: "improvement.farm.default" },
+      park: { id: "resource.fruit.default" },
+      champion: { id: `unit.infantry.${me.kind}.idle`, color: me.color },
+    };
+    const choices = rewardChoices(level).map((choice) => {
+      const pic = art[choice];
+      const img = h("img", { alt: "", class: "dm-rw-art", draggable: "false" });
+      if (pic) void spriteUrl(pic).then((url) => (url ? (img.src = url) : img.remove()));
+      return h(
+        "button",
+        {
+          type: "button",
+          class: "dm-slab dm-rw-choice",
+          onclick: () => {
+            this.act({ type: "reward", city: city.mine!.id, choice }, REWARDS[choice].name);
+            this.rewardEl.hidden = true;
+          },
+        },
+        pic ? img : h("span", { class: "dm-coin dm-rw-coin", "aria-hidden": "true" }),
+        h("strong", {}, REWARDS[choice].name),
+        h("span", {}, REWARDS[choice].blurb),
+      );
+    });
+    replaceChildren(
+      this.rewardEl,
+      h(
+        "div",
+        { class: "dm-rw-card dm-plate" },
+        h("p", { class: "dm-rw-kicker" }, city.name),
+        h("h2", { id: "dm-reward-title" }, `Grew to level ${level}`),
+        h("p", { class: "dm-muted" }, "Pick one."),
+        h("div", { class: "dm-rw-choices" }, choices),
+        h(
+          "button",
+          {
+            type: "button",
+            class: "dm-rw-later",
+            onclick: () => {
+              this.dismissedReward = key;
+              this.renderReward();
+            },
+          },
+          "Decide later",
+        ),
+      ),
+    );
+    requestAnimationFrame(() => this.rewardEl.querySelector<HTMLElement>(".dm-rw-choice")?.focus());
   }
 
   private renderPlayers() {
@@ -683,23 +775,18 @@ export class DominionView implements GameView {
         m.walls ? ". Walls." : "",
         m.parks ? ` Parks: ${m.parks}.` : "",
       ),
-      reward !== undefined
+      reward !== undefined && p.myTurn
         ? h(
-            "div",
-            { class: "dm-reward" },
-            h("p", {}, h("strong", {}, `Level ${reward} reward:`)),
-            h(
-              "div",
-              { class: "dm-actions" },
-              rewardChoices(reward).map((choice) =>
-                h(
-                  "button",
-                  { type: "button", class: "dm-btn", disabled: !p.myTurn, onclick: () => this.act({ type: "reward", city: m.id, choice }, REWARDS[choice].name) },
-                  REWARDS[choice].name,
-                  h("span", { class: "dm-cost" }, REWARDS[choice].blurb),
-                ),
-              ),
-            ),
+            "button",
+            {
+              type: "button",
+              class: "dm-btn primary dm-reward-btn",
+              onclick: () => {
+                this.dismissedReward = null;
+                this.renderReward();
+              },
+            },
+            `Choose level ${reward} reward`,
           )
         : null,
       h("div", { class: "dm-actions dm-train" }, train),
@@ -795,6 +882,7 @@ export class DominionView implements GameView {
   private closeTech() {
     this.techView?.destroy();
     this.techView = null;
+    this.renderReward();
 
   }
 }
