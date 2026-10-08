@@ -280,8 +280,38 @@ export interface DominionState {
   botSteps?: number;
   /** Actions it tried this turn that the rules refused; never tried again this turn. */
   botBanned?: string[];
+  /** How to rebuild this match from nothing: its setup and every input since. Server only until the end. */
+  replay?: { setup: MatchSetup; log: LogEntry[]; lost?: boolean };
   outcome: { winnerIds: string[]; reason: "conquest" | "score" | "capitals" | "draw" } | null;
 }
+
+/** Everything a match needs to be rebuilt from nothing. */
+export interface MatchSetup {
+  /** People, in the room's seat order (colours follow it). */
+  players: string[];
+  /** Turn order starts at this seat. */
+  start: number;
+  bots: number;
+  kinds: FactionKind[];
+  seed: number;
+  /** Server time the match began; log times count from here. */
+  startedAt: number;
+}
+
+/**
+ * One input that changed the game, with its time in ms since the start.
+ * Seats index the faction list. Computers aren't logged move by move: their
+ * thinking is deterministic (its random stream and memory live in the state),
+ * so the log only counts their timer firing, a run of ticks at a time, timed
+ * at the last one (the only tick whose time can matter: it starts the next
+ * person's clock).
+ */
+export type LogEntry =
+  | [kind: 0, seat: number, action: DominionAction, at: number]
+  | [kind: 1, ticks: number, at: number]
+  | [kind: 2, at: number]
+  | [kind: 3, seat: number, at: number]
+  | [kind: 4, seat: number, at: number];
 
 // ---------------------------------------------------------------------------
 // Actions & events
@@ -515,6 +545,8 @@ export interface DominionPrivateState {
   converts: Record<string, number[]>;
   /** Water each of my units could freeze, per unit (Rimeborn). */
   freezes: Record<string, number[]>;
+  /** Once the game is over: everything needed to watch it again. */
+  replay?: { setup: MatchSetup; settings: DominionSettings; log: LogEntry[] } | null;
   /** Everyone this player has met, and where things stand with them. */
   diplomacy: DiplomacyView[];
 }

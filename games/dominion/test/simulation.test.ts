@@ -70,9 +70,12 @@ function checkInvariants(before: DominionState, after: DominionState, events: { 
     const wire = game.getPrivateState(after, f.id);
     const json = JSON.stringify(wire);
     const view = unpackView(wire);
-    // No seed, ever. (The key never exists in a projection; the value would be a coincidence.)
+    if (after.phase !== "playing") {
+      // Over: the replay hands everyone the whole match, seed included (§18).
+      continue;
+    }
+    // No seed while it's being played. (The key never exists in a live projection.)
     expect(json.includes('"seed"')).toBe(false);
-    if (after.phase !== "playing") continue;
     const vis = visionOf(after, f.id);
     for (const u of view.units) {
       if (u.owner !== f.id) expect(vis[u.at], "enemy units only on visible tiles").toBe(1);

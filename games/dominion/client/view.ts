@@ -29,15 +29,19 @@ import type {
   DominionEvent,
   DominionPrivateState,
   DominionPublicState,
+  DominionState,
   KnownCity,
   KnownTile,
   KnownUnit,
   RewardChoice,
 } from "../shared/types.ts";
 import { unpackView, type WirePrivateState } from "../shared/wire.ts";
-import { Board, type BoardModel, type PlayerLook } from "./board.ts";
+import { Board, SEAT_GLYPHS, type BoardModel, type PlayerLook } from "./board.ts";
 import { spriteUrl, type SpriteKey } from "./assets.ts";
 import { diplomacyScreen } from "./diplomacy.ts";
+import { guideScreen } from "./guide.ts";
+import { Tutorial } from "./tutorial.ts";
+import { createSound, type Sfx } from "./sound.ts";
 import { techScreen } from "./techweb.ts";
 
 /** Actions without the turn stamp; the view adds it on the way out. */
@@ -68,13 +72,16 @@ export class DominionView implements GameView {
     class: "dm-stage",
     tabindex: "0",
     role: "application",
-    "aria-label": "Map. Arrow keys move the cursor along the grid, Enter selects, N jumps to the next unit, plus and minus zoom.",
+    "aria-label":
+      "Map. Arrow keys move the cursor and read out the tile, Enter selects or acts, N jumps to the next unit, R opens research, D diplomacy, question mark the guide, plus and minus zoom.",
   });
   /** The inspector, docked over the bottom of the map. */
   private panel = h("aside", { class: "dm-panel dm-plate", "aria-live": "polite", "aria-label": "Inspector" });
   private bottom = h("div", { class: "dm-bottom" });
   private log = h("p", { class: "dm-log", role: "status", "aria-live": "polite" });
-  private a11y = h("ul", { class: "dm-sr", "aria-label": "Visible units and cities" });
+  private a11y = h("ul", { class: "dm-sr", "aria-label": "Visible units, cities and places" });
+  /** What's under the keyboard cursor, read out as it moves. */
+  private cursorSay = h("p", { class: "dm-sr", "aria-live": "polite" });
 
   private board = new Board((tile) => this.tap(tile));
   private selected: number | null = null;
@@ -98,6 +105,14 @@ export class DominionView implements GameView {
   private shownReward: string | null = null;
   /** The research screen, while it's open. */
   private techView: { el: HTMLElement; destroy(): void } | null = null;
+  /** The guide, while it's open. */
+  private guideView: HTMLElement | null = null;
+  private tutorial = new Tutorial();
+  private sound = createSound();
+  /** The deadline the low-time warning last sounded for. */
+  private warned: number | null = null;
+  /** Watching the finished match again; live updates wait in `latest` meanwhile. */
+  private replay: Replay | null = null;
 
   constructor(api: GameClientApi) {
     this.api = api;
@@ -110,20 +125,22 @@ export class DominionView implements GameView {
         zoom(1.25, "Zoom in", "+"),
         zoom(0.8, "Zoom out", "−"),
         h("button", { type: "button", class: "dm-fab", "aria-label": "Next unit", onclick: () => this.nextIdle() }, "⇥"),
+        h("button", { type: "button", class: "dm-fab", "aria-label": "Guide: the rules", title: "Guide", onclick: () => this.openGuide() }, "?"),
       ),
     );
     // One surface: the map fills the game, and everything else floats on it.
     this.bottom.append(h("div", { class: "dm-left" }, this.techBtn, this.dipBtn), this.panel, this.endBtn);
     this.techBtn.addEventListener("click", () => this.openTech());
     this.dipBtn.addEventListener("click", () => this.openDiplomacy());
-    this.endBtn.addEventListener("click", () => this.endTurn());
+    this.endBtn.addEventListener("click", () => (this.pub?.phase === "finished" && this.priv?.replay ? void this.startReplay() : this.endTurn()));
     this.stage.append(
-      h("div", { class: "dm-tl" }, this.res, this.players),
+      h("div", { class: "dm-tl" }, this.res, this.players, this.tutorial.el),
       this.banner,
       this.log,
       this.bottom,
       this.rewardEl,
       this.a11y,
+      this.cursorSay,
     );
     this.root.append(this.stage);
     this.stage.addEventListener("keydown", this.onKey);
@@ -142,6 +159,11 @@ export class DominionView implements GameView {
 
   destroy() {
     clearInterval(this.clock);
+    if (this.replay) {
+      clearInterval(this.replay.timer);
+      clearTimeout(this.replay.indexer);
+    }
+    this.sound.destroy();
     clearTimeout(this.armTimer);
     clearTimeout(this.logTimer);
     this.closeTech();
@@ -163,10 +185,26 @@ export class DominionView implements GameView {
   // ---- state --------------------------------------------------------------
 
   update(props: GameViewProps) {
+    // While a replay plays, the live game waits; it's shown again on exit.
+    if (this.replay) {
+      this.replay.latest = props;
+      return;
+    }
     this.props = props;
     this.pub = props.game as DominionPublicState;
+    const before = this.priv;
     this.priv = props.private ? unpackView(props.private as WirePrivateState) : null;
-    if (!props.snapshot) this.playEvents(props.events as DominionEvent[]);
+    if (!props.snapshot) {
+      this.playEvents(props.events as DominionEvent[]);
+      this.playSounds(props.events as DominionEvent[], before);
+    }
+    this.sound.mood(this.tense() ? "music.campaign.tense" : "music.campaign.calm");
+    if (this.priv && !this.priv.eliminated && this.pub.phase === "playing") {
+      this.tutorial.observe(this.priv, props.snapshot ? [] : (props.events as DominionEvent[]));
+    } else {
+      // First steps are for a game in progress.
+      this.tutorial.el.hidden = true;
+    }
 
     const p = this.priv;
     const myTurn = !!p?.myTurn;
@@ -182,7 +220,9 @@ export class DominionView implements GameView {
     // First sight of the map: start at home. After render, so the board knows its size.
     if (p && !this.centered) {
       const home = p.cities.find((c) => c.owner === p.me && c.capital) ?? p.cities.find((c) => c.owner === p.me);
-      const at = home?.at ?? p.units.find((u) => u.owner === p.me)?.at;
+      // With nothing left of yours (out, or watching the end), the middle of the map.
+      const size = this.pub!.size;
+      const at = home?.at ?? p.units.find((u) => u.owner === p.me)?.at ?? Math.floor(size / 2) * size + Math.floor(size / 2);
       if (at !== undefined) {
         // Open close enough to read the art; wide screens can afford more.
         this.board.setZoom(this.stage.clientWidth > 900 ? 1.6 : 1.15);
@@ -196,9 +236,10 @@ export class DominionView implements GameView {
     const pub = this.pub!;
     const pl = id ? pub.players.find((x) => x.id === id) : undefined;
     const color = pl ? PLAYER_COLORS[pl.color]!.hex : "#9e9e9e";
+    const glyph = pl ? (SEAT_GLYPHS[pl.color] ?? "") : "";
     // Computer players have no room seat; their name comes with the game.
     const name = !id ? "Nobody" : id === this.priv?.me ? "You" : (pl?.name ?? seatName(this.props!.room, id));
-    return { color, kind: pl?.kind ?? "orchard", name, label: name };
+    return { color, glyph, kind: pl?.kind ?? "orchard", name, label: name };
   }
 
   private playEvents(events: DominionEvent[]) {
@@ -328,6 +369,9 @@ export class DominionView implements GameView {
   private act(intent: Intent, what: string) {
     const p = this.priv;
     if (!p) return;
+    // Actions with no event of their own get their sound when sent.
+    if (intent.type === "promote") this.sound.play("sfx.unit.promote");
+    if (intent.type === "upgrade") this.sound.play("sfx.unit.upgrade");
     const action = intent.type === "surrender" ? intent : { ...intent, turn: p.turn };
     this.pending.set(this.api.act(action), what);
   }
@@ -406,7 +450,98 @@ export class DominionView implements GameView {
       return;
     }
     this.selected = this.selected === tile && !this.unitAt(tile) ? null : tile;
+    if (this.selectedUnit()) this.sound.play("sfx.ui.select");
     this.render();
+  }
+
+  /** Sounds for what just happened, from what this player was shown. */
+  private playSounds(events: DominionEvent[], before: DominionPrivateState | null) {
+    const p = this.priv;
+    if (!p) return;
+    const play = (id: Sfx) => this.sound.play(id);
+    const wet = (at: number | null) => {
+      const t = at === null ? null : p.tiles[at];
+      return !!t && (t.t === "shallow" || t.t === "ocean");
+    };
+    for (const e of events) {
+      switch (e.type) {
+        case "move": {
+          if (e.to === null) break;
+          const u = p.units.find((x) => x.id === e.unit);
+          const was = before?.units.find((x) => x.id === e.unit);
+          if (u?.vessel && !was?.vessel && e.from !== null && !wet(e.from)) play("sfx.unit.embark");
+          else if (was?.vessel && !u?.vessel) play("sfx.unit.disembark");
+          else if (u?.vessel || wet(e.to)) play("sfx.unit.move.water");
+          else if (u && UNITS[u.type].move >= 2) play("sfx.unit.move.mounted");
+          else play("sfx.unit.move");
+          break;
+        }
+        case "attack": {
+          const a = before?.units.find((x) => x.at === e.from);
+          const range = a ? statsOf(a).range : 1;
+          play(a?.vessel ? "sfx.combat.naval" : a && UNITS[a.type].staticAttack ? "sfx.combat.siege" : range > 1 ? "sfx.combat.ranged" : "sfx.combat.melee");
+          if (e.defenderKilled || e.attackerKilled) setTimeout(() => play("sfx.unit.defeat"), 160);
+          break;
+        }
+        case "heal":
+          if (e.amount > 0) play("sfx.unit.heal");
+          break;
+        case "capture":
+          play("sfx.city.capture");
+          break;
+        case "develop":
+          play("sfx.city.develop");
+          break;
+        case "research":
+          play("sfx.research");
+          break;
+        case "city-level":
+          play("sfx.city.upgrade");
+          break;
+        case "ruins":
+        case "beacon":
+          play("sfx.discovery");
+          break;
+        case "convert":
+          play("sfx.convert");
+          break;
+        case "sabotage":
+          play("sfx.sabotage");
+          break;
+        case "peace-offered":
+          play("sfx.treaty.offer");
+          break;
+        case "peace-answered":
+          if (e.accepted) play("sfx.treaty.accept");
+          break;
+        case "peace-broken":
+          play("sfx.treaty.break");
+          break;
+        case "freeze":
+          play("sfx.freeze");
+          break;
+        case "thaw":
+          play("sfx.thaw");
+          break;
+        case "poison":
+          play("sfx.poison");
+          break;
+        case "burn":
+          play("sfx.burn");
+          break;
+      }
+    }
+  }
+
+  /** Tense music when a rival you're at war with stands within three tiles of your cities. */
+  private tense(): boolean {
+    const p = this.priv;
+    const pub = this.pub;
+    if (!p || !pub || pub.phase !== "playing") return false;
+    const size = pub.size;
+    const war = (id: string) => !this.alliedWith(id) && !p.diplomacy.some((d) => d.id === id && d.relation === "peace");
+    const homes = p.cities.filter((c) => c.owner === p.me);
+    return p.units.some((u) => u.owner !== p.me && war(u.owner) && homes.some((c) => chebyshev(c.at, u.at, size) <= 3));
   }
 
   private unitAt(tile: number): KnownUnit | undefined {
@@ -434,6 +569,19 @@ export class DominionView implements GameView {
   }
 
   private onKey = (e: KeyboardEvent) => {
+    if (this.replay && e.target === this.stage) {
+      const keys: Record<string, () => void> = {
+        ArrowLeft: () => this.replayShow(this.replay!.k - 1),
+        ArrowRight: () => this.replayShow(this.replay!.k + 1),
+        " ": () => this.replayToggle(),
+        Escape: () => this.stopReplay(),
+      };
+      if (keys[e.key]) {
+        e.preventDefault();
+        keys[e.key]!();
+      }
+      return;
+    }
     const p = this.priv;
     // Keys aimed at the inspector's buttons are theirs, not the map's.
     if (!p || e.target !== this.stage) return;
@@ -462,6 +610,17 @@ export class DominionView implements GameView {
       case "N":
         this.nextIdle();
         return;
+      case "r":
+      case "R":
+        this.openTech();
+        return;
+      case "d":
+      case "D":
+        this.openDiplomacy();
+        return;
+      case "?":
+        this.openGuide();
+        return;
       case "+":
       case "=":
         this.board.zoomBy(1.25);
@@ -477,8 +636,40 @@ export class DominionView implements GameView {
     c = Math.max(0, Math.min(size - 1, c));
     this.cursor = indexOf(r, c, size);
     if (!this.board.isOnScreen(this.cursor)) this.board.centerOn(this.cursor);
+    this.cursorSay.textContent = this.describe(this.cursor);
     this.render();
   };
+
+  /** One tile in words: what it is, who's there, and what the selected unit could do to it. */
+  private describe(i: number): string {
+    const p = this.priv!;
+    const size = this.pub!.size;
+    const where = `Row ${rowOf(i, size) + 1}, column ${colOf(i, size) + 1}`;
+    const t = p.tiles[i];
+    if (!t) return `${where}: unexplored.`;
+    const city = p.cities.find((c) => c.at === i);
+    const unit = this.unitAt(i);
+    const bits = [
+      city ? `${city.name}, level ${city.level}${city.capital ? " capital" : ""}, ${this.player(city.owner).name}` : TERRAIN[t.t].name,
+      t.feat === "village" ? "a village" : t.feat === "ruins" ? "ruins" : t.feat === "beacon" ? "a beacon" : null,
+      t.res ? RESOURCE_NAMES[t.res] : null,
+      t.imp ? IMPROVEMENT_NAMES[t.imp] : null,
+      t.road ? "road" : null,
+      !city && t.owner ? `${this.player(t.owner).name === "You" ? "your" : `${this.player(t.owner).name}'s`} land` : null,
+      unit ? `${this.player(unit.owner).name === "You" ? "your" : `${this.player(unit.owner).name}'s`} ${UNITS[unit.type].name}, ${unit.hp} of ${unit.maxHp} HP` : null,
+      t.vis ? null : t.seen >= 0 ? `last seen round ${t.seen}` : "mapped, never seen",
+    ].filter(Boolean);
+    const sel = this.selectedUnit();
+    const attack = sel ? p.attacks[sel.id]?.find((a) => a.target === i) : undefined;
+    const hint = attack
+      ? `Enter to attack: deals ${attack.damage}, takes ${attack.retaliation}.`
+      : sel && p.moves[sel.id]?.includes(i)
+        ? "Enter to move here."
+        : sel && p.freezes[sel.id]?.includes(i)
+          ? "Enter to freeze."
+          : "";
+    return `${where}: ${bits.join(", ")}. ${hint}`.trim();
+  }
 
   // ---- rendering ----------------------------------------------------------
 
@@ -527,6 +718,11 @@ export class DominionView implements GameView {
     const left = Math.max(0, Math.ceil((pub.deadline - this.api.serverNow()) / 1000));
     el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
     el.classList.toggle("low", left <= 20);
+    // Once a turn, a gentle nudge when your own clock runs low.
+    if (left <= 20 && left > 0 && this.priv?.myTurn && this.warned !== pub.deadline) {
+      this.warned = pub.deadline;
+      this.sound.play("sfx.turn.warning");
+    }
   }
 
   private endTurn() {
@@ -572,7 +768,8 @@ export class DominionView implements GameView {
     );
 
     const headline =
-      pub.phase === "finished" ? "Game over"
+      this.replay ? `Replay: ${current ? `${current.name === "You" ? "your" : `${current.name}'s`} turn` : "the end"}`
+      : pub.phase === "finished" ? "Game over"
       : p?.eliminated ? "Your empire has fallen"
       : myTurn ? "Your turn"
       : current ? `${current.name} is ${pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing"}`
@@ -596,6 +793,12 @@ export class DominionView implements GameView {
     );
     this.dipBtn.disabled = !p || p.eliminated;
 
+    if (pub.phase === "finished" && p?.replay) {
+      this.endBtn.disabled = false;
+      this.endBtn.classList.remove("armed");
+      replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Watch replay"), h("span", { class: "dm-end-sub" }, "Turn by turn, fog lifted"));
+      return this.renderClock();
+    }
     this.endBtn.disabled = !myTurn;
     this.endBtn.classList.toggle("armed", this.endArmed);
     replaceChildren(
@@ -699,6 +902,7 @@ export class DominionView implements GameView {
             title: FACTIONS[pl.kind].name,
             "aria-current": pl.id === pub.currentPlayerId ? "true" : null,
           },
+          h("span", { class: "dm-glyph", "aria-hidden": "true" }, look.glyph),
           look.name,
           pl.bot ? h("span", { class: "dm-cpu", title: pl.caretaker ? "Removed; the computer keeps their empire going" : `Computer, ${pl.bot}` }, pl.caretaker ? "CPU for them" : "CPU") : null,
           pl.team !== undefined && pl.team !== null ? h("span", { class: "dm-cpu", title: "Team" }, `T${pl.team + 1}`) : null,
@@ -1129,10 +1333,32 @@ export class DominionView implements GameView {
       this.board.centerOn(i);
       this.render();
     };
+    const idle = new Set(p.myTurn ? p.idleUnits : []);
+    const places = p.tiles.flatMap((t, i) => (t?.vis && (t.feat === "village" || t.feat === "ruins") ? [i] : []));
     replaceChildren(
       this.a11y,
       p.cities.filter((c) => c.vis).map((c) => h("li", {}, h("button", { type: "button", onclick: select(c.at) }, `${c.name}, level ${c.level}, ${this.player(c.owner).name}, ${where(c.at)}`))),
-      p.units.map((u) => h("li", {}, h("button", { type: "button", onclick: select(u.at) }, `${this.player(u.owner).name} ${UNITS[u.type].name}, ${u.hp} HP, ${where(u.at)}`))),
+      p.units.map((u) =>
+        h(
+          "li",
+          {},
+          h(
+            "button",
+            { type: "button", onclick: select(u.at) },
+            [
+              `${this.player(u.owner).name} ${UNITS[u.type].name}, ${u.hp} HP`,
+              u.vessel ? `aboard a ${VESSELS[u.vessel].name.toLowerCase()}` : null,
+              u.chilled ? "chilled" : null,
+              u.poisoned ? "poisoned" : null,
+              idle.has(u.id) ? "ready to act" : null,
+              where(u.at),
+            ]
+              .filter(Boolean)
+              .join(", "),
+          ),
+        ),
+      ),
+      places.map((i) => h("li", {}, h("button", { type: "button", onclick: select(i) }, `${p.tiles[i]!.feat === "village" ? "Village" : "Ruins"}, ${where(i)}`))),
     );
   }
 
@@ -1179,12 +1405,204 @@ export class DominionView implements GameView {
     this.dipView = screen;
   }
 
+  // ---- replay ---------------------------------------------------------------
+
+  private async startReplay() {
+    const p = this.priv;
+    const pub = this.pub;
+    if (!p?.replay || !pub || this.replay || this.endBtn.disabled) return;
+    // The rules code loads only now: nobody pays for it until they watch.
+    this.endBtn.disabled = true;
+    replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Loading…"), h("span", { class: "dm-end-sub" }, "The whole match, from the start"));
+    let modules;
+    try {
+      modules = await Promise.all([import("../server/replay.ts"), import("../server/projection.ts"), import("../server/game.ts")]);
+    } catch {
+      this.say("The replay didn't load. Check your connection and try again.");
+      this.endBtn.disabled = false;
+      this.renderHud();
+      return;
+    }
+    const [{ ReplayRun }, { projectFor }, { dominionGame }] = modules;
+    this.endBtn.disabled = false;
+    const run = new ReplayRun(p.replay.setup, p.replay.settings, p.replay.log);
+    const me = p.me;
+    const bar = h("div", { class: "dm-replay dm-plate", role: "toolbar", "aria-label": "Replay" });
+    this.replay = {
+      run,
+      k: 0,
+      playing: false,
+      speed: 1,
+      timer: 0,
+      indexer: 0,
+      bar,
+      latest: this.props!,
+      // Everything, from your seat: the fog is lifted and nothing can be done.
+      frame: (state) => {
+        const view = projectFor({ ...state, settings: { ...state.settings, fog: "off" } }, me);
+        return {
+          pub: dominionGame.getPublicState(state),
+          priv: { ...view, myTurn: false, moves: {}, attacks: {}, idleUnits: [], converts: {}, freezes: {}, replay: null },
+        };
+      },
+    };
+    this.bottom.hidden = true;
+    this.tutorial.el.hidden = true;
+    this.rewardEl.hidden = true;
+    this.stage.append(bar);
+    // Index in small slices between frames; playback can start right away.
+    const index = () => {
+      const r = this.replay;
+      if (!r || r.run !== run) return;
+      const done = run.index(12);
+      this.renderReplayBar();
+      if (!done) r.indexer = window.setTimeout(index, 0);
+    };
+    index();
+    this.replayShow(0);
+    this.replayToggle();
+    this.stage.focus();
+  }
+
+  private replayShow(k: number) {
+    const r = this.replay;
+    if (!r) return;
+    const last = r.run.turns.length - 1;
+    r.k = Math.max(0, Math.min(last, k));
+    const { pub, priv } = r.frame(r.run.stateAt(r.k));
+    this.pub = pub;
+    this.priv = priv;
+    this.selected = null;
+    this.armedAttack = null;
+    this.render();
+    this.renderReplayBar();
+  }
+
+  private replayToggle() {
+    const r = this.replay;
+    if (!r) return;
+    r.playing = !r.playing;
+    clearInterval(r.timer);
+    if (r.playing) {
+      // At the end, play means from the start.
+      if (r.run.done && r.k >= r.run.turns.length - 1) this.replayShow(0);
+      r.timer = window.setInterval(() => {
+        // Ahead of the indexer: wait for it rather than stop.
+        if (r.k + 1 < r.run.turns.length) this.replayShow(r.k + 1);
+        else if (r.run.done) this.replayToggle();
+      }, 900 / r.speed);
+    }
+    this.renderReplayBar();
+  }
+
+  private stopReplay() {
+    const r = this.replay;
+    if (!r) return;
+    clearInterval(r.timer);
+    clearTimeout(r.indexer);
+    r.bar.remove();
+    this.replay = null;
+    this.bottom.hidden = false;
+    this.rewardEl.hidden = false;
+    // Back to the live game as it stands; its last events have already played.
+    this.update({ ...r.latest, snapshot: true });
+    this.stage.focus();
+  }
+
+  private renderReplayBar() {
+    const r = this.replay;
+    if (!r) return;
+    const turns = r.run.turns;
+    const mark = turns[r.k]!;
+    const end = mark.turn === -1;
+    const label = end ? "The end" : `Round ${mark.round}, ${this.player(mark.player).name === "You" ? "your" : `${this.player(mark.player).name}'s`} turn`;
+    const btn = (glyph: string, name: string, onclick: () => void, disabled = false) =>
+      h("button", { type: "button", class: "dm-rp-btn", "aria-label": name, title: name, disabled, onclick }, glyph);
+    const scrub = h("input", {
+      type: "range",
+      class: "dm-rp-scrub",
+      min: "0",
+      max: String(Math.max(0, turns.length - 1)),
+      value: String(r.k),
+      "aria-label": "Turn",
+      "aria-valuetext": label,
+    }) as HTMLInputElement;
+    scrub.addEventListener("input", () => this.replayShow(Number(scrub.value)));
+    replaceChildren(
+      r.bar,
+      btn("⏮", "First turn", () => this.replayShow(0), r.k === 0),
+      btn("◀", "Previous turn", () => this.replayShow(r.k - 1), r.k === 0),
+      btn(r.playing ? "⏸" : "▶", r.playing ? "Pause" : "Play", () => this.replayToggle()),
+      btn("▶︎▎", "Next turn", () => this.replayShow(r.k + 1), r.k >= turns.length - 1),
+      btn("⏭", "Last turn", () => this.replayShow(turns.length - 1), r.k >= turns.length - 1),
+      h(
+        "div",
+        { class: "dm-rp-track" },
+        h("span", { class: "dm-rp-label", "aria-live": "polite" }, label),
+        scrub,
+        r.run.done ? null : h("span", { class: "dm-rp-loading" }, `Loading the match, ${Math.round(r.run.progress * 100)}%`),
+      ),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "dm-rp-speed",
+          "aria-label": `Speed ${r.speed}×`,
+          onclick: () => {
+            r.speed = r.speed === 4 ? 1 : r.speed * 2;
+            if (r.playing) {
+              this.replayToggle();
+              this.replayToggle();
+            } else this.renderReplayBar();
+          },
+        },
+        `${r.speed}×`,
+      ),
+      h("button", { type: "button", class: "dm-rp-exit", onclick: () => this.stopReplay() }, "Exit replay"),
+    );
+  }
+
+  private openGuide() {
+    const p = this.priv;
+    if (!p || this.guideView) return;
+    const restore = document.activeElement as HTMLElement | null;
+    this.guideView = guideScreen({
+      kind: p.kind,
+      techs: p.techs,
+      cityCount: p.cityCount,
+      tutorial: {
+        label: this.tutorial.finished ? "Replay first steps" : this.tutorial.hidden ? "Show first steps" : null,
+        run: () => (this.tutorial.finished ? this.tutorial.restart() : this.tutorial.show()),
+      },
+      onClose: () => {
+        this.guideView?.remove();
+        this.guideView = null;
+        restore?.focus();
+      },
+    });
+    this.stage.append(this.guideView);
+  }
+
   private closeTech() {
     this.techView?.destroy();
     this.techView = null;
     this.renderReward();
 
   }
+}
+
+interface Replay {
+  run: import("../server/replay.ts").ReplayRun;
+  /** The turn mark on screen. */
+  k: number;
+  playing: boolean;
+  speed: number;
+  timer: number;
+  indexer: number;
+  bar: HTMLElement;
+  /** The live game's latest update, shown again on exit. */
+  latest: GameViewProps;
+  frame(state: DominionState): { pub: DominionPublicState; priv: DominionPrivateState };
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;

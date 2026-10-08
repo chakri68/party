@@ -7,6 +7,7 @@
 
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { dominionGame as game } from "../server/game.ts";
+import { ReplayRun } from "../server/replay.ts";
 import { generateWorld } from "../shared/mapgen.ts";
 import { CLASSIC_FACTIONS } from "../shared/content.ts";
 import { DEFAULT_SETTINGS, type DominionState, type MapType } from "../shared/types.ts";
@@ -34,7 +35,8 @@ let s: DominionState = game.createGame(
   { roundNumber: 1, dealerSeat: 0 },
   ctx(),
 ).state;
-s.factions[0]!.bot = { level: "hard", name: "Seat" };
+// The one person leaves at once; the computer keeps their empire (and the replay log knows).
+s = game.onPlayerRemoved!(s, "p0", ctx()).state;
 
 const batch: number[] = [];
 const view: number[] = [];
@@ -69,4 +71,17 @@ row("projection, p95", `${pct(view, 0.95).toFixed(1)} ms, max ${Math.max(...view
 // After the end the fog lifts for everyone: the biggest view there is.
 const finalView = Math.max(...s.factions.map((f) => kib(game.getPrivateState(s, f.id))));
 row("view after the game, fog lifted", `${finalView.toFixed(1)} KiB (budget ${BUDGET.viewKiB})`, finalView < BUDGET.viewKiB);
+// The replay: its log, and the time to index it (what the viewer does first).
+const logKiB = kib(s.replay?.log ?? []);
+row("replay log", `${logKiB.toFixed(1)} KiB, ${s.replay?.log.length ?? 0} entries`, maxState + logKiB < BUDGET.stateKiB);
+const t2 = performance.now();
+const run = new ReplayRun(s.replay!.setup, s.settings, s.replay!.log);
+while (!run.index(1000));
+const indexMs = performance.now() - t2;
+const t3 = performance.now();
+run.stateAt(Math.floor(run.turns.length * 0.7));
+// The viewer plays while it indexes, so what matters is staying ahead of playback (a few turns a second).
+const perTurn = indexMs / run.turns.length;
+row("replay: index, per turn", `${perTurn.toFixed(0)} ms (${(indexMs / 1000).toFixed(1)} s for ${run.turns.length} turns)`, perTurn < 250);
+row("replay: jump to a turn", `${(performance.now() - t3).toFixed(0)} ms`, performance.now() - t3 < 1000);
 row("map generation, p95", `${pct(gen, 0.95).toFixed(1)} ms`, pct(gen, 0.95) < BUDGET.actionMs);

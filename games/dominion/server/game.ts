@@ -91,6 +91,8 @@ import {
   type DominionSettings,
   type DominionState,
   type FactionKind,
+  type LogEntry,
+  type MatchSetup,
   type RewardChoice,
   type RuinReward,
   type Unit,
@@ -1280,6 +1282,7 @@ function runBot(tx: Tx): void {
   const rng = new Rng(s.rng.ai ?? streamSeed(s.seed, 3));
   // Refusals are remembered for the whole turn, across batches.
   const memory: BotMemory = { banned: new Set(s.botBanned ?? []) };
+  tick(s, tx.ctx.now);
   for (let n = 0; n < BOT_BATCH; n++) {
     const steps = (s.botSteps ?? 0) + 1;
     s.botSteps = steps;
@@ -1301,6 +1304,39 @@ function runBot(tx: Tx): void {
 }
 
 // ---------------------------------------------------------------------------
+// Replay log: every input that changed the game. Kept in the state (the room
+// stores nothing else), capped, and shown to nobody until the game is over.
+// ---------------------------------------------------------------------------
+
+/** About two long matches' worth; past it the replay is given up, never the game. */
+const MAX_LOG = 40_000;
+
+/** Appends `entry`, its last field set to the time since the start. */
+function record(s: State, entry: LogEntry, now: number): void {
+  const r = s.replay;
+  if (!r || r.lost) return;
+  if (r.log.length >= MAX_LOG) {
+    r.lost = true;
+    r.log = [];
+    return;
+  }
+  const e = [...entry] as LogEntry;
+  e[e.length - 1] = Math.max(0, now - r.setup.startedAt);
+  r.log.push(e);
+}
+
+/** A computer's timer fired: one more tick on the current run, or a new run. */
+function tick(s: State, now: number): void {
+  const last = s.replay?.log.at(-1);
+  if (last?.[0] === 1 && !s.replay!.lost) {
+    last[1]++;
+    last[2] = Math.max(0, now - s.replay!.setup.startedAt);
+    return;
+  }
+  record(s, [1, 1, 0], now);
+}
+
+// ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
@@ -1318,6 +1354,74 @@ function upgrade(state: State): State {
 // ---------------------------------------------------------------------------
 // Definition
 // ---------------------------------------------------------------------------
+
+/** A match's opening position from its setup: what createGame and every replay start from. */
+export function initialState(setup: MatchSetup, settings: DominionSettings, ctx: GameContext): Transition {
+  const { players, start, kinds, seed } = setup;
+  const humans = players.length;
+  const bots = Array.from({ length: setup.bots }, (_, k) => ({ id: `cpu${k + 1}`, bot: true }));
+  const order: { id: string; bot?: boolean }[] = [
+  ...players.slice(start).map((id) => ({ id })),
+  ...players.slice(0, start).map((id) => ({ id })),
+  ...bots,
+  ];
+  const n = order.length;
+  const teams = resolveTeams(settings.teams ?? 0, n);
+  const size = resolveMapSize(settings.mapSize, n);
+  const world = generateWorld(seed, size, kinds, { mapType: settings.mapType, resources: settings.resources });
+
+  const state: State = {
+    schemaVersion: SCHEMA_VERSION,
+    rulesVersion: RULES_VERSION,
+    contentVersion: CONTENT_VERSION,
+    generatorVersion: GENERATOR_VERSION,
+    settings,
+    size,
+    tiles: world.tiles,
+    cities: {},
+    units: {},
+    factions: order.map((p, k) => ({
+      id: p.id,
+      kind: kinds[k]!,
+      // People keep their seat order's colour; computers take what's left.
+      color: p.bot ? humans + bots.indexOf(p as (typeof bots)[number]) : players.indexOf(p.id),
+      bot: p.bot ? { level: settings.botLevel, name: BOT_NAMES[bots.indexOf(p as (typeof bots)[number]) % BOT_NAMES.length]! } : null,
+      credits: FACTIONS[kinds[k]!].openingCredits ?? OPENING_CREDITS,
+      // Dealt round-robin in turn order, so teams interleave around the table.
+      team: teams ? k % teams : null,
+      monuments: { earned: [], unplaced: 0 },
+      techs: [FACTIONS[kinds[k]!].startTech],
+      eliminated: false,
+      surrendered: false,
+      kills: 0,
+      memory: {
+        codes: world.tiles.map((t) => (settings.fog === "terrain" ? encodeTerrain(t) : -1)),
+        seen: world.tiles.map(() => -1),
+        cities: {},
+      },
+    })),
+    seed,
+    rng: { ruins: streamSeed(seed, 1), names: streamSeed(seed, 2), ai: streamSeed(seed, 3) },
+    revision: 0,
+    phase: "playing",
+    round: 1,
+    turn: 1,
+    current: 0,
+    deadline: null,
+    nextId: 1,
+    outcome: null,
+    replay: { setup, log: [] },
+  };
+
+  order.forEach((p, k) => {
+    const capital = foundCity(state, world.starts[k]!, p.id, kinds[k]!, true);
+    spawnUnit(state, FACTIONS[kinds[k]!].startUnit ?? unitFor(kinds[k]!, "infantry"), p.id, capital.at, capital.id);
+  });
+
+  const tx = new Tx(state, ctx);
+  beginTurn(tx);
+  return tx.finish();
+}
 
 export const dominionGame: GameDefinition<
   DominionState,
@@ -1340,65 +1444,11 @@ export const dominionGame: GameDefinition<
     // Turn order: seats rotated by the dealer seat, which the room randomises
     // once and then rotates between rematches (§3). Computers play after people.
     const start = ((match.dealerSeat % humans) + humans) % humans;
-    const bots = Array.from({ length: resolveBots(settings.bots, humans) }, (_, k) => ({ id: `cpu${k + 1}`, bot: true }));
-    const order: { id: string; bot?: boolean }[] = [...players.slice(start), ...players.slice(0, start), ...bots];
-    const n = order.length;
-    const teams = resolveTeams(settings.teams ?? 0, n);
-    const kinds = pickKinds(settings, n, ctx);
+    const bots = resolveBots(settings.bots, humans);
+    // The only randomness a match ever draws: its peoples and its seed.
+    const kinds = pickKinds(settings, humans + bots, ctx);
     const seed = ctx.randomInt(2 ** 32);
-    const size = resolveMapSize(settings.mapSize, n);
-    const world = generateWorld(seed, size, kinds, { mapType: settings.mapType, resources: settings.resources });
-
-    const state: State = {
-      schemaVersion: SCHEMA_VERSION,
-      rulesVersion: RULES_VERSION,
-      contentVersion: CONTENT_VERSION,
-      generatorVersion: GENERATOR_VERSION,
-      settings,
-      size,
-      tiles: world.tiles,
-      cities: {},
-      units: {},
-      factions: order.map((p, k) => ({
-        id: p.id,
-        kind: kinds[k]!,
-        // People keep their seat order's colour; computers take what's left.
-        color: p.bot ? humans + bots.indexOf(p as (typeof bots)[number]) : players.findIndex((x) => x.id === p.id),
-        bot: p.bot ? { level: settings.botLevel, name: BOT_NAMES[bots.indexOf(p as (typeof bots)[number]) % BOT_NAMES.length]! } : null,
-        credits: FACTIONS[kinds[k]!].openingCredits ?? OPENING_CREDITS,
-        // Dealt round-robin in turn order, so teams interleave around the table.
-        team: teams ? k % teams : null,
-        monuments: { earned: [], unplaced: 0 },
-        techs: [FACTIONS[kinds[k]!].startTech],
-        eliminated: false,
-        surrendered: false,
-        kills: 0,
-        memory: {
-          codes: world.tiles.map((t) => (settings.fog === "terrain" ? encodeTerrain(t) : -1)),
-          seen: world.tiles.map(() => -1),
-          cities: {},
-        },
-      })),
-      seed,
-      rng: { ruins: streamSeed(seed, 1), names: streamSeed(seed, 2), ai: streamSeed(seed, 3) },
-      revision: 0,
-      phase: "playing",
-      round: 1,
-      turn: 1,
-      current: 0,
-      deadline: null,
-      nextId: 1,
-      outcome: null,
-    };
-
-    order.forEach((p, k) => {
-      const capital = foundCity(state, world.starts[k]!, p.id, kinds[k]!, true);
-      spawnUnit(state, FACTIONS[kinds[k]!].startUnit ?? unitFor(kinds[k]!, "infantry"), p.id, capital.at, capital.id);
-    });
-
-    const tx = new Tx(state, ctx);
-    beginTurn(tx);
-    return tx.finish();
+    return initialState({ players: players.map((p) => p.id), start, bots, kinds, seed, startedAt: ctx.now }, settings, ctx);
   },
 
   handleAction(stored, playerId, action, ctx) {
@@ -1409,6 +1459,8 @@ export const dominionGame: GameDefinition<
 
     const state = structuredClone(prev);
     const tx = new Tx(state, ctx);
+    // Logged up front; a refused action throws this state away with it.
+    record(state, [0, prev.factions.indexOf(f), action, 0], ctx.now);
     if (action.type === "surrender") {
       surrender(tx, playerId);
       return { ok: true, transition: tx.finish() };
@@ -1439,6 +1491,7 @@ export const dominionGame: GameDefinition<
       return { state: prev, events: [], timers: [{ kind: "set", timerId: TURN_TIMER, delayMs: prev.deadline - ctx.now }] };
     }
     const tx = new Tx(structuredClone(prev), ctx);
+    record(tx.state, [2, 0], ctx.now);
     advanceTurn(tx);
     return tx.finish();
   },
@@ -1447,11 +1500,11 @@ export const dominionGame: GameDefinition<
     const prev = upgrade(stored);
     if (prev.phase !== "playing" || current(prev).id !== playerId) return { state: prev, events: [] };
     const tx = new Tx(structuredClone(prev), ctx);
+    record(tx.state, [3, prev.current, 0], ctx.now);
     advanceTurn(tx);
     return tx.finish();
   },
 
-  /** A removal is a surrender: their cities go neutral rather than vanishing. */
   /**
    * A removed player's empire isn't deleted (§14): the computer keeps it
    * going, at normal skill, under their name. It finishes the turn if it was
@@ -1462,6 +1515,7 @@ export const dominionGame: GameDefinition<
     const f = faction(prev, playerId);
     if (prev.phase !== "playing" || !f || f.eliminated || f.bot) return { state: prev, events: [] };
     const tx = new Tx(structuredClone(prev), ctx);
+    record(tx.state, [4, prev.factions.indexOf(f), 0], ctx.now);
     const g = faction(tx.state, playerId)!;
     g.bot = { level: "normal", name: "" };
     if (current(tx.state).id === playerId) {

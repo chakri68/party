@@ -22,9 +22,14 @@ const POKE_MS = 450;
 
 export interface PlayerLook {
   color: string;
+  /** A shape per seat, so owners never rely on colour alone (§15). */
+  glyph: string;
   kind: FactionKind;
   name: string;
 }
+
+/** By colour index: distinct at pill size, and none is the capital's ◆. */
+export const SEAT_GLYPHS = ["●", "▲", "■", "✚", "★", "⬟", "▼", "⬢"];
 
 export interface BoardModel {
   size: number;
@@ -775,7 +780,8 @@ export class Board {
     }
     // HP pill in the owner's colour, plus a veteran chevron.
     const [sx, sy] = this.toScreen(wx, wy);
-    const label = `${unit.hp}${unit.veteran ? "★" : ""}`;
+    const glyph = m.players.get(unit.owner)?.glyph ?? "";
+    const label = `${glyph}${unit.hp}${unit.veteran ? "★" : ""}`;
     this.pill(sx + 18 * z, sy + 2 * z, label, color, inkOn(color));
     if (unit.owner === m.me && m.idle.has(unit.id)) {
       ctx.fillStyle = "#c6f432";
@@ -869,7 +875,8 @@ export class Board {
   private cityLabel(city: KnownCity, color: string): void {
     const [sx, sy] = this.toScreen(...this.world(city.at));
     const z = this.cam.zoom;
-    const name = `${city.capital ? "◆ " : ""}${city.name} · ${city.level}`;
+    const glyph = city.owner ? (this.model!.players.get(city.owner)?.glyph ?? "") : "";
+    const name = `${glyph}${glyph ? " " : ""}${city.capital ? "◆ " : ""}${city.name} · ${city.level}`;
     this.ctx.globalAlpha = city.vis ? 1 : 0.7;
     this.pill(sx, sy + 30 * z, name, city.owner ? color : "#5f5f5f", city.owner ? inkOn(color) : "#fff");
     this.ctx.globalAlpha = 1;

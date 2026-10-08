@@ -229,6 +229,8 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     monumentsToPlace: f.monuments?.unplaced ?? 0,
     converts,
     freezes,
+    // Full information, but only once it's over (§18): the whole match, to watch again.
+    replay: finished && state.replay && !state.replay.lost ? { setup: state.replay.setup, settings: state.settings, log: state.replay.log } : null,
     diplomacy: (f.contacts ?? [])
       .filter((id) => !faction(state, id)?.eliminated)
       .map((id) => {

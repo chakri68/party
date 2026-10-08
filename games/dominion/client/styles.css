@@ -118,6 +118,7 @@
 .dm-standing { display: flex; gap: 12px; color: var(--dm-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 
 .dm-players { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dm-glyph { color: var(--c); width: 1em; text-align: center; font-size: 0.8rem; }
 .dm-player {
   display: flex;
   align-items: center;
@@ -440,6 +441,8 @@
 .dm-dip .dm-btn.primary { background: var(--dm-gold); color: var(--dm-gold-ink); box-shadow: 0 3px 0 var(--dm-gold-edge); }
 .dm-dip .dm-btn.dm-danger { background: var(--dm-red); color: #fff; }
 .dm-dip .dm-btn:disabled { opacity: 0.5; }
+.dm-dip-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--dm-line); }
+.dm-dip-foot p { flex: 1; margin: 0; font-size: 0.8rem; }
 
 /* ---- Research screen ---------------------------------------------------------
    A screen over the map, not a dialog. Round nodes carry the art of what they
@@ -620,4 +623,127 @@
 @media (prefers-reduced-motion: reduce) {
   .dm-slab, .dm-player::before, .dm-log { transition: none; }
   .dm-rw-card { animation: none; }
+}
+
+/* ---- Guide: the rules, from the content tables ---------------------------- */
+.dm-gd-card { width: min(860px, 100%); height: min(760px, 100%); display: flex; flex-direction: column; overflow: hidden; }
+.dm-gd .dm-dip-head { gap: 12px; }
+.dm-gd-search {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--dm-line);
+  border-radius: 12px;
+  background: var(--dm-slate-solid);
+  color: var(--dm-ink);
+  font: inherit;
+}
+.dm-gd-search:focus-visible { outline: 2px solid var(--dm-gold); outline-offset: 1px; }
+.dm-gd-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--dm-line); }
+.dm-gd-tab {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: #243041;
+  color: var(--dm-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.dm-gd-tab[aria-selected="true"] { background: var(--dm-gold); color: var(--dm-gold-ink); }
+.dm-gd-tab:focus-visible { outline: 2px solid var(--dm-gold-light); outline-offset: 2px; }
+.dm-gd-body { flex: 1; overflow-y: auto; padding: 12px 2px 4px; display: grid; gap: 10px; align-content: start; }
+.dm-gd-group { margin: 8px 0 0; font-size: 0.8rem; color: var(--dm-gold); }
+.dm-gd-entry { padding: 10px 12px; border-radius: 12px; background: rgb(255 255 255 / 0.03); border: 1px solid var(--dm-line); }
+.dm-gd-entry h3 { margin: 0 0 4px; font-size: 1rem; }
+.dm-gd-entry p { margin: 4px 0 0; color: var(--dm-muted); font-size: 0.9rem; line-height: 1.45; max-width: 70ch; }
+.dm-gd-facts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+.dm-gd-facts li { padding: 1px 8px; border-radius: 999px; background: #243041; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .dm-gd-card { height: 100%; }
+  .dm-gd .dm-dip-head h2 { display: none; }
+}
+
+/* ---- First steps: the coach card ------------------------------------------ */
+.dm-coach { width: min(280px, calc(100vw - 32px)); padding: 10px 12px 12px; }
+.dm-coach[hidden] { display: none; }
+.dm-coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dm-coach-count { color: var(--dm-gold); font-size: 0.75rem; font-weight: 700; }
+.dm-coach-hide {
+  width: 32px;
+  height: 32px;
+  margin: -6px -6px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dm-muted);
+  font-size: 1.2rem;
+}
+.dm-coach-hide:hover { background: #2a3646; color: var(--dm-ink); border: none; }
+.dm-coach-title { margin: 2px 0 4px; font-weight: 700; }
+.dm-coach-how { margin: 0; color: var(--dm-muted); font-size: 0.85rem; line-height: 1.4; }
+.dm-coach-dots { display: flex; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; }
+.dm-coach-dots li { width: 100%; height: 4px; border-radius: 2px; background: #2a3646; }
+.dm-coach-dots li.done { background: var(--dm-gold); }
+.dm-coach-dots li.now { background: var(--dm-gold-edge); }
+.dm-gd-coach {
+  align-self: start;
+  margin-bottom: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--dm-gold-edge);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dm-gold-light);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+@media (max-width: 640px) {
+  /* Phones: the card sits under the purse, trimmed to its essentials. */
+  .dm-coach { width: min(240px, calc(100vw - 96px)); padding: 8px 10px 10px; }
+  .dm-coach-how { font-size: 0.8rem; }
+}
+
+/* ---- Replay: a transport bar over the bottom of the map -------------------- */
+.dm-replay {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 3;
+  width: min(820px, calc(100% - 24px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.dm-rp-btn, .dm-rp-speed, .dm-rp-exit {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: #243041;
+  color: var(--dm-ink);
+  font: inherit;
+  font-size: 1rem;
+  box-shadow: 0 3px 0 var(--dm-edge);
+}
+.dm-rp-btn:disabled { opacity: 0.4; }
+.dm-rp-btn:focus-visible, .dm-rp-speed:focus-visible, .dm-rp-exit:focus-visible, .dm-rp-scrub:focus-visible { outline: 2px solid var(--dm-gold); outline-offset: 2px; }
+.dm-rp-speed { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.85rem; }
+.dm-rp-exit { background: var(--dm-gold); color: var(--dm-gold-ink); box-shadow: 0 3px 0 var(--dm-gold-edge); font-weight: 700; font-size: 0.85rem; }
+.dm-rp-track { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 0 6px; }
+.dm-rp-label { font-weight: 700; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-rp-loading { color: var(--dm-muted); font-size: 0.75rem; }
+.dm-rp-scrub { width: 100%; accent-color: var(--dm-gold); }
+@media (max-width: 640px) {
+  .dm-replay { flex-wrap: wrap; gap: 4px; }
+  .dm-rp-track { order: -1; flex-basis: 100%; }
+  .dm-rp-btn:first-child, .dm-rp-btn:nth-child(5) { display: none; }
+  .dm-rp-exit { margin-left: auto; }
 }

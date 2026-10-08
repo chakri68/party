@@ -24,6 +24,7 @@ const RELATION: Record<DiplomacyView["relation"], string> = {
 export function diplomacyScreen({ view, round, who, act, onClose }: DiplomacyOptions): HTMLElement {
   const hasTech = view.techs.includes("diplomacy");
   let armedBreak: string | null = null;
+  let armedSurrender = false;
 
   const list = h("ul", { class: "dm-dip-list" });
   const render = () => {
@@ -121,6 +122,21 @@ export function diplomacyScreen({ view, round, who, act, onClose }: DiplomacyOpt
   };
 
   render();
+  // The last word in diplomacy. Two taps, like breaking peace: it can't be taken back.
+  const surrender = h("button", {
+    type: "button",
+    class: "dm-btn dm-dip-surrender",
+    onclick: () => {
+      if (!armedSurrender) {
+        armedSurrender = true;
+        surrender.classList.add("dm-danger");
+        surrender.textContent = "Tap again: give up the game";
+        return;
+      }
+      act({ type: "surrender" }, "surrender");
+      onClose();
+    },
+  }, "Surrender");
   const close = h("button", { type: "button", class: "dm-ts-close", "aria-label": "Close diplomacy", onclick: onClose }, "×");
   const root = h(
     "div",
@@ -131,6 +147,14 @@ export function diplomacyScreen({ view, round, who, act, onClose }: DiplomacyOpt
       h("header", { class: "dm-dip-head" }, h("h2", {}, "Diplomacy"), close),
       !hasTech ? h("p", { class: "dm-muted" }, "Diplomacy (after Strategy) lets you offer peace, open embassies and train infiltrators. You can still answer offers.") : null,
       list,
+      view.eliminated
+        ? null
+        : h(
+            "footer",
+            { class: "dm-dip-foot" },
+            h("p", { class: "dm-muted" }, "Surrendering ends your game. Your cities stay standing, unowned, for anyone to take."),
+            surrender,
+          ),
     ),
   );
   root.addEventListener("keydown", (e) => {
