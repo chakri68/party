@@ -15,10 +15,11 @@ import {
   TERRAIN,
   TRAINABLE,
   UNITS,
+  VESSELS,
   VETERAN_KILLS,
 } from "../shared/content.ts";
 import { chebyshev, colOf, indexOf, rowOf } from "../shared/grid.ts";
-import { developBlock } from "../shared/rules.ts";
+import { developBlock, statsOf } from "../shared/rules.ts";
 import type {
   DevelopKind,
   DominionAction,
@@ -243,6 +244,14 @@ export class DominionView implements GameView {
           break;
         case "turn-start":
           lines.push(e.playerId === p?.me ? `Round ${e.round}. Your turn.` : `${this.player(e.playerId).name}'s turn.`);
+          break;
+        case "splash":
+          this.board.effect(e.at, "effect.hit");
+          this.board.floatText(e.at, `−${e.damage}`, "#ff6b5e");
+          break;
+        case "beacon":
+          this.board.effect(e.at, "effect.discovery");
+          lines.push("Found a beacon: +1 population for your capital.");
           break;
         case "convert":
           this.board.effect(e.at, "effect.capture");
@@ -672,7 +681,7 @@ export class DominionView implements GameView {
   private tileSection(i: number, tile: KnownTile | null, city: KnownCity | undefined): HTMLElement {
     if (!tile) return h("section", {}, h("h3", {}, "Unexplored"), h("p", { class: "dm-muted" }, "Send a unit to find out."));
     const owner = tile.owner ? this.player(tile.owner) : null;
-    const title = city ? city.name : tile.feat === "village" ? "Village" : tile.feat === "ruins" ? "Ruins" : TERRAIN[tile.t].name;
+    const title = city ? city.name : tile.feat === "village" ? "Village" : tile.feat === "ruins" ? "Ruins" : tile.feat === "beacon" ? "Beacon" : TERRAIN[tile.t].name;
     const bits = [
       // The heading already names bare terrain; don't say it twice.
       title !== TERRAIN[tile.t].name && TERRAIN[tile.t].name,
@@ -689,6 +698,8 @@ export class DominionView implements GameView {
       !tile.vis ? h("p", { class: "dm-stale" }, tile.seen >= 0 ? `Last seen in round ${tile.seen}. It may have changed.` : "Mapped, never visited.") : null,
       tile.feat === "village" ? h("p", {}, "A neutral village. Move a unit in, then capture it next turn.") : null,
       tile.feat === "ruins" ? h("p", {}, "Old ruins. The first unit to step in finds something.") : null,
+      tile.feat === "beacon" ? h("p", {}, "A beacon. Each empire that first sights it gains a population in its capital.") : null,
+      tile.t === "ocean" && !this.priv!.techs.includes("navigation") ? h("p", { class: "dm-muted" }, "Ships need Navigation for open ocean.") : null,
       tile.t === "mountain" && !this.priv!.techs.includes("climbing") ? h("p", { class: "dm-muted" }, "Needs Climbing to cross.") : null,
       h("p", { class: "dm-sr" }, `Row ${rowOf(i, this.pub!.size) + 1}, column ${colOf(i, this.pub!.size) + 1}`),
     );
@@ -697,6 +708,9 @@ export class DominionView implements GameView {
   private unitSection(unit: KnownUnit, tile: KnownTile | null, city: KnownCity | undefined): HTMLElement {
     const p = this.priv!;
     const def = UNITS[unit.type];
+    // At sea the ship's numbers count; the unit rides along as cargo.
+    const st = statsOf(unit);
+    const vessel = unit.vessel ? VESSELS[unit.vessel] : null;
     const owner = this.player(unit.owner);
     const mine = unit.mine;
     const actions: HTMLElement[] = [];
@@ -724,6 +738,27 @@ export class DominionView implements GameView {
         const hurt = p.units.some((u) => u.id !== unit.id && this.alliedWith(u.owner) && u.hp < u.maxHp && chebyshev(u.at, unit.at, this.pub!.size) === 1);
         actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
         if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
+      }
+      if (unit.vessel === "transport" && !mine.done && !mine.attacked) {
+        for (const v of ["scout", "rammer", "bomber"] as const) {
+          const vd = VESSELS[v];
+          if (!p.techs.includes(vd.needs)) continue;
+          const key = `refit:${unit.id}:${v}`;
+          const reason = p.credits < vd.cost ? "Not enough credits" : null;
+          actions.push(
+            h(
+              "button",
+              {
+                type: "button",
+                class: `dm-btn dm-buy${this.armedKey === key ? " armed" : ""}`,
+                disabled: !!reason,
+                onclick: () => this.confirm(key) && this.act({ type: "upgrade", unit: unit.id, vessel: v }, vd.name),
+              },
+              this.armedKey === key ? "Confirm" : `Refit: ${vd.name}`,
+              h("span", { class: "dm-cost" }, [`${vd.cost}¢`, `${vd.attack}/${vd.defense}, move ${vd.move}, range ${vd.range}`, reason].filter(Boolean).join(" · ")),
+            ),
+          );
+        }
       }
       if (p.techs.includes("free_spirit")) {
         const key = `disband:${unit.id}`;
@@ -756,15 +791,16 @@ export class DominionView implements GameView {
     return h(
       "section",
       { class: "dm-unit" },
-      h("h4", {}, h("span", { class: "dm-swatch", style: `--c:${owner.color}` }), `${def.name}${unit.veteran ? " ★" : ""}`, h("span", { class: "dm-muted" }, ` · ${owner.name}`)),
+      h("h4", {}, h("span", { class: "dm-swatch", style: `--c:${owner.color}` }), `${vessel ? vessel.name : def.name}${unit.veteran ? " ★" : ""}`, h("span", { class: "dm-muted" }, ` · ${owner.name}`)),
+      vessel ? h("p", { class: "dm-muted" }, `Carrying ${def.name.toLowerCase()}. It lands as one when the ship reaches shore.`) : null,
       h(
         "dl",
         { class: "dm-stats" },
         stat("HP", `${unit.hp}/${unit.maxHp}`),
-        stat("Attack", def.attack),
-        stat("Defense", def.defense),
-        stat("Move", def.move),
-        stat("Range", def.range),
+        stat("Attack", st.attack),
+        stat("Defense", st.defense),
+        stat("Move", st.move),
+        stat("Range", st.range),
         mine ? stat("Kills", mine.kills) : null,
       ),
       status ? h("p", { class: "dm-muted" }, status) : null,
@@ -860,7 +896,7 @@ export class DominionView implements GameView {
       techs: p.techs,
       credits: p.credits,
     };
-    const kinds: DevelopKind[] = ["harvest", "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "road", "demolish"];
+    const kinds: DevelopKind[] = ["harvest", "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "port", "road", "demolish"];
     const options = kinds.flatMap((kind) => {
       const block = developBlock(kind, tile, ctx);
       if (block === undefined) return [];

@@ -9,8 +9,10 @@ export const GENERATOR_VERSION = 1;
 
 export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
 export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
-export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument";
-export type Feature = "village" | "ruins";
+export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port";
+export type Feature = "village" | "ruins" | "beacon";
+/** What a unit at sea is riding in. The unit's own type rides along as cargo. */
+export type VesselType = "transport" | "scout" | "rammer" | "bomber";
 export type FactionKind = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
@@ -20,7 +22,7 @@ export type TechId =
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
   | "riding" | "roads" | "commerce" | "free_spirit" | "chivalry"
   | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
-  | "fishing";
+  | "fishing" | "sailing" | "navigation";
 
 /** Achievements that earn a placeable monument (§13). */
 export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
@@ -28,7 +30,7 @@ export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peac
 /** What a player can do to a tile. Harvests consume the resource; the rest build. */
 export type DevelopKind =
   | "harvest" | "farm" | "lumber_camp" | "mine" | "road"
-  | "mill" | "forge" | "market" | "temple" | "demolish";
+  | "mill" | "forge" | "market" | "temple" | "port" | "demolish";
 
 export type RewardChoice =
   | "workshop" | "scout"
@@ -41,7 +43,7 @@ export type RewardChoice =
 // ---------------------------------------------------------------------------
 
 export type MapSizeSetting = "auto" | 16 | 24 | 32;
-export type MapType = "landmass" | "lakes";
+export type MapType = "continents" | "landmass" | "lakes" | "archipelago";
 export type FogSetting = "on" | "terrain" | "off";
 export type ResourceSetting = "sparse" | "standard" | "abundant";
 export type FactionSetting = "mixed" | FactionKind;
@@ -71,7 +73,7 @@ export interface DominionSettings {
 export const DEFAULT_SETTINGS: DominionSettings = {
   victory: "conquest",
   mapSize: "auto",
-  mapType: "landmass",
+  mapType: "continents",
   turnClock: 180,
   roundLimit: 60,
   fog: "on",
@@ -129,6 +131,8 @@ export interface Unit {
   chained?: number;
   /** Changed sides; never refunds on disband (§8). */
   converted?: boolean;
+  /** At sea: the vessel carrying it. Health is one pool, the cargo's (§9). */
+  vessel?: VesselType | null;
 }
 
 export interface City {
@@ -185,6 +189,8 @@ export interface Faction {
   monuments?: { earned: MonumentId[]; unplaced: number };
   /** Held every original capital when its last turn ended (capital-control win). */
   holdingCapitals?: boolean;
+  /** Beacons this empire has found, by tile; each pays once (§9). */
+  beacons?: number[];
   /** Set for computer players; they have no room seat. */
   bot?: { level: BotLevel; name: string } | null;
 }
@@ -233,6 +239,7 @@ export type DominionAction =
   | { type: "capture"; turn: number; unit: string }
   | { type: "heal"; turn: number; unit: string }
   | { type: "promote"; turn: number; unit: string }
+  | { type: "upgrade"; turn: number; unit: string; vessel: Exclude<VesselType, "transport"> }
   | { type: "disband"; turn: number; unit: string }
   /** Sage: heal every adjacent friendly unit. */
   | { type: "mend"; turn: number; unit: string }
@@ -271,6 +278,9 @@ export type DominionEvent =
   | { type: "city-level"; city: string; level: number }
   | { type: "ruins"; at: number; reward: RuinReward }
   | { type: "convert"; at: number; by: string }
+  /** Bomber splash on a neighbouring tile; sent only to those who saw it. */
+  | { type: "splash"; at: number; damage: number; killed: boolean }
+  | { type: "beacon"; at: number }
   | { type: "monument"; at: number; kind?: MonumentId }
   | { type: "achievement"; kind: MonumentId }
   | { type: "eliminated"; playerId: string }
@@ -332,6 +342,7 @@ export interface KnownUnit {
   hp: number;
   maxHp: number;
   veteran: boolean;
+  vessel?: VesselType | null;
   /** Own units only. */
   mine?: {
     kills: number;

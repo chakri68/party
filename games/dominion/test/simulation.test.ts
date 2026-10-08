@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { dominionGame as game } from "../server/game.ts";
 import { HARVEST, TECH_ORDER, TECHS, techCost, TRAINABLE, UNITS } from "../shared/content.ts";
 import { Rng } from "../shared/grid.ts";
-import { canStand, visionOf } from "../shared/rules.ts";
+import { canSail, canStand, visionOf } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   type DominionAction,
@@ -55,7 +55,8 @@ function checkInvariants(before: DominionState, after: DominionState, events: { 
   for (const u of Object.values(after.units)) {
     expect(tiles.has(u.at), "one unit per tile").toBe(false);
     tiles.add(u.at);
-    expect(canStand(after, u.owner, u.at)).toBe(true);
+    // Ships on water they may sail, everyone else on land they may stand on.
+    expect(u.vessel ? canSail(after, u.owner, u.at) : canStand(after, u.owner, u.at), `${u.type}/${u.vessel ?? "land"}`).toBe(true);
     expect(u.hp).toBeGreaterThan(0);
     expect(u.hp).toBeLessThanOrEqual(u.maxHp);
   }
@@ -123,7 +124,8 @@ function play(seed: number, players: number, settings: Partial<DominionSettings>
   return { state, accepted };
 }
 
-describe("simulated matches", () => {
+// Whole matches with full fog checks after every action: slow by design.
+describe("simulated matches", { timeout: 30_000 }, () => {
   it("two players to the round limit, ending on score", () => {
     const { state, accepted } = play(11, 2, { roundLimit: 30 });
     expect(accepted).toBeGreaterThan(100);
@@ -172,7 +174,7 @@ function playWithBots(seed: number, humans: number, settings: Partial<DominionSe
   return { state, botTicks };
 }
 
-describe("computer players", () => {
+describe("computer players", { timeout: 30_000 }, () => {
   it("gives a lone player one opponent", () => {
     const s = game.createGame([{ id: "solo" }], { ...DEFAULT_SETTINGS }, { roundNumber: 1, dealerSeat: 0 }, { now: 0, randomInt: seededRandomInt(2) }).state;
     expect(s.factions).toHaveLength(2);
@@ -211,5 +213,11 @@ describe("computer players", () => {
     const { state } = playWithBots(29, 1, { bots: 2, victory: "capitals", roundLimit: 30, botLevel: "hard" });
     expect(state.phase).toBe("finished");
     expect(["capitals", "score", "conquest"]).toContain(state.outcome!.reason);
+  });
+
+  it("computers take to the water on an archipelago, fog checks and all", () => {
+    const { state } = playWithBots(4, 1, { bots: 3, botLevel: "hard", mapType: "archipelago", mapSize: 24, roundLimit: 30 }, 20000);
+    expect(state.phase).toBe("finished");
+    expect(state.tiles.some((t) => t.imp === "port")).toBe(true);
   });
 });

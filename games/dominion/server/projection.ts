@@ -41,7 +41,7 @@ export function visibleUnits(state: DominionState, owner: string, vis = visionOf
 }
 
 function knownUnit(u: Unit, me: string): KnownUnit {
-  const base: KnownUnit = { id: u.id, type: u.type, owner: u.owner, at: u.at, hp: u.hp, maxHp: u.maxHp, veteran: u.veteran };
+  const base: KnownUnit = { id: u.id, type: u.type, owner: u.owner, at: u.at, hp: u.hp, maxHp: u.maxHp, veteran: u.veteran, vessel: u.vessel ?? null };
   if (u.owner !== me) return base;
   return {
     ...base,

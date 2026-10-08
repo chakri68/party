@@ -8,6 +8,7 @@
 
 import {
   rewardChoices,
+  VESSELS,
   techCost,
   TECHS,
   TRAINABLE,
@@ -30,16 +31,16 @@ type Act = Exclude<DominionAction, { type: "surrender" }>;
 
 /** Research order. Military first on hard, economy first otherwise. */
 const TECH_PLAN: Record<BotLevel, TechId[]> = {
-  easy: ["gathering", "hunting", "fishing", "riding", "farming", "forestry", "climbing", "archery", "mining", "roads", "strategy", "meditation", "metallurgy", "construction", "spirituality", "commerce"],
+  easy: ["gathering", "hunting", "fishing", "riding", "farming", "forestry", "climbing", "archery", "mining", "roads", "strategy", "meditation", "metallurgy", "construction", "spirituality", "commerce", "sailing"],
   normal: [
     "gathering", "hunting", "riding", "fishing", "archery", "farming", "forestry", "climbing", "mining",
     "free_spirit", "chivalry", "construction", "roads", "commerce", "strategy", "metallurgy", "spirituality",
-    "mathematics", "meditation", "philosophy",
+    "sailing", "mathematics", "meditation", "philosophy", "navigation",
   ],
   hard: [
     "riding", "hunting", "gathering", "free_spirit", "chivalry", "archery", "climbing", "mining", "metallurgy",
     "farming", "construction", "forestry", "mathematics", "roads", "commerce", "meditation", "philosophy",
-    "strategy", "fishing", "spirituality",
+    "fishing", "sailing", "navigation", "strategy", "spirituality",
   ],
 };
 
@@ -122,7 +123,7 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     }
   }
   if (!sloppy()) {
-    const kinds: DevelopKind[] = ["harvest", "farm", "mine", "lumber_camp", "mill", "forge", "temple", "market"];
+    const kinds: DevelopKind[] = ["harvest", "farm", "mine", "lumber_camp", "port", "mill", "forge", "temple", "market"];
     for (let i = 0; i < view.tiles.length; i++) {
       const t = view.tiles[i];
       if (!t?.vis || t.owner !== view.me) continue;
@@ -161,12 +162,28 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
 
   // 6. Research, keeping a little back on easy.
   const reserve = level === "easy" ? 3 : 0;
-  const tech = TECH_PLAN[level].find(
+  // An empire hemmed in by water goes to sea before anything else.
+  const known = view.tiles.filter((t) => t !== null);
+  const wet = known.filter((t) => t!.t === "shallow" || t!.t === "ocean").length / Math.max(1, known.length);
+  const naval: TechId[] = wet > 0.5 ? ["fishing", "sailing", "navigation"] : wet > 0.3 ? ["fishing", "sailing"] : [];
+  const tech = [...naval, ...TECH_PLAN[level]].find(
     (t) => !view.techs.includes(t) && (!TECHS[t].parent || view.techs.includes(TECHS[t].parent!)),
   );
   if (tech && view.credits >= techCost(tech, view.cityCount, view.techs) + reserve) {
     const a: Act = { type: "research", turn, tech };
     if (ok(a)) return a;
+  }
+
+  // Transports that can be warships, on normal and hard.
+  if (level !== "easy") {
+    const vessel = (["bomber", "rammer", "scout"] as const).find(
+      (v) => view.techs.includes(VESSELS[v].needs) && view.credits >= VESSELS[v].cost + 4,
+    );
+    const boat = mine.find((u) => u.vessel === "transport" && !u.mine!.done && !u.mine!.attacked);
+    if (vessel && boat) {
+      const a: Act = { type: "upgrade", turn, unit: boat.id, vessel };
+      if (ok(a)) return a;
+    }
   }
 
   // 7. Wounded units heal rather than wander.

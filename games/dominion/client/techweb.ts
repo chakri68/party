@@ -76,6 +76,8 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     meditation: { id: "terrain.mountain.v2" },
     philosophy: { id: "effect.research" },
     fishing: { id: "resource.fish.default" },
+    sailing: { id: "terrain.water.shallow.default" },
+    navigation: { id: "terrain.ocean.default" },
   };
   return art[tech];
 }

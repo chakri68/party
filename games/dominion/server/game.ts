@@ -10,6 +10,8 @@ import {
   MAX_CHAIN,
   MEND_HP,
   MONUMENT_POP,
+  BEACON_POP,
+  VESSELS,
   TEMPLE_CULTURE,
   TEMPLE_CULTURE_CAP,
   TERRAIN,
@@ -36,6 +38,8 @@ import {
   allied,
   canAttackWith,
   canStand,
+  capitalOf,
+  statsOf,
   achievementProgress,
   developBlock,
   capacity,
@@ -143,6 +147,7 @@ class Tx {
   finish(): Transition {
     const s = this.state;
     if (s.phase === "playing") checkEliminations(this);
+    if (s.phase === "playing") discoverBeacons(this);
     if (s.phase === "playing") checkAchievements(this);
     rememberAll(s);
     s.revision++;
@@ -521,6 +526,22 @@ function finishByScore(tx: Tx): void {
 // Achievements (§13): checked after every change, each earned once.
 // ---------------------------------------------------------------------------
 
+/** First sight of a beacon pays the finder's capital, once per empire per beacon (§9). */
+function discoverBeacons(tx: Tx): void {
+  const s = tx.state;
+  for (const f of s.factions) {
+    if (f.eliminated) continue;
+    const vis = visionOf(s, f.id);
+    s.tiles.forEach((t, i) => {
+      if (t.feat !== "beacon" || !vis[i] || f.beacons?.includes(i)) return;
+      (f.beacons ??= []).push(i);
+      const capital = capitalOf(s, f.id);
+      if (capital) addPop(tx, capital, BEACON_POP);
+      tx.only(f.id, { type: "beacon", at: i });
+    });
+  }
+}
+
 function checkAchievements(tx: Tx): void {
   const s = tx.state;
   for (const f of s.factions) {
@@ -616,6 +637,17 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       unit.mp = left;
       unit.moved = true;
       unit.settled = false;
+      const water = !TERRAIN[s.tiles[action.to]!.t].land;
+      if (water && !unit.vessel) {
+        // Boarding at a port: the unit becomes the cargo of a transport.
+        unit.vessel = "transport";
+        unit.mp = 0;
+      } else if (!water && unit.vessel) {
+        // Landing takes whatever the turn had left (§9).
+        unit.vessel = null;
+        unit.mp = 0;
+        unit.done = true;
+      }
       tx.seen([from, action.to], { type: "move", unit: unit.id, from, to: action.to });
       if (s.tiles[unit.at]!.feat === "ruins") enterRuins(tx, unit);
       return null;
@@ -630,11 +662,12 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         !target ||
         allied(s, target.owner, me) ||
         !vis[action.target] ||
-        chebyshev(unit.at, target.at, s.size) > UNITS[unit.type].range
+        chebyshev(unit.at, target.at, s.size) > statsOf(unit).range
       ) {
         return "Can't attack that.";
       }
       const { damage, retaliation } = resolveCombat(s, unit, target);
+      const splash = unit.vessel ? VESSELS[unit.vessel].splash : false;
       target.hp -= damage;
       const defenderKilled = target.hp <= 0;
       if (defenderKilled) {
@@ -652,17 +685,35 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       }
       const def = UNITS[unit.type];
       unit.attacked = true;
-      if (def.chain && defenderKilled && (unit.chained ?? 0) < MAX_CHAIN) {
+      // Knights chain and cavalry fall back on land only; at sea they're just cargo.
+      if (def.chain && !unit.vessel && defenderKilled && (unit.chained ?? 0) < MAX_CHAIN) {
         // Knights strike again after a kill, standing where they are.
         unit.chained = (unit.chained ?? 0) + 1;
         unit.attacked = false;
         unit.mp = 0;
-      } else if (unit.type === "cavalry" && f.techs.includes("free_spirit")) {
+      } else if (unit.type === "cavalry" && !unit.vessel && f.techs.includes("free_spirit")) {
         // Free Spirit: cavalry may fall back with what movement it has left.
         unit.moved = true;
       } else {
         unit.done = true;
         unit.mp = 0;
+      }
+      if (splash) {
+        // Half damage to enemies next to the target. Never friends, never the
+        // unseen, never anything back (§9).
+        const half = Math.max(1, Math.round(damage / 2));
+        for (const i of neighbors(target.at, s.size)) {
+          const hit = truth.get(i);
+          if (!hit || hit === unit || hit === target || allied(s, hit.owner, me) || !vis[i]) continue;
+          hit.hp -= Math.min(half, hit.hp);
+          const killed = hit.hp <= 0;
+          if (killed) {
+            delete s.units[hit.id];
+            unit.kills++;
+            f.kills++;
+          }
+          tx.seen([i], { type: "splash", at: i, damage: half, killed });
+        }
       }
       tx.seen([unit.at, target.at], {
         type: "attack",
@@ -680,6 +731,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const unit = ownUnit(s, me, action.unit);
       if (!unit || unit.done || unit.moved || unit.attacked) return "That unit has already acted.";
       if (!unit.settled) return "Units capture the turn after they arrive.";
+      if (unit.vessel) return "Land first.";
       const tile = s.tiles[unit.at]!;
       const city = tile.city ? s.cities[tile.city]! : null;
       if (tile.feat === "village") {
@@ -717,6 +769,20 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       unit.veteran = true;
       unit.maxHp += VETERAN_HP;
       unit.hp += VETERAN_HP;
+      return null;
+    }
+
+    case "upgrade": {
+      const unit = ownUnit(s, me, action.unit);
+      const def = VESSELS[action.vessel];
+      if (!unit || unit.vessel !== "transport" || unit.done || unit.attacked) return "Only a transport that hasn't acted can be refitted.";
+      if (!f.techs.includes(def.needs)) return `Research ${TECHS[def.needs].name} first.`;
+      if (f.credits < def.cost) return "Not enough credits.";
+      f.credits -= def.cost;
+      unit.vessel = action.vessel; // same health pool, same cargo
+      unit.done = true;
+      unit.mp = 0;
+      tx.seen([unit.at], { type: "spawn", at: unit.at });
       return null;
     }
 

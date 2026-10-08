@@ -97,6 +97,13 @@ export function terrainSprite(t: Terrain, i: number, size: number): string {
 }
 
 /** Light or dark text, whichever reads on `hex`. */
+/** Lighter (k > 0) or darker (k < 0) version of a hex colour. */
+function shade(hex: string, k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k)));
+  return `#${ch.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function inkOn(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
   const lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
@@ -490,7 +497,11 @@ export class Board {
       const city = cityAt.get(i);
       if (!city) this.sprite({ id: terrainSprite(t.t, i, size), layer: "props", dim }, i);
       const overlay = t.feat ? `feature.${t.feat}.default` : t.imp ? `improvement.${t.imp}.default` : t.res ? `resource.${t.res}.default` : null;
-      if (overlay && !city && !this.sprite({ id: overlay, dim }, i)) this.placeholderMark(i, overlay.split(".")[1]!.slice(0, 3).toUpperCase());
+      if (overlay && !city && !this.sprite({ id: overlay, dim }, i)) {
+        if (t.feat === "beacon") this.drawBeacon(i, dim);
+        else if (t.imp === "port") this.drawPort(i, dim);
+        else this.placeholderMark(i, overlay.split(".")[1]!.slice(0, 3).toUpperCase());
+      }
       if (city) this.drawCity(city, colorOf(city.owner), !city.vis);
       const unit = unitAt.get(i);
       if (unit) {
@@ -688,7 +699,9 @@ export class Board {
     const r = this.cache.get({ id, color });
     const z = this.cam.zoom;
     const ctx = this.ctx;
-    if (r) {
+    if (unit.vessel) {
+      this.drawVessel(unit.vessel, wx, wy, color, r);
+    } else if (r) {
       this.blit(r, wx, wy + 6);
     } else {
       // Role-labelled placeholder until real art exists for this unit.
@@ -720,6 +733,43 @@ export class Board {
       ctx.fill();
       ctx.stroke();
     }
+  }
+
+  /**
+   * Ships have no art yet: a faceted hull in the sprites' walnut tones, the
+   * cargo standing in it, and a sail in the owner's colour. The shape says
+   * which vessel: a scout is slim, a rammer has a bronze prow, a bomber a
+   * squat stone tower.
+   */
+  private drawVessel(kind: string, wx: number, wy: number, color: string, cargo: Raster | null): void {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const [sx, sy] = this.toScreen(wx, wy);
+    const poly = (fill: string, pts: [number, number][]) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      pts.forEach(([x, y], k) => (k ? ctx.lineTo(sx + x * z, sy + y * z) : ctx.moveTo(sx + x * z, sy + y * z)));
+      ctx.closePath();
+      ctx.fill();
+    };
+    const len = kind === "scout" ? 30 : 26;
+    // Sail behind the cargo.
+    poly(shade(color, 0.15), [[2, -46], [2, -14], [20, -16]]);
+    poly(shade(color, -0.2), [[2, -46], [20, -16], [14, -16]]);
+    poly("#5a3820", [[0, -48], [2, -48], [2, -8], [0, -8]]);
+    if (cargo) this.blit(cargo, wx - 4, wy - 2, 1);
+    // Hull: light top rail, mid side, dark shadow side (light from upper left).
+    poly("#7a4e2d", [[-len, -6], [len, -6], [len - 8, 6], [-len + 6, 6]]);
+    poly("#9a6a42", [[-len, -6], [len, -6], [len - 3, -10], [-len + 2, -10]]);
+    poly("#5a3820", [[len, -6], [len + 4, -12], [len - 3, -10]]);
+    if (kind === "rammer") poly("#c99a2e", [[len, -6], [len + 9, -2], [len - 6, 4]]);
+    if (kind === "bomber") {
+      poly("#a8a49b", [[-14, -10], [-4, -10], [-4, -24], [-14, -24]]);
+      poly("#7e7a72", [[-4, -10], [0, -12], [0, -26], [-4, -24]]);
+      poly("#2b2b2b", [[-11, -24], [-7, -24], [-7, -28], [-11, -28]]);
+    }
+    // Pennant: who it belongs to, readable at any zoom.
+    poly(color, [[2, -48], [12, -52], [2, -56]]);
   }
 
   private pill(cx: number, cy: number, text: string, bg: string, fg: string): void {
@@ -755,6 +805,58 @@ export class Board {
     this.ctx.globalAlpha = city.vis ? 1 : 0.7;
     this.pill(sx, sy + 30 * z, name, city.owner ? color : "#5f5f5f", city.owner ? inkOn(color) : "#fff");
     this.ctx.globalAlpha = 1;
+  }
+
+  /** A small lighthouse, until the art track draws one. */
+  private drawBeacon(i: number, dim: boolean): void {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const [sx, sy] = this.toScreen(...this.world(i));
+    ctx.globalAlpha = dim ? 0.6 : 1;
+    const band = (y0: number, y1: number, w0: number, w1: number, fill: string) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(sx - w0 * z, sy + y0 * z);
+      ctx.lineTo(sx + w0 * z, sy + y0 * z);
+      ctx.lineTo(sx + w1 * z, sy + y1 * z);
+      ctx.lineTo(sx - w1 * z, sy + y1 * z);
+      ctx.closePath();
+      ctx.fill();
+    };
+    band(4, -2, 12, 10, "#7e7a72");
+    band(-2, -14, 7, 6, "#f3ead6");
+    band(-14, -24, 6, 5, "#d64541");
+    band(-24, -34, 5, 4, "#f3ead6");
+    band(-34, -40, 6, 6, "#4f4c58");
+    ctx.fillStyle = "#ffc94a";
+    ctx.beginPath();
+    ctx.arc(sx, sy - 37 * z, 3 * z, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /** A plank pier on the water, until the art track draws one. */
+  private drawPort(i: number, dim: boolean): void {
+    const ctx = this.ctx;
+    const z = this.cam.zoom;
+    const [sx, sy] = this.toScreen(...this.world(i));
+    ctx.globalAlpha = dim ? 0.6 : 1;
+    const plank = (dx: number, dy: number, fill: string) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(sx + (dx - 20) * z, sy + (dy - 4) * z);
+      ctx.lineTo(sx + (dx + 4) * z, sy + (dy - 16) * z);
+      ctx.lineTo(sx + (dx + 10) * z, sy + (dy - 13) * z);
+      ctx.lineTo(sx + (dx - 14) * z, sy + (dy - 1) * z);
+      ctx.closePath();
+      ctx.fill();
+    };
+    plank(0, 0, "#9a6a42");
+    plank(6, 3, "#7a4e2d");
+    plank(12, 6, "#9a6a42");
+    ctx.fillStyle = "#5a3820";
+    for (const [dx, dy] of [[-16, 0], [8, -12], [20, 2]] as const) ctx.fillRect(sx + dx * z, sy + dy * z, 2.5 * z, 8 * z);
+    ctx.globalAlpha = 1;
   }
 
   private placeholderMark(i: number, label: string): void {

@@ -20,6 +20,7 @@ export const dominionRules: string[] = [
   "Move a unit onto a village or an enemy city, survive until your next turn, then capture it. An enemy standing in your city stops its income.",
   "Combat is predictable: you'll see the damage before you commit. A defender that survives hits back if the attacker is in its range.",
   "Stepping next to an enemy fighter stops your move. Forests and mountains cost double, roads cost half.",
+  "With Sailing, build a port on your shore. A unit that walks onto it boards a transport; landing again ends its turn. Ships can be refitted into scouts, rammers and bombers. Two ports on the same water link their cities like a road.",
   "Lose every city and you're out. Last empire standing wins; at the round limit, the highest score does.",
   "Hold the capitals: own every original capital at the end of your turn and still at the start of your next, and you win.",
   "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won) each earn a monument to place on your land.",
@@ -45,7 +46,7 @@ export function parseSettings(input: unknown): DominionSettings | null {
   const ok =
     (["conquest", "score", "capitals"] as unknown[]).includes(s.victory) &&
     (["auto", 16, 24, 32] as unknown[]).includes(s.mapSize) &&
-    (["landmass", "lakes"] as unknown[]).includes(s.mapType) &&
+    (["continents", "landmass", "lakes", "archipelago"] as unknown[]).includes(s.mapType) &&
     ([0, 60, 120, 180, 300] as unknown[]).includes(s.turnClock) &&
     ([0, 30, 60, 90] as unknown[]).includes(s.roundLimit) &&
     (["on", "terrain", "off"] as unknown[]).includes(s.fog) &&
@@ -106,7 +107,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
 
   const victories: VictorySetting[] = ["conquest", "score", "capitals"];
   const sizes: MapSizeSetting[] = ["auto", 16, 24, 32];
-  const types: MapType[] = ["landmass", "lakes"];
+  const types: MapType[] = ["continents", "landmass", "lakes", "archipelago"];
   const clocks = [0, 60, 120, 180, 300] as const;
   // Score games need an end, so no "unlimited" for them.
   const limits = ([0, 30, 60, 90] as const).filter((l) => l !== 0 || settings.victory === "conquest");
@@ -155,9 +156,12 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
       label: "Terrain",
       selected: pickIndex(types, settings.mapType),
       options: [
+        { label: "Continents", patch: { mapType: "continents" } },
         { label: "Landmass", patch: { mapType: "landmass" } },
         { label: "Lakes", patch: { mapType: "lakes" } },
+        { label: "Archipelago", patch: { mapType: "archipelago" } },
       ],
+      hint: settings.mapType === "continents" || settings.mapType === "archipelago" ? "Rivals may be across the water: Sailing builds ports" : undefined,
     },
     {
       key: "turnClock",

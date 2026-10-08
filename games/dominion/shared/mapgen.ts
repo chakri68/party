@@ -11,6 +11,10 @@ import { area, chebyshev, colOf, indexOf, neighbors, rowOf, Rng, streamSeed } fr
 import type { FactionKind, MapType, Resource, ResourceSetting, Terrain, Tile } from "./types.ts";
 
 export const MAX_ATTEMPTS = 32;
+/** Smallest island a water-map start may sit on, in walkable tiles. */
+export const MIN_ISLAND = 10;
+
+export const isWaterMap = (t: MapType) => t === "continents" || t === "archipelago";
 export const MIN_START_DISTANCE = 6;
 /** Every start needs a neutral village at most this far away. */
 export const VILLAGE_REACH = 5;
@@ -38,7 +42,7 @@ export function generateWorld(seed: number, size: number, kinds: FactionKind[], 
   const rng = new Rng(streamSeed(seed, 0));
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const world = tryGenerate(rng, size, kinds, opts);
-    if (world && validateWorld(world.tiles, world.starts, size)) return { ...world, attempts: attempt, template: false };
+    if (world && validateWorld(world.tiles, world.starts, size, opts.mapType)) return { ...world, attempts: attempt, template: false };
   }
   return { ...templateWorld(size, kinds), attempts: MAX_ATTEMPTS, template: true };
 }
@@ -69,8 +73,11 @@ function valueNoise(rng: Rng, size: number, cell: number): Float64Array {
   return out;
 }
 
-function fractal(rng: Rng, size: number): Float64Array {
-  const octaves: [number, number][] = [[8, 0.55], [4, 0.3], [2, 0.15]];
+const COARSE: [number, number][] = [[8, 0.55], [4, 0.3], [2, 0.15]];
+/** Smaller blobs: islands rather than continents. */
+const FINE: [number, number][] = [[5, 0.5], [3, 0.35], [2, 0.15]];
+
+function fractal(rng: Rng, size: number, octaves: [number, number][] = COARSE): Float64Array {
   const out = new Float64Array(size * size);
   for (const [cell, weight] of octaves) {
     const layer = valueNoise(rng, size, cell);
@@ -125,14 +132,20 @@ export function components(tiles: Tile[], size: number, pass: (t: Tile) => boole
 // ---------------------------------------------------------------------------
 
 function tryGenerate(rng: Rng, size: number, kinds: FactionKind[], opts: WorldOptions): Omit<World, "attempts" | "template"> | null {
-  const height = fractal(rng, size);
+  const height = fractal(rng, size, opts.mapType === "archipelago" ? FINE : COARSE);
   const rough = fractal(rng, size);
   const moist = fractal(rng, size);
   const mid = (size - 1) / 2;
 
-  // Landmass: one big island, water at the rim. Lakes: mostly land, water pools inland.
-  const landShare = opts.mapType === "lakes" ? 0.8 : 0.6;
-  const falloff = opts.mapType === "lakes" ? 0.25 : 0.9;
+  // Landmass: one big island, water at the rim. Lakes: mostly land, water
+  // pools inland. Continents: a few big lands. Archipelago: many small ones.
+  const shape: Record<MapType, [number, number]> = {
+    landmass: [0.6, 0.9],
+    lakes: [0.8, 0.25],
+    continents: [0.48, 0.35],
+    archipelago: [0.34, 0.15],
+  };
+  const [landShare, falloff] = shape[opts.mapType];
   const shaped = height.map((h, i) => {
     const dy = (rowOf(i, size) - mid) / mid;
     const dx = (colOf(i, size) - mid) / mid;
@@ -155,17 +168,22 @@ function tryGenerate(rng: Rng, size: number, kinds: FactionKind[], opts: WorldOp
     else if (moist[i]! >= forestLevel) tiles[i]!.t = "forest";
   }
 
-  // Starts go on the biggest walkable region, away from the rim.
+  // Land maps: starts share the biggest walkable region. Water maps: any
+  // island with room for a city, but on the coast, so a port is possible.
   const walk = components(tiles, size, (t) => walkable(t.t));
   const counts = new Map<number, number>();
   for (const id of walk) if (id >= 0) counts.set(id, (counts.get(id) ?? 0) + 1);
   const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   if (main === undefined) return null;
+  const wet = isWaterMap(opts.mapType);
   const candidates = rng.shuffle(
     tiles.flatMap((_, i) => {
       const r = rowOf(i, size);
       const c = colOf(i, size);
-      return walk[i] === main && r >= 2 && c >= 2 && r < size - 2 && c < size - 2 ? [i] : [];
+      if (r < 2 || c < 2 || r >= size - 2 || c >= size - 2 || walk[i] === -1) return [];
+      if (!wet) return walk[i] === main ? [i] : [];
+      const coastal = neighbors(i, size).some((j) => !TERRAIN[tiles[j]!.t].land);
+      return coastal && counts.get(walk[i]!)! >= MIN_ISLAND ? [i] : [];
     }),
   );
   const starts = pickSpread(candidates, kinds.length, size);
@@ -176,6 +194,7 @@ function tryGenerate(rng: Rng, size: number, kinds: FactionKind[], opts: WorldOp
   scatterResources(tiles, size, starts, rng, RESOURCE_SCALE[opts.resources]);
   if (!placeVillages(tiles, size, starts, rng)) return null;
   placeRuins(tiles, size, starts, rng);
+  placeBeacons(tiles, size, starts, rng);
   balanceStarts(tiles, size, starts, rng);
   return { tiles, starts };
 }
@@ -277,8 +296,7 @@ const farFrom = (i: number, others: number[], d: number, size: number) => others
 function placeVillages(tiles: Tile[], size: number, starts: number[], rng: Rng): boolean {
   const walk = components(tiles, size, (t) => walkable(t.t));
   const villages: number[] = [];
-  const ok = (i: number) =>
-    walkable(tiles[i]!.t) && walk[i] === walk[starts[0]!] && farFrom(i, starts, 3, size) && farFrom(i, villages, 3, size);
+  const ok = (i: number) => walkable(tiles[i]!.t) && farFrom(i, starts, 3, size) && farFrom(i, villages, 3, size);
   const put = (i: number) => {
     villages.push(i);
     tiles[i]!.feat = "village";
@@ -287,7 +305,8 @@ function placeVillages(tiles: Tile[], size: number, starts: number[], rng: Rng):
   // Guaranteed one near every start first, then fill the rest of the map.
   for (const s of starts) {
     if (villages.some((v) => chebyshev(v, s, size) <= VILLAGE_REACH)) continue;
-    const near = area(s, VILLAGE_REACH, size).filter(ok);
+    // The guaranteed one is reachable on foot.
+    const near = area(s, VILLAGE_REACH, size).filter((i) => ok(i) && walk[i] === walk[s]);
     if (!near.length) return false;
     put(rng.pick(near));
   }
@@ -335,6 +354,21 @@ function balanceStarts(tiles: Tile[], size: number, starts: number[], rng: Rng):
   }
 }
 
+/** Beacons out on the water, away from starts and each other (§9). */
+function placeBeacons(tiles: Tile[], size: number, starts: number[], rng: Rng): void {
+  const water = tiles.filter((t) => !TERRAIN[t.t].land).length;
+  if (water < size * 2) return;
+  const target = Math.max(2, Math.round(water / 120));
+  const taken: number[] = [];
+  for (const i of rng.shuffle(tiles.map((_, i) => i))) {
+    if (taken.length >= target) break;
+    const t = tiles[i]!;
+    if (TERRAIN[t.t].land || t.res || !farFrom(i, starts, 4, size) || !farFrom(i, taken, 5, size)) continue;
+    t.feat = "beacon";
+    taken.push(i);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Validation (§4): measurable constraints with tolerances, not symmetry.
 // ---------------------------------------------------------------------------
@@ -378,13 +412,17 @@ export function inspectStarts(tiles: Tile[], starts: number[], size: number): St
   };
 }
 
-export function validateWorld(tiles: Tile[], starts: number[], size: number): boolean {
+export function validateWorld(tiles: Tile[], starts: number[], size: number, mapType: MapType = "landmass"): boolean {
   const rep = inspectStarts(tiles, starts, size);
+  // Water maps: separate islands are fine, but every start needs a shore to build a port on.
+  const region = isWaterMap(mapType)
+    ? starts.every((s) => neighbors(s, size).some((j) => tiles[j]!.t === "shallow"))
+    : rep.sameRegion;
   const max = Math.max(...rep.values);
   const min = Math.min(...rep.values);
   return (
     (starts.length < 2 || rep.spacing >= MIN_START_DISTANCE) &&
-    rep.sameRegion &&
+    region &&
     rep.villageNear.every(Boolean) &&
     rep.homeResources.every((n) => n >= 2) &&
     min >= FAIRNESS * max

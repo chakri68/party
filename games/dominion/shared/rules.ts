@@ -14,6 +14,7 @@ import {
   TECHS,
   TERRAIN_DEFENSE,
   UNITS,
+  VESSELS,
   WALLS_DEFENSE,
 } from "./content.ts";
 import { area, colOf, inBounds, indexOf, NEIGHBORS, neighbors, rowOf } from "./grid.ts";
@@ -49,8 +50,23 @@ export function tileOwner(state: DominionState, i: number): string | null {
   return claim ? (state.cities[claim]?.owner ?? null) : null;
 }
 
-export function fullMp(unit: Pick<Unit, "type">): number {
-  return UNITS[unit.type].move * 2;
+export interface UnitStats {
+  attack: number;
+  defense: number;
+  move: number;
+  range: number;
+  vision: number;
+}
+
+/** A unit's fighting numbers: its own on land, its vessel's at sea (§9). */
+export function statsOf(unit: Pick<Unit, "type" | "vessel">): UnitStats {
+  if (unit.vessel) return VESSELS[unit.vessel];
+  const d = UNITS[unit.type];
+  return { attack: d.attack, defense: d.defense, move: d.move, range: d.range, vision: UNIT_VISION };
+}
+
+export function fullMp(unit: Pick<Unit, "type" | "vessel">): number {
+  return statsOf(unit).move * 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +77,17 @@ export function fullMp(unit: Pick<Unit, "type">): number {
 export function canStand(state: DominionState, owner: string, i: number): boolean {
   const def = TERRAIN[state.tiles[i]!.t];
   return def.land && hasTech(state, owner, def.needs);
+}
+
+/** Water a vessel can enter: shallows always, open ocean with Navigation. */
+export function canSail(state: DominionState, owner: string, i: number): boolean {
+  const def = TERRAIN[state.tiles[i]!.t];
+  return !def.land && hasTech(state, owner, def.needs);
+}
+
+/** A port of yours or an ally's, where land units board. */
+export function isFriendlyPort(state: DominionState, owner: string, i: number): boolean {
+  return state.tiles[i]!.imp === "port" && allied(state, tileOwner(state, i), owner);
 }
 
 function isRoadLike(state: DominionState, i: number): boolean {
@@ -82,7 +109,8 @@ export function stepCost(state: DominionState, owner: string, a: number, b: numb
 export function zoneOfControl(state: DominionState, owner: string, units: UnitIndex): Set<number> {
   const zone = new Set<number>();
   for (const u of units.values()) {
-    if (allied(state, u.owner, owner) || UNITS[u.type].range !== 1) continue;
+    const st = statsOf(u);
+    if (allied(state, u.owner, owner) || st.range !== 1 || st.attack === 0) continue;
     for (const n of neighbors(u.at, state.size)) zone.add(n);
   }
   return zone;
@@ -103,13 +131,22 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
   if (unit.done || unit.mp <= 0) return out;
   const size = state.size;
   const zone = zoneOfControl(state, unit.owner, units);
-  const free = (i: number) => canStand(state, unit.owner, i) && !units.has(i);
+  const naval = !!unit.vessel;
+  const passable = (i: number) => (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i));
+  // Crossing the shore ends the move: boarding at a port, or landing on empty
+  // ground. Neither creates extra movement (§9).
+  const crossing = (i: number) =>
+    !units.has(i) &&
+    (naval
+      ? canStand(state, unit.owner, i)
+      : isFriendlyPort(state, unit.owner, i) && hasTech(state, unit.owner, "sailing"));
   const best = new Map<number, number>([[unit.at, unit.mp]]);
+  const ends = new Set<number>();
   const queue = [unit.at];
   while (queue.length) {
     const cur = queue.shift()!;
     const left = best.get(cur)!;
-    if (left <= 0) continue;
+    if (left <= 0 || ends.has(cur)) continue;
     // Entering a zone of control or ruins stops the unit there.
     if (cur !== unit.at && (zone.has(cur) || state.tiles[cur]!.feat === "ruins")) continue;
     const r = rowOf(cur, size);
@@ -119,9 +156,13 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
       const cc = c + dc;
       if (!inBounds(rr, cc, size)) continue;
       const next = indexOf(rr, cc, size);
-      if (!free(next)) continue;
       // No squeezing diagonally between two impassable tiles.
-      if (dr && dc && !canStand(state, unit.owner, indexOf(r + dr, c, size)) && !canStand(state, unit.owner, indexOf(r, c + dc, size))) {
+      if (dr && dc && !passable(indexOf(r + dr, c, size)) && !passable(indexOf(r, c + dc, size))) continue;
+      if (!passable(next) || units.has(next)) {
+        if (crossing(next) && !best.has(next)) {
+          best.set(next, 0);
+          ends.add(next);
+        }
         continue;
       }
       const cost = stepCost(state, unit.owner, cur, next);
@@ -133,6 +174,7 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
       if (zone.has(next)) remain = 0;
       if ((best.get(next) ?? -1) < remain) {
         best.set(next, remain);
+        ends.delete(next);
         queue.push(next);
       }
     }
@@ -180,8 +222,8 @@ export interface CombatResult {
 }
 
 export function resolveCombat(state: DominionState, attacker: Unit, defender: Unit): CombatResult {
-  const ad = UNITS[attacker.type];
-  const dd = UNITS[defender.type];
+  const ad = statsOf(attacker);
+  const dd = statsOf(defender);
   const damage = strike(
     { attack: ad.attack, hp: attacker.hp, maxHp: attacker.maxHp },
     { defense: dd.defense, hp: defender.hp, maxHp: defender.maxHp },
@@ -204,15 +246,15 @@ export function resolveCombat(state: DominionState, attacker: Unit, defender: Un
 }
 
 export function canAttackWith(unit: Unit): boolean {
-  const def = UNITS[unit.type];
   // Siege can't move and shoot in one turn.
-  return !unit.done && !unit.attacked && def.attack > 0 && !(def.staticAttack && unit.moved);
+  const staticAttack = !unit.vessel && UNITS[unit.type].staticAttack;
+  return !unit.done && !unit.attacked && statsOf(unit).attack > 0 && !(staticAttack && unit.moved);
 }
 
 /** Enemy units in range that the attacker's owner can see. */
 export function attackTargets(state: DominionState, unit: Unit, visibleUnits: UnitIndex): Unit[] {
   if (!canAttackWith(unit)) return [];
-  const range = UNITS[unit.type].range;
+  const range = statsOf(unit).range;
   return area(unit.at, range, state.size)
     .map((i) => visibleUnits.get(i))
     .filter((u): u is Unit => !!u && !allied(state, u.owner, unit.owner));
@@ -230,7 +272,7 @@ export const CITY_VISION = 2;
 function ownVision(state: DominionState, owner: string, vis: Uint8Array): void {
   for (const u of Object.values(state.units)) {
     if (u.owner !== owner) continue;
-    const r = state.tiles[u.at]!.t === "mountain" ? MOUNTAIN_VISION : UNIT_VISION;
+    const r = u.vessel ? VESSELS[u.vessel].vision : state.tiles[u.at]!.t === "mountain" ? MOUNTAIN_VISION : UNIT_VISION;
     for (const i of area(u.at, r, state.size)) vis[i] = 1;
   }
   for (const c of Object.values(state.cities)) {
@@ -296,25 +338,67 @@ export function connectedCities(state: DominionState, owner: string): Set<string
   const capital = capitalOf(state, owner);
   const out = new Set<string>();
   if (!capital) return out;
-  const seen = new Set([capital.at]);
-  const stack = [capital.at];
-  while (stack.length) {
-    const cur = stack.pop()!;
-    const t = state.tiles[cur]!;
-    if (t.city) out.add(t.city);
-    for (const n of neighbors(cur, state.size)) {
-      if (seen.has(n)) continue;
-      const nt = state.tiles[n]!;
-      const owned = nt.city ? state.cities[nt.city]!.owner === owner : false;
-      const o = tileOwner(state, n);
-      if (owned || (nt.road && (o === null || o === owner))) {
-        seen.add(n);
-        stack.push(n);
+  // Roads first, from the capital.
+  const seen = new Set<number>();
+  const byRoad = (from: number) => {
+    const stack = [from];
+    seen.add(from);
+    while (stack.length) {
+      const cur = stack.pop()!;
+      const t = state.tiles[cur]!;
+      if (t.city) out.add(t.city);
+      for (const n of neighbors(cur, state.size)) {
+        if (seen.has(n)) continue;
+        const nt = state.tiles[n]!;
+        const owned = nt.city ? state.cities[nt.city]!.owner === owner : false;
+        const o = tileOwner(state, n);
+        if (owned || (nt.road && (o === null || o === owner))) {
+          seen.add(n);
+          stack.push(n);
+        }
       }
+    }
+  };
+  byRoad(capital.at);
+  // Then ports: two of yours on the same water link their cities, and each
+  // newly linked city's roads count too. Ocean joins waters only with Navigation.
+  const water = waterComponents(state, hasTech(state, owner, "navigation"));
+  const portsOf = (cityId: string) =>
+    state.tiles.flatMap((t, i) => (t.claim === cityId && t.imp === "port" && t.city === null ? [water[i]!] : []));
+  for (let grew = true; grew; ) {
+    grew = false;
+    const reached = new Set([...out].flatMap(portsOf));
+    for (const c of ownedCities(state, owner)) {
+      if (out.has(c.id) || !portsOf(c.id).some((w) => reached.has(w))) continue;
+      byRoad(c.at);
+      grew = true;
     }
   }
   out.delete(capital.id);
   return out;
+}
+
+/** Connected bodies of water: shallows, plus ocean if `withOcean`. */
+export function waterComponents(state: DominionState, withOcean: boolean): Int32Array {
+  const comp = new Int32Array(state.tiles.length).fill(-1);
+  const wet = (i: number) => state.tiles[i]!.t === "shallow" || (withOcean && state.tiles[i]!.t === "ocean");
+  let next = 0;
+  for (let i = 0; i < state.tiles.length; i++) {
+    if (comp[i] !== -1 || !wet(i)) continue;
+    const stack = [i];
+    comp[i] = next;
+    while (stack.length) {
+      const cur = stack.pop()!;
+      for (const n of neighbors(cur, state.size)) {
+        if (comp[n] === -1 && wet(n)) {
+          comp[n] = next;
+          stack.push(n);
+        }
+      }
+    }
+    next++;
+  }
+  return comp;
 }
 
 /** +1 per production improvement next to the city's market, in the same city, up to the cap (§6). */

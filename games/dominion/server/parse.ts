@@ -26,6 +26,10 @@ export function parseAction(input: unknown): DominionAction | null {
     case "disband":
     case "mend":
       return isId(a.unit) ? { type: a.type, turn, unit: a.unit } : null;
+    case "upgrade":
+      return isId(a.unit) && (a.vessel === "scout" || a.vessel === "rammer" || a.vessel === "bomber")
+        ? { type: "upgrade", turn, unit: a.unit, vessel: a.vessel }
+        : null;
     case "convert":
       return isId(a.unit) && isTile(a.target) ? { type: "convert", turn, unit: a.unit, target: a.target } : null;
     case "monument":

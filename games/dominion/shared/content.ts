@@ -6,6 +6,7 @@ import type {
   FactionKind,
   Improvement,
   MonumentId,
+  VesselType,
   Resource,
   RewardChoice,
   TechId,
@@ -29,7 +30,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
   forest: { name: "Forest", land: true, cost: 4, defenseTech: "archery" },
   mountain: { name: "Mountain", land: true, cost: 4, needs: "climbing", defenseTech: "meditation" },
   shallow: { name: "Shallow water", land: false, cost: 2 },
-  ocean: { name: "Ocean", land: false, cost: 2 },
+  ocean: { name: "Ocean", land: false, cost: 2, needs: "navigation" },
 };
 
 /** Road-to-road (or city) steps inside non-hostile territory. */
@@ -71,6 +72,27 @@ export const UNITS: Record<UnitType, UnitDef> = {
 
 export const TRAINABLE: UnitType[] = ["infantry", "cavalry", "archer", "defender", "swordsman", "siege", "knight", "sage"];
 
+export interface VesselDef {
+  name: string;
+  /** Upgrade price from a transport; transports come free with a port. */
+  cost: number;
+  attack: number;
+  defense: number;
+  move: number;
+  range: number;
+  vision: number;
+  needs: TechId;
+  /** Hits neighbours of the target for half, never friends, never unseen (§9). */
+  splash?: boolean;
+}
+
+export const VESSELS: Record<VesselType, VesselDef> = {
+  transport: { name: "Transport", cost: 0, attack: 0, defense: 1, move: 2, range: 1, vision: 2, needs: "sailing" },
+  scout: { name: "Scout ship", cost: 5, attack: 2, defense: 1, move: 3, range: 2, vision: 3, needs: "sailing" },
+  rammer: { name: "Rammer", cost: 8, attack: 3, defense: 3, move: 3, range: 1, vision: 2, needs: "navigation" },
+  bomber: { name: "Bomber", cost: 12, attack: 4, defense: 2, move: 2, range: 3, vision: 2, needs: "navigation", splash: true },
+};
+
 /** Knights stop chaining after this many extra attacks, whatever's left to hit (§17). */
 export const MAX_CHAIN = 4;
 export const MEND_HP = 4;
@@ -107,6 +129,8 @@ export const TECHS: Record<TechId, TechDef> = {
   meditation: { name: "Meditation", tier: 2, parent: "climbing", unlocks: "Mountain defense" },
   philosophy: { name: "Philosophy", tier: 3, parent: "meditation", unlocks: "Sages; research costs a fifth less" },
   fishing: { name: "Fishing", tier: 1, unlocks: "Harvest fish" },
+  sailing: { name: "Sailing", tier: 2, parent: "fishing", unlocks: "Ports, boarding ships, scout ships" },
+  navigation: { name: "Navigation", tier: 3, parent: "sailing", unlocks: "Open ocean, rammers and bombers" },
 };
 
 export const TECH_ORDER = Object.keys(TECHS) as TechId[];
@@ -210,6 +234,7 @@ export const DEVELOP: Record<BuildKind, DevelopDef> = {
   forge: { name: "Forge", cost: 5, pop: 0, needs: "metallurgy", terrain: ["plains"], builds: "forge", unique: true, adjacentPop: "mine" },
   market: { name: "Market", cost: 6, pop: 0, needs: "commerce", terrain: ["plains"], builds: "market", unique: true },
   temple: { name: "Temple", cost: 8, pop: 1, needs: "spirituality", terrain: ["plains", "forest"], builds: "temple" },
+  port: { name: "Port", cost: 6, pop: 2, needs: "sailing", terrain: ["shallow"], builds: "port" },
 };
 
 /** What a market counts next to it: things that make things. */
@@ -235,6 +260,9 @@ export const MONUMENTS: Record<Exclude<MonumentId, "peace">, MonumentDef> = {
 };
 export const MONUMENT_POP = 3;
 
+/** Population a beacon gives the finder's capital, once per empire. */
+export const BEACON_POP = 1;
+
 export const HARVEST: Partial<Record<Resource, { cost: number; pop: number; needs: TechId }>> = {
   fruit: { cost: 2, pop: 1, needs: "gathering" },
   animals: { cost: 2, pop: 1, needs: "hunting" },
@@ -258,6 +286,7 @@ export const IMPROVEMENT_NAMES: Record<Improvement, string> = {
   market: "Market",
   temple: "Temple",
   monument: "Monument",
+  port: "Port",
 };
 
 /** Two choices per level band; the first is the default when time runs out. */
