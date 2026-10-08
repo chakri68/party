@@ -34,6 +34,7 @@ import type {
   KnownUnit,
   RewardChoice,
 } from "../shared/types.ts";
+import { unpackView, type WirePrivateState } from "../shared/wire.ts";
 import { Board, type BoardModel, type PlayerLook } from "./board.ts";
 import { spriteUrl, type SpriteKey } from "./assets.ts";
 import { diplomacyScreen } from "./diplomacy.ts";
@@ -164,7 +165,7 @@ export class DominionView implements GameView {
   update(props: GameViewProps) {
     this.props = props;
     this.pub = props.game as DominionPublicState;
-    this.priv = props.private as DominionPrivateState | null;
+    this.priv = props.private ? unpackView(props.private as WirePrivateState) : null;
     if (!props.snapshot) this.playEvents(props.events as DominionEvent[]);
 
     const p = this.priv;

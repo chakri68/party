@@ -87,7 +87,6 @@ import {
   type DevelopKind,
   type DominionAction,
   type DominionEvent,
-  type DominionPrivateState,
   type DominionPublicState,
   type DominionSettings,
   type DominionState,
@@ -100,6 +99,7 @@ import {
 import { decide, type BotMemory } from "./bot.ts";
 import { parseAction } from "./parse.ts";
 import { projectFor, visibleUnits } from "./projection.ts";
+import { packView, type WirePrivateState } from "../shared/wire.ts";
 
 type State = DominionState;
 type Envelope = GameEventEnvelope<DominionEvent>;
@@ -1323,7 +1323,7 @@ export const dominionGame: GameDefinition<
   DominionState,
   DominionAction,
   DominionPublicState,
-  DominionPrivateState,
+  WirePrivateState,
   DominionSettings,
   DominionEvent
 > = {
@@ -1494,7 +1494,9 @@ export const dominionGame: GameDefinition<
   },
 
   getPrivateState(stored, playerId) {
-    return projectFor(upgrade(stored), playerId);
+    // Packed for the wire; the computer players use projectFor's full form.
+    const state = upgrade(stored);
+    return packView(projectFor(state, playerId), state.round);
   },
 
   getAwaitedPlayerIds(state) {

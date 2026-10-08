@@ -8,6 +8,7 @@ import { UNITS } from "../shared/content.ts";
 import { indexOf } from "../shared/grid.ts";
 import { generateWorld, MAX_ATTEMPTS, validateWorld } from "../shared/mapgen.ts";
 import { decodeTile, encodeTile } from "../shared/memory.ts";
+import { packTile, unpackTile } from "../shared/wire.ts";
 import { connectedCities, reachable, indexUnits } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
@@ -16,6 +17,7 @@ import {
   type DominionState,
   type FactionKind,
   type Improvement,
+  type KnownTile,
   type Tile,
   type Unit,
 } from "../shared/types.ts";
@@ -183,6 +185,16 @@ describe("water maps", () => {
 });
 
 describe("fog memory", () => {
+  it("packs views for the wire without losing anything", () => {
+    const tiles: KnownTile[] = [
+      { t: "plains", res: null, imp: null, road: false, feat: null, owner: null, vis: true, seen: 7 },
+      { t: "forest", res: "animals", imp: "grove", road: true, feat: "ruins", owner: "p1", vis: false, seen: 3, tended: true, myc: "p2" },
+      { t: "ice", res: "fish", imp: null, road: false, feat: null, owner: null, vis: false, seen: -1 },
+    ];
+    for (const t of tiles) expect(unpackTile(packTile(t), 7)).toEqual(t);
+    expect(JSON.stringify(packTile(tiles[0]!))).toBe('{"t":"plains","vis":true}');
+  });
+
   it("remembers every terrain, improvement, feature and mycelium owner exactly", () => {
     const imps: (Improvement | null)[] = [null, "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "monument", "port", "grove", "reef_nest"];
     for (const t of ["plains", "forest", "mountain", "shallow", "ocean", "ice"] as const) {

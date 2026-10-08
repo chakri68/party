@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { dominionGame as game } from "../server/game.ts";
 import { HARVEST, TECH_ORDER, TECHS, techCost, TERRAIN, TRAINABLE, UNITS } from "../shared/content.ts";
 import { Rng } from "../shared/grid.ts";
+import { unpackView } from "../shared/wire.ts";
 import { canOccupy, visionOf } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
@@ -65,8 +66,10 @@ function checkInvariants(before: DominionState, after: DominionState, events: { 
   for (const f of after.factions) expect(f.credits).toBeGreaterThanOrEqual(0);
 
   for (const f of after.factions) {
-    const view = game.getPrivateState(after, f.id);
-    const json = JSON.stringify(view);
+    // What goes over the wire is packed; check its privacy, then read it as the client would.
+    const wire = game.getPrivateState(after, f.id);
+    const json = JSON.stringify(wire);
+    const view = unpackView(wire);
     // No seed, ever. (The key never exists in a projection; the value would be a coincidence.)
     expect(json.includes('"seed"')).toBe(false);
     if (after.phase !== "playing") continue;
@@ -111,7 +114,7 @@ function play(seed: number, players: number, settings: Partial<DominionSettings>
   let accepted = 0;
   for (let n = 0; n < maxActions && state.phase === "playing"; n++) {
     const me = state.factions[state.current]!.id;
-    const view = game.getPrivateState(state, me);
+    const view = unpackView(game.getPrivateState(state, me));
     const action = chooseAction(view, rng);
     const res = game.handleAction(state, me, action, ctx());
     if (!res.ok) {

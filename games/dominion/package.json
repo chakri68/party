@@ -9,7 +9,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "manifest": "node scripts/build-manifest.mjs"
+    "manifest": "node scripts/build-manifest.mjs",
+    "balance": "node scripts/balance.ts",
+    "perf": "node scripts/perf.ts"
   },
   "dependencies": {
     "@games/game-core": "workspace:*",

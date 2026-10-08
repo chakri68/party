@@ -6,6 +6,7 @@ import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { dominionGame as game } from "../server/game.ts";
 import { parseAction } from "../server/parse.ts";
+import { unpackView } from "../shared/wire.ts";
 import { FACTIONS, NETWORK, techsFor, trainableFor, UNITS } from "../shared/content.ts";
 import { indexOf } from "../shared/grid.ts";
 import { generateWorld, validateWorld } from "../shared/mapgen.ts";
@@ -141,7 +142,7 @@ describe("the network", () => {
     s = end(s);
     delete s.units[spy.id];
     s = end(end(s));
-    const known = game.getPrivateState(s, "p1").tiles[at(s, 1, 4)];
+    const known = unpackView(game.getPrivateState(s, "p1")).tiles[at(s, 1, 4)];
     expect(known?.vis).toBe(false);
     expect(known?.myc).toBe("p0");
   });

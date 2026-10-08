@@ -5,6 +5,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { decide, landPlan } from "../server/bot.ts";
+import { unpackView } from "../shared/wire.ts";
 import { dominionGame as game } from "../server/game.ts";
 import { FACTIONS, ICE, trainableFor, UNITS } from "../shared/content.ts";
 import { indexOf, Rng } from "../shared/grid.ts";
@@ -256,7 +257,7 @@ describe("the computer", () => {
     put(s, "u", "p0", at(s, 5, 3));
     // It knows its own island, the strait, and the village beyond.
     for (const f of [s.factions[0]!]) f.memory.codes = s.tiles.map((t) => (t.t === "shallow" ? 3 : 0));
-    const view = game.getPrivateState(s, "p0");
+    const view = unpackView(game.getPrivateState(s, "p0"));
     view.tiles[at(s, 5, 9)] = { ...view.tiles[at(s, 5, 9)]!, feat: "village" };
     expect(landPlan(view, at(s, 5, 3), s.size).toward).toBe(at(s, 5, 9));
     const a = decide(view, "hard", new Rng(1), { banned: new Set() });
@@ -269,7 +270,7 @@ describe("the computer", () => {
     const s = strait();
     s.factions[0]!.bot = { level: "hard", name: "Frost" };
     put(s, "u", "p0", at(s, 5, 3));
-    const view = game.getPrivateState(s, "p0");
+    const view = unpackView(game.getPrivateState(s, "p0"));
     expect(landPlan(view, at(s, 5, 3), s.size).walk).toBe(true);
   });
 });
