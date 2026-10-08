@@ -14,6 +14,8 @@ function anchor(family, w, h) {
   if (family === "cities") return [48, 88];
   if (family === "units") return w === 64 ? [32, 60] : [24, 60];
   if (family === "effects") return [24, 24];
+  if (family === "vessels") return [32, 60];
+  if (family === "icons" || family === "crests") return [w / 2, h / 2];
   return [48, 40]; // overlays: resources, features, improvements, roads
 }
 

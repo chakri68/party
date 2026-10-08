@@ -150,7 +150,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
         onclick: () => select(n.tech),
       },
       s === "open" ? h("span", { class: "dm-ts-cost" }, h("span", { class: "dm-coin" }), String(cost)) : null,
-      s !== "locked" ? art(artFor(n.tech, kind, color), "dm-ts-art") : null,
+      s !== "locked" ? art(spriteEntry(`icon.tech.${n.tech}`) ? { id: `icon.tech.${n.tech}` } : artFor(n.tech, kind, color), "dm-ts-art") : null,
       h("span", { class: "dm-ts-name" }, TECHS[n.tech].name),
     );
     nodes.set(n.tech, btn);

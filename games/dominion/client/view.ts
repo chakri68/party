@@ -240,7 +240,7 @@ export class DominionView implements GameView {
         case "city-level": {
           const city = p?.cities.find((c) => c.mine?.id === e.city);
           lines.push(`${city?.name ?? "A city"} grew to level ${e.level}. Pick a reward.`);
-          if (city) this.board.effect(city.at, "effect.spawn");
+          if (city) this.board.effect(city.at, "effect.city_upgrade", "effect.spawn");
           break;
         }
         case "ruins":
@@ -251,7 +251,7 @@ export class DominionView implements GameView {
           lines.push(e.playerId === p?.me ? `Round ${e.round}. Your turn.` : `${this.player(e.playerId).name}'s turn.`);
           break;
         case "sabotage":
-          this.board.effect(e.at, "effect.hit");
+          this.board.effect(e.at, "effect.sabotage", "effect.hit");
           lines.push(e.by === p?.me ? "Sabotage: their city pays nothing next turn." : `Sabotage in ${p?.cities.find((c) => c.at === e.at)?.name ?? "a city"}!`);
           break;
         case "contact":
@@ -272,7 +272,7 @@ export class DominionView implements GameView {
           lines.push(e.from === p?.me ? `Embassy opened with ${this.player(e.to).name}.` : `${this.player(e.from).name} opened an embassy with you.`);
           break;
         case "splash":
-          this.board.effect(e.at, "effect.hit");
+          this.board.effect(e.at, "effect.splash", "effect.hit");
           this.board.floatText(e.at, `−${e.damage}`, "#ff6b5e");
           break;
         case "beacon":
@@ -280,7 +280,7 @@ export class DominionView implements GameView {
           lines.push("Found a beacon: +1 population for your capital.");
           break;
         case "convert":
-          this.board.effect(e.at, "effect.capture");
+          this.board.effect(e.at, "effect.conversion", "effect.capture");
           lines.push(e.by === p?.me ? "Converted. They fight for you now." : `${this.player(e.by).name} converted a unit.`);
           break;
         case "monument":

@@ -270,9 +270,11 @@ export class Board {
     this.invalidate();
   }
 
-  effect(at: number, sprite: string): void {
+  /** `fallback`: the effect to show while a more specific one has no art. */
+  effect(at: number, sprite: string, fallback?: string): void {
     if (!motionAllowed()) return;
-    this.effects.push({ sprite, at, t0: performance.now() });
+    const id = fallback && !this.cache.has(sprite) ? fallback : sprite;
+    this.effects.push({ sprite: id, at, t0: performance.now() });
     this.invalidate();
   }
 
@@ -666,9 +668,20 @@ export class Board {
     return this.cache.has(id) ? id : id.replace(`.${kind}.`, ".orchard.");
   }
 
+  /**
+   * Three visual tiers (level 1, 2–3, 4+), each falling back to the tier
+   * below, then to Orchard's, so any subset of a pack works when it lands.
+   */
   private citySprite(city: KnownCity): string {
     const kind = city.owner ? (this.model!.players.get(city.owner)?.kind ?? "orchard") : "orchard";
-    return this.art(`city.${kind}.tier1`, kind);
+    const tier = city.level >= 4 ? 3 : city.level >= 2 ? 2 : 1;
+    for (let t = tier; t >= 1; t--) {
+      if (this.cache.has(`city.${kind}.tier${t}`)) return `city.${kind}.tier${t}`;
+    }
+    for (let t = tier; t >= 1; t--) {
+      if (this.cache.has(`city.orchard.tier${t}`)) return `city.orchard.tier${t}`;
+    }
+    return `city.${kind}.tier1`;
   }
 
   private drawCity(city: KnownCity, color: string, dim: boolean): void {
@@ -752,6 +765,21 @@ export class Board {
       ctx.closePath();
       ctx.fill();
     };
+    // A ship sprite, once the art track delivers one, replaces the drawing;
+    // the cargo still rides on deck so you can tell what's aboard.
+    const ship = this.cache.get({ id: `vessel.${kind}.default`, color });
+    if (ship) {
+      this.blit(ship, wx, wy);
+      if (cargo) {
+        ctx.save();
+        ctx.globalAlpha = 1;
+        const zk = 0.7;
+        const [csx, csy] = this.toScreen(wx, wy - 14);
+        ctx.drawImage(cargo.canvas, csx - cargo.ax * z * zk, csy - cargo.ay * z * zk, cargo.w * z * zk, cargo.h * z * zk);
+        ctx.restore();
+      }
+      return;
+    }
     const len = kind === "scout" ? 30 : 26;
     // Sail behind the cargo.
     poly(shade(color, 0.15), [[2, -46], [2, -14], [20, -16]]);
