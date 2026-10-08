@@ -4,7 +4,7 @@
 // It's a screen of its own over the map, not a dialog: a web needs room.
 
 import { h } from "@games/ui";
-import { MONUMENTS, ROOT_TECHS, TECH_ORDER, techCost, TECHS, UNITS } from "../shared/content.ts";
+import { MONUMENTS, parentFor, rootTechsFor, techCost, TECHS, techsFor, UNITS } from "../shared/content.ts";
 import type { DominionPrivateState, FactionKind, TechId } from "../shared/types.ts";
 import { spriteEntry, spriteUrl, type SpriteKey } from "./assets.ts";
 
@@ -15,11 +15,6 @@ const artFor_ = (id: string, fallback: string) => (spriteEntry(id) ? id : fallba
 const RADII = [0, 21, 36, 48];
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-const children = (t: TechId) => TECH_ORDER.filter((c) => TECHS[c].parent === t);
-const leaves = (t: TechId): number => {
-  const kids = children(t);
-  return kids.length ? kids.reduce((n, c) => n + leaves(c), 0) : 1;
-};
 
 interface Placed {
   tech: TechId;
@@ -28,9 +23,17 @@ interface Placed {
   y: number;
 }
 
-function layout(): Placed[] {
+/** A faction's own tree: special factions swap a branch, and its children follow. */
+function layout(kind: FactionKind): Placed[] {
+  const tree = techsFor(kind);
+  const roots = rootTechsFor(kind);
+  const children = (t: TechId) => tree.filter((c) => parentFor(kind, c) === t);
+  const leaves = (t: TechId): number => {
+    const kids = children(t);
+    return kids.length ? kids.reduce((n, c) => n + leaves(c), 0) : 1;
+  };
   const out: Placed[] = [];
-  const total = ROOT_TECHS.reduce((n, t) => n + leaves(t), 0);
+  const total = roots.reduce((n, t) => n + leaves(t), 0);
   const place = (tech: TechId, parent: TechId | null, from: number, to: number, depth: number) => {
     const a = (from + to) / 2;
     out.push({ tech, parent, x: 50 + RADII[depth]! * Math.cos(a), y: 50 + RADII[depth]! * Math.sin(a) });
@@ -41,8 +44,8 @@ function layout(): Placed[] {
       at += span;
     }
   };
-  let at = -Math.PI / 2 - (Math.PI * leaves(ROOT_TECHS[0]!)) / total;
-  for (const t of ROOT_TECHS) {
+  let at = -Math.PI / 2 - (Math.PI * leaves(roots[0]!)) / total;
+  for (const t of roots) {
     const span = (2 * Math.PI * leaves(t)) / total;
     place(t, null, at, at + span, 1);
     at += span;
@@ -50,7 +53,6 @@ function layout(): Placed[] {
   return out;
 }
 
-const LAYOUT = layout();
 
 /** The art each node shows: what the tech lets you build, harvest or train. */
 function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
@@ -79,6 +81,9 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     fishing: { id: "resource.fish.default" },
     sailing: { id: "terrain.water.shallow.default" },
     navigation: { id: "terrain.ocean.default" },
+    tending: { id: "resource.animals.default" },
+    grovecraft: { id: "terrain.forest.default" },
+    skyroost: unit("great_owl"),
   };
   return art[tech];
 }
@@ -107,9 +112,11 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
   el: HTMLElement;
   destroy(): void;
 } {
+  const LAYOUT = layout(kind);
+  const TECH_ORDER = LAYOUT.map((n) => n.tech);
   const state = (t: TechId) => {
     if (view.techs.includes(t)) return "owned";
-    const parent = TECHS[t].parent;
+    const parent = parentFor(kind, t);
     return !parent || view.techs.includes(parent) ? "open" : "locked";
   };
   let selected: TechId | null =
@@ -207,7 +214,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
     const units = Object.values(UNITS).filter((u) => u.needs === tech).map((u) => u.name);
     const reason =
       s === "owned" ? null
-      : s === "locked" ? `Research ${TECHS[def.parent!].name} first`
+      : s === "locked" ? `Research ${TECHS[parentFor(kind, tech)!].name} first`
       : !view.myTurn ? "You can research on your turn"
       : view.credits < cost ? `${cost - view.credits} more credits needed`
       : null;

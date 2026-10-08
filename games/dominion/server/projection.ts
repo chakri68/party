@@ -10,6 +10,7 @@ import {
   canSeeUnit,
   treatyOf,
   attackTargets,
+  canCaptureWith,
   capacity,
   cityIncome,
   connectedCities,
@@ -47,7 +48,16 @@ function knownUnit(u: Unit, me: string): KnownUnit {
   if (u.owner !== me) return base;
   return {
     ...base,
-    mine: { kills: u.kills, mp: u.mp, moved: u.moved, attacked: u.attacked, done: u.done, settled: u.settled, home: u.home },
+    mine: {
+      kills: u.kills,
+      mp: u.mp,
+      moved: u.moved,
+      attacked: u.attacked,
+      done: u.done,
+      settled: u.settled,
+      home: u.home,
+      ...(UNITS[u.type].matures && { maturesIn: UNITS[u.type].matures!.turns - (u.age ?? 0) }),
+    },
   };
 }
 
@@ -55,6 +65,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
   const f = faction(state, me);
   const empty: DominionPrivateState = {
     me,
+    kind: f?.kind ?? "orchard",
     myTurn: false,
     turn: state.turn,
     tiles: state.tiles.map(() => null),
@@ -84,7 +95,17 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
 
   const tiles: (KnownTile | null)[] = state.tiles.map((t, i) => {
     if (vis[i]) {
-      return { t: t.t, res: t.res, imp: t.imp, road: t.road, feat: t.feat, owner: tileOwner(state, i), vis: true, seen: state.round };
+      return {
+        t: t.t,
+        res: t.res,
+        imp: t.imp,
+        road: t.road,
+        feat: t.feat,
+        owner: tileOwner(state, i),
+        vis: true,
+        seen: state.round,
+        ...(t.tended && { tended: true }),
+      };
     }
     const code = f.memory.codes[i]!;
     if (code < 0) return null;
@@ -152,7 +173,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
       const tile = state.tiles[u.at]!;
       const city = tile.city ? state.cities[tile.city] : undefined;
       const canCapture =
-        !u.done && !u.moved && u.settled && (tile.feat === "village" || (!!city && !allied(state, city.owner, me)));
+        !u.done && !u.moved && u.settled && canCaptureWith(u) && (tile.feat === "village" || (!!city && !allied(state, city.owner, me)));
       const canPromote = !u.veteran && u.kills >= VETERAN_KILLS;
       if (UNITS[u.type].sage && !u.done && !u.attacked) {
         const c = neighbors(u.at, state.size).filter((i) => {
@@ -167,6 +188,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
 
   return {
     me,
+    kind: f.kind,
     myTurn,
     turn: state.turn,
     tiles,

@@ -29,6 +29,10 @@ const PARTS: Record<FactionKind, [string[], string[]]> = {
     ["Stone", "Bastion", "Rampart", "Shield", "Warden", "Gate", "Tower", "Keep", "Moat", "Banner", "Sentinel", "Bulwark"],
     ["wall", "keep", "guard", "watch", "fort", "burg", "hall", "march", "rest", "stand"],
   ],
+  wildwood: [
+    ["Moon", "Hazel", "Lichen", "Dew", "Willow", "Sorrel", "Mistle", "Foxglove", "Yew", "Bracken", "Hush", "Acorn"],
+    ["glade", "bower", "hollow", "ring", "root", "thicket", "dell", "grove", "wend", "bough"],
+  ],
 };
 
 export function cityName(rng: Rng, kind: FactionKind, taken: ReadonlySet<string>): string {

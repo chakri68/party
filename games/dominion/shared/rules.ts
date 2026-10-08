@@ -5,6 +5,7 @@ import {
   CITY_DEFENSE,
   DEMOLISH_COST,
   DEVELOP,
+  FACTIONS,
   HARVEST,
   MARKET_CAP,
   PEACE_ROUNDS,
@@ -14,13 +15,30 @@ import {
   SCORE,
   TERRAIN,
   TECHS,
+  TEND,
+  techFor,
   TERRAIN_DEFENSE,
   UNITS,
   VESSELS,
   WALLS_DEFENSE,
 } from "./content.ts";
 import { area, colOf, inBounds, indexOf, NEIGHBORS, neighbors, rowOf } from "./grid.ts";
-import type { MonumentId, Treaty, City, DevelopKind, DominionState, Faction, Improvement, IncomeBreakdown, Resource, TechId, Terrain, Unit } from "./types.ts";
+import type {
+  City,
+  DevelopKind,
+  DominionState,
+  Faction,
+  FactionKind,
+  Improvement,
+  IncomeBreakdown,
+  MonumentId,
+  Resource,
+  TechId,
+  Terrain,
+  Treaty,
+  Unit,
+  UnitType,
+} from "./types.ts";
 
 export type UnitIndex = Map<number, Unit>;
 
@@ -84,7 +102,7 @@ export interface UnitStats {
 export function statsOf(unit: Pick<Unit, "type" | "vessel">): UnitStats {
   if (unit.vessel) return VESSELS[unit.vessel];
   const d = UNITS[unit.type];
-  return { attack: d.attack, defense: d.defense, move: d.move, range: d.range, vision: UNIT_VISION };
+  return { attack: d.attack, defense: d.defense, move: d.move, range: d.range, vision: d.vision ?? UNIT_VISION };
 }
 
 export function fullMp(unit: Pick<Unit, "type" | "vessel">): number {
@@ -117,14 +135,23 @@ function isRoadLike(state: DominionState, i: number): boolean {
   return t.road || t.city !== null;
 }
 
-/** Half-points to step from `a` into neighbouring `b`. */
-export function stepCost(state: DominionState, owner: string, a: number, b: number): number {
+/** Half-points for `type` to step from `a` into neighbouring `b`. */
+export function stepCost(state: DominionState, owner: string, a: number, b: number, type?: UnitType): number {
   const friendly = (i: number) => {
     const o = tileOwner(state, i);
     return o === null || allied(state, o, owner);
   };
   if (isRoadLike(state, a) && isRoadLike(state, b) && friendly(a) && friendly(b)) return ROAD_COST;
-  return TERRAIN[state.tiles[b]!.t].cost;
+  const def = type ? UNITS[type] : undefined;
+  const terrain = state.tiles[b]!.t;
+  // Fliers pay a plain step whatever is underneath.
+  if (def?.flying) return TERRAIN.plains.cost;
+  return def?.terrainCost?.[terrain] ?? TERRAIN[terrain].cost;
+}
+
+/** Whether this unit may take a village or a city at all. */
+export function canCaptureWith(unit: Pick<Unit, "type" | "vessel">): boolean {
+  return !unit.vessel && !UNITS[unit.type].noCapture;
 }
 
 /** Tiles next to a hostile melee unit. Entering one ends the move. */
@@ -153,17 +180,21 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
   // Not `attacked`: cavalry with Free Spirit may still fall back after a strike.
   if (unit.done || unit.mp <= 0) return out;
   const size = state.size;
-  const zone = zoneOfControl(state, unit.owner, units);
+  const flying = !unit.vessel && !!UNITS[unit.type].flying;
+  // Fliers pass over zones of control (§ special factions).
+  const zone = flying ? new Set<number>() : zoneOfControl(state, unit.owner, units);
   const naval = !!unit.vessel;
   // A treaty forbids standing in the partner's cities (§11).
   const offLimits = (i: number) => {
     const c = state.tiles[i]!.city;
     return !!c && atPeace(state, state.cities[c]?.owner ?? null, unit.owner);
   };
-  const passable = (i: number) => !offLimits(i) && (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i));
+  const passable = (i: number) =>
+    !offLimits(i) && (flying || (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i)));
   // Crossing the shore ends the move: boarding at a port, or landing on empty
   // ground. Neither creates extra movement (§9).
   const crossing = (i: number) =>
+    !flying &&
     !units.has(i) &&
     (naval
       ? canStand(state, unit.owner, i)
@@ -193,7 +224,7 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
         }
         continue;
       }
-      const cost = stepCost(state, unit.owner, cur, next);
+      const cost = stepCost(state, unit.owner, cur, next, unit.vessel ? undefined : unit.type);
       let remain = left - cost;
       if (remain < 0) {
         if (cur !== unit.at || unit.moved) continue;
@@ -208,7 +239,11 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
     }
   }
   best.delete(unit.at);
-  for (const [i, left] of best) out.set(i, left);
+  for (const [i, left] of best) {
+    // A flier crosses water and peaks but has to come down on land.
+    if (flying && !TERRAIN[state.tiles[i]!.t].land) continue;
+    out.set(i, left);
+  }
   return out;
 }
 
@@ -223,6 +258,8 @@ export function defenseMultiplier(state: DominionState, unit: Unit): number {
   if (city && city.owner === unit.owner) best = Math.max(best, city.walls ? WALLS_DEFENSE : CITY_DEFENSE);
   const tech = TERRAIN[tile.t].defenseTech;
   if (tech && hasTech(state, unit.owner, tech)) best = Math.max(best, TERRAIN_DEFENSE);
+  const own = unit.vessel ? undefined : UNITS[unit.type].terrainDefense?.[tile.t];
+  if (own) best = Math.max(best, own);
   return best;
 }
 
@@ -321,7 +358,8 @@ function chebyshevOf(state: DominionState, a: number, b: number): number {
 function ownVision(state: DominionState, owner: string, vis: Uint8Array): void {
   for (const u of Object.values(state.units)) {
     if (u.owner !== owner) continue;
-    const r = u.vessel ? VESSELS[u.vessel].vision : state.tiles[u.at]!.t === "mountain" ? MOUNTAIN_VISION : UNIT_VISION;
+    const own = statsOf(u).vision;
+    const r = u.vessel ? own : Math.max(own, state.tiles[u.at]!.t === "mountain" ? MOUNTAIN_VISION : UNIT_VISION);
     for (const i of area(u.at, r, state.size)) vis[i] = 1;
   }
   for (const c of Object.values(state.cities)) {
@@ -470,8 +508,16 @@ export function marketIncome(state: DominionState, city: City): number {
   return total;
 }
 
+/** Wildwood: untouched forest (bare, or a grove) in the city's land pays, up to a cap. */
+export function forestIncome(state: DominionState, city: City): number {
+  const rule = city.owner ? FACTIONS[faction(state, city.owner)?.kind ?? "orchard"].forestIncome : undefined;
+  if (!rule) return 0;
+  const n = state.tiles.filter((t) => t.claim === city.id && t.t === "forest" && (t.imp === null || t.imp === "grove")).length;
+  return Math.min(rule.cap, Math.floor(n / rule.per));
+}
+
 export function cityIncome(state: DominionState, city: City, units: UnitIndex, connected?: Set<string>): IncomeBreakdown {
-  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, total: 0 };
+  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, forest: 0, total: 0 };
   if (!city.owner || isOccupied(city, units) || city.sabotaged) return zero;
   const links = connected ?? connectedCities(state, city.owner);
   const b = {
@@ -480,9 +526,10 @@ export function cityIncome(state: DominionState, city: City, units: UnitIndex, c
     capital: city.capitalOf === city.owner ? 1 : 0,
     connection: links.has(city.id) ? 1 : 0,
     market: marketIncome(state, city),
+    forest: forestIncome(state, city),
     total: 0,
   };
-  b.total = b.level + b.workshop + b.capital + b.connection + b.market;
+  b.total = b.level + b.workshop + b.capital + b.connection + b.market + b.forest;
   return b;
 }
 
@@ -539,6 +586,7 @@ export interface DevTile {
   imp: Improvement | null;
   road: boolean;
   feat: string | null;
+  tended?: boolean;
 }
 
 /**
@@ -548,20 +596,24 @@ export interface DevTile {
 export function developBlock(
   kind: DevelopKind,
   tile: DevTile,
-  ctx: { mine: boolean; open: boolean; hasCity: boolean; techs: readonly TechId[]; credits: number },
+  ctx: { kind: FactionKind; mine: boolean; open: boolean; hasCity: boolean; techs: readonly TechId[]; credits: number },
 ): string | null | undefined {
   const need = (tech: TechId) => (ctx.techs.includes(tech) ? null : `Needs ${TECHS[tech].name}`);
   const pay = (cost: number) => (ctx.credits < cost ? "Not enough credits" : null);
+  const rules = FACTIONS[ctx.kind];
   if (ctx.hasCity) return undefined;
-  if (kind === "harvest") {
+  if (kind === "harvest" || kind === "tend") {
+    // Tending factions tend; everyone else harvests. Never both.
+    if ((kind === "tend") !== !!rules.tends) return undefined;
     const h = tile.res ? HARVEST[tile.res] : undefined;
-    if (!h || !ctx.mine) return undefined;
-    return need(h.needs) ?? pay(h.cost);
+    if (!h || !ctx.mine || (kind === "tend" && tile.tended)) return undefined;
+    return need(techFor(ctx.kind, h.needs)) ?? pay(kind === "tend" ? TEND.cost : h.cost);
   }
   if (kind === "demolish") {
     if (!ctx.mine || !tile.imp || tile.imp === "monument") return undefined;
     return need("construction") ?? pay(DEMOLISH_COST);
   }
+  if (rules.forbids?.includes(kind)) return undefined;
   const def = DEVELOP[kind];
   if (!def.terrain.includes(tile.t) || tile.feat) return undefined;
   if (kind === "road") {

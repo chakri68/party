@@ -12,8 +12,9 @@ import {
   REWARDS,
   rewardChoices,
   TECHS,
+  TEND,
   TERRAIN,
-  TRAINABLE,
+  trainableFor,
   UNITS,
   VESSELS,
   VETERAN_KILLS,
@@ -720,7 +721,7 @@ export class DominionView implements GameView {
     const bits = [
       // The heading already names bare terrain; don't say it twice.
       title !== TERRAIN[tile.t].name && TERRAIN[tile.t].name,
-      tile.res && RESOURCE_NAMES[tile.res],
+      tile.res && `${RESOURCE_NAMES[tile.res]}${tile.tended ? " (tended)" : ""}`,
       tile.imp && IMPROVEMENT_NAMES[tile.imp],
       tile.road && "Road",
       owner && (owner.name === "You" ? "Your land" : `${owner.name}'s land`),
@@ -751,7 +752,7 @@ export class DominionView implements GameView {
     const actions: HTMLElement[] = [];
     if (mine && p.myTurn) {
       const fresh = !mine.done && !mine.moved && !mine.attacked;
-      const capturable = tile?.feat === "village" || (!!city && !this.alliedWith(city.owner));
+      const capturable = !def.noCapture && !unit.vessel && (tile?.feat === "village" || (!!city && !this.alliedWith(city.owner)));
       if (capturable && fresh) {
         actions.push(
           h("button", {
@@ -769,7 +770,7 @@ export class DominionView implements GameView {
       if (!unit.veteran && mine.kills >= VETERAN_KILLS) {
         actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "promote", unit: unit.id }, "promote") }, "Promote"));
       }
-      if (def.sage && !mine.done && !mine.attacked) {
+      if ((def.sage || def.mender) && !mine.done && !mine.attacked) {
         const hurt = p.units.some((u) => u.id !== unit.id && this.alliedWith(u.owner) && u.hp < u.maxHp && chebyshev(u.at, unit.at, this.pub!.size) === 1);
         actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
         if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
@@ -855,6 +856,10 @@ export class DominionView implements GameView {
         mine ? stat("Kills", mine.kills) : null,
       ),
       status ? h("p", { class: "dm-muted" }, status) : null,
+      mine?.maturesIn !== undefined && def.matures
+        ? h("p", { class: "dm-muted" }, `Becomes a ${UNITS[def.matures.into].name.toLowerCase()} in ${mine.maturesIn} turn${mine.maturesIn === 1 ? "" : "s"}.`)
+        : null,
+      def.flying ? h("p", { class: "dm-muted" }, "Flies over water, peaks and enemy lines; lands on solid ground. Can't capture.") : null,
       actions.length ? h("div", { class: "dm-actions" }, actions) : null,
     );
   }
@@ -874,7 +879,7 @@ export class DominionView implements GameView {
     const inc = m.income;
     const credits = p.credits;
     const reward = m.pendingRewards[0];
-    const train = TRAINABLE.map((type) => {
+    const train = trainableFor(p.kind).map((type) => {
       const def = UNITS[type];
       const reason =
         def.needs && !p.techs.includes(def.needs) ? `Needs ${TECHS[def.needs].name}`
@@ -915,6 +920,7 @@ export class DominionView implements GameView {
         inc.workshop ? `, workshop ${inc.workshop}` : "",
         inc.capital ? `, capital ${inc.capital}` : "",
         inc.connection ? `, road link ${inc.connection}` : "",
+        inc.forest ? `, forest ${inc.forest}` : "",
         m.walls ? ". Walls." : "",
         m.parks ? ` Parks: ${m.parks}.` : "",
       ),
@@ -941,23 +947,31 @@ export class DominionView implements GameView {
     if (!tile.vis) return null;
     const mine = tile.owner === p.me;
     const ctx = {
+      kind: p.kind,
       mine,
       open: tile.owner === null || this.alliedWith(tile.owner),
       hasCity: p.cities.some((c) => c.at === i),
       techs: p.techs,
       credits: p.credits,
     };
-    const kinds: DevelopKind[] = ["harvest", "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "port", "road", "demolish"];
+    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "lumber_camp", "grove", "mine", "mill", "forge", "market", "temple", "port", "road", "demolish"];
     const options = kinds.flatMap((kind) => {
       const block = developBlock(kind, tile, ctx);
       if (block === undefined) return [];
       const name =
         kind === "harvest" ? `Harvest ${RESOURCE_NAMES[tile.res!].toLowerCase()}`
+        : kind === "tend" ? `Tend ${RESOURCE_NAMES[tile.res!].toLowerCase()}`
         : kind === "demolish" ? `Demolish ${IMPROVEMENT_NAMES[tile.imp!].toLowerCase()}`
         : DEVELOP[kind].name;
-      const cost = kind === "harvest" ? HARVEST[tile.res!]!.cost : kind === "demolish" ? DEMOLISH_COST : DEVELOP[kind].cost;
-      const pop = kind === "harvest" ? HARVEST[tile.res!]!.pop : kind === "demolish" ? 0 : DEVELOP[kind].pop;
-      const extra = kind === "mill" ? "+1 pop per farm beside it" : kind === "forge" ? "+1 pop per mine beside it" : kind === "market" ? "+1¢ per workshop beside it" : null;
+      const cost = kind === "harvest" ? HARVEST[tile.res!]!.cost : kind === "tend" ? TEND.cost : kind === "demolish" ? DEMOLISH_COST : DEVELOP[kind].cost;
+      const pop = kind === "harvest" ? HARVEST[tile.res!]!.pop : kind === "tend" ? TEND.pop : kind === "demolish" ? 0 : DEVELOP[kind].pop;
+      const extra =
+        kind === "mill" ? "+1 pop per farm beside it"
+        : kind === "forge" ? "+1 pop per mine beside it"
+        : kind === "market" ? "+1¢ per workshop beside it"
+        : kind === "tend" ? "the resource stays"
+        : kind === "grove" ? "still counts as wild forest"
+        : null;
       return [{ kind, name, cost, pop, extra, reason: block }];
     });
     // A monument can go on any open land of yours.

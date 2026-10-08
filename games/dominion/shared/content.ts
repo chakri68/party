@@ -2,6 +2,7 @@
 // data change, never a code change. IDs are stable; display names aren't.
 
 import type {
+  ClassicFaction,
   DevelopKind,
   FactionKind,
   Improvement,
@@ -58,6 +59,22 @@ export interface UnitDef {
   steadfast?: boolean;
   /** Hidden from enemies unless one is right next to it (§11). */
   stealth?: boolean;
+  /** Only this faction trains it. */
+  faction?: FactionKind;
+  /** Mends neighbours like a sage, without converting. */
+  mender?: boolean;
+  /** Flies: every step costs a plain step, zones and water don't stop it, it ends on land. */
+  flying?: boolean;
+  /** Can't take villages or cities. */
+  noCapture?: boolean;
+  /** Tiles seen around it; default 1. */
+  vision?: number;
+  /** Per-terrain movement cost override, in half-points. */
+  terrainCost?: Partial<Record<Terrain, number>>;
+  /** Defense bonus on these terrains, if better than what else applies. */
+  terrainDefense?: Partial<Record<Terrain, number>>;
+  /** Turns into another type after this many of its owner's turns, same health ratio. */
+  matures?: { into: UnitType; turns: number };
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -72,9 +89,22 @@ export const UNITS: Record<UnitType, UnitDef> = {
   sage: { name: "Sage", cost: 5, hp: 10, attack: 0, defense: 1, move: 1, range: 1, needs: "philosophy", sage: true },
   infiltrator: { name: "Infiltrator", cost: 8, hp: 5, attack: 0, defense: 0, move: 2, range: 1, needs: "diplomacy", stealth: true },
   raider: { name: "Raider", cost: 0, hp: 5, attack: 1, defense: 1, move: 1, range: 1, reward: true },
+  bramble: { name: "Bramble beast", cost: 5, hp: 15, attack: 2, defense: 3, move: 1, range: 1, needs: "tending", faction: "wildwood", terrainDefense: { forest: 1.5 } },
+  dryad: { name: "Dryad", cost: 5, hp: 10, attack: 1, defense: 2, move: 1, range: 1, needs: "grovecraft", faction: "wildwood", mender: true, terrainCost: { forest: 2 } },
+  owl_egg: {
+    name: "Owl egg", cost: 6, hp: 5, attack: 0, defense: 1, move: 0, range: 1, needs: "skyroost", faction: "wildwood",
+    steadfast: true, noCapture: true, matures: { into: "great_owl", turns: 3 },
+  },
+  great_owl: { name: "Great owl", cost: 0, hp: 10, attack: 3, defense: 1, move: 3, range: 1, needs: "skyroost", faction: "wildwood", reward: true, flying: true, noCapture: true, vision: 3 },
 };
 
 export const TRAINABLE: UnitType[] = ["infantry", "cavalry", "archer", "defender", "swordsman", "siege", "knight", "sage", "infiltrator"];
+
+/** What a faction's cities can train: the classic roster plus its own units. */
+export function trainableFor(kind: FactionKind): UnitType[] {
+  const own = (Object.keys(UNITS) as UnitType[]).filter((t) => UNITS[t].faction === kind && !UNITS[t].reward);
+  return [...TRAINABLE, ...own];
+}
 
 /** Raiders a sabotage can spawn, at most. */
 export const SABOTAGE_RAIDERS = 2;
@@ -119,6 +149,8 @@ export interface TechDef {
   parent?: TechId;
   /** Plain-language unlocks, for the tech tree. */
   unlocks: string;
+  /** A special faction's own tech; nobody else can research it. */
+  faction?: FactionKind;
 }
 
 export const TECHS: Record<TechId, TechDef> = {
@@ -145,10 +177,34 @@ export const TECHS: Record<TechId, TechDef> = {
   fishing: { name: "Fishing", tier: 1, unlocks: "Harvest fish" },
   sailing: { name: "Sailing", tier: 2, parent: "fishing", unlocks: "Ports, boarding ships, scout ships" },
   navigation: { name: "Navigation", tier: 3, parent: "sailing", unlocks: "Open ocean, rammers and bombers" },
+  tending: { name: "Tending", tier: 1, faction: "wildwood", unlocks: "Tend game; bramble beasts" },
+  grovecraft: { name: "Grovecraft", tier: 2, parent: "tending", faction: "wildwood", unlocks: "Groves in forests; dryads" },
+  skyroost: { name: "Skyroost", tier: 3, parent: "grovecraft", faction: "wildwood", unlocks: "Owl eggs that hatch into great owls" },
 };
 
 export const TECH_ORDER = Object.keys(TECHS) as TechId[];
-export const ROOT_TECHS = TECH_ORDER.filter((t) => !TECHS[t].parent);
+export const ROOT_TECHS = TECH_ORDER.filter((t) => !TECHS[t].parent && !TECHS[t].faction);
+
+/** A faction's version of a classic tech: its replacement, or the tech itself. */
+export function techFor(kind: FactionKind, tech: TechId): TechId {
+  return FACTIONS[kind].replaces?.[tech] ?? tech;
+}
+
+/** The parent a tech has in this faction's tree. Children of a replaced tech hang off its replacement. */
+export function parentFor(kind: FactionKind, tech: TechId): TechId | undefined {
+  const p = TECHS[tech].parent;
+  return p && techFor(kind, p);
+}
+
+/** Every tech this faction can research, in tree order. */
+export function techsFor(kind: FactionKind): TechId[] {
+  const replaced = new Set(Object.keys(FACTIONS[kind].replaces ?? {}));
+  return TECH_ORDER.filter((t) => !replaced.has(t) && (!TECHS[t].faction || TECHS[t].faction === kind));
+}
+
+export function rootTechsFor(kind: FactionKind): TechId[] {
+  return techsFor(kind).filter((t) => !parentFor(kind, t));
+}
 
 /** With Philosophy the price drops by a fifth, the discount rounded up (§7). */
 export function techCost(tech: TechId, ownedCities: number, known: readonly TechId[] = []): number {
@@ -164,6 +220,16 @@ export interface FactionDef {
   homeResource: Resource;
   /** Overrides the usual opening treasury (a tier-2 start pays for itself). */
   openingCredits?: number;
+  /** Special factions: classic techs swapped for their own. Children follow the swap. */
+  replaces?: Partial<Record<TechId, TechId>>;
+  /** Builds this faction can't make. */
+  forbids?: BuildKind[];
+  /** Tends resources instead of harvesting them. */
+  tends?: boolean;
+  /** +1 income per this many untouched forest tiles in a city's land, up to `cap`. */
+  forestIncome?: { per: number; cap: number };
+  /** Offered in the lobby. Special factions wait for their art pack. */
+  released: boolean;
 }
 
 export const FACTIONS: Record<FactionKind, FactionDef> = {
@@ -172,30 +238,35 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     blurb: "Farmers in timber cottages. Start with Gathering, near fruit.",
     startTech: "gathering",
     homeResource: "fruit",
+    released: true,
   },
   forest: {
     name: "Forest clans",
     blurb: "Hunters in log longhouses. Start with Hunting, near game.",
     startTech: "hunting",
     homeResource: "animals",
+    released: true,
   },
   steppe: {
     name: "Steppe riders",
     blurb: "Horse herders of the open plains. Start with Riding.",
     startTech: "riding",
     homeResource: "fruit",
+    released: true,
   },
   highland: {
     name: "Highland smiths",
     blurb: "Miners and metalworkers. Start with Climbing, near the peaks.",
     startTech: "climbing",
     homeResource: "fruit",
+    released: true,
   },
   coastal: {
     name: "Coastal navigators",
     blurb: "Fisherfolk of the shore. Start with Fishing, on the coast.",
     startTech: "fishing",
     homeResource: "fish",
+    released: true,
   },
   citadel: {
     name: "Citadel keepers",
@@ -203,10 +274,25 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     startTech: "strategy",
     homeResource: "fruit",
     openingCredits: 3,
+    released: true,
+  },
+  wildwood: {
+    name: "Wildwood",
+    blurb: "An enchanted forest. Tends what it finds instead of using it up; its late army flies.",
+    startTech: "tending",
+    homeResource: "animals",
+    replaces: { hunting: "tending", forestry: "grovecraft", mathematics: "skyroost" },
+    forbids: ["lumber_camp", "mine"],
+    tends: true,
+    forestIncome: { per: 4, cap: 2 },
+    released: false,
   },
 };
 
 export const FACTION_KINDS = Object.keys(FACTIONS) as FactionKind[];
+/** Dealt at random in Mixed. */
+export const CLASSIC_FACTIONS = FACTION_KINDS.filter((k) => !FACTIONS[k].replaces) as ClassicFaction[];
+export const SPECIAL_FACTIONS = FACTION_KINDS.filter((k) => FACTIONS[k].replaces);
 
 /** Player identity colors. Ownership is drawn in these, never in faction palette. */
 export const PLAYER_COLORS = [
@@ -237,7 +323,7 @@ export interface DevelopDef {
   adjacentPop?: Improvement;
 }
 
-export type BuildKind = Exclude<DevelopKind, "harvest" | "demolish">;
+export type BuildKind = Exclude<DevelopKind, "harvest" | "demolish" | "tend">;
 
 export const DEVELOP: Record<BuildKind, DevelopDef> = {
   farm: { name: "Farm", cost: 5, pop: 2, needs: "farming", terrain: ["plains"], resource: ["crops"], builds: "farm" },
@@ -249,7 +335,11 @@ export const DEVELOP: Record<BuildKind, DevelopDef> = {
   market: { name: "Market", cost: 6, pop: 0, needs: "commerce", terrain: ["plains"], builds: "market", unique: true },
   temple: { name: "Temple", cost: 8, pop: 1, needs: "spirituality", terrain: ["plains", "forest"], builds: "temple" },
   port: { name: "Port", cost: 6, pop: 2, needs: "sailing", terrain: ["shallow"], builds: "port" },
+  grove: { name: "Grove", cost: 3, pop: 1, needs: "grovecraft", terrain: ["forest"], builds: "grove" },
 };
+
+/** Tending: pays population like a harvest, but the resource stays. Once per tile. */
+export const TEND = { cost: 3, pop: 1 };
 
 /** What a market counts next to it: things that make things. */
 export const PRODUCTION: Improvement[] = ["farm", "lumber_camp", "mine", "mill", "forge"];
@@ -301,6 +391,7 @@ export const IMPROVEMENT_NAMES: Record<Improvement, string> = {
   temple: "Temple",
   monument: "Monument",
   port: "Port",
+  grove: "Grove",
 };
 
 /** Two choices per level band; the first is the default when time runs out. */

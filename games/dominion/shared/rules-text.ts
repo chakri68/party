@@ -1,8 +1,9 @@
 import type { SettingField } from "@games/game-core";
-import { FACTION_KINDS, FACTIONS, TILES_PER_PLAYER } from "./content.ts";
+import { FACTION_KINDS, FACTIONS, SPECIAL_FACTIONS, TILES_PER_PLAYER } from "./content.ts";
 import {
   DEFAULT_SETTINGS,
   type DominionSettings,
+  type FactionKind,
   type FactionSetting,
   type FogSetting,
   type MapSizeSetting,
@@ -13,7 +14,7 @@ import {
 } from "./types.ts";
 
 /** Plain-language rules for the lobby's Rules button. */
-export const dominionRules: string[] = [
+const BASE_RULES: string[] = [
   "Everyone starts with one city and one infantry on a hidden map. You see around your units and inside your borders.",
   "Each turn your cities pay credits. Spend them on research, units, and developing tiles in your territory.",
   "Harvesting and building on tiles grows the city that owns them. Bigger cities pay more, hold more units, and each new level offers a choice of reward.",
@@ -25,6 +26,18 @@ export const dominionRules: string[] = [
   "Hold the capitals: own every original capital at the end of your turn and still at the start of your next, and you win.",
   "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won) each earn a monument to place on your land.",
   "With teams, allies can't attack each other and win together. Treasuries and research stay separate.",
+];
+
+/** Each special faction's one-paragraph rules; shown once it's released. */
+export const SPECIAL_RULES: Partial<Record<(typeof SPECIAL_FACTIONS)[number], string>> = {
+  wildwood:
+    "Wildwood tend resources instead of harvesting them: 3 credits for +1 population, and the resource stays. They can't build lumber camps or mines; each city earns +1 income per 4 untouched forest tiles (groves count), up to +2. Owl eggs hatch into great owls after 3 turns, which fly over water, peaks and enemy lines but can't capture.",
+};
+
+/** What the lobby shows: the base rules, then each released special faction's entry. */
+export const dominionRules: string[] = [
+  ...BASE_RULES,
+  ...SPECIAL_FACTIONS.flatMap((k) => (FACTIONS[k].released && SPECIAL_RULES[k] ? [SPECIAL_RULES[k]] : [])),
 ];
 
 const pickIndex = <T>(options: readonly T[], value: T) => Math.max(0, options.indexOf(value));
@@ -51,7 +64,8 @@ export function parseSettings(input: unknown): DominionSettings | null {
     ([0, 30, 60, 90] as unknown[]).includes(s.roundLimit) &&
     (["on", "terrain", "off"] as unknown[]).includes(s.fog) &&
     (["sparse", "standard", "abundant"] as unknown[]).includes(s.resources) &&
-    (s.factions === "mixed" || Object.hasOwn(FACTIONS, s.factions as string)) &&
+    // Unreleased factions can't be asked for, even by a hand-built patch.
+    (s.factions === "mixed" || (Object.hasOwn(FACTIONS, s.factions as string) && FACTIONS[s.factions as FactionKind].released)) &&
     ([0, 2, 3, 4] as unknown[]).includes(s.teams) &&
     typeof s.sharedVision === "boolean" &&
     Number.isInteger(s.bots) && s.bots >= 0 && s.bots <= MAX_BOTS &&
@@ -113,7 +127,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
   const limits = ([0, 30, 60, 90] as const).filter((l) => l !== 0 || settings.victory === "conquest");
   const fogs: FogSetting[] = ["on", "terrain", "off"];
   const resources: ResourceSetting[] = ["sparse", "standard", "abundant"];
-  const factions: FactionSetting[] = ["mixed", ...FACTION_KINDS];
+  const factions: FactionSetting[] = ["mixed", ...FACTION_KINDS.filter((k) => FACTIONS[k].released)];
   const teamCounts = [0, 2, 3, 4] as const;
   const teams = resolveTeams(settings.teams, n);
   const botCounts = Array.from({ length: MAX_BOTS + 1 }, (_, k) => k);

@@ -1,7 +1,7 @@
 import type { GameContext, GameDefinition, GameEventEnvelope, GameResult, GameTransition, TimerRequest } from "@games/game-core";
 import {
+  CLASSIC_FACTIONS,
   DEVELOP,
-  FACTION_KINDS,
   FACTIONS,
   HARVEST,
   DEMOLISH_COST,
@@ -22,10 +22,12 @@ import {
   POPULATION_REWARD,
   rewardChoices,
   SCOUT_RADIUS,
-  TECH_ORDER,
+  parentFor,
   techCost,
   TECHS,
-  TRAINABLE,
+  techsFor,
+  TEND,
+  trainableFor,
   TREASURY_CREDITS,
   UNITS,
   VETERAN_HP,
@@ -40,6 +42,7 @@ import { parseSettings, resolveBots, resolveMapSize, resolveTeams } from "../sha
 import {
   allied,
   canAttackWith,
+  canCaptureWith,
   canStand,
   capitalOf,
   statsOf,
@@ -409,6 +412,19 @@ function beginTurn(tx: Tx): void {
   // A broken treaty's notice ends as its breaker's next turn begins (§11).
   s.treaties = (s.treaties ?? []).filter((t) => t.brokenBy !== f.id);
   s.offers = (s.offers ?? []).filter((o) => s.round - o.round < OFFER_ROUNDS);
+  // Eggs hatch, larvae grow: the new type keeps the old one's health ratio.
+  for (const u of Object.values(s.units)) {
+    const grow = u.owner === f.id ? UNITS[u.type].matures : undefined;
+    if (!grow) continue;
+    u.age = (u.age ?? 0) + 1;
+    if (u.age < grow.turns) continue;
+    const ratio = u.hp / u.maxHp;
+    u.type = grow.into;
+    u.maxHp = UNITS[grow.into].hp + (u.veteran ? VETERAN_HP : 0);
+    u.hp = Math.max(1, Math.round(ratio * u.maxHp));
+    delete u.age;
+    tx.seen([u.at], { type: "spawn", at: u.at });
+  }
   for (const u of Object.values(s.units)) {
     if (u.owner !== f.id) continue;
     u.mp = fullMp(u);
@@ -616,7 +632,10 @@ function enterRuins(tx: Tx, unit: Unit): void {
       reward = { kind: "population", amount: 3, city: city.id };
     }
   } else if (roll === 2) {
-    const open = TECH_ORDER.filter((t) => !f.techs.includes(t) && TECHS[t].tier <= 2 && (!TECHS[t].parent || f.techs.includes(TECHS[t].parent!)));
+    const open = techsFor(f.kind).filter((t) => {
+      const parent = parentFor(f.kind, t);
+      return !f.techs.includes(t) && TECHS[t].tier <= 2 && (!parent || f.techs.includes(parent));
+    });
     if (open.length) {
       const tech = open[Math.floor(pick * open.length)]!;
       f.techs.push(tech);
@@ -770,6 +789,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (!unit || unit.done || unit.moved || unit.attacked) return "That unit has already acted.";
       if (!unit.settled) return "Units capture the turn after they arrive.";
       if (unit.vessel) return "Land first.";
+      if (!canCaptureWith(unit)) return "This unit can't capture.";
       const tile = s.tiles[unit.at]!;
       const city = tile.city ? s.cities[tile.city]! : null;
       if (tile.feat === "village") {
@@ -899,7 +919,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
 
     case "mend": {
       const unit = ownUnit(s, me, action.unit);
-      if (!unit || !UNITS[unit.type].sage || unit.done || unit.attacked) return ILLEGAL;
+      if (!unit || !(UNITS[unit.type].sage || UNITS[unit.type].mender) || unit.done || unit.attacked) return ILLEGAL;
       const hurt = neighbors(unit.at, s.size)
         .map((i) => truth.get(i))
         .filter((u): u is Unit => !!u && allied(s, u.owner, me) && u.hp < u.maxHp);
@@ -955,7 +975,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     case "train": {
       const city = ownCity(s, me, action.city);
       const def = UNITS[action.unitType];
-      if (!city || !TRAINABLE.includes(action.unitType)) return ILLEGAL;
+      if (!city || !trainableFor(f.kind).includes(action.unitType)) return ILLEGAL;
       if (!hasTech(s, me, def.needs)) return `Research ${TECHS[def.needs!].name} first.`;
       if (isOccupied(city, truth)) return "An enemy is in the city.";
       if (truth.has(city.at)) return "Move the unit out of the city first.";
@@ -968,9 +988,10 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     }
 
     case "research": {
-      const tech = TECHS[action.tech];
+      if (!techsFor(f.kind).includes(action.tech)) return "Your people have their own way of doing that.";
       if (f.techs.includes(action.tech)) return "Already researched.";
-      if (tech.parent && !f.techs.includes(tech.parent)) return `Needs ${TECHS[tech.parent].name}.`;
+      const parent = parentFor(f.kind, action.tech);
+      if (parent && !f.techs.includes(parent)) return `Needs ${TECHS[parent].name}.`;
       const cost = techCost(action.tech, ownedCities(s, me).length, f.techs);
       if (f.credits < cost) return "Not enough credits.";
       f.credits -= cost;
@@ -1006,6 +1027,7 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
   if (Object.values(s.units).some((u) => u.at === at && !allied(s, u.owner, me))) return ILLEGAL;
   const city = tile.claim ? s.cities[tile.claim] : undefined;
   const block = developBlock(kind, tile, {
+    kind: f.kind,
     mine: owner === me && !!city,
     open: (owner === null || allied(s, owner, me)) && !!visionOf(s, me)[at],
     hasCity: tile.city !== null,
@@ -1020,6 +1042,11 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
     f.credits -= h.cost;
     tile.res = null;
     addPop(tx, city!, h.pop);
+  } else if (kind === "tend") {
+    // The resource stays for whoever holds the land next.
+    f.credits -= TEND.cost;
+    tile.tended = true;
+    addPop(tx, city!, TEND.pop);
   } else if (kind === "demolish") {
     // The tile keeps its credit: population already earned stays, and
     // rebuilding the same thing won't pay again (§6).
@@ -1107,7 +1134,8 @@ function runBot(tx: Tx): void {
 
 function pickKinds(settings: DominionSettings, n: number, ctx: GameContext): FactionKind[] {
   if (settings.factions !== "mixed") return Array.from({ length: n }, () => settings.factions as FactionKind);
-  return Array.from({ length: n }, () => FACTION_KINDS[ctx.randomInt(FACTION_KINDS.length)]!);
+  // Special factions are picked by name only.
+  return Array.from({ length: n }, () => CLASSIC_FACTIONS[ctx.randomInt(CLASSIC_FACTIONS.length)]!);
 }
 
 /** Older stored states would be migrated here (additively). There are none yet. */

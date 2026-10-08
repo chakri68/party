@@ -7,11 +7,13 @@
 // Skill changes how picky and how greedy it is, not what it can see.
 
 import {
+  parentFor,
   rewardChoices,
   VESSELS,
   techCost,
-  TECHS,
-  TRAINABLE,
+  techFor,
+  techsFor,
+  trainableFor,
   UNITS,
 } from "../shared/content.ts";
 import { chebyshev, neighbors, type Rng } from "../shared/grid.ts";
@@ -105,6 +107,7 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     if (m.done || m.moved || m.attacked || !m.settled) continue;
     const tile = view.tiles[u.at];
     const city = view.cities.find((c) => c.at === u.at);
+    if (UNITS[u.type].noCapture) continue;
     if (tile?.feat === "village" || (city && city.owner !== view.me)) {
       const a: Act = { type: "capture", turn, unit: u.id };
       if (ok(a)) return a;
@@ -139,17 +142,26 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     }
   }
   if (!sloppy()) {
-    const kinds: DevelopKind[] = ["harvest", "farm", "mine", "lumber_camp", "port", "mill", "forge", "temple", "market"];
+    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "mine", "lumber_camp", "grove", "port", "mill", "forge", "temple", "market"];
     for (let i = 0; i < view.tiles.length; i++) {
       const t = view.tiles[i];
       if (!t?.vis || t.owner !== view.me) continue;
-      const ctx = { mine: true, open: true, hasCity: view.cities.some((c) => c.at === i), techs: view.techs, credits: view.credits };
+      const ctx = { kind: view.kind, mine: true, open: true, hasCity: view.cities.some((c) => c.at === i), techs: view.techs, credits: view.credits };
       for (const kind of kinds) {
         if (developBlock(kind, t, ctx) !== null) continue;
         const a: Act = { type: "develop", turn, tile: i, kind };
         if (ok(a)) return a;
       }
     }
+  }
+
+  // Menders (dryads, sages) patch up whoever's hurt beside them.
+  for (const u of mine) {
+    const def = UNITS[u.type];
+    if (!(def.mender || def.sage) || u.mine!.done || u.mine!.attacked) continue;
+    const hurt = mine.some((o) => o !== u && o.hp < o.maxHp && chebyshev(o.at, u.at, size) <= 1);
+    const a: Act = { type: "mend", turn, unit: u.id };
+    if (hurt && ok(a)) return a;
   }
 
   // Sages turn enemies rather than fight them.
@@ -167,8 +179,15 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     for (const c of myCities) {
       const m = c.mine!;
       if (m.occupied || m.units >= m.capacity || view.units.some((u) => u.at === c.at)) continue;
-      const type = TRAIN_PLAN[level].find(
-        (t) => TRAINABLE.includes(t) && (!UNITS[t].needs || view.techs.includes(UNITS[t].needs!)) && view.credits >= UNITS[t].cost,
+      const roster = trainableFor(view.kind);
+      // A faction's own units lead, except on easy, which sticks to basics first.
+      // Best first; one mender is plenty.
+      const own = roster
+        .filter((t) => UNITS[t].faction && !(UNITS[t].mender && mine.some((u) => u.type === t)))
+        .sort((x, y) => UNITS[y].cost - UNITS[x].cost);
+      const plan = level === "easy" ? [...TRAIN_PLAN[level], ...own] : [...own, ...TRAIN_PLAN[level]];
+      const type = plan.find(
+        (t) => roster.includes(t) && (!UNITS[t].needs || view.techs.includes(UNITS[t].needs!)) && view.credits >= UNITS[t].cost,
       );
       if (!type) continue;
       const a: Act = { type: "train", turn, city: m.id, unitType: type };
@@ -182,9 +201,13 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   const known = view.tiles.filter((t) => t !== null);
   const wet = known.filter((t) => t!.t === "shallow" || t!.t === "ocean").length / Math.max(1, known.length);
   const naval: TechId[] = wet > 0.5 ? ["fishing", "sailing", "navigation"] : wet > 0.3 ? ["fishing", "sailing"] : [];
-  const tech = [...naval, ...TECH_PLAN[level]].find(
-    (t) => !view.techs.includes(t) && (!TECHS[t].parent || view.techs.includes(TECHS[t].parent!)),
-  );
+  // The classic plan read through the faction's swaps, then anything of its own left over.
+  const tree = techsFor(view.kind);
+  const plan = [...naval, ...TECH_PLAN[level]].map((t) => techFor(view.kind, t));
+  const tech = [...plan, ...tree].find((t) => {
+    const parent = parentFor(view.kind, t);
+    return tree.includes(t) && !view.techs.includes(t) && (!parent || view.techs.includes(parent));
+  });
   if (tech && view.credits >= techCost(tech, view.cityCount, view.techs) + reserve) {
     const a: Act = { type: "research", turn, tech };
     if (ok(a)) return a;

@@ -4,7 +4,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { dominionGame as game } from "../server/game.ts";
-import { HARVEST, TECH_ORDER, TECHS, techCost, TRAINABLE, UNITS } from "../shared/content.ts";
+import { HARVEST, TECH_ORDER, TECHS, techCost, TERRAIN, TRAINABLE, UNITS } from "../shared/content.ts";
 import { Rng } from "../shared/grid.ts";
 import { canSail, canStand, visionOf } from "../shared/rules.ts";
 import {
@@ -56,7 +56,9 @@ function checkInvariants(before: DominionState, after: DominionState, events: { 
     expect(tiles.has(u.at), "one unit per tile").toBe(false);
     tiles.add(u.at);
     // Ships on water they may sail, everyone else on land they may stand on.
-    expect(u.vessel ? canSail(after, u.owner, u.at) : canStand(after, u.owner, u.at), `${u.type}/${u.vessel ?? "land"}`).toBe(true);
+    // Fliers can perch anywhere on land, peaks included.
+    const ok = u.vessel ? canSail(after, u.owner, u.at) : UNITS[u.type].flying ? TERRAIN[after.tiles[u.at]!.t].land : canStand(after, u.owner, u.at);
+    expect(ok, `${u.type}/${u.vessel ?? "land"}`).toBe(true);
     expect(u.hp).toBeGreaterThan(0);
     expect(u.hp).toBeLessThanOrEqual(u.maxHp);
   }
@@ -147,11 +149,18 @@ describe("simulated matches", { timeout: 30_000 }, () => {
 });
 
 /** People always end their turn at once; computers play on their timer, as the room would fire it. */
-function playWithBots(seed: number, humans: number, settings: Partial<DominionSettings>, maxSteps = 4000) {
+function playWithBots(
+  seed: number,
+  humans: number,
+  settings: Partial<DominionSettings>,
+  maxSteps = 4000,
+  setup?: (s: DominionState) => void,
+) {
   const randomInt = seededRandomInt(seed);
   const ctx = (): GameContext => ({ now: 0, randomInt });
   const ids = Array.from({ length: humans }, (_, i) => ({ id: `p${i}` }));
   let state = game.createGame(ids, { ...DEFAULT_SETTINGS, turnClock: 0, ...settings }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+  setup?.(state);
   let botTicks = 0;
   for (let n = 0; n < maxSteps && state.phase === "playing"; n++) {
     const cur = state.factions[state.current]!;
@@ -213,6 +222,24 @@ describe("computer players", { timeout: 30_000 }, () => {
     const { state } = playWithBots(29, 1, { bots: 2, victory: "capitals", roundLimit: 30, botLevel: "hard" });
     expect(state.phase).toBe("finished");
     expect(["capitals", "score", "conquest"]).toContain(state.outcome!.reason);
+  });
+
+  it("computers play Wildwood: tend, train their own, hatch owls, fog checks and all", () => {
+    const seen = new Set<string>();
+    let tended = false;
+    const { state } = playWithBots(31, 1, { bots: 3, botLevel: "normal", roundLimit: 30 }, 6000, (s) => {
+      // Two Wildwood computers among classic ones, as a lobby pick would seat them.
+      for (const f of s.factions.slice(1, 3)) {
+        f.kind = "wildwood";
+        f.techs = ["tending"];
+      }
+    });
+    for (const u of Object.values(state.units)) if (state.factions.find((f) => f.id === u.owner)?.kind === "wildwood") seen.add(u.type);
+    tended = state.tiles.some((t) => t.tended);
+    expect(state.phase).toBe("finished");
+    expect(tended).toBe(true);
+    expect([...seen].some((t) => ["bramble", "dryad", "owl_egg", "great_owl"].includes(t))).toBe(true);
+    for (const f of state.factions.slice(1, 3)) expect(f.techs.filter((t) => ["grovecraft", "skyroost"].includes(t)).length).toBeGreaterThan(0);
   });
 
   it("computers take to the water on an archipelago, fog checks and all", () => {

@@ -9,21 +9,26 @@ export const GENERATOR_VERSION = 1;
 
 export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
 export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
-export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port";
+export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port" | "grove";
 export type Feature = "village" | "ruins" | "beacon";
 /** What a unit at sea is riding in. The unit's own type rides along as cargo. */
 export type VesselType = "transport" | "scout" | "rammer" | "bomber";
-export type FactionKind = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
+export type ClassicFaction = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
+/** Special factions each bend one core rule; picked by name only, never dealt in Mixed. */
+export type SpecialFaction = "wildwood";
+export type FactionKind = ClassicFaction | SpecialFaction;
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
   | "siege" | "knight" | "sage"
-  | "infiltrator" | "raider";
+  | "infiltrator" | "raider"
+  | "bramble" | "dryad" | "owl_egg" | "great_owl";
 export type TechId =
   | "gathering" | "farming" | "construction" | "strategy" | "diplomacy"
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
   | "riding" | "roads" | "commerce" | "free_spirit" | "chivalry"
   | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
-  | "fishing" | "sailing" | "navigation";
+  | "fishing" | "sailing" | "navigation"
+  | "tending" | "grovecraft" | "skyroost";
 
 /** Achievements that earn a placeable monument (§13). */
 export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
@@ -31,7 +36,8 @@ export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peac
 /** What a player can do to a tile. Harvests consume the resource; the rest build. */
 export type DevelopKind =
   | "harvest" | "farm" | "lumber_camp" | "mine" | "road"
-  | "mill" | "forge" | "market" | "temple" | "port" | "demolish";
+  | "mill" | "forge" | "market" | "temple" | "port" | "demolish"
+  | "tend" | "grove";
 
 export type RewardChoice =
   | "workshop" | "scout"
@@ -107,6 +113,8 @@ export interface Tile {
   credited?: Improvement[];
   /** Score a temple here has gathered (§13). */
   culture?: number;
+  /** Tended by Wildwood: paid its population once, resource left standing. */
+  tended?: boolean;
 }
 
 export interface Unit {
@@ -134,6 +142,8 @@ export interface Unit {
   converted?: boolean;
   /** At sea: the vessel carrying it. Health is one pool, the cargo's (§9). */
   vessel?: VesselType | null;
+  /** Owner-turns lived, for types that mature into another. */
+  age?: number;
 }
 
 export interface City {
@@ -372,6 +382,8 @@ export interface KnownTile {
   /** Visible right now. Otherwise this is memory, `seen` rounds old. */
   vis: boolean;
   seen: number;
+  /** Already tended (visible tiles only). */
+  tended?: boolean;
 }
 
 export interface KnownUnit {
@@ -392,6 +404,8 @@ export interface KnownUnit {
     done: boolean;
     settled: boolean;
     home: string | null;
+    /** Turns until it matures, for eggs and the like. */
+    maturesIn?: number;
   };
 }
 
@@ -427,6 +441,8 @@ export interface IncomeBreakdown {
   capital: number;
   connection: number;
   market: number;
+  /** Wildwood: untouched forest in the city's territory. */
+  forest: number;
   total: number;
 }
 
@@ -438,6 +454,7 @@ export interface AttackOption {
 
 export interface DominionPrivateState {
   me: string;
+  kind: FactionKind;
   myTurn: boolean;
   turn: number;
   /** Row-major; null = never explored. */
