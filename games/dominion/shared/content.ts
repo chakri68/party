@@ -84,7 +84,13 @@ export interface UnitDef {
   /** Takes this classic unit's place in its faction's cities (and as its starting unit). */
   replaces?: UnitType;
   /** What its hits leave behind on a hostile survivor. */
-  onHit?: "chill";
+  onHit?: "chill" | "poison";
+  /** Moves fast on its owner's network, slower off it (the Bloom). */
+  networkMove?: boolean;
+  /** Can grow early into these, standing on its owner's network. */
+  evolvesInto?: UnitType[];
+  /** Lays one of these on adjacent network each of its owner's turns, room permitting. */
+  lays?: UnitType;
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -110,7 +116,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     habitat: "amphibious", replaces: "infantry", terrainDefense: { shallow: 1.25, ocean: 1.25 },
   },
   reef_runner: {
-    name: "Reef runner", cost: 4, hp: 10, attack: 2, defense: 1, move: 3, range: 1, needs: "currents", faction: "tidefolk",
+    name: "Reef runner", cost: 5, hp: 10, attack: 2, defense: 1, move: 3, range: 1, needs: "currents", faction: "tidefolk",
     habitat: "amphibious", terrainDefense: { shallow: 1.25, ocean: 1.25 },
     // Three tiles a turn on water, one on land.
     terrainCost: { plains: 6, forest: 6, mountain: 6 },
@@ -127,6 +133,20 @@ export const UNITS: Record<UnitType, UnitDef> = {
   glacier_warden: {
     name: "Glacier warden", cost: 6, hp: 20, attack: 1, defense: 4, move: 1, range: 1, needs: "deep_freeze", faction: "rimeborn",
     terrainDefense: { ice: 1.5 },
+  },
+  larva: {
+    name: "Larva", cost: 1, hp: 3, attack: 0, defense: 1, move: 1, range: 1, needs: "spreading", faction: "bloom",
+    replaces: "infantry", noCapture: true, networkMove: true,
+    matures: { into: "drone", turns: 2 }, evolvesInto: ["stinger", "brood_mother"],
+  },
+  drone: { name: "Drone", cost: 0, hp: 10, attack: 2, defense: 2, move: 1, range: 1, needs: "spreading", faction: "bloom", reward: true, networkMove: true },
+  stinger: {
+    name: "Stinger", cost: 3, hp: 8, attack: 3, defense: 1, move: 1, range: 1, needs: "venom", faction: "bloom", reward: true,
+    networkMove: true, onHit: "poison",
+  },
+  brood_mother: {
+    name: "Brood mother", cost: 6, hp: 15, attack: 0, defense: 2, move: 1, range: 1, needs: "broodcraft", faction: "bloom", reward: true,
+    networkMove: true, noCapture: true, lays: "larva",
   },
   great_owl: { name: "Great owl", cost: 0, hp: 10, attack: 3, defense: 1, move: 3, range: 1, needs: "skyroost", faction: "wildwood", reward: true, flying: true, noCapture: true, vision: 3 },
 };
@@ -225,6 +245,9 @@ export const TECHS: Record<TechId, TechDef> = {
   frostcraft: { name: "Frostcraft", tier: 1, faction: "rimeborn", unlocks: "Freeze shallows into ice; harvest fish" },
   ice_roads: { name: "Ice roads", tier: 2, parent: "frostcraft", faction: "rimeborn", unlocks: "Roads on ice; sledges" },
   deep_freeze: { name: "Deep freeze", tier: 3, parent: "ice_roads", faction: "rimeborn", unlocks: "Freeze the open ocean; glacier wardens" },
+  spreading: { name: "Spreading", tier: 1, faction: "bloom", unlocks: "Spread and absorb with mycelium; larvae" },
+  venom: { name: "Venom", tier: 2, parent: "spreading", faction: "bloom", unlocks: "Larvae evolve into stingers" },
+  broodcraft: { name: "Broodcraft", tier: 3, parent: "venom", faction: "bloom", unlocks: "Larvae evolve into brood mothers" },
 };
 
 export const TECH_ORDER = Object.keys(TECHS) as TechId[];
@@ -277,6 +300,12 @@ export interface FactionDef {
   reefVillages?: boolean;
   /** Never boards a ship, not even an ally's. */
   noShips?: boolean;
+  /** Its territory is a network its units move fast on; it can spread more. */
+  network?: boolean;
+  /** Resources it absorbs into the network instead of harvesting. */
+  absorbs?: Resource[];
+  /** Starting unit, when it isn't the faction's infantry. */
+  startUnit?: UnitType;
   /** Offered in the lobby. Special factions wait for their art pack. */
   released: boolean;
 }
@@ -333,7 +362,7 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     replaces: { hunting: "tending", forestry: "grovecraft", mathematics: "skyroost" },
     forbids: ["lumber_camp", "mine"],
     tends: true,
-    forestIncome: { per: 4, cap: 2 },
+    forestIncome: { per: 5, cap: 2 },
     released: false,
   },
   tidefolk: {
@@ -353,8 +382,21 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     homeResource: "fish",
     replaces: { fishing: "frostcraft", sailing: "ice_roads", navigation: "deep_freeze" },
     noShips: true,
-    // No ports, no ships: a slightly fuller purse makes up the slow start.
-    openingCredits: 6,
+    // No ports, no ships: a fuller purse makes up the slow start.
+    openingCredits: 8,
+    released: false,
+  },
+  bloom: {
+    name: "The Bloom",
+    blurb: "A living swarm. Grows a carpet of mycelium, then floods it with cheap larvae.",
+    startTech: "spreading",
+    homeResource: "fruit",
+    replaces: { gathering: "spreading", farming: "venom", construction: "broodcraft" },
+    forbids: ["road"],
+    network: true,
+    absorbs: ["fruit", "crops"],
+    // A larva would leave the capital bare for two turns.
+    startUnit: "drone",
     released: false,
   },
 };
@@ -393,7 +435,7 @@ export interface DevelopDef {
   adjacentPop?: Improvement;
 }
 
-export type BuildKind = Exclude<DevelopKind, "harvest" | "demolish" | "tend">;
+export type BuildKind = Exclude<DevelopKind, "harvest" | "demolish" | "tend" | "spread" | "absorb">;
 
 export const DEVELOP: Record<BuildKind, DevelopDef> = {
   farm: { name: "Farm", cost: 5, pop: 2, needs: "farming", terrain: ["plains"], resource: ["crops"], builds: "farm" },
@@ -414,6 +456,14 @@ export const DEVELOP: Record<BuildKind, DevelopDef> = {
 export const HARBOURS: Improvement[] = ["port", "reef_nest"];
 /** A reef nest pays +1 with at least this many fish or reef settlements beside it. */
 export const REEF_NEST_NEIGHBOURS = 2;
+
+/**
+ * The Bloom's network: a step onto your own mycelium costs `on` half-points;
+ * anywhere else, the terrain cost times `offFactor` (gentle to start with).
+ */
+export const NETWORK = { on: 1, offFactor: 1.5, spreadCost: 1, absorbCost: 1, absorbPop: 1 };
+/** Turns a poisoned unit keeps losing a health point. */
+export const POISON_TURNS = 2;
 
 /** Tending: pays population like a harvest, but the resource stays. Once per tile. */
 export const TEND = { cost: 3, pop: 1 };

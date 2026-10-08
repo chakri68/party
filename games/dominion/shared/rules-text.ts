@@ -30,12 +30,14 @@ const BASE_RULES: string[] = [
 
 /** Each special faction's one-paragraph rules; shown once it's released. */
 export const SPECIAL_RULES: Partial<Record<(typeof SPECIAL_FACTIONS)[number], string>> = {
+  bloom:
+    "The Bloom's territory is mycelium, and they can spread it to touching land for 1 credit (never into a treaty partner's). Their own units cross it at half a point a step and pay half again off it. They absorb fruit and crops for +1 population instead of harvesting, and build no roads. Larvae cost 1 and grow into drones in 2 turns, or evolve early on the mycelium into stingers (whose hits poison) or brood mothers (who lay larvae). Healing draws poison out. Enemies standing on spread mycelium can burn it.",
   rimeborn:
     "Rimeborn never board a ship. A unit that hasn't acted can freeze a neighbouring shallow tile into ice for 1 credit, ending its turn (open ocean too, with Deep freeze). Ice is land for everyone and takes roads with Ice roads. It lasts 6 rounds, longer while Rimeborn units, cities or land are beside it, and never thaws under a unit. Ice archers' hits chill: the target can't move on its next turn.",
   tidefolk:
     "Tidefolk walk the shallows: shell guards and reef runners need no ship and defend better on water. They settle reef villages (villages on the water; only a ship or an amphibious unit can take one), build reef nests instead of ports, and reach the open ocean with Deep calling and its leviathans. No warships.",
   wildwood:
-    "Wildwood tend resources instead of harvesting them: 3 credits for +1 population, and the resource stays. They can't build lumber camps or mines; each city earns +1 income per 4 untouched forest tiles (groves count), up to +2. Owl eggs hatch into great owls after 3 turns, which fly over water, peaks and enemy lines but can't capture.",
+    "Wildwood tend resources instead of harvesting them: 3 credits for +1 population, and the resource stays. They can't build lumber camps or mines; each city earns +1 income per 5 untouched forest tiles (groves count), up to +2. Owl eggs hatch into great owls after 3 turns, which fly over water, peaks and enemy lines but can't capture.",
 };
 
 /** What the lobby shows: the base rules, then each released special faction's entry. */

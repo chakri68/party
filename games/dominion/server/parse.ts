@@ -41,6 +41,10 @@ export function parseAction(input: unknown): DominionAction | null {
         : null;
     case "convert":
       return isId(a.unit) && isTile(a.target) ? { type: "convert", turn, unit: a.unit, target: a.target } : null;
+    case "evolve":
+      return isId(a.unit) && oneOf<UnitType>(UNITS, a.into) ? { type: "evolve", turn, unit: a.unit, into: a.into } : null;
+    case "burn":
+      return isId(a.unit) ? { type: "burn", turn, unit: a.unit } : null;
     case "freeze":
       return isId(a.unit) && isTile(a.target) ? { type: "freeze", turn, unit: a.unit, target: a.target } : null;
     case "monument":
@@ -50,7 +54,7 @@ export function parseAction(input: unknown): DominionAction | null {
     case "research":
       return oneOf<TechId>(TECHS, a.tech) ? { type: "research", turn, tech: a.tech } : null;
     case "develop": {
-      const kinds = { harvest: 1, demolish: 1, ...DEVELOP } as Record<DevelopKind, unknown>;
+      const kinds: Record<DevelopKind, unknown> = { harvest: 1, demolish: 1, tend: 1, spread: 1, absorb: 1, ...DEVELOP };
       return isTile(a.tile) && oneOf<DevelopKind>(kinds, a.kind) ? { type: "develop", turn, tile: a.tile, kind: a.kind } : null;
     }
     case "reward":

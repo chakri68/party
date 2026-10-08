@@ -33,6 +33,10 @@ const PARTS: Record<FactionKind, [string[], string[]]> = {
     ["Moon", "Hazel", "Lichen", "Dew", "Willow", "Sorrel", "Mistle", "Foxglove", "Yew", "Bracken", "Hush", "Acorn"],
     ["glade", "bower", "hollow", "ring", "root", "thicket", "dell", "grove", "wend", "bough"],
   ],
+  bloom: [
+    ["Spore", "Hypha", "Mire", "Murk", "Chitin", "Ichor", "Mould", "Gloam", "Pith", "Rot", "Thrum", "Brood"],
+    ["vat", "warren", "hive", "mound", "sac", "nest", "pit", "bed", "cyst", "web"],
+  ],
   rimeborn: [
     ["Rime", "Floe", "Hoar", "Sleet", "Glacier", "Frost", "Icicle", "Snow", "Tundra", "Fjord", "Berg", "White"],
     ["hold", "holm", "fast", "drift", "barrow", "mark", "watch", "heim", "stead", "fell"],

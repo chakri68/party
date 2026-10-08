@@ -13,6 +13,7 @@ import {
   REWARDS,
   rewardChoices,
   TECHS,
+  NETWORK,
   TEND,
   TERRAIN,
   trainableFor,
@@ -20,7 +21,7 @@ import {
   VESSELS,
   VETERAN_KILLS,
 } from "../shared/content.ts";
-import { chebyshev, colOf, indexOf, rowOf } from "../shared/grid.ts";
+import { chebyshev, colOf, indexOf, neighbors, rowOf } from "../shared/grid.ts";
 import { developBlock, statsOf } from "../shared/rules.ts";
 import type {
   DevelopKind,
@@ -293,6 +294,13 @@ export class DominionView implements GameView {
           break;
         case "thaw":
           this.board.effect(e.at, "effect.thaw", "effect.splash");
+          break;
+        case "burn":
+          this.board.effect(e.at, "effect.burn", "effect.hit");
+          break;
+        case "poison":
+          this.board.effect(e.at, "effect.poison", "effect.hit");
+          this.board.floatText(e.at, "−1", "#9be15d");
           break;
         case "achievement":
           lines.push(`Milestone: ${MONUMENTS[e.kind as keyof typeof MONUMENTS]?.name ?? "a monument"}. Place it on your land.`);
@@ -744,6 +752,7 @@ export class DominionView implements GameView {
       tile.res && `${RESOURCE_NAMES[tile.res]}${tile.tended ? " (tended)" : ""}`,
       tile.imp && IMPROVEMENT_NAMES[tile.imp],
       tile.road && "Road",
+      tile.myc && (tile.myc === this.priv!.me ? "Your mycelium" : `${this.player(tile.myc).name}'s mycelium`),
       owner && (owner.name === "You" ? "Your land" : `${owner.name}'s land`),
     ].filter(Boolean);
     return h(
@@ -784,14 +793,44 @@ export class DominionView implements GameView {
           }, mine.settled ? "Capture" : "Capture next turn"),
         );
       }
-      if (fresh && unit.hp < unit.maxHp) {
-        actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "heal", unit: unit.id }, "heal") }, "Heal"));
+      if (fresh && (unit.hp < unit.maxHp || unit.poisoned)) {
+        const label = unit.poisoned ? "Cleanse poison" : "Heal";
+        actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "heal", unit: unit.id }, label.toLowerCase()) }, label));
+      }
+      if (fresh && def.evolvesInto) {
+        const onNet = tile?.myc === p.me || tile?.owner === p.me;
+        for (const into of def.evolvesInto) {
+          const d = UNITS[into];
+          if (d.needs && !p.techs.includes(d.needs)) continue;
+          const price = d.cost - def.cost;
+          const key = `evolve:${unit.id}:${into}`;
+          const reason = !onNet ? "Only on your mycelium" : p.credits < price ? "Not enough credits" : null;
+          actions.push(
+            h(
+              "button",
+              {
+                type: "button",
+                class: `dm-btn dm-buy${this.armedKey === key ? " armed" : ""}`,
+                disabled: !!reason,
+                title: reason ?? "",
+                onclick: () => this.confirm(key) && this.act({ type: "evolve", unit: unit.id, into }, `evolve into ${d.name}`),
+              },
+              this.armedKey === key ? "Confirm" : `Evolve: ${d.name}`,
+              h("span", { class: "dm-cost" }, [`${price}¢`, `${d.attack}/${d.defense}, ${d.hp} HP`, reason].filter(Boolean).join(" · ")),
+            ),
+          );
+        }
+      }
+      if (!mine.done && !unit.vessel && tile?.myc && tile.myc !== p.me && !this.alliedWith(tile.myc) && !p.diplomacy.some((d) => d.id === tile.myc && d.relation !== "war")) {
+        actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "burn", unit: unit.id }, "burn") }, "Burn the mycelium"));
       }
       if (!unit.veteran && mine.kills >= VETERAN_KILLS) {
         actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "promote", unit: unit.id }, "promote") }, "Promote"));
       }
       if ((def.sage || def.mender) && !mine.done && !mine.attacked) {
-        const hurt = p.units.some((u) => u.id !== unit.id && this.alliedWith(u.owner) && u.hp < u.maxHp && chebyshev(u.at, unit.at, this.pub!.size) === 1);
+        const hurt = p.units.some(
+          (u) => u.id !== unit.id && this.alliedWith(u.owner) && (u.hp < u.maxHp || u.poisoned) && chebyshev(u.at, unit.at, this.pub!.size) === 1,
+        );
         actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
         if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
       }
@@ -884,6 +923,8 @@ export class DominionView implements GameView {
         : null,
       def.flying ? h("p", { class: "dm-muted" }, "Flies over water, peaks and enemy lines; lands on solid ground. Can't capture.") : null,
       unit.chilled ? h("p", { class: "dm-warn" }, "Chilled: can't move next turn.") : null,
+      unit.poisoned ? h("p", { class: "dm-warn" }, "Poisoned: loses 1 HP a turn and can't heal. Healing draws it out.") : null,
+      def.networkMove ? h("p", { class: "dm-muted" }, "Quick on your mycelium, slow off it.") : null,
       def.habitat === "amphibious" ? h("p", { class: "dm-muted" }, "Walks land and shallows alike, no ship needed.") : null,
       def.habitat === "water" ? h("p", { class: "dm-muted" }, "Lives in the water, open ocean included. Can't capture.") : null,
       actions.length ? h("div", { class: "dm-actions" }, actions) : null,
@@ -973,6 +1014,12 @@ export class DominionView implements GameView {
     const p = this.priv!;
     if (!tile.vis) return null;
     const mine = tile.owner === p.me;
+    const size = this.pub!.size;
+    // The network, as far as this player knows it: their mycelium and their land.
+    const onNet = (j: number) => {
+      const t = p.tiles[j];
+      return !!t && (t.myc === p.me || t.owner === p.me);
+    };
     const ctx = {
       kind: p.kind,
       mine,
@@ -980,27 +1027,47 @@ export class DominionView implements GameView {
       hasCity: p.cities.some((c) => c.at === i),
       techs: p.techs,
       credits: p.credits,
+      network: FACTIONS[p.kind].network
+        ? {
+            on: onNet(i),
+            near: neighbors(i, size).some(onNet),
+            partner: !!tile.owner && p.diplomacy.some((d) => d.id === tile.owner && d.relation !== "war"),
+          }
+        : undefined,
     };
-    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "lumber_camp", "grove", "mine", "mill", "forge", "market", "temple", "port", "reef_nest", "road", "demolish"];
+    const res = tile.res ? RESOURCE_NAMES[tile.res].toLowerCase() : "";
+    /** Name, price, population and a note for every kind of development. */
+    const terms = (kind: DevelopKind): { name: string; cost: number; pop: number; extra?: string } => {
+      switch (kind) {
+        case "harvest":
+          return { name: `Harvest ${res}`, cost: HARVEST[tile.res!]!.cost, pop: HARVEST[tile.res!]!.pop };
+        case "tend":
+          return { name: `Tend ${res}`, cost: TEND.cost, pop: TEND.pop, extra: "the resource stays" };
+        case "absorb":
+          return { name: `Absorb ${res}`, cost: NETWORK.absorbCost, pop: NETWORK.absorbPop };
+        case "spread":
+          return { name: "Spread mycelium", cost: NETWORK.spreadCost, pop: 0, extra: "your swarm moves fast on it" };
+        case "demolish":
+          return { name: `Demolish ${IMPROVEMENT_NAMES[tile.imp!].toLowerCase()}`, cost: DEMOLISH_COST, pop: 0 };
+        default: {
+          const d = DEVELOP[kind];
+          const extra: Partial<Record<DevelopKind, string>> = {
+            mill: "+1 pop per farm beside it",
+            forge: "+1 pop per mine beside it",
+            market: "+1¢ per workshop beside it",
+            grove: "still counts as wild forest",
+            reef_nest: "+1¢ beside 2 fish or reefs; boards ships",
+          };
+          return { name: d.name, cost: d.cost, pop: d.pop, extra: extra[kind] };
+        }
+      }
+    };
+    const kinds: DevelopKind[] = [
+      "harvest", "tend", "absorb", "spread", "farm", "lumber_camp", "grove", "mine", "mill", "forge", "market", "temple", "port", "reef_nest", "road", "demolish",
+    ];
     const options = kinds.flatMap((kind) => {
       const block = developBlock(kind, tile, ctx);
-      if (block === undefined) return [];
-      const name =
-        kind === "harvest" ? `Harvest ${RESOURCE_NAMES[tile.res!].toLowerCase()}`
-        : kind === "tend" ? `Tend ${RESOURCE_NAMES[tile.res!].toLowerCase()}`
-        : kind === "demolish" ? `Demolish ${IMPROVEMENT_NAMES[tile.imp!].toLowerCase()}`
-        : DEVELOP[kind].name;
-      const cost = kind === "harvest" ? HARVEST[tile.res!]!.cost : kind === "tend" ? TEND.cost : kind === "demolish" ? DEMOLISH_COST : DEVELOP[kind].cost;
-      const pop = kind === "harvest" ? HARVEST[tile.res!]!.pop : kind === "tend" ? TEND.pop : kind === "demolish" ? 0 : DEVELOP[kind].pop;
-      const extra =
-        kind === "mill" ? "+1 pop per farm beside it"
-        : kind === "forge" ? "+1 pop per mine beside it"
-        : kind === "market" ? "+1¢ per workshop beside it"
-        : kind === "tend" ? "the resource stays"
-        : kind === "grove" ? "still counts as wild forest"
-        : kind === "reef_nest" ? "+1¢ beside 2 fish or reefs; boards ships"
-        : null;
-      return [{ kind, name, cost, pop, extra, reason: block }];
+      return block === undefined ? [] : [{ kind, ...terms(kind), reason: block }];
     });
     // A monument can go on any open land of yours.
     const monument =

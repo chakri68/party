@@ -16,17 +16,24 @@ export interface DecodedTile {
   feat: Feature | null;
   /** Index into turn order, or -1. */
   ownerSeat: number;
+  /** Seat whose mycelium covers it, or -1. */
+  mycSeat: number;
 }
 
-/** bits: terrain 0–2, resource 3–5, improvement 6–9, road 10, feature 11–12, owner seat + 1 from 13. */
-export function encodeTile(tile: Tile, ownerSeat: number): number {
+/**
+ * bits: terrain 0–2, resource 3–5, improvement 6–9, road 10, feature 11–12,
+ * owner seat + 1 13–16, mycelium owner seat + 1 17–20. Codes stored before
+ * mycelium existed have nothing above bit 16, so they read the same.
+ */
+export function encodeTile(tile: Tile, ownerSeat: number, mycSeat = -1): number {
   return (
     TERRAINS.indexOf(tile.t) |
     (RESOURCES.indexOf(tile.res) << 3) |
     (IMPROVEMENTS.indexOf(tile.imp) << 6) |
     ((tile.road ? 1 : 0) << 10) |
     (FEATURES.indexOf(tile.feat) << 11) |
-    ((ownerSeat + 1) << 13)
+    ((ownerSeat + 1) << 13) |
+    ((mycSeat + 1) << 17)
   );
 }
 
@@ -42,6 +49,7 @@ export function decodeTile(code: number): DecodedTile {
     imp: IMPROVEMENTS[(code >> 6) & 15] ?? null,
     road: ((code >> 10) & 1) === 1,
     feat: FEATURES[(code >> 11) & 3] ?? null,
-    ownerSeat: (code >> 13) - 1,
+    ownerSeat: ((code >> 13) & 15) - 1,
+    mycSeat: ((code >> 17) & 15) - 1,
   };
 }

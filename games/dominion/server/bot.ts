@@ -7,7 +7,10 @@
 // Skill changes how picky and how greedy it is, not what it can see.
 
 import {
+  type BuildKind,
+  DEVELOP,
   FACTIONS,
+  NETWORK,
   parentFor,
   rewardChoices,
   VESSELS,
@@ -143,13 +146,16 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     }
   }
   if (!sloppy()) {
-    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "mine", "lumber_camp", "grove", "port", "reef_nest", "mill", "forge", "temple", "market"];
+    const kinds: DevelopKind[] = ["harvest", "tend", "absorb", "farm", "mine", "lumber_camp", "grove", "port", "reef_nest", "mill", "forge", "temple", "market"];
     for (let i = 0; i < view.tiles.length; i++) {
       const t = view.tiles[i];
       if (!t?.vis || t.owner !== view.me) continue;
       const ctx = { kind: view.kind, mine: true, open: true, hasCity: view.cities.some((c) => c.at === i), techs: view.techs, credits: view.credits };
       for (const kind of kinds) {
         if (developBlock(kind, t, ctx) !== null) continue;
+        // One per city: skip it if one already stands on our land nearby.
+        const def = Object.hasOwn(DEVELOP, kind) ? DEVELOP[kind as BuildKind] : undefined;
+        if (def?.unique && view.tiles.some((o, j) => o?.imp === def.builds && o?.owner === view.me && chebyshev(i, j, size) <= 2)) continue;
         const a: Act = { type: "develop", turn, tile: i, kind };
         if (ok(a)) return a;
       }
@@ -182,6 +188,21 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     }
   }
 
+  // The Bloom: evolve larvae on the network, and grow the network toward prizes.
+  if (FACTIONS[view.kind].network) {
+    const a = bloomStep(view, mine, enemies, size, level, ok);
+    if (a) return a;
+  }
+
+  // Standing on an enemy's mycelium: burn it, unless there's a fight to pick.
+  for (const u of mine) {
+    const t = view.tiles[u.at];
+    if (u.mine!.done || u.vessel || !t?.myc || t.myc === view.me) continue;
+    if (view.diplomacy.some((d) => d.id === t.myc && d.relation !== "war") || view.attacks[u.id]?.length) continue;
+    const a: Act = { type: "burn", turn, unit: u.id };
+    if (ok(a)) return a;
+  }
+
   // Sages turn enemies rather than fight them.
   if (level !== "easy") {
     for (const [unit, targets] of Object.entries(view.converts)) {
@@ -201,7 +222,10 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
       // A faction's own units join the plan by price, priciest first, as the
       // classic plans already run; easy sticks to basics first. One mender is plenty.
       const own = roster.filter((t) => UNITS[t].faction && !(UNITS[t].mender && mine.some((u) => u.type === t)));
-      const plan = level === "easy" ? [...TRAIN_PLAN[level], ...own] : [...own, ...TRAIN_PLAN[level]].sort((x, y) => UNITS[y].cost - UNITS[x].cost);
+      const byPrice = [...own, ...TRAIN_PLAN[level]].sort((x, y) => UNITS[y].cost - UNITS[x].cost);
+      // A swarm is its larvae: what can grow into something better comes first.
+      const growers = own.filter((t) => UNITS[t].evolvesInto);
+      const plan = level === "easy" ? [...TRAIN_PLAN[level], ...own] : [...growers, ...byPrice.filter((t) => !growers.includes(t))];
       const type = plan.find(
         (t) => roster.includes(t) && (!UNITS[t].needs || view.techs.includes(UNITS[t].needs!)) && view.credits >= UNITS[t].cost,
       );
@@ -256,6 +280,64 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   if (move) return move;
 
   return { type: "end-turn", turn };
+}
+
+/** One Bloom move: an evolution or a spread, or nothing worth doing. */
+function bloomStep(
+  view: DominionPrivateState,
+  mine: KnownUnit[],
+  enemies: KnownUnit[],
+  size: number,
+  level: BotLevel,
+  ok: (a: Act) => boolean,
+): Act | null {
+  const turn = view.turn;
+  const onNet = (i: number) => view.tiles[i]?.myc === view.me || view.tiles[i]?.owner === view.me;
+  // A brood mother first (she pays for herself), then stingers when enemies are close.
+  const hasBrood = mine.some((u) => u.type === "brood_mother");
+  for (const u of mine) {
+    const def = UNITS[u.type];
+    const m = u.mine!;
+    if (!def.evolvesInto || m.done || m.moved || m.attacked || !onNet(u.at)) continue;
+    const threat = enemies.some((e) => chebyshev(e.at, u.at, size) <= 4);
+    const pick = def.evolvesInto.find((into) => {
+      const d = UNITS[into];
+      if (d.needs && !view.techs.includes(d.needs)) return false;
+      if (view.credits < d.cost - def.cost + (level === "easy" ? 2 : 0)) return false;
+      return into === "brood_mother" ? !hasBrood : threat;
+    });
+    if (pick) {
+      const a: Act = { type: "evolve", turn, unit: u.id, into: pick };
+      if (ok(a)) return a;
+    }
+  }
+  // Spread one step toward the nearest prize, keeping enough back for larvae.
+  if (view.credits < NETWORK.spreadCost + 4) return null;
+  const prizes: number[] = [];
+  view.tiles.forEach((t, i) => {
+    if (t?.feat === "village" || view.cities.some((c) => c.at === i && c.owner !== view.me)) prizes.push(i);
+  });
+  if (!prizes.length) return null;
+  const dist = (i: number) => Math.min(...prizes.map((p) => chebyshev(i, p, size)));
+  let best: { at: number; d: number } | null = null;
+  let current = Infinity;
+  view.tiles.forEach((t, i) => {
+    if (!t) return;
+    if (onNet(i)) {
+      current = Math.min(current, dist(i));
+      return;
+    }
+    if (!t.vis || t.t === "shallow" || t.t === "ocean" || t.t === "ice") return;
+    if (!neighbors(i, size).some(onNet)) return;
+    if (t.owner && view.diplomacy.some((d) => d.id === t.owner && d.relation !== "war")) return;
+    if (view.units.some((u) => u.at === i && u.owner !== view.me)) return;
+    const d = dist(i);
+    if (!best || d < best.d) best = { at: i, d };
+  });
+  const pick = best as { at: number; d: number } | null;
+  if (!pick || pick.d >= current) return null;
+  const a: Act = { type: "develop", turn, tile: pick.at, kind: "spread" };
+  return ok(a) ? a : null;
 }
 
 /**

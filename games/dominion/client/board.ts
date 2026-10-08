@@ -6,6 +6,7 @@
 // ground anchor is the centre of its 96×48 diamond.
 
 import { motionAllowed } from "@games/animation";
+import { FACTIONS } from "../shared/content.ts";
 import { colOf, indexOf, rowOf } from "../shared/grid.ts";
 import type { AttackOption, FactionKind, KnownCity, KnownTile, KnownUnit, Terrain } from "../shared/types.ts";
 import { SpriteCache, type Raster, type SpriteKey } from "./assets.ts";
@@ -82,6 +83,7 @@ const UNIT_LABEL: Record<string, string> = {
   bramble: "BRM", dryad: "DRY", owl_egg: "EGG", great_owl: "OWL",
   shell_guard: "SHL", reef_runner: "RUN", leviathan: "LEV",
   sledge: "SLD", ice_archer: "ICE", glacier_warden: "GLC",
+  larva: "LRV", drone: "DRN", stinger: "STG", brood_mother: "BRD",
 };
 
 interface Tween {
@@ -455,6 +457,30 @@ export class Board {
       ctx.fill(this.diamond(i));
       ctx.globalAlpha = t.vis ? 0.95 : 0.5;
       this.borders(i, t.owner, color);
+      ctx.globalAlpha = 1;
+    }
+
+    // Mycelium: spread tiles, and all of a network faction's land. A violet
+    // wash with a few spore dots placed by tile index, so they hold still.
+    for (const i of visible) {
+      const t = m.tiles[i];
+      if (!t) continue;
+      const netOwner = t.myc ?? (t.owner && FACTIONS[m.players.get(t.owner)?.kind ?? "orchard"].network ? t.owner : null);
+      if (!netOwner) continue;
+      ctx.globalAlpha = t.vis ? 0.28 : 0.14;
+      ctx.fillStyle = "#7b3f8c";
+      ctx.fill(this.diamond(i, 6));
+      ctx.globalAlpha = t.vis ? 0.7 : 0.35;
+      ctx.fillStyle = "#e3b6f0";
+      const [cx, cy] = this.toScreen(...this.world(i));
+      for (let k = 0; k < 4; k++) {
+        const a = ((i * 7 + k * 5) % 12) / 12;
+        const dx = Math.cos(a * Math.PI * 2) * (10 + ((i + k) % 3) * 6) * z;
+        const dy = Math.sin(a * Math.PI * 2) * (5 + ((i + k) % 3) * 3) * z;
+        ctx.beginPath();
+        ctx.arc(cx + dx, cy + dy, Math.max(1, 1.6 * z), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.globalAlpha = 1;
     }
 

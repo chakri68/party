@@ -9,6 +9,7 @@ import {
   HARBOURS,
   HARVEST,
   MARKET_CAP,
+  NETWORK,
   PEACE_ROUNDS,
   PEACE_TREATIES,
   PRODUCTION,
@@ -169,7 +170,38 @@ export function stepCost(state: DominionState, owner: string, a: number, b: numb
   const terrain = state.tiles[b]!.t;
   // Fliers pay a plain step whatever is underneath.
   if (def?.flying) return TERRAIN.plains.cost;
-  return def?.terrainCost?.[terrain] ?? TERRAIN[terrain].cost;
+  const base = def?.terrainCost?.[terrain] ?? TERRAIN[terrain].cost;
+  // Network units: quick on their owner's mycelium, slower anywhere else.
+  if (def?.networkMove) return onNetwork(state, owner, b) ? NETWORK.on : Math.ceil(base * NETWORK.offFactor);
+  return base;
+}
+
+/**
+ * The Bloom's network for `owner`: mycelium they spread, plus all their
+ * territory. Nobody else has one, so a converted swarm unit is slow everywhere.
+ */
+export function onNetwork(state: DominionState, owner: string, i: number): boolean {
+  const f = faction(state, owner);
+  if (!f || !FACTIONS[f.kind].network) return false;
+  return state.tiles[i]!.myc === owner || tileOwner(state, i) === owner;
+}
+
+/** What the develop check needs to know about a tile and the network. */
+export function networkContext(state: DominionState, owner: string, i: number): NetworkContext {
+  return {
+    on: onNetwork(state, owner, i),
+    near: neighbors(i, state.size).some((j) => onNetwork(state, owner, j)),
+    partner: atPeace(state, tileOwner(state, i), owner),
+  };
+}
+
+export interface NetworkContext {
+  /** Already part of the network. */
+  on: boolean;
+  /** Touches it, so it can spread here. */
+  near: boolean;
+  /** A treaty partner's land: off limits. */
+  partner: boolean;
 }
 
 /** Whether this unit may take a village or a city at all. */
@@ -645,15 +677,36 @@ export interface DevTile {
 export function developBlock(
   kind: DevelopKind,
   tile: DevTile,
-  ctx: { kind: FactionKind; mine: boolean; open: boolean; hasCity: boolean; techs: readonly TechId[]; credits: number },
+  ctx: {
+    kind: FactionKind;
+    mine: boolean;
+    open: boolean;
+    hasCity: boolean;
+    techs: readonly TechId[];
+    credits: number;
+    /** Only for network factions; see networkContext. */
+    network?: NetworkContext;
+  },
 ): string | null | undefined {
   const need = (tech: TechId) => (ctx.techs.includes(tech) ? null : `Needs ${TECHS[tech].name}`);
   const pay = (cost: number) => (ctx.credits < cost ? "Not enough credits" : null);
   const rules = FACTIONS[ctx.kind];
   if (ctx.hasCity) return undefined;
+  if (kind === "spread") {
+    // Onto land touching the network, anywhere but a treaty partner's.
+    const n = ctx.network;
+    if (!rules.network || !n || n.on || !n.near || n.partner || !TERRAIN[tile.t].land || tile.t === "ice") return undefined;
+    return need("spreading") ?? pay(NETWORK.spreadCost);
+  }
+  if (kind === "absorb") {
+    if (!tile.res || !rules.absorbs?.includes(tile.res) || !ctx.mine) return undefined;
+    return need("spreading") ?? pay(NETWORK.absorbCost);
+  }
   if (kind === "harvest" || kind === "tend") {
     // Tending factions tend; everyone else harvests. Never both.
     if ((kind === "tend") !== !!rules.tends) return undefined;
+    // What a faction absorbs, it doesn't harvest.
+    if (tile.res && rules.absorbs?.includes(tile.res)) return undefined;
     const h = tile.res ? HARVEST[tile.res] : undefined;
     if (!h || !ctx.mine || (kind === "tend" && tile.tended)) return undefined;
     return need(techFor(ctx.kind, h.needs)) ?? pay(kind === "tend" ? TEND.cost : h.cost);

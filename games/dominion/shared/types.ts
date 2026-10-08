@@ -16,7 +16,7 @@ export type Feature = "village" | "ruins" | "beacon";
 export type VesselType = "transport" | "scout" | "rammer" | "bomber";
 export type ClassicFaction = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
 /** Special factions each bend one core rule; picked by name only, never dealt in Mixed. */
-export type SpecialFaction = "wildwood" | "tidefolk" | "rimeborn";
+export type SpecialFaction = "wildwood" | "tidefolk" | "rimeborn" | "bloom";
 export type FactionKind = ClassicFaction | SpecialFaction;
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
@@ -24,7 +24,8 @@ export type UnitType =
   | "infiltrator" | "raider"
   | "bramble" | "dryad" | "owl_egg" | "great_owl"
   | "shell_guard" | "reef_runner" | "leviathan"
-  | "sledge" | "ice_archer" | "glacier_warden";
+  | "sledge" | "ice_archer" | "glacier_warden"
+  | "larva" | "drone" | "stinger" | "brood_mother";
 export type TechId =
   | "gathering" | "farming" | "construction" | "strategy" | "diplomacy"
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
@@ -33,7 +34,8 @@ export type TechId =
   | "fishing" | "sailing" | "navigation"
   | "tending" | "grovecraft" | "skyroost"
   | "tidecraft" | "currents" | "deep_calling"
-  | "frostcraft" | "ice_roads" | "deep_freeze";
+  | "frostcraft" | "ice_roads" | "deep_freeze"
+  | "spreading" | "venom" | "broodcraft";
 
 /** Achievements that earn a placeable monument (§13). */
 export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
@@ -42,7 +44,8 @@ export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peac
 export type DevelopKind =
   | "harvest" | "farm" | "lumber_camp" | "mine" | "road"
   | "mill" | "forge" | "market" | "temple" | "port" | "demolish"
-  | "tend" | "grove" | "reef_nest";
+  | "tend" | "grove" | "reef_nest"
+  | "spread" | "absorb";
 
 export type RewardChoice =
   | "workshop" | "scout"
@@ -122,6 +125,8 @@ export interface Tile {
   tended?: boolean;
   /** Frozen water: what it thaws back into, who froze it, and the round it's due to thaw. */
   ice?: { from: "shallow" | "ocean"; owner: string; until: number };
+  /** Mycelium the Bloom spread here, and whose. (Their territory is mycelium anyway.) */
+  myc?: string;
 }
 
 export interface Unit {
@@ -153,6 +158,8 @@ export interface Unit {
   age?: number;
   /** Hit by frost: can't move on its owner's next turn. */
   chilled?: boolean;
+  /** Poisoned: loses 1 HP at each of its owner's next `turns` turn starts, and can't heal. */
+  poison?: { turns: number; by: string };
 }
 
 export interface City {
@@ -271,6 +278,8 @@ export interface DominionState {
   offers?: PeaceOffer[];
   /** Actions the current computer player has taken this turn; a hard stop for runaway turns. */
   botSteps?: number;
+  /** Actions it tried this turn that the rules refused; never tried again this turn. */
+  botBanned?: string[];
   outcome: { winnerIds: string[]; reason: "conquest" | "score" | "capitals" | "draw" } | null;
 }
 
@@ -293,6 +302,10 @@ export type DominionAction =
   | { type: "monument"; turn: number; tile: number }
   /** Rimeborn: freeze an adjacent water tile into ice. */
   | { type: "freeze"; turn: number; unit: string; target: number }
+  /** Bloom: a larva on mycelium grows early into another form, paying the difference. */
+  | { type: "evolve"; turn: number; unit: string; into: UnitType }
+  /** Burn the hostile mycelium the unit stands on. */
+  | { type: "burn"; turn: number; unit: string }
   | { type: "sabotage"; turn: number; unit: string }
   | { type: "offer-peace"; turn: number; to: string }
   /** Answers can come out of turn; they can't spend or move anything. */
@@ -336,6 +349,9 @@ export type DominionEvent =
   | { type: "beacon"; at: number }
   | { type: "freeze"; at: number }
   | { type: "thaw"; at: number }
+  | { type: "burn"; at: number }
+  /** Poison ticking on a unit. */
+  | { type: "poison"; at: number }
   | { type: "sabotage"; at: number; by: string }
   | { type: "contact"; with: string }
   | { type: "peace-offered"; from: string; to: string }
@@ -397,6 +413,8 @@ export interface KnownTile {
   seen: number;
   /** Already tended (visible tiles only). */
   tended?: boolean;
+  /** Spread mycelium and whose, as last seen. */
+  myc?: string;
 }
 
 export interface KnownUnit {
@@ -410,6 +428,7 @@ export interface KnownUnit {
   vessel?: VesselType | null;
   /** Can't move on its owner's next turn. */
   chilled?: boolean;
+  poisoned?: boolean;
   /** Own units only. */
   mine?: {
     kills: number;

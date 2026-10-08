@@ -90,6 +90,9 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     frostcraft: { id: "terrain.water.shallow.v2" },
     ice_roads: { id: "road.center" },
     deep_freeze: { id: "terrain.ocean.v2" },
+    spreading: { id: "resource.fruit.default" },
+    venom: unit("stinger"),
+    broodcraft: unit("brood_mother"),
   };
   return art[tech];
 }

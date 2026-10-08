@@ -147,7 +147,7 @@ describe("forests", () => {
     expect(t.cities.c0!.pop).toBe(1);
   });
 
-  it("untouched forest pays: +1 per four, at most +2, groves included", () => {
+  it("untouched forest pays: +1 per five, at most +2, groves included", () => {
     const s = wood(12);
     const units = indexUnits([]);
     const forest = (n: number) => {
@@ -155,6 +155,8 @@ describe("forests", () => {
     };
     expect(cityIncome(s, s.cities.c0!, units).forest).toBe(0);
     forest(4);
+    expect(cityIncome(s, s.cities.c0!, units).forest).toBe(0);
+    forest(5);
     expect(cityIncome(s, s.cities.c0!, units).forest).toBe(1);
     s.tiles[at(s, 1, 0)]!.imp = "grove";
     expect(cityIncome(s, s.cities.c0!, units).forest).toBe(1);

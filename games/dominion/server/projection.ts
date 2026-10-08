@@ -55,6 +55,7 @@ function knownUnit(u: Unit, me: string): KnownUnit {
     veteran: u.veteran,
     vessel: u.vessel ?? null,
     ...(u.chilled && { chilled: true }),
+    ...(u.poison && { poisoned: true }),
   };
   if (u.owner !== me) return base;
   return {
@@ -117,6 +118,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
         vis: true,
         seen: state.round,
         ...(t.tended && { tended: true }),
+        ...(t.myc && { myc: t.myc }),
       };
     }
     const code = f.memory.codes[i]!;
@@ -131,6 +133,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
       owner: d.ownerSeat >= 0 ? (state.factions[d.ownerSeat]?.id ?? null) : null,
       vis: false,
       seen: f.memory.seen[i]!,
+      ...(d.mycSeat >= 0 && { myc: state.factions[d.mycSeat]?.id }),
     };
   });
 

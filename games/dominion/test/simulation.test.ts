@@ -283,6 +283,31 @@ describe("computer players", { timeout: 30_000 }, () => {
     expect(sailed).toBe(false);
   });
 
+  it("computers play the Bloom: spread, absorb, evolve, fog checks and all", () => {
+    let spread = false;
+    let evolved = false;
+    const { state } = playWithBots(
+      43,
+      1,
+      { bots: 3, botLevel: "hard", factions: "bloom", roundLimit: 30 },
+      20000,
+      (s) => {
+        for (const f of [s.factions[0]!, s.factions[2]!]) {
+          f.kind = "orchard";
+          f.techs = ["gathering"];
+          for (const u of Object.values(s.units)) if (u.owner === f.id) u.type = "infantry";
+        }
+      },
+      (s) => {
+        spread ||= s.tiles.some((t) => t.myc);
+        evolved ||= Object.values(s.units).some((u) => u.type === "stinger" || u.type === "brood_mother");
+      },
+    );
+    expect(state.phase).toBe("finished");
+    expect(spread).toBe(true);
+    expect(evolved).toBe(true);
+  });
+
   it("computers take to the water on an archipelago, fog checks and all", () => {
     const { state } = playWithBots(4, 1, { bots: 3, botLevel: "hard", mapType: "archipelago", mapSize: 24, roundLimit: 30 }, 20000);
     expect(state.phase).toBe("finished");

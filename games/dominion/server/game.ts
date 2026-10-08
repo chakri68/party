@@ -3,6 +3,8 @@ import {
   CLASSIC_FACTIONS,
   DEVELOP,
   ICE,
+  NETWORK,
+  POISON_TURNS,
   FACTIONS,
   HARVEST,
   DEMOLISH_COST,
@@ -56,6 +58,8 @@ import {
   developBlock,
   freezeTargets,
   hostile,
+  networkContext,
+  onNetwork,
   treatyOf,
   capacity,
   faction,
@@ -218,7 +222,7 @@ function remember(state: State, owner: string, tiles: Iterable<number>): void {
   const f = faction(state, owner)!;
   for (const i of tiles) {
     const t = state.tiles[i]!;
-    f.memory.codes[i] = encodeTile(t, seatOf(state, tileOwner(state, i)));
+    f.memory.codes[i] = encodeTile(t, seatOf(state, tileOwner(state, i)), seatOf(state, t.myc ?? null));
     f.memory.seen[i] = state.round;
     const city = t.city ? state.cities[t.city] : undefined;
     if (city) {
@@ -433,6 +437,8 @@ function beginTurn(tx: Tx): void {
     delete u.age;
     tx.seen([u.at], { type: "spawn", at: u.at });
   }
+  poisonTick(tx);
+  layBroods(tx);
   thaw(tx);
   for (const u of Object.values(s.units)) {
     if (u.owner !== f.id) continue;
@@ -450,6 +456,7 @@ function beginTurn(tx: Tx): void {
   }
 
   s.botSteps = 0;
+  s.botBanned = [];
   if (f.bot) {
     // Computers have no clock; they start after a beat so people can follow.
     s.deadline = null;
@@ -460,6 +467,40 @@ function beginTurn(tx: Tx): void {
     if (clock) tx.timers.push({ kind: "set", timerId: TURN_TIMER, delayMs: clock });
   }
   tx.all({ type: "turn-start", playerId: f.id, round: s.round });
+}
+
+/**
+ * Poison bites at its victim's turn start: 1 HP, never the last one, and only
+ * while the poisoner is still an enemy. Peace stops the bite, not the clock.
+ */
+function poisonTick(tx: Tx): void {
+  const s = tx.state;
+  const f = current(s);
+  for (const u of Object.values(s.units)) {
+    if (u.owner !== f.id || !u.poison) continue;
+    if (hostile(s, u.poison.by, u.owner) && u.hp > 1) {
+      u.hp -= 1;
+      tx.seen([u.at], { type: "poison", at: u.at });
+    }
+    if (--u.poison.turns <= 0) delete u.poison;
+  }
+}
+
+/** Brood mothers lay a larva on an empty, adjacent tile of the network, if their city has room. */
+function layBroods(tx: Tx): void {
+  const s = tx.state;
+  const f = current(s);
+  for (const u of Object.values(s.units)) {
+    const egg = u.owner === f.id && !u.vessel ? UNITS[u.type].lays : undefined;
+    if (!egg || !u.home) continue;
+    const home = s.cities[u.home];
+    if (!home || home.owner !== f.id || homedUnits(s, home.id) >= capacity(home)) continue;
+    const units = indexUnits(Object.values(s.units));
+    const spot = neighbors(u.at, s.size).find((i) => !units.has(i) && onNetwork(s, f.id, i) && canOccupy(s, { owner: f.id, type: egg }, i));
+    if (spot === undefined) continue;
+    spawnUnit(s, egg, f.id, spot, home.id);
+    tx.seen([spot], { type: "spawn", at: spot });
+  }
 }
 
 /**
@@ -687,7 +728,7 @@ function enterRuins(tx: Tx, unit: Unit): void {
     const units = indexUnits(Object.values(s.units));
     const spot = neighbors(unit.at, s.size).find((i) => !units.has(i) && canStand(s, f.id, i));
     if (spot !== undefined) {
-      spawnUnit(s, unitFor(f.kind, "infantry"), f.id, spot, null);
+      spawnUnit(s, FACTIONS[f.kind].startUnit ?? unitFor(f.kind, "infantry"), f.id, spot, null);
       reward = { kind: "unit", at: spot };
       tx.seen([spot], { type: "spawn", at: spot });
     }
@@ -785,6 +826,11 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       // Frost on whoever survives a hit from a chilling unit, either way round.
       if (!defenderKilled && !unit.vessel && UNITS[unit.type].onHit === "chill") target.chilled = true;
       if (!attackerKilled && !defenderKilled && retaliation > 0 && !target.vessel && UNITS[target.type].onHit === "chill") unit.chilled = true;
+      // Venom likewise: the survivor keeps losing health for a while.
+      if (!defenderKilled && !unit.vessel && UNITS[unit.type].onHit === "poison") target.poison = { turns: POISON_TURNS, by: me };
+      if (!attackerKilled && !defenderKilled && retaliation > 0 && !target.vessel && UNITS[target.type].onHit === "poison") {
+        unit.poison = { turns: POISON_TURNS, by: target.owner };
+      }
       const def = UNITS[unit.type];
       unit.attacked = true;
       // Knights chain and cavalry fall back on land only; at sea they're just cargo.
@@ -857,6 +903,14 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     case "heal": {
       const unit = ownUnit(s, me, action.unit);
       if (!unit || unit.done || unit.moved || unit.attacked) return "That unit has already acted.";
+      if (unit.poison) {
+        // Healing a poisoned unit only draws the poison out.
+        delete unit.poison;
+        unit.done = true;
+        unit.mp = 0;
+        tx.seen([unit.at], { type: "heal", at: unit.at, amount: 0 });
+        return null;
+      }
       if (unit.hp >= unit.maxHp) return "That unit is already healthy.";
       const amount = Math.min(unit.maxHp - unit.hp, tileOwner(s, unit.at) === me ? HEAL_HOME : HEAL);
       unit.hp += amount;
@@ -966,9 +1020,15 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (!unit || !(UNITS[unit.type].sage || UNITS[unit.type].mender) || unit.done || unit.attacked) return ILLEGAL;
       const hurt = neighbors(unit.at, s.size)
         .map((i) => truth.get(i))
-        .filter((u): u is Unit => !!u && allied(s, u.owner, me) && u.hp < u.maxHp);
+        .filter((u): u is Unit => !!u && allied(s, u.owner, me) && (u.hp < u.maxHp || !!u.poison));
       if (!hurt.length) return "Nobody nearby needs healing.";
       for (const u of hurt) {
+        // Poison comes out first; health only for the clean.
+        if (u.poison) {
+          delete u.poison;
+          tx.seen([u.at], { type: "heal", at: u.at, amount: 0 });
+          continue;
+        }
         const amount = Math.min(MEND_HP, u.maxHp - u.hp);
         u.hp += amount;
         tx.seen([u.at], { type: "heal", at: u.at, amount });
@@ -999,6 +1059,40 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       unit.done = true;
       unit.mp = 0;
       tx.seen([target.at], { type: "convert", at: target.at, by: me });
+      return null;
+    }
+
+    case "evolve": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit || unit.done || unit.moved || unit.attacked || unit.vessel) return "That unit has already acted.";
+      const from = UNITS[unit.type];
+      const into = UNITS[action.into];
+      if (!from.evolvesInto?.includes(action.into)) return ILLEGAL;
+      if (!onNetwork(s, me, unit.at)) return "Larvae evolve on your mycelium.";
+      if (!hasTech(s, me, into.needs)) return `Research ${TECHS[into.needs!].name} first.`;
+      const price = into.cost - from.cost;
+      if (f.credits < price) return "Not enough credits.";
+      f.credits -= price;
+      const ratio = unit.hp / unit.maxHp;
+      unit.type = action.into;
+      unit.maxHp = into.hp + (unit.veteran ? VETERAN_HP : 0);
+      unit.hp = Math.max(1, Math.round(ratio * unit.maxHp));
+      delete unit.age;
+      unit.done = true;
+      unit.mp = 0;
+      tx.seen([unit.at], { type: "spawn", at: unit.at });
+      return null;
+    }
+
+    case "burn": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit || unit.done || unit.vessel) return "That unit has already acted.";
+      const tile = s.tiles[unit.at]!;
+      if (!tile.myc || !hostile(s, tile.myc, me)) return "There's no enemy mycelium here.";
+      delete tile.myc;
+      unit.done = true;
+      unit.mp = 0;
+      tx.seen([unit.at], { type: "burn", at: unit.at });
       return null;
     }
 
@@ -1094,6 +1188,7 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
   const city = tile.claim ? s.cities[tile.claim] : undefined;
   const block = developBlock(kind, tile, {
     kind: f.kind,
+    network: FACTIONS[f.kind].network ? networkContext(s, me, at) : undefined,
     mine: owner === me && !!city,
     open: (owner === null || allied(s, owner, me)) && !!visionOf(s, me)[at],
     hasCity: tile.city !== null,
@@ -1108,6 +1203,15 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
     f.credits -= h.cost;
     tile.res = null;
     addPop(tx, city!, h.pop);
+  } else if (kind === "spread") {
+    // Spreading needs eyes on the tile; a blind spread would scout for free.
+    if (!visionOf(s, me)[at]) return ILLEGAL;
+    f.credits -= NETWORK.spreadCost;
+    tile.myc = me;
+  } else if (kind === "absorb") {
+    f.credits -= NETWORK.absorbCost;
+    tile.res = null;
+    addPop(tx, city!, NETWORK.absorbPop);
   } else if (kind === "tend") {
     // The resource stays for whoever holds the land next.
     f.credits -= TEND.cost;
@@ -1174,7 +1278,8 @@ function runBot(tx: Tx): void {
   const f = current(s);
   if (s.phase !== "playing" || !f.bot) return;
   const rng = new Rng(s.rng.ai ?? streamSeed(s.seed, 3));
-  const memory: BotMemory = { banned: new Set() };
+  // Refusals are remembered for the whole turn, across batches.
+  const memory: BotMemory = { banned: new Set(s.botBanned ?? []) };
   for (let n = 0; n < BOT_BATCH; n++) {
     const steps = (s.botSteps ?? 0) + 1;
     s.botSteps = steps;
@@ -1188,6 +1293,7 @@ function runBot(tx: Tx): void {
     if (apply(tx, f.id, action)) memory.banned.add(JSON.stringify(action));
     if (s.phase !== "playing" || current(s).id !== f.id) break;
   }
+  if (s.phase === "playing" && current(s).id === f.id) s.botBanned = [...memory.banned];
   s.rng.ai = rng.state;
   if (s.phase === "playing" && current(s).id === f.id) {
     tx.timers.push({ kind: "set", timerId: BOT_TIMER, delayMs: BOT_STEP_MS });
@@ -1287,7 +1393,7 @@ export const dominionGame: GameDefinition<
 
     order.forEach((p, k) => {
       const capital = foundCity(state, world.starts[k]!, p.id, kinds[k]!, true);
-      spawnUnit(state, unitFor(kinds[k]!, "infantry"), p.id, capital.at, capital.id);
+      spawnUnit(state, FACTIONS[kinds[k]!].startUnit ?? unitFor(kinds[k]!, "infantry"), p.id, capital.at, capital.id);
     });
 
     const tx = new Tx(state, ctx);

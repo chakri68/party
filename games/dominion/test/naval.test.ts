@@ -183,12 +183,15 @@ describe("water maps", () => {
 });
 
 describe("fog memory", () => {
-  it("remembers every improvement and feature exactly", () => {
-    const imps: (Improvement | null)[] = [null, "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "monument", "port"];
-    for (const imp of imps) {
-      for (const feat of [null, "village", "ruins", "beacon"] as const) {
-        const tile: Tile = { t: "shallow", res: "fish", imp, road: true, feat, city: null, claim: null };
-        expect(decodeTile(encodeTile(tile, 6))).toEqual({ t: "shallow", res: "fish", imp, road: true, feat, ownerSeat: 6 });
+  it("remembers every terrain, improvement, feature and mycelium owner exactly", () => {
+    const imps: (Improvement | null)[] = [null, "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "monument", "port", "grove", "reef_nest"];
+    for (const t of ["plains", "forest", "mountain", "shallow", "ocean", "ice"] as const) {
+      for (const imp of imps) {
+        for (const feat of [null, "village", "ruins", "beacon"] as const) {
+          const tile: Tile = { t, res: "fish", imp, road: true, feat, city: null, claim: null };
+          expect(decodeTile(encodeTile(tile, 7, 7))).toEqual({ t, res: "fish", imp, road: true, feat, ownerSeat: 7, mycSeat: 7 });
+          expect(decodeTile(encodeTile(tile, -1)).mycSeat).toBe(-1);
+        }
       }
     }
   });
