@@ -23,13 +23,19 @@ export function parseAction(input: unknown): DominionAction | null {
     case "capture":
     case "heal":
     case "promote":
+    case "disband":
+    case "mend":
       return isId(a.unit) ? { type: a.type, turn, unit: a.unit } : null;
+    case "convert":
+      return isId(a.unit) && isTile(a.target) ? { type: "convert", turn, unit: a.unit, target: a.target } : null;
+    case "monument":
+      return isTile(a.tile) ? { type: "monument", turn, tile: a.tile } : null;
     case "train":
       return isId(a.city) && oneOf<UnitType>(UNITS, a.unitType) ? { type: "train", turn, city: a.city, unitType: a.unitType } : null;
     case "research":
       return oneOf<TechId>(TECHS, a.tech) ? { type: "research", turn, tech: a.tech } : null;
     case "develop": {
-      const kinds = { harvest: 1, ...DEVELOP } as Record<DevelopKind, unknown>;
+      const kinds = { harvest: 1, demolish: 1, ...DEVELOP } as Record<DevelopKind, unknown>;
       return isTile(a.tile) && oneOf<DevelopKind>(kinds, a.kind) ? { type: "develop", turn, tile: a.tile, kind: a.kind } : null;
     }
     case "reward":

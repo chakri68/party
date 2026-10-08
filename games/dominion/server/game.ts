@@ -4,8 +4,15 @@ import {
   FACTION_KINDS,
   FACTIONS,
   HARVEST,
+  DEMOLISH_COST,
   HEAL,
   HEAL_HOME,
+  MAX_CHAIN,
+  MEND_HP,
+  MONUMENT_POP,
+  TEMPLE_CULTURE,
+  TEMPLE_CULTURE_CAP,
+  TERRAIN,
   OPENING_CREDITS,
   POPULATION_REWARD,
   rewardChoices,
@@ -24,9 +31,13 @@ import { dominionManifest } from "../shared/manifest.ts";
 import { generateWorld } from "../shared/mapgen.ts";
 import { encodeTerrain, encodeTile } from "../shared/memory.ts";
 import { cityName } from "../shared/names.ts";
-import { parseSettings, resolveBots, resolveMapSize } from "../shared/rules-text.ts";
+import { parseSettings, resolveBots, resolveMapSize, resolveTeams } from "../shared/rules-text.ts";
 import {
+  allied,
+  canAttackWith,
   canStand,
+  achievementProgress,
+  developBlock,
   capacity,
   faction,
   fullMp,
@@ -132,6 +143,7 @@ class Tx {
   finish(): Transition {
     const s = this.state;
     if (s.phase === "playing") checkEliminations(this);
+    if (s.phase === "playing") checkAchievements(this);
     rememberAll(s);
     s.revision++;
 
@@ -355,6 +367,11 @@ function beginTurn(tx: Tx): void {
   const s = tx.state;
   const f = current(s);
 
+  // Capital control: held at the end of its last turn, and still held now (§13).
+  if (s.settings.victory === "capitals" && f.holdingCapitals && holdsAllCapitals(s, f.id)) {
+    return finish(tx, teamOf(s, f.id), "capitals");
+  }
+
   // Homeless units find a city with room (§6). Excess ones wait, unhomed.
   for (const u of Object.values(s.units)) {
     if (u.owner !== f.id || u.home !== null) continue;
@@ -362,6 +379,13 @@ function beginTurn(tx: Tx): void {
     if (city) u.home = city.id;
   }
   for (const c of ownedCities(s, f.id)) if (c.pendingChampion) trySpawnChampion(tx, c);
+
+  // Temples gather culture at their owner's turn start, up to a cap each.
+  s.tiles.forEach((t) => {
+    if (t.imp === "temple" && t.claim && s.cities[t.claim]?.owner === f.id) {
+      t.culture = Math.min(TEMPLE_CULTURE_CAP, (t.culture ?? 0) + TEMPLE_CULTURE);
+    }
+  });
 
   f.credits += totalIncome(s, f.id);
   for (const u of Object.values(s.units)) {
@@ -371,6 +395,7 @@ function beginTurn(tx: Tx): void {
     u.attacked = false;
     u.done = false;
     u.settled = true;
+    u.chained = 0;
   }
 
   s.botSteps = 0;
@@ -389,7 +414,11 @@ function beginTurn(tx: Tx): void {
 function advanceTurn(tx: Tx): void {
   const s = tx.state;
   if (s.phase !== "playing") return;
-  if (!current(s).eliminated) settleRewards(tx, current(s).id);
+  const ending = current(s);
+  if (!ending.eliminated) {
+    settleRewards(tx, ending.id);
+    ending.holdingCapitals = holdsAllCapitals(s, ending.id);
+  }
   const n = s.factions.length;
   let next = s.current;
   for (let step = 1; step <= n; step++) {
@@ -413,6 +442,20 @@ function alive(state: State) {
   return state.factions.filter((f) => !f.eliminated);
 }
 
+/** Everyone who wins alongside `id`: its team, or just itself. */
+function teamOf(state: State, id: string): string[] {
+  return state.factions.filter((f) => allied(state, f.id, id)).map((f) => f.id);
+}
+
+/** A side: a team number, or a lone empire's id. */
+const side = (f: { id: string; team?: number | null }) => (f.team === undefined || f.team === null ? f.id : `team${f.team}`);
+
+/** Every original capital is held by `id` or its allies. */
+function holdsAllCapitals(state: State, id: string): boolean {
+  const capitals = Object.values(state.cities).filter((c) => c.capitalOf !== null);
+  return capitals.length > 0 && capitals.every((c) => allied(state, c.owner, id));
+}
+
 function eliminate(tx: Tx, owner: string): void {
   const s = tx.state;
   const f = faction(s, owner)!;
@@ -427,15 +470,17 @@ function checkEliminations(tx: Tx): void {
   for (const f of s.factions) {
     if (!f.eliminated && ownedCities(s, f.id).length === 0) eliminate(tx, f.id);
   }
-  const left = alive(s);
-  if (left.length <= 1) {
-    finish(tx, left.map((f) => f.id), left.length ? "conquest" : "draw");
+  // Conquest is per side: the last team standing wins together, fallen allies included.
+  const sides = new Set(alive(s).map(side));
+  if (sides.size <= 1) {
+    const last = alive(s)[0];
+    finish(tx, last ? teamOf(s, last.id) : [], last ? "conquest" : "draw");
     return;
   }
   if (faction(s, wasTurnOf)!.eliminated) advanceTurn(tx);
 }
 
-function finish(tx: Tx, winnerIds: string[], reason: "conquest" | "score" | "draw"): void {
+function finish(tx: Tx, winnerIds: string[], reason: "conquest" | "score" | "capitals" | "draw"): void {
   const s = tx.state;
   s.phase = "finished";
   s.deadline = null;
@@ -444,26 +489,50 @@ function finish(tx: Tx, winnerIds: string[], reason: "conquest" | "score" | "dra
   tx.all({ type: "game-over", winnerIds });
 }
 
-/** Highest score; ties go to owned capitals, then city population, then credits; then shared (§13). */
+/**
+ * Highest score; ties go to owned capitals, then city population, then
+ * credits; then shared (§13). Teams compete on their members' totals.
+ */
 function finishByScore(tx: Tx): void {
   const s = tx.state;
-  const key = (id: string) => {
-    const cities = ownedCities(s, id);
+  const key = (members: string[]) => {
+    const cities = members.flatMap((id) => ownedCities(s, id));
     return [
-      scoreOf(s, id),
+      members.reduce((n, id) => n + scoreOf(s, id), 0),
       cities.filter((c) => c.capitalOf !== null).length,
       cities.reduce((n, c) => n + c.level, 0),
-      faction(s, id)!.credits,
+      members.reduce((n, id) => n + faction(s, id)!.credits, 0),
     ];
   };
-  const contenders = alive(s).map((f) => ({ id: f.id, key: key(f.id) }));
-  contenders.sort((a, b) => {
+  const sides = [...new Set(alive(s).map(side))].map((k) => {
+    const members = s.factions.filter((f) => side(f) === k).map((f) => f.id);
+    return { members, key: key(members) };
+  });
+  sides.sort((a, b) => {
     for (let k = 0; k < a.key.length; k++) if (a.key[k] !== b.key[k]) return b.key[k]! - a.key[k]!;
     return 0;
   });
-  const top = contenders[0];
-  const winners = top ? contenders.filter((c) => c.key.every((v, k) => v === top.key[k])).map((c) => c.id) : [];
+  const top = sides[0];
+  const winners = top ? sides.filter((c) => c.key.every((v, k) => v === top.key[k])).flatMap((c) => c.members) : [];
   finish(tx, winners, winners.length ? "score" : "draw");
+}
+
+// ---------------------------------------------------------------------------
+// Achievements (§13): checked after every change, each earned once.
+// ---------------------------------------------------------------------------
+
+function checkAchievements(tx: Tx): void {
+  const s = tx.state;
+  for (const f of s.factions) {
+    if (f.eliminated) continue;
+    f.monuments ??= { earned: [], unplaced: 0 };
+    for (const a of achievementProgress(s, f.id)) {
+      if (a.progress < a.goal || f.monuments.earned.includes(a.kind)) continue;
+      f.monuments.earned.push(a.kind);
+      f.monuments.unplaced++;
+      tx.only(f.id, { type: "achievement", kind: a.kind });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -554,12 +623,12 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
 
     case "attack": {
       const unit = ownUnit(s, me, action.unit);
-      if (!unit || unit.done || unit.attacked) return ILLEGAL;
+      if (!unit || !canAttackWith(unit)) return ILLEGAL;
       const target = truth.get(action.target);
       const vis = visionOf(s, me);
       if (
         !target ||
-        target.owner === me ||
+        allied(s, target.owner, me) ||
         !vis[action.target] ||
         chebyshev(unit.at, target.at, s.size) > UNITS[unit.type].range
       ) {
@@ -581,9 +650,20 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         target.kills++;
         faction(s, target.owner)!.kills++;
       }
+      const def = UNITS[unit.type];
       unit.attacked = true;
-      unit.done = true;
-      unit.mp = 0;
+      if (def.chain && defenderKilled && (unit.chained ?? 0) < MAX_CHAIN) {
+        // Knights strike again after a kill, standing where they are.
+        unit.chained = (unit.chained ?? 0) + 1;
+        unit.attacked = false;
+        unit.mp = 0;
+      } else if (unit.type === "cavalry" && f.techs.includes("free_spirit")) {
+        // Free Spirit: cavalry may fall back with what movement it has left.
+        unit.moved = true;
+      } else {
+        unit.done = true;
+        unit.mp = 0;
+      }
       tx.seen([unit.at, target.at], {
         type: "attack",
         from: unit.at,
@@ -605,7 +685,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (tile.feat === "village") {
         const c = foundCity(s, unit.at, me, f.kind, false);
         unit.home ??= c.id;
-      } else if (city && city.owner !== me) {
+      } else if (city && !allied(s, city.owner, me)) {
         city.owner = me;
         city.pendingRewards = [];
         city.pendingChampion = false;
@@ -640,6 +720,73 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       return null;
     }
 
+    case "disband": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit) return ILLEGAL;
+      if (!f.techs.includes("free_spirit")) return "Research Free Spirit first.";
+      // Converted units refund nothing, so stealing and selling can't print money.
+      const refund = unit.converted ? 0 : Math.floor(UNITS[unit.type].cost / 2);
+      f.credits += refund;
+      delete s.units[unit.id];
+      tx.seen([unit.at], { type: "move", unit: unit.id, from: unit.at, to: null });
+      return null;
+    }
+
+    case "mend": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit || !UNITS[unit.type].sage || unit.done || unit.attacked) return ILLEGAL;
+      const hurt = neighbors(unit.at, s.size)
+        .map((i) => truth.get(i))
+        .filter((u): u is Unit => !!u && allied(s, u.owner, me) && u.hp < u.maxHp);
+      if (!hurt.length) return "Nobody nearby needs healing.";
+      for (const u of hurt) {
+        const amount = Math.min(MEND_HP, u.maxHp - u.hp);
+        u.hp += amount;
+        tx.seen([u.at], { type: "heal", at: u.at, amount });
+      }
+      unit.done = true;
+      unit.mp = 0;
+      return null;
+    }
+
+    case "convert": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit || !UNITS[unit.type].sage || unit.done || unit.attacked) return ILLEGAL;
+      const target = truth.get(action.target);
+      if (
+        !target ||
+        allied(s, target.owner, me) ||
+        !visionOf(s, me)[action.target] ||
+        chebyshev(unit.at, target.at, s.size) > 1 ||
+        UNITS[target.type].steadfast
+      ) {
+        return "Can't convert that.";
+      }
+      target.owner = me;
+      target.home = null; // finds room in one of your cities at your next turn start
+      target.converted = true;
+      target.done = true;
+      target.mp = 0;
+      unit.done = true;
+      unit.mp = 0;
+      tx.seen([target.at], { type: "convert", at: target.at, by: me });
+      return null;
+    }
+
+    case "monument": {
+      const tile = s.tiles[action.tile];
+      const city = tile?.claim ? s.cities[tile.claim] : undefined;
+      if (!f.monuments?.unplaced) return "You have no monument to place.";
+      if (!tile || !city || city.owner !== me || tile.city || tile.imp || tile.feat || tile.res || !TERRAIN[tile.t].land) {
+        return "Place it on open land of yours.";
+      }
+      tile.imp = "monument";
+      f.monuments.unplaced--;
+      addPop(tx, city, MONUMENT_POP);
+      tx.seen([action.tile], { type: "monument", at: action.tile });
+      return null;
+    }
+
     case "train": {
       const city = ownCity(s, me, action.city);
       const def = UNITS[action.unitType];
@@ -659,7 +806,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const tech = TECHS[action.tech];
       if (f.techs.includes(action.tech)) return "Already researched.";
       if (tech.parent && !f.techs.includes(tech.parent)) return `Needs ${TECHS[tech.parent].name}.`;
-      const cost = techCost(action.tech, ownedCities(s, me).length);
+      const cost = techCost(action.tech, ownedCities(s, me).length, f.techs);
       if (f.credits < cost) return "Not enough credits.";
       f.credits -= cost;
       f.techs.push(action.tech);
@@ -691,40 +838,46 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
   const tile = s.tiles[at];
   if (!tile) return ILLEGAL;
   const owner = tileOwner(s, at);
-  const enemyHere = Object.values(s.units).some((u) => u.at === at && u.owner !== me);
-  if (enemyHere) return ILLEGAL;
+  if (Object.values(s.units).some((u) => u.at === at && !allied(s, u.owner, me))) return ILLEGAL;
   const city = tile.claim ? s.cities[tile.claim] : undefined;
+  const block = developBlock(kind, tile, {
+    mine: owner === me && !!city,
+    open: (owner === null || allied(s, owner, me)) && !!visionOf(s, me)[at],
+    hasCity: tile.city !== null,
+    techs: f.techs,
+    credits: f.credits,
+  });
+  if (block === undefined) return "Can't do that there.";
+  if (block) return `${block}.`;
 
   if (kind === "harvest") {
-    const h = tile.res ? HARVEST[tile.res] : undefined;
-    if (!h || owner !== me || !city) return "Nothing to harvest there.";
-    if (!f.techs.includes(h.needs)) return `Research ${TECHS[h.needs].name} first.`;
-    if (f.credits < h.cost) return "Not enough credits.";
+    const h = HARVEST[tile.res!]!;
     f.credits -= h.cost;
     tile.res = null;
-    addPop(tx, city, h.pop);
-    tx.seen([at], { type: "develop", at, kind });
-    return null;
-  }
-
-  const def = DEVELOP[kind];
-  if (!f.techs.includes(def.needs)) return `Research ${TECHS[def.needs].name} first.`;
-  if (!def.terrain.includes(tile.t) || tile.city || tile.feat) return "Can't build that there.";
-  if (kind === "road") {
-    if (tile.road || (owner !== null && owner !== me) || !visionOf(s, me)[at]) return "Can't build a road there.";
+    addPop(tx, city!, h.pop);
+  } else if (kind === "demolish") {
+    // The tile keeps its credit: population already earned stays, and
+    // rebuilding the same thing won't pay again (§6).
+    f.credits -= DEMOLISH_COST;
+    tile.imp = null;
+  } else if (kind === "road") {
+    f.credits -= DEVELOP.road.cost;
+    tile.road = true;
   } else {
-    if (owner !== me || !city || tile.imp) return "Can't build that there.";
-    const needRes = def.resource;
-    if (needRes ? !tile.res || !needRes.includes(tile.res) : tile.res !== null) return "Can't build that there.";
-  }
-  if (f.credits < def.cost) return "Not enough credits.";
-  f.credits -= def.cost;
-  if (kind === "road") tile.road = true;
-  else {
+    const def = DEVELOP[kind];
+    if (def.unique && s.tiles.some((t) => t.claim === city!.id && t.imp === def.builds)) return `One ${def.name.toLowerCase()} per city.`;
+    f.credits -= def.cost;
     tile.imp = def.builds!;
     tile.res = null;
+    let pop = def.pop;
+    if (def.adjacentPop) {
+      pop += neighbors(at, s.size).filter((j) => s.tiles[j]!.claim === city!.id && s.tiles[j]!.imp === def.adjacentPop).length;
+    }
+    const credited = (tile.credited ??= []);
+    if (credited.includes(def.builds!)) pop = 0;
+    else credited.push(def.builds!);
+    if (pop) addPop(tx, city!, pop);
   }
-  if (city && def.pop) addPop(tx, city, def.pop);
   tx.seen([at], { type: "develop", at, kind });
   return null;
 }
@@ -813,6 +966,7 @@ export const dominionGame: GameDefinition<
     const bots = Array.from({ length: resolveBots(settings.bots, humans) }, (_, k) => ({ id: `cpu${k + 1}`, bot: true }));
     const order: { id: string; bot?: boolean }[] = [...players.slice(start), ...players.slice(0, start), ...bots];
     const n = order.length;
+    const teams = resolveTeams(settings.teams ?? 0, n);
     const kinds = pickKinds(settings, n, ctx);
     const seed = ctx.randomInt(2 ** 32);
     const size = resolveMapSize(settings.mapSize, n);
@@ -834,7 +988,10 @@ export const dominionGame: GameDefinition<
         // People keep their seat order's colour; computers take what's left.
         color: p.bot ? humans + bots.indexOf(p as (typeof bots)[number]) : players.findIndex((x) => x.id === p.id),
         bot: p.bot ? { level: settings.botLevel, name: BOT_NAMES[bots.indexOf(p as (typeof bots)[number]) % BOT_NAMES.length]! } : null,
-        credits: OPENING_CREDITS,
+        credits: FACTIONS[kinds[k]!].openingCredits ?? OPENING_CREDITS,
+        // Dealt round-robin in turn order, so teams interleave around the table.
+        team: teams ? k % teams : null,
+        monuments: { earned: [], unplaced: 0 },
         techs: [FACTIONS[kinds[k]!].startTech],
         eliminated: false,
         surrendered: false,
@@ -939,6 +1096,7 @@ export const dominionGame: GameDefinition<
         kind: f.kind,
         color: f.color,
         eliminated: f.eliminated,
+        team: f.team ?? null,
         ...(f.bot && { name: f.bot.name, bot: f.bot.level }),
       })),
     };

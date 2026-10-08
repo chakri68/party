@@ -1,6 +1,8 @@
 import { audio } from "@games/audio";
 import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import {
+  DEMOLISH_COST,
+  MONUMENTS,
   DEVELOP,
   FACTIONS,
   HARVEST,
@@ -15,7 +17,8 @@ import {
   UNITS,
   VETERAN_KILLS,
 } from "../shared/content.ts";
-import { colOf, indexOf, rowOf } from "../shared/grid.ts";
+import { chebyshev, colOf, indexOf, rowOf } from "../shared/grid.ts";
+import { developBlock } from "../shared/rules.ts";
 import type {
   DevelopKind,
   DominionAction,
@@ -26,7 +29,6 @@ import type {
   KnownTile,
   KnownUnit,
   RewardChoice,
-  TechId,
 } from "../shared/types.ts";
 import { Board, type BoardModel, type PlayerLook } from "./board.ts";
 import { spriteUrl, type SpriteKey } from "./assets.ts";
@@ -242,6 +244,16 @@ export class DominionView implements GameView {
         case "turn-start":
           lines.push(e.playerId === p?.me ? `Round ${e.round}. Your turn.` : `${this.player(e.playerId).name}'s turn.`);
           break;
+        case "convert":
+          this.board.effect(e.at, "effect.capture");
+          lines.push(e.by === p?.me ? "Converted. They fight for you now." : `${this.player(e.by).name} converted a unit.`);
+          break;
+        case "monument":
+          this.board.effect(e.at, "effect.spawn");
+          break;
+        case "achievement":
+          lines.push(`Milestone: ${MONUMENTS[e.kind as keyof typeof MONUMENTS]?.name ?? "a monument"}. Place it on your land.`);
+          break;
         case "eliminated":
           lines.push(`${this.player(e.playerId).name} ${e.playerId === p?.me ? "are" : "is"} out.`);
           break;
@@ -289,6 +301,18 @@ export class DominionView implements GameView {
     if (!p) return;
     this.cursor = null;
     const sel = this.selectedUnit();
+    if (sel && p.myTurn && p.converts[sel.id]?.includes(tile)) {
+      // Converting takes a second tap too, like an attack.
+      if (this.armedAttack === tile) {
+        this.armedAttack = null;
+        this.act({ type: "convert", unit: sel.id, target: tile }, "convert");
+      } else {
+        this.armedAttack = tile;
+        this.say("Tap again to convert this unit to your side.");
+      }
+      this.render();
+      return;
+    }
     if (sel && p.myTurn) {
       const attack = p.attacks[sel.id]?.find((a) => a.target === tile);
       if (attack) {
@@ -415,6 +439,7 @@ export class DominionView implements GameView {
         selected: this.selected,
         moves: new Set(sel && p.myTurn ? (p.moves[sel.id] ?? []) : []),
         attacks: new Map(sel && p.myTurn ? (p.attacks[sel.id] ?? []).map((a) => [a.target, a]) : []),
+        converts: new Set(sel && p.myTurn ? (p.converts[sel.id] ?? []) : []),
         armed: this.armedAttack,
         cursor: this.cursor,
       });
@@ -475,6 +500,7 @@ export class DominionView implements GameView {
         "div",
         { class: "dm-standing" },
         p ? h("span", {}, `Score ${p.score}`) : null,
+        p?.monumentsToPlace ? h("span", { class: "dm-income" }, `${plural(p.monumentsToPlace, "monument")} to place`) : null,
         h("span", {}, `Round ${pub.round}${pub.roundLimit ? ` of ${pub.roundLimit}` : ""}`),
       ),
     );
@@ -601,6 +627,7 @@ export class DominionView implements GameView {
           },
           look.name,
           pl.bot ? h("span", { class: "dm-cpu", title: `Computer, ${pl.bot}` }, "CPU") : null,
+          pl.team !== undefined && pl.team !== null ? h("span", { class: "dm-cpu", title: "Team" }, `T${pl.team + 1}`) : null,
         );
       }),
     );
@@ -675,7 +702,7 @@ export class DominionView implements GameView {
     const actions: HTMLElement[] = [];
     if (mine && p.myTurn) {
       const fresh = !mine.done && !mine.moved && !mine.attacked;
-      const capturable = tile?.feat === "village" || (!!city && city.owner !== p.me);
+      const capturable = tile?.feat === "village" || (!!city && !this.alliedWith(city.owner));
       if (capturable && fresh) {
         actions.push(
           h("button", {
@@ -692,6 +719,35 @@ export class DominionView implements GameView {
       }
       if (!unit.veteran && mine.kills >= VETERAN_KILLS) {
         actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "promote", unit: unit.id }, "promote") }, "Promote"));
+      }
+      if (def.sage && !mine.done && !mine.attacked) {
+        const hurt = p.units.some((u) => u.id !== unit.id && this.alliedWith(u.owner) && u.hp < u.maxHp && chebyshev(u.at, unit.at, this.pub!.size) === 1);
+        actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
+        if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
+      }
+      if (p.techs.includes("free_spirit")) {
+        const key = `disband:${unit.id}`;
+        const refund = Math.floor(def.cost / 2);
+        actions.push(
+          h(
+            "button",
+            {
+              type: "button",
+              class: `dm-btn${this.armedKey === key ? " armed" : ""}`,
+              onclick: () => {
+                // Always two taps: losing a unit to a stray click is worse than a slow one.
+                if (this.armedKey !== key) {
+                  this.armedKey = key;
+                  this.renderPanel();
+                  return;
+                }
+                this.armedKey = null;
+                this.act({ type: "disband", unit: unit.id }, "disband");
+              },
+            },
+            this.armedKey === key ? "Tap again to disband" : `Disband${refund ? ` (+${refund}¢)` : ""}`,
+          ),
+        );
       }
     }
     const status = mine
@@ -797,21 +853,30 @@ export class DominionView implements GameView {
     const p = this.priv!;
     if (!tile.vis) return null;
     const mine = tile.owner === p.me;
-    const options: { kind: DevelopKind; name: string; cost: number; needs: TechId; pop: number }[] = [];
-    const h_ = tile.res ? HARVEST[tile.res] : undefined;
-    if (mine && h_) options.push({ kind: "harvest", name: `Harvest ${RESOURCE_NAMES[tile.res!].toLowerCase()}`, ...h_ });
-    for (const kind of ["farm", "lumber_camp", "mine", "road"] as const) {
-      const d = DEVELOP[kind];
-      if (!d.terrain.includes(tile.t) || tile.feat) continue;
-      if (kind === "road") {
-        if (tile.road || (tile.owner !== null && !mine)) continue;
-      } else {
-        if (!mine || tile.imp) continue;
-        if (d.resource ? !tile.res || !d.resource.includes(tile.res) : tile.res !== null) continue;
-      }
-      options.push({ kind, name: d.name, cost: d.cost, needs: d.needs, pop: d.pop });
-    }
-    if (!options.length) return null;
+    const ctx = {
+      mine,
+      open: tile.owner === null || this.alliedWith(tile.owner),
+      hasCity: p.cities.some((c) => c.at === i),
+      techs: p.techs,
+      credits: p.credits,
+    };
+    const kinds: DevelopKind[] = ["harvest", "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "road", "demolish"];
+    const options = kinds.flatMap((kind) => {
+      const block = developBlock(kind, tile, ctx);
+      if (block === undefined) return [];
+      const name =
+        kind === "harvest" ? `Harvest ${RESOURCE_NAMES[tile.res!].toLowerCase()}`
+        : kind === "demolish" ? `Demolish ${IMPROVEMENT_NAMES[tile.imp!].toLowerCase()}`
+        : DEVELOP[kind].name;
+      const cost = kind === "harvest" ? HARVEST[tile.res!]!.cost : kind === "demolish" ? DEMOLISH_COST : DEVELOP[kind].cost;
+      const pop = kind === "harvest" ? HARVEST[tile.res!]!.pop : kind === "demolish" ? 0 : DEVELOP[kind].pop;
+      const extra = kind === "mill" ? "+1 pop per farm beside it" : kind === "forge" ? "+1 pop per mine beside it" : kind === "market" ? "+1¢ per workshop beside it" : null;
+      return [{ kind, name, cost, pop, extra, reason: block }];
+    });
+    // A monument can go on any open land of yours.
+    const monument =
+      mine && p.monumentsToPlace > 0 && !tile.imp && !tile.feat && !tile.res && !ctx.hasCity && tile.t !== "shallow" && tile.t !== "ocean";
+    if (!options.length && !monument) return null;
     return h(
       "section",
       {},
@@ -819,24 +884,42 @@ export class DominionView implements GameView {
       h(
         "div",
         { class: "dm-actions" },
+        monument
+          ? h(
+              "button",
+              { type: "button", class: "dm-btn primary dm-buy", disabled: !p.myTurn, onclick: () => this.act({ type: "monument", tile: i }, "monument") },
+              "Place monument",
+              h("span", { class: "dm-cost" }, "+3 pop"),
+            )
+          : null,
         options.map((o) => {
-          const reason = !p.techs.includes(o.needs) ? `Needs ${TECHS[o.needs].name}` : p.credits < o.cost ? "Not enough credits" : null;
           const key = `dev:${i}:${o.kind}`;
+          const detail = [`${o.cost}¢`, o.pop ? `+${o.pop} pop` : null, o.extra, o.reason].filter(Boolean).join(" · ");
           return h(
             "button",
             {
               type: "button",
               class: `dm-btn dm-buy${this.armedKey === key ? " armed" : ""}`,
-              disabled: !p.myTurn || !!reason,
-              title: reason ?? "",
+              disabled: !p.myTurn || !!o.reason,
+              title: o.reason ?? "",
               onclick: () => this.confirm(key) && this.act({ type: "develop", tile: i, kind: o.kind }, o.name),
             },
             this.armedKey === key ? `Confirm` : o.name,
-            h("span", { class: "dm-cost" }, `${o.cost}¢${o.pop ? ` · +${o.pop} pop` : ""}${reason ? ` · ${reason}` : ""}`),
+            h("span", { class: "dm-cost" }, detail),
           );
         }),
       ),
     );
+  }
+
+  private alliedWith(id: string | null): boolean {
+    const pub = this.pub;
+    const me = this.priv?.me;
+    if (!pub || !me || id === null) return false;
+    if (id === me) return true;
+    const team = (x: string) => pub.players.find((pl) => pl.id === x)?.team;
+    const t = team(me);
+    return t !== undefined && t !== null && t === team(id);
   }
 
   private renderA11y() {

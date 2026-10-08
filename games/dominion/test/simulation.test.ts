@@ -198,4 +198,18 @@ describe("computer players", () => {
       expect(game.getResult(state)?.names?.cpu1).toMatch(/computer/);
     });
   }
+
+  it("teams of computers play it out, and allies never fight", () => {
+    const { state } = playWithBots(23, 1, { bots: 3, teams: 2, roundLimit: 30 });
+    expect(state.phase).toBe("finished");
+    const winners = state.outcome!.winnerIds;
+    const teams = new Set(winners.map((id) => state.factions.find((f) => f.id === id)!.team));
+    expect(teams.size).toBe(1);
+  });
+
+  it("capital control ends or runs to the limit cleanly", () => {
+    const { state } = playWithBots(29, 1, { bots: 2, victory: "capitals", roundLimit: 30, botLevel: "hard" });
+    expect(state.phase).toBe("finished");
+    expect(["capitals", "score", "conquest"]).toContain(state.outcome!.reason);
+  });
 });

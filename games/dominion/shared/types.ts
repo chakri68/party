@@ -9,20 +9,26 @@ export const GENERATOR_VERSION = 1;
 
 export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
 export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
-export type Improvement = "farm" | "lumber_camp" | "mine";
+export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument";
 export type Feature = "village" | "ruins";
-export type FactionKind = "orchard" | "forest";
-export type UnitType = "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion";
+export type FactionKind = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
+export type UnitType =
+  | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
+  | "siege" | "knight" | "sage";
 export type TechId =
-  | "gathering" | "farming"
-  | "hunting" | "forestry" | "archery"
-  | "riding" | "roads"
-  | "climbing" | "mining" | "meditation" | "metallurgy"
-  | "fishing"
-  | "strategy";
+  | "gathering" | "farming" | "construction" | "strategy"
+  | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
+  | "riding" | "roads" | "commerce" | "free_spirit" | "chivalry"
+  | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
+  | "fishing";
+
+/** Achievements that earn a placeable monument (§13). */
+export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
 
 /** What a player can do to a tile. Harvests consume the resource; the rest build. */
-export type DevelopKind = "harvest" | "farm" | "lumber_camp" | "mine" | "road";
+export type DevelopKind =
+  | "harvest" | "farm" | "lumber_camp" | "mine" | "road"
+  | "mill" | "forge" | "market" | "temple" | "demolish";
 
 export type RewardChoice =
   | "workshop" | "scout"
@@ -39,7 +45,7 @@ export type MapType = "landmass" | "lakes";
 export type FogSetting = "on" | "terrain" | "off";
 export type ResourceSetting = "sparse" | "standard" | "abundant";
 export type FactionSetting = "mixed" | FactionKind;
-export type VictorySetting = "conquest" | "score";
+export type VictorySetting = "conquest" | "score" | "capitals";
 export type BotLevel = "easy" | "normal" | "hard";
 
 export interface DominionSettings {
@@ -55,6 +61,10 @@ export interface DominionSettings {
   factions: FactionSetting;
   /** Computer players added on top of the people in the room. */
   bots: number;
+  /** 0 = everyone for themselves; otherwise seats are dealt into this many teams. */
+  teams: 0 | 2 | 3 | 4;
+  /** Allies see what each other sees. Only meaningful with teams. */
+  sharedVision: boolean;
   botLevel: BotLevel;
 }
 
@@ -69,6 +79,8 @@ export const DEFAULT_SETTINGS: DominionSettings = {
   factions: "mixed",
   bots: 0,
   botLevel: "normal",
+  teams: 0,
+  sharedVision: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,6 +97,13 @@ export interface Tile {
   city: string | null;
   /** The city whose territory this tile is. Ownership follows that city's owner. */
   claim: string | null;
+  /**
+   * Improvements this tile already paid population for. Demolishing doesn't
+   * take it back, and rebuilding the same thing doesn't pay twice (§6).
+   */
+  credited?: Improvement[];
+  /** Score a temple here has gathered (§13). */
+  culture?: number;
 }
 
 export interface Unit {
@@ -106,6 +125,10 @@ export interface Unit {
   done: boolean;
   /** Has stood on this tile since its owner's turn began. Capturing needs it. */
   settled: boolean;
+  /** Extra attacks a knight has chained this turn. */
+  chained?: number;
+  /** Changed sides; never refunds on disband (§8). */
+  converted?: boolean;
 }
 
 export interface City {
@@ -156,6 +179,12 @@ export interface Faction {
   surrendered: boolean;
   kills: number;
   memory: Memory;
+  /** Team number, or null without teams. Allies share victory, never treasury. */
+  team?: number | null;
+  /** Achievements earned, and how many of their monuments are still to place. */
+  monuments?: { earned: MonumentId[]; unplaced: number };
+  /** Held every original capital when its last turn ended (capital-control win). */
+  holdingCapitals?: boolean;
   /** Set for computer players; they have no room seat. */
   bot?: { level: BotLevel; name: string } | null;
 }
@@ -191,7 +220,7 @@ export interface DominionState {
   nextId: number;
   /** Actions the current computer player has taken this turn; a hard stop for runaway turns. */
   botSteps?: number;
-  outcome: { winnerIds: string[]; reason: "conquest" | "score" | "draw" } | null;
+  outcome: { winnerIds: string[]; reason: "conquest" | "score" | "capitals" | "draw" } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +233,12 @@ export type DominionAction =
   | { type: "capture"; turn: number; unit: string }
   | { type: "heal"; turn: number; unit: string }
   | { type: "promote"; turn: number; unit: string }
+  | { type: "disband"; turn: number; unit: string }
+  /** Sage: heal every adjacent friendly unit. */
+  | { type: "mend"; turn: number; unit: string }
+  /** Sage: turn an adjacent enemy unit to your side. */
+  | { type: "convert"; turn: number; unit: string; target: number }
+  | { type: "monument"; turn: number; tile: number }
   | { type: "train"; turn: number; city: string; unitType: UnitType }
   | { type: "research"; turn: number; tech: TechId }
   | { type: "develop"; turn: number; tile: number; kind: DevelopKind }
@@ -235,6 +270,9 @@ export type DominionEvent =
   | { type: "research"; tech: TechId }
   | { type: "city-level"; city: string; level: number }
   | { type: "ruins"; at: number; reward: RuinReward }
+  | { type: "convert"; at: number; by: string }
+  | { type: "monument"; at: number; kind?: MonumentId }
+  | { type: "achievement"; kind: MonumentId }
   | { type: "eliminated"; playerId: string }
   | { type: "game-over"; winnerIds: string[] };
 
@@ -254,6 +292,7 @@ export interface PublicPlayer {
   kind: FactionKind;
   color: number;
   eliminated: boolean;
+  team?: number | null;
   /** Computer players carry their own name and skill. */
   name?: string;
   bot?: BotLevel;
@@ -336,6 +375,7 @@ export interface IncomeBreakdown {
   workshop: number;
   capital: number;
   connection: number;
+  market: number;
   total: number;
 }
 
@@ -364,4 +404,9 @@ export interface DominionPrivateState {
   /** My units that could still do something this turn. */
   idleUnits: string[];
   eliminated: boolean;
+  /** Progress towards each achievement; shown only to its owner (§13). */
+  achievements: { kind: MonumentId; done: boolean; progress: number; goal: number }[];
+  monumentsToPlace: number;
+  /** Adjacent enemies a sage could convert, per sage. */
+  converts: Record<string, number[]>;
 }

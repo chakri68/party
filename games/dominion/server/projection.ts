@@ -1,9 +1,12 @@
 // Per-recipient projections (§10). The browser gets what its player knows and
 // nothing else: no seed, no hidden units, no current state of fogged tiles.
 
-import { VETERAN_KILLS } from "../shared/content.ts";
+import { UNITS, VETERAN_KILLS } from "../shared/content.ts";
+import { neighbors } from "../shared/grid.ts";
 import { decodeTile } from "../shared/memory.ts";
 import {
+  achievementProgress,
+  allied,
   attackTargets,
   capacity,
   cityIncome,
@@ -64,6 +67,9 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     attacks: {},
     idleUnits: [],
     eliminated: true,
+    achievements: [],
+    monumentsToPlace: 0,
+    converts: {},
   };
   if (!f) return empty;
 
@@ -132,6 +138,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
   const moves: Record<string, number[]> = {};
   const attacks: Record<string, AttackOption[]> = {};
   const idleUnits: string[] = [];
+  const converts: Record<string, number[]> = {};
   if (myTurn) {
     for (const u of Object.values(state.units)) {
       if (u.owner !== me) continue;
@@ -142,9 +149,16 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
       const tile = state.tiles[u.at]!;
       const city = tile.city ? state.cities[tile.city] : undefined;
       const canCapture =
-        !u.done && !u.moved && u.settled && (tile.feat === "village" || (!!city && city.owner !== me));
+        !u.done && !u.moved && u.settled && (tile.feat === "village" || (!!city && !allied(state, city.owner, me)));
       const canPromote = !u.veteran && u.kills >= VETERAN_KILLS;
-      if (m.length || a.length || canCapture || canPromote) idleUnits.push(u.id);
+      if (UNITS[u.type].sage && !u.done && !u.attacked) {
+        const c = neighbors(u.at, state.size).filter((i) => {
+          const t = seen.get(i);
+          return !!t && !allied(state, t.owner, me) && !UNITS[t.type].steadfast;
+        });
+        if (c.length) converts[u.id] = c;
+      }
+      if (m.length || a.length || canCapture || canPromote || converts[u.id]) idleUnits.push(u.id);
     }
   }
 
@@ -166,6 +180,9 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     attacks,
     idleUnits,
     eliminated: f.eliminated,
+    achievements: achievementProgress(state, me).map((a) => ({ ...a, done: !!f.monuments?.earned.includes(a.kind) })),
+    monumentsToPlace: f.monuments?.unplaced ?? 0,
+    converts,
   };
 }
 

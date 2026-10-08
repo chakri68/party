@@ -1,5 +1,5 @@
 import type { SettingField } from "@games/game-core";
-import { FACTIONS, TILES_PER_PLAYER } from "./content.ts";
+import { FACTION_KINDS, FACTIONS, TILES_PER_PLAYER } from "./content.ts";
 import {
   DEFAULT_SETTINGS,
   type DominionSettings,
@@ -21,6 +21,9 @@ export const dominionRules: string[] = [
   "Combat is predictable: you'll see the damage before you commit. A defender that survives hits back if the attacker is in its range.",
   "Stepping next to an enemy fighter stops your move. Forests and mountains cost double, roads cost half.",
   "Lose every city and you're out. Last empire standing wins; at the round limit, the highest score does.",
+  "Hold the capitals: own every original capital at the end of your turn and still at the start of your next, and you win.",
+  "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won) each earn a monument to place on your land.",
+  "With teams, allies can't attack each other and win together. Treasuries and research stay separate.",
 ];
 
 const pickIndex = <T>(options: readonly T[], value: T) => Math.max(0, options.indexOf(value));
@@ -40,14 +43,16 @@ export function parseSettings(input: unknown): DominionSettings | null {
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...DEFAULT_SETTINGS, ...(input as Partial<DominionSettings>) };
   const ok =
-    (["conquest", "score"] as unknown[]).includes(s.victory) &&
+    (["conquest", "score", "capitals"] as unknown[]).includes(s.victory) &&
     (["auto", 16, 24, 32] as unknown[]).includes(s.mapSize) &&
     (["landmass", "lakes"] as unknown[]).includes(s.mapType) &&
     ([0, 60, 120, 180, 300] as unknown[]).includes(s.turnClock) &&
     ([0, 30, 60, 90] as unknown[]).includes(s.roundLimit) &&
     (["on", "terrain", "off"] as unknown[]).includes(s.fog) &&
     (["sparse", "standard", "abundant"] as unknown[]).includes(s.resources) &&
-    (["mixed", "orchard", "forest"] as unknown[]).includes(s.factions) &&
+    (s.factions === "mixed" || Object.hasOwn(FACTIONS, s.factions as string)) &&
+    ([0, 2, 3, 4] as unknown[]).includes(s.teams) &&
+    typeof s.sharedVision === "boolean" &&
     Number.isInteger(s.bots) && s.bots >= 0 && s.bots <= MAX_BOTS &&
     (["easy", "normal", "hard"] as unknown[]).includes(s.botLevel);
   if (!ok) return null;
@@ -64,10 +69,17 @@ export function parseSettings(input: unknown): DominionSettings | null {
     factions: s.factions,
     bots: s.bots,
     botLevel: s.botLevel,
+    teams: s.teams,
+    sharedVision: s.sharedVision,
   };
 }
 
 export const MAX_PARTICIPANTS = 8;
+
+/** Teams only when every team gets someone; otherwise everyone plays alone. */
+export function resolveTeams(requested: number, participants: number): number {
+  return requested >= 2 && participants >= requested ? requested : 0;
+}
 export const MAX_BOTS = 7;
 
 /** Computer players that actually join: never past 8 seats, and a lone person always gets one. */
@@ -92,7 +104,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
   const n = humans + bots;
   const size = resolveMapSize(settings.mapSize, n);
 
-  const victories: VictorySetting[] = ["conquest", "score"];
+  const victories: VictorySetting[] = ["conquest", "score", "capitals"];
   const sizes: MapSizeSetting[] = ["auto", 16, 24, 32];
   const types: MapType[] = ["landmass", "lakes"];
   const clocks = [0, 60, 120, 180, 300] as const;
@@ -100,7 +112,9 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
   const limits = ([0, 30, 60, 90] as const).filter((l) => l !== 0 || settings.victory === "conquest");
   const fogs: FogSetting[] = ["on", "terrain", "off"];
   const resources: ResourceSetting[] = ["sparse", "standard", "abundant"];
-  const factions: FactionSetting[] = ["mixed", "orchard", "forest"];
+  const factions: FactionSetting[] = ["mixed", ...FACTION_KINDS];
+  const teamCounts = [0, 2, 3, 4] as const;
+  const teams = resolveTeams(settings.teams, n);
   const botCounts = Array.from({ length: MAX_BOTS + 1 }, (_, k) => k);
   const levels: BotLevel[] = ["easy", "normal", "hard"];
 
@@ -122,6 +136,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
       options: [
         { label: "Conquest", patch: { victory: "conquest" } },
         { label: "Score", patch: { victory: "score" } },
+        { label: "Hold the capitals", patch: { victory: "capitals" } },
       ],
       hint: estimate(settings, n, size),
     },
@@ -180,14 +195,28 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
       key: "factions",
       label: "Factions",
       selected: pickIndex(factions, settings.factions),
-      options: [
-        { label: "Mixed", patch: { factions: "mixed" } },
-        { label: FACTIONS.orchard.name, patch: { factions: "orchard" } },
-        { label: FACTIONS.forest.name, patch: { factions: "forest" } },
-      ],
+      options: factions.map((f) => ({ label: f === "mixed" ? "Mixed" : FACTIONS[f].name, patch: { factions: f } })),
       hint: settings.factions === "mixed" ? "Dealt out at random" : FACTIONS[settings.factions].blurb,
     },
   ];
+  fields.push({
+    key: "teams",
+    label: "Teams",
+    selected: pickIndex(teamCounts, settings.teams),
+    options: teamCounts.map((t) => ({ label: t ? `${t} teams` : "Off", patch: { teams: t } })),
+    hint: settings.teams && !teams ? `Needs at least ${settings.teams} empires` : teams ? "Seats are dealt into teams in turn order" : undefined,
+  });
+  if (teams) {
+    fields.push({
+      key: "sharedVision",
+      label: "Team vision",
+      selected: settings.sharedVision ? 0 : 1,
+      options: [
+        { label: "Shared", patch: { sharedVision: true } },
+        { label: "Own only", patch: { sharedVision: false } },
+      ],
+    });
+  }
   if (bots > 0) {
     fields.splice(1, 0, {
       key: "botLevel",

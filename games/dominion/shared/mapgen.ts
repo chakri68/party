@@ -220,15 +220,21 @@ function shapeStart(tiles: Tile[], start: number, kind: FactionKind, size: numbe
       land++;
     }
   }
-  const homeTerrain: Terrain = home === "animals" ? "forest" : "plains";
+  // Fish live in water: the coast gets two shallow bays at its door.
+  const homeTerrain: Terrain = home === "animals" ? "forest" : home === "fish" ? "ocean" : "plains";
   let placed = 0;
   for (const i of ring) {
     if (placed >= 2) break;
     const t = tiles[i]!;
-    if (!TERRAIN[t.t].land || t.t === "mountain") continue;
+    if (home !== "fish" && (!TERRAIN[t.t].land || t.t === "mountain")) continue;
     Object.assign(t, blank(homeTerrain));
     t.res = home;
     placed++;
+  }
+  // Highlanders want a peak with ore nearby, for the Mining their start leads to.
+  if (kind === "highland") {
+    const peak = ring.find((i) => TERRAIN[tiles[i]!.t].land && !tiles[i]!.res);
+    if (peak !== undefined) Object.assign(tiles[peak]!, blank("mountain"), { res: "ore" });
   }
   // A third, different resource keeps every faction's second tech useful.
   const spare = ring.find((i) => tiles[i]!.t === "plains" && !tiles[i]!.res);

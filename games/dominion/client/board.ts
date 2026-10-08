@@ -40,7 +40,9 @@ export interface Highlights {
   selected: number | null;
   moves: Set<number>;
   attacks: Map<number, AttackOption>;
-  /** Attack target waiting for its confirming tap. */
+  /** Enemies a selected sage could convert. */
+  converts?: Set<number>;
+  /** Attack (or convert) target waiting for its confirming tap. */
   armed: number | null;
   /** Keyboard cursor. */
   cursor: number | null;
@@ -72,6 +74,7 @@ const ROAD_DIRS: [number, number, string][] = [
 
 const UNIT_LABEL: Record<string, string> = {
   infantry: "INF", cavalry: "CAV", archer: "ARC", defender: "DEF", swordsman: "SWD", champion: "CHP",
+  siege: "SGE", knight: "KNT", sage: "SAG",
 };
 
 interface Tween {
@@ -504,6 +507,13 @@ export class Board {
       ctx.stroke(this.diamond(i, 2));
       this.badge(i, `−${opt.damage}`, armed ? "#ff3b30" : "#c62828", "#fff", -58);
     }
+    for (const i of this.hl.converts ?? []) {
+      const armed = this.hl.armed === i;
+      ctx.strokeStyle = armed ? "#d17bff" : "rgba(190,120,255,0.9)";
+      ctx.lineWidth = Math.max(2, (armed ? 4 : 2.5) * z);
+      ctx.stroke(this.diamond(i, 2));
+      this.badge(i, "Convert", "#8e44c9", "#fff", -58);
+    }
     if (this.hl.selected !== null) {
       ctx.strokeStyle = "#c6f432";
       ctx.lineWidth = Math.max(2, 3 * z);
@@ -640,9 +650,14 @@ export class Board {
     ctx.stroke();
   }
 
+  /** A faction's own art when it exists; classic factions still waiting on theirs borrow Orchard's. */
+  private art(id: string, kind: string): string {
+    return this.cache.has(id) ? id : id.replace(`.${kind}.`, ".orchard.");
+  }
+
   private citySprite(city: KnownCity): string {
     const kind = city.owner ? (this.model!.players.get(city.owner)?.kind ?? "orchard") : "orchard";
-    return `city.${kind}.tier1`;
+    return this.art(`city.${kind}.tier1`, kind);
   }
 
   private drawCity(city: KnownCity, color: string, dim: boolean): void {
@@ -668,7 +683,7 @@ export class Board {
   private drawUnit(unit: KnownUnit, color: string, at?: [number, number]): void {
     const m = this.model!;
     const kind = m.players.get(unit.owner)?.kind ?? "orchard";
-    const id = `unit.${unit.type}.${kind}.idle`;
+    const id = this.art(`unit.${unit.type}.${kind}.idle`, kind);
     const [wx, wy] = at ?? this.world(unit.at);
     const r = this.cache.get({ id, color });
     const z = this.cam.zoom;

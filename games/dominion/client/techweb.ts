@@ -4,9 +4,12 @@
 // It's a screen of its own over the map, not a dialog: a web needs room.
 
 import { h } from "@games/ui";
-import { ROOT_TECHS, TECH_ORDER, techCost, TECHS, UNITS } from "../shared/content.ts";
+import { MONUMENTS, ROOT_TECHS, TECH_ORDER, techCost, TECHS, UNITS } from "../shared/content.ts";
 import type { DominionPrivateState, FactionKind, TechId } from "../shared/types.ts";
-import { spriteUrl, type SpriteKey } from "./assets.ts";
+import { spriteEntry, spriteUrl, type SpriteKey } from "./assets.ts";
+
+/** A faction's own art if it has some, else the stand-in. */
+const artFor_ = (id: string, fallback: string) => (spriteEntry(id) ? id : fallback);
 
 /** Distance from the centre per depth, in % of the web's side. */
 const RADII = [0, 21, 36, 48];
@@ -51,20 +54,27 @@ const LAYOUT = layout();
 
 /** The art each node shows: what the tech lets you build, harvest or train. */
 function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
-  const unit = (type: string): SpriteKey => ({ id: `unit.${type}.${kind}.idle`, color });
+  const unit = (type: string): SpriteKey => ({ id: artFor_(`unit.${type}.${kind}.idle`, `unit.${type}.orchard.idle`), color });
   const art: Record<TechId, SpriteKey> = {
     gathering: { id: "resource.fruit.default" },
     farming: { id: "improvement.farm.default" },
+    construction: { id: "resource.crops.default" },
     strategy: unit("infantry"),
     hunting: { id: "resource.animals.default" },
     forestry: { id: "improvement.lumber_camp.default" },
+    mathematics: { id: "feature.ruins.default" },
     archery: unit("archer"),
+    spirituality: { id: "feature.village.default" },
     riding: unit("cavalry"),
     roads: { id: "road.center" },
+    commerce: { id: artFor_(`city.${kind}.tier1`, "city.orchard.tier1"), color },
+    free_spirit: unit("cavalry"),
+    chivalry: unit("cavalry"),
     climbing: { id: "terrain.mountain.default" },
     mining: { id: "improvement.mine.default" },
-    meditation: { id: "terrain.mountain.v2" },
     metallurgy: { id: "resource.ore.default" },
+    meditation: { id: "terrain.mountain.v2" },
+    philosophy: { id: "effect.research" },
     fishing: { id: "resource.fish.default" },
   };
   return art[tech];
@@ -100,7 +110,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
     return !parent || view.techs.includes(parent) ? "open" : "locked";
   };
   let selected: TechId | null =
-    TECH_ORDER.find((t) => state(t) === "open" && view.credits >= techCost(t, view.cityCount)) ??
+    TECH_ORDER.find((t) => state(t) === "open" && view.credits >= techCost(t, view.cityCount, view.techs)) ??
     TECH_ORDER.find((t) => state(t) === "open") ??
     null;
   let armed = false;
@@ -126,7 +136,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
   const nodes = new Map<TechId, HTMLButtonElement>();
   for (const n of LAYOUT) {
     const s = state(n.tech);
-    const cost = techCost(n.tech, view.cityCount);
+    const cost = techCost(n.tech, view.cityCount, view.techs);
     const btn = h(
       "button",
       {
@@ -143,7 +153,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
     nodes.set(n.tech, btn);
   }
 
-  const hub = h("div", { class: "dm-ts-hub", "aria-hidden": "true" }, art({ id: `city.${kind}.tier1`, color }, "dm-ts-city"));
+  const hub = h("div", { class: "dm-ts-hub", "aria-hidden": "true" }, art({ id: artFor_(`city.${kind}.tier1`, "city.orchard.tier1"), color }, "dm-ts-city"));
   const web = h("div", { class: "dm-ts-web" }, svg, hub, [...nodes.values()]);
   const scroll = h("div", { class: "dm-ts-scroll" }, web);
   const detail = h("div", { class: "dm-ts-detail dm-plate", "aria-live": "polite" });
@@ -158,6 +168,18 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
       h("div", { class: "dm-ts-purse" }, h("span", { class: "dm-coin" }), h("strong", {}, String(view.credits))),
       h("p", { class: "dm-ts-note" }, "Each city you hold makes research cost 2 more."),
       close,
+    ),
+    h(
+      "ol",
+      { class: "dm-ts-goals", "aria-label": "Milestones" },
+      view.achievements.map((a) =>
+        h(
+          "li",
+          { class: a.done ? "done" : "", title: MONUMENTS[a.kind as keyof typeof MONUMENTS]?.goal ?? "" },
+          h("strong", {}, MONUMENTS[a.kind as keyof typeof MONUMENTS]?.name ?? a.kind),
+          h("span", {}, a.done ? "Earned" : a.kind === "exploration" ? `${a.progress}% of ${a.goal}%` : `${Math.min(a.progress, a.goal)}/${a.goal}`),
+        ),
+      ),
     ),
     scroll,
     detail,
@@ -178,7 +200,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
     const tech = selected;
     const def = TECHS[tech];
     const s = state(tech);
-    const cost = techCost(tech, view.cityCount);
+    const cost = techCost(tech, view.cityCount, view.techs);
     const units = Object.values(UNITS).filter((u) => u.needs === tech).map((u) => u.name);
     const reason =
       s === "owned" ? null

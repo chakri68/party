@@ -7,8 +7,6 @@
 // Skill changes how picky and how greedy it is, not what it can see.
 
 import {
-  DEVELOP,
-  HARVEST,
   rewardChoices,
   techCost,
   TECHS,
@@ -16,6 +14,7 @@ import {
   UNITS,
 } from "../shared/content.ts";
 import { chebyshev, neighbors, type Rng } from "../shared/grid.ts";
+import { developBlock } from "../shared/rules.ts";
 import type {
   BotLevel,
   DevelopKind,
@@ -31,16 +30,24 @@ type Act = Exclude<DominionAction, { type: "surrender" }>;
 
 /** Research order. Military first on hard, economy first otherwise. */
 const TECH_PLAN: Record<BotLevel, TechId[]> = {
-  easy: ["gathering", "hunting", "fishing", "riding", "farming", "forestry", "climbing", "archery", "mining", "roads", "strategy", "meditation", "metallurgy"],
-  normal: ["gathering", "hunting", "riding", "fishing", "archery", "farming", "forestry", "climbing", "mining", "strategy", "roads", "metallurgy", "meditation"],
-  hard: ["riding", "hunting", "gathering", "archery", "climbing", "mining", "metallurgy", "farming", "strategy", "fishing", "forestry", "roads", "meditation"],
+  easy: ["gathering", "hunting", "fishing", "riding", "farming", "forestry", "climbing", "archery", "mining", "roads", "strategy", "meditation", "metallurgy", "construction", "spirituality", "commerce"],
+  normal: [
+    "gathering", "hunting", "riding", "fishing", "archery", "farming", "forestry", "climbing", "mining",
+    "free_spirit", "chivalry", "construction", "roads", "commerce", "strategy", "metallurgy", "spirituality",
+    "mathematics", "meditation", "philosophy",
+  ],
+  hard: [
+    "riding", "hunting", "gathering", "free_spirit", "chivalry", "archery", "climbing", "mining", "metallurgy",
+    "farming", "construction", "forestry", "mathematics", "roads", "commerce", "meditation", "philosophy",
+    "strategy", "fishing", "spirituality",
+  ],
 };
 
 /** What it trains, best first. Easy keeps it simple. */
 const TRAIN_PLAN: Record<BotLevel, UnitType[]> = {
   easy: ["infantry"],
-  normal: ["cavalry", "archer", "infantry"],
-  hard: ["swordsman", "cavalry", "archer", "defender", "infantry"],
+  normal: ["knight", "cavalry", "archer", "infantry"],
+  hard: ["knight", "swordsman", "cavalry", "archer", "defender", "infantry"],
 };
 
 const REWARD_PLAN: Record<BotLevel, (level: number) => RewardChoice> = {
@@ -104,24 +111,35 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   }
   if (bestAttack && !sloppy()) return bestAttack.a;
 
-  // 4. Grow: harvest and build on its own land.
+  // 4. Grow: monuments first (free population), then harvest and build.
+  if (view.monumentsToPlace > 0) {
+    const spot = view.tiles.findIndex(
+      (t, i) => t?.vis && t.owner === view.me && !t.imp && !t.feat && !t.res && t.t !== "shallow" && t.t !== "ocean" && !view.cities.some((c) => c.at === i),
+    );
+    if (spot >= 0) {
+      const a: Act = { type: "monument", turn, tile: spot };
+      if (ok(a)) return a;
+    }
+  }
   if (!sloppy()) {
+    const kinds: DevelopKind[] = ["harvest", "farm", "mine", "lumber_camp", "mill", "forge", "temple", "market"];
     for (let i = 0; i < view.tiles.length; i++) {
       const t = view.tiles[i];
-      if (!t?.vis || t.owner !== view.me || view.cities.some((c) => c.at === i)) continue;
-      const h = t.res ? HARVEST[t.res] : undefined;
-      if (h && view.techs.includes(h.needs) && view.credits >= h.cost) {
-        const a: Act = { type: "develop", turn, tile: i, kind: "harvest" };
+      if (!t?.vis || t.owner !== view.me) continue;
+      const ctx = { mine: true, open: true, hasCity: view.cities.some((c) => c.at === i), techs: view.techs, credits: view.credits };
+      for (const kind of kinds) {
+        if (developBlock(kind, t, ctx) !== null) continue;
+        const a: Act = { type: "develop", turn, tile: i, kind };
         if (ok(a)) return a;
       }
-      for (const kind of ["farm", "mine", "lumber_camp"] as const) {
-        const d = DEVELOP[kind];
-        const fits = d.terrain.includes(t.t) && !t.imp && !t.feat && (d.resource ? !!t.res && d.resource.includes(t.res) : t.res === null);
-        if (fits && view.techs.includes(d.needs) && view.credits >= d.cost) {
-          const a: Act = { type: "develop", turn, tile: i, kind: kind as DevelopKind };
-          if (ok(a)) return a;
-        }
-      }
+    }
+  }
+
+  // Sages turn enemies rather than fight them.
+  if (level !== "easy") {
+    for (const [unit, targets] of Object.entries(view.converts)) {
+      const a: Act = { type: "convert", turn, unit, target: targets[0]! };
+      if (ok(a)) return a;
     }
   }
 
@@ -146,7 +164,7 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   const tech = TECH_PLAN[level].find(
     (t) => !view.techs.includes(t) && (!TECHS[t].parent || view.techs.includes(TECHS[t].parent!)),
   );
-  if (tech && view.credits >= techCost(tech, view.cityCount) + reserve) {
+  if (tech && view.credits >= techCost(tech, view.cityCount, view.techs) + reserve) {
     const a: Act = { type: "research", turn, tech };
     if (ok(a)) return a;
   }

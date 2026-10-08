@@ -169,11 +169,11 @@ describe("turns and economy", () => {
     const s = newGame(2, 5);
     const me = s.factions[0]!;
     const city = Object.values(s.cities).find((c) => c.owner === me.id)!;
-    const harvestable = s.tiles.findIndex((t) => t.claim === city.id && t.res && (t.res === "fruit" || t.res === "animals"));
+    const harvestable = s.tiles.findIndex((t) => t.claim === city.id && t.res && (t.res === "fruit" || t.res === "animals" || t.res === "fish"));
     me.credits = 100;
-    me.techs.push("gathering", "hunting");
+    me.techs.push("gathering", "hunting", "fishing");
     let state = s;
-    for (const i of s.tiles.map((t, i) => (t.claim === city.id && (t.res === "fruit" || t.res === "animals") ? i : -1)).filter((i) => i >= 0).slice(0, 2)) {
+    for (const i of s.tiles.map((t, i) => (t.claim === city.id && (t.res === "fruit" || t.res === "animals" || t.res === "fish") ? i : -1)).filter((i) => i >= 0).slice(0, 2)) {
       const r = game.handleAction(state, me.id, { type: "develop", turn: state.turn, tile: i, kind: "harvest" }, ctx());
       expect(r.ok).toBe(true);
       if (r.ok) state = r.transition.state;

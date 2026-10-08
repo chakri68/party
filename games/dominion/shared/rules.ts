@@ -3,15 +3,21 @@
 
 import {
   CITY_DEFENSE,
+  DEMOLISH_COST,
+  DEVELOP,
+  HARVEST,
+  MARKET_CAP,
+  PRODUCTION,
   ROAD_COST,
   SCORE,
   TERRAIN,
+  TECHS,
   TERRAIN_DEFENSE,
   UNITS,
   WALLS_DEFENSE,
 } from "./content.ts";
 import { area, colOf, inBounds, indexOf, NEIGHBORS, neighbors, rowOf } from "./grid.ts";
-import type { City, DominionState, Faction, IncomeBreakdown, TechId, Unit } from "./types.ts";
+import type { MonumentId, City, DevelopKind, DominionState, Faction, Improvement, IncomeBreakdown, Resource, TechId, Terrain, Unit } from "./types.ts";
 
 export type UnitIndex = Map<number, Unit>;
 
@@ -23,6 +29,14 @@ export function indexUnits(units: Iterable<Unit>): UnitIndex {
 
 export function faction(state: DominionState, id: string | null): Faction | undefined {
   return id === null ? undefined : state.factions.find((f) => f.id === id);
+}
+
+/** Same empire, or teammates. Allies never fight, block with zones, or take each other's cities. */
+export function allied(state: DominionState, a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return false;
+  if (a === b) return true;
+  const ta = faction(state, a)?.team;
+  return ta !== undefined && ta !== null && ta === faction(state, b)?.team;
 }
 
 export function hasTech(state: DominionState, owner: string, tech: TechId | undefined): boolean {
@@ -58,7 +72,7 @@ function isRoadLike(state: DominionState, i: number): boolean {
 export function stepCost(state: DominionState, owner: string, a: number, b: number): number {
   const friendly = (i: number) => {
     const o = tileOwner(state, i);
-    return o === null || o === owner;
+    return o === null || allied(state, o, owner);
   };
   if (isRoadLike(state, a) && isRoadLike(state, b) && friendly(a) && friendly(b)) return ROAD_COST;
   return TERRAIN[state.tiles[b]!.t].cost;
@@ -68,7 +82,7 @@ export function stepCost(state: DominionState, owner: string, a: number, b: numb
 export function zoneOfControl(state: DominionState, owner: string, units: UnitIndex): Set<number> {
   const zone = new Set<number>();
   for (const u of units.values()) {
-    if (u.owner === owner || UNITS[u.type].range !== 1) continue;
+    if (allied(state, u.owner, owner) || UNITS[u.type].range !== 1) continue;
     for (const n of neighbors(u.at, state.size)) zone.add(n);
   }
   return zone;
@@ -85,7 +99,8 @@ export function zoneOfControl(state: DominionState, owner: string, units: UnitIn
  */
 export function reachable(state: DominionState, unit: Unit, units: UnitIndex): Map<number, number> {
   const out = new Map<number, number>();
-  if (unit.done || unit.attacked || unit.mp <= 0) return out;
+  // Not `attacked`: cavalry with Free Spirit may still fall back after a strike.
+  if (unit.done || unit.mp <= 0) return out;
   const size = state.size;
   const zone = zoneOfControl(state, unit.owner, units);
   const free = (i: number) => canStand(state, unit.owner, i) && !units.has(i);
@@ -189,7 +204,9 @@ export function resolveCombat(state: DominionState, attacker: Unit, defender: Un
 }
 
 export function canAttackWith(unit: Unit): boolean {
-  return !unit.done && !unit.attacked && UNITS[unit.type].attack > 0;
+  const def = UNITS[unit.type];
+  // Siege can't move and shoot in one turn.
+  return !unit.done && !unit.attacked && def.attack > 0 && !(def.staticAttack && unit.moved);
 }
 
 /** Enemy units in range that the attacker's owner can see. */
@@ -198,7 +215,7 @@ export function attackTargets(state: DominionState, unit: Unit, visibleUnits: Un
   const range = UNITS[unit.type].range;
   return area(unit.at, range, state.size)
     .map((i) => visibleUnits.get(i))
-    .filter((u): u is Unit => !!u && u.owner !== unit.owner);
+    .filter((u): u is Unit => !!u && !allied(state, u.owner, unit.owner));
 }
 
 // ---------------------------------------------------------------------------
@@ -209,12 +226,8 @@ export const UNIT_VISION = 1;
 export const MOUNTAIN_VISION = 2;
 export const CITY_VISION = 2;
 
-/** 1 where `owner` can see right now. */
-export function visionOf(state: DominionState, owner: string): Uint8Array {
-  const vis = new Uint8Array(state.tiles.length);
-  if (state.settings.fog === "off") return vis.fill(1);
-  const f = faction(state, owner);
-  if (!f || f.eliminated) return vis;
+/** What one empire's own units, cities and land reveal. */
+function ownVision(state: DominionState, owner: string, vis: Uint8Array): void {
   for (const u of Object.values(state.units)) {
     if (u.owner !== owner) continue;
     const r = state.tiles[u.at]!.t === "mountain" ? MOUNTAIN_VISION : UNIT_VISION;
@@ -227,6 +240,18 @@ export function visionOf(state: DominionState, owner: string): Uint8Array {
   state.tiles.forEach((t, i) => {
     if (t.claim && state.cities[t.claim]?.owner === owner) vis[i] = 1;
   });
+}
+
+/** 1 where `owner` can see right now. With shared vision, that's the whole team's sight. */
+export function visionOf(state: DominionState, owner: string): Uint8Array {
+  const vis = new Uint8Array(state.tiles.length);
+  if (state.settings.fog === "off") return vis.fill(1);
+  const f = faction(state, owner);
+  if (!f || f.eliminated) return vis;
+  const share = state.settings.sharedVision && f.team !== undefined && f.team !== null;
+  for (const other of state.factions) {
+    if (other.id === owner || (share && !other.eliminated && allied(state, owner, other.id))) ownVision(state, other.id, vis);
+  }
   return vis;
 }
 
@@ -292,8 +317,22 @@ export function connectedCities(state: DominionState, owner: string): Set<string
   return out;
 }
 
+/** +1 per production improvement next to the city's market, in the same city, up to the cap (§6). */
+export function marketIncome(state: DominionState, city: City): number {
+  let total = 0;
+  state.tiles.forEach((t, i) => {
+    if (t.claim !== city.id || t.imp !== "market") return;
+    const near = neighbors(i, state.size).filter((j) => {
+      const n = state.tiles[j]!;
+      return n.claim === city.id && n.imp !== null && PRODUCTION.includes(n.imp);
+    }).length;
+    total += Math.min(MARKET_CAP, near);
+  });
+  return total;
+}
+
 export function cityIncome(state: DominionState, city: City, units: UnitIndex, connected?: Set<string>): IncomeBreakdown {
-  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, total: 0 };
+  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, total: 0 };
   if (!city.owner || isOccupied(city, units)) return zero;
   const links = connected ?? connectedCities(state, city.owner);
   const b = {
@@ -301,9 +340,10 @@ export function cityIncome(state: DominionState, city: City, units: UnitIndex, c
     workshop: city.workshop ? 1 : 0,
     capital: city.capitalOf === city.owner ? 1 : 0,
     connection: links.has(city.id) ? 1 : 0,
+    market: marketIncome(state, city),
     total: 0,
   };
-  b.total = b.level + b.workshop + b.capital + b.connection;
+  b.total = b.level + b.workshop + b.capital + b.connection + b.market;
   return b;
 }
 
@@ -329,6 +369,79 @@ export function scoreOf(state: DominionState, owner: string): number {
     cities.reduce((s, c) => s + c.level * SCORE.cityLevel + c.parks * SCORE.park, 0) +
     f.techs.length * SCORE.tech +
     exploredCount(f) * SCORE.explored +
-    f.kills * SCORE.kill
+    f.kills * SCORE.kill +
+    (f.monuments?.earned.length ?? 0) * SCORE.monument +
+    templeCulture(state, owner)
   );
 }
+
+/** Score gathered by temples on the empire's land. */
+export function templeCulture(state: DominionState, owner: string): number {
+  let total = 0;
+  state.tiles.forEach((t) => {
+    if (t.culture && t.claim && state.cities[t.claim]?.owner === owner) total += t.culture;
+  });
+  return total;
+}
+
+// ---------------------------------------------------------------------------
+// Development options, from what a player knows of a tile (§6). The server
+// adds what only it can check: one-per-city buildings and population credit.
+// ---------------------------------------------------------------------------
+
+export interface DevTile {
+  t: Terrain;
+  res: Resource | null;
+  imp: Improvement | null;
+  road: boolean;
+  feat: string | null;
+}
+
+/**
+ * undefined: not an option here at all. A string: possible in principle, but
+ * not now, and why. null: go ahead.
+ */
+export function developBlock(
+  kind: DevelopKind,
+  tile: DevTile,
+  ctx: { mine: boolean; open: boolean; hasCity: boolean; techs: readonly TechId[]; credits: number },
+): string | null | undefined {
+  const need = (tech: TechId) => (ctx.techs.includes(tech) ? null : `Needs ${TECHS[tech].name}`);
+  const pay = (cost: number) => (ctx.credits < cost ? "Not enough credits" : null);
+  if (ctx.hasCity) return undefined;
+  if (kind === "harvest") {
+    const h = tile.res ? HARVEST[tile.res] : undefined;
+    if (!h || !ctx.mine) return undefined;
+    return need(h.needs) ?? pay(h.cost);
+  }
+  if (kind === "demolish") {
+    if (!ctx.mine || !tile.imp || tile.imp === "monument") return undefined;
+    return need("construction") ?? pay(DEMOLISH_COST);
+  }
+  const def = DEVELOP[kind];
+  if (!def.terrain.includes(tile.t) || tile.feat) return undefined;
+  if (kind === "road") {
+    if (tile.road || !(ctx.mine || ctx.open)) return undefined;
+  } else {
+    if (!ctx.mine || tile.imp) return undefined;
+    if (def.resource ? !tile.res || !def.resource.includes(tile.res) : tile.res !== null) return undefined;
+  }
+  return need(def.needs) ?? pay(def.cost);
+}
+
+// ---------------------------------------------------------------------------
+// Achievements (§13)
+// ---------------------------------------------------------------------------
+
+export function achievementProgress(state: DominionState, id: string): { kind: Exclude<MonumentId, "peace">; progress: number; goal: number }[] {
+  const f = faction(state, id)!;
+  const explored = f.memory.seen.filter((x) => x >= 0).length;
+  return [
+    { kind: "research", progress: f.techs.length, goal: 10 },
+    { kind: "trade", progress: connectedCities(state, id).size, goal: 5 },
+    // Of every tile on the map, never a breakdown that hints at hidden terrain.
+    { kind: "exploration", progress: Math.floor((explored / state.tiles.length) * 100), goal: 80 },
+    { kind: "battle", progress: f.kills, goal: 10 },
+  ];
+}
+

@@ -13,6 +13,22 @@ const PARTS: Record<FactionKind, [string[], string[]]> = {
     ["Elk", "Ash", "Wolf", "Fern", "Rowan", "Bear", "Moss", "Thorn", "Lynx", "Alder", "Owl", "Birch"],
     ["holt", "den", "fell", "hearth", "lodge", "ridge", "wood", "fang", "shaw", "tor"],
   ],
+  steppe: [
+    ["Wind", "Mare", "Dust", "Saddle", "Sky", "Grass", "Hoof", "Kestrel", "Amber", "Dune", "Thunder", "Gale"],
+    ["run", "camp", "yurt", "plain", "steppe", "ford", "gallop", "ring", "drift", "reach"],
+  ],
+  highland: [
+    ["Iron", "Slate", "Cinder", "Anvil", "Granite", "Copper", "Crag", "Ember", "Flint", "Basalt", "Quarry", "Tin"],
+    ["peak", "hold", "forge", "delve", "spire", "crest", "pike", "vault", "scar", "deep"],
+  ],
+  coastal: [
+    ["Gull", "Salt", "Tide", "Kelp", "Coral", "Harbor", "Pearl", "Driftwood", "Shell", "Brine", "Anchor", "Sand"],
+    ["haven", "port", "cove", "quay", "strand", "mouth", "bay", "mere", "sound", "point"],
+  ],
+  citadel: [
+    ["Stone", "Bastion", "Rampart", "Shield", "Warden", "Gate", "Tower", "Keep", "Moat", "Banner", "Sentinel", "Bulwark"],
+    ["wall", "keep", "guard", "watch", "fort", "burg", "hall", "march", "rest", "stand"],
+  ],
 };
 
 export function cityName(rng: Rng, kind: FactionKind, taken: ReadonlySet<string>): string {
