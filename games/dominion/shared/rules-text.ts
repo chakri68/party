@@ -30,6 +30,8 @@ const BASE_RULES: string[] = [
 
 /** Each special faction's one-paragraph rules; shown once it's released. */
 export const SPECIAL_RULES: Partial<Record<(typeof SPECIAL_FACTIONS)[number], string>> = {
+  tidefolk:
+    "Tidefolk walk the shallows: shell guards and reef runners need no ship and defend better on water. They settle reef villages (villages on the water; only a ship or an amphibious unit can take one), build reef nests instead of ports, and reach the open ocean with Deep calling and its leviathans. No warships.",
   wildwood:
     "Wildwood tend resources instead of harvesting them: 3 credits for +1 population, and the resource stays. They can't build lumber camps or mines; each city earns +1 income per 4 untouched forest tiles (groves count), up to +2. Owl eggs hatch into great owls after 3 turns, which fly over water, peaks and enemy lines but can't capture.",
 };

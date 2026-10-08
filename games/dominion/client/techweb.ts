@@ -84,6 +84,9 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     tending: { id: "resource.animals.default" },
     grovecraft: { id: "terrain.forest.default" },
     skyroost: unit("great_owl"),
+    tidecraft: { id: "resource.fish.default" },
+    currents: { id: "terrain.water.shallow.default" },
+    deep_calling: { id: "terrain.ocean.default" },
   };
   return art[tech];
 }

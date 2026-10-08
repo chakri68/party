@@ -193,6 +193,10 @@ function tryGenerate(rng: Rng, size: number, kinds: FactionKind[], opts: WorldOp
   classifyWater(tiles, size);
   scatterResources(tiles, size, starts, rng, RESOURCE_SCALE[opts.resources]);
   if (!placeVillages(tiles, size, starts, rng)) return null;
+  // Only when someone needs them: classic worlds from a seed stay exactly as they were.
+  if (kinds.some((k) => FACTIONS[k].reefVillages)) {
+    if (!placeReefVillages(tiles, size, starts.filter((_, k) => FACTIONS[kinds[k]!].reefVillages), starts, rng)) return null;
+  }
   placeRuins(tiles, size, starts, rng);
   placeBeacons(tiles, size, starts, rng);
   balanceStarts(tiles, size, starts, rng);
@@ -319,6 +323,36 @@ function placeVillages(tiles: Tile[], size: number, starts: number[], rng: Rng):
   return true;
 }
 
+/** Reef villages: one near each reef-dwelling start, then about one per 150 water tiles. */
+export const REEF_VILLAGE_WATER = 150;
+
+function placeReefVillages(tiles: Tile[], size: number, reefStarts: number[], starts: number[], rng: Rng): boolean {
+  const taken = tiles.flatMap((t, i) => (t.feat === "village" ? [i] : []));
+  const ok = (i: number) => {
+    const t = tiles[i]!;
+    return t.t === "shallow" && !t.feat && farFrom(i, starts, 2, size) && farFrom(i, taken, 3, size);
+  };
+  const put = (i: number) => {
+    tiles[i]!.feat = "village";
+    tiles[i]!.res = null;
+    taken.push(i);
+  };
+  for (const s of reefStarts) {
+    const near = area(s, VILLAGE_REACH, size).filter(ok);
+    if (!near.length) return false;
+    put(rng.pick(near));
+  }
+  const water = tiles.filter((t) => !TERRAIN[t.t].land).length;
+  let extra = Math.round(water / REEF_VILLAGE_WATER);
+  for (const i of rng.shuffle(tiles.map((_, i) => i))) {
+    if (extra <= 0) break;
+    if (!ok(i)) continue;
+    put(i);
+    extra--;
+  }
+  return true;
+}
+
 function placeRuins(tiles: Tile[], size: number, starts: number[], rng: Rng): void {
   const land = tiles.filter((t) => TERRAIN[t.t].land).length;
   const target = Math.max(1, Math.round(land / 45));
@@ -363,7 +397,8 @@ function placeBeacons(tiles: Tile[], size: number, starts: number[], rng: Rng): 
   for (const i of rng.shuffle(tiles.map((_, i) => i))) {
     if (taken.length >= target) break;
     const t = tiles[i]!;
-    if (TERRAIN[t.t].land || t.res || !farFrom(i, starts, 4, size) || !farFrom(i, taken, 5, size)) continue;
+    // Never over a reef village (classic worlds have no features on water, so they're unchanged).
+    if (TERRAIN[t.t].land || t.res || t.feat || !farFrom(i, starts, 4, size) || !farFrom(i, taken, 5, size)) continue;
     t.feat = "beacon";
     taken.push(i);
   }

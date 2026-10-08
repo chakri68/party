@@ -9,26 +9,28 @@ export const GENERATOR_VERSION = 1;
 
 export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
 export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
-export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port" | "grove";
+export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port" | "grove" | "reef_nest";
 export type Feature = "village" | "ruins" | "beacon";
 /** What a unit at sea is riding in. The unit's own type rides along as cargo. */
 export type VesselType = "transport" | "scout" | "rammer" | "bomber";
 export type ClassicFaction = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
 /** Special factions each bend one core rule; picked by name only, never dealt in Mixed. */
-export type SpecialFaction = "wildwood";
+export type SpecialFaction = "wildwood" | "tidefolk";
 export type FactionKind = ClassicFaction | SpecialFaction;
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
   | "siege" | "knight" | "sage"
   | "infiltrator" | "raider"
-  | "bramble" | "dryad" | "owl_egg" | "great_owl";
+  | "bramble" | "dryad" | "owl_egg" | "great_owl"
+  | "shell_guard" | "reef_runner" | "leviathan";
 export type TechId =
   | "gathering" | "farming" | "construction" | "strategy" | "diplomacy"
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
   | "riding" | "roads" | "commerce" | "free_spirit" | "chivalry"
   | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
   | "fishing" | "sailing" | "navigation"
-  | "tending" | "grovecraft" | "skyroost";
+  | "tending" | "grovecraft" | "skyroost"
+  | "tidecraft" | "currents" | "deep_calling";
 
 /** Achievements that earn a placeable monument (§13). */
 export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
@@ -37,7 +39,7 @@ export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peac
 export type DevelopKind =
   | "harvest" | "farm" | "lumber_camp" | "mine" | "road"
   | "mill" | "forge" | "market" | "temple" | "port" | "demolish"
-  | "tend" | "grove";
+  | "tend" | "grove" | "reef_nest";
 
 export type RewardChoice =
   | "workshop" | "scout"
@@ -443,6 +445,8 @@ export interface IncomeBreakdown {
   market: number;
   /** Wildwood: untouched forest in the city's territory. */
   forest: number;
+  /** Tidefolk: reef nests among fish and reefs. */
+  reef: number;
   total: number;
 }
 

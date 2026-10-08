@@ -752,7 +752,7 @@ export class DominionView implements GameView {
     const actions: HTMLElement[] = [];
     if (mine && p.myTurn) {
       const fresh = !mine.done && !mine.moved && !mine.attacked;
-      const capturable = !def.noCapture && !unit.vessel && (tile?.feat === "village" || (!!city && !this.alliedWith(city.owner)));
+      const capturable = !def.noCapture && (tile?.feat === "village" || (!!city && !this.alliedWith(city.owner)));
       if (capturable && fresh) {
         actions.push(
           h("button", {
@@ -860,6 +860,8 @@ export class DominionView implements GameView {
         ? h("p", { class: "dm-muted" }, `Becomes a ${UNITS[def.matures.into].name.toLowerCase()} in ${mine.maturesIn} turn${mine.maturesIn === 1 ? "" : "s"}.`)
         : null,
       def.flying ? h("p", { class: "dm-muted" }, "Flies over water, peaks and enemy lines; lands on solid ground. Can't capture.") : null,
+      def.habitat === "amphibious" ? h("p", { class: "dm-muted" }, "Walks land and shallows alike, no ship needed.") : null,
+      def.habitat === "water" ? h("p", { class: "dm-muted" }, "Lives in the water, open ocean included. Can't capture.") : null,
       actions.length ? h("div", { class: "dm-actions" }, actions) : null,
     );
   }
@@ -921,6 +923,7 @@ export class DominionView implements GameView {
         inc.capital ? `, capital ${inc.capital}` : "",
         inc.connection ? `, road link ${inc.connection}` : "",
         inc.forest ? `, forest ${inc.forest}` : "",
+        inc.reef ? `, reef nests ${inc.reef}` : "",
         m.walls ? ". Walls." : "",
         m.parks ? ` Parks: ${m.parks}.` : "",
       ),
@@ -954,7 +957,7 @@ export class DominionView implements GameView {
       techs: p.techs,
       credits: p.credits,
     };
-    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "lumber_camp", "grove", "mine", "mill", "forge", "market", "temple", "port", "road", "demolish"];
+    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "lumber_camp", "grove", "mine", "mill", "forge", "market", "temple", "port", "reef_nest", "road", "demolish"];
     const options = kinds.flatMap((kind) => {
       const block = developBlock(kind, tile, ctx);
       if (block === undefined) return [];
@@ -971,6 +974,7 @@ export class DominionView implements GameView {
         : kind === "market" ? "+1¢ per workshop beside it"
         : kind === "tend" ? "the resource stays"
         : kind === "grove" ? "still counts as wild forest"
+        : kind === "reef_nest" ? "+1¢ beside 2 fish or reefs; boards ships"
         : null;
       return [{ kind, name, cost, pop, extra, reason: block }];
     });

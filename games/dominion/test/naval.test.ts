@@ -119,11 +119,16 @@ describe("vessels", () => {
     expect(s.units.bm!.hp).toBe(10); // range 3: nothing reaches back
   });
 
-  it("ships can't capture", () => {
+  it("ships take reef villages, the only kind they can reach", () => {
     const s = coast();
     const u = put(s, "u", "p0", at(s, 3, 5), "infantry", "transport");
     s.tiles[u.at]!.feat = "village";
-    expect(game.handleAction(s, "p0", { type: "capture", turn: s.turn, unit: "u" }, ctx()).ok).toBe(false);
+    const r = game.handleAction(s, "p0", { type: "capture", turn: s.turn, unit: "u" }, ctx());
+    expect(r.ok).toBe(true);
+    // A reef city: on the water, and the transport stays afloat in it.
+    const t = r.ok ? r.transition.state : s;
+    expect(t.tiles[u.at]!.city).not.toBeNull();
+    expect(t.units.u!.vessel).toBe("transport");
   });
 });
 

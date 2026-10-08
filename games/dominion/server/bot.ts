@@ -142,7 +142,7 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     }
   }
   if (!sloppy()) {
-    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "mine", "lumber_camp", "grove", "port", "mill", "forge", "temple", "market"];
+    const kinds: DevelopKind[] = ["harvest", "tend", "farm", "mine", "lumber_camp", "grove", "port", "reef_nest", "mill", "forge", "temple", "market"];
     for (let i = 0; i < view.tiles.length; i++) {
       const t = view.tiles[i];
       if (!t?.vis || t.owner !== view.me) continue;
@@ -258,15 +258,22 @@ function bestMove(
   });
   for (const c of view.cities) if (c.owner !== view.me && !occupied.has(c.at)) prizes.push(c.at);
   const frontier: number[] = [];
+  const wetFrontier: number[] = [];
   view.tiles.forEach((t, i) => {
-    if (t && t.t !== "ocean" && t.t !== "shallow" && neighbors(i, size).some((j) => !view.tiles[j])) frontier.push(i);
+    if (!t || !neighbors(i, size).some((j) => !view.tiles[j])) return;
+    (t.t !== "ocean" && t.t !== "shallow" ? frontier : wetFrontier).push(i);
   });
   const hunt = level === "easy" ? [] : enemies.map((e) => e.at);
+  const wet = (i: number) => view.tiles[i]?.t === "shallow" || view.tiles[i]?.t === "ocean";
 
   // Lower is better: distance to the nearest goal, prizes weighted most.
-  const value = (i: number) => {
+  // Amphibious units explore the shallows too; sea creatures only the sea.
+  const value = (u: KnownUnit, i: number) => {
+    const habitat = u.vessel ? undefined : UNITS[u.type].habitat;
     const d = (goals: number[], w: number) => (goals.length ? Math.min(...goals.map((g) => chebyshev(i, g, size))) + w : Infinity);
-    return Math.min(d(prizes, 0), d(hunt, 2), d(frontier, 3));
+    const edge = habitat === "water" ? wetFrontier : habitat === "amphibious" ? [...frontier, ...wetFrontier] : frontier;
+    const loot = habitat === "water" ? [] : prizes.filter((p) => habitat === "amphibious" || !wet(p) || !!u.vessel);
+    return Math.min(d(loot, 0), d(hunt, 2), d(edge, 3));
   };
 
   let best: { a: Act; gain: number } | null = null;
@@ -276,9 +283,9 @@ function bestMove(
     // A unit guarding the city it stands on stays home while enemies are near.
     const onCity = view.cities.some((c) => c.at === u.at && c.owner === view.me);
     if (onCity && enemies.some((e) => chebyshev(e.at, u.at, size) <= 2) && level !== "easy") continue;
-    const here = value(u.at);
+    const here = value(u, u.at);
     for (const to of dests) {
-      const gain = here - value(to) + rng.next() * 0.1; // jitter breaks ties
+      const gain = here - value(u, to) + rng.next() * 0.1; // jitter breaks ties
       const a: Act = { type: "move", turn: view.turn, unit: u.id, to };
       if (gain > 0.05 && ok(a) && (!best || gain > best.gain)) best = { a, gain };
     }

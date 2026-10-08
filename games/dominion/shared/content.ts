@@ -75,6 +75,10 @@ export interface UnitDef {
   terrainDefense?: Partial<Record<Terrain, number>>;
   /** Turns into another type after this many of its owner's turns, same health ratio. */
   matures?: { into: UnitType; turns: number };
+  /** Where it lives without a ship: land and shallows, or water only. Never boards. */
+  habitat?: "amphibious" | "water";
+  /** Takes this classic unit's place in its faction's cities (and as its starting unit). */
+  replaces?: UnitType;
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -95,15 +99,35 @@ export const UNITS: Record<UnitType, UnitDef> = {
     name: "Owl egg", cost: 6, hp: 5, attack: 0, defense: 1, move: 0, range: 1, needs: "skyroost", faction: "wildwood",
     steadfast: true, noCapture: true, matures: { into: "great_owl", turns: 3 },
   },
+  shell_guard: {
+    name: "Shell guard", cost: 2, hp: 10, attack: 2, defense: 2, move: 1, range: 1, needs: "tidecraft", faction: "tidefolk",
+    habitat: "amphibious", replaces: "infantry", terrainDefense: { shallow: 1.25, ocean: 1.25 },
+  },
+  reef_runner: {
+    name: "Reef runner", cost: 4, hp: 10, attack: 2, defense: 1, move: 3, range: 1, needs: "currents", faction: "tidefolk",
+    habitat: "amphibious", terrainDefense: { shallow: 1.25, ocean: 1.25 },
+    // Three tiles a turn on water, one on land.
+    terrainCost: { plains: 6, forest: 6, mountain: 6 },
+  },
+  leviathan: {
+    name: "Leviathan", cost: 12, hp: 30, attack: 4, defense: 3, move: 2, range: 1, needs: "deep_calling", faction: "tidefolk",
+    habitat: "water", noCapture: true,
+  },
   great_owl: { name: "Great owl", cost: 0, hp: 10, attack: 3, defense: 1, move: 3, range: 1, needs: "skyroost", faction: "wildwood", reward: true, flying: true, noCapture: true, vision: 3 },
 };
 
 export const TRAINABLE: UnitType[] = ["infantry", "cavalry", "archer", "defender", "swordsman", "siege", "knight", "sage", "infiltrator"];
 
-/** What a faction's cities can train: the classic roster plus its own units. */
+/** What a faction's cities can train: the classic roster, less what its own units replace, plus those. */
 export function trainableFor(kind: FactionKind): UnitType[] {
   const own = (Object.keys(UNITS) as UnitType[]).filter((t) => UNITS[t].faction === kind && !UNITS[t].reward);
-  return [...TRAINABLE, ...own];
+  const replaced = new Set(own.map((t) => UNITS[t].replaces));
+  return [...TRAINABLE.filter((t) => !replaced.has(t)), ...own];
+}
+
+/** A faction's version of a classic unit: whatever replaces it, or the unit itself. */
+export function unitFor(kind: FactionKind, type: UnitType): UnitType {
+  return (Object.keys(UNITS) as UnitType[]).find((t) => UNITS[t].faction === kind && UNITS[t].replaces === type) ?? type;
 }
 
 /** Raiders a sabotage can spawn, at most. */
@@ -180,6 +204,9 @@ export const TECHS: Record<TechId, TechDef> = {
   tending: { name: "Tending", tier: 1, faction: "wildwood", unlocks: "Tend game; bramble beasts" },
   grovecraft: { name: "Grovecraft", tier: 2, parent: "tending", faction: "wildwood", unlocks: "Groves in forests; dryads" },
   skyroost: { name: "Skyroost", tier: 3, parent: "grovecraft", faction: "wildwood", unlocks: "Owl eggs that hatch into great owls" },
+  tidecraft: { name: "Tidecraft", tier: 1, faction: "tidefolk", unlocks: "Harvest fish; shell guards" },
+  currents: { name: "Currents", tier: 2, parent: "tidecraft", faction: "tidefolk", unlocks: "Reef nests; reef runners; boarding" },
+  deep_calling: { name: "Deep calling", tier: 3, parent: "currents", faction: "tidefolk", unlocks: "Open ocean; leviathans" },
 };
 
 export const TECH_ORDER = Object.keys(TECHS) as TechId[];
@@ -228,6 +255,8 @@ export interface FactionDef {
   tends?: boolean;
   /** +1 income per this many untouched forest tiles in a city's land, up to `cap`. */
   forestIncome?: { per: number; cap: number };
+  /** Generation adds reef villages (villages on shallows) near its starts and out at sea. */
+  reefVillages?: boolean;
   /** Offered in the lobby. Special factions wait for their art pack. */
   released: boolean;
 }
@@ -287,6 +316,16 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     forestIncome: { per: 4, cap: 2 },
     released: false,
   },
+  tidefolk: {
+    name: "Tidefolk",
+    blurb: "People of the shallows. Walk the reefs, settle them, and call creatures from the deep instead of building ships.",
+    startTech: "tidecraft",
+    homeResource: "fish",
+    replaces: { fishing: "tidecraft", sailing: "currents", navigation: "deep_calling" },
+    forbids: ["port"],
+    reefVillages: true,
+    released: false,
+  },
 };
 
 export const FACTION_KINDS = Object.keys(FACTIONS) as FactionKind[];
@@ -336,7 +375,13 @@ export const DEVELOP: Record<BuildKind, DevelopDef> = {
   temple: { name: "Temple", cost: 8, pop: 1, needs: "spirituality", terrain: ["plains", "forest"], builds: "temple" },
   port: { name: "Port", cost: 6, pop: 2, needs: "sailing", terrain: ["shallow"], builds: "port" },
   grove: { name: "Grove", cost: 3, pop: 1, needs: "grovecraft", terrain: ["forest"], builds: "grove" },
+  reef_nest: { name: "Reef nest", cost: 5, pop: 2, needs: "currents", terrain: ["shallow"], builds: "reef_nest" },
 };
+
+/** Improvements units board ships at, and that link cities across water. */
+export const HARBOURS: Improvement[] = ["port", "reef_nest"];
+/** A reef nest pays +1 with at least this many fish or reef settlements beside it. */
+export const REEF_NEST_NEIGHBOURS = 2;
 
 /** Tending: pays population like a harvest, but the resource stays. Once per tile. */
 export const TEND = { cost: 3, pop: 1 };
@@ -392,6 +437,7 @@ export const IMPROVEMENT_NAMES: Record<Improvement, string> = {
   monument: "Monument",
   port: "Port",
   grove: "Grove",
+  reef_nest: "Reef nest",
 };
 
 /** Two choices per level band; the first is the default when time runs out. */

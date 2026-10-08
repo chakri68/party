@@ -28,6 +28,7 @@ import {
   techsFor,
   TEND,
   trainableFor,
+  unitFor,
   TREASURY_CREDITS,
   UNITS,
   VETERAN_HP,
@@ -43,6 +44,8 @@ import {
   allied,
   canAttackWith,
   canCaptureWith,
+  canOccupy,
+  canSail,
   canStand,
   capitalOf,
   statsOf,
@@ -279,6 +282,8 @@ function foundCity(state: State, at: number, owner: string | null, kind: Faction
 
 function spawnUnit(state: State, type: UnitType, owner: string, at: number, home: string | null): Unit {
   const def = UNITS[type];
+  // Born in a reef city, a land unit starts out aboard a transport.
+  const afloat = !TERRAIN[state.tiles[at]!.t].land && !def.habitat;
   const unit: Unit = {
     id: newId(state, "u"),
     type,
@@ -295,6 +300,7 @@ function spawnUnit(state: State, type: UnitType, owner: string, at: number, home
     attacked: false,
     done: true,
     settled: true,
+    ...(afloat && { vessel: "transport" as const }),
   };
   state.units[unit.id] = unit;
   return unit;
@@ -645,7 +651,7 @@ function enterRuins(tx: Tx, unit: Unit): void {
     const units = indexUnits(Object.values(s.units));
     const spot = neighbors(unit.at, s.size).find((i) => !units.has(i) && canStand(s, f.id, i));
     if (spot !== undefined) {
-      spawnUnit(s, "infantry", f.id, spot, null);
+      spawnUnit(s, unitFor(f.kind, "infantry"), f.id, spot, null);
       reward = { kind: "unit", at: spot };
       tx.seen([spot], { type: "spawn", at: spot });
     }
@@ -695,7 +701,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       unit.moved = true;
       unit.settled = false;
       const water = !TERRAIN[s.tiles[action.to]!.t].land;
-      if (water && !unit.vessel) {
+      if (water && !unit.vessel && !UNITS[unit.type].habitat) {
         // Boarding at a port: the unit becomes the cargo of a transport.
         unit.vessel = "transport";
         unit.mp = 0;
@@ -788,7 +794,6 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const unit = ownUnit(s, me, action.unit);
       if (!unit || unit.done || unit.moved || unit.attacked) return "That unit has already acted.";
       if (!unit.settled) return "Units capture the turn after they arrive.";
-      if (unit.vessel) return "Land first.";
       if (!canCaptureWith(unit)) return "This unit can't capture.";
       const tile = s.tiles[unit.at]!;
       const city = tile.city ? s.cities[tile.city]! : null;
@@ -978,12 +983,18 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (!city || !trainableFor(f.kind).includes(action.unitType)) return ILLEGAL;
       if (!hasTech(s, me, def.needs)) return `Research ${TECHS[def.needs!].name} first.`;
       if (isOccupied(city, truth)) return "An enemy is in the city.";
-      if (truth.has(city.at)) return "Move the unit out of the city first.";
       if (homedUnits(s, city.id) >= capacity(city)) return "The city can't support more units. Grow it first.";
+      // Sea creatures need water: the city's own tile if it's a reef city, else
+      // an empty stretch of its shallows.
+      const at = def.habitat === "water" && !canSail(s, me, city.at)
+        ? neighbors(city.at, s.size).find((i) => s.tiles[i]!.claim === city.id && !truth.has(i) && canOccupy(s, { owner: me, type: action.unitType }, i))
+        : city.at;
+      if (at === undefined) return "Sea creatures need open water in the city's territory.";
+      if (truth.has(at)) return "Move the unit out of the city first.";
       if (f.credits < def.cost) return "Not enough credits.";
       f.credits -= def.cost;
-      spawnUnit(s, action.unitType, me, city.at, city.id);
-      tx.seen([city.at], { type: "spawn", at: city.at });
+      spawnUnit(s, action.unitType, me, at, city.id);
+      tx.seen([at], { type: "spawn", at });
       return null;
     }
 
@@ -1221,7 +1232,7 @@ export const dominionGame: GameDefinition<
 
     order.forEach((p, k) => {
       const capital = foundCity(state, world.starts[k]!, p.id, kinds[k]!, true);
-      spawnUnit(state, "infantry", p.id, capital.at, capital.id);
+      spawnUnit(state, unitFor(kinds[k]!, "infantry"), p.id, capital.at, capital.id);
     });
 
     const tx = new Tx(state, ctx);

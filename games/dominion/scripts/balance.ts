@@ -8,7 +8,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { dominionGame as game } from "../server/game.ts";
 import * as content from "../shared/content.ts";
-import { CLASSIC_FACTIONS, FACTIONS } from "../shared/content.ts";
+import { CLASSIC_FACTIONS, FACTIONS, UNITS, unitFor } from "../shared/content.ts";
 import { DEFAULT_SETTINGS, type DominionState, type FactionKind } from "../shared/types.ts";
 
 const special = (process.argv[2] ?? "wildwood") as FactionKind;
@@ -40,6 +40,12 @@ function match(seed: number, a: FactionKind, b: FactionKind, world: FactionKind)
     f.kind = kinds[k]!;
     f.techs = [FACTIONS[kinds[k]!].startTech];
     f.credits = FACTIONS[kinds[k]!].openingCredits ?? 5;
+    // The starting unit follows the faction (Tidefolk start with a shell guard).
+    for (const u of Object.values(s.units)) {
+      if (u.owner !== f.id) continue;
+      u.type = unitFor(kinds[k]!, "infantry");
+      u.hp = u.maxHp = UNITS[u.type].hp;
+    }
   });
   for (let n = 0; n < 20000 && s.phase === "playing"; n++) s = game.onTimer!(s, "bot", ctx()).state;
   return (s.outcome?.winnerIds ?? []).map((id) => s.factions.find((f) => f.id === id)!.kind);

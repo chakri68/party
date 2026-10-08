@@ -6,11 +6,13 @@ import {
   DEMOLISH_COST,
   DEVELOP,
   FACTIONS,
+  HARBOURS,
   HARVEST,
   MARKET_CAP,
   PEACE_ROUNDS,
   PEACE_TREATIES,
   PRODUCTION,
+  REEF_NEST_NEIGHBOURS,
   ROAD_COST,
   SCORE,
   TERRAIN,
@@ -80,8 +82,11 @@ function embassyActive(state: DominionState, owner: string, partner: string): bo
   return !!t && !t.brokenBy && !!faction(state, owner)?.embassies?.includes(partner);
 }
 
+/** Whether `owner` knows `tech`, or the tech its faction swapped in for it. */
 export function hasTech(state: DominionState, owner: string, tech: TechId | undefined): boolean {
-  return !tech || !!faction(state, owner)?.techs.includes(tech);
+  if (!tech) return true;
+  const f = faction(state, owner);
+  return !!f && f.techs.includes(techFor(f.kind, tech));
 }
 
 /** Who owns a tile's territory: whoever owns the city that claims it. */
@@ -125,9 +130,26 @@ export function canSail(state: DominionState, owner: string, i: number): boolean
   return !def.land && hasTech(state, owner, def.needs);
 }
 
-/** A port of yours or an ally's, where land units board. */
+/** Where `unit` may stand without a ship: its habitat decides, land by default. */
+export function canOccupy(state: DominionState, unit: Pick<Unit, "owner" | "type" | "vessel">, i: number): boolean {
+  if (unit.vessel) return canSail(state, unit.owner, i);
+  const habitat = UNITS[unit.type].habitat;
+  if (habitat === "water") return canSail(state, unit.owner, i);
+  if (habitat === "amphibious") return canStand(state, unit.owner, i) || canSail(state, unit.owner, i);
+  return canStand(state, unit.owner, i);
+}
+
+/** A city built on the water: a reef settlement. */
+export function isWaterCity(state: DominionState, i: number): boolean {
+  const t = state.tiles[i]!;
+  return t.city !== null && !TERRAIN[t.t].land;
+}
+
+/** A harbour of yours or an ally's, where land units board: a port, a reef nest, or a reef city. */
 export function isFriendlyPort(state: DominionState, owner: string, i: number): boolean {
-  return state.tiles[i]!.imp === "port" && allied(state, tileOwner(state, i), owner);
+  const t = state.tiles[i]!;
+  const harbour = (t.imp !== null && HARBOURS.includes(t.imp)) || isWaterCity(state, i);
+  return harbour && allied(state, tileOwner(state, i), owner);
 }
 
 function isRoadLike(state: DominionState, i: number): boolean {
@@ -151,7 +173,8 @@ export function stepCost(state: DominionState, owner: string, a: number, b: numb
 
 /** Whether this unit may take a village or a city at all. */
 export function canCaptureWith(unit: Pick<Unit, "type" | "vessel">): boolean {
-  return !unit.vessel && !UNITS[unit.type].noCapture;
+  // A ship can only ever be on water, so it captures only reef settlements.
+  return !UNITS[unit.type].noCapture;
 }
 
 /** Tiles next to a hostile melee unit. Entering one ends the move. */
@@ -184,17 +207,19 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
   // Fliers pass over zones of control (§ special factions).
   const zone = flying ? new Set<number>() : zoneOfControl(state, unit.owner, units);
   const naval = !!unit.vessel;
+  // Amphibious and sea creatures walk the water themselves; they never board.
+  const native = !naval && !!UNITS[unit.type].habitat;
   // A treaty forbids standing in the partner's cities (§11).
   const offLimits = (i: number) => {
     const c = state.tiles[i]!.city;
     return !!c && atPeace(state, state.cities[c]?.owner ?? null, unit.owner);
   };
-  const passable = (i: number) =>
-    !offLimits(i) && (flying || (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i)));
+  const passable = (i: number) => !offLimits(i) && (flying || canOccupy(state, unit, i));
   // Crossing the shore ends the move: boarding at a port, or landing on empty
   // ground. Neither creates extra movement (§9).
   const crossing = (i: number) =>
     !flying &&
+    !native &&
     !units.has(i) &&
     (naval
       ? canStand(state, unit.owner, i)
@@ -456,8 +481,13 @@ export function connectedCities(state: DominionState, owner: string): Set<string
   // Then ports: two of yours on the same water link their cities, and each
   // newly linked city's roads count too. Ocean joins waters only with Navigation.
   const water = waterComponents(state, hasTech(state, owner, "navigation"));
+  // A reef city is its own harbour.
   const portsOf = (cityId: string) =>
-    state.tiles.flatMap((t, i) => (t.claim === cityId && t.imp === "port" && t.city === null ? [water[i]!] : []));
+    state.tiles.flatMap((t, i) =>
+      (t.claim === cityId && t.imp !== null && HARBOURS.includes(t.imp) && t.city === null) || (t.city === cityId && water[i]! >= 0)
+        ? [water[i]!]
+        : [],
+    );
   for (let grew = true; grew; ) {
     grew = false;
     const reached = new Set([...out].flatMap(portsOf));
@@ -516,8 +546,22 @@ export function forestIncome(state: DominionState, city: City): number {
   return Math.min(rule.cap, Math.floor(n / rule.per));
 }
 
+/** +1 per reef nest with enough fish or reef settlements beside it. */
+export function reefIncome(state: DominionState, city: City): number {
+  let n = 0;
+  state.tiles.forEach((t, i) => {
+    if (t.claim !== city.id || t.imp !== "reef_nest") return;
+    const good = neighbors(i, state.size).filter((j) => {
+      const nt = state.tiles[j]!;
+      return nt.res === "fish" || ((nt.feat === "village" || nt.city !== null) && !TERRAIN[nt.t].land);
+    }).length;
+    if (good >= REEF_NEST_NEIGHBOURS) n++;
+  });
+  return n;
+}
+
 export function cityIncome(state: DominionState, city: City, units: UnitIndex, connected?: Set<string>): IncomeBreakdown {
-  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, forest: 0, total: 0 };
+  const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, forest: 0, reef: 0, total: 0 };
   if (!city.owner || isOccupied(city, units) || city.sabotaged) return zero;
   const links = connected ?? connectedCities(state, city.owner);
   const b = {
@@ -527,9 +571,10 @@ export function cityIncome(state: DominionState, city: City, units: UnitIndex, c
     connection: links.has(city.id) ? 1 : 0,
     market: marketIncome(state, city),
     forest: forestIncome(state, city),
+    reef: reefIncome(state, city),
     total: 0,
   };
-  b.total = b.level + b.workshop + b.capital + b.connection + b.market + b.forest;
+  b.total = b.level + b.workshop + b.capital + b.connection + b.market + b.forest + b.reef;
   return b;
 }
 

@@ -76,6 +76,7 @@ const UNIT_LABEL: Record<string, string> = {
   infantry: "INF", cavalry: "CAV", archer: "ARC", defender: "DEF", swordsman: "SWD", champion: "CHP",
   siege: "SGE", knight: "KNT", sage: "SAG", infiltrator: "SPY", raider: "RAD",
   bramble: "BRM", dryad: "DRY", owl_egg: "EGG", great_owl: "OWL",
+  shell_guard: "SHL", reef_runner: "RUN", leviathan: "LEV",
 };
 
 interface Tween {

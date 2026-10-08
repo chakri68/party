@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { dominionGame as game } from "../server/game.ts";
 import { HARVEST, TECH_ORDER, TECHS, techCost, TERRAIN, TRAINABLE, UNITS } from "../shared/content.ts";
 import { Rng } from "../shared/grid.ts";
-import { canSail, canStand, visionOf } from "../shared/rules.ts";
+import { canOccupy, visionOf } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   type DominionAction,
@@ -57,7 +57,7 @@ function checkInvariants(before: DominionState, after: DominionState, events: { 
     tiles.add(u.at);
     // Ships on water they may sail, everyone else on land they may stand on.
     // Fliers can perch anywhere on land, peaks included.
-    const ok = u.vessel ? canSail(after, u.owner, u.at) : UNITS[u.type].flying ? TERRAIN[after.tiles[u.at]!.t].land : canStand(after, u.owner, u.at);
+    const ok = UNITS[u.type].flying && !u.vessel ? TERRAIN[after.tiles[u.at]!.t].land : canOccupy(after, u, u.at);
     expect(ok, `${u.type}/${u.vessel ?? "land"}`).toBe(true);
     expect(u.hp).toBeGreaterThan(0);
     expect(u.hp).toBeLessThanOrEqual(u.maxHp);
@@ -240,6 +240,23 @@ describe("computer players", { timeout: 30_000 }, () => {
     expect(tended).toBe(true);
     expect([...seen].some((t) => ["bramble", "dryad", "owl_egg", "great_owl"].includes(t))).toBe(true);
     for (const f of state.factions.slice(1, 3)) expect(f.techs.filter((t) => ["grovecraft", "skyroost"].includes(t)).length).toBeGreaterThan(0);
+  });
+
+  it("computers play Tidefolk on a water map: reefs, nests, amphibious units", () => {
+    const { state } = playWithBots(37, 1, { bots: 3, botLevel: "hard", mapType: "continents", mapSize: 24, factions: "tidefolk", roundLimit: 30 }, 20000, (s) => {
+      // Two classic seats among the Tidefolk; their starting shell guard becomes infantry.
+      for (const f of [s.factions[0]!, s.factions[2]!]) {
+        f.kind = "coastal";
+        f.techs = ["fishing"];
+        for (const u of Object.values(s.units)) if (u.owner === f.id) u.type = "infantry";
+      }
+    });
+    expect(state.phase).toBe("finished");
+    const tide = state.factions.filter((f) => f.kind === "tidefolk");
+    expect(tide.some((f) => f.techs.includes("currents"))).toBe(true);
+    const reefCities = Object.values(state.cities).filter((c) => state.tiles[c.at]!.t === "shallow");
+    const amphibious = Object.values(state.units).filter((u) => UNITS[u.type].habitat && state.tiles[u.at]!.t !== "plains");
+    expect(reefCities.length + amphibious.length + state.tiles.filter((t) => t.imp === "reef_nest").length).toBeGreaterThan(0);
   });
 
   it("computers take to the water on an archipelago, fog checks and all", () => {

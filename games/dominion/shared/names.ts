@@ -33,6 +33,10 @@ const PARTS: Record<FactionKind, [string[], string[]]> = {
     ["Moon", "Hazel", "Lichen", "Dew", "Willow", "Sorrel", "Mistle", "Foxglove", "Yew", "Bracken", "Hush", "Acorn"],
     ["glade", "bower", "hollow", "ring", "root", "thicket", "dell", "grove", "wend", "bough"],
   ],
+  tidefolk: [
+    ["Urchin", "Wrack", "Nacre", "Limpet", "Swell", "Conch", "Eelgrass", "Brill", "Spindrift", "Cowrie", "Selkie", "Murex"],
+    ["reef", "shoal", "lagoon", "atoll", "skerry", "eddy", "deep", "flat", "pool", "bar"],
+  ],
 };
 
 export function cityName(rng: Rng, kind: FactionKind, taken: ReadonlySet<string>): string {
