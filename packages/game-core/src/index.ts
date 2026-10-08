@@ -86,6 +86,11 @@ export interface GameOutcome {
    * game sets it, is shown instead of the shell's "N cards left".
    */
   standings: { playerId: string; value: number; label?: string }[];
+  /**
+   * Names for participants without a room seat, e.g. computer players. The
+   * results screen uses these before falling back to seat names.
+   */
+  names?: Record<string, string>;
 }
 
 export interface CreateGameOptions {

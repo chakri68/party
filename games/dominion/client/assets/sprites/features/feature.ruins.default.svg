@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- arch pier left -->
+  <polygon points="39,12.5 44,10 49,12.5 49,28.5 44,31 39,28.5" fill="#A8A49B"/>
+  <polygon points="44,31 39,28.5 39,12.5 44,15" fill="#A8A49B"/>
+  <polygon points="49,12.5 49,28.5 44,31 44,15" fill="#7E7A72"/>
+  <polygon points="39,12.5 44,10 49,12.5 44,15" fill="#C9C6BF"/>
+  <!-- arch lintel -->
+  <polygon points="39,9 44,6.5 60,14.5 60,18 55,20.5 39,12.5" fill="#A8A49B"/>
+  <polygon points="55,17 55,20.5 39,12.5 39,9" fill="#A8A49B"/>
+  <polygon points="39,9 44,6.5 60,14.5 55,17" fill="#C9C6BF"/>
+  <polygon points="60,14.5 60,18 55,20.5 55,17" fill="#7E7A72"/>
+  <!-- arch pier right (broken) -->
+  <polygon points="53,24 56.5,24 60,25 60,35 56.5,36.5 53,35" fill="#A8A49B"/>
+  <polygon points="60,25 60,35 56.5,36.5 56.5,24.5" fill="#7E7A72"/>
+  <polygon points="56.5,24.5 56.5,36.5 53,35 53,24" fill="#A8A49B"/>
+  <polygon points="56.5,24 60,25 56.5,24.5 53,24" fill="#7E7A72"/>
+  <!-- moss on lintel -->
+  <polygon points="44,6.5 51,10 44,11.5 39,9" fill="#7CC25A"/>
+  <!-- standing column (broken top) -->
+  <polygon points="61.5,29 63,28.5 68.5,27 72.5,26 72.5,42 68.5,44 63,43.5 61.5,41" fill="#A8A49B"/>
+  <polygon points="63,28.5 63,43.5 61.5,41 61.5,29" fill="#A8A49B"/>
+  <polygon points="72.5,26 72.5,42 68.5,44 68.5,27" fill="#7E7A72"/>
+  <polygon points="68.5,27 68.5,44 63,43.5 63,28.5" fill="#A8A49B"/>
+  <polygon points="71,26.5 72.5,26 68.5,27 63,28.5 61.5,29 65.5,28" fill="#A8A49B"/>
+  <!-- column plinth -->
+  <polygon points="65,47.5 55,42.5 55,40.5 65,45.5" fill="#A8A49B"/>
+  <polygon points="55,40.5 57,39.5 67,44.5 65,45.5" fill="#C9C6BF"/>
+  <polygon points="65,45.5 67,44.5 67,46.5 65,47.5" fill="#7E7A72"/>
+  <!-- stub column -->
+  <polygon points="41,44.5 44.5,42 49.5,40.5 51,42 51,49.5 47.5,51.5 42.5,51 41,48.5" fill="#A8A49B"/>
+  <polygon points="42.5,45 42.5,51 41,48.5 41,44.5" fill="#A8A49B"/>
+  <polygon points="47.5,44.5 47.5,51.5 42.5,51 42.5,45" fill="#A8A49B"/>
+  <polygon points="51,49.5 47.5,51.5 47.5,44.5 51,42" fill="#7E7A72"/>
+  <polygon points="44.5,42 42.5,45 41,44.5" fill="#C9C6BF"/>
+  <polygon points="49.5,40.5 42.5,45 44.5,42" fill="#C9C6BF"/>
+  <polygon points="51,42 42.5,45 49.5,40.5" fill="#C9C6BF"/>
+  <polygon points="51,42 47.5,44.5 42.5,45" fill="#C9C6BF"/>
+  <!-- fallen column -->
+  <polygon points="16.5,38 18.5,35.5 21.5,34 23.5,34.5 37.5,41.5 35.5,44 32.5,45.5 30.5,45" fill="#A8A49B"/>
+  <polygon points="37.5,41.5 35.5,41 21.5,34 23.5,34.5" fill="#7E7A72"/>
+  <polygon points="32.5,42.5 30.5,45 16.5,38 18.5,35.5" fill="#C9C6BF"/>
+  <polygon points="35.5,41 32.5,42.5 18.5,35.5 21.5,34" fill="#C9C6BF"/>
+  <polygon points="37.5,41.5 35.5,44 32.5,45.5 30.5,45 32.5,42.5 35.5,41" fill="#7E7A72"/>
+  <!-- moss on ground -->
+  <polygon points="26,31 36,34 32,38 22,35" fill="#3F7A32"/>
+</svg>

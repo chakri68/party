@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- hut wall -->
+  <polygon points="38,20 44,17 52,17 58,20 58,33 52,36 44,36 38,33" fill="#8A5A33"/>
+  <polygon points="58,24 58,33 52,36 52,27" fill="#5E3B20"/>
+  <polygon points="38,24 44,27 44,36 38,33" fill="#8A5A33"/>
+  <polygon points="52,27 52,36 44,36 44,27" fill="#8A5A33"/>
+  <polygon points="52,17 58,20 58,24 52,27 44,27 38,24 38,20 44,17" fill="#9A6A42"/>
+  <!-- door -->
+  <polygon points="49.5,36 46.5,36 46.5,31 49.5,31" fill="#5E3B20"/>
+  <!-- conical straw roof -->
+  <polygon points="35,20 48,11 61,20 61,25 53.5,29 42.5,29 35,25" fill="#E3C887"/>
+  <polygon points="48,11 35,25 35,20" fill="#F2DDA4"/>
+  <polygon points="48,11 61,20 61,25" fill="#C4A86A"/>
+  <polygon points="61,25 53.5,29 48,11" fill="#C4A86A"/>
+  <polygon points="48,11 42.5,29 35,25" fill="#F2DDA4"/>
+  <polygon points="48,11 53.5,29 42.5,29" fill="#E3C887"/>
+  <!-- hut wall -->
+  <polygon points="62,32 67,29.5 73,29.5 78,32 78,42.5 73,45 67,45 62,42.5" fill="#8A5A33"/>
+  <polygon points="78,42.5 73,45 73,37.5 78,35" fill="#5E3B20"/>
+  <polygon points="62,35 67,37.5 67,45 62,42.5" fill="#8A5A33"/>
+  <polygon points="67,37.5 73,37.5 73,45 67,45" fill="#8A5A33"/>
+  <polygon points="73,29.5 78,32 78,35 73,37.5 67,37.5 62,35 62,32 67,29.5" fill="#9A6A42"/>
+  <!-- door -->
+  <polygon points="71.5,45 68.5,45 68.5,41 71.5,41" fill="#5E3B20"/>
+  <!-- conical straw roof -->
+  <polygon points="59.5,32 70,24.5 80.5,32 80.5,36 74.5,39.5 65.5,39.5 59.5,36" fill="#E3C887"/>
+  <polygon points="70,24.5 80.5,32 80.5,36" fill="#C4A86A"/>
+  <polygon points="70,24.5 59.5,36 59.5,32" fill="#F2DDA4"/>
+  <polygon points="80.5,36 74.5,39.5 70,24.5" fill="#C4A86A"/>
+  <polygon points="70,24.5 65.5,39.5 59.5,36" fill="#F2DDA4"/>
+  <polygon points="70,24.5 74.5,39.5 65.5,39.5" fill="#E3C887"/>
+  <!-- hut wall -->
+  <polygon points="18,32 23,29.5 29,29.5 34,32 34,42.5 29,45 23,45 18,42.5" fill="#8A5A33"/>
+  <polygon points="34,35 34,42.5 29,45 29,37.5" fill="#5E3B20"/>
+  <polygon points="18,35 23,37.5 23,45 18,42.5" fill="#8A5A33"/>
+  <polygon points="29,37.5 29,45 23,45 23,37.5" fill="#8A5A33"/>
+  <polygon points="29,29.5 34,32 34,35 29,37.5 23,37.5 18,35 18,32 23,29.5" fill="#9A6A42"/>
+  <!-- door -->
+  <polygon points="27.5,45 24.5,45 24.5,41 27.5,41" fill="#5E3B20"/>
+  <!-- conical straw roof -->
+  <polygon points="15.5,32 26,24.5 36.5,32 36.5,36 30.5,39.5 21.5,39.5 15.5,36" fill="#E3C887"/>
+  <polygon points="26,24.5 15.5,36 15.5,32" fill="#F2DDA4"/>
+  <polygon points="26,24.5 36.5,32 36.5,36" fill="#C4A86A"/>
+  <polygon points="36.5,36 30.5,39.5 26,24.5" fill="#C4A86A"/>
+  <polygon points="26,24.5 21.5,39.5 15.5,36" fill="#F2DDA4"/>
+  <polygon points="26,24.5 30.5,39.5 21.5,39.5" fill="#E3C887"/>
+  <!-- fire stone -->
+  <polygon points="49,46.5 49,48 46,46.5 46,45" fill="#A8A49B"/>
+  <polygon points="52,45 52,46.5 49,48 49,46.5" fill="#7E7A72"/>
+  <polygon points="46,45 49,44 52,45 49,46.5" fill="#C9C6BF"/>
+  <!-- fire stone -->
+  <polygon points="53,51 50,49.5 50,48 53,49.5" fill="#A8A49B"/>
+  <polygon points="56,48 56,49.5 53,51 53,49.5" fill="#7E7A72"/>
+  <polygon points="53,49.5 50,48 53,47 56,48" fill="#C9C6BF"/>
+  <!-- fire stone -->
+  <polygon points="43,48.5 43,50 40,48.5 40,47" fill="#A8A49B"/>
+  <polygon points="46,47 46,48.5 43,50 43,48.5" fill="#7E7A72"/>
+  <polygon points="40,47 43,46 46,47 43,48.5" fill="#C9C6BF"/>
+  <!-- flame -->
+  <polygon points="45,49.5 49,40.5 53,49.5 48.5,52" fill="#D64541"/>
+  <polygon points="49,40.5 53,49.5 48.5,52" fill="#A8322F"/>
+  <polygon points="48.5,52 45,49.5 49,40.5" fill="#E8635D"/>
+  <!-- flame core -->
+  <polygon points="49,44.5 50.5,50.5 46.5,50.5" fill="#C99A2E"/>
+  <!-- fire stone front -->
+  <polygon points="51,54 48,52.5 48,51 51,52.5" fill="#A8A49B"/>
+  <polygon points="54,51 54,52.5 51,54 51,52.5" fill="#7E7A72"/>
+  <polygon points="48,51 51,50 54,51 51,52.5" fill="#C9C6BF"/>
+  <!-- fire stone front -->
+  <polygon points="45,54 42,52.5 42,51 45,52.5" fill="#A8A49B"/>
+  <polygon points="48,51 48,52.5 45,54 45,52.5" fill="#7E7A72"/>
+  <polygon points="42,51 45,50 48,51 45,52.5" fill="#C9C6BF"/>
+</svg>

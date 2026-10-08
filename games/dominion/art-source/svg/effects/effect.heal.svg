@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- rim (orchard leaf dark) so green survives on grass -->
+  <polygon points="13.5,13 26.5,13 26.5,20.5 34,20.5 34,33.5 26.5,33.5 26.5,41 13.5,41 13.5,33.5 6,33.5 6,20.5 13.5,20.5" fill="#2E7D32"/>
+  <!-- face underlay (seam backing) -->
+  <polygon points="15.5,15 24.5,15 24.5,22.5 32,22.5 32,31.5 24.5,31.5 24.5,39 15.5,39 15.5,31.5 8,31.5 8,22.5 15.5,22.5" fill="#8EF07A"/>
+  <!-- top arm -->
+  <polygon points="15.5,15 20,15 20,27 15.5,22.5" fill="#E9FFE0"/>
+  <polygon points="20,15 24.5,15 24.5,22.5 20,27" fill="#8EF07A"/>
+  <!-- left arm -->
+  <polygon points="8,22.5 15.5,22.5 20,27 8,27" fill="#E9FFE0"/>
+  <polygon points="8,27 20,27 15.5,31.5 8,31.5" fill="#8EF07A"/>
+  <!-- right arm -->
+  <polygon points="20,27 24.5,22.5 32,22.5 32,27" fill="#8EF07A"/>
+  <polygon points="20,27 32,27 32,31.5 24.5,31.5" fill="#3FBF5A"/>
+  <!-- bottom arm -->
+  <polygon points="20,27 24.5,31.5 24.5,39 20,39" fill="#3FBF5A"/>
+  <!-- rising sparkles, big to small -->
+  <polygon points="37,11 33.5,16 37,21" fill="#E9FFE0"/>
+  <polygon points="37,11 40.5,16 37,21" fill="#3FBF5A"/>
+  <polygon points="31,3.5 28.5,7 31,10.5" fill="#E9FFE0"/>
+  <polygon points="31,3.5 33.5,7 31,10.5" fill="#3FBF5A"/>
+  <polygon points="42,3 40,6 42,9" fill="#E9FFE0"/>
+  <polygon points="42,3 44,6 42,9" fill="#3FBF5A"/>
+</svg>

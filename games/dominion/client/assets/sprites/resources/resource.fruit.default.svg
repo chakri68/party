@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- trunk -->
+  <polygon points="44,32 48,30 52,32 52,40 48,42 44,40" fill="#7A4E2D"/>
+  <polygon points="48,42 44,40 44,32 48,34" fill="#7A4E2D"/>
+  <polygon points="52,32 52,40 48,42 48,34" fill="#5A3820"/>
+  <polygon points="44,32 48,30 52,32 48,34" fill="#9A6A42"/>
+  <!-- bush: faceted dome; light kept to the crown so the edge survives on light grass -->
+  <polygon points="25.5,26.5 31.5,17.5 37.5,9.5 54,8 64.5,14.5 68,20.5 69,30.5 54.5,38.5 43,39 35,35.5" fill="#5A9E44"/>
+  <polygon points="54.5,37 54.5,38.5 43,39" fill="#3F7A32"/>
+  <polygon points="69,30.5 54.5,38.5 54.5,37" fill="#3F7A32"/>
+  <polygon points="54.5,37 43,39 35,35.5" fill="#3F7A32"/>
+  <polygon points="64.5,14.5 68,20.5 69,30.5" fill="#3F7A32"/>
+  <polygon points="31.5,17.5 35,35.5 25.5,26.5" fill="#5A9E44"/>
+  <polygon points="69,30.5 54.5,37 58.5,22.5" fill="#3F7A32"/>
+  <polygon points="42,24 54.5,37 35,35.5" fill="#5A9E44"/>
+  <polygon points="64.5,14.5 69,30.5 58.5,22.5" fill="#3F7A32"/>
+  <polygon points="42,24 35,35.5 31.5,17.5" fill="#5A9E44"/>
+  <polygon points="50,9 37.5,9.5 54,8" fill="#5A9E44"/>
+  <polygon points="50,9 54,8 64.5,14.5" fill="#3F7A32"/>
+  <polygon points="58.5,22.5 54.5,37 42,24" fill="#3F7A32"/>
+  <polygon points="50,9 31.5,17.5 37.5,9.5" fill="#7CC25A"/>
+  <polygon points="64.5,14.5 58.5,22.5 50,9" fill="#3F7A32"/>
+  <polygon points="50,9 42,24 31.5,17.5" fill="#7CC25A"/>
+  <polygon points="50,9 58.5,22.5 42,24" fill="#5A9E44"/>
+  <!-- fruit cube -->
+  <polygon points="55,22.5 60,20 65,22.5 65,27 60,29.5 55,27" fill="#D64541"/>
+  <polygon points="60,29.5 55,27 55,22.5 60,25" fill="#D64541"/>
+  <polygon points="65,22.5 65,27 60,29.5 60,25" fill="#A8322F"/>
+  <polygon points="60,25 55,22.5 60,20 65,22.5" fill="#E8635D"/>
+  <!-- fruit cube -->
+  <polygon points="42.5,16.5 47,14.5 52,16.5 52,21 47,23.5 42.5,21" fill="#D64541"/>
+  <polygon points="47,23.5 42.5,21 42.5,16.5 47,19" fill="#D64541"/>
+  <polygon points="47,19 52,16.5 52,21 47,23.5" fill="#A8322F"/>
+  <polygon points="42.5,16.5 47,14.5 52,16.5 47,19" fill="#E8635D"/>
+  <!-- fruit cube -->
+  <polygon points="29,22.5 33.5,20 38.5,22.5 38.5,27 33.5,29.5 29,27" fill="#D64541"/>
+  <polygon points="33.5,29.5 29,27 29,22.5 33.5,25" fill="#D64541"/>
+  <polygon points="38.5,22.5 38.5,27 33.5,29.5 33.5,25" fill="#A8322F"/>
+  <polygon points="33.5,25 29,22.5 33.5,20 38.5,22.5" fill="#E8635D"/>
+  <!-- fruit cube -->
+  <polygon points="49.5,34 54,31.5 59,34 59,38.5 54,41 49.5,38.5" fill="#D64541"/>
+  <polygon points="54,41 49.5,38.5 49.5,34 54,36.5" fill="#D64541"/>
+  <polygon points="54,36.5 59,34 59,38.5 54,41" fill="#A8322F"/>
+  <polygon points="49.5,34 54,31.5 59,34 54,36.5" fill="#E8635D"/>
+  <!-- fruit cube -->
+  <polygon points="34.5,34 39,31.5 44,34 44,38.5 39,40.5 34.5,38.5" fill="#D64541"/>
+  <polygon points="39,40.5 34.5,38.5 34.5,34 39,36" fill="#D64541"/>
+  <polygon points="39,36 44,34 44,38.5 39,40.5" fill="#A8322F"/>
+  <polygon points="34.5,34 39,31.5 44,34 39,36" fill="#E8635D"/>
+</svg>

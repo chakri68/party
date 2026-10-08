@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 64" width="48" height="64">
+  <!-- spear shaft (behind hand) -->
+  <polygon points="9.5,15 11.5,15 12,58 10,58" fill="#7A4E2D"/>
+  <polygon points="9.5,15 10.5,15 11,58 10,58" fill="#9A6A42"/>
+  <!-- spear tip -->
+  <polygon points="10.5,3 8,9.5 10.5,15" fill="#FBF3E1"/>
+  <polygon points="10.5,3 13,9.5 10.5,15" fill="#D9C9A6"/>
+  <polygon points="9,14.5 12,14.5 12,17 9,17" fill="#4CAF50"/>
+  <!-- boots -->
+  <polygon points="17,47 22.5,47 22.5,55 23,60 14,60 14,57 17,55" fill="#7A4E2D"/>
+  <polygon points="14,57 17,55 23,55 23,57" fill="#9A6A42"/>
+  <polygon points="25,47 30.5,47 30.5,55 31,60 24,60 24,57 25,55" fill="#7A4E2D"/>
+  <polygon points="24,57 25,55 30.5,55 31,57" fill="#9A6A42"/>
+  <polygon points="28.5,47 30.5,47 30.5,55 31,60 29,60 28.5,55" fill="#5A3820"/>
+  <!-- shorts + cuffs -->
+  <polygon points="17,41 23.5,41 23,46 17,46" fill="#F4E9D0"/>
+  <polygon points="23.5,41 30,41 30.5,46 24.5,46" fill="#D9C9A6"/>
+  <polygon points="16.5,45.5 23,45.5 23,48 16.5,48" fill="#4CAF50"/>
+  <polygon points="24.5,45.5 31,45.5 31,48 24.5,48" fill="#2E7D32"/>
+  <!-- skirt -->
+  <polygon points="17.5,37 25,37 25,42 16,42" fill="#F2C14E"/>
+  <polygon points="25,37 29.5,37 31,42 25,42" fill="#C99A2E"/>
+  <polygon points="20,38 21.5,38 21.5,42 20,42" fill="#4CAF50"/>
+  <!-- torso -->
+  <polygon points="15.5,24.5 26,24.5 25,37 18,37" fill="#F2C14E"/>
+  <polygon points="26,24.5 32,24.5 29.5,37 25,37" fill="#C99A2E"/>
+  <polygon points="16,24.5 26,24.5 25.5,30 17,30" fill="#F7D57A"/>
+  <polygon points="25.5,24.5 27,24.5 26,37 24.5,37" fill="#2E7D32"/>
+  <!-- belt -->
+  <polygon points="17.5,35.5 25,35.5 25,38 17.5,38" fill="#4CAF50"/>
+  <polygon points="25,35.5 29.5,35.5 29.5,38 25,38" fill="#2E7D32"/>
+  <!-- collar + pauldrons -->
+  <polygon points="19,24 26,24 24.5,27.5 21.5,27.5" fill="#2E7D32"/>
+  <polygon points="13,24.5 18,24 18.5,28.5 13,29" fill="#4CAF50"/>
+  <polygon points="13,24.5 18,24 18,26 13,26.5" fill="#5CBF60"/>
+  <polygon points="28,24 33,24.5 33.5,29 29,28.5" fill="#2E7D32"/>
+  <!-- spear arm -->
+  <polygon points="13.5,28.5 17.5,28.5 16.5,31.5 13,31" fill="#FBF3E1"/>
+  <polygon points="13,31 16.5,31.5 14,33.5 11.5,33" fill="#D49A6E"/>
+  <polygon points="11.5,32 14.5,32.5 13.5,34.5 11,34" fill="#2E7D32"/>
+  <polygon points="8.5,31.5 12.5,31.5 13,35 9,35" fill="#E8B48A"/>
+  <!-- head -->
+  <polygon points="18.5,19.5 26.5,19.5 26,25 19.5,25" fill="#D49A6E"/>
+  <polygon points="26.5,19.5 29.5,19.5 28.5,24 26,25" fill="#B07A52"/>
+  <!-- helmet -->
+  <polygon points="17.5,17 18.5,13 23,10 22,17" fill="#F7D57A"/>
+  <polygon points="22,17 23,10 27,11 27,17" fill="#F2C14E"/>
+  <polygon points="27,17 27,11 30,14 30.5,17" fill="#C99A2E"/>
+  <polygon points="17,16.5 27,16.5 27,19.5 17.5,19.5" fill="#4CAF50"/>
+  <polygon points="27,16.5 31,16.5 30.5,19.5 27,19.5" fill="#2E7D32"/>
+  <!-- crest -->
+  <polygon points="24,10.5 27,7 28,11" fill="#5CBF60"/>
+  <polygon points="27,7 30.5,9.5 28,11" fill="#2E7D32"/>
+  <!-- shield rim -->
+  <polygon points="31,28.5 39,28 43,32.5 43,43 39.5,47.5 31.5,48 27.5,43.5 27.5,33" fill="#2E7D32"/>
+  <polygon points="27.5,43.5 27.5,33 31,28.5 39,28 43,32.5 35,38 29,45" fill="#4CAF50"/>
+  <polygon points="27.5,40 27.5,33 31,28.5 36,28 30,31.5 29.5,39" fill="#5CBF60"/>
+  <!-- shield face: player color -->
+  <g id="owner">
+    <polygon points="33,30.5 39,30 41.5,33.5 41.5,42 39,45.5 33,46 30,42.5 30,34" fill="#BDBDBD"/>
+  </g>
+</svg>

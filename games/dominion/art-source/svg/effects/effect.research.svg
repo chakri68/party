@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- rim (walnut dark), same job as on capture -->
+  <polygon points="9.5,22 16.5,13.5 31.5,13.5 38.5,22 24,43.5" fill="#5A3820"/>
+  <!-- gem underlay (straw mid) -->
+  <polygon points="12,22 18,16 30,16 36,22 24,40" fill="#F2C14E"/>
+  <!-- crown: left light, table cream, right dark -->
+  <polygon points="12,22 18,16 21,22" fill="#F7D57A"/>
+  <polygon points="18,16 30,16 27,22 21,22" fill="#FBF3E1"/>
+  <polygon points="30,16 36,22 27,22" fill="#C99A2E"/>
+  <!-- pavilion: centre catches light, right in shade -->
+  <polygon points="21,22 27,22 24,40" fill="#F7D57A"/>
+  <polygon points="27,22 36,22 24,40" fill="#C99A2E"/>
+  <!-- insight rays -->
+  <polygon points="11.5,17 7.5,19 3,13.5" fill="#C99A2E"/>
+  <polygon points="11.5,17 3,13.5 10.5,13" fill="#FBF3E1"/>
+  <polygon points="19,10 14.5,9 15.5,1.5" fill="#FBF3E1"/>
+  <polygon points="19,10 15.5,1.5 21,6.5" fill="#C99A2E"/>
+  <polygon points="29,10 27,6.5 32.5,1.5" fill="#FBF3E1"/>
+  <polygon points="29,10 32.5,1.5 33.5,9" fill="#C99A2E"/>
+  <polygon points="36.5,17 37.5,13 45,13.5" fill="#FBF3E1"/>
+  <polygon points="36.5,17 45,13.5 40.5,19" fill="#C99A2E"/>
+</svg>

@@ -27,6 +27,9 @@ importers:
       '@games/crazy-eights':
         specifier: workspace:*
         version: link:../../games/crazy-eights
+      '@games/dominion':
+        specifier: workspace:*
+        version: link:../../games/dominion
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -73,6 +76,9 @@ importers:
       '@games/crazy-eights':
         specifier: workspace:*
         version: link:../../games/crazy-eights
+      '@games/dominion':
+        specifier: workspace:*
+        version: link:../../games/dominion
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -143,6 +149,28 @@ importers:
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+
+  games/dominion:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+    devDependencies:
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(esbuild@0.28.1)
 
   games/go-fish:
     dependencies:

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- backing star (walnut dark): keeps the gold off the gold Orchard units -->
+  <polygon points="24,0.5 27.5,15 38,10 33,20.5 47.5,24 33,27.5 38,38 27.5,33 24,47.5 20.5,33 10,38 15,27.5 0.5,24 15,20.5 10,10 20.5,15" fill="#5A3820"/>
+  <!-- rays: half facing the light straw light, other half straw dark -->
+  <polygon points="24,15 21,11.5 24,3" fill="#F7D57A"/>
+  <polygon points="24,15 24,3 27,11.5" fill="#C99A2E"/>
+  <polygon points="30.5,17.5 30,14 36.5,11.5" fill="#F7D57A"/>
+  <polygon points="30.5,17.5 36.5,11.5 34,18" fill="#C99A2E"/>
+  <polygon points="33,24 36.5,21 45,24" fill="#F7D57A"/>
+  <polygon points="33,24 45,24 36.5,27" fill="#C99A2E"/>
+  <polygon points="30.5,30.5 34,30 36.5,36.5" fill="#F7D57A"/>
+  <polygon points="30.5,30.5 36.5,36.5 30,34" fill="#C99A2E"/>
+  <polygon points="24,33 27,36.5 24,45" fill="#C99A2E"/>
+  <polygon points="24,33 24,45 21,36.5" fill="#F7D57A"/>
+  <polygon points="17.5,30.5 18.5,34 11.5,36.5" fill="#C99A2E"/>
+  <polygon points="17.5,30.5 11.5,36.5 14,30" fill="#F7D57A"/>
+  <polygon points="15,24 11.5,27 3,24" fill="#C99A2E"/>
+  <polygon points="15,24 3,24 11.5,21" fill="#F7D57A"/>
+  <polygon points="17.5,17.5 14,18 11.5,11.5" fill="#C99A2E"/>
+  <polygon points="17.5,17.5 11.5,11.5 18,14" fill="#F7D57A"/>
+  <!-- centre mark, big enough to cover most of the backing -->
+  <polygon points="24,16 17,24 24,32" fill="#FBF3E1"/>
+  <polygon points="24,16 31,24 24,32" fill="#F2C14E"/>
+</svg>

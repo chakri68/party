@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- Road overlay set. A tile's road = road.center + one road.<dir> per connected neighbour, same 96x72 overlay space.
+       Directions are GRID terms (square grid, 8-neighbour), mapped to screen with +col = (+48,+24), +row = (-48,+24):
+         n  (row-1)       -> upper-right edge midpoint (72,28)
+         ne (row-1,col+1) -> right vertex  (96,40)
+         e  (col+1)       -> lower-right edge midpoint (72,52)
+         se (row+1,col+1) -> bottom vertex (48,64)
+         s  (row+1)       -> lower-left edge midpoint (24,52)
+         sw (row+1,col-1) -> left vertex   (0,40)
+         w  (col-1)       -> upper-left edge midpoint (24,28)
+         nw (row-1,col-1) -> top vertex    (48,16)
+       Width is constant on the ground (1/6 tile), so screen width varies with direction:
+       orthogonal ~8 across, ne/sw ~6 tall, nw/se ~11 wide. Each end is cut ground-perpendicular,
+       so a segment and its neighbour's opposite segment share the end edge exactly.
+       Diagonal ends straddle a vertex and spill half their width onto the two side tiles:
+       draw overlays after all terrain, or the side tiles will clip the road to an hourglass. -->
+  <!-- hub: ground circle of radius ~1.4 half-widths as an iso octagon, ruts as cobble flecks -->
+  <polygon points="56.5,41.5 51.5,44 44.5,44 39.5,41.5 39.5,38.5 44.5,36 51.5,36 56.5,38.5" fill="#E3C887"/>
+  <polygon points="42.5,39 44,38 45.5,39 44,40" fill="#C4A86A"/>
+  <polygon points="49.5,38.5 51,38 52.5,38.5 51,39" fill="#C4A86A"/>
+  <polygon points="46.5,42 48,41 49.5,42 48,43" fill="#C4A86A"/>
+  <polygon points="52,41.5 53.5,41 55,41.5 53.5,42" fill="#C4A86A"/>
+  <polygon points="41,42 42.5,41 44,42 42.5,43" fill="#C4A86A"/>
+</svg>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- debris shards flying outward; engine animates the scatter. Each shard: lit half + shadow half,
+       tip pointing along its direction of travel. -->
+  <polygon points="28,2.5 23,9.5 25.5,15.5" fill="#FFFFFF"/>
+  <polygon points="28,2.5 25.5,15.5 30,11" fill="#A8A49B"/>
+  <polygon points="45,16.5 37,16 33.5,20.5" fill="#FFFFFF"/>
+  <polygon points="45,16.5 33.5,20.5 39,21.5" fill="#A8A49B"/>
+  <polygon points="42.5,37 37.5,29 31,29" fill="#FFFFFF"/>
+  <polygon points="42.5,37 31,29 33.5,35" fill="#A8A49B"/>
+  <polygon points="22,45.5 19.5,38.5 23,34.5" fill="#FFFFFF"/>
+  <polygon points="22,45.5 23,34.5 25.5,39" fill="#A8A49B"/>
+  <polygon points="5,35 10,28 16.5,28.5" fill="#FFFFFF"/>
+  <polygon points="5,35 16.5,28.5 13.5,34" fill="#A8A49B"/>
+  <polygon points="4.5,15 11.5,15 14.5,19.5" fill="#FFFFFF"/>
+  <polygon points="4.5,15 14.5,19.5 9,20.5" fill="#A8A49B"/>
+  <!-- dust specks -->
+  <polygon points="36,7.0 38.5,9.5 36,12.0 33.5,9.5" fill="#FFFFFF"/>
+  <polygon points="32.5,39.5 35.0,42 32.5,44.5 30.0,42" fill="#FFFFFF"/>
+  <polygon points="4,22 6,24 4,26 2,24" fill="#FFFFFF"/>
+  <polygon points="16,5 18,7 16,9 14,7" fill="#FFFFFF"/>
+</svg>

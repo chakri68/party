@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <g id="ground">
+    <!-- deep slab: same faces as the earth slab -->
+    <polygon points="0,40 48,64 48,72 0,48" fill="#173F7C"/>
+    <polygon points="48,64 96,40 96,48 48,72" fill="#112F5E"/>
+    <!-- ocean top: full mid diamond underlay, then light up-left and dark right facets -->
+    <polygon points="48,16 96,40 48,64 0,40" fill="#2A6FC4"/>
+    <polygon points="0,40 48,16 64,24 62,38 26,43" fill="#3D8FE0"/>
+    <polygon points="64,24 96,40 84,46 62,38" fill="#1C4F98"/>
+    <!-- wave wedges: lit back slope, shaded lee face -->
+    <polygon points="21,49 38,43 32.5,47.5" fill="#3D8FE0"/>
+    <polygon points="38,43 32.5,47.5 42,48" fill="#1C4F98"/>
+    <polygon points="48,54 64,48 59,52" fill="#3D8FE0"/>
+    <polygon points="64,48 59,52 67,52.5" fill="#1C4F98"/>
+  </g>
+  <g id="props">
+  </g>
+</svg>

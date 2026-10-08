@@ -674,15 +674,17 @@ export class RoomView implements View {
     const loser = result?.loserIds?.[0];
     const winner = loser ? undefined : result?.winnerIds[0];
     const readyCount = room.seats.filter((s) => s.ready).length;
+    // Seatless participants (computer players) bring their own names.
+    const nameOf = (id: string) => result?.names?.[id] ?? seatName(room, id);
     const featured = room.seats.find((s) => s.id === (loser ?? winner));
     const won = loser ? loser !== me && !!result?.winnerIds.includes(me) : !!result?.winnerIds.includes(me);
     // A shared win names everyone in it, you first if you're one.
     const tied = loser ? [] : [...(result?.winnerIds ?? [])].sort((a, b) => Number(b === me) - Number(a === me));
-    const names = (ids: string[]) => ids.map((id) => (id === me ? "You" : seatName(room, id))).join(ids.length > 2 ? ", " : " and ").replace(/, ([^,]*)$/, " and $1");
+    const names = (ids: string[]) => ids.map((id) => (id === me ? "You" : nameOf(id))).join(ids.length > 2 ? ", " : " and ").replace(/, ([^,]*)$/, " and $1");
     const headline = loser
-      ? loser === me ? "You lose" : `${seatName(room, loser)} loses`
+      ? loser === me ? "You lose" : `${nameOf(loser)} loses`
       : tied.length > 1 ? `${names(tied)} tie`
-      : winner ? (winner === me ? "You win!" : `${seatName(room, winner)} wins`) : "Game over";
+      : winner ? (winner === me ? "You win!" : `${nameOf(winner)} wins`) : "Game over";
 
     return h(
       "section",
@@ -699,7 +701,7 @@ export class RoomView implements View {
             { class: s.playerId === me ? "me" : "" },
             h("span", { class: "place" }, String(i + 1)),
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", { class: "name" }, s.playerId === me ? "You" : seatName(room, s.playerId)),
+            h("span", { class: "name" }, s.playerId === me ? "You" : nameOf(s.playerId)),
             h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.label ?? (s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`)),
           );
         }),

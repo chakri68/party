@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <g id="ground">
+    <!-- earth slab -->
+    <polygon points="0,40 48,64 48,72 0,48" fill="#8A5A33"/>
+    <polygon points="48,64 96,40 96,48 48,72" fill="#5E3B20"/>
+    <!-- grass top: full mid diamond underlay (front facet + seam backing), then light up-left and dark right facets -->
+    <polygon points="48,16 96,40 48,64 0,40" fill="#6BAA3E"/>
+    <polygon points="0,40 48,16 64,24 62,38 26,43" fill="#8BC34A"/>
+    <polygon points="64,24 96,40 84,46 62,38" fill="#4E8A34"/>
+    <!-- tufts, back to front: pair top-left -->
+    <polygon points="30,26 34,33 37,33.5" fill="#4E8A34"/>
+    <polygon points="30,26 26,33 30,34.5" fill="#8BC34A"/>
+    <polygon points="30,26 30,34.5 34,33" fill="#4E8A34"/>
+    <polygon points="24,30 27,36 30,36.5" fill="#4E8A34"/>
+    <polygon points="24,30 21,36 24,37" fill="#8BC34A"/>
+    <polygon points="24,30 24,37 27,36" fill="#4E8A34"/>
+    <!-- pair right -->
+    <polygon points="80,38 84,45 87,45.5" fill="#4E8A34"/>
+    <polygon points="80,38 76,45 80,46.5" fill="#8BC34A"/>
+    <polygon points="80,38 80,46.5 84,45" fill="#4E8A34"/>
+    <polygon points="74,41 71,47 74,48" fill="#8BC34A"/>
+    <polygon points="74,41 74,48 77,47" fill="#4E8A34"/>
+    <!-- single front -->
+    <polygon points="44,48 48,55 51,55.5" fill="#4E8A34"/>
+    <polygon points="44,48 40,55 44,56.5" fill="#8BC34A"/>
+    <polygon points="44,48 44,56.5 48,55" fill="#4E8A34"/>
+  </g>
+  <g id="props">
+  </g>
+</svg>

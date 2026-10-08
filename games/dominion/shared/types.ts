@@ -1,0 +1,367 @@
+// Dominion's data model. Everything is a JSON-friendly plain object: the room
+// persists it as-is, and spatial indexes are rebuilt rather than stored (§16).
+
+export const SCHEMA_VERSION = 1;
+/** Bump when a rule change would reinterpret a running match. */
+export const RULES_VERSION = 1;
+export const CONTENT_VERSION = 1;
+export const GENERATOR_VERSION = 1;
+
+export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
+export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
+export type Improvement = "farm" | "lumber_camp" | "mine";
+export type Feature = "village" | "ruins";
+export type FactionKind = "orchard" | "forest";
+export type UnitType = "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion";
+export type TechId =
+  | "gathering" | "farming"
+  | "hunting" | "forestry" | "archery"
+  | "riding" | "roads"
+  | "climbing" | "mining" | "meditation" | "metallurgy"
+  | "fishing"
+  | "strategy";
+
+/** What a player can do to a tile. Harvests consume the resource; the rest build. */
+export type DevelopKind = "harvest" | "farm" | "lumber_camp" | "mine" | "road";
+
+export type RewardChoice =
+  | "workshop" | "scout"
+  | "treasury" | "walls"
+  | "population" | "borders"
+  | "champion" | "park";
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+export type MapSizeSetting = "auto" | 16 | 24 | 32;
+export type MapType = "landmass" | "lakes";
+export type FogSetting = "on" | "terrain" | "off";
+export type ResourceSetting = "sparse" | "standard" | "abundant";
+export type FactionSetting = "mixed" | FactionKind;
+export type VictorySetting = "conquest" | "score";
+export type BotLevel = "easy" | "normal" | "hard";
+
+export interface DominionSettings {
+  victory: VictorySetting;
+  mapSize: MapSizeSetting;
+  mapType: MapType;
+  /** Seconds; 0 = no clock. */
+  turnClock: 0 | 60 | 120 | 180 | 300;
+  /** Rounds; 0 = unlimited (conquest only). */
+  roundLimit: 0 | 30 | 60 | 90;
+  fog: FogSetting;
+  resources: ResourceSetting;
+  factions: FactionSetting;
+  /** Computer players added on top of the people in the room. */
+  bots: number;
+  botLevel: BotLevel;
+}
+
+export const DEFAULT_SETTINGS: DominionSettings = {
+  victory: "conquest",
+  mapSize: "auto",
+  mapType: "landmass",
+  turnClock: 180,
+  roundLimit: 60,
+  fog: "on",
+  resources: "standard",
+  factions: "mixed",
+  bots: 0,
+  botLevel: "normal",
+};
+
+// ---------------------------------------------------------------------------
+// Server state
+// ---------------------------------------------------------------------------
+
+export interface Tile {
+  t: Terrain;
+  res: Resource | null;
+  imp: Improvement | null;
+  road: boolean;
+  feat: Feature | null;
+  /** The city standing on this tile. */
+  city: string | null;
+  /** The city whose territory this tile is. Ownership follows that city's owner. */
+  claim: string | null;
+}
+
+export interface Unit {
+  id: string;
+  type: UnitType;
+  owner: string;
+  /** City whose capacity this unit uses; null while homeless. */
+  home: string | null;
+  at: number;
+  hp: number;
+  maxHp: number;
+  kills: number;
+  veteran: boolean;
+  /** Remaining movement this turn, in half-points. */
+  mp: number;
+  moved: boolean;
+  attacked: boolean;
+  /** Nothing more this turn: attacked, healed, captured or freshly trained. */
+  done: boolean;
+  /** Has stood on this tile since its owner's turn began. Capturing needs it. */
+  settled: boolean;
+}
+
+export interface City {
+  id: string;
+  name: string;
+  at: number;
+  /** null: a city whose empire surrendered. Capturable like a village. */
+  owner: string | null;
+  level: number;
+  /** Development credit towards the next level. */
+  pop: number;
+  /** The founder's capital. Only the founder gets the capital bonus. */
+  capitalOf: string | null;
+  workshop: boolean;
+  walls: boolean;
+  parks: number;
+  /** Levels whose reward hasn't been picked yet, oldest first. */
+  pendingRewards: number[];
+  /** A champion that couldn't spawn yet for lack of room. */
+  pendingChampion: boolean;
+}
+
+export interface CityMemory {
+  name: string;
+  level: number;
+  owner: string | null;
+  capital: boolean;
+}
+
+/** What a faction remembers of the world: last-seen tile codes and when. */
+export interface Memory {
+  /** Packed tile (see `encodeTile`); -1 = never explored. */
+  codes: number[];
+  /** Round last seen; -1 = never. */
+  seen: number[];
+  /** Keyed by tile index. */
+  cities: Record<string, CityMemory>;
+}
+
+export interface Faction {
+  id: string;
+  kind: FactionKind;
+  /** Index into PLAYER_COLORS. Unique per match. */
+  color: number;
+  credits: number;
+  techs: TechId[];
+  eliminated: boolean;
+  surrendered: boolean;
+  kills: number;
+  memory: Memory;
+  /** Set for computer players; they have no room seat. */
+  bot?: { level: BotLevel; name: string } | null;
+}
+
+export interface DominionState {
+  schemaVersion: number;
+  rulesVersion: number;
+  contentVersion: number;
+  generatorVersion: number;
+
+  settings: DominionSettings;
+  size: number;
+  tiles: Tile[];
+  cities: Record<string, City>;
+  units: Record<string, Unit>;
+  /** Turn order. */
+  factions: Faction[];
+
+  /** Hidden. Never leaves the server (§10). */
+  seed: number;
+  /** Separate streams so one consumer can't shift another's future (§4). */
+  rng: { ruins: number; names: number; ai?: number };
+
+  /** Bumped on every accepted change. */
+  revision: number;
+  phase: "playing" | "finished";
+  round: number;
+  /** Increments each turn; actions must name it, so a stale one can't land. */
+  turn: number;
+  current: number;
+  /** Server time the current turn ends; null without a clock. */
+  deadline: number | null;
+  nextId: number;
+  /** Actions the current computer player has taken this turn; a hard stop for runaway turns. */
+  botSteps?: number;
+  outcome: { winnerIds: string[]; reason: "conquest" | "score" | "draw" } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Actions & events
+// ---------------------------------------------------------------------------
+
+export type DominionAction =
+  | { type: "move"; turn: number; unit: string; to: number }
+  | { type: "attack"; turn: number; unit: string; target: number }
+  | { type: "capture"; turn: number; unit: string }
+  | { type: "heal"; turn: number; unit: string }
+  | { type: "promote"; turn: number; unit: string }
+  | { type: "train"; turn: number; city: string; unitType: UnitType }
+  | { type: "research"; turn: number; tech: TechId }
+  | { type: "develop"; turn: number; tile: number; kind: DevelopKind }
+  | { type: "reward"; turn: number; city: string; choice: RewardChoice }
+  | { type: "end-turn"; turn: number }
+  | { type: "surrender" };
+
+/**
+ * Events exist to animate; the settled state always comes from the projection.
+ * Every one is redacted per recipient before it leaves (§10).
+ */
+export type DominionEvent =
+  | { type: "turn-start"; playerId: string; round: number }
+  /** `from`/`to` are null where the recipient couldn't see that end. */
+  | { type: "move"; unit: string; from: number | null; to: number | null }
+  | {
+      type: "attack";
+      from: number;
+      to: number;
+      damage: number;
+      retaliation: number;
+      defenderKilled: boolean;
+      attackerKilled: boolean;
+    }
+  | { type: "spawn"; at: number }
+  | { type: "heal"; at: number; amount: number }
+  | { type: "capture"; at: number; by: string }
+  | { type: "develop"; at: number; kind: DevelopKind }
+  | { type: "research"; tech: TechId }
+  | { type: "city-level"; city: string; level: number }
+  | { type: "ruins"; at: number; reward: RuinReward }
+  | { type: "eliminated"; playerId: string }
+  | { type: "game-over"; winnerIds: string[] };
+
+export type RuinReward =
+  | { kind: "credits"; amount: number }
+  | { kind: "population"; amount: number; city: string }
+  | { kind: "tech"; tech: TechId }
+  | { kind: "unit"; at: number }
+  | { kind: "explore"; radius: number };
+
+// ---------------------------------------------------------------------------
+// Projections
+// ---------------------------------------------------------------------------
+
+export interface PublicPlayer {
+  id: string;
+  kind: FactionKind;
+  color: number;
+  eliminated: boolean;
+  /** Computer players carry their own name and skill. */
+  name?: string;
+  bot?: BotLevel;
+}
+
+export interface DominionPublicState {
+  size: number;
+  round: number;
+  turn: number;
+  phase: "playing" | "finished";
+  currentPlayerId: string | null;
+  deadline: number | null;
+  roundLimit: number;
+  victory: VictorySetting;
+  players: PublicPlayer[];
+}
+
+/** A tile as one player knows it. */
+export interface KnownTile {
+  t: Terrain;
+  res: Resource | null;
+  imp: Improvement | null;
+  road: boolean;
+  feat: Feature | null;
+  /** Owner of the territory, as last seen. */
+  owner: string | null;
+  /** Visible right now. Otherwise this is memory, `seen` rounds old. */
+  vis: boolean;
+  seen: number;
+}
+
+export interface KnownUnit {
+  id: string;
+  type: UnitType;
+  owner: string;
+  at: number;
+  hp: number;
+  maxHp: number;
+  veteran: boolean;
+  /** Own units only. */
+  mine?: {
+    kills: number;
+    mp: number;
+    moved: boolean;
+    attacked: boolean;
+    done: boolean;
+    settled: boolean;
+    home: string | null;
+  };
+}
+
+export interface KnownCity {
+  id: string | null;
+  name: string;
+  at: number;
+  owner: string | null;
+  level: number;
+  capital: boolean;
+  vis: boolean;
+  /** Own cities only. */
+  mine?: {
+    id: string;
+    pop: number;
+    nextLevelAt: number;
+    workshop: boolean;
+    walls: boolean;
+    parks: number;
+    units: number;
+    capacity: number;
+    income: IncomeBreakdown;
+    occupied: boolean;
+    connected: boolean;
+    pendingRewards: number[];
+    pendingChampion: boolean;
+  };
+}
+
+export interface IncomeBreakdown {
+  level: number;
+  workshop: number;
+  capital: number;
+  connection: number;
+  total: number;
+}
+
+export interface AttackOption {
+  target: number;
+  damage: number;
+  retaliation: number;
+}
+
+export interface DominionPrivateState {
+  me: string;
+  myTurn: boolean;
+  turn: number;
+  /** Row-major; null = never explored. */
+  tiles: (KnownTile | null)[];
+  units: KnownUnit[];
+  cities: KnownCity[];
+  credits: number;
+  income: number;
+  techs: TechId[];
+  cityCount: number;
+  score: number;
+  /** Legal moves and attacks for my units, computed from what I can see. */
+  moves: Record<string, number[]>;
+  attacks: Record<string, AttackOption[]>;
+  /** My units that could still do something this turn. */
+  idleUnits: string[];
+  eliminated: boolean;
+}

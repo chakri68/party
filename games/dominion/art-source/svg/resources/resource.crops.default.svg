@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- tilled patch -->
+  <polygon points="48,21 86,40 48,59 10,40" fill="#8A5A33"/>
+  <!-- wheat ear -->
+  <polygon points="45.5,20.5 46,15.5 49,10.5 52,15.5 52.5,20.5 49,25.5" fill="#F2C14E"/>
+  <polygon points="49,22.5 49,25.5 45.5,20.5" fill="#F2C14E"/>
+  <polygon points="52.5,20.5 49,25.5 49,22.5" fill="#C99A2E"/>
+  <polygon points="46,15.5 49,17 49,22.5 45.5,20.5" fill="#F7D57A"/>
+  <polygon points="52.5,20.5 49,22.5 49,17 52,15.5" fill="#C99A2E"/>
+  <polygon points="49,10.5 49,17 46,15.5" fill="#F7D57A"/>
+  <polygon points="52,15.5 49,17 49,10.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="54.5,25 55,20 58,15 61,20 61.5,25 58,30" fill="#F2C14E"/>
+  <polygon points="58,27 58,30 54.5,25" fill="#F2C14E"/>
+  <polygon points="61.5,25 58,30 58,27" fill="#C99A2E"/>
+  <polygon points="55,20 58,21.5 58,27 54.5,25" fill="#F7D57A"/>
+  <polygon points="61.5,25 58,27 58,21.5 61,20" fill="#C99A2E"/>
+  <polygon points="58,15 58,21.5 55,20" fill="#F7D57A"/>
+  <polygon points="61,20 58,21.5 58,15" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="63.5,29.5 64,24.5 67,19.5 70,24.5 70.5,29.5 67,34.5" fill="#F2C14E"/>
+  <polygon points="67,31.5 67,34.5 63.5,29.5" fill="#F2C14E"/>
+  <polygon points="70.5,29.5 67,34.5 67,31.5" fill="#C99A2E"/>
+  <polygon points="64,24.5 67,26 67,31.5 63.5,29.5" fill="#F7D57A"/>
+  <polygon points="70.5,29.5 67,31.5 67,26 70,24.5" fill="#C99A2E"/>
+  <polygon points="67,19.5 67,26 64,24.5" fill="#F7D57A"/>
+  <polygon points="70,24.5 67,26 67,19.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="72.5,34 73,29 76,24 79,29 79.5,34 76,39" fill="#F2C14E"/>
+  <polygon points="76,36 76,39 72.5,34" fill="#F2C14E"/>
+  <polygon points="79.5,34 76,39 76,36" fill="#C99A2E"/>
+  <polygon points="73,29 76,30.5 76,36 72.5,34" fill="#F7D57A"/>
+  <polygon points="79.5,34 76,36 76,30.5 79,29" fill="#C99A2E"/>
+  <polygon points="76,24 76,30.5 73,29" fill="#F7D57A"/>
+  <polygon points="79,29 76,30.5 76,24" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="40.5,27 41,22 44,17 47,22 47.5,27 44,32" fill="#F2C14E"/>
+  <polygon points="44,29 44,32 40.5,27" fill="#F2C14E"/>
+  <polygon points="47.5,27 44,32 44,29" fill="#C99A2E"/>
+  <polygon points="41,22 44,23.5 44,29 40.5,27" fill="#F7D57A"/>
+  <polygon points="47.5,27 44,29 44,23.5 47,22" fill="#C99A2E"/>
+  <polygon points="44,17 44,23.5 41,22" fill="#F7D57A"/>
+  <polygon points="47,22 44,23.5 44,17" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="49.5,31.5 50,26.5 53,21.5 56,26.5 56.5,31.5 53,36.5" fill="#F2C14E"/>
+  <polygon points="53,33.5 53,36.5 49.5,31.5" fill="#F2C14E"/>
+  <polygon points="56.5,31.5 53,36.5 53,33.5" fill="#C99A2E"/>
+  <polygon points="50,26.5 53,28 53,33.5 49.5,31.5" fill="#F7D57A"/>
+  <polygon points="56.5,31.5 53,33.5 53,28 56,26.5" fill="#C99A2E"/>
+  <polygon points="53,21.5 53,28 50,26.5" fill="#F7D57A"/>
+  <polygon points="56,26.5 53,28 53,21.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="58.5,36 59,31 62,26 65,31 65.5,36 62,41" fill="#F2C14E"/>
+  <polygon points="62,38 62,41 58.5,36" fill="#F2C14E"/>
+  <polygon points="65.5,36 62,41 62,38" fill="#C99A2E"/>
+  <polygon points="59,31 62,32.5 62,38 58.5,36" fill="#F7D57A"/>
+  <polygon points="65.5,36 62,38 62,32.5 65,31" fill="#C99A2E"/>
+  <polygon points="62,26 62,32.5 59,31" fill="#F7D57A"/>
+  <polygon points="65,31 62,32.5 62,26" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="26.5,29 27,24 30,19 33,24 33.5,29 30,34" fill="#F2C14E"/>
+  <polygon points="30,31 30,34 26.5,29" fill="#F2C14E"/>
+  <polygon points="33.5,29 30,34 30,31" fill="#C99A2E"/>
+  <polygon points="27,24 30,25.5 30,31 26.5,29" fill="#F7D57A"/>
+  <polygon points="33.5,29 30,31 30,25.5 33,24" fill="#C99A2E"/>
+  <polygon points="30,19 30,25.5 27,24" fill="#F7D57A"/>
+  <polygon points="33,24 30,25.5 30,19" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="35.5,33.5 36,28.5 39,23.5 42,28.5 42.5,33.5 39,38.5" fill="#F2C14E"/>
+  <polygon points="39,35.5 39,38.5 35.5,33.5" fill="#F2C14E"/>
+  <polygon points="42.5,33.5 39,38.5 39,35.5" fill="#C99A2E"/>
+  <polygon points="36,28.5 39,30 39,35.5 35.5,33.5" fill="#F7D57A"/>
+  <polygon points="42.5,33.5 39,35.5 39,30 42,28.5" fill="#C99A2E"/>
+  <polygon points="39,23.5 39,30 36,28.5" fill="#F7D57A"/>
+  <polygon points="42,28.5 39,30 39,23.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="44.5,38 45,33 48,28 51,33 51.5,38 48,43" fill="#F2C14E"/>
+  <polygon points="48,40 48,43 44.5,38" fill="#F2C14E"/>
+  <polygon points="51.5,38 48,43 48,40" fill="#C99A2E"/>
+  <polygon points="45,33 48,34.5 48,40 44.5,38" fill="#F7D57A"/>
+  <polygon points="51.5,38 48,40 48,34.5 51,33" fill="#C99A2E"/>
+  <polygon points="48,28 48,34.5 45,33" fill="#F7D57A"/>
+  <polygon points="51,33 48,34.5 48,28" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="53.5,42.5 54,37.5 57,32.5 60,37.5 60.5,42.5 57,47.5" fill="#F2C14E"/>
+  <polygon points="57,44.5 57,47.5 53.5,42.5" fill="#F2C14E"/>
+  <polygon points="60.5,42.5 57,47.5 57,44.5" fill="#C99A2E"/>
+  <polygon points="54,37.5 57,39 57,44.5 53.5,42.5" fill="#F7D57A"/>
+  <polygon points="60.5,42.5 57,44.5 57,39 60,37.5" fill="#C99A2E"/>
+  <polygon points="57,32.5 57,39 54,37.5" fill="#F7D57A"/>
+  <polygon points="60,37.5 57,39 57,32.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="22.5,36 23,31 26,26 29,31 29.5,36 26,41" fill="#F2C14E"/>
+  <polygon points="26,38 26,41 22.5,36" fill="#F2C14E"/>
+  <polygon points="29.5,36 26,41 26,38" fill="#C99A2E"/>
+  <polygon points="23,31 26,32.5 26,38 22.5,36" fill="#F7D57A"/>
+  <polygon points="29.5,36 26,38 26,32.5 29,31" fill="#C99A2E"/>
+  <polygon points="26,26 26,32.5 23,31" fill="#F7D57A"/>
+  <polygon points="29,31 26,32.5 26,26" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="31.5,40.5 32,35.5 35,30.5 38,35.5 38.5,40.5 35,45.5" fill="#F2C14E"/>
+  <polygon points="35,42.5 35,45.5 31.5,40.5" fill="#F2C14E"/>
+  <polygon points="38.5,40.5 35,45.5 35,42.5" fill="#C99A2E"/>
+  <polygon points="32,35.5 35,37 35,42.5 31.5,40.5" fill="#F7D57A"/>
+  <polygon points="38.5,40.5 35,42.5 35,37 38,35.5" fill="#C99A2E"/>
+  <polygon points="35,30.5 35,37 32,35.5" fill="#F7D57A"/>
+  <polygon points="38,35.5 35,37 35,30.5" fill="#C99A2E"/>
+  <!-- wheat ear -->
+  <polygon points="40.5,45 41,40 44,35 47,40 47.5,45 44,50" fill="#F2C14E"/>
+  <polygon points="44,47 44,50 40.5,45" fill="#F2C14E"/>
+  <polygon points="47.5,45 44,50 44,47" fill="#C99A2E"/>
+  <polygon points="41,40 44,41.5 44,47 40.5,45" fill="#F7D57A"/>
+  <polygon points="47.5,45 44,47 44,41.5 47,40" fill="#C99A2E"/>
+  <polygon points="44,35 44,41.5 41,40" fill="#F7D57A"/>
+  <polygon points="47,40 44,41.5 44,35" fill="#C99A2E"/>
+</svg>

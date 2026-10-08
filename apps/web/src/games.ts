@@ -3,6 +3,7 @@
 
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
+import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
@@ -69,5 +70,11 @@ export const games: Record<string, GameEntry> = {
     rules: cheatRules,
     settingFields: cheatSettingFields,
     loadClient: () => import("@games/cheat/client").then((m) => m.default),
+  },
+  dominion: {
+    manifest: dominionManifest,
+    rules: dominionRules,
+    settingFields: dominionSettingFields,
+    loadClient: () => import("@games/dominion/client").then((m) => m.default),
   },
 };

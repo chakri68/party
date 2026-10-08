@@ -1,0 +1,814 @@
+{
+  "schemaVersion": 1,
+  "assetVersion": "0.1.0",
+  "sprites": {
+    "city.forest.tier1": {
+      "url": "sprites/cities/city.forest.tier1.svg",
+      "size": [
+        96,
+        120
+      ],
+      "anchor": [
+        0.5,
+        0.7333
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        120
+      ],
+      "ownerMask": "owner"
+    },
+    "city.orchard.tier1": {
+      "url": "sprites/cities/city.orchard.tier1.svg",
+      "size": [
+        96,
+        120
+      ],
+      "anchor": [
+        0.5,
+        0.7333
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        120
+      ],
+      "ownerMask": "owner"
+    },
+    "effect.capture": {
+      "url": "sprites/effects/effect.capture.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "effect.discovery": {
+      "url": "sprites/effects/effect.discovery.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "effect.heal": {
+      "url": "sprites/effects/effect.heal.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "effect.hit": {
+      "url": "sprites/effects/effect.hit.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "effect.research": {
+      "url": "sprites/effects/effect.research.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "effect.spawn": {
+      "url": "sprites/effects/effect.spawn.svg",
+      "size": [
+        48,
+        48
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "feature.ruins.default": {
+      "url": "sprites/features/feature.ruins.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "feature.village.default": {
+      "url": "sprites/features/feature.village.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "improvement.farm.default": {
+      "url": "sprites/improvements/improvement.farm.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "improvement.lumber_camp.default": {
+      "url": "sprites/improvements/improvement.lumber_camp.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "improvement.mine.default": {
+      "url": "sprites/improvements/improvement.mine.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "resource.animals.default": {
+      "url": "sprites/resources/resource.animals.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "resource.crops.default": {
+      "url": "sprites/resources/resource.crops.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "resource.fish.default": {
+      "url": "sprites/resources/resource.fish.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "resource.fruit.default": {
+      "url": "sprites/resources/resource.fruit.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "resource.ore.default": {
+      "url": "sprites/resources/resource.ore.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.center": {
+      "url": "sprites/roads/road.center.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.e": {
+      "url": "sprites/roads/road.e.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.n": {
+      "url": "sprites/roads/road.n.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.ne": {
+      "url": "sprites/roads/road.ne.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.nw": {
+      "url": "sprites/roads/road.nw.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.s": {
+      "url": "sprites/roads/road.s.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.se": {
+      "url": "sprites/roads/road.se.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.sw": {
+      "url": "sprites/roads/road.sw.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "road.w": {
+      "url": "sprites/roads/road.w.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ]
+    },
+    "terrain.forest.default": {
+      "url": "sprites/terrain/terrain.forest.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.forest.v2": {
+      "url": "sprites/terrain/terrain.forest.v2.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.mountain.default": {
+      "url": "sprites/terrain/terrain.mountain.default.svg",
+      "size": [
+        96,
+        104
+      ],
+      "anchor": [
+        0.5,
+        0.6923
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        104
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.mountain.v2": {
+      "url": "sprites/terrain/terrain.mountain.v2.svg",
+      "size": [
+        96,
+        104
+      ],
+      "anchor": [
+        0.5,
+        0.6923
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        104
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.ocean.default": {
+      "url": "sprites/terrain/terrain.ocean.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.ocean.v2": {
+      "url": "sprites/terrain/terrain.ocean.v2.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.plains.default": {
+      "url": "sprites/terrain/terrain.plains.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.plains.v2": {
+      "url": "sprites/terrain/terrain.plains.v2.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.plains.v3": {
+      "url": "sprites/terrain/terrain.plains.v3.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.water.shallow.default": {
+      "url": "sprites/terrain/terrain.water.shallow.default.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "terrain.water.shallow.v2": {
+      "url": "sprites/terrain/terrain.water.shallow.v2.svg",
+      "size": [
+        96,
+        72
+      ],
+      "anchor": [
+        0.5,
+        0.5556
+      ],
+      "bounds": [
+        0,
+        0,
+        96,
+        72
+      ],
+      "layers": [
+        "ground",
+        "props"
+      ]
+    },
+    "unit.archer.forest.idle": {
+      "url": "sprites/units/unit.archer.forest.idle.svg",
+      "size": [
+        48,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        64
+      ],
+      "ownerMask": "owner"
+    },
+    "unit.archer.orchard.idle": {
+      "url": "sprites/units/unit.archer.orchard.idle.svg",
+      "size": [
+        48,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        64
+      ],
+      "ownerMask": "owner"
+    },
+    "unit.cavalry.forest.idle": {
+      "url": "sprites/units/unit.cavalry.forest.idle.svg",
+      "size": [
+        64,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "ownerMask": "owner"
+    },
+    "unit.cavalry.orchard.idle": {
+      "url": "sprites/units/unit.cavalry.orchard.idle.svg",
+      "size": [
+        64,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "ownerMask": "owner"
+    },
+    "unit.infantry.forest.idle": {
+      "url": "sprites/units/unit.infantry.forest.idle.svg",
+      "size": [
+        48,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        64
+      ],
+      "ownerMask": "owner"
+    },
+    "unit.infantry.orchard.idle": {
+      "url": "sprites/units/unit.infantry.orchard.idle.svg",
+      "size": [
+        48,
+        64
+      ],
+      "anchor": [
+        0.5,
+        0.9375
+      ],
+      "bounds": [
+        0,
+        0,
+        48,
+        64
+      ],
+      "ownerMask": "owner"
+    }
+  },
+  "audio": {},
+  "licenses": [
+    {
+      "scope": "sprites/**",
+      "author": "Dominion art track (hand-authored SVG, see art-source/)",
+      "license": "Original work for this repository"
+    }
+  ]
+}

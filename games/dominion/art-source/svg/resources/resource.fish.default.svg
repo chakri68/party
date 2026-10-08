@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- ripple ring (flat, on the water) -->
+  <polygon points="40,34 56,34 64,40 56,46 40,46 32,40" fill="#8FE3E8"/>
+  <!-- ripple hole -->
+  <polygon points="43,36.5 53,36.5 58,40 53,43.5 43,43.5 38,40" fill="#5FD0D8"/>
+  <!-- fish rising (back-left) -->
+  <polygon points="45,25.5 34,28.5 32,36 40.5,34" fill="#2A6FC4"/>
+  <polygon points="45,25.5 34,28.5 37.5,32" fill="#3D8FE0"/>
+  <polygon points="34,28.5 32,36 37.5,32" fill="#2A6FC4"/>
+  <polygon points="45,25.5 37.5,32 40.5,34" fill="#FFFFFF"/>
+  <polygon points="37.5,32 32,36 40.5,34" fill="#CFD8DE"/>
+  <polygon points="32.5,35.5 25,36 29.5,38.5" fill="#1C4F98"/>
+  <polygon points="32.5,35.5 29.5,38.5 31,42" fill="#2A6FC4"/>
+  <polygon points="35,28 30.5,30 33,32" fill="#1C4F98"/>
+  <!-- fish diving (front-right) -->
+  <polygon points="66.5,39.5 62,29 54.5,27 57,35.5" fill="#2A6FC4"/>
+  <polygon points="66.5,39.5 62,29 59,32.5" fill="#3D8FE0"/>
+  <polygon points="62,29 54.5,27 59,32.5" fill="#2A6FC4"/>
+  <polygon points="66.5,39.5 59,32.5 57,35.5" fill="#FFFFFF"/>
+  <polygon points="59,32.5 54.5,27 57,35.5" fill="#CFD8DE"/>
+  <polygon points="55,27.5 54,20.5 52,25" fill="#1C4F98"/>
+  <polygon points="55,27.5 52,25 48.5,27" fill="#2A6FC4"/>
+  <polygon points="63,30 60,25.5 58.5,28" fill="#1C4F98"/>
+  <!-- splash wedge -->
+  <polygon points="42,43 44,34 47,42" fill="#FFFFFF"/>
+  <polygon points="46,42.5 49,32 51,42.5" fill="#EEF2F5"/>
+  <polygon points="50,42.5 54,35 55,43.5" fill="#CFD8DE"/>
+  <polygon points="41,44 47,41.5 55,43 49,46" fill="#8FE3E8"/>
+  <!-- droplets -->
+  <polygon points="38,36 39.5,34 40,36.5" fill="#FFFFFF"/>
+  <polygon points="56,32 57.5,30.5 58,32.5" fill="#EEF2F5"/>
+</svg>

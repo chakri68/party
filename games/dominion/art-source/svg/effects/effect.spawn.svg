@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- ground ring: back-left light, back-right and front-left mid, front-right shade -->
+  <polygon points="24,28.5 43,38 34.5,38 24,33" fill="#FFFFFF"/>
+  <polygon points="43,38 24,47.5 24,43 34.5,38" fill="#EEF2F5"/>
+  <polygon points="24,47.5 5,38 13.5,38 24,43" fill="#D9C9A6"/>
+  <polygon points="5,38 24,28.5 24,33 13.5,38" fill="#EEF2F5"/>
+  <!-- rising diamonds, shrinking as they go -->
+  <polygon points="24,17 19.5,25 24,33" fill="#FBF3E1"/>
+  <polygon points="24,17 28.5,25 24,33" fill="#D9C9A6"/>
+  <polygon points="16,10.5 13,15 16,19.5" fill="#FFFFFF"/>
+  <polygon points="16,10.5 19,15 16,19.5" fill="#D9C9A6"/>
+  <polygon points="31.5,8 28.5,12 31.5,16" fill="#FBF3E1"/>
+  <polygon points="31.5,8 34.5,12 31.5,16" fill="#D9C9A6"/>
+  <polygon points="24,2.5 21.5,6 24,9.5" fill="#FFFFFF"/>
+  <polygon points="24,2.5 26.5,6 24,9.5" fill="#D9C9A6"/>
+</svg>

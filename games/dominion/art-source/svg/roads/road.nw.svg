@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 72" width="96" height="72">
+  <!-- road segment "nw": grid (drow=-1, dcol=-1); center (48,40) to (48, 16); end cut is ground-perpendicular so it meets the neighbour's opposite segment edge to edge -->
+  <polygon points="42.5,40 42.5,16 53.5,16 53.5,40" fill="#E3C887"/>
+</svg>
