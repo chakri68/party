@@ -41,6 +41,8 @@ export function parseAction(input: unknown): DominionAction | null {
         : null;
     case "convert":
       return isId(a.unit) && isTile(a.target) ? { type: "convert", turn, unit: a.unit, target: a.target } : null;
+    case "freeze":
+      return isId(a.unit) && isTile(a.target) ? { type: "freeze", turn, unit: a.unit, target: a.target } : null;
     case "monument":
       return isTile(a.tile) ? { type: "monument", turn, tile: a.tile } : null;
     case "train":

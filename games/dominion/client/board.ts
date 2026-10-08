@@ -42,6 +42,8 @@ export interface Highlights {
   attacks: Map<number, AttackOption>;
   /** Enemies a selected sage could convert. */
   converts?: Set<number>;
+  /** Water a selected Rimeborn unit could freeze. */
+  freezes?: Set<number>;
   /** Attack (or convert) target waiting for its confirming tap. */
   armed: number | null;
   /** Keyboard cursor. */
@@ -56,6 +58,7 @@ const VARIANTS: Record<Terrain, string[]> = {
   mountain: ["terrain.mountain.default", "terrain.mountain.v2"],
   shallow: ["terrain.water.shallow.default", "terrain.water.shallow.v2"],
   ocean: ["terrain.ocean.default", "terrain.ocean.v2"],
+  ice: ["terrain.ice.default", "terrain.ice.v2"],
 };
 
 /** Flat colours for when terrain art is missing. */
@@ -65,6 +68,7 @@ const TERRAIN_FALLBACK: Record<Terrain, string> = {
   mountain: "#A8A49B",
   shallow: "#5FD0D8",
   ocean: "#2A6FC4",
+  ice: "#D6F1F6",
 };
 
 /** Grid direction → road sprite suffix (see road.center.svg). */
@@ -77,6 +81,7 @@ const UNIT_LABEL: Record<string, string> = {
   siege: "SGE", knight: "KNT", sage: "SAG", infiltrator: "SPY", raider: "RAD",
   bramble: "BRM", dryad: "DRY", owl_egg: "EGG", great_owl: "OWL",
   shell_guard: "SHL", reef_runner: "RUN", leviathan: "LEV",
+  sledge: "SLD", ice_archer: "ICE", glacier_warden: "GLC",
 };
 
 interface Tween {
@@ -528,6 +533,13 @@ export class Board {
       ctx.lineWidth = Math.max(2, (armed ? 4 : 2.5) * z);
       ctx.stroke(this.diamond(i, 2));
       this.badge(i, "Convert", "#8e44c9", "#fff", -58);
+    }
+    for (const i of this.hl.freezes ?? []) {
+      const armed = this.hl.armed === i;
+      ctx.strokeStyle = armed ? "#e8fbff" : "rgba(170,230,255,0.9)";
+      ctx.lineWidth = Math.max(2, (armed ? 4 : 2.5) * z);
+      ctx.stroke(this.diamond(i, 2));
+      this.badge(i, "Freeze", "#2f7fa8", "#fff", -30);
     }
     if (this.hl.selected !== null) {
       ctx.strokeStyle = "#c6f432";

@@ -3,7 +3,7 @@
 
 import type { Feature, Improvement, Resource, Terrain, Tile } from "./types.ts";
 
-const TERRAINS: Terrain[] = ["plains", "forest", "mountain", "shallow", "ocean"];
+const TERRAINS: Terrain[] = ["plains", "forest", "mountain", "shallow", "ocean", "ice"];
 const RESOURCES: (Resource | null)[] = [null, "fruit", "animals", "fish", "crops", "ore"];
 const IMPROVEMENTS: (Improvement | null)[] = [null, "farm", "lumber_camp", "mine", "mill", "forge", "market", "temple", "monument", "port", "grove", "reef_nest"];
 const FEATURES: (Feature | null)[] = [null, "village", "ruins", "beacon"];

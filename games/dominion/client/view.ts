@@ -2,6 +2,7 @@ import { audio } from "@games/audio";
 import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import {
   DEMOLISH_COST,
+  ICE,
   MONUMENTS,
   DEVELOP,
   FACTIONS,
@@ -287,6 +288,12 @@ export class DominionView implements GameView {
         case "monument":
           this.board.effect(e.at, "effect.spawn");
           break;
+        case "freeze":
+          this.board.effect(e.at, "effect.freeze", "effect.spawn");
+          break;
+        case "thaw":
+          this.board.effect(e.at, "effect.thaw", "effect.splash");
+          break;
         case "achievement":
           lines.push(`Milestone: ${MONUMENTS[e.kind as keyof typeof MONUMENTS]?.name ?? "a monument"}. Place it on your land.`);
           break;
@@ -337,6 +344,18 @@ export class DominionView implements GameView {
     if (!p) return;
     this.cursor = null;
     const sel = this.selectedUnit();
+    if (sel && p.myTurn && p.freezes[sel.id]?.includes(tile)) {
+      // Freezing ends the unit's turn and costs a credit: two taps.
+      if (this.armedAttack === tile) {
+        this.armedAttack = null;
+        this.act({ type: "freeze", unit: sel.id, target: tile }, "freeze");
+      } else {
+        this.armedAttack = tile;
+        this.say(`Freeze this water into ice for ${ICE.cost}¢? It ends the unit's turn. Tap again.`);
+      }
+      this.render();
+      return;
+    }
     if (sel && p.myTurn && p.converts[sel.id]?.includes(tile)) {
       // Converting takes a second tap too, like an attack.
       if (this.armedAttack === tile) {
@@ -476,6 +495,7 @@ export class DominionView implements GameView {
         moves: new Set(sel && p.myTurn ? (p.moves[sel.id] ?? []) : []),
         attacks: new Map(sel && p.myTurn ? (p.attacks[sel.id] ?? []).map((a) => [a.target, a]) : []),
         converts: new Set(sel && p.myTurn ? (p.converts[sel.id] ?? []) : []),
+        freezes: new Set(sel && p.myTurn ? (p.freezes[sel.id] ?? []) : []),
         armed: this.armedAttack,
         cursor: this.cursor,
       });
@@ -775,6 +795,9 @@ export class DominionView implements GameView {
         actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
         if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
       }
+      if (p.freezes[unit.id]?.length) {
+        actions.push(h("p", { class: "dm-muted" }, `Tap a blue-ringed water tile to freeze it (${ICE.cost}¢, ends the turn). Ice lasts ${ICE.rounds} rounds unless your people stay near it.`));
+      }
       if (def.stealth && !mine.done && !unit.vessel && city && city.owner !== p.me && !this.alliedWith(city.owner)) {
         const atPeace = p.diplomacy.some((d) => d.id === city.owner && d.relation !== "war");
         actions.push(
@@ -860,6 +883,7 @@ export class DominionView implements GameView {
         ? h("p", { class: "dm-muted" }, `Becomes a ${UNITS[def.matures.into].name.toLowerCase()} in ${mine.maturesIn} turn${mine.maturesIn === 1 ? "" : "s"}.`)
         : null,
       def.flying ? h("p", { class: "dm-muted" }, "Flies over water, peaks and enemy lines; lands on solid ground. Can't capture.") : null,
+      unit.chilled ? h("p", { class: "dm-warn" }, "Chilled: can't move next turn.") : null,
       def.habitat === "amphibious" ? h("p", { class: "dm-muted" }, "Walks land and shallows alike, no ship needed.") : null,
       def.habitat === "water" ? h("p", { class: "dm-muted" }, "Lives in the water, open ocean included. Can't capture.") : null,
       actions.length ? h("div", { class: "dm-actions" }, actions) : null,

@@ -2,6 +2,7 @@ import type { GameContext, GameDefinition, GameEventEnvelope, GameResult, GameTr
 import {
   CLASSIC_FACTIONS,
   DEVELOP,
+  ICE,
   FACTIONS,
   HARVEST,
   DEMOLISH_COST,
@@ -53,6 +54,7 @@ import {
   atPeace,
   canSeeUnit,
   developBlock,
+  freezeTargets,
   hostile,
   treatyOf,
   capacity,
@@ -431,9 +433,15 @@ function beginTurn(tx: Tx): void {
     delete u.age;
     tx.seen([u.at], { type: "spawn", at: u.at });
   }
+  thaw(tx);
   for (const u of Object.values(s.units)) {
     if (u.owner !== f.id) continue;
     u.mp = fullMp(u);
+    // Frost from last round: no moving this turn.
+    if (u.chilled) {
+      u.mp = 0;
+      delete u.chilled;
+    }
     u.moved = false;
     u.attacked = false;
     u.done = false;
@@ -452,6 +460,34 @@ function beginTurn(tx: Tx): void {
     if (clock) tx.timers.push({ kind: "set", timerId: TURN_TIMER, delayMs: clock });
   }
   tx.all({ type: "turn-start", playerId: f.id, round: s.round });
+}
+
+/**
+ * The current empire's ice: kept frozen while one of its units, cities or
+ * territory tiles is beside it, otherwise thawed once due. Never from under a
+ * unit, so nobody drowns. An empire that's gone keeps no ice.
+ */
+function thaw(tx: Tx): void {
+  const s = tx.state;
+  const f = current(s);
+  const units = indexUnits(Object.values(s.units));
+  s.tiles.forEach((t, i) => {
+    const ice = t.ice;
+    if (!ice || (ice.owner !== f.id && !faction(s, ice.owner)?.eliminated)) return;
+    const near = [i, ...neighbors(i, s.size)];
+    const tended =
+      ice.owner === f.id &&
+      near.some((j) => units.get(j)?.owner === f.id || tileOwner(s, j) === f.id || s.cities[s.tiles[j]!.city ?? ""]?.owner === f.id);
+    if (tended) {
+      ice.until = s.round + ICE.rounds;
+      return;
+    }
+    if (s.round < ice.until || units.has(i)) return;
+    t.t = ice.from;
+    t.road = false;
+    delete t.ice;
+    tx.seen([i], { type: "thaw", at: i });
+  });
 }
 
 function advanceTurn(tx: Tx): void {
@@ -746,6 +782,9 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         target.kills++;
         faction(s, target.owner)!.kills++;
       }
+      // Frost on whoever survives a hit from a chilling unit, either way round.
+      if (!defenderKilled && !unit.vessel && UNITS[unit.type].onHit === "chill") target.chilled = true;
+      if (!attackerKilled && !defenderKilled && retaliation > 0 && !target.vessel && UNITS[target.type].onHit === "chill") unit.chilled = true;
       const def = UNITS[unit.type];
       unit.attacked = true;
       // Knights chain and cavalry fall back on land only; at sea they're just cargo.
@@ -963,11 +1002,27 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       return null;
     }
 
+    case "freeze": {
+      const unit = ownUnit(s, me, action.unit);
+      if (!unit || unit.done || unit.moved || unit.attacked || unit.vessel) return "That unit has already acted.";
+      // Listed from what the player sees; a hidden unit on the water still blocks it.
+      if (!freezeTargets(s, me, unit.at, visibleUnits(s, me)).includes(action.target) || truth.has(action.target)) return "Can't freeze that.";
+      if (f.credits < ICE.cost) return "Not enough credits.";
+      const tile = s.tiles[action.target]!;
+      f.credits -= ICE.cost;
+      tile.ice = { from: tile.t as "shallow" | "ocean", owner: me, until: s.round + ICE.rounds };
+      tile.t = "ice";
+      unit.done = true;
+      unit.mp = 0;
+      tx.seen([action.target], { type: "freeze", at: action.target });
+      return null;
+    }
+
     case "monument": {
       const tile = s.tiles[action.tile];
       const city = tile?.claim ? s.cities[tile.claim] : undefined;
       if (!f.monuments?.unplaced) return "You have no monument to place.";
-      if (!tile || !city || city.owner !== me || tile.city || tile.imp || tile.feat || tile.res || !TERRAIN[tile.t].land) {
+      if (!tile || !city || city.owner !== me || tile.city || tile.imp || tile.feat || tile.res || !TERRAIN[tile.t].land || tile.t === "ice") {
         return "Place it on open land of yours.";
       }
       tile.imp = "monument";

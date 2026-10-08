@@ -87,6 +87,9 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     tidecraft: { id: "resource.fish.default" },
     currents: { id: "terrain.water.shallow.default" },
     deep_calling: { id: "terrain.ocean.default" },
+    frostcraft: { id: "terrain.water.shallow.v2" },
+    ice_roads: { id: "road.center" },
+    deep_freeze: { id: "terrain.ocean.v2" },
   };
   return art[tech];
 }

@@ -32,7 +32,11 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
   mountain: { name: "Mountain", land: true, cost: 4, needs: "climbing", defenseTech: "meditation" },
   shallow: { name: "Shallow water", land: false, cost: 2 },
   ocean: { name: "Ocean", land: false, cost: 2, needs: "navigation" },
+  ice: { name: "Ice", land: true, cost: 2 },
 };
+
+/** Freezing: its price, and how many rounds ice lasts untended. */
+export const ICE = { cost: 1, rounds: 6 };
 
 /** Road-to-road (or city) steps inside non-hostile territory. */
 export const ROAD_COST = 1;
@@ -79,6 +83,8 @@ export interface UnitDef {
   habitat?: "amphibious" | "water";
   /** Takes this classic unit's place in its faction's cities (and as its starting unit). */
   replaces?: UnitType;
+  /** What its hits leave behind on a hostile survivor. */
+  onHit?: "chill";
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -112,6 +118,15 @@ export const UNITS: Record<UnitType, UnitDef> = {
   leviathan: {
     name: "Leviathan", cost: 12, hp: 30, attack: 4, defense: 3, move: 2, range: 1, needs: "deep_calling", faction: "tidefolk",
     habitat: "water", noCapture: true,
+  },
+  sledge: { name: "Sledge", cost: 2, hp: 10, attack: 2, defense: 1, move: 2, range: 1, needs: "ice_roads", faction: "rimeborn", terrainCost: { ice: 1 } },
+  ice_archer: {
+    name: "Ice archer", cost: 3, hp: 10, attack: 2, defense: 1, move: 1, range: 2, needs: "archery", faction: "rimeborn",
+    replaces: "archer", onHit: "chill",
+  },
+  glacier_warden: {
+    name: "Glacier warden", cost: 6, hp: 20, attack: 1, defense: 4, move: 1, range: 1, needs: "deep_freeze", faction: "rimeborn",
+    terrainDefense: { ice: 1.5 },
   },
   great_owl: { name: "Great owl", cost: 0, hp: 10, attack: 3, defense: 1, move: 3, range: 1, needs: "skyroost", faction: "wildwood", reward: true, flying: true, noCapture: true, vision: 3 },
 };
@@ -207,6 +222,9 @@ export const TECHS: Record<TechId, TechDef> = {
   tidecraft: { name: "Tidecraft", tier: 1, faction: "tidefolk", unlocks: "Harvest fish; shell guards" },
   currents: { name: "Currents", tier: 2, parent: "tidecraft", faction: "tidefolk", unlocks: "Reef nests; reef runners; boarding" },
   deep_calling: { name: "Deep calling", tier: 3, parent: "currents", faction: "tidefolk", unlocks: "Open ocean; leviathans" },
+  frostcraft: { name: "Frostcraft", tier: 1, faction: "rimeborn", unlocks: "Freeze shallows into ice; harvest fish" },
+  ice_roads: { name: "Ice roads", tier: 2, parent: "frostcraft", faction: "rimeborn", unlocks: "Roads on ice; sledges" },
+  deep_freeze: { name: "Deep freeze", tier: 3, parent: "ice_roads", faction: "rimeborn", unlocks: "Freeze the open ocean; glacier wardens" },
 };
 
 export const TECH_ORDER = Object.keys(TECHS) as TechId[];
@@ -257,6 +275,8 @@ export interface FactionDef {
   forestIncome?: { per: number; cap: number };
   /** Generation adds reef villages (villages on shallows) near its starts and out at sea. */
   reefVillages?: boolean;
+  /** Never boards a ship, not even an ally's. */
+  noShips?: boolean;
   /** Offered in the lobby. Special factions wait for their art pack. */
   released: boolean;
 }
@@ -326,6 +346,17 @@ export const FACTIONS: Record<FactionKind, FactionDef> = {
     reefVillages: true,
     released: false,
   },
+  rimeborn: {
+    name: "Rimeborn",
+    blurb: "Folk of the ice. They never sail: they freeze the water and walk across.",
+    startTech: "frostcraft",
+    homeResource: "fish",
+    replaces: { fishing: "frostcraft", sailing: "ice_roads", navigation: "deep_freeze" },
+    noShips: true,
+    // No ports, no ships: a slightly fuller purse makes up the slow start.
+    openingCredits: 6,
+    released: false,
+  },
 };
 
 export const FACTION_KINDS = Object.keys(FACTIONS) as FactionKind[];
@@ -368,7 +399,8 @@ export const DEVELOP: Record<BuildKind, DevelopDef> = {
   farm: { name: "Farm", cost: 5, pop: 2, needs: "farming", terrain: ["plains"], resource: ["crops"], builds: "farm" },
   lumber_camp: { name: "Lumber camp", cost: 3, pop: 1, needs: "forestry", terrain: ["forest"], builds: "lumber_camp" },
   mine: { name: "Mine", cost: 5, pop: 2, needs: "mining", terrain: ["mountain"], resource: ["ore"], builds: "mine" },
-  road: { name: "Road", cost: 2, pop: 0, needs: "roads", terrain: ["plains", "forest"] },
+  // Roads on ice need Ice roads instead (see developBlock).
+  road: { name: "Road", cost: 2, pop: 0, needs: "roads", terrain: ["plains", "forest", "ice"] },
   mill: { name: "Mill", cost: 5, pop: 0, needs: "construction", terrain: ["plains"], builds: "mill", unique: true, adjacentPop: "farm" },
   forge: { name: "Forge", cost: 5, pop: 0, needs: "metallurgy", terrain: ["plains"], builds: "forge", unique: true, adjacentPop: "mine" },
   market: { name: "Market", cost: 6, pop: 0, needs: "commerce", terrain: ["plains"], builds: "market", unique: true },

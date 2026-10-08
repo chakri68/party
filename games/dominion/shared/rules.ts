@@ -19,6 +19,7 @@ import {
   TECHS,
   TEND,
   techFor,
+  techsFor,
   TERRAIN_DEFENSE,
   UNITS,
   VESSELS,
@@ -217,9 +218,12 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
   const passable = (i: number) => !offLimits(i) && (flying || canOccupy(state, unit, i));
   // Crossing the shore ends the move: boarding at a port, or landing on empty
   // ground. Neither creates extra movement (§9).
+  // Some peoples never set foot on a ship at all.
+  const shipless = !!FACTIONS[faction(state, unit.owner)?.kind ?? "orchard"].noShips;
   const crossing = (i: number) =>
     !flying &&
     !native &&
+    !shipless &&
     !units.has(i) &&
     (naval
       ? canStand(state, unit.owner, i)
@@ -659,6 +663,11 @@ export function developBlock(
     return need("construction") ?? pay(DEMOLISH_COST);
   }
   if (rules.forbids?.includes(kind)) return undefined;
+  // Roads on ice are their own tech, and only for those who can learn it.
+  if (kind === "road" && tile.t === "ice") {
+    if (!techsFor(ctx.kind).includes("ice_roads") || tile.road || !(ctx.mine || ctx.open) || tile.feat) return undefined;
+    return need("ice_roads") ?? pay(DEVELOP.road.cost);
+  }
   const def = DEVELOP[kind];
   if (!def.terrain.includes(tile.t) || tile.feat) return undefined;
   if (kind === "road") {
@@ -668,6 +677,21 @@ export function developBlock(
     if (def.resource ? !tile.res || !def.resource.includes(tile.res) : tile.res !== null) return undefined;
   }
   return need(def.needs) ?? pay(def.cost);
+}
+
+/**
+ * Water `owner` could freeze from a unit at `from`: shallows next to it (ocean
+ * too with Deep freeze), empty of cities, improvements, features and visible
+ * units, and outside any treaty partner's land.
+ */
+export function freezeTargets(state: DominionState, owner: string, from: number, units: UnitIndex): number[] {
+  const f = faction(state, owner);
+  if (!f?.techs.includes("frostcraft")) return [];
+  return neighbors(from, state.size).filter((i) => {
+    const t = state.tiles[i]!;
+    const water = t.t === "shallow" || (t.t === "ocean" && f.techs.includes("deep_freeze"));
+    return water && !t.city && !t.imp && !t.feat && !units.has(i) && !atPeace(state, tileOwner(state, i), owner);
+  });
 }
 
 // ---------------------------------------------------------------------------

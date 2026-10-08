@@ -155,6 +155,7 @@ function playWithBots(
   settings: Partial<DominionSettings>,
   maxSteps = 4000,
   setup?: (s: DominionState) => void,
+  watch?: (s: DominionState) => void,
 ) {
   const randomInt = seededRandomInt(seed);
   const ctx = (): GameContext => ({ now: 0, randomInt });
@@ -173,6 +174,7 @@ function playWithBots(
       expect(advanced || t.timers?.some((r) => r.kind === "set" && r.timerId === "bot")).toBe(true);
       checkInvariants(before, t.state, t.events as never);
       state = t.state;
+      watch?.(state);
       botTicks++;
     } else {
       const r = game.handleAction(state, cur.id, { type: "end-turn", turn: state.turn }, ctx());
@@ -257,6 +259,28 @@ describe("computer players", { timeout: 30_000 }, () => {
     const reefCities = Object.values(state.cities).filter((c) => state.tiles[c.at]!.t === "shallow");
     const amphibious = Object.values(state.units).filter((u) => UNITS[u.type].habitat && state.tiles[u.at]!.t !== "plains");
     expect(reefCities.length + amphibious.length + state.tiles.filter((t) => t.imp === "reef_nest").length).toBeGreaterThan(0);
+  });
+
+  it("computers play Rimeborn on an archipelago, never at sea, fog checks and all", () => {
+    let sailed = false;
+    const { state } = playWithBots(
+      41,
+      1,
+      { bots: 3, botLevel: "hard", mapType: "archipelago", mapSize: 24, factions: "rimeborn", roundLimit: 30 },
+      20000,
+      (s) => {
+        for (const f of [s.factions[0]!, s.factions[2]!]) {
+          f.kind = "coastal";
+          f.techs = ["fishing"];
+          f.credits = 5;
+        }
+      },
+      (s) => {
+        sailed ||= Object.values(s.units).some((u) => u.vessel && !u.converted && s.factions.find((f) => f.id === u.owner)?.kind === "rimeborn");
+      },
+    );
+    expect(state.phase).toBe("finished");
+    expect(sailed).toBe(false);
   });
 
   it("computers take to the water on an archipelago, fog checks and all", () => {

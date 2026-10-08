@@ -1,7 +1,7 @@
 // Per-recipient projections (§10). The browser gets what its player knows and
 // nothing else: no seed, no hidden units, no current state of fogged tiles.
 
-import { UNITS, VETERAN_KILLS } from "../shared/content.ts";
+import { ICE, UNITS, VETERAN_KILLS } from "../shared/content.ts";
 import { neighbors } from "../shared/grid.ts";
 import { decodeTile } from "../shared/memory.ts";
 import {
@@ -11,6 +11,7 @@ import {
   treatyOf,
   attackTargets,
   canCaptureWith,
+  freezeTargets,
   capacity,
   cityIncome,
   connectedCities,
@@ -44,7 +45,17 @@ export function visibleUnits(state: DominionState, owner: string, vis = visionOf
 }
 
 function knownUnit(u: Unit, me: string): KnownUnit {
-  const base: KnownUnit = { id: u.id, type: u.type, owner: u.owner, at: u.at, hp: u.hp, maxHp: u.maxHp, veteran: u.veteran, vessel: u.vessel ?? null };
+  const base: KnownUnit = {
+    id: u.id,
+    type: u.type,
+    owner: u.owner,
+    at: u.at,
+    hp: u.hp,
+    maxHp: u.maxHp,
+    veteran: u.veteran,
+    vessel: u.vessel ?? null,
+    ...(u.chilled && { chilled: true }),
+  };
   if (u.owner !== me) return base;
   return {
     ...base,
@@ -83,6 +94,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     achievements: [],
     monumentsToPlace: 0,
     converts: {},
+    freezes: {},
     diplomacy: [],
   };
   if (!f) return empty;
@@ -163,6 +175,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
   const attacks: Record<string, AttackOption[]> = {};
   const idleUnits: string[] = [];
   const converts: Record<string, number[]> = {};
+  const freezes: Record<string, number[]> = {};
   if (myTurn) {
     for (const u of Object.values(state.units)) {
       if (u.owner !== me) continue;
@@ -181,6 +194,10 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
           return !!t && !allied(state, t.owner, me) && !UNITS[t.type].steadfast;
         });
         if (c.length) converts[u.id] = c;
+      }
+      if (!u.done && !u.moved && !u.attacked && !u.vessel && f.credits >= ICE.cost) {
+        const fz = freezeTargets(state, me, u.at, seen);
+        if (fz.length) freezes[u.id] = fz;
       }
       if (m.length || a.length || canCapture || canPromote || converts[u.id]) idleUnits.push(u.id);
     }
@@ -208,6 +225,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     achievements: achievementProgress(state, me).map((a) => ({ ...a, done: !!f.monuments?.earned.includes(a.kind) })),
     monumentsToPlace: f.monuments?.unplaced ?? 0,
     converts,
+    freezes,
     diplomacy: (f.contacts ?? [])
       .filter((id) => !faction(state, id)?.eliminated)
       .map((id) => {

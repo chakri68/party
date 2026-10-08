@@ -7,6 +7,7 @@
 // Skill changes how picky and how greedy it is, not what it can see.
 
 import {
+  FACTIONS,
   parentFor,
   rewardChoices,
   VESSELS,
@@ -164,6 +165,23 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
     if (hurt && ok(a)) return a;
   }
 
+  // Rimeborn bridge water by freezing it once a unit's own landmass has
+  // nothing worth walking to (see landPlan).
+  if (view.credits >= 2) {
+    for (const [unit, targets] of Object.entries(view.freezes)) {
+      const u = mine.find((m) => m.id === unit)!;
+      const plan = landPlan(view, u.at, size);
+      if (plan.walk && !sloppy()) continue;
+      // Toward the prize if there is one, else toward the unknown.
+      const useful =
+        plan.toward !== null
+          ? [...targets].sort((x, y) => chebyshev(x, plan.toward!, size) - chebyshev(y, plan.toward!, size))[0]
+          : targets.find((i) => neighbors(i, size).some((j) => !view.tiles[j]));
+      const a: Act | null = useful === undefined ? null : { type: "freeze", turn, unit, target: useful };
+      if (a && ok(a)) return a;
+    }
+  }
+
   // Sages turn enemies rather than fight them.
   if (level !== "easy") {
     for (const [unit, targets] of Object.entries(view.converts)) {
@@ -180,12 +198,10 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
       const m = c.mine!;
       if (m.occupied || m.units >= m.capacity || view.units.some((u) => u.at === c.at)) continue;
       const roster = trainableFor(view.kind);
-      // A faction's own units lead, except on easy, which sticks to basics first.
-      // Best first; one mender is plenty.
-      const own = roster
-        .filter((t) => UNITS[t].faction && !(UNITS[t].mender && mine.some((u) => u.type === t)))
-        .sort((x, y) => UNITS[y].cost - UNITS[x].cost);
-      const plan = level === "easy" ? [...TRAIN_PLAN[level], ...own] : [...own, ...TRAIN_PLAN[level]];
+      // A faction's own units join the plan by price, priciest first, as the
+      // classic plans already run; easy sticks to basics first. One mender is plenty.
+      const own = roster.filter((t) => UNITS[t].faction && !(UNITS[t].mender && mine.some((u) => u.type === t)));
+      const plan = level === "easy" ? [...TRAIN_PLAN[level], ...own] : [...own, ...TRAIN_PLAN[level]].sort((x, y) => UNITS[y].cost - UNITS[x].cost);
       const type = plan.find(
         (t) => roster.includes(t) && (!UNITS[t].needs || view.techs.includes(UNITS[t].needs!)) && view.credits >= UNITS[t].cost,
       );
@@ -200,7 +216,8 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   // An empire hemmed in by water goes to sea before anything else.
   const known = view.tiles.filter((t) => t !== null);
   const wet = known.filter((t) => t!.t === "shallow" || t!.t === "ocean").length / Math.max(1, known.length);
-  const naval: TechId[] = wet > 0.5 ? ["fishing", "sailing", "navigation"] : wet > 0.3 ? ["fishing", "sailing"] : [];
+  // Shipless peoples gain nothing from rushing the sea techs.
+  const naval: TechId[] = FACTIONS[view.kind].noShips ? [] : wet > 0.5 ? ["fishing", "sailing", "navigation"] : wet > 0.3 ? ["fishing", "sailing"] : [];
   // The classic plan read through the faction's swaps, then anything of its own left over.
   const tree = techsFor(view.kind);
   const plan = [...naval, ...TECH_PLAN[level]].map((t) => techFor(view.kind, t));
@@ -239,6 +256,43 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   if (move) return move;
 
   return { type: "end-turn", turn };
+}
+
+/**
+ * Where a unit on foot should look next: a prize (village, rival city or unit)
+ * on its own landmass means keep walking; else the nearest one known across the
+ * water is worth bridging to; else unexplored edges of its own land; else the
+ * unknown beyond the shore.
+ */
+export function landPlan(view: DominionPrivateState, from: number, size: number): { walk: boolean; toward: number | null } {
+  // Ground it can actually walk: mountains only with Climbing.
+  const climb = view.techs.includes("climbing");
+  const dry = (i: number) => {
+    const t = view.tiles[i];
+    return !!t && t.t !== "shallow" && t.t !== "ocean" && (climb || t.t !== "mountain");
+  };
+  // Villages, rival cities, and rivals' units: what the computer goes after anyway.
+  const prize = (i: number) =>
+    view.tiles[i]?.feat === "village" || view.cities.some((c) => c.at === i && c.owner !== view.me) || view.units.some((u) => u.at === i && u.owner !== view.me);
+  const region = new Set([from]);
+  const stack = [from];
+  let edge = false;
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (prize(cur)) return { walk: true, toward: null };
+    if (neighbors(cur, size).some((j) => !view.tiles[j])) edge = true;
+    for (const j of neighbors(cur, size)) {
+      if (!region.has(j) && dry(j)) {
+        region.add(j);
+        stack.push(j);
+      }
+    }
+  }
+  let toward: number | null = null;
+  view.tiles.forEach((_, i) => {
+    if (!region.has(i) && prize(i) && (toward === null || chebyshev(i, from, size) < chebyshev(toward, from, size))) toward = i;
+  });
+  return { walk: toward === null && edge, toward };
 }
 
 function bestMove(

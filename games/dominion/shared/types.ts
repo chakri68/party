@@ -7,7 +7,8 @@ export const RULES_VERSION = 1;
 export const CONTENT_VERSION = 1;
 export const GENERATOR_VERSION = 1;
 
-export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean";
+/** Ice is frozen water: land while it lasts, and it remembers what it was. */
+export type Terrain = "plains" | "forest" | "mountain" | "shallow" | "ocean" | "ice";
 export type Resource = "fruit" | "animals" | "fish" | "crops" | "ore";
 export type Improvement = "farm" | "lumber_camp" | "mine" | "mill" | "forge" | "market" | "temple" | "monument" | "port" | "grove" | "reef_nest";
 export type Feature = "village" | "ruins" | "beacon";
@@ -15,14 +16,15 @@ export type Feature = "village" | "ruins" | "beacon";
 export type VesselType = "transport" | "scout" | "rammer" | "bomber";
 export type ClassicFaction = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
 /** Special factions each bend one core rule; picked by name only, never dealt in Mixed. */
-export type SpecialFaction = "wildwood" | "tidefolk";
+export type SpecialFaction = "wildwood" | "tidefolk" | "rimeborn";
 export type FactionKind = ClassicFaction | SpecialFaction;
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
   | "siege" | "knight" | "sage"
   | "infiltrator" | "raider"
   | "bramble" | "dryad" | "owl_egg" | "great_owl"
-  | "shell_guard" | "reef_runner" | "leviathan";
+  | "shell_guard" | "reef_runner" | "leviathan"
+  | "sledge" | "ice_archer" | "glacier_warden";
 export type TechId =
   | "gathering" | "farming" | "construction" | "strategy" | "diplomacy"
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
@@ -30,7 +32,8 @@ export type TechId =
   | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
   | "fishing" | "sailing" | "navigation"
   | "tending" | "grovecraft" | "skyroost"
-  | "tidecraft" | "currents" | "deep_calling";
+  | "tidecraft" | "currents" | "deep_calling"
+  | "frostcraft" | "ice_roads" | "deep_freeze";
 
 /** Achievements that earn a placeable monument (§13). */
 export type MonumentId = "research" | "trade" | "exploration" | "battle" | "peace";
@@ -117,6 +120,8 @@ export interface Tile {
   culture?: number;
   /** Tended by Wildwood: paid its population once, resource left standing. */
   tended?: boolean;
+  /** Frozen water: what it thaws back into, who froze it, and the round it's due to thaw. */
+  ice?: { from: "shallow" | "ocean"; owner: string; until: number };
 }
 
 export interface Unit {
@@ -146,6 +151,8 @@ export interface Unit {
   vessel?: VesselType | null;
   /** Owner-turns lived, for types that mature into another. */
   age?: number;
+  /** Hit by frost: can't move on its owner's next turn. */
+  chilled?: boolean;
 }
 
 export interface City {
@@ -284,6 +291,8 @@ export type DominionAction =
   /** Sage: turn an adjacent enemy unit to your side. */
   | { type: "convert"; turn: number; unit: string; target: number }
   | { type: "monument"; turn: number; tile: number }
+  /** Rimeborn: freeze an adjacent water tile into ice. */
+  | { type: "freeze"; turn: number; unit: string; target: number }
   | { type: "sabotage"; turn: number; unit: string }
   | { type: "offer-peace"; turn: number; to: string }
   /** Answers can come out of turn; they can't spend or move anything. */
@@ -325,6 +334,8 @@ export type DominionEvent =
   /** Bomber splash on a neighbouring tile; sent only to those who saw it. */
   | { type: "splash"; at: number; damage: number; killed: boolean }
   | { type: "beacon"; at: number }
+  | { type: "freeze"; at: number }
+  | { type: "thaw"; at: number }
   | { type: "sabotage"; at: number; by: string }
   | { type: "contact"; with: string }
   | { type: "peace-offered"; from: string; to: string }
@@ -397,6 +408,8 @@ export interface KnownUnit {
   maxHp: number;
   veteran: boolean;
   vessel?: VesselType | null;
+  /** Can't move on its owner's next turn. */
+  chilled?: boolean;
   /** Own units only. */
   mine?: {
     kills: number;
@@ -481,6 +494,8 @@ export interface DominionPrivateState {
   monumentsToPlace: number;
   /** Adjacent enemies a sage could convert, per sage. */
   converts: Record<string, number[]>;
+  /** Water each of my units could freeze, per unit (Rimeborn). */
+  freezes: Record<string, number[]>;
   /** Everyone this player has met, and where things stand with them. */
   diplomacy: DiplomacyView[];
 }

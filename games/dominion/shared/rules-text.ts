@@ -30,6 +30,8 @@ const BASE_RULES: string[] = [
 
 /** Each special faction's one-paragraph rules; shown once it's released. */
 export const SPECIAL_RULES: Partial<Record<(typeof SPECIAL_FACTIONS)[number], string>> = {
+  rimeborn:
+    "Rimeborn never board a ship. A unit that hasn't acted can freeze a neighbouring shallow tile into ice for 1 credit, ending its turn (open ocean too, with Deep freeze). Ice is land for everyone and takes roads with Ice roads. It lasts 6 rounds, longer while Rimeborn units, cities or land are beside it, and never thaws under a unit. Ice archers' hits chill: the target can't move on its next turn.",
   tidefolk:
     "Tidefolk walk the shallows: shell guards and reef runners need no ship and defend better on water. They settle reef villages (villages on the water; only a ship or an amphibious unit can take one), build reef nests instead of ports, and reach the open ocean with Deep calling and its leviathans. No warships.",
   wildwood:
