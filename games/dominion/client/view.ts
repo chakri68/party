@@ -33,6 +33,7 @@ import type {
 } from "../shared/types.ts";
 import { Board, type BoardModel, type PlayerLook } from "./board.ts";
 import { spriteUrl, type SpriteKey } from "./assets.ts";
+import { diplomacyScreen } from "./diplomacy.ts";
 import { techScreen } from "./techweb.ts";
 
 /** Actions without the turn stamp; the view adds it on the way out. */
@@ -54,7 +55,10 @@ export class DominionView implements GameView {
   /** Top centre: whose turn, and the clock. */
   private banner = h("div", { class: "dm-banner", role: "status" });
   /** Bottom corners: Research and End turn. */
-  private techBtn = h("button", { type: "button", class: "dm-slab dm-tech-btn" });
+  private techBtn = h("button", { type: "button", class: "dm-slab dm-tech-btn", "aria-label": "Research" });
+  private dipBtn = h("button", { type: "button", class: "dm-slab dm-tech-btn dm-dip-btn", "aria-label": "Diplomacy" });
+  /** The diplomacy screen, while it's open. */
+  private dipView: HTMLElement | null = null;
   private endBtn = h("button", { type: "button", class: "dm-slab dm-end" });
   private stage = h("div", {
     class: "dm-stage",
@@ -105,8 +109,9 @@ export class DominionView implements GameView {
       ),
     );
     // One surface: the map fills the game, and everything else floats on it.
-    this.bottom.append(this.techBtn, this.panel, this.endBtn);
+    this.bottom.append(h("div", { class: "dm-left" }, this.techBtn, this.dipBtn), this.panel, this.endBtn);
     this.techBtn.addEventListener("click", () => this.openTech());
+    this.dipBtn.addEventListener("click", () => this.openDiplomacy());
     this.endBtn.addEventListener("click", () => this.endTurn());
     this.stage.append(
       h("div", { class: "dm-tl" }, this.res, this.players),
@@ -244,6 +249,27 @@ export class DominionView implements GameView {
           break;
         case "turn-start":
           lines.push(e.playerId === p?.me ? `Round ${e.round}. Your turn.` : `${this.player(e.playerId).name}'s turn.`);
+          break;
+        case "sabotage":
+          this.board.effect(e.at, "effect.hit");
+          lines.push(e.by === p?.me ? "Sabotage: their city pays nothing next turn." : `Sabotage in ${p?.cities.find((c) => c.at === e.at)?.name ?? "a city"}!`);
+          break;
+        case "contact":
+          lines.push(`You've met ${this.player(e.with).name}.`);
+          break;
+        case "peace-offered":
+          lines.push(e.from === p?.me ? `Peace offered to ${this.player(e.to).name}.` : `${this.player(e.from).name} offers peace. Open Diplomacy to answer.`);
+          break;
+        case "peace-answered": {
+          const other = e.from === p?.me ? e.to : e.from;
+          lines.push(e.accepted ? `Peace with ${this.player(other).name}.` : `${this.player(other).name} ${e.from === p?.me ? "declined" : "was declined"}.`);
+          break;
+        }
+        case "peace-broken":
+          lines.push(e.by === p?.me ? `You broke peace with ${this.player(e.with).name}.` : `${this.player(e.by).name} broke the peace. War at the start of their next turn.`);
+          break;
+        case "embassy":
+          lines.push(e.from === p?.me ? `Embassy opened with ${this.player(e.to).name}.` : `${this.player(e.from).name} opened an embassy with you.`);
           break;
         case "splash":
           this.board.effect(e.at, "effect.hit");
@@ -457,6 +483,7 @@ export class DominionView implements GameView {
     this.renderPlayers();
     this.renderPanel();
     this.renderReward();
+    if (this.dipView) this.openDiplomacy(true);
     this.renderA11y();
     // Only on a new selection: panning away from a selected tile is the player's call.
     if (this.selected !== null && this.selected !== this.cleared) this.board.keepClear(this.selected, this.bottom.offsetHeight + 14);
@@ -530,6 +557,14 @@ export class DominionView implements GameView {
       h("span", {}, "Research"),
     );
     this.techBtn.disabled = !p || p.eliminated;
+    const offers = p?.diplomacy.filter((d) => d.offerFromThem).length ?? 0;
+    replaceChildren(
+      this.dipBtn,
+      h("span", { class: "dm-dip-glyph", "aria-hidden": "true" }, h("i"), h("i")),
+      h("span", {}, "Diplomacy"),
+      offers ? h("span", { class: "dm-badge", "aria-label": `${offers} offers waiting` }, String(offers)) : null,
+    );
+    this.dipBtn.disabled = !p || p.eliminated;
 
     this.endBtn.disabled = !myTurn;
     this.endBtn.classList.toggle("armed", this.endArmed);
@@ -635,7 +670,7 @@ export class DominionView implements GameView {
             "aria-current": pl.id === pub.currentPlayerId ? "true" : null,
           },
           look.name,
-          pl.bot ? h("span", { class: "dm-cpu", title: `Computer, ${pl.bot}` }, "CPU") : null,
+          pl.bot ? h("span", { class: "dm-cpu", title: pl.caretaker ? "Removed; the computer keeps their empire going" : `Computer, ${pl.bot}` }, pl.caretaker ? "CPU for them" : "CPU") : null,
           pl.team !== undefined && pl.team !== null ? h("span", { class: "dm-cpu", title: "Team" }, `T${pl.team + 1}`) : null,
         );
       }),
@@ -738,6 +773,22 @@ export class DominionView implements GameView {
         const hurt = p.units.some((u) => u.id !== unit.id && this.alliedWith(u.owner) && u.hp < u.maxHp && chebyshev(u.at, unit.at, this.pub!.size) === 1);
         actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
         if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
+      }
+      if (def.stealth && !mine.done && !unit.vessel && city && city.owner !== p.me && !this.alliedWith(city.owner)) {
+        const atPeace = p.diplomacy.some((d) => d.id === city.owner && d.relation !== "war");
+        actions.push(
+          h(
+            "button",
+            {
+              type: "button",
+              class: "dm-btn primary",
+              disabled: atPeace,
+              title: atPeace ? "Not while you're at peace with them" : "",
+              onclick: () => this.act({ type: "sabotage", unit: unit.id }, "sabotage"),
+            },
+            "Sabotage",
+          ),
+        );
       }
       if (unit.vessel === "transport" && !mine.done && !mine.attacked) {
         for (const v of ["scout", "rammer", "bomber"] as const) {
@@ -996,6 +1047,26 @@ export class DominionView implements GameView {
     });
     this.techView = screen;
     this.stage.append(screen.el);
+  }
+
+  /** `refresh`: rebuild in place with the latest state (offers come and go out of turn). */
+  private openDiplomacy(refresh = false) {
+    const p = this.priv;
+    if (!p || (!refresh && this.dipView)) return;
+    const screen = diplomacyScreen({
+      view: p,
+      round: this.pub!.round,
+      who: (id) => this.player(id),
+      act: (intent, what) => this.act(intent as Intent, what),
+      onClose: () => {
+        this.dipView?.remove();
+        this.dipView = null;
+        this.dipBtn.focus();
+      },
+    });
+    if (this.dipView) this.dipView.replaceWith(screen);
+    else this.stage.append(screen);
+    this.dipView = screen;
   }
 
   private closeTech() {

@@ -60,6 +60,7 @@ function artFor(tech: TechId, kind: FactionKind, color: string): SpriteKey {
     farming: { id: "improvement.farm.default" },
     construction: { id: "resource.crops.default" },
     strategy: unit("infantry"),
+    diplomacy: { id: "feature.village.default" },
     hunting: { id: "resource.animals.default" },
     forestry: { id: "improvement.lumber_camp.default" },
     mathematics: { id: "feature.ruins.default" },

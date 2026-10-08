@@ -7,6 +7,8 @@ import {
   DEVELOP,
   HARVEST,
   MARKET_CAP,
+  PEACE_ROUNDS,
+  PEACE_TREATIES,
   PRODUCTION,
   ROAD_COST,
   SCORE,
@@ -18,7 +20,7 @@ import {
   WALLS_DEFENSE,
 } from "./content.ts";
 import { area, colOf, inBounds, indexOf, NEIGHBORS, neighbors, rowOf } from "./grid.ts";
-import type { MonumentId, City, DevelopKind, DominionState, Faction, Improvement, IncomeBreakdown, Resource, TechId, Terrain, Unit } from "./types.ts";
+import type { MonumentId, Treaty, City, DevelopKind, DominionState, Faction, Improvement, IncomeBreakdown, Resource, TechId, Terrain, Unit } from "./types.ts";
 
 export type UnitIndex = Map<number, Unit>;
 
@@ -38,6 +40,26 @@ export function allied(state: DominionState, a: string | null, b: string | null)
   if (a === b) return true;
   const ta = faction(state, a)?.team;
   return ta !== undefined && ta !== null && ta === faction(state, b)?.team;
+}
+
+/** The treaty between two empires, if any. A broken one still binds until its notice runs out. */
+export function treatyOf(state: DominionState, a: string, b: string): Treaty | undefined {
+  return state.treaties?.find((t) => (t.a === a && t.b === b) || (t.a === b && t.b === a));
+}
+
+export function atPeace(state: DominionState, a: string | null, b: string | null): boolean {
+  return a !== null && b !== null && a !== b && !!treatyOf(state, a, b);
+}
+
+/** Fair game: neither allies nor bound by a treaty. */
+export function hostile(state: DominionState, a: string | null, b: string | null): boolean {
+  return a !== null && b !== null && !allied(state, a, b) && !atPeace(state, a, b);
+}
+
+/** Embassies pay and see only while peace holds, notice included or not. */
+function embassyActive(state: DominionState, owner: string, partner: string): boolean {
+  const t = treatyOf(state, owner, partner);
+  return !!t && !t.brokenBy && !!faction(state, owner)?.embassies?.includes(partner);
 }
 
 export function hasTech(state: DominionState, owner: string, tech: TechId | undefined): boolean {
@@ -110,7 +132,8 @@ export function zoneOfControl(state: DominionState, owner: string, units: UnitIn
   const zone = new Set<number>();
   for (const u of units.values()) {
     const st = statsOf(u);
-    if (allied(state, u.owner, owner) || st.range !== 1 || st.attack === 0) continue;
+    // Partners at peace don't project zones (§8).
+    if (!hostile(state, u.owner, owner) || st.range !== 1 || st.attack === 0) continue;
     for (const n of neighbors(u.at, state.size)) zone.add(n);
   }
   return zone;
@@ -132,7 +155,12 @@ export function reachable(state: DominionState, unit: Unit, units: UnitIndex): M
   const size = state.size;
   const zone = zoneOfControl(state, unit.owner, units);
   const naval = !!unit.vessel;
-  const passable = (i: number) => (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i));
+  // A treaty forbids standing in the partner's cities (§11).
+  const offLimits = (i: number) => {
+    const c = state.tiles[i]!.city;
+    return !!c && atPeace(state, state.cities[c]?.owner ?? null, unit.owner);
+  };
+  const passable = (i: number) => !offLimits(i) && (naval ? canSail(state, unit.owner, i) : canStand(state, unit.owner, i));
   // Crossing the shore ends the move: boarding at a port, or landing on empty
   // ground. Neither creates extra movement (§9).
   const crossing = (i: number) =>
@@ -257,7 +285,7 @@ export function attackTargets(state: DominionState, unit: Unit, visibleUnits: Un
   const range = statsOf(unit).range;
   return area(unit.at, range, state.size)
     .map((i) => visibleUnits.get(i))
-    .filter((u): u is Unit => !!u && !allied(state, u.owner, unit.owner));
+    .filter((u): u is Unit => !!u && hostile(state, u.owner, unit.owner));
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +295,27 @@ export function attackTargets(state: DominionState, unit: Unit, visibleUnits: Un
 export const UNIT_VISION = 1;
 export const MOUNTAIN_VISION = 2;
 export const CITY_VISION = 2;
+
+/**
+ * Whether `viewer` sees `unit`. Infiltrators show only to enemies right next to
+ * them; everything else shows wherever the viewer can see (§11).
+ */
+export function canSeeUnit(state: DominionState, viewer: string, unit: Unit, vis: Uint8Array): boolean {
+  if (allied(state, viewer, unit.owner)) return true;
+  if (!vis[unit.at]) return false;
+  if (unit.vessel || !UNITS[unit.type].stealth) return true;
+  const share = state.settings.sharedVision;
+  const watcher = (owner: string) => owner === viewer || (share && allied(state, owner, viewer));
+  const near = (at: number) => chebyshevOf(state, at, unit.at) <= 1;
+  return (
+    Object.values(state.units).some((u) => watcher(u.owner) && near(u.at)) ||
+    Object.values(state.cities).some((c) => c.owner !== null && watcher(c.owner) && near(c.at))
+  );
+}
+
+function chebyshevOf(state: DominionState, a: number, b: number): number {
+  return Math.max(Math.abs(rowOf(a, state.size) - rowOf(b, state.size)), Math.abs(colOf(a, state.size) - colOf(b, state.size)));
+}
 
 /** What one empire's own units, cities and land reveal. */
 function ownVision(state: DominionState, owner: string, vis: Uint8Array): void {
@@ -293,6 +342,12 @@ export function visionOf(state: DominionState, owner: string): Uint8Array {
   const share = state.settings.sharedVision && f.team !== undefined && f.team !== null;
   for (const other of state.factions) {
     if (other.id === owner || (share && !other.eliminated && allied(state, owner, other.id))) ownVision(state, other.id, vis);
+  }
+  // An embassy shows the partner's capital, and only that (§6).
+  for (const partner of f.embassies ?? []) {
+    if (!embassyActive(state, owner, partner)) continue;
+    const capital = capitalOf(state, partner);
+    if (capital) for (const i of area(capital.at, 1, state.size)) vis[i] = 1;
   }
   return vis;
 }
@@ -417,7 +472,7 @@ export function marketIncome(state: DominionState, city: City): number {
 
 export function cityIncome(state: DominionState, city: City, units: UnitIndex, connected?: Set<string>): IncomeBreakdown {
   const zero = { level: 0, workshop: 0, capital: 0, connection: 0, market: 0, total: 0 };
-  if (!city.owner || isOccupied(city, units)) return zero;
+  if (!city.owner || isOccupied(city, units) || city.sabotaged) return zero;
   const links = connected ?? connectedCities(state, city.owner);
   const b = {
     level: city.level,
@@ -434,7 +489,12 @@ export function cityIncome(state: DominionState, city: City, units: UnitIndex, c
 export function totalIncome(state: DominionState, owner: string): number {
   const units = indexUnits(Object.values(state.units));
   const links = connectedCities(state, owner);
-  return ownedCities(state, owner).reduce((sum, c) => sum + cityIncome(state, c, units, links).total, 0);
+  return ownedCities(state, owner).reduce((sum, c) => sum + cityIncome(state, c, units, links).total, 0) + embassyIncome(state, owner);
+}
+
+/** +1 per embassy whose host is at peace with you. */
+export function embassyIncome(state: DominionState, owner: string): number {
+  return (faction(state, owner)?.embassies ?? []).filter((p) => embassyActive(state, owner, p)).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -517,7 +577,7 @@ export function developBlock(
 // Achievements (§13)
 // ---------------------------------------------------------------------------
 
-export function achievementProgress(state: DominionState, id: string): { kind: Exclude<MonumentId, "peace">; progress: number; goal: number }[] {
+export function achievementProgress(state: DominionState, id: string): { kind: MonumentId; progress: number; goal: number }[] {
   const f = faction(state, id)!;
   const explored = f.memory.seen.filter((x) => x >= 0).length;
   return [
@@ -526,6 +586,13 @@ export function achievementProgress(state: DominionState, id: string): { kind: E
     // Of every tile on the map, never a breakdown that hints at hidden terrain.
     { kind: "exploration", progress: Math.floor((explored / state.tiles.length) * 100), goal: 80 },
     { kind: "battle", progress: f.kills, goal: 10 },
+    {
+      kind: "peace",
+      progress: (state.treaties ?? []).filter(
+        (t) => (t.a === id || t.b === id) && !t.brokenBy && state.round - t.since >= PEACE_ROUNDS,
+      ).length,
+      goal: PEACE_TREATIES,
+    },
   ];
 }
 

@@ -16,9 +16,10 @@ export type VesselType = "transport" | "scout" | "rammer" | "bomber";
 export type FactionKind = "orchard" | "forest" | "steppe" | "highland" | "coastal" | "citadel";
 export type UnitType =
   | "infantry" | "cavalry" | "archer" | "defender" | "swordsman" | "champion"
-  | "siege" | "knight" | "sage";
+  | "siege" | "knight" | "sage"
+  | "infiltrator" | "raider";
 export type TechId =
-  | "gathering" | "farming" | "construction" | "strategy"
+  | "gathering" | "farming" | "construction" | "strategy" | "diplomacy"
   | "hunting" | "forestry" | "mathematics" | "archery" | "spirituality"
   | "riding" | "roads" | "commerce" | "free_spirit" | "chivalry"
   | "climbing" | "mining" | "metallurgy" | "meditation" | "philosophy"
@@ -153,6 +154,25 @@ export interface City {
   pendingRewards: number[];
   /** A champion that couldn't spawn yet for lack of room. */
   pendingChampion: boolean;
+  /** Sabotaged: pays nothing at its owner's next turn (§11). */
+  sabotaged?: boolean;
+}
+
+/** Peace between two empires; `brokenBy` is set once one side has broken it. */
+export interface Treaty {
+  a: string;
+  b: string;
+  /** Round peace began, for the peace monument. */
+  since: number;
+  /** Who broke it. Hostility waits until the breaker's next turn starts. */
+  brokenBy?: string;
+}
+
+export interface PeaceOffer {
+  from: string;
+  to: string;
+  /** Round it was made; it lapses two rounds later. */
+  round: number;
 }
 
 export interface CityMemory {
@@ -189,6 +209,10 @@ export interface Faction {
   monuments?: { earned: MonumentId[]; unplaced: number };
   /** Held every original capital when its last turn ended (capital-control win). */
   holdingCapitals?: boolean;
+  /** Empires this one has met; treaties need contact first (§11). */
+  contacts?: string[];
+  /** Empires it keeps an embassy with. */
+  embassies?: string[];
   /** Beacons this empire has found, by tile; each pays once (§9). */
   beacons?: number[];
   /** Set for computer players; they have no room seat. */
@@ -224,6 +248,8 @@ export interface DominionState {
   /** Server time the current turn ends; null without a clock. */
   deadline: number | null;
   nextId: number;
+  treaties?: Treaty[];
+  offers?: PeaceOffer[];
   /** Actions the current computer player has taken this turn; a hard stop for runaway turns. */
   botSteps?: number;
   outcome: { winnerIds: string[]; reason: "conquest" | "score" | "capitals" | "draw" } | null;
@@ -246,6 +272,12 @@ export type DominionAction =
   /** Sage: turn an adjacent enemy unit to your side. */
   | { type: "convert"; turn: number; unit: string; target: number }
   | { type: "monument"; turn: number; tile: number }
+  | { type: "sabotage"; turn: number; unit: string }
+  | { type: "offer-peace"; turn: number; to: string }
+  /** Answers can come out of turn; they can't spend or move anything. */
+  | { type: "answer-peace"; from: string; accept: boolean }
+  | { type: "break-peace"; turn: number; with: string }
+  | { type: "embassy"; turn: number; with: string }
   | { type: "train"; turn: number; city: string; unitType: UnitType }
   | { type: "research"; turn: number; tech: TechId }
   | { type: "develop"; turn: number; tile: number; kind: DevelopKind }
@@ -281,6 +313,12 @@ export type DominionEvent =
   /** Bomber splash on a neighbouring tile; sent only to those who saw it. */
   | { type: "splash"; at: number; damage: number; killed: boolean }
   | { type: "beacon"; at: number }
+  | { type: "sabotage"; at: number; by: string }
+  | { type: "contact"; with: string }
+  | { type: "peace-offered"; from: string; to: string }
+  | { type: "peace-answered"; from: string; to: string; accepted: boolean }
+  | { type: "peace-broken"; by: string; with: string }
+  | { type: "embassy"; from: string; to: string }
   | { type: "monument"; at: number; kind?: MonumentId }
   | { type: "achievement"; kind: MonumentId }
   | { type: "eliminated"; playerId: string }
@@ -305,6 +343,8 @@ export interface PublicPlayer {
   team?: number | null;
   /** Computer players carry their own name and skill. */
   name?: string;
+  /** A person's empire, played by the computer after they were removed. */
+  caretaker?: boolean;
   bot?: BotLevel;
 }
 
@@ -420,4 +460,18 @@ export interface DominionPrivateState {
   monumentsToPlace: number;
   /** Adjacent enemies a sage could convert, per sage. */
   converts: Record<string, number[]>;
+  /** Everyone this player has met, and where things stand with them. */
+  diplomacy: DiplomacyView[];
+}
+
+export interface DiplomacyView {
+  id: string;
+  /** "notice": peace was broken; hostilities resume when the breaker's next turn starts. */
+  relation: "war" | "peace" | "notice";
+  peaceSince: number | null;
+  brokenBy: string | null;
+  embassy: boolean;
+  /** Pending offers either way. */
+  offerFromThem: boolean;
+  offerFromMe: boolean;
 }

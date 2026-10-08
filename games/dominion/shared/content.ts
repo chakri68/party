@@ -56,6 +56,8 @@ export interface UnitDef {
   sage?: boolean;
   /** Can't be converted. */
   steadfast?: boolean;
+  /** Hidden from enemies unless one is right next to it (§11). */
+  stealth?: boolean;
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -68,9 +70,20 @@ export const UNITS: Record<UnitType, UnitDef> = {
   siege: { name: "Siege engine", cost: 8, hp: 10, attack: 4, defense: 0, move: 1, range: 3, needs: "mathematics", staticAttack: true },
   knight: { name: "Knight", cost: 8, hp: 10, attack: 3, defense: 1, move: 3, range: 1, needs: "chivalry", chain: true },
   sage: { name: "Sage", cost: 5, hp: 10, attack: 0, defense: 1, move: 1, range: 1, needs: "philosophy", sage: true },
+  infiltrator: { name: "Infiltrator", cost: 8, hp: 5, attack: 0, defense: 0, move: 2, range: 1, needs: "diplomacy", stealth: true },
+  raider: { name: "Raider", cost: 0, hp: 5, attack: 1, defense: 1, move: 1, range: 1, reward: true },
 };
 
-export const TRAINABLE: UnitType[] = ["infantry", "cavalry", "archer", "defender", "swordsman", "siege", "knight", "sage"];
+export const TRAINABLE: UnitType[] = ["infantry", "cavalry", "archer", "defender", "swordsman", "siege", "knight", "sage", "infiltrator"];
+
+/** Raiders a sabotage can spawn, at most. */
+export const SABOTAGE_RAIDERS = 2;
+export const EMBASSY_COST = 5;
+/** Offers lapse after this many rounds. */
+export const OFFER_ROUNDS = 2;
+/** The peace monument: this many treaties, each this many rounds old. */
+export const PEACE_TREATIES = 3;
+export const PEACE_ROUNDS = 5;
 
 export interface VesselDef {
   name: string;
@@ -113,6 +126,7 @@ export const TECHS: Record<TechId, TechDef> = {
   farming: { name: "Farming", tier: 2, parent: "gathering", unlocks: "Farms on crops" },
   construction: { name: "Construction", tier: 3, parent: "farming", unlocks: "Mills; demolish improvements" },
   strategy: { name: "Strategy", tier: 2, parent: "gathering", unlocks: "Defenders" },
+  diplomacy: { name: "Diplomacy", tier: 3, parent: "strategy", unlocks: "Peace treaties, embassies, infiltrators" },
   hunting: { name: "Hunting", tier: 1, unlocks: "Harvest animals" },
   forestry: { name: "Forestry", tier: 2, parent: "hunting", unlocks: "Lumber camps in forests" },
   mathematics: { name: "Mathematics", tier: 3, parent: "forestry", unlocks: "Siege engines" },
@@ -251,12 +265,12 @@ export interface MonumentDef {
   goal: string;
 }
 
-/** Peace waits for diplomacy; the rest are live. */
-export const MONUMENTS: Record<Exclude<MonumentId, "peace">, MonumentDef> = {
+export const MONUMENTS: Record<MonumentId, MonumentDef> = {
   research: { name: "Grand library", goal: "Research 10 technologies" },
   trade: { name: "Merchant arch", goal: "Connect 5 cities to your capital" },
   exploration: { name: "Compass tower", goal: "Explore 80% of the map" },
   battle: { name: "Victory column", goal: "Win 10 battles" },
+  peace: { name: "Peace garden", goal: "Keep peace with 3 empires for 5 rounds" },
 };
 export const MONUMENT_POP = 3;
 

@@ -7,6 +7,8 @@ import { decodeTile } from "../shared/memory.ts";
 import {
   achievementProgress,
   allied,
+  canSeeUnit,
+  treatyOf,
   attackTargets,
   capacity,
   cityIncome,
@@ -37,7 +39,7 @@ import type {
 
 /** Units `owner` can see right now: their own, plus anyone on a visible tile. */
 export function visibleUnits(state: DominionState, owner: string, vis = visionOf(state, owner)): UnitIndex {
-  return indexUnits(Object.values(state.units).filter((u) => u.owner === owner || vis[u.at]));
+  return indexUnits(Object.values(state.units).filter((u) => u.owner === owner || canSeeUnit(state, owner, u, vis)));
 }
 
 function knownUnit(u: Unit, me: string): KnownUnit {
@@ -70,6 +72,7 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     achievements: [],
     monumentsToPlace: 0,
     converts: {},
+    diplomacy: [],
   };
   if (!f) return empty;
 
@@ -183,6 +186,20 @@ export function projectFor(state: DominionState, me: string): DominionPrivateSta
     achievements: achievementProgress(state, me).map((a) => ({ ...a, done: !!f.monuments?.earned.includes(a.kind) })),
     monumentsToPlace: f.monuments?.unplaced ?? 0,
     converts,
+    diplomacy: (f.contacts ?? [])
+      .filter((id) => !faction(state, id)?.eliminated)
+      .map((id) => {
+        const t = treatyOf(state, me, id);
+        return {
+          id,
+          relation: !t ? "war" : t.brokenBy ? "notice" : "peace",
+          peaceSince: t?.since ?? null,
+          brokenBy: t?.brokenBy ?? null,
+          embassy: !!f.embassies?.includes(id),
+          offerFromThem: !!state.offers?.some((o) => o.from === id && o.to === me),
+          offerFromMe: !!state.offers?.some((o) => o.from === me && o.to === id),
+        } as const;
+      }),
   };
 }
 

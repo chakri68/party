@@ -13,6 +13,9 @@ export function parseAction(input: unknown): DominionAction | null {
   if (typeof input !== "object" || input === null) return null;
   const a = input as Record<string, unknown>;
   if (a.type === "surrender") return { type: "surrender" };
+  if (a.type === "answer-peace") {
+    return isId(a.from) && typeof a.accept === "boolean" ? { type: "answer-peace", from: a.from, accept: a.accept } : null;
+  }
   if (!isTurn(a.turn)) return null;
   const turn = a.turn;
   switch (a.type) {
@@ -25,7 +28,13 @@ export function parseAction(input: unknown): DominionAction | null {
     case "promote":
     case "disband":
     case "mend":
+    case "sabotage":
       return isId(a.unit) ? { type: a.type, turn, unit: a.unit } : null;
+    case "offer-peace":
+      return isId(a.to) ? { type: "offer-peace", turn, to: a.to } : null;
+    case "break-peace":
+    case "embassy":
+      return isId(a.with) ? { type: a.type, turn, with: a.with } : null;
     case "upgrade":
       return isId(a.unit) && (a.vessel === "scout" || a.vessel === "rammer" || a.vessel === "bomber")
         ? { type: "upgrade", turn, unit: a.unit, vessel: a.vessel }

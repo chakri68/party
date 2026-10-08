@@ -74,7 +74,7 @@ const ROAD_DIRS: [number, number, string][] = [
 
 const UNIT_LABEL: Record<string, string> = {
   infantry: "INF", cavalry: "CAV", archer: "ARC", defender: "DEF", swordsman: "SWD", champion: "CHP",
-  siege: "SGE", knight: "KNT", sage: "SAG",
+  siege: "SGE", knight: "KNT", sage: "SAG", infiltrator: "SPY", raider: "RAD",
 };
 
 interface Tween {

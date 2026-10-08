@@ -35,12 +35,12 @@ const TECH_PLAN: Record<BotLevel, TechId[]> = {
   normal: [
     "gathering", "hunting", "riding", "fishing", "archery", "farming", "forestry", "climbing", "mining",
     "free_spirit", "chivalry", "construction", "roads", "commerce", "strategy", "metallurgy", "spirituality",
-    "sailing", "mathematics", "meditation", "philosophy", "navigation",
+    "sailing", "mathematics", "meditation", "philosophy", "navigation", "diplomacy",
   ],
   hard: [
     "riding", "hunting", "gathering", "free_spirit", "chivalry", "archery", "climbing", "mining", "metallurgy",
     "farming", "construction", "forestry", "mathematics", "roads", "commerce", "meditation", "philosophy",
-    "fishing", "sailing", "navigation", "strategy", "spirituality",
+    "fishing", "sailing", "navigation", "strategy", "spirituality", "diplomacy",
   ],
 };
 
@@ -74,6 +74,22 @@ export function decide(view: DominionPrivateState, level: BotLevel, rng: Rng, me
   const enemies = view.units.filter((u) => u.owner !== view.me);
   // Easy skips some good moves on purpose: it should be beatable.
   const sloppy = () => level === "easy" && rng.chance(0.3);
+
+  // 0. Peace offers: easy and normal take them; hard takes about half.
+  for (const d of view.diplomacy) {
+    if (!d.offerFromThem) continue;
+    const accept = level !== "hard" || rng.chance(0.5);
+    const a = { type: "answer-peace", from: d.id, accept } as const;
+    if (ok(a)) return a;
+  }
+  // Embassies with peace partners pay for themselves in five turns.
+  if (view.techs.includes("diplomacy") && view.credits >= 10) {
+    const partner = view.diplomacy.find((d) => d.relation === "peace" && !d.embassy);
+    if (partner) {
+      const a: Act = { type: "embassy", turn, with: partner.id };
+      if (ok(a)) return a;
+    }
+  }
 
   // 1. Rewards can't wait past the turn anyway.
   for (const c of myCities) {

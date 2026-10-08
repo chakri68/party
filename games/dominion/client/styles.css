@@ -213,8 +213,9 @@
   gap: 12px;
 }
 
+.dm-left { grid-area: tech; display: grid; gap: 10px; justify-items: stretch; }
 .dm-tech-btn {
-  grid-area: tech;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -378,6 +379,67 @@
   text-underline-offset: 3px;
 }
 .dm-rw-later:hover:not(:disabled) { border: none; color: var(--dm-ink); }
+
+/* ---- Diplomacy ------------------------------------------------------------ */
+
+.dm-dip-glyph { position: relative; width: 20px; height: 20px; }
+.dm-dip-glyph i { position: absolute; top: 4px; width: 11px; height: 11px; border-radius: 50%; border: 2.5px solid var(--dm-gold); }
+.dm-dip-glyph i:first-child { left: 0; }
+.dm-dip-glyph i:last-child { right: 0; border-color: var(--dm-gold-light); }
+.dm-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--dm-red);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+.dm-dip {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(8 12 18 / 0.55);
+}
+.dm-dip-card { width: min(620px, 100%); max-height: 100%; overflow-y: auto; padding: 16px 18px; }
+.dm-dip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.dm-dip-head h2 { margin: 0; font-size: 1.3rem; }
+.dm-dip-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dm-dip-empty { color: var(--dm-muted); }
+.dm-dip-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 12px 16px;
+  border-radius: 12px;
+  background: #141b25;
+  box-shadow: inset 4px 0 0 var(--c);
+}
+.dm-dip-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dm-dip-who p { flex-basis: 100%; margin: 0; font-size: 0.85rem; }
+.dm-dip-rel { padding: 1px 8px; border-radius: 999px; background: #2a3646; color: var(--dm-muted); font-size: 0.75rem; font-weight: 700; }
+.dm-dip-rel.peace { background: rgb(142 240 122 / 0.15); color: #8ef07a; }
+.dm-dip-rel.notice { background: rgb(232 99 93 / 0.15); color: var(--dm-red); }
+.dm-dip .dm-btn {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  background: #2a3646;
+  color: var(--dm-ink);
+  box-shadow: 0 3px 0 var(--dm-edge);
+}
+.dm-dip .dm-btn.primary { background: var(--dm-gold); color: var(--dm-gold-ink); box-shadow: 0 3px 0 var(--dm-gold-edge); }
+.dm-dip .dm-btn.dm-danger { background: var(--dm-red); color: #fff; }
+.dm-dip .dm-btn:disabled { opacity: 0.5; }
 
 /* ---- Research screen ---------------------------------------------------------
    A screen over the map, not a dialog. Round nodes carry the art of what they
@@ -545,6 +607,9 @@
     gap: 10px;
   }
   .dm-end { justify-self: end; min-width: 0; width: 100%; }
+  .dm-left { display: flex; gap: 8px; }
+  .dm-left .dm-tech-btn { padding: 0 12px; }
+  .dm-left .dm-tech-btn > span:nth-child(2) { display: none; } /* icons only; aria comes from the title */
   .dm-panel { width: 100%; max-height: 46dvh; }
   .dm-sections section + section { border-left: none; padding-left: 0; border-top: 1px solid var(--dm-line); padding-top: 10px; }
   .dm-ts-note { display: none; }

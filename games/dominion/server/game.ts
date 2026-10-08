@@ -10,6 +10,9 @@ import {
   MAX_CHAIN,
   MEND_HP,
   MONUMENT_POP,
+  EMBASSY_COST,
+  OFFER_ROUNDS,
+  SABOTAGE_RAIDERS,
   BEACON_POP,
   VESSELS,
   TEMPLE_CULTURE,
@@ -41,7 +44,11 @@ import {
   capitalOf,
   statsOf,
   achievementProgress,
+  atPeace,
+  canSeeUnit,
   developBlock,
+  hostile,
+  treatyOf,
   capacity,
   faction,
   fullMp,
@@ -114,7 +121,7 @@ const ILLEGAL = "That isn't possible right now.";
 interface Pending {
   event: DominionEvent;
   /** Public, one player only, or anyone who can see these tiles. */
-  to: { kind: "all" } | { kind: "player"; id: string } | { kind: "seen"; tiles: number[] };
+  to: { kind: "all" } | { kind: "player"; id: string } | { kind: "seen"; tiles: number[]; stealthy?: Unit };
 }
 
 class Tx {
@@ -139,8 +146,10 @@ class Tx {
     this.events.push({ event, to: { kind: "player", id } });
   }
 
-  seen(tiles: number[], event: DominionEvent) {
-    this.events.push({ event, to: { kind: "seen", tiles } });
+  seen(tiles: number[], event: DominionEvent, unit?: Unit) {
+    // An infiltrator's doings go only to those who can make it out (§11).
+    const stealthy = unit && !unit.vessel && UNITS[unit.type].stealth ? unit : undefined;
+    this.events.push({ event, to: { kind: "seen", tiles, stealthy } });
   }
 
   /** Settle: eliminations, victory, memories, revision, then the envelopes. */
@@ -148,6 +157,7 @@ class Tx {
     const s = this.state;
     if (s.phase === "playing") checkEliminations(this);
     if (s.phase === "playing") discoverBeacons(this);
+    if (s.phase === "playing") makeContacts(this);
     if (s.phase === "playing") checkAchievements(this);
     rememberAll(s);
     s.revision++;
@@ -166,6 +176,7 @@ class Tx {
       for (const f of s.factions) {
         const was = this.before.get(f.id)!;
         const now = after.get(f.id)!;
+        if (to.stealthy && !canSeeUnit(s, f.id, to.stealthy, now)) continue;
         const redacted = redact(event, to.tiles, was, now);
         if (redacted) envelopes.push({ visibility: { kind: "private", playerId: f.id }, event: redacted });
       }
@@ -393,6 +404,11 @@ function beginTurn(tx: Tx): void {
   });
 
   f.credits += totalIncome(s, f.id);
+  // A sabotaged city has now missed its pay; it's back to normal.
+  for (const c of ownedCities(s, f.id)) c.sabotaged = false;
+  // A broken treaty's notice ends as its breaker's next turn begins (§11).
+  s.treaties = (s.treaties ?? []).filter((t) => t.brokenBy !== f.id);
+  s.offers = (s.offers ?? []).filter((o) => s.round - o.round < OFFER_ROUNDS);
   for (const u of Object.values(s.units)) {
     if (u.owner !== f.id) continue;
     u.mp = fullMp(u);
@@ -466,6 +482,8 @@ function eliminate(tx: Tx, owner: string): void {
   const f = faction(s, owner)!;
   f.eliminated = true;
   for (const u of Object.values(s.units)) if (u.owner === owner) delete s.units[u.id];
+  s.treaties = (s.treaties ?? []).filter((t) => t.a !== owner && t.b !== owner);
+  s.offers = (s.offers ?? []).filter((o) => o.from !== owner && o.to !== owner);
   tx.all({ type: "eliminated", playerId: owner });
 }
 
@@ -525,6 +543,26 @@ function finishByScore(tx: Tx): void {
 // ---------------------------------------------------------------------------
 // Achievements (§13): checked after every change, each earned once.
 // ---------------------------------------------------------------------------
+
+/** Seeing another empire's unit or city is meeting it, both ways (§11). */
+function makeContacts(tx: Tx): void {
+  const s = tx.state;
+  for (const f of s.factions) {
+    if (f.eliminated) continue;
+    const vis = visionOf(s, f.id);
+    const seen = new Set<string>();
+    for (const u of Object.values(s.units)) if (u.owner !== f.id && canSeeUnit(s, f.id, u, vis)) seen.add(u.owner);
+    for (const c of Object.values(s.cities)) if (c.owner && c.owner !== f.id && vis[c.at]) seen.add(c.owner);
+    for (const other of seen) {
+      if (f.contacts?.includes(other)) continue;
+      const o = faction(s, other)!;
+      (f.contacts ??= []).push(other);
+      if (!o.contacts?.includes(f.id)) (o.contacts ??= []).push(f.id);
+      tx.only(f.id, { type: "contact", with: other });
+      tx.only(other, { type: "contact", with: f.id });
+    }
+  }
+}
 
 /** First sight of a beacon pays the finder's capital, once per empire per beacon (§9). */
 function discoverBeacons(tx: Tx): void {
@@ -648,7 +686,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         unit.mp = 0;
         unit.done = true;
       }
-      tx.seen([from, action.to], { type: "move", unit: unit.id, from, to: action.to });
+      tx.seen([from, action.to], { type: "move", unit: unit.id, from, to: action.to }, unit);
       if (s.tiles[unit.at]!.feat === "ruins") enterRuins(tx, unit);
       return null;
     }
@@ -660,8 +698,8 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const vis = visionOf(s, me);
       if (
         !target ||
-        allied(s, target.owner, me) ||
-        !vis[action.target] ||
+        !hostile(s, target.owner, me) ||
+        !canSeeUnit(s, me, target, vis) ||
         chebyshev(unit.at, target.at, s.size) > statsOf(unit).range
       ) {
         return "Can't attack that.";
@@ -738,6 +776,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         const c = foundCity(s, unit.at, me, f.kind, false);
         unit.home ??= c.id;
       } else if (city && !allied(s, city.owner, me)) {
+        if (atPeace(s, city.owner, me)) return "You're at peace with them.";
         city.owner = me;
         city.pendingRewards = [];
         city.pendingChampion = false;
@@ -771,6 +810,66 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       unit.hp += VETERAN_HP;
       return null;
     }
+
+    case "sabotage": {
+      const unit = ownUnit(s, me, action.unit);
+      const tile = unit ? s.tiles[unit.at]! : null;
+      const city = tile?.city ? s.cities[tile.city] : undefined;
+      if (!unit || !UNITS[unit.type].stealth || unit.done || unit.vessel) return ILLEGAL;
+      if (!city || !hostile(s, city.owner, me)) return "Infiltrators sabotage from inside a rival's city.";
+      delete s.units[unit.id];
+      city.sabotaged = true;
+      // Up to two raiders on empty ground next to the city. Truly empty: a
+      // hidden unit's tile is skipped without telling anyone why.
+      const spots = neighbors(city.at, s.size).filter((i) => !truth.has(i) && canStand(s, me, i));
+      for (const at of spots.slice(0, SABOTAGE_RAIDERS)) {
+        spawnUnit(s, "raider", me, at, null);
+        tx.seen([at], { type: "spawn", at });
+      }
+      tx.seen([city.at], { type: "sabotage", at: city.at, by: me });
+      return null;
+    }
+
+    case "offer-peace": {
+      const them = faction(s, action.to);
+      if (!them || them.eliminated || them.id === me) return ILLEGAL;
+      if (!f.techs.includes("diplomacy")) return "Research Diplomacy first.";
+      if (!f.contacts?.includes(them.id)) return "You haven't met them yet.";
+      if (allied(s, me, them.id) || atPeace(s, me, them.id)) return "You're already at peace.";
+      const offers = (s.offers ??= []);
+      // One offer at a time between any two empires.
+      if (offers.some((o) => (o.from === me && o.to === them.id) || (o.from === them.id && o.to === me))) return "There's already an offer between you.";
+      offers.push({ from: me, to: them.id, round: s.round });
+      tx.only(me, { type: "peace-offered", from: me, to: them.id });
+      tx.only(them.id, { type: "peace-offered", from: me, to: them.id });
+      return null;
+    }
+
+    case "break-peace": {
+      const t = treatyOf(s, me, action.with);
+      if (!t || t.brokenBy) return "There's no peace to break.";
+      t.brokenBy = me;
+      tx.only(me, { type: "peace-broken", by: me, with: action.with });
+      tx.only(action.with, { type: "peace-broken", by: me, with: action.with });
+      return null;
+    }
+
+    case "embassy": {
+      const them = faction(s, action.with);
+      if (!them || them.eliminated || them.id === me) return ILLEGAL;
+      if (!f.techs.includes("diplomacy")) return "Research Diplomacy first.";
+      if (!f.contacts?.includes(them.id)) return "You haven't met them yet.";
+      if (f.embassies?.includes(them.id)) return "You already have an embassy there.";
+      if (f.credits < EMBASSY_COST) return "Not enough credits.";
+      f.credits -= EMBASSY_COST;
+      (f.embassies ??= []).push(them.id);
+      tx.only(me, { type: "embassy", from: me, to: them.id });
+      tx.only(them.id, { type: "embassy", from: me, to: them.id });
+      return null;
+    }
+
+    case "answer-peace":
+      return answerPeace(tx, me, action.from, action.accept);
 
     case "upgrade": {
       const unit = ownUnit(s, me, action.unit);
@@ -821,8 +920,8 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const target = truth.get(action.target);
       if (
         !target ||
-        allied(s, target.owner, me) ||
-        !visionOf(s, me)[action.target] ||
+        !hostile(s, target.owner, me) ||
+        !canSeeUnit(s, me, target, visionOf(s, me)) ||
         chebyshev(unit.at, target.at, s.size) > 1 ||
         UNITS[target.type].steadfast
       ) {
@@ -945,6 +1044,18 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
     if (pop) addPop(tx, city!, pop);
   }
   tx.seen([at], { type: "develop", at, kind });
+  return null;
+}
+
+/** Out of turn is fine: an answer spends nothing and moves nothing (§11). */
+function answerPeace(tx: Tx, me: string, from: string, accept: boolean): string | null {
+  const s = tx.state;
+  const offer = s.offers?.find((o) => o.from === from && o.to === me);
+  if (!offer) return "That offer has lapsed.";
+  s.offers = s.offers!.filter((o) => o !== offer);
+  if (accept) (s.treaties ??= []).push({ a: from, b: me, since: s.round });
+  tx.only(from, { type: "peace-answered", from, to: me, accepted: accept });
+  tx.only(me, { type: "peace-answered", from, to: me, accepted: accept });
   return null;
 }
 
@@ -1102,6 +1213,10 @@ export const dominionGame: GameDefinition<
       surrender(tx, playerId);
       return { ok: true, transition: tx.finish() };
     }
+    if (action.type === "answer-peace") {
+      const err = answerPeace(tx, playerId, action.from, action.accept);
+      return err ? reject("illegal", err) : { ok: true, transition: tx.finish() };
+    }
     if (current(prev).id !== playerId) return reject("not-your-turn", "It's not your turn.");
     if (action.turn !== prev.turn) return reject("stale", "That was for an earlier turn.");
 
@@ -1137,12 +1252,22 @@ export const dominionGame: GameDefinition<
   },
 
   /** A removal is a surrender: their cities go neutral rather than vanishing. */
+  /**
+   * A removed player's empire isn't deleted (§14): the computer keeps it
+   * going, at normal skill, under their name. It finishes the turn if it was
+   * theirs. Surrendering is still theirs to choose while they're here.
+   */
   onPlayerRemoved(stored, playerId, ctx) {
     const prev = upgrade(stored);
     const f = faction(prev, playerId);
-    if (prev.phase !== "playing" || !f || f.eliminated) return { state: prev, events: [] };
+    if (prev.phase !== "playing" || !f || f.eliminated || f.bot) return { state: prev, events: [] };
     const tx = new Tx(structuredClone(prev), ctx);
-    surrender(tx, playerId);
+    const g = faction(tx.state, playerId)!;
+    g.bot = { level: "normal", name: "" };
+    if (current(tx.state).id === playerId) {
+      tx.state.deadline = null;
+      tx.timers.push({ kind: "cancel", timerId: TURN_TIMER }, { kind: "set", timerId: BOT_TIMER, delayMs: BOT_START_MS });
+    }
     return tx.finish();
   },
 
@@ -1163,7 +1288,7 @@ export const dominionGame: GameDefinition<
         color: f.color,
         eliminated: f.eliminated,
         team: f.team ?? null,
-        ...(f.bot && { name: f.bot.name, bot: f.bot.level }),
+        ...(f.bot && (f.bot.name ? { name: f.bot.name, bot: f.bot.level } : { bot: f.bot.level, caretaker: true })),
       })),
     };
   },
@@ -1185,7 +1310,7 @@ export const dominionGame: GameDefinition<
     return {
       winnerIds: state.outcome.winnerIds,
       standings: scores.map((s) => ({ playerId: s.id, value: s.score, label: `${s.score} pts${s.out ? ", fell" : ""}` })),
-      names: Object.fromEntries(state.factions.flatMap((f) => (f.bot ? [[f.id, `${f.bot.name} (computer)`]] : []))),
+      names: Object.fromEntries(state.factions.flatMap((f) => (f.bot?.name ? [[f.id, `${f.bot.name} (computer)`]] : []))),
     };
   },
 };
