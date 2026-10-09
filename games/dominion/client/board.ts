@@ -219,11 +219,14 @@ export class Board {
   }
 
   /** Pans just enough that a tile isn't hidden under `bottomInset` px of overlay. */
-  keepClear(i: number, bottomInset: number): void {
-    const [, sy] = this.toScreen(...this.world(i));
-    const limit = this.height - bottomInset - 40 * this.cam.zoom;
-    if (sy <= limit) return;
-    this.cam.y += (sy - limit) / this.cam.zoom;
+  /** Pans just enough that tile `i` isn't under whatever covers the bottom or the right edge. */
+  keepClear(i: number, bottomInset: number, rightInset = 0): void {
+    const [sx, sy] = this.toScreen(...this.world(i));
+    const low = this.height - bottomInset - 40 * this.cam.zoom;
+    const wide = this.width - rightInset - 60 * this.cam.zoom;
+    if (sy <= low && sx <= wide) return;
+    if (sy > low) this.cam.y += (sy - low) / this.cam.zoom;
+    if (sx > wide) this.cam.x += (sx - wide) / this.cam.zoom;
     this.clampCamera();
     this.invalidate();
   }

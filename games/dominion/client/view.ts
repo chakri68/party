@@ -126,6 +126,10 @@ export class DominionView implements GameView {
         zoom(0.8, "Zoom out", "−"),
         h("button", { type: "button", class: "dm-fab", "aria-label": "Next unit", onclick: () => this.nextIdle() }, "⇥"),
         h("button", { type: "button", class: "dm-fab", "aria-label": "Guide: the rules", title: "Guide", onclick: () => this.openGuide() }, "?"),
+        // Phones and tablets: full screen, turned sideways where the browser allows it.
+        canFullscreen()
+          ? h("button", { type: "button", class: "dm-fab dm-fab-full", "aria-label": "Full screen", title: "Full screen", onclick: () => void toggleFullscreen() }, "⛶")
+          : null,
       ),
     );
     // One surface: the map fills the game, and everything else floats on it.
@@ -143,6 +147,32 @@ export class DominionView implements GameView {
       this.cursorSay,
     );
     this.root.append(this.stage);
+    // Phones held upright: ask for sideways, but let people play upright if they'd rather.
+    if (readPref(UPRIGHT_KEY) === "1") this.root.classList.add("dm-upright");
+    this.stage.append(
+      h(
+        "div",
+        { class: "dm-rotate", role: "dialog", "aria-label": "Turn your phone sideways" },
+        h("div", { class: "dm-rotate-phone", "aria-hidden": "true" }),
+        h("p", { class: "dm-rotate-title" }, "Turn your phone sideways"),
+        h("p", { class: "dm-rotate-text" }, "The map needs the width."),
+        canFullscreen()
+          ? h("button", { type: "button", class: "dm-btn primary", onclick: () => void toggleFullscreen(true) }, "Full screen, sideways")
+          : null,
+        h(
+          "button",
+          {
+            type: "button",
+            class: "dm-rotate-skip",
+            onclick: () => {
+              this.root.classList.add("dm-upright");
+              writePref(UPRIGHT_KEY, "1");
+            },
+          },
+          "Play upright anyway",
+        ),
+      ),
+    );
     this.stage.addEventListener("keydown", this.onKey);
     this.rewardEl.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
@@ -707,8 +737,21 @@ export class DominionView implements GameView {
     if (this.dipView) this.openDiplomacy(true);
     this.renderA11y();
     // Only on a new selection: panning away from a selected tile is the player's call.
-    if (this.selected !== null && this.selected !== this.cleared) this.board.keepClear(this.selected, this.bottom.offsetHeight + 14);
+    if (this.selected !== null && this.selected !== this.cleared) this.clearSelection(this.selected);
     this.cleared = this.selected;
+  }
+
+  /**
+   * Keeps a new selection out from under the inspector: along the bottom on
+   * desktops and upright phones, down the right side on phones held sideways.
+   */
+  private clearSelection(i: number) {
+    const stage = this.stage.getBoundingClientRect();
+    const panel = this.panel.hidden ? null : this.panel.getBoundingClientRect();
+    const side = !!panel && panel.height > stage.height * 0.5 && panel.left > stage.left + stage.width * 0.4;
+    if (side) return this.board.keepClear(i, 0, stage.right - panel.left + 14);
+    const top = panel?.top ?? this.bottom.getBoundingClientRect().top;
+    this.board.keepClear(i, stage.bottom - top + 14);
   }
 
   private renderClock() {
@@ -1588,6 +1631,44 @@ export class DominionView implements GameView {
     this.techView = null;
     this.renderReward();
 
+  }
+}
+
+const UPRIGHT_KEY = "dm:upright";
+
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePref(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* blocked storage: they'll be asked again next time */
+  }
+}
+
+/** Full screen only makes sense on touch devices, and only where the browser has it (not iPhones). */
+function canFullscreen(): boolean {
+  return coarse() && !!document.fullscreenEnabled;
+}
+
+/** In or out of full screen; going in also turns the screen sideways where that's allowed (Android). */
+async function toggleFullscreen(enter = !document.fullscreenElement): Promise<void> {
+  try {
+    if (!enter) {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      return;
+    }
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+    // Not in the DOM typings everywhere yet; refused on iOS and desktops, which is fine.
+    await (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.("landscape");
+  } catch {
+    /* refused or unsupported: the rotate prompt still says what to do */
   }
 }
 

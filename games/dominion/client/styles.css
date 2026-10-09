@@ -747,3 +747,145 @@
   .dm-rp-btn:first-child, .dm-rp-btn:nth-child(5) { display: none; }
   .dm-rp-exit { margin-left: auto; }
 }
+
+/* ---- Phones held sideways ---------------------------------------------------
+   The way to play on a phone. A short, wide screen: the shell's chrome thins
+   to one line, the HUD hugs the corners, and the inspector becomes a sheet
+   down the right instead of eating the bottom of an already short map. */
+@media (orientation: landscape) and (max-height: 540px) {
+  /* One thin line of shell: the logo mark, the room's controls beside it, code and buttons on the right. */
+  .room:has(.dominion) { position: relative; }
+  .room:has(.dominion) .room-header { padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); gap: 8px; }
+  .room:has(.dominion) .room-header .brand > span:not(.mark) { display: none; }
+  .room:has(.dominion) .room-header .icon-btn { width: 32px; height: 32px; }
+  .room:has(.dominion) .turn-controls:not(:empty) {
+    position: absolute;
+    top: 4px;
+    left: 56px;
+    z-index: 3;
+    width: auto;
+    min-height: 32px;
+    margin: 0;
+    font-size: 0.75rem;
+    gap: 4px 10px;
+  }
+  .room:has(.dominion) .turn-controls button { min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  /* Results stay readable without hiding the map they're about. */
+  .room:has(.dominion) .results { max-height: 46dvh; overflow-y: auto; padding-block: 10px; }
+
+  .dm-tl { top: 6px; left: max(6px, env(safe-area-inset-left)); gap: 6px; }
+  .dm-res { padding: 6px 10px 5px; gap: 2px; }
+  .dm-credits { font-size: 1.15rem; }
+  .dm-standing { font-size: 0.7rem; gap: 8px; }
+  .dm-players { display: none; }
+  .dm-coach { width: 220px; padding: 7px 9px 8px; }
+  .dm-coach-title { font-size: 0.85rem; margin: 0 0 2px; }
+  .dm-coach-how { font-size: 0.72rem; }
+  .dm-coach-dots { margin-top: 6px; }
+
+  /* Narrow landscape phones also match the portrait rules above; undo what doesn't fit. */
+  .dm-banner { top: 6px; bottom: auto; padding: 4px 12px; gap: 8px; }
+  .dm-banner-text { font-size: 0.85rem; }
+  .dm-stage:has(.dm-panel:not([hidden])) .dm-banner { display: flex; }
+  .dm-log { top: 42px; bottom: auto; font-size: 0.78rem; padding: 4px 12px; max-width: min(420px, calc(100% - 340px)); }
+
+  /* Camera buttons in a row along the top right, not a column down the side. */
+  .dm-fabs { top: 6px; right: max(6px, env(safe-area-inset-right)); display: flex; gap: 6px; }
+  .dm-fab { width: 40px; min-height: 40px; font-size: 1.05rem; box-shadow: 0 3px 0 var(--dm-edge); }
+
+  /* The bottom row comes apart into corners and a side sheet. */
+  .dm-bottom { inset: 0; display: block; }
+  .dm-left {
+    position: absolute;
+    left: max(6px, env(safe-area-inset-left));
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 6px;
+  }
+  .dm-left .dm-tech-btn { min-height: 48px; padding: 0 12px; }
+  .dm-left .dm-tech-btn > span:nth-child(2) { display: none; } /* icons only; aria comes from the label */
+  .dm-end {
+    position: absolute;
+    right: max(6px, env(safe-area-inset-right));
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    width: auto;
+    min-width: 132px;
+    min-height: 52px;
+    padding: 6px 16px;
+  }
+  .dm-end-main { font-size: 1rem; }
+  .dm-end-sub { font-size: 0.68rem; }
+  .dm-panel {
+    position: absolute;
+    top: 54px;
+    right: max(6px, env(safe-area-inset-right));
+    bottom: calc(66px + env(safe-area-inset-bottom));
+    width: min(380px, 48vw);
+    max-height: none;
+    padding: 10px 40px 10px 12px;
+  }
+  .dm-sections { display: grid; gap: 10px; }
+  .dm-sections section + section { border-left: none; padding-left: 0; border-top: 1px solid var(--dm-line); padding-top: 10px; }
+
+  .dm-replay { bottom: max(6px, env(safe-area-inset-bottom)); padding: 4px 8px; }
+  .dm-rp-btn, .dm-rp-speed, .dm-rp-exit { min-height: 40px; }
+
+  /* Full-screen overlays: use the whole short height. */
+  .dm-dip { padding: 6px; }
+  .dm-gd-card { height: 100%; }
+  .dm-gd .dm-dip-head h2 { display: none; }
+}
+
+/* ---- Phones held upright: ask for sideways -------------------------------- */
+.dm-rotate { display: none; }
+@media (orientation: portrait) and (max-width: 600px) and (pointer: coarse) {
+  .dominion:not(.dm-upright) .dm-rotate {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 12px;
+    padding: 24px;
+    background: #0b1118;
+    text-align: center;
+  }
+}
+.dm-rotate-title { margin: 8px 0 0; font-size: 1.3rem; font-weight: 700; }
+.dm-rotate-text { margin: 0 0 8px; color: var(--dm-muted); }
+.dm-rotate .dm-btn.primary {
+  min-height: 48px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 14px;
+  background: var(--dm-gold);
+  color: var(--dm-gold-ink);
+  font: inherit;
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--dm-gold-edge);
+}
+.dm-rotate-skip {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  background: transparent;
+  color: var(--dm-muted);
+  font: inherit;
+  text-decoration: underline;
+}
+/* A phone outline that tips onto its side, once, then rests. */
+.dm-rotate-phone {
+  width: 44px;
+  height: 76px;
+  border: 3px solid var(--dm-gold);
+  border-radius: 9px;
+  animation: dm-tip 1.6s ease-in-out 0.3s 2 both;
+}
+@keyframes dm-tip {
+  0%, 20% { transform: rotate(0); }
+  60%, 100% { transform: rotate(-90deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-rotate-phone { animation: none; transform: rotate(-90deg); }
+}
