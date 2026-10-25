@@ -32,6 +32,14 @@ var seed_value := 0
 var time := 0.0 ## seconds of race clock; Weather advances it in physics time
 
 var car: Node3D
+## The cloud shadow is a flat quad drawn over everything at the car's height.
+## From above that reads as shade on the ground; from eye level it's a hard
+## line at the horizon. main turns it off for the perspective cameras.
+var ground_shadow := true:
+	set(v):
+		ground_shadow = v
+		if _shadow:
+			_shadow.visible = clouds > 0.0 and v
 var bounds := Rect2(-500, -500, 1000, 1000)
 
 var _wind := Vector2.ZERO
@@ -113,7 +121,7 @@ func configure(seed_in: int, clouds_in: float) -> void:
 			_banks.append(bank)
 	_shadow_mat.set_shader_parameter("coverage", lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2)
 	_shadow_mat.set_shader_parameter("strength", lerpf(0.22, 0.38, clouds))
-	_shadow.visible = clouds > 0.0
+	_shadow.visible = clouds > 0.0 and ground_shadow
 	_mist.visible = clouds > 0.0
 	_mm.visible_instance_count = _banks.size() * BANK_PUFFS
 	_update_mist()

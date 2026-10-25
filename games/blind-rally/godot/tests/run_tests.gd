@@ -43,6 +43,7 @@ func _run() -> void:
 	await test_autopilot_stage()
 	test_weather()
 	test_camera_fit()
+	await test_camera_modes()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -534,3 +535,27 @@ func test_camera_fit() -> void:
 	cam.fit_css(Vector2(390, 844))
 	check(cam.keep_aspect == Camera3D.KEEP_WIDTH, "portrait sizes the short side")
 	cam.fit_css(Vector2(1280, 720))
+
+
+## The eye-level cameras are an experiment: top-down stays the default, and
+## going there and back leaves it exactly as it was.
+func test_camera_modes() -> void:
+	print("camera modes")
+	var cam: FollowCamera = main.cam
+	check(cam.mode == FollowCamera.Mode.TOP_DOWN and cam.projection == Camera3D.PROJECTION_ORTHOGONAL and cam.environment == null, "top-down orthographic is the default")
+	var before := [cam.near, cam.far, cam.keep_aspect]
+	main._on_session({"camera": "chase"}, "")
+	check(cam.mode == FollowCamera.Mode.CHASE and cam.projection == Camera3D.PROJECTION_PERSPECTIVE, "initSession camera: chase goes perspective")
+	check(cam.environment != null and cam.environment.fog_enabled and cam.environment.background_mode == Environment.BG_SKY, "with its own sky and fog")
+	var world_env: Environment = (track.get_node("Environment") as WorldEnvironment).environment
+	check(not world_env.fog_enabled and world_env.background_mode == Environment.BG_COLOR, "the world environment (and so the map) keeps no fog, no sky")
+	await process_frame
+	var behind := car.global_transform.affine_inverse() * cam.global_position
+	check(behind.z > 2.0 and behind.y > 1.0, "chase sits behind and above the car (%.1f m back, %.1f up)" % [behind.z, behind.y])
+	main.set_camera_mode(FollowCamera.Mode.BONNET)
+	await process_frame
+	var nose := car.global_transform.affine_inverse() * cam.global_position
+	check(nose.z < 0.0 and nose.y > 1.0 and cam.near < 0.15, "bonnet rides the front of the car, near plane %.2f m" % cam.near)
+	main._on_session({"camera": "topdown"}, "")
+	check(cam.projection == Camera3D.PROJECTION_ORTHOGONAL and cam.environment == null and [cam.near, cam.far, cam.keep_aspect] == before, "back to top-down restores it exactly")
+	check(main.weather.ground_shadow, "and the cloud shadow comes back")

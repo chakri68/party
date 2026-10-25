@@ -5,11 +5,13 @@ extends Node3D
 ##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP,
 ## M expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
-## F dust and marks, L shadows, P debug autopilot, V cycle clouds.
+## F dust and marks, L shadows, P debug autopilot, V cycle clouds,
+## Y camera: top-down -> chase -> bonnet (experimental).
 ##
 ## initSession config read here: assists.liveMarker, keyboard, muted,
 ## reducedMotion, seed and clouds (weather; same seed = same sky for every
-## team), autopilot (debug only).
+## team), autopilot (debug only), camera ("topdown" | "chase" | "bonnet",
+## experimental; default top-down).
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -59,6 +61,46 @@ func _ready() -> void:
 	map.car = car
 	_map_small = Rect2(map.offset_left, map.offset_top, map.offset_right, map.offset_bottom)
 	map.render_static_map(track)
+	cam.perspective_env = _perspective_env()
+
+
+## The eye-level modes need what top-down never shows: a sky above the
+## treeline and fog to hide where the world stops. Only their camera gets
+## it (Camera3D.environment), so the top-down view and the map are untouched.
+func _perspective_env() -> Environment:
+	var we := track.get_node_or_null("Environment") as WorldEnvironment
+	var env: Environment = we.environment.duplicate() if we and we.environment else Environment.new()
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.36, 0.52, 0.72)
+	sky_mat.sky_horizon_color = Color(0.72, 0.78, 0.8)
+	sky_mat.ground_horizon_color = Color(0.72, 0.78, 0.8)
+	sky_mat.ground_bottom_color = Color(0.3, 0.34, 0.3)
+	sky_mat.sun_angle_max = 20.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_32
+	sky.process_mode = Sky.PROCESS_MODE_QUALITY # static sky: radiance once, not per frame
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	# Lighting stays colour-ambient as before; the sky is only a backdrop.
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color(0.7, 0.76, 0.78)
+	env.fog_depth_begin = 35.0
+	env.fog_depth_end = 115.0
+	env.fog_depth_curve = 1.4
+	env.fog_density = 1.0
+	env.fog_sky_affect = 0.0
+	env.fog_aerial_perspective = 0.0
+	return env
+
+
+const CAMERA_MODES := ["topdown", "chase", "bonnet"]
+
+
+func set_camera_mode(m: int) -> void:
+	cam.set_mode(m)
+	weather.ground_shadow = cam.mode == FollowCamera.Mode.TOP_DOWN
 
 
 func _physics_process(dt: float) -> void:
@@ -110,6 +152,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_K: cam.kick_enabled = not cam.kick_enabled
 		KEY_F: fx.enabled = not fx.enabled
 		KEY_P: set_autopilot(not autopilot.enabled)
+		KEY_Y: set_camera_mode((cam.mode + 1) % 3)
 		KEY_V: weather.configure(weather.seed_value, fposmod(snappedf(weather.clouds, 0.5) + 0.5, 1.5))
 		KEY_L:
 			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
@@ -157,6 +200,8 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
 	set_autopilot(bool(cfg.get("autopilot", false)))
+	if cfg.has("camera"):
+		set_camera_mode(maxi(CAMERA_MODES.find(String(cfg["camera"])), 0))
 
 
 func _on_race_event(ev: Dictionary) -> void:

@@ -352,7 +352,9 @@ func _tyre_marks(xf: Transform3D, speed: float, lat: float, road: bool) -> void:
 func _update_xray(dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var hidden := false
-	if cam:
+	# Top-down only: at eye level nothing sits over the car, and the probes
+	# up a near-horizontal view ray would just find trunks behind it.
+	if cam and cam.projection == Camera3D.PROJECTION_ORTHOGONAL:
 		var space := _car.get_world_3d().direct_space_state
 		var q := PhysicsShapeQueryParameters3D.new()
 		q.shape = _probe
