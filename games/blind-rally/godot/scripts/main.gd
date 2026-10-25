@@ -10,7 +10,7 @@ extends Node3D
 ##
 ## initSession config read here: assists.liveMarker, keyboard, muted,
 ## reducedMotion, seed and clouds (weather; same seed = same sky for every
-## team), autopilot (debug only), camera ("topdown" | "chase" | "bonnet";
+## team, and the same easter eggs), autopilot and eggs (debug only), camera ("topdown" | "chase" | "bonnet";
 ## default top-down), allowedCameras (a list of those names, default all
 ## three: a host setting or a sabotage can lock the Navigator to one view;
 ## Y only cycles through these, and a camera outside the list falls back to
@@ -39,6 +39,7 @@ var recoveries := 0 ## resets so far, for tests and the autopilot's report card
 var race_time := 0.0 ## physics seconds since spawn, until the finish
 var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pick
 var eye_forest: EyeForest ## built the first time a perspective camera is used
+var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
@@ -63,6 +64,11 @@ func _ready() -> void:
 	# Locally there's no session yet: a random sky, light cloud. initSession
 	# replaces both.
 	weather.configure(randi(), 0.4)
+	eggs = EasterEggs.new()
+	eggs.name = "EasterEggs"
+	add_child(eggs)
+	eggs.setup(track, car)
+	eggs.configure(weather.seed_value)
 	bridge.car = car
 	bridge.session_started.connect(_on_session)
 	bridge.race_event.connect(_on_race_event)
@@ -277,6 +283,10 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 	# Weather: the room picks the seed so every team gets the same sky.
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
+	# Same seed, same surprises. `eggs` is a debug override for tools and
+	# tests ({"deer": true} or {"all": false}), like autopilot.
+	eggs.force = cfg["eggs"] if cfg.get("eggs") is Dictionary else {}
+	eggs.configure(sky_seed)
 	set_autopilot(bool(cfg.get("autopilot", false)))
 	set_allowed_cameras(cfg["allowedCameras"] if cfg.get("allowedCameras") is Array else [])
 	if cfg.has("camera"):

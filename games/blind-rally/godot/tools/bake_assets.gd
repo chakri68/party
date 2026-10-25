@@ -37,6 +37,19 @@ const RACING_PALETTE := {
 }
 ## Rally livery: the Car Kit hatchback's green becomes this blue.
 const CAR_PAINT := Color("1f6fe0")
+## The camper's tent and fire ring: an orange tent reads against the pines.
+const CAMP_PALETTE := {
+	"colorRed": Color("d9642b"),
+	"wood": Color("8a6440"),
+	"stone": Color("8c8b84"),
+}
+## Scrap: the abandoned sedan is all rust, the skidder faded yellow going
+## rusty. Picked per triangle from a hash of its centre, so the patches are
+## stable from bake to bake.
+const RUST := [Color("7a3b1e"), Color("8e4a22"), Color("5e3220"), Color("9a5a2e")]
+const SKIDDER_PAINT := Color("c08f2a")
+const GLASS_DEAD := Color("2a3034")
+const SCRAP_DARK := Color("3a3735")
 
 ## id: [source, scale, palette, options]. Options: "only" = node names to keep,
 ## "skip" = node names to drop, "centre" = recentre on the AABB, "ao" = darken
@@ -71,6 +84,12 @@ const JOBS := {
 		[AABB(Vector3(-0.27, 0.15, 1.84), Vector3(0.54, 0.5, 0.2)), 0.05],
 		[AABB(Vector3(-0.27, 0.15, -2.05), Vector3(0.54, 0.5, 0.25)), 0.05]]}],
 	"car_wheel": [CAR + "hatchback-sports.glb", 1.38, "car", {"only": ["wheel-front-left"], "centre": true}],
+	# Scenery callouts (build_pine_panic.gd _scenery). The wreck sits on its
+	# belly, so no wheels.
+	"wreck": [CAR + "sedan.glb", 1.75, "rust", {"only": ["body"]}],
+	"skidder": [CAR + "tractor-shovel.glb", 2.2, "skidder", {}],
+	"tent_camp": [NATURE + "tent_detailedOpen.glb", 4.6, "camp", {}],
+	"fire_ring": [NATURE + "campfire_stones.glb", 3.2, "camp", {}],
 }
 
 var _atlas_cache := {}
@@ -135,7 +154,8 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 			if _dropped(opts, [(xf * verts[idx[t]] + shift) * scale, (xf * verts[idx[t + 1]] + shift) * scale, (xf * verts[idx[t + 2]] + shift) * scale]):
 				continue
 			var col := _source_colour(mat_src, uvs, idx, t)
-			col = _remap(col, mat_src.resource_name if mat_src else "", palette)
+			var key := xf * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
+			col = _remap(col, mat_src.resource_name if mat_src else "", palette, key)
 			for k in 3:
 				var i := idx[t + k]
 				var w: Vector3 = (xf * verts[i] + shift) * scale
@@ -221,8 +241,21 @@ func _atlas(path: String) -> Image:
 	return _atlas_cache[path]
 
 
-func _remap(c: Color, mat_name: String, palette: String) -> Color:
+func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO) -> Color:
 	match palette:
+		"camp":
+			return CAMP_PALETTE.get(mat_name, c)
+		"rust", "skidder":
+			# Car Kit atlas: pale and cool = glass, near-black = tyres and
+			# trim, everything else is bodywork (paint, bumpers, lamps).
+			var h := fposmod(sin(at.x * 12.9898 + at.y * 4.1414 + at.z * 78.233) * 43758.5453, 1.0)
+			if c.v > 0.6 and c.b > c.r and c.s < 0.4:
+				return GLASS_DEAD
+			if c.v < 0.3:
+				return SCRAP_DARK.lightened(h * 0.08)
+			if palette == "skidder" and h > 0.3:
+				return SKIDDER_PAINT.darkened(h * 0.15)
+			return RUST[int(h * 97.0) % RUST.size()]
 		"nature":
 			return NATURE_PALETTE.get(mat_name, c)
 		"racing":

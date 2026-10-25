@@ -60,6 +60,31 @@ const CP_FRACTIONS := [0.17, 0.34, 0.5, 0.67, 0.84]
 const BRIDGE_AT := 0.27
 const CABIN_AT := 0.55
 const SAWMILL_AT := 0.72
+## Smaller callouts beside the road (spec §6 landmarks the Navigator can
+## call): [id, stage metres, side (+1 right of travel, -1 left, 0 = outside
+## of the bend), metres off the centreline, flat-ground radius (0 = none)].
+## Kept 60 m+ clear of the bridge, cabin and sawmill, and off the checkpoints.
+const SCENERY := [
+	["gate", 112.0, 1.0, 6.2, 0.0],
+	["wreck", 560.0, 0.0, 7.6, 0.0],
+	["tower", 906.0, 0.0, 18.0, 7.0],
+	["stand", 1062.0, 0.0, 8.0, 0.0],
+	["landing", 1470.0, 0.0, 12.0, 12.0],
+	["outhouse", 2078.0, 0.0, 7.6, 0.0],
+	["camp", 2214.0, 0.0, 12.5, 11.0],
+]
+## Easter-egg spots: [kind, stage metres, side, metres off the centreline].
+## Baked as markers only; scripts/easter_eggs.gd decides from the session
+## seed which of them come alive in a run.
+const EGG_SPOTS := [
+	["deer", 232.0, 0.0, 0.0], ["deer", 470.0, 0.0, 0.0], ["deer", 735.0, 0.0, 0.0],
+	["deer", 1110.0, 0.0, 0.0], ["deer", 1612.0, 0.0, 0.0], ["deer", 2036.0, 0.0, 0.0],
+	["birds", 186.0, -1.0, 10.0], ["birds", 520.0, 1.0, 10.0], ["birds", 860.0, -1.0, 10.0],
+	["birds", 1336.0, 1.0, 10.0], ["birds", 1745.0, -1.0, 10.0], ["birds", 2128.0, 1.0, 10.0],
+	["moose", 306.0, 0.0, 15.0],
+	["bigfoot", 1772.0, 0.0, 21.0],
+	["wrongway", 820.0, 0.0, 0.0],
+]
 
 const LAYER_WORLD := 1
 const LAYER_CAR := 2
@@ -67,6 +92,7 @@ const LAYER_TRIGGER := 4
 const LAYER_SURFACE := 8
 const RENDER_WORLD := 1
 const RENDER_MAP_ONLY := 4
+const RENDER_EGG := 16 ## layer 5: 3D view only (animated glows, the fake junction); never the map
 
 ## Palette (sRGB), shared with tools/bake_assets.gd's remap.
 const C_CROWN := Color("9a8360")
@@ -91,6 +117,13 @@ const C_CHEVRON := Color("f2f2ea")
 const C_TAPE_RED := Color("d8322a")
 const C_TAPE_WHITE := Color("f0ede4")
 const C_SAW := Color("b9c0c6")
+const C_STEEL := Color("8a9096")
+const C_STEEL_DARK := Color("5c6066")
+const C_BEACON := Color("e0281e") ## EyeForest's far silhouette keys on this colour for the lamp
+const C_GLASS := Color("2c3a40")
+const C_CAMO := Color("5b6b3a")
+const C_FOREST_GREEN := Color("2f5d3a")
+const GLOW_SHADER := "res://shaders/glow.gdshader"
 
 var track: Track
 var pts: PackedVector3Array
@@ -122,11 +155,19 @@ var profile_h := PackedFloat32Array()
 var flats: Array = []
 var terrain: Terrain
 var road_mat: ShaderMaterial
+## Scenery gets its own random stream, so adding a prop doesn't reshuffle the forest.
+var srng := RandomNumberGenerator.new()
+var scenery_sites := {} # id -> [sample, side, Vector3 on the road's height]
+## Raised ground: [Vector2 centre, radius, metres]. The fire tower's hill.
+var mounds: Array = []
+## Map icons for the callouts: [Node3D, shape, Color].
+var callout_icons: Array = []
 var tree_xz: Array = [] # Vector2 per tree, for the canopy shade under them
 
 
 func _init() -> void:
 	rng.seed = SEED
+	srng.seed = SEED + 21
 	noise.seed = SEED
 	noise.frequency = 0.02
 	vc_mat = load(VC_MAT)
@@ -138,9 +179,10 @@ func _init() -> void:
 	map_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	map_mat.vertex_color_use_as_albedo = true
 	map_mat.vertex_color_is_srgb = true
+	map_mat.cull_mode = BaseMaterial3D.CULL_DISABLED # icon triangles come in either winding; it's only ever seen from above
 	for id in ["pine_tall", "pine_default", "pine_round", "pine_small", "log", "log_large", "log_stack",
 			"rock_a", "rock_c", "rock_small", "rock_tall", "stump", "bush", "bush_small", "grass",
-			"campfire", "arch", "flag_red", "flag_green", "tent", "cone"]:
+			"campfire", "arch", "flag_red", "flag_green", "tent", "cone", "wreck", "skidder", "tent_camp", "fire_ring"]:
 		meshes[id] = load(MESH_DIR + id + ".res")
 	_cheap_meshes()
 
@@ -173,6 +215,8 @@ func _init() -> void:
 	_corner_furniture()
 	_cabin()
 	_sawmill()
+	_scenery()
+	_egg_spots()
 	_spectators()
 	_roadside()
 	_index_clearings()
@@ -517,6 +561,18 @@ func _plan_sites() -> void:
 	flats.append([Vector2(sawmill_spot[2].x, sawmill_spot[2].z), 34.0])
 	for p in [pts[spawn_i + 8], pts[finish_i]]:
 		flats.append([Vector2(p.x, p.z), 14.0])
+	for sc in SCENERY:
+		var i := clampi(int(float(sc[1]) / STEP), 0, n - 1)
+		var sside: float = sc[2]
+		if sside == 0.0:
+			sside = -1.0 if _turn(i, 10) < 0 else 1.0 # outside of the bend
+		var p := pts[i] + _right(i) * sside * float(sc[3])
+		scenery_sites[sc[0]] = [i, sside, p]
+		if float(sc[4]) > 0.0:
+			flats.append([Vector2(p.x, p.z), float(sc[4])])
+	# The fire tower stands on a knoll: higher than the crest the road takes.
+	var tw: Vector3 = scenery_sites["tower"][2]
+	mounds.append([Vector2(tw.x, tw.z), 22.0, 4.5])
 
 
 ## Ground height before baking: the road's own height (profile plus camber)
@@ -533,8 +589,14 @@ func _height(x: float, z: float) -> float:
 		amp *= smoothstep(6.0, 40.0, sd)
 	var t := (terrain_noise.get_noise_2d(x, z) * 0.8 + terrain_noise.get_noise_2d(x * 2.7 + 300.0, z * 2.7) * 0.2) * amp
 	var w_road := 1.0 - smoothstep(9.0, 34.0, d)
+	# Knolls rise from just past the ditch, on top of whatever's there.
+	var mound := 0.0
+	for m in mounds:
+		var md := Vector2(x, z).distance_to(m[0])
+		if md < m[1]:
+			mound += float(m[2]) * (0.5 + 0.5 * cos(PI * md / float(m[1]))) * smoothstep(7.0, 21.0, d)
 	if w_road <= 0.0:
-		return t
+		return t + mound
 	var sum := 0.0
 	var wsum := 0.0
 	var reach := d + 10.0
@@ -556,7 +618,7 @@ func _height(x: float, z: float) -> float:
 				sum += wi * (profile_h[i] + bank[i] * lat)
 				wsum += wi
 	var road_h := sum / wsum if wsum > 0.0 else 0.0
-	return lerpf(t, road_h, w_road)
+	return lerpf(t, road_h, w_road) + mound
 
 
 var terrain_noise := FastNoiseLite.new()
@@ -1311,6 +1373,463 @@ func _sawmill() -> void:
 	print("sawmill at %.0f m, %.1f m off the road" % [i * STEP, _road_dist(p.x, p.z)])
 
 
+# --- scenery callouts --------------------------------------------------------------
+
+## Smaller landmarks the Navigator can call (SCENERY): fire tower, hunting
+## stand, logging landing, outhouse, wreck, forestry gate, campsite. Each is a
+## track_landmark with a label and a map icon, solid where a car could reach
+## it, and the trees keep out of its footprint. Placed off the road, past the
+## ditch, so nothing narrows the road or sits on a recovery anchor.
+func _scenery() -> void:
+	_forestry_gate()
+	_wreck()
+	_fire_tower()
+	_hunting_stand()
+	_landing()
+	_outhouse()
+	_campsite()
+	# Nothing near the three big landmarks, a checkpoint gate or a spectator spot.
+	var big := [track.get_node("WoodenBridge"), _landmarks().get_node("RangerCabin"), _landmarks().get_node("Sawmill")]
+	for id in scenery_sites:
+		var site: Array = scenery_sites[id]
+		var p: Vector3 = site[2]
+		var nearest := INF
+		for b in big:
+			nearest = minf(nearest, Vector2(p.x, p.z).distance_to(Vector2(b.position.x, b.position.z)))
+		var cp_gap := INF
+		for k in CP_FRACTIONS.size():
+			cp_gap = minf(cp_gap, absf(site[0] - int(CP_FRACTIONS[k] * n)) * STEP)
+		print("  %-9s at %4.0f m, %s, %4.1f m off the road, %3.0f m from the nearest big landmark, %3.0f m from a checkpoint" % [
+			id, site[0] * STEP, "right" if site[1] > 0 else "left", _road_dist(p.x, p.z), nearest, cp_gap])
+		assert(nearest > 50.0 and cp_gap > 12.0)
+
+
+## Registers a callout: landmark group, label, distance, map icon.
+func _callout(body: Node3D, label: String, site: Array, shape: String, col: Color) -> void:
+	body.add_to_group("track_landmark", true)
+	body.set_meta("label", label)
+	body.set_meta("callout", true)
+	body.set_meta("distance_m", int(site[0]) * STEP)
+	_landmarks().add_child(body)
+	callout_icons.append([body, shape, col])
+	_sightline(site)
+
+
+## Opens the tree wall between the road and a callout, and back along the
+## approach, so it can be seen from the car (at eye level the first row of
+## trunks hides anything 8 m in), not just from above.
+func _sightline(site: Array) -> void:
+	var i: int = site[0]
+	var side: float = site[1]
+	var p: Vector3 = site[2]
+	for from in [i, maxi(i - 9, 0)]:
+		var a := pts[from] + _right(from) * side * (half_w[from] + verge_w[from] + DITCH + 1.0)
+		var steps := maxi(int(Vector2(a.x - p.x, a.z - p.z).length() / 2.5), 1)
+		for k in steps:
+			var q := a.lerp(p, float(k) / steps)
+			clearings.append([Vector2(q.x, q.z), 2.6])
+
+
+## Facing for a prop at `p` beside sample i: +Z toward the road.
+func _facing_road(i: int, p: Vector3) -> Basis:
+	var face := Vector3(pts[i].x - p.x, 0, pts[i].z - p.z).normalized()
+	return Basis.looking_at(-face, Vector3.UP)
+
+
+## A box from a to b, `w` thick: legs, braces, rails.
+func _beam(st: SurfaceTool, a: Vector3, b: Vector3, w: float, col: Color) -> void:
+	var d := b - a
+	var up := Vector3.UP if absf(d.normalized().dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
+	_box(st, Transform3D(Basis.looking_at(d, up), (a + b) * 0.5), Vector3(w, w, d.length()), col)
+
+
+## Appends a baked mesh's triangles (vertex colours) into st.
+func _merge(st: SurfaceTool, mesh: Mesh, xf: Transform3D, tint := Color.WHITE) -> void:
+	var a := mesh.surface_get_arrays(0)
+	var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var nm: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var cols: PackedColorArray = a[Mesh.ARRAY_COLOR]
+	var idx: PackedInt32Array = a[Mesh.ARRAY_INDEX] if a[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(v.size()))
+	var nb := xf.basis.inverse().transposed()
+	for i in idx:
+		st.set_color(cols[i] * tint if not cols.is_empty() else tint)
+		st.set_normal((nb * nm[i]).normalized())
+		st.add_vertex(xf * v[i])
+
+
+func _glow_mat(col: Color, size_energy: float, pulse: float, fade: Vector2, flame := false) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load(GLOW_SHADER)
+	m.set_shader_parameter("color", col)
+	m.set_shader_parameter("energy", size_energy)
+	m.set_shader_parameter("pulse_period", pulse)
+	m.set_shader_parameter("fade", fade)
+	m.set_shader_parameter("flame", flame)
+	m.set_shader_parameter("billboard", not flame)
+	return m
+
+
+## A soft additive glow sprite on the 3D-only layer: never in the map.
+func _glow(name: String, size: float, mat: ShaderMaterial, pos: Vector3) -> MeshInstance3D:
+	var q := QuadMesh.new()
+	q.size = Vector2(size, size)
+	var mi := _mesh_node(name, q, Transform3D(Basis.IDENTITY, pos), RENDER_EGG)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+## Forestry gate, swung open along the verge, and the forest's board facing
+## the cars coming in. Right after the start.
+func _forestry_gate() -> void:
+	var site: Array = scenery_sites["gate"]
+	var i: int = site[0]
+	var side: float = site[1]
+	var edge := half_w[i] + verge_w[i] + 0.5
+	var p := _g(pts[i] + _right(i) * side * edge)
+	var body := _solid("ForestryGate", "landmark", Transform3D(Basis.looking_at(tans[i], Vector3.UP), p), Vector3(0.6, 1.4, 0.6))
+	var st := _st()
+	# Hinge post, the striped bar folded back along the verge, its rest post.
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, 0.65, 0)), Vector3(0.22, 1.3, 0.22), C_STEEL_DARK)
+	const BAR := 5.4
+	for k in 9:
+		var z := 0.3 + k * BAR / 9.0
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(0, 0.98, z + BAR / 18.0)), Vector3(0.13, 0.13, BAR / 9.0), C_TAPE_RED if k % 2 == 0 else C_TAPE_WHITE)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, 0.45, BAR + 0.1)), Vector3(0.16, 0.9, 0.16), C_STEEL_DARK)
+	# Opposite post with the latch: the road's other edge.
+	var far := -side * (edge * 2.0)
+	var right_local := Vector3(-1, 0, 0) # looking_at(tan): local +X is the road's left
+	_box(st, Transform3D(Basis.IDENTITY, right_local * -far + Vector3(0, 0.65, 0)), Vector3(0.22, 1.3, 0.22), C_STEEL_DARK)
+	# The board, off the road past the hinge, turned a little toward the
+	# cars coming in and tilted back so it reads from above too.
+	var board_at := Vector3(side * 2.6, 0, -1.8)
+	var bxf := Transform3D(Basis(Vector3.UP, -side * 0.4), board_at)
+	for x in [-1.3, 1.3]:
+		_box(st, bxf * Transform3D(Basis.IDENTITY, Vector3(x, 1.1, 0)), Vector3(0.16, 2.2, 0.16), C_LOG_DARK)
+	var tilt := Basis(Vector3.RIGHT, deg_to_rad(-18))
+	_box(st, bxf * Transform3D(tilt, Vector3(0, 1.85, 0.1)), Vector3(3.2, 1.3, 0.1), C_FOREST_GREEN)
+	_box(st, bxf * Transform3D(tilt, Vector3(0, 1.85, 0.06)), Vector3(3.36, 1.46, 0.06), Color("e9dfc4"))
+	body.add_child(_mesh_node("Mesh", _commit(st)))
+	var label := Label3D.new()
+	label.name = "Sign"
+	label.text = "PINE PANIC\nSTATE FOREST"
+	label.font_size = 56
+	label.pixel_size = 0.0085
+	label.outline_size = 0
+	label.modulate = Color("f2e6c8")
+	label.transform = bxf * Transform3D(tilt, Vector3(0, 1.85, 0.17))
+	body.add_child(label)
+	clearings.append([Vector2(p.x, p.z), 2.5])
+	var bw := body.transform * board_at
+	clearings.append([Vector2(bw.x, bw.z), 3.0])
+	var tail := body.transform * Vector3(0, 0, BAR)
+	clearings.append([Vector2(tail.x, tail.z), 1.5])
+	_callout(body, "forestry gate", site, "gate", Color("f1c40f"))
+
+
+## A rusted sedan nose-down in the ferns, just past the ditch.
+func _wreck() -> void:
+	var site: Array = scenery_sites["wreck"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.32)
+	var yaw := Basis.looking_at(tans[i], Vector3.UP).rotated(Vector3.UP, site[1] * 1.15)
+	var basis := yaw * Basis(Vector3.FORWARD, deg_to_rad(7.0)) * Basis(Vector3.RIGHT, deg_to_rad(-6.0))
+	var body := _solid("Wreck", "landmark", Transform3D(basis, p), Vector3(2.6, 1.2, 4.4))
+	body.add_child(_mesh_node("Mesh", meshes["wreck"]))
+	# Ferns over the sills and wheel arches: about half the car is under them.
+	var st := _st()
+	for k in 16:
+		var a := TAU * k / 16.0 + srng.randf_range(-0.2, 0.2)
+		var r := Vector2(1.5 * absf(cos(a)) + 0.4, 2.4 * absf(sin(a)) + 0.4).length() * srng.randf_range(0.55, 0.85)
+		var q := Vector3(cos(a) * minf(r, 1.9), 0.25, sin(a) * minf(r * 1.3, 2.7))
+		var s := srng.randf_range(1.5, 2.3)
+		_merge(st, meshes["fern"], Transform3D(Basis(Vector3.UP, srng.randf() * TAU).scaled(Vector3(s, s * 1.15, s)), q), Color(1, 1, 1).darkened(srng.randf_range(0.0, 0.15)))
+	for k in 6:
+		var q := Vector3(srng.randf_range(-2.6, 2.6), 0.3, srng.randf_range(-3.2, 3.2))
+		var s := srng.randf_range(1.2, 1.8)
+		_merge(st, meshes["fern"], Transform3D(Basis(Vector3.UP, srng.randf() * TAU).scaled(Vector3.ONE * s), q))
+	var ferns := _mesh_node("Ferns", _commit(st))
+	ferns.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(ferns)
+	clearings.append([Vector2(p.x, p.z), 4.6])
+	_callout(body, "wrecked car", site, "wreck", Color("c0392b"))
+
+
+## Steel fire-watch tower on a knoll by the stage's highest crest: 23 m to
+## the cab roof, a red beacon that pulses slowly (3.2 s, never flashes).
+## Above the canopy, so it's the one thing you can see coming at eye level;
+## EyeForest draws a haze silhouette of it past the far plane.
+func _fire_tower() -> void:
+	var site: Array = scenery_sites["tower"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.1)
+	var body := _solid("FireTower", "landmark", Transform3D(_facing_road(i, p), p), Vector3(5.8, 3.0, 5.8))
+	var st := _st()
+	const H := 19.0
+	const B := 2.6
+	const T := 1.55
+	var at := func(sx: float, sz: float, y: float) -> Vector3:
+		var w := lerpf(B, T, y / H)
+		return Vector3(sx * w, y, sz * w)
+	var corners := [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]
+	for c in corners:
+		_beam(st, at.call(c[0], c[1], -0.4), at.call(c[0], c[1], H), 0.26, C_STEEL)
+		_box(st, Transform3D(Basis.IDENTITY, at.call(c[0], c[1], 0.15)), Vector3(0.7, 0.3, 0.7), Color("7c7a74")) # footing
+	var levels := [0.4, 6.5, 12.8, H]
+	for f in 4:
+		var c0: Array = corners[f]
+		var c1: Array = corners[(f + 1) % 4]
+		for l in range(1, levels.size()):
+			_beam(st, at.call(c0[0], c0[1], levels[l]), at.call(c1[0], c1[1], levels[l]), 0.14, C_STEEL_DARK)
+			_beam(st, at.call(c0[0], c0[1], levels[l - 1]), at.call(c1[0], c1[1], levels[l]), 0.09, C_STEEL)
+			_beam(st, at.call(c1[0], c1[1], levels[l - 1]), at.call(c0[0], c0[1], levels[l]), 0.09, C_STEEL)
+	# Zig-zag stairs up the middle, so it reads as climbable, not a pylon.
+	for k in 6:
+		var y0 := k * H / 6.0
+		var x := 0.7 if k % 2 == 0 else -0.7
+		_beam(st, Vector3(x, y0, -0.6), Vector3(-x, y0 + H / 6.0, -0.6), 0.5, C_PLANK_DARK)
+	# Cab: deck, wooden walls, a band of windows all round, red pyramid roof.
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 0.1, 0)), Vector3(4.4, 0.25, 4.4), C_PLANK_DARK)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 1.35, 0)), Vector3(3.4, 2.4, 3.4), C_PLANK)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 1.75, 0)), Vector3(3.48, 0.95, 3.48), C_GLASS)
+	for x in [-2.15, 2.15]:
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(x, H + 0.75, 0)), Vector3(0.08, 0.08, 4.4), C_STEEL_DARK)
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 0.75, x)), Vector3(4.4, 0.08, 0.08), C_STEEL_DARK)
+	var roof := CylinderMesh.new()
+	roof.top_radius = 0.0
+	roof.bottom_radius = 3.1
+	roof.height = 1.5
+	roof.radial_segments = 4
+	roof.rings = 1
+	roof.cap_bottom = true
+	_prim(st, roof, Transform3D(Basis(Vector3.UP, PI * 0.25), Vector3(0, H + 3.3, 0)), C_ROOF_RED)
+	# Beacon lamp on a short mast above the roof.
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 4.3, 0)), Vector3(0.1, 1.0, 0.1), C_STEEL_DARK)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, H + 4.9, 0)), Vector3(0.42, 0.42, 0.42), C_BEACON)
+	var mesh := _commit(st)
+	body.add_child(_mesh_node("Mesh", mesh))
+	body.add_child(_glow("Beacon", 3.2, _glow_mat(Color(1.0, 0.25, 0.15), 1.4, 3.2, Vector2(180.0, 400.0)), Vector3(0, H + 4.9, 0)))
+	body.add_to_group("track_tall", true)
+	body.set_meta("proxy_mesh", mesh)
+	clearings.append([Vector2(p.x, p.z), 6.5])
+	_callout(body, "fire tower", site, "tower", Color("ecf0f1"))
+	print("fire tower: base %.1f m, %.1f m above the road beside it" % [p.y, p.y - pts[i].y])
+
+
+## Hunting stand at the forest edge: four legs, a camo box with a slot
+## facing the road, a ladder.
+func _hunting_stand() -> void:
+	var site: Array = scenery_sites["stand"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.05)
+	var body := _solid("HuntingStand", "landmark", Transform3D(_facing_road(i, p), p), Vector3(2.2, 3.0, 2.2))
+	var st := _st()
+	const Y := 3.6
+	for c in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+		_beam(st, Vector3(c[0] * 1.05, -0.2, c[1] * 1.05), Vector3(c[0] * 0.8, Y, c[1] * 0.8), 0.16, C_LOG_DARK)
+	_beam(st, Vector3(-1.0, 1.6, 1.0), Vector3(1.0, 1.6, 1.0), 0.09, C_LOG)
+	_beam(st, Vector3(-1.0, 1.6, -1.0), Vector3(1.0, 1.6, -1.0), 0.09, C_LOG)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, Y, 0)), Vector3(2.0, 0.14, 2.0), C_PLANK_DARK)
+	var camo := [C_CAMO, C_CAMO.darkened(0.25), Color("6e6440")]
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, Y + 0.7, -0.9)), Vector3(1.9, 1.4, 0.08), camo[0])
+	for x in [-0.92, 0.92]:
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(x, Y + 0.7, 0)), Vector3(0.08, 1.4, 1.9), camo[1])
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, Y + 0.35, 0.92)), Vector3(1.9, 0.7, 0.08), camo[0])
+	for x in [-0.8, 0.8]:
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(x, Y + 1.15, 0.92)), Vector3(0.3, 0.5, 0.08), camo[2])
+	for k in 5: # camo blotches
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(srng.randf_range(-0.6, 0.6), Y + srng.randf_range(0.2, 1.2), -0.95)), Vector3(0.45, 0.3, 0.03), camo[2 if k % 2 else 1])
+	_box(st, Transform3D(Basis(Vector3.RIGHT, deg_to_rad(10)), Vector3(0, Y + 1.5, 0.05)), Vector3(2.3, 0.1, 2.4), C_ROOF_TIN.darkened(0.2))
+	# Ladder up the road side.
+	var l0 := Vector3(0, -0.1, 2.0)
+	var l1 := Vector3(0, Y, 0.95)
+	for x in [-0.28, 0.28]:
+		_beam(st, l0 + Vector3(x, 0, 0), l1 + Vector3(x, 0, 0), 0.07, C_LOG)
+	for k in 8:
+		var q := l0.lerp(l1, (k + 0.5) / 8.0)
+		_box(st, Transform3D(Basis.IDENTITY, q), Vector3(0.6, 0.05, 0.05), C_LOG)
+	body.add_child(_mesh_node("Mesh", _commit(st)))
+	clearings.append([Vector2(p.x, p.z), 3.0])
+	_callout(body, "hunting stand", site, "stand", Color("7d9a3a"))
+
+
+## Logging landing: stacked logs beside the road and the skidder that
+## dragged them out, rusting where it stopped.
+func _landing() -> void:
+	var site: Array = scenery_sites["landing"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.05)
+	# +Z toward the road, so the piles line up along it (local X).
+	var body := _solid("LogLanding", "landmark", Transform3D(_facing_road(i, p), p), Vector3(10.0, 1.8, 3.6))
+	for k in 3:
+		var lp := Vector3(-3.4 + k * 3.4, 0, srng.randf_range(-0.3, 0.3))
+		body.add_child(_mesh_node("Logs%d" % k, meshes["log_stack"], Transform3D(Basis(Vector3.UP, PI * 0.5 + srng.randf_range(-0.06, 0.06)), lp)))
+	body.add_child(_mesh_node("Log", meshes["log_large"], Transform3D(Basis(Vector3.UP, 0.15), Vector3(-1.0, 0, 2.6))))
+	var sk := Transform3D(Basis(Vector3.UP, -PI * 0.5 - 0.35), Vector3(8.4, 0, -0.6))
+	body.add_child(_mesh_node("Skidder", meshes["skidder"], sk))
+	var cs := CollisionShape3D.new()
+	cs.name = "SkidderShape"
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(3.2, 2.6, 4.6)
+	cs.shape = bs
+	cs.transform = sk * Transform3D(Basis.IDENTITY, Vector3(0, 1.3, 0))
+	body.add_child(cs)
+	clearings.append([Vector2(p.x, p.z), 7.0])
+	var skw := body.transform * sk.origin
+	clearings.append([Vector2(skw.x, skw.z), 4.0])
+	_callout(body, "log pile", site, "logs", Color("a0522d"))
+
+
+## The outhouse. A plank box, a tin lean-to roof, a moon in the door.
+func _outhouse() -> void:
+	var site: Array = scenery_sites["outhouse"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.05)
+	var body := _solid("Outhouse", "landmark", Transform3D(_facing_road(i, p), p), Vector3(1.5, 2.4, 1.5))
+	var st := _st()
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, 1.1, 0)), Vector3(1.4, 2.2, 1.4), C_PLANK)
+	for k in 5:
+		_box(st, Transform3D(Basis.IDENTITY, Vector3(-0.56 + k * 0.28, 1.1, 0.71)), Vector3(0.04, 2.2, 0.02), C_PLANK_DARK)
+	_box(st, Transform3D(Basis.IDENTITY, Vector3(0, 1.0, 0.72)), Vector3(0.8, 1.8, 0.04), C_PLANK_DARK)
+	_box(st, Transform3D(Basis(Vector3.BACK, 0.5), Vector3(0.05, 1.6, 0.75)), Vector3(0.1, 0.22, 0.02), C_STRAW) # the moon, roughly
+	_box(st, Transform3D(Basis(Vector3.BACK, -0.5), Vector3(-0.03, 1.6, 0.75)), Vector3(0.1, 0.22, 0.02), C_STRAW)
+	_box(st, Transform3D(Basis(Vector3.RIGHT, deg_to_rad(-12)), Vector3(0, 2.32, 0.05)), Vector3(1.7, 0.08, 1.8), C_ROOF_TIN)
+	body.add_child(_mesh_node("Mesh", _commit(st)))
+	clearings.append([Vector2(p.x, p.z), 3.6])
+	_callout(body, "outhouse", site, "outhouse", Color("d4b483"))
+
+
+## A camper's tent with a small fire in a stone ring. The flame and its
+## glow are on the 3D-only layer (they flicker; the map is one still image).
+## The campers themselves are easter eggs: markers here, people at runtime.
+func _campsite() -> void:
+	var site: Array = scenery_sites["camp"]
+	var i: int = site[0]
+	var p: Vector3 = _g(site[2], -0.05)
+	var basis := _facing_road(i, p)
+	var body := _solid("Campsite", "landmark", Transform3D(basis, p), Vector3(4.2, 2.6, 3.4), Vector3(0, 0, -1.5))
+	body.add_child(_mesh_node("Tent", meshes["tent_camp"], Transform3D(Basis(Vector3.UP, 0.0), Vector3(0, 0, -1.5))))
+	var fire := Vector3(0.6, 0, 2.6)
+	body.add_child(_mesh_node("FireRing", meshes["fire_ring"], Transform3D(Basis.IDENTITY, fire)))
+	body.add_child(_mesh_node("Campfire", meshes["campfire"], Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.6), fire)))
+	body.add_child(_mesh_node("Bench", meshes["log"], Transform3D(Basis(Vector3.UP, PI * 0.5).scaled(Vector3.ONE * 0.45), fire + Vector3(-2.0, 0, 0.3))))
+	# Flame: three crossed quads that sway in the shader; a glow sprite over it.
+	var st := _st()
+	for k in 3:
+		var b := Basis(Vector3.UP, k * PI / 3.0)
+		var v := [Vector3(-0.35, 0, 0), Vector3(0.35, 0, 0), Vector3(0.35, 0.9, 0), Vector3(-0.35, 0.9, 0)]
+		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+		for t in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(uv[t])
+			st.set_normal(b * Vector3.BACK)
+			st.add_vertex(b * v[t])
+	var flame := _mesh_node("Flame", st.commit(), Transform3D(Basis.IDENTITY, fire + Vector3(0, 0.1, 0)), RENDER_EGG)
+	flame.material_override = _glow_mat(Color(1.0, 0.55, 0.15), 1.2, 0.0, Vector2(60.0, 115.0), true)
+	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(flame)
+	body.add_child(_glow("Glow", 3.0, _glow_mat(Color(1.0, 0.5, 0.18), 0.55, 0.0, Vector2(60.0, 115.0)), fire + Vector3(0, 0.6, 0)))
+	for k in 2:
+		var m := Marker3D.new()
+		m.name = "Camper%d" % k
+		var cp := fire + Vector3(-1.5 if k == 0 else 2.0, 0, -0.6 if k == 0 else 0.4)
+		m.transform = Transform3D(Basis.looking_at(Vector3(0, 0, 1).rotated(Vector3.UP, -0.4 if k == 0 else 0.5), Vector3.UP), cp)
+		m.add_to_group("track_egg", true)
+		m.set_meta("kind", "camper")
+		body.add_child(m)
+	clearings.append([Vector2(p.x, p.z), 8.0])
+	yards.append([Vector2(p.x, p.z), 6.5, C_YARD.lerp(C_GRASS, 0.5)])
+	_callout(body, "campsite", site, "tent", Color("ff7f2a"))
+
+
+# --- easter-egg spots ---------------------------------------------------------------
+
+## Markers for scripts/easter_eggs.gd (group track_egg, meta kind). Deer
+## markers sit on the centreline, facing along the road, with meta "edge"
+## (metres to the forest); the rest sit where the creature does. The fake
+## junction for the wrong-way sign is real gravel (3D layer only), so the
+## sign has something to point down.
+func _egg_spots() -> void:
+	var g := _group("EggSpots")
+	var k := 0
+	for spot in EGG_SPOTS:
+		var kind: String = spot[0]
+		var i := clampi(int(float(spot[1]) / STEP), 0, n - 1)
+		var side: float = spot[2]
+		if side == 0.0:
+			side = -1.0 if _turn(i, 10) < 0 else 1.0
+		var m := Marker3D.new()
+		m.name = "%s%d" % [kind.capitalize().replace(" ", ""), k]
+		m.add_to_group("track_egg", true)
+		m.set_meta("kind", kind)
+		m.set_meta("distance_m", i * STEP)
+		m.set_meta("side", side)
+		m.set_meta("edge", half_w[i] + verge_w[i] + DITCH)
+		var p := pts[i] + _right(i) * side * float(spot[3])
+		p = _g(p)
+		m.transform = Transform3D(Basis.looking_at(tans[i], Vector3.UP), p)
+		match kind:
+			"moose":
+				# A glade from the road edge to where it stands, so it can be seen.
+				m.transform = Transform3D(_facing_road(i, p), p)
+				for s in 6:
+					var q := pts[i] + _right(i) * side * lerpf(8.0, float(spot[3]) + 4.0, s / 5.0)
+					clearings.append([Vector2(q.x, q.z), 5.5])
+				yards.append([Vector2(p.x, p.z), 9.0, C_GRASS.darkened(0.05)])
+				# ...and a lane back along the approach: the glade alone only
+				# opens once you're level with it, which is too late to look.
+				_sightline([i, side, p])
+			"bigfoot":
+				m.transform = Transform3D(_facing_road(i, p), p)
+				clearings.append([Vector2(p.x, p.z), 1.6])
+				var walk := p + tans[i] * 5.0
+				clearings.append([Vector2(walk.x, walk.z), 1.4])
+			"wrongway":
+				_fake_junction(g, m, i, side)
+		g.add_child(m)
+		k += 1
+	print("egg spots: %d" % k)
+
+
+## Gravel spur forking off at 35 deg into the trees and fading out after
+## 24 m: a junction that goes nowhere. Render layer 5 only.
+func _fake_junction(g: Node3D, m: Marker3D, i: int, side: float) -> void:
+	var edge := half_w[i] + verge_w[i]
+	var dir := tans[i].rotated(Vector3.UP, -side * deg_to_rad(35.0)).normalized()
+	var start := pts[i] + _right(i) * side * (edge - 0.6)
+	var st := _st()
+	const LEN := 24.0
+	var segs := 12
+	for s in segs:
+		var t0 := float(s) / segs
+		var t1 := float(s + 1) / segs
+		var c0 := start + dir * LEN * t0
+		var c1 := start + dir * LEN * t1
+		var r := Vector3(-dir.z, 0, dir.x)
+		var w0 := lerpf(2.2, 1.3, t0)
+		var w1 := lerpf(2.2, 1.3, t1)
+		var col0 := C_TRACK.lerp(C_FLOOR_REF, smoothstep(0.3, 1.0, t0))
+		var col1 := C_TRACK.lerp(C_FLOOR_REF, smoothstep(0.3, 1.0, t1))
+		var a := _g(c0 - r * w0, 0.06)
+		var b := _g(c0 + r * w0, 0.06)
+		var c := _g(c1 - r * w1, 0.06)
+		var d := _g(c1 + r * w1, 0.06)
+		for v in [[a, col0], [c, col1], [b, col0], [b, col0], [c, col1], [d, col1]]:
+			st.set_color(v[1])
+			st.set_normal(terrain.normal_at(v[0].x, v[0].z))
+			st.add_vertex(v[0])
+		clearings.append([Vector2(c1.x, c1.z), 3.2])
+	var spur := _mesh_node("FakeJunction", _commit(st), Transform3D.IDENTITY, RENDER_EGG)
+	spur.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(spur)
+	# The sign stands in the fork's mouth, facing the cars coming (the
+	# marker looks down the road); its arrow points along the spur.
+	var at := _g(start + dir * 1.8 + _right(i) * side * 1.6)
+	# Turned a little toward the oncoming car so the board isn't edge-on.
+	m.transform = Transform3D(Basis.looking_at(tans[i].rotated(Vector3.UP, side * 0.35), Vector3.UP), at)
+	clearings.append([Vector2(at.x, at.z), 2.4])
+	_sightline([i, side, at])
+
+
 # --- spectators ------------------------------------------------------------------
 
 ## A knot of fans behind a tape line: one merged mesh per group, a solid
@@ -1607,6 +2126,67 @@ func _map_overlay() -> void:
 	var mi := _mesh_node("Mesh", _commit(st, map_mat), Transform3D.IDENTITY, RENDER_MAP_ONLY)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.add_child(mi)
+	# One icon per callout, each its own shape (not colour alone, spec §10),
+	# north up whatever way the thing faces. One node each, so tests can find
+	# them; the map renders once, so the extra draws cost nothing after.
+	var icons_g := Node3D.new()
+	icons_g.name = "Icons"
+	g.add_child(icons_g)
+	for ic in callout_icons:
+		var node: Node3D = ic[0]
+		var ist := _st()
+		var at := node.transform.origin
+		at.y = y.y + 0.8
+		for part in _icon_shape(ic[1]):
+			var poly: PackedVector2Array = part[0]
+			for o in Geometry2D.offset_polygon(poly, 2.4, Geometry2D.JOIN_MITER):
+				_flat_poly(ist, o, at - Vector3(0, 0.15, 0), Color("1a1a1a"))
+		for part in _icon_shape(ic[1]):
+			_flat_poly(ist, part[0], at, part[1] if part[1] != null else ic[2])
+		var icon := _mesh_node(String(node.name), _commit(ist, map_mat), Transform3D.IDENTITY, RENDER_MAP_ONLY)
+		icon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		icon.set_meta("label", node.get_meta("label"))
+		icon.set_meta("shape", ic[1])
+		icons_g.add_child(icon)
+
+
+const ICON_SCALE := 1.25 ## the small map shows ~0.26 px a metre; this keeps an icon ~7 px there
+
+
+## Icon outlines in map metres (x east, z south; so -z points up the map).
+## [polygon, colour or null for the icon's own].
+func _icon_shape(shape: String) -> Array:
+	var rect := func(cx: float, cz: float, w: float, h: float, rot := 0.0) -> PackedVector2Array:
+		var out := PackedVector2Array()
+		for c in [Vector2(-w, -h), Vector2(w, -h), Vector2(w, h), Vector2(-w, h)]:
+			out.append(Vector2(cx, cz) + (c * 0.5).rotated(rot))
+		return out
+	match shape:
+		"tower": # tall spike with the beacon on top
+			return [[PackedVector2Array([Vector2(-6, 11), Vector2(6, 11), Vector2(0, -12)]), null],
+				[rect.call(0.0, -14.0, 5.0, 5.0), C_BEACON]]
+		"stand": # diamond
+			return [[PackedVector2Array([Vector2(0, -10), Vector2(10, 0), Vector2(0, 10), Vector2(-10, 0)]), null]]
+		"logs": # three stacked bars
+			return [[rect.call(0.0, -7.0, 22.0, 4.5), null], [rect.call(0.0, 0.0, 22.0, 4.5), null], [rect.call(0.0, 7.0, 22.0, 4.5), null]]
+		"outhouse": # upright box with a lean-to roof
+			return [[rect.call(0.0, 2.0, 11.0, 14.0), null], [PackedVector2Array([Vector2(-8, -5), Vector2(8, -5), Vector2(0, -12)]), null]]
+		"wreck": # X
+			return [[rect.call(0.0, 0.0, 26.0, 5.5, PI * 0.25), null], [rect.call(0.0, 0.0, 26.0, 5.5, -PI * 0.25), null]]
+		"gate": # bar between two posts
+			return [[rect.call(0.0, 0.0, 22.0, 4.0), null], [rect.call(-12.0, 0.0, 5.0, 12.0), null], [rect.call(12.0, 0.0, 5.0, 12.0), null]]
+		"tent": # wide, low triangle
+			return [[PackedVector2Array([Vector2(-13, 9), Vector2(13, 9), Vector2(0, -10)]), null]]
+	return []
+
+
+func _flat_poly(st: SurfaceTool, poly: PackedVector2Array, at: Vector3, col: Color) -> void:
+	poly = Transform2D.IDENTITY.scaled(Vector2.ONE * ICON_SCALE) * poly
+	var tris := Geometry2D.triangulate_polygon(poly)
+	for k in tris:
+		st.set_color(col)
+		st.set_normal(Vector3.UP)
+		st.add_vertex(at + Vector3(poly[k].x, 0, poly[k].y))
 
 
 func _ribbon(st: SurfaceTool, line: PackedVector3Array, half: float, col: Color, lift: Vector3) -> void:

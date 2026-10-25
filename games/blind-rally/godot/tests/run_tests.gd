@@ -49,6 +49,13 @@ func _run() -> void:
 	test_allowed_cameras()
 	await test_eye_forest()
 	await test_map_static_after_modes()
+	test_scenery_callouts()
+	test_egg_schedule()
+	await test_eggs_no_collision()
+	await test_deer_cross_and_spook()
+	await test_campers()
+	await test_eggs_off_the_map()
+	await test_tower_far_silhouette()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -104,7 +111,8 @@ func test_track_interface() -> void:
 		ordered = ordered and int(cps[i].get_meta("index")) == i + 1
 	check(ordered, "checkpoint indices are 1..n")
 	check(track.get_recovery_anchors().size() == cps.size() + 1, "recovery anchor per checkpoint plus start")
-	check(track.get_landmarks().size() == 3, "three landmarks (bridge, cabin, sawmill)")
+	var big := track.get_landmarks().filter(func(l: Node) -> bool: return not l.get_meta("callout", false))
+	check(big.size() == 3, "three big landmarks (bridge, cabin, sawmill)")
 	# Forest chunks are one node with hundreds of colliders each; count both.
 	var nodes := get_nodes_in_group("track_obstacle")
 	var colliders := 0
@@ -738,6 +746,9 @@ func test_camera_fit() -> void:
 func test_camera_modes() -> void:
 	print("camera modes")
 	var cam: FollowCamera = main.cam
+	# Parked: the autopilot run leaves the car coasting at ~80 km/h, and a slow
+	# frame (the mode switch) then lets physics run steps past the camera.
+	await place(car.global_transform)
 	check(cam.mode == FollowCamera.Mode.TOP_DOWN and cam.projection == Camera3D.PROJECTION_ORTHOGONAL and cam.environment == null, "top-down orthographic is the default")
 	var before := [cam.near, cam.far, cam.keep_aspect]
 	main._on_session({"camera": "chase"}, "")
@@ -751,7 +762,313 @@ func test_camera_modes() -> void:
 	main.set_camera_mode(FollowCamera.Mode.BONNET)
 	await process_frame
 	var nose := car.global_transform.affine_inverse() * cam.global_position
-	check(nose.z < 0.0 and nose.y > 1.0 and cam.near < 0.15, "bonnet rides the front of the car, near plane %.2f m" % cam.near)
+	check(nose.z < 0.0 and nose.y > 1.0 and cam.near < 0.15, "bonnet rides the front of the car, near plane %.2f m (at %.2f, %.2f)" % [cam.near, nose.z, nose.y])
 	main._on_session({"camera": "topdown"}, "")
 	check(cam.projection == Camera3D.PROJECTION_ORTHOGONAL and cam.environment == null and [cam.near, cam.far, cam.keep_aspect] == before, "back to top-down restores it exactly")
 	check(not main.weather.eye_level, "and the mist is back to overhead puffs")
+
+
+# --- scenery callouts and easter eggs ---------------------------------------------
+
+const CALLOUTS := ["forestry gate", "wrecked car", "fire tower", "hunting stand", "log pile", "outhouse", "campsite"]
+
+
+func _callouts() -> Array:
+	return track.get_landmarks().filter(func(l: Node) -> bool: return l.get_meta("callout", false))
+
+
+## The smaller landmarks: each labelled, beside the road not on it, clear of
+## the recovery anchors, no trees inside, and an icon on the map.
+func test_scenery_callouts() -> void:
+	print("scenery callouts")
+	var cs := _callouts()
+	var labels := cs.map(func(l: Node) -> String: return String(l.get_meta("label")))
+	labels.sort()
+	var want := CALLOUTS.duplicate()
+	want.sort()
+	check(labels == want, "seven callouts: %s" % [labels])
+	var icons := track.get_node_or_null("MapOverlay/Icons")
+	var bad := []
+	for l in cs:
+		var p: Vector3 = l.global_position
+		var road := INF
+		for q in track.centerline:
+			road = minf(road, Vector2(p.x - q.x, p.z - q.z).length())
+		var anchor := INF
+		for a in track.get_recovery_anchors() + [track.get_spawn()]:
+			anchor = minf(anchor, Vector2(p.x, p.z).distance_to(Vector2(a.global_position.x, a.global_position.z)))
+		var icon: MeshInstance3D = icons.get_node_or_null(String(l.name)) if icons else null
+		var icon_ok := icon != null and icon.layers == 4 and icon.mesh != null \
+			and Vector2(icon.mesh.get_aabb().get_center().x, icon.mesh.get_aabb().get_center().z).distance_to(Vector2(p.x, p.z)) < 6.0
+		# The gate's hinge post stands at the road's edge, by design.
+		if road < (4.0 if l.name == "ForestryGate" else 5.5) or anchor < 20.0 or not icon_ok or not l.is_in_group("track_obstacle"):
+			bad.append("%s road %.1f anchor %.0f icon %s" % [l.name, road, anchor, icon_ok])
+	check(bad.is_empty() and cs.size() == 7, "each one off the road, clear of the recovery anchors, solid, with a map icon %s" % [bad])
+	var shapes := {}
+	if icons:
+		for ic in icons.get_children():
+			shapes[ic.get_meta("shape")] = true
+	check(shapes.size() == 7, "seven different icon shapes, not just colours (%s)" % [shapes.keys()])
+	# Trees stay out of their footprints.
+	var crowded := []
+	for l in cs:
+		var p: Vector3 = l.global_position
+		var r := 2.0 if l.name == "ForestryGate" else 3.0
+		for sc in track.get_node("Forest").get_children():
+			if sc.get_meta("kind", "") != "tree":
+				continue
+			for m in sc.meshes.size():
+				for q in sc.positions(m):
+					if Vector2(q.x - p.x, q.z - p.z).length() < r:
+						crowded.append(String(l.name))
+	check(crowded.is_empty(), "no tree inside any footprint %s" % [crowded])
+	var tower: Node3D = track.get_node("Landmarks/FireTower")
+	var aabb := (tower.get_node("Mesh") as MeshInstance3D).get_aabb()
+	var crest := -INF
+	for q in track.centerline:
+		crest = maxf(crest, q.y)
+	check(aabb.size.y > 20.0 and tower.global_position.y + aabb.end.y > crest + 20.0, "the fire tower stands %.0f m tall, %.0f m over the stage's highest road" % [aabb.size.y, tower.global_position.y + aabb.end.y - crest])
+
+
+func test_egg_schedule() -> void:
+	print("easter-egg schedule")
+	var eggs: EasterEggs = main.eggs
+	var counts := eggs.spot_counts()
+	check(counts.get("deer", 0) >= 4 and counts.get("birds", 0) >= 4 and counts.get("moose", 0) == 1 and counts.get("bigfoot", 0) == 1 and counts.get("wrongway", 0) == 1 and counts.get("camper", 0) == 1, "the track has its egg spots %s" % [counts])
+	var a := EasterEggs.make_schedule(1234, counts)
+	check(a == EasterEggs.make_schedule(1234, counts), "same seed, same schedule")
+	var differs := 0
+	for sd in range(1, 21):
+		differs += int(EasterEggs.make_schedule(sd, counts) != a)
+	check(differs == 20, "other seeds, other surprises (%d of 20 differ)" % differs)
+	# Through the node too, and the weather can't disturb it.
+	eggs.force = {}
+	eggs.configure(1234)
+	var s0 := eggs.schedule.duplicate(true)
+	main.weather.configure(1234, 1.0)
+	eggs.configure(1234)
+	check(eggs.schedule == s0 and s0 == a, "configure(seed) is the same schedule, whatever the clouds")
+	# Rare: count over many seeds.
+	var live := {}
+	var any_seen := 0
+	const N := 2000
+	for sd in N:
+		var some := false
+		for e in EasterEggs.make_schedule(sd * 7 + 3, counts):
+			if e.live:
+				live[e.kind] = live.get(e.kind, 0) + 1
+				some = true
+		any_seen += int(some)
+	var per_run := {}
+	for k in live:
+		per_run[k] = snappedf(float(live[k]) / N, 0.01)
+	print("    live per run: %s" % [per_run])
+	check(float(live.get("bigfoot", 0)) / N < 0.1 and live.get("bigfoot", 0) > 0, "Bigfoot is very rare (%.1f%% of runs)" % (100.0 * live.get("bigfoot", 0) / N))
+	check(float(live.get("moose", 0)) / N < 0.4, "the moose is rare (%.0f%%)" % (100.0 * live.get("moose", 0) / N))
+	# Deterministic in time too: windows are numbers in the schedule.
+	var moose: Dictionary = a.filter(func(e: Dictionary) -> bool: return e.kind == "moose")[0]
+	check(moose.open >= 0.0 and moose.close > moose.open + 60.0, "the moose's window is fixed by the seed (%.0f-%.0f s)" % [moose.open, moose.close])
+	main.weather.configure(4242, 0.4)
+
+
+func _nearest(p: Vector3) -> int:
+	var best := INF
+	var bi := 0
+	for i in track.centerline.size():
+		var d := Vector2(track.centerline[i].x - p.x, track.centerline[i].z - p.z).length_squared()
+		if d < best:
+			best = d
+			bi = i
+	return bi
+
+
+func _on_ground(b: Basis, p: Vector3) -> Transform3D:
+	return Transform3D(b, Vector3(p.x, track.height_at(p.x, p.z) + 0.6, p.z))
+
+
+func _egg_nodes(n: Node, out: Array) -> Array:
+	for c in n.get_children():
+		out.append(c)
+		_egg_nodes(c, out)
+	return out
+
+
+func test_eggs_no_collision() -> void:
+	print("easter eggs: no collision")
+	var eggs: EasterEggs = main.eggs
+	eggs.force = {"all": true}
+	eggs.configure(77)
+	await process_frame
+	var kinds := {}
+	for r in eggs._live:
+		kinds[r.e.kind] = true
+	check(kinds.size() == 6, "forced on: every kind is live (%s)" % [kinds.keys()])
+	var bodies := 0
+	var geo := 0
+	var off_map := true
+	for c in _egg_nodes(eggs, []):
+		bodies += int(c is CollisionObject3D or c is CollisionShape3D)
+		if c is VisualInstance3D:
+			geo += 1
+			off_map = off_map and ((c as VisualInstance3D).layers & MapController.CULL_MASK) == 0
+	check(bodies == 0 and geo > 15, "%d creature nodes, not one collision body or shape" % geo)
+	check(off_map, "and none of them is on a layer the map camera draws")
+	# Drive straight through a family of deer parked on the road.
+	var r: Dictionary = eggs.live("deer")[0]
+	var spot: Node3D = r.spot
+	for d in r.deer:
+		d.lat = 0.0
+		d.along = 0.0
+	r.state = "gone" # parked, no AI
+	var fwd3 := -spot.global_basis.z
+	await place(_on_ground(spot.global_basis, spot.global_position - fwd3 * 12.0))
+	impacts.clear()
+	await drive(0.5, 0.0, 1.0)
+	var v0 := car.forward_speed
+	await drive(1.5, 0.0, 1.0)
+	var past := (car.global_position - spot.global_position).dot(fwd3)
+	check(past > 5.0 and impacts.is_empty() and car.forward_speed >= v0, "the car drives through them: %.0f m past, no impact, %.1f -> %.1f m/s" % [past, v0, car.forward_speed])
+	eggs.force = {}
+	eggs.configure(4242)
+
+
+func test_deer_cross_and_spook() -> void:
+	print("deer")
+	var eggs: EasterEggs = main.eggs
+	eggs.force = {"deer": true}
+	eggs.configure(5)
+	var r: Dictionary = eggs.live("deer")[2]
+	var spot: Node3D = r.spot
+	var fwd3 := -spot.global_basis.z
+	# Coming at 22 m/s from 90 m: they wait, then go when the car is ~3 s off.
+	# On the road, 90 m back along it (the autopilot steers; the speed is held).
+	var c := track.centerline
+	var si := int(float(spot.get_meta("distance_m")) / 2.0)
+	await place(_on_ground(Basis.looking_at(c[si - 44] - c[si - 46], Vector3.UP), c[si - 45]))
+	main.cam.snap()
+	r.shown = true
+	var start_gap := -1.0
+	var mid_gap := -1.0
+	main.set_autopilot(true)
+	for f in 300:
+		var ahead := (c[mini(_nearest(car.global_position) + 2, c.size() - 1)] - car.global_position)
+		ahead.y = 0.0
+		car.forward_speed = 22.0
+		car.velocity = ahead.normalized() * 22.0
+		await physics_frame
+		await process_frame
+		var gap := Vector2(spot.global_position.x - car.global_position.x, spot.global_position.z - car.global_position.z).length() * signf((spot.global_position - car.global_position).dot(fwd3))
+		if r.state != "wait" and start_gap < 0.0:
+			start_gap = gap
+		var d0: Dictionary = r.deer[0]
+		if mid_gap < 0.0 and absf(d0.lat) < 1.0:
+			mid_gap = gap
+		if gap < 0.0:
+			break
+	main.set_autopilot(false)
+	check(start_gap > 45.0 and start_gap < 90.0, "they start across when the car is %.0f m off" % start_gap)
+	check(mid_gap > 15.0, "the first deer is mid-road with the car still %.0f m away" % mid_gap)
+	# Spook: a deer waiting by the road, the car pulls up 10 m short of it.
+	eggs.configure(5)
+	r = eggs.live("deer")[2]
+	r.shown = true
+	var d: Dictionary = r.deer[0]
+	var wait_at: Vector3 = (d.node as Node3D).global_position
+	await place(_on_ground(spot.global_basis, spot.global_position - fwd3 * 14.0))
+	var gap0 := Vector2(car.global_position.x - wait_at.x, car.global_position.z - wait_at.z).length()
+	for f in 10:
+		await process_frame
+	var lat0: float = absf(d.lat)
+	for f in 30:
+		await process_frame
+	check(gap0 < EasterEggs.SPOOK_R and r.state == "bolt", "car stops %.0f m from a waiting deer: it bolts (%s)" % [gap0, r.state])
+	check(float(d.speed) == EasterEggs.DEER_BOLT and absf(d.lat) > lat0, "away from the road at %.1f m/s (%.1f -> %.1f m off)" % [d.speed, lat0, absf(d.lat)])
+	eggs.force = {}
+	eggs.configure(4242)
+
+
+func test_campers() -> void:
+	print("campers")
+	var eggs: EasterEggs = main.eggs
+	eggs.force = {"camper": true}
+	eggs.configure(3)
+	var r: Dictionary = eggs.live("camper")[0]
+	r.shown = true
+	var camp: Node3D = track.get_node("Landmarks/Campsite")
+	var near_i := 0
+	var best := INF
+	for i in track.centerline.size():
+		var dd := Vector2(track.centerline[i].x - camp.global_position.x, track.centerline[i].z - camp.global_position.z).length()
+		if dd < best:
+			best = dd
+			near_i = i
+	var c := track.centerline
+	await place(Transform3D(Basis.looking_at(c[near_i + 1] - c[near_i - 1], Vector3.UP), c[near_i - 10] + Vector3(0, 0.6, 0)))
+	for f in 60:
+		await process_frame
+	var arm: Node3D = r.people[0].arm
+	check(arm.rotation.z > 1.8, "car going by: they wave (arm at %.0f deg)" % rad_to_deg(arm.rotation.z))
+	car.slip_angle = 0.4
+	car.velocity = -car.global_basis.z * 15.0
+	for f in 20:
+		car.slip_angle = 0.4
+		await process_frame
+	var body: Node3D = r.people[0].body
+	check(body.scale.y < 0.75, "sliding at them: they duck (height x%.2f)" % body.scale.y)
+	car.neutralize()
+	eggs.force = {}
+	eggs.configure(4242)
+
+
+## The static map never sees a creature or a scenery light: they're all on
+## render layer 5, and the map is still the one image.
+func test_eggs_off_the_map() -> void:
+	print("map vs creatures")
+	var eggs: EasterEggs = main.eggs
+	map.gps_enabled = false
+	var s0 := _map_state()
+	eggs.force = {"all": true}
+	eggs.configure(9)
+	for r in eggs._live:
+		eggs._set_shown(r, true)
+	for f in 10:
+		await process_frame
+	check(_map_state() == s0 and map.render_count == 1, "map unchanged with every egg out")
+	var lights := ["Landmarks/FireTower/Beacon", "Landmarks/Campsite/Glow", "Landmarks/Campsite/Flame", "EggSpots/FakeJunction"]
+	var ok := true
+	for path in lights:
+		var n := track.get_node_or_null(path) as VisualInstance3D
+		ok = ok and n != null and n.layers == EasterEggs.LAYER and (n.layers & MapController.CULL_MASK) == 0
+	check(ok, "beacon, campfire glow and flame, fake junction: 3D layer only")
+	check((main.cam.cull_mask & EasterEggs.LAYER) != 0, "the Navigator's camera does draw them")
+	eggs.force = {}
+	eggs.configure(4242)
+
+
+## Eye level, far off: the fire tower's haze copy lines up with the real
+## thing on screen.
+func test_tower_far_silhouette() -> void:
+	print("fire tower from far off")
+	var tower: Node3D = track.get_node("Landmarks/FireTower")
+	var c := track.centerline
+	var far_i := -1
+	for i in range(c.size() - 1, -1, -1):
+		var dd := Vector2(c[i].x - tower.global_position.x, c[i].z - tower.global_position.z).length()
+		if dd > 150.0 and dd < 220.0 and i < c.size() / 2:
+			far_i = i
+			break
+	await place(Transform3D(Basis.looking_at(c[far_i + 1] - c[far_i - 1], Vector3.UP), c[far_i] + Vector3(0, 0.6, 0)))
+	main.set_camera_mode(FollowCamera.Mode.CHASE)
+	main.cam.snap()
+	await process_frame
+	await process_frame
+	var pair: Array = main.eye_forest.tall[0]
+	var proxy: MeshInstance3D = pair[1]
+	var top := Vector3(0, 23.0, 0)
+	var cam: Camera3D = main.cam
+	var real_px := cam.unproject_position(tower.global_transform * top)
+	var proxy_px := cam.unproject_position(proxy.global_transform * top)
+	var dist := cam.global_position.distance_to(tower.global_position)
+	check(proxy.visible and dist > cam.far and proxy.layers == EasterEggs.LAYER, "%.0f m away, past the far plane: the haze copy is up" % dist)
+	check(real_px.distance_to(proxy_px) < 0.5 and cam.global_position.distance_to(proxy.global_transform * top) <= EyeForest.PROXY_R + 1.0, "and lands on the same pixels (%.2f px apart) inside the far plane" % real_px.distance_to(proxy_px))
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)

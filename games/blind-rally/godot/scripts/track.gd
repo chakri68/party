@@ -10,9 +10,15 @@ extends Node3D
 ##   track_checkpoint  Area3D, meta "index" = 1..n, traversal order.
 ##   track_recovery    Marker3D, meta "after_checkpoint" = 0..n (0 = start).
 ##   track_landmark    Node3D, meta "label". Visible in 3D and on the map.
+##                     Landmarks with meta "callout" are the smaller scenery
+##                     (fire tower, outhouse...): same group, a map icon each.
 ##   track_obstacle    StaticBody3D you can hit (buildings, logs, bales). Forest
 ##                     chunks are Scatter bodies here too, many trees per node.
 ##   track_road        StaticBody3D with meta "surface" (road, offroad, sand, ice).
+##   track_tall        A landmark tall enough to see from far off; meta
+##                     "proxy_mesh" is drawn as a haze silhouette (EyeForest).
+##   track_egg         Marker3D, meta "kind": where an easter egg can happen
+##                     (EasterEggs decides per seed).
 ##
 ## Ground: a Terrain child named "Ground" (optional; without one the world is
 ## flat at y = 0). height_at() is the floor everything stands on.
@@ -20,7 +26,8 @@ extends Node3D
 ## Physics layers: 1 world, 2 car, 3 triggers, 4 surface probes. Render layers:
 ## 1 world, 2 car and its effects (the static map camera never draws it),
 ## 3 map-only overlay (road ribbon, landmark icons; the 3D camera skips it),
-## 4 weather (clouds and mist: 3D view only, never the map).
+## 4 weather (clouds and mist: 3D view only, never the map), 5 easter eggs,
+## scenery lights and the fake junction (3D view only, never the map).
 
 signal checkpoint_entered(index: int, body: Node3D)
 signal finish_entered(body: Node3D)

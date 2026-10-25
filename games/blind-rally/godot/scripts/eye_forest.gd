@@ -25,6 +25,10 @@ extends Node3D
 ##   ever impostors: its baked meshes were 20-25 triangle cones already.
 ## - A treeline ring just inside the far plane, in the fog colour, so the
 ##   horizon down a long straight is distant forest, not sky.
+## - Tall landmarks (group track_tall: the fire tower) past PROXY_R: a copy
+##   of the mesh scaled about the camera onto PROXY_R, which projects to
+##   exactly the same silhouette, drawn in haze. The real one is past the fog
+##   (and soon the far plane) by then; this is how it's seen from far off.
 ##
 ## Built on demand, the first time a perspective camera is used (~0.5 s);
 ## a top-down-only session never pays for it.
@@ -40,6 +44,7 @@ const FLOOR_BAND := 8.0
 const ROAD_NEAR := 26.0 ## trees this close to the centreline get near detail
 const RING_R := 106.0 ## treeline ring radius; fog is total by 108, far plane 118
 const ROAD_GRID := 4.0
+const PROXY_R := 80.0 ## tall landmarks further than this are drawn as a haze silhouette on this radius
 
 ## Per baked tree mesh (Scatter.meshes order, build_pine_panic TREE_IDS):
 ## impostor width, height, drop the top tier (1 = two tiers).
@@ -59,6 +64,7 @@ var floor_mat: ShaderMaterial
 var far_mat: ShaderMaterial
 var ring: MeshInstance3D
 var counts := {} # for tests and the perf notes
+var tall: Array = [] # [landmark Node3D, its far silhouette MeshInstance3D]
 
 var _track: Track
 var _near := {} # Mesh -> {Vector2i bucket: PackedFloat32Array of x,y,z,yaw,s}
@@ -142,6 +148,22 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ring.extra_cull_margin = 200.0
 	add_child(ring)
+	var lm_shader := preload("res://shaders/far_landmark.gdshader")
+	for t in track.get_tree().get_nodes_in_group("track_tall"):
+		if not track.is_ancestor_of(t) or not t.has_meta("proxy_mesh"):
+			continue
+		var mi := MeshInstance3D.new()
+		mi.name = "Far" + String(t.name)
+		mi.mesh = t.get_meta("proxy_mesh")
+		var m := ShaderMaterial.new()
+		m.shader = lm_shader
+		m.set_shader_parameter("haze", fog_color)
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = 16 # 3D view only
+		mi.visible = false
+		add_child(mi)
+		tall.append([t, mi])
 
 
 ## Keeps the treeline ring round the camera (it never gets closer) and the
@@ -150,6 +172,7 @@ func follow(cam: Node3D, ground_y: float) -> void:
 	var p := cam.global_position
 	if ring:
 		ring.global_position = Vector3(p.x, ground_y, p.z)
+	_place_tall(p)
 	var fwd := -cam.global_basis.z
 	var yaw := atan2(fwd.x, fwd.z)
 	if _centre == Vector3.INF or Vector2(p.x - _centre.x, p.z - _centre.z).length() >= STREAM_STEP \
@@ -199,6 +222,25 @@ func refill(at: Vector3, fwd := Vector3.ZERO) -> void:
 		if n > 0:
 			mm.buffer = buf
 		mi.custom_aabb = AABB(Vector3(at.x - reach, at.y - 40.0, at.z - reach), Vector3(reach * 2.0, 80.0, reach * 2.0))
+
+
+## Scales each tall landmark about the camera onto PROXY_R once it's further
+## than that. Its haze matches the real one's depth fog at PROXY_R (main.gd:
+## fog 24-108 m, curve 1.25), thinning slowly past it so it never vanishes.
+func _place_tall(cam_p: Vector3) -> void:
+	for pair in tall:
+		var t: Node3D = pair[0]
+		var mi: MeshInstance3D = pair[1]
+		var aim := t.global_position + Vector3(0, 12.0, 0)
+		var d := cam_p.distance_to(aim)
+		mi.visible = d > PROXY_R
+		if not mi.visible:
+			continue
+		var k := PROXY_R / d
+		var about := Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * k), cam_p * (1.0 - k))
+		mi.global_transform = about * t.global_transform
+		var fog_at := pow(clampf((PROXY_R - 24.0) / 84.0, 0.0, 1.0), 1.25)
+		(mi.material_override as ShaderMaterial).set_shader_parameter("haze_k", minf(fog_at + (d - PROXY_R) / 2500.0, 0.8))
 
 
 ## Instances one streamed MultiMesh draws right now (tests).
