@@ -155,6 +155,11 @@ func register(mat: ShaderMaterial) -> void:
 	_apply_mist(mat)
 
 
+## A material that's going away (a ghost car that stopped coming).
+func unregister(mat: ShaderMaterial) -> void:
+	_mats.erase(mat)
+
+
 func materials() -> Array[ShaderMaterial]:
 	return _mats
 

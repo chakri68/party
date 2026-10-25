@@ -4,8 +4,8 @@ import { trackData } from "../server/geometry.ts";
 import { parseTrackFile, recoveryFor, trackFileProblems, trackProblems, type TrackData } from "../shared/track-data.ts";
 import { TRACKS } from "../shared/tracks-public.ts";
 
-// The track data contract (spec §14 "Track data contract tests"). The file is
-// hand-written for now; godot/tools/export_tracks.gd will write it, and these
+// The track data contract (spec §14 "Track data contract tests").
+// godot/tools/export_tracks.gd writes the file from the track scenes; these
 // are what the export has to pass.
 
 const tracks = () => structuredClone(file.tracks) as unknown as TrackData[];
@@ -59,7 +59,7 @@ describe("track contract", () => {
     expect(with_((t) => (t.checkpoints[1]!.position = [0, 0, -9_999]))).toContain("pine_panic: checkpoint 2 is outside the bounds");
     expect(with_((t) => (t.finish.position = [-9_999, 0, 0]))).toContain("pine_panic: finish is outside the bounds");
     expect(with_((t) => (t.recovery[3]!.position = [0, 0, 9_999]))).toContain("pine_panic: recovery anchor 3 is outside the bounds");
-    expect(with_((t) => (t.landmarks[0]!.position = [9_999, 0, 9_999]))).toContain("pine_panic: landmark wooden_bridge is outside the bounds");
+    expect(with_((t) => (t.landmarks[0]!.position = [9_999, 0, 9_999]))).toContain(`pine_panic: landmark ${pine().landmarks[0]!.id} is outside the bounds`);
     expect(with_((t) => (t.bounds.width = -1))).toContain("pine_panic: bounds must be {x, z, width > 0, depth > 0}");
   });
 

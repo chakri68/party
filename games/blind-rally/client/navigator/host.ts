@@ -15,11 +15,15 @@ import "./navigator.css";
 //   Godot cp / finish → `race.event` game-actions (the server checks order and position)
 //   phase, clock, reset hold, a dropped teammate → freeze / go race events
 //   the server's `recover` → a reset event naming the checkpoint to go back to
-//   assists: liveMarker goes to Godot in initSession; the trip meter and the
-//     pace notes are drawn here, in TS, from snapshots and the track data
+//   assists: liveMarker and camera3d (map-only) go to Godot in initSession; the
+//     trip meter and the pace notes are drawn here, in TS, from snapshots and
+//     the track data
 //   initSession from the navigator DTO (seed, clouds, camera, allowedCameras,
-//     teamNumber/teamColor/teamShape, ghosts)
-//   shared stage: rivals' `ghost` relays → receiveGhostSnapshot (seam: Godot side TBD)
+//     teamNumber/teamColor/teamShape, ghosts), plus `room: true` (Godot leaves
+//     recovery to the server and hides its debug HUD) and, for a reload
+//     mid-race, the checkpoints the server counted and what's left of a hold
+//   Godot's `fell` (out of the world, car parked) → race.reset with reason "fell"
+//   shared stage: rivals' `ghost` relays → receiveGhostSnapshot
 
 /** Without input from the Driver for this long mid-race, say so. Godot has already gone neutral. */
 const DRIVER_QUIET_MS = 1_000;
@@ -89,6 +93,8 @@ class NavigatorView implements RoleView {
         // Reliable and answered: a "no" (out of order, nowhere near) comes back through rejected().
         else if (e.kind === "cp" && typeof e.checkpointId === "number") api.act({ type: "race.event", kind: "cp", checkpointId: e.checkpointId });
         else if (e.kind === "finish") api.act({ type: "race.event", kind: "finish" });
+        // Godot's parked a car that dropped out of the world and won't move it on its own say-so.
+        else if (e.kind === "fell") api.act({ type: "race.reset", reason: "fell" });
       },
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
@@ -170,8 +176,11 @@ class NavigatorView implements RoleView {
     this.bridge.init(
       {
         ...session,
-        // A reloaded Navigator's car goes back to the anchor of what the server counted.
+        room: true,
+        // A reloaded Navigator's car goes back to the anchor of what the server counted,
+        // held for whatever's left of a reset's hold.
         checkpoints: run?.checkpoints ?? 0,
+        holdMs: Math.max(0, (run?.holdUntil ?? 0) - this.api.serverNow()),
         keyboard: false,
         autopilot: false,
         muted: !audio.settings.sound,

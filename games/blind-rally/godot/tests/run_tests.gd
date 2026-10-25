@@ -56,6 +56,19 @@ func _run() -> void:
 	await test_campers()
 	await test_eggs_off_the_map()
 	await test_tower_far_silhouette()
+	# M1 close: the room's rules (server-owned recovery), the track file,
+	# assists, ghosts, livery, HUD. Each restores the probe defaults after.
+	await test_server_reset()
+	await test_reload_mid_race()
+	await test_no_local_teleports()
+	test_track_export()
+	test_landmarks_exported()
+	await test_trip_meter_and_marker()
+	await test_map_only()
+	await test_ghosts()
+	await test_ghosts_no_collision()
+	test_team_paint()
+	await test_room_hud()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -1072,3 +1085,398 @@ func test_tower_far_silhouette() -> void:
 	check(proxy.visible and dist > cam.far and proxy.layers == EasterEggs.LAYER, "%.0f m away, past the far plane: the haze copy is up" % dist)
 	check(real_px.distance_to(proxy_px) < 0.5 and cam.global_position.distance_to(proxy.global_transform * top) <= EyeForest.PROXY_R + 1.0, "and lands on the same pixels (%.2f px apart) inside the far plane" % real_px.distance_to(proxy_px))
 	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+
+
+# --- M1 close ------------------------------------------------------------------
+
+const Export := preload("res://tools/export_tracks.gd")
+
+## Back to the probe's defaults: no room, all assists default, no ghosts.
+func _probe_session() -> void:
+	main._on_session({}, "")
+	main._on_race_event({"kind": "go"})
+	main.hold(0.0)
+	main._hold_left = 0.0
+	car.frozen = false
+	car.set_physics_process(true)
+	main.ghosts.clear()
+
+
+## Item 1: the server's `reset` names the checkpoint count; that count wins,
+## and the car stays put for holdMs even if a `go` arrives meanwhile.
+func test_server_reset() -> void:
+	print("server reset")
+	main._on_session({"room": true}, "")
+	main._on_race_event({"kind": "go"})
+	main.checkpoints_passed = 3 # Godot saw 3; the server only accepted 1
+	main._on_race_event({"kind": "reset", "checkpoint": 1, "holdMs": 1500})
+	var anchor := track.recovery_for(1).global_position
+	check(main.checkpoints_passed == 1 and main.bridge.checkpoint_hint == 1, "checkpoints_passed is the server's 1, not Godot's 3")
+	check(Vector2(car.global_position.x, car.global_position.z).distance_to(Vector2(anchor.x, anchor.z)) < 0.5, "car on anchor 1")
+	main._on_race_event({"kind": "go"})
+	await drive(1.2, 0.0, 1.0)
+	check(car.frozen and Vector2(car.global_position.x - anchor.x, car.global_position.z - anchor.z).length() < 0.5, "held on the anchor through the hold, a `go` notwithstanding")
+	await drive(0.6, 0.0, 1.0)
+	check(not car.frozen and car.forward_speed > 1.0, "and free once holdMs is up (%.1f m/s)" % car.forward_speed)
+	# A checkpoint as a JSON number (float) works the same.
+	main._on_race_event({"kind": "reset", "checkpoint": 4.0})
+	check(main.checkpoints_passed == 4, "checkpoint 4.0 from JSON reads as 4")
+	# The probe's reset button sends no checkpoint: Godot's own count.
+	_probe_session()
+	main.checkpoints_passed = 2
+	main._on_race_event({"kind": "reset"})
+	check(main.checkpoints_passed == 2 and car.global_position.distance_to(track.recovery_for(2).global_position) < 1.0, "no checkpoint in the event: Godot's count, as before")
+	main.checkpoints_passed = 0
+
+
+## Item 2: a reloaded Navigator's initSession carries the server's count and
+## what's left of the hold.
+func test_reload_mid_race() -> void:
+	print("reload mid-race")
+	main._on_session({"room": true, "checkpoints": 3, "holdMs": 700}, "")
+	var anchor := track.recovery_for(3)
+	check(main.checkpoints_passed == 3 and main.bridge.checkpoint_hint == 3, "picks up at 3 checkpoints")
+	check(car.global_position.distance_to(anchor.global_position) < 0.5, "car starts on anchor 3, not the spawn")
+	check(absf(angle_difference(car.global_rotation.y, anchor.global_rotation.y)) < 0.01, "facing down the road")
+	await drive(0.5, 0.0, 1.0)
+	check(car.frozen, "still held 0.5 s into a 0.7 s hold")
+	await drive(0.5, 0.0, 1.0)
+	check(not car.frozen, "released after it")
+	main._on_session({"room": true, "checkpoints": 99}, "")
+	check(main.checkpoints_passed == track.get_checkpoints().size(), "a count past the last gate is clamped")
+	main._on_session({"room": true, "checkpoints": 0}, "")
+	check(car.global_position.distance_to(track.get_spawn().global_position) < 0.5, "0 checkpoints: the spawn")
+	_probe_session()
+	main.checkpoints_passed = 0
+
+
+## Item 3: in the room, R does nothing and a fall out of the world parks the
+## car and asks the server, which answers with a reset.
+func test_no_local_teleports() -> void:
+	print("no local teleports in the room")
+	var asked: Array = []
+	var listen := func(ev: Dictionary) -> void: asked.append(ev)
+	main.bridge.physics_event.connect(listen)
+	main._on_session({"room": true}, "")
+	await place(track.get_spawn().global_transform)
+	await drive(1.0, 0.0, 1.0)
+	var p0 := car.global_position
+	var r0: int = main.recoveries
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_R
+	key.pressed = true
+	main._unhandled_key_input(key)
+	check(main.recoveries == r0 and car.global_position.distance_to(p0) < 0.5, "R does nothing")
+	# Drop it under the world.
+	var x := car.global_position.x
+	var z := car.global_position.z
+	car.reset_to(Transform3D(Basis.IDENTITY, Vector3(x, track.height_at(x, z) - 12.0, z)))
+	await idle(0.5)
+	var fell := asked.filter(func(e: Dictionary) -> bool: return e.kind == "fell")
+	check(main.recoveries == r0 and car.global_position.y < track.height_at(x, z) - 5.0, "fallen out: no teleport of its own")
+	check(fell.size() == 1, "asks the server once (%d)" % fell.size())
+	check(not car.is_physics_processing() and car.forward_speed == 0.0, "parked meanwhile: snapshots stay put")
+	await idle(3.0)
+	check(asked.filter(func(e: Dictionary) -> bool: return e.kind == "fell").size() == 2, "asks again if nobody answers in 3 s")
+	main._on_race_event({"kind": "reset", "checkpoint": 0, "holdMs": 0})
+	await idle(0.3)
+	check(car.global_position.distance_to(track.get_spawn().global_position) < 1.0 and car.is_physics_processing(), "the server's reset puts it back and lets it go")
+	var n := asked.size()
+	await idle(0.5)
+	check(asked.size() == n, "and the asking stops")
+	# The probe: the old local behaviour.
+	_probe_session()
+	await place(track.get_spawn().global_transform)
+	r0 = main.recoveries
+	main._unhandled_key_input(key)
+	check(main.recoveries == r0 + 1, "probe: R still resets")
+	car.reset_to(Transform3D(Basis.IDENTITY, Vector3(x, track.height_at(x, z) - 12.0, z)))
+	await idle(0.1)
+	check(main.recoveries == r0 + 2 and car.global_position.y > track.height_at(car.global_position.x, car.global_position.z) - 1.0, "probe: a fall-out still recovers locally")
+	main.bridge.physics_event.disconnect(listen)
+	main.checkpoints_passed = 0
+
+
+## Item 4: data/tracks.json is exactly what the exporter makes of the scene.
+func test_track_export() -> void:
+	print("track export")
+	var raw := FileAccess.get_file_as_string(ProjectSettings.globalize_path("res://../data/tracks.json").simplify_path())
+	var file: Variant = JSON.parse_string(raw)
+	check(file is Dictionary and int(file.version) == 1, "data/tracks.json parses, version 1")
+	var mine: Dictionary = Export.export_track(track)
+	var theirs: Dictionary = {}
+	for t in file.tracks:
+		if t.id == track.track_id:
+			theirs = t
+	check(JSON.parse_string(Export._fmt(mine, "")) == theirs, "the committed file is current (re-run tools/export_tracks.gd if not)")
+	check(mine.spawn.position == mine.recovery[0].position, "spawn and the start anchor agree")
+	var ok := true
+	var last := 0.0
+	for cp in mine.checkpoints:
+		# The builder's distance_m counts from the centreline's start; the file from the spawn.
+		var meta := float(track.get_checkpoints()[cp.id - 1].get_meta("distance_m")) - Export.project(track.centerline, Export.cumulative(track.centerline), track.get_spawn().global_position)
+		ok = ok and cp.distance > last and absf(cp.distance - meta) <= 2.0 and cp.radius == 8.0
+		last = cp.distance
+	check(ok, "checkpoints: in order, from the spawn, within 2 m of the builder's, radius 8")
+	check(mine.finish.distance == mine.length and mine.length > last, "length is the spawn-to-finish distance (%d m)" % mine.length)
+	var b: Dictionary = mine.bounds
+	check(b.x == snappedf(track.bounds.position.x, 0.01) and b.depth == snappedf(track.bounds.size.y, 0.01), "bounds are {x, z, width, depth} from Track.bounds")
+	var notes: Array = mine.paceNotes
+	var sorted := true
+	for i in range(1, notes.size()):
+		sorted = sorted and notes[i].distance >= notes[i - 1].distance
+	var corners := notes.filter(func(n: Dictionary) -> bool: return n.text.begins_with("LEFT") or n.text.begins_with("RIGHT") or n.text.begins_with("HAIRPIN"))
+	check(sorted and notes[0].text == "START" and notes[-1].text == "FINISH", "pace notes sorted, START to FINISH")
+	check(corners.size() >= 10, "%d corner calls from the centreline's radii" % corners.size())
+	# The tightest bend on the stage is the hairpin, and it's called as one.
+	var hp := notes.filter(func(n: Dictionary) -> bool: return n.text.begins_with("HAIRPIN"))
+	check(hp.size() == 1 and absf(hp[0].distance - 1771.0) < 30.0, "one HAIRPIN, at ~1770 m")
+
+
+## Item 9: every landmark, the seven callouts included, with stage distances.
+func test_landmarks_exported() -> void:
+	print("landmarks in the track file")
+	var mine: Dictionary = Export.export_track(track)
+	var by_id := {}
+	for m in mine.landmarks:
+		by_id[m.id] = m
+	var want := {"forestry_gate": 112, "wreck": 560, "fire_tower": 906, "hunting_stand": 1062, "log_landing": 1470, "outhouse": 2078, "campsite": 2214}
+	var ok := true
+	var spawn_at := Export.project(track.centerline, Export.cumulative(track.centerline), track.get_spawn().global_position)
+	for id in want:
+		ok = ok and by_id.has(id) and absf(by_id[id].distance - (want[id] - spawn_at)) <= 3.0
+	check(ok, "the 7 callouts, each within 3 m of its build distance less the spawn's %.0f m" % spawn_at)
+	check(by_id.has("wooden_bridge") and by_id.has("ranger_cabin") and by_id.has("sawmill") and mine.landmarks.size() == 10, "and the three big ones: 10 in all")
+	var labels: Array = mine.paceNotes.map(func(n: Dictionary) -> String: return n.text)
+	ok = true
+	for m in mine.landmarks:
+		ok = ok and labels.has(m.label)
+	check(ok, "each landmark has its own pace note")
+
+
+## Item 5a/b: tripMeter is honoured, and with the live marker off nothing on
+## the map moves for the car, whatever else changes.
+func test_trip_meter_and_marker() -> void:
+	print("trip meter and live marker")
+	main._on_session({"assists": {"liveMarker": false, "tripMeter": false, "paceNotes": false}}, "")
+	await process_frame # process_frame fires before _process: wait for the next one
+	await process_frame
+	check(not main.trip_meter and main.hud.text.contains("(assist off)"), "trip meter off: the probe HUD says so")
+	main._on_session({"assists": {"tripMeter": true}}, "")
+	await process_frame
+	await process_frame
+	check(main.trip_meter and not main.hud.text.contains("(assist off)"), "and on again")
+	main._on_session({"assists": {"liveMarker": false}}, "")
+	await place(track.get_spawn().global_transform)
+	var before := _map_tree_state()
+	await drive(1.5, 0.0, 1.0)
+	await drive(1.0, -1.0, 1.0)
+	for f in 3:
+		await process_frame
+	check(_map_tree_state() == before, "marker off: no node under the map moved, turned, scaled, showed or hid while driving")
+	main._on_race_event({"kind": "assists", "liveMarker": true})
+	await place(track.get_spawn().global_transform)
+	await drive(1.0, 0.0, 1.0)
+	await process_frame
+	check(map.gps_enabled and _map_tree_state() != before, "marker on (assists event): the marker, and only it, moves")
+	main._on_race_event({"kind": "assists", "liveMarker": false})
+	_probe_session()
+
+
+## Every CanvasItem under the map: where it is, turned, scaled, shown.
+func _map_tree_state() -> Array:
+	var out: Array = [map.get_global_rect()]
+	var stack: Array[Node] = [map]
+	while stack.size():
+		var n: Node = stack.pop_back()
+		if n is CanvasItem:
+			var ci := n as CanvasItem
+			out.append([n.name, ci.get_global_transform(), ci.visible, ci.modulate])
+		if n is SubViewport:
+			continue
+		for c in n.get_children():
+			stack.append(c)
+	return out
+
+
+## Item 5c: assists.camera3d off is spec §4.3's map-only mode.
+func test_map_only() -> void:
+	print("map only")
+	var small := map.get_global_rect()
+	main._on_session({"assists": {"liveMarker": false, "tripMeter": false, "paceNotes": false, "camera3d": false}}, "")
+	await process_frame
+	var vp := main.get_viewport()
+	check(main.map_only and vp.disable_3d, "Nightmare's assists: no 3D rendering at all")
+	var shade := main.get_node("UI/MapOnly") as Control
+	check(shade.visible and shade.get_index() < map.get_index(), "a backdrop and a MAP ONLY note under the map")
+	var r := map.get_global_rect()
+	var vs := vp.get_visible_rect().size
+	check(r.size.x > small.size.x * 1.5 and absf(r.get_center().x - vs.x * 0.5) < 2.0, "the map takes the screen, centred (%s)" % r)
+	var mode: int = main.cam.mode
+	main.cycle_camera()
+	check(main.cam.mode == mode, "Y does nothing")
+	await place(track.get_spawn().global_transform)
+	var before := _map_tree_state()
+	await drive(1.5, 0.5, 1.0)
+	await process_frame
+	check(_map_tree_state() == before, "map only, marker off: still nothing on the map moves")
+	check(car.global_position.distance_to(track.get_spawn().global_position) > 10.0, "the car still drives (it just can't be seen)")
+	main._on_race_event({"kind": "assists", "camera3d": true})
+	await process_frame
+	check(not vp.disable_3d and not shade.visible and map.get_global_rect() == small, "camera3d back on: 3D back, map back in its corner")
+	check(map.render_count == 1, "and the map was never re-rendered")
+	_probe_session()
+
+
+func _ghost_relay(team: int, p: Vector3, yaw := 0.0, color := "#56b4e9") -> Dictionary:
+	return {"t": "ghost", "teamId": team, "color": color, "tick": 1, "position": [p.x, p.y, p.z], "heading": yaw, "speed": 20.0}
+
+
+## Item 6: ghost cars.
+func test_ghosts() -> void:
+	print("ghosts")
+	var g: GhostCars = main.ghosts
+	main._on_session({"teamColor": "#e69f00", "teamNumber": 1, "teamShape": "circle", "ghosts": true}, "")
+	await place(track.get_spawn().global_transform)
+	g.set_process(false) # the test drives the clock
+	var mats0: int = main.weather.materials().size()
+	var o := car.global_position + Vector3(0, 0, -40)
+	g.clock = 10.0
+	g.receive(2, _ghost_relay(2, o))
+	g.clock = 10.1
+	g.receive(2, _ghost_relay(2, o + Vector3(10, 0, 0)))
+	g.clock = 10.2
+	g.receive(2, _ghost_relay(2, o + Vector3(20, 0, 0), 0.5))
+	var node := g.ghost_node(2)
+	check(g.count() == 1 and node != null, "a rival's snapshots make one ghost")
+	g.clock = 10.27
+	g._process(0.0)
+	check(absf(node.global_position.x - (o.x + 15.0)) < 0.05, "drawn 120 ms behind, interpolated (x %+.2f, want +15)" % (node.global_position.x - o.x))
+	check(absf(node.global_rotation.y - 0.25) < 0.01, "heading interpolated too (%.3f)" % node.global_rotation.y)
+	g.clock = 10.5
+	g._process(0.0)
+	check(absf(node.global_position.x - (o.x + 35.0)) < 0.05, "late snapshot: carries on 150 ms at most, then waits (x %+.2f)" % (node.global_position.x - o.x))
+	# Never on the map, in every camera.
+	var meshes := node.find_children("*", "VisualInstance3D", true, false)
+	var layers_ok := meshes.size() == 2
+	for m in meshes:
+		layers_ok = layers_ok and (m as VisualInstance3D).layers == GhostCars.LAYER and ((m as VisualInstance3D).layers & MapController.CULL_MASK) == 0
+	check(layers_ok, "one mesh and one number, render layer 6 only: the map camera never draws them")
+	check(node.find_children("*", "CollisionObject3D", true, false).is_empty() and node.find_children("*", "CollisionShape3D", true, false).is_empty(), "no physics body anywhere in a ghost")
+	var cams_ok := true
+	for mode in [FollowCamera.Mode.TOP_DOWN, FollowCamera.Mode.CHASE, FollowCamera.Mode.BONNET]:
+		main.set_camera_mode(mode)
+		await process_frame
+		cams_ok = cams_ok and (main.cam.cull_mask & GhostCars.LAYER) != 0
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	check(cams_ok, "top-down, chase and bonnet all draw layer 6")
+	# Team colour, team number.
+	var cols: PackedColorArray = (node.get_node("Body") as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+	var sky := Color("56b4e9")
+	var painted := 0
+	for c in cols:
+		if absf(c.h - sky.h) < 0.03 and c.s > 0.4:
+			painted += 1
+	check(painted > 500, "body in the rival's colour (%d sky-blue vertices)" % painted)
+	check((node.get_node("Number") as Label3D).text == "2", "with its team number")
+	# Fade by distance to our car.
+	var far_a := g.ghost_alpha(2)
+	for t in [10.6, 10.7, 10.8]:
+		g.clock = t
+		g.receive(2, _ghost_relay(2, car.global_position + Vector3(1.5, 0, 0)))
+	g.clock = 11.0
+	g._process(0.0)
+	var near_a := g.ghost_alpha(2)
+	check(far_a > 0.75 and near_a < 0.3, "faded beside our car (%.2f), solid-ish away from it (%.2f)" % [near_a, far_a])
+	# Junk, our own team, a disabled stage.
+	g.receive(3, {"position": [1, 2], "heading": 0.0})
+	g.receive(3, {"position": [1, NAN, 3], "heading": 0.0})
+	g.receive(1, _ghost_relay(1, o))
+	check(g.count() == 1, "malformed relays and our own team's are dropped")
+	check(main.weather.materials().size() == mats0 + 1, "one weather-registered material per ghost")
+	# Stops sending: gone.
+	g.clock = 13.1
+	g._process(0.0)
+	check(g.count() == 0 and main.weather.materials().size() == mats0, "despawned 2 s after its last snapshot, material released")
+	main._on_session({"ghosts": false}, "")
+	g.receive(2, _ghost_relay(2, o))
+	check(g.count() == 0, "solo stage (ghosts: false): relays ignored")
+	g.set_process(true)
+	_probe_session()
+
+
+## A ghost parked on the road ahead: we drive straight through it.
+func test_ghosts_no_collision() -> void:
+	print("ghosts don't collide")
+	var g: GhostCars = main.ghosts
+	await place(track.get_spawn().global_transform)
+	var ahead := car.global_position + fwd() * 12.0
+	g.receive(3, _ghost_relay(3, ahead, car.global_rotation.y, "#009e73"))
+	impacts.clear()
+	var start := car.global_position
+	for f in 150:
+		if f % 10 == 0:
+			g.receive(3, _ghost_relay(3, ahead, car.global_rotation.y, "#009e73"))
+		car.set_control(0.0, 1.0, 0.0)
+		await physics_frame
+	var moved := (car.global_position - start).dot(fwd())
+	check(moved > 20.0 and impacts.is_empty(), "through the ghost: %.0f m, no impact" % moved)
+	# Draw cost of a handful: each ghost is 2 instances (mesh + number).
+	for i in 3:
+		g.receive(4 + i, _ghost_relay(4 + i, ahead + Vector3(6 * i, 0, 0)))
+	var inst := 0
+	var tris := 0
+	for c in g.get_children():
+		for m in c.find_children("*", "MeshInstance3D", true, false):
+			inst += 1
+			var arr := (m as MeshInstance3D).mesh.surface_get_arrays(0)
+			var idx: Variant = arr[Mesh.ARRAY_INDEX]
+			tris += ((idx as PackedInt32Array).size() if idx else (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
+		inst += c.find_children("*", "Label3D", true, false).size()
+	print("    4 ghosts: %d instances, %d mesh triangles" % [inst, tris])
+	check(inst == 8, "4 ghosts = 8 instances (one mesh, one number each)")
+	check(tris > 4 * 1800 and tris < 4 * 2600, "the whole car in each merged mesh (%d triangles a ghost)" % (tris / 4))
+	g.clear()
+
+
+## Item 7: our own car in the team's livery.
+func test_team_paint() -> void:
+	print("team paint")
+	var body := car.get_node("Visual/Body") as MeshInstance3D
+	var baked: ArrayMesh = body.get_meta("baked_mesh", body.mesh)
+	var base: PackedColorArray = baked.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+	main._on_session({"teamColor": "#cc79a7", "teamNumber": 4, "teamShape": "diamond"}, "")
+	var cols: PackedColorArray = body.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+	var paint := 0
+	var kept := true
+	var hue_ok := true
+	for i in base.size():
+		if CarPaint.is_paint(base[i]):
+			paint += 1
+			hue_ok = hue_ok and absf(cols[i].h - Color("cc79a7").h) < 0.02
+		else:
+			kept = kept and cols[i] == base[i]
+	check(paint > 500 and hue_ok, "%d paint vertices, all in purple" % paint)
+	check(kept, "glass, trim and tyres untouched")
+	check((car.get_node("Visual/Body/Roundel/Number") as Label3D).text == "4", "number 4 on the roof")
+	check((car.get_node("Visual/Body/Roundel") as MeshInstance3D).mesh == CarPaint.plate_mesh("diamond"), "on a diamond plate")
+	main._on_session({"teamColor": "#56b4e9", "teamNumber": 2, "teamShape": "square"}, "")
+	var once := body.mesh
+	main._on_session({"teamColor": "#cc79a7", "teamNumber": 4, "teamShape": "diamond"}, "")
+	main._on_session({"teamColor": "#56b4e9", "teamNumber": 2, "teamShape": "square"}, "")
+	check(body.mesh == once, "repaints always start from the baked paint (no drift)")
+	main._on_session({"teamColor": "#e69f00", "teamNumber": 1, "teamShape": "nonsense"}, "")
+	check((car.get_node("Visual/Body/Roundel") as MeshInstance3D).mesh == CarPaint.plate_mesh("circle"), "an unknown shape gets a circle")
+	_probe_session()
+
+
+## Item 8: the debug HUD is the probe's, not the room's.
+func test_room_hud() -> void:
+	print("debug HUD")
+	main._on_session({"room": true}, "")
+	await process_frame
+	await process_frame
+	check(not main.hud.visible, "room build: hidden")
+	_probe_session()
+	await process_frame
+	check(main.hud.visible, "probe: shown")

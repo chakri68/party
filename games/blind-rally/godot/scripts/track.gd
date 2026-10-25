@@ -27,7 +27,8 @@ extends Node3D
 ## 1 world, 2 car and its effects (the static map camera never draws it),
 ## 3 map-only overlay (road ribbon, landmark icons; the 3D camera skips it),
 ## 4 weather (clouds and mist: 3D view only, never the map), 5 easter eggs,
-## scenery lights and the fake junction (3D view only, never the map).
+## scenery lights and the fake junction (3D view only, never the map), 6
+## shared-stage ghost cars (GhostCars: 3D view only, never the map).
 
 signal checkpoint_entered(index: int, body: Node3D)
 signal finish_entered(body: Node3D)

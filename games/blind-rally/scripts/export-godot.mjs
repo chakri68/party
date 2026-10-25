@@ -3,7 +3,8 @@
 //
 //   node games/blind-rally/scripts/export-godot.mjs [--no-export]
 //
-// 1. Exports into games/blind-rally/build/web/ (gitignored), copies the bridge
+// 1. Writes data/tracks.json from the track scenes (godot/tools/export_tracks.gd),
+//    then exports into games/blind-rally/build/web/ (gitignored), copies the bridge
 //    probe in as probe.html, and prints every file's size plus the brotli size
 //    of the .wasm. --no-export skips this and publishes whatever's there.
 // 2. Hashes the export (sha256 over names and bytes, first 10 hex) and copies
@@ -14,8 +15,7 @@
 //    The navigator chunk imports it, so one JS build names exactly one export
 //    and a stale .pck can't meet a fresh .wasm.
 //
-// Still to come: the data/tracks.json tool run (step 9) and the R2 upload of
-// the hash dir for deploys (D2). Dev just serves apps/web/public via Vite.
+// Still to come: the R2 upload of the hash dir for deploys (D2). Dev just serves apps/web/public via Vite.
 //
 // GODOT_BIN overrides the binary; otherwise `godot` on PATH, then ~/.local/bin/godot.
 
@@ -71,6 +71,9 @@ function exportWeb() {
 
   // Import first so a fresh clone (no .godot/) exports the same as a warm one.
   run(godot, ['--headless', '--path', project, '--import']);
+  // data/tracks.json comes from the same scenes the export packs (map §3.5),
+  // so the server's gates can't drift from the Navigator's.
+  run(godot, ['--headless', '--path', project, '--script', 'res://tools/export_tracks.gd']);
   const t0 = Date.now();
   run(godot, ['--headless', '--path', project, '--export-release', 'Web', join(out, 'index.html')]);
   console.log(`export took ${((Date.now() - t0) / 1000).toFixed(1)} s`);

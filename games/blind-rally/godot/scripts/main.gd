@@ -3,8 +3,9 @@ extends Node3D
 ## map and the web bridge. Race rules here are hints only; the server owns
 ## checkpoint order and timing (spec §5, §8).
 ##
-## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP,
-## M expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
+## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP
+## (probe and editor only: in the room a reset is the server's call), M
+## expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
 ## F dust and marks, L shadows, P debug autopilot, V cycle clouds,
 ## Y camera: top-down -> chase -> bonnet, skipping any not allowed.
 ##
@@ -15,6 +16,14 @@ extends Node3D
 ## three: a host setting or a sabotage can lock the Navigator to one view;
 ## Y only cycles through these, and a camera outside the list falls back to
 ## the first one in it).
+##
+## And from the room (client/navigator/host.ts): room (true: the server owns
+## recovery, so R is dead, a fall out of the world asks for a reset instead
+## of teleporting, and the debug HUD is hidden), checkpoints and holdMs (a
+## reloaded Navigator mid-race goes back to the anchor of what the server
+## counted, held that long), assists.tripMeter, assists.camera3d (false: the
+## map-only view, spec §4.3; Nightmare), teamColor / teamNumber / teamShape
+## (the livery), ghosts (shared stage: draw rivals from receiveGhostSnapshot).
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -41,6 +50,26 @@ var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pi
 var eye_forest: EyeForest ## built the first time a perspective camera is used
 var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
+## In the room (initSession `room`): the server decides where the car goes.
+var room := false
+## assists.tripMeter. Godot draws no trip meter of its own (the room's TS
+## chrome does); the debug HUD says when the assist is off.
+var trip_meter := true
+## assists.camera3d off: no 3D view at all, only the static map (spec §4.3).
+var map_only := false
+var team_number := 7
+var team_color := Color("1f6fe0")
+var team_shape := "circle"
+var ghosts: GhostCars
+var _server_frozen := false ## freeze / go from the room
+var _hold_left := 0.0 ## seconds the car stays held after a server reset
+var _fell_pending := false ## out of the world, waiting for the server's reset
+var _fell_retry := 0.0
+var _map_only_ui: Control
+var _map_layout := {} ## the map's anchors and offsets before map-only
+
+## Seconds between "fell" requests while the server hasn't answered.
+const FELL_RETRY_S := 3.0
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
 ## The eye-level sky and its haze, one family of colours: the depth fog is the
@@ -69,9 +98,15 @@ func _ready() -> void:
 	add_child(eggs)
 	eggs.setup(track, car)
 	eggs.configure(weather.seed_value)
+	ghosts = GhostCars.new()
+	ghosts.name = "Ghosts"
+	ghosts.car = car
+	ghosts.weather = weather
+	add_child(ghosts)
 	bridge.car = car
 	bridge.session_started.connect(_on_session)
 	bridge.race_event.connect(_on_race_event)
+	bridge.ghost_received.connect(ghosts.receive)
 	track.checkpoint_entered.connect(_on_checkpoint)
 	track.finish_entered.connect(_on_finish)
 	car.impact.connect(func(strength: float, _who: Object) -> void:
@@ -87,9 +122,12 @@ func _ready() -> void:
 	# The map is one render of the baked forest; a camera switch that lands
 	# before it (an early initSession) waits, so it can't hide those chunks
 	# from it.
+	_build_map_only_ui()
 	await map.render_static_map(track)
 	if _pending_mode >= 0:
 		set_camera_mode(_pending_mode)
+	if map_only:
+		set_map_only(true)
 
 
 ## The eye-level modes need what top-down never shows: a sky above the
@@ -160,6 +198,8 @@ func set_camera_mode(m: int) -> bool:
 
 ## Y: the next allowed camera after the current one.
 func cycle_camera() -> void:
+	if map_only:
+		return
 	for step in range(1, 4):
 		var m := (cam.mode + step) % 3
 		if allowed_cameras.has(m):
@@ -188,18 +228,42 @@ func set_allowed_cameras(names: Array) -> void:
 func _physics_process(dt: float) -> void:
 	if not finished:
 		race_time += dt
-	# Fell out of the world somehow: put it back where it would reset to.
+	_hold_left = maxf(0.0, _hold_left - dt)
+	car.frozen = _server_frozen or _hold_left > 0.0
+	# Fell out of the world somehow. Locally: put it back where it would reset
+	# to. In the room that teleport would be one the server never authorised
+	# (it'd refuse every snapshot after it), so park the car and ask; the
+	# server's `reset` event does the move.
 	var p := car.global_position
-	if p.y < track.height_at(p.x, p.z) - 5.0:
-		recover()
+	if _fell_pending:
+		_fell_retry -= dt
+		if _fell_retry <= 0.0:
+			_fell_retry = FELL_RETRY_S
+			bridge.emit_physics_event({"kind": "fell"})
+	elif p.y < track.height_at(p.x, p.z) - 5.0:
+		if room:
+			_fell_out()
+		else:
+			recover()
+
+
+func _fell_out() -> void:
+	_fell_pending = true
+	_fell_retry = 0.0
+	car.velocity = Vector3.ZERO
+	car.forward_speed = 0.0
+	car.set_physics_process(false)
 
 
 func _process(_dt: float) -> void:
 	if eye_forest and eye_forest.visible:
 		eye_forest.follow(cam, car.global_position.y)
-	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s%s" % [
+	hud.visible = not room
+	if not hud.visible:
+		return
+	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m%s\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s%s" % [
 		Engine.get_frames_per_second(), absf(car.forward_speed) * 3.6, car.surface,
-		car.distance_travelled, checkpoints_passed, track.get_checkpoints().size(),
+		car.distance_travelled, "" if trip_meter else " (assist off)", checkpoints_passed, track.get_checkpoints().size(),
 		"  FINISHED" if finished else "", _compass(car.global_rotation.y),
 		"on" if map.gps_enabled else "off", "up" if bridge.connected else "-",
 		"muted" if audio.muted else ("on" if audio.started else "tap to start"),
@@ -227,8 +291,12 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		return
 	match k.physical_keycode:
 		KEY_G: map.gps_enabled = not map.gps_enabled
-		KEY_R: recover()
-		KEY_M: _toggle_map()
+		KEY_R:
+			if not room:
+				recover()
+		KEY_M:
+			if not map_only:
+				_toggle_map()
 		KEY_C: cam.rotate_with_car = not cam.rotate_with_car
 		KEY_MINUS: cam.zoom(1.15)
 		KEY_EQUAL: cam.zoom(1.0 / 1.15)
@@ -251,8 +319,21 @@ func set_autopilot(on: bool) -> void:
 	bridge.forward_control = not on
 
 
-func recover() -> void:
+## Back to the anchor after `checkpoint` checkpoints, or after Godot's own
+## count when that's -1 (the probe's reset button, R, a local fall-out). With
+## a number it's the server's count and it becomes ours: a gate the server
+## refused has to be driven through again.
+func recover(checkpoint := -1) -> void:
 	recoveries += 1
+	if checkpoint >= 0:
+		checkpoints_passed = clampi(checkpoint, 0, track.get_checkpoints().size())
+		bridge.checkpoint_hint = checkpoints_passed
+	_place_on_anchor()
+
+
+func _place_on_anchor() -> void:
+	_fell_pending = false
+	car.set_physics_process(true)
 	car.reset_to(track.recovery_for(checkpoints_passed).global_transform)
 	cam.snap()
 	fx.reset_trail()
@@ -274,8 +355,26 @@ func _on_finish(body: Node3D) -> void:
 
 
 func _on_session(cfg: Dictionary, _seat: String) -> void:
-	var assists: Dictionary = cfg.get("assists", {})
-	map.gps_enabled = bool(assists.get("liveMarker", false))
+	room = bool(cfg.get("room", false))
+	var assists: Dictionary = cfg["assists"] if cfg.get("assists") is Dictionary else {}
+	_apply_assists(assists, true)
+	if cfg.get("teamColor") is String:
+		team_color = Color.from_string(cfg["teamColor"], team_color)
+		team_number = int(cfg["teamNumber"]) if (cfg.get("teamNumber") is float or cfg.get("teamNumber") is int) else team_number
+		team_shape = CarPaint.valid_shape(String(cfg.get("teamShape", CarPaint.shape_for(cfg["teamColor"]))))
+		CarPaint.apply(car, team_color, team_number, team_shape)
+		ghosts.own_team = team_number
+	ghosts.enabled = bool(cfg.get("ghosts", true))
+	if not ghosts.enabled:
+		ghosts.clear()
+	# A reloaded Navigator mid-race: back to the anchor of what the server
+	# counted, or it'd refuse every snapshot from wherever Godot spawned.
+	if cfg.get("checkpoints") is float or cfg.get("checkpoints") is int:
+		checkpoints_passed = clampi(int(cfg["checkpoints"]), 0, track.get_checkpoints().size())
+		bridge.checkpoint_hint = checkpoints_passed
+		finished = false
+		_place_on_anchor()
+		hold(float(cfg.get("holdMs", 0.0)) / 1000.0)
 	car.keyboard_enabled = bool(cfg.get("keyboard", false))
 	audio.muted = bool(cfg.get("muted", audio.muted))
 	if cfg.has("reducedMotion"):
@@ -297,13 +396,115 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 
 func _on_race_event(ev: Dictionary) -> void:
 	match String(ev.get("kind", "")):
-		"reset": recover()
-		"freeze": car.frozen = true
-		"go": car.frozen = false
+		"reset":
+			var n: Variant = ev.get("checkpoint")
+			recover(int(n) if (n is float or n is int) else -1)
+			hold(float(ev.get("holdMs", 0.0)) / 1000.0)
+		"freeze":
+			_server_frozen = true
+			car.frozen = true
+		"go":
+			_server_frozen = false
+			car.frozen = _hold_left > 0.0
 		"neutral": car.neutralize()
-		"assists": map.gps_enabled = bool(ev.get("liveMarker", map.gps_enabled))
+		"assists": _apply_assists(ev)
 		"autopilot": set_autopilot(bool(ev.get("on", false))) # debug, the probe's auto-drive
 		"weather": weather.configure(int(ev.get("seed", weather.seed_value)), float(ev.get("clouds", weather.clouds)))
+
+
+## Keeps the car held for `seconds` (a server reset's holdMs), whatever
+## freeze / go says meanwhile.
+func hold(seconds: float) -> void:
+	if seconds > 0.0:
+		_hold_left = maxf(_hold_left, seconds)
+		car.frozen = true
+
+
+## liveMarker, tripMeter, camera3d. A session starts from the defaults (no
+## marker, trip meter on, 3D on); an `assists` event changes only what it names.
+func _apply_assists(a: Dictionary, fresh := false) -> void:
+	map.gps_enabled = bool(a.get("liveMarker", false if fresh else map.gps_enabled))
+	trip_meter = bool(a.get("tripMeter", true if fresh else trip_meter))
+	set_map_only(not bool(a.get("camera3d", true if fresh else not map_only)))
+
+
+## Spec §4.3's 3D-camera-off: the root viewport stops drawing 3D altogether
+## and the static map takes the screen, centred, at a fixed size. Nothing
+## about that layout depends on the car. The car still drives, sounds and
+## sends snapshots; only the Navigator's eyes are gone.
+func set_map_only(on: bool) -> void:
+	map_only = on
+	if map.render_count == 0:
+		return # _ready applies it once the map exists; the map render needs the 3D world
+	get_viewport().disable_3d = on
+	_map_only_ui.visible = on
+	if on:
+		if _map_layout.is_empty():
+			_map_layout = {"al": map.anchor_left, "at": map.anchor_top, "ar": map.anchor_right, "ab": map.anchor_bottom,
+				"ol": map.offset_left, "ot": map.offset_top, "or": map.offset_right, "ob": map.offset_bottom}
+		_layout_map_only()
+	elif not _map_layout.is_empty():
+		var l := _map_layout
+		map.anchor_left = l.al
+		map.anchor_top = l.at
+		map.anchor_right = l.ar
+		map.anchor_bottom = l.ab
+		map.offset_left = l.ol
+		map.offset_top = l.ot
+		map.offset_right = l.or
+		map.offset_bottom = l.ob
+		_map_layout = {}
+		_map_expanded = false
+
+
+func _layout_map_only() -> void:
+	if not map_only:
+		return
+	var vs := get_viewport().get_visible_rect().size
+	var side := maxf(minf(vs.x, vs.y - 40.0) - 24.0, 120.0)
+	map.anchor_left = 0.5
+	map.anchor_right = 0.5
+	map.anchor_top = 0.5
+	map.anchor_bottom = 0.5
+	map.offset_left = -side * 0.5
+	map.offset_right = side * 0.5
+	map.offset_top = -side * 0.5 + 16.0
+	map.offset_bottom = side * 0.5 + 16.0
+
+
+func _build_map_only_ui() -> void:
+	var ui := map.get_parent()
+	var back := Control.new()
+	back.name = "MapOnly"
+	back.set_anchors_preset(Control.PRESET_FULL_RECT)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.visible = false
+	var bg := ColorRect.new()
+	bg.name = "Backdrop"
+	bg.color = Color(0.09, 0.11, 0.1)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.add_child(bg)
+	var note := Label.new()
+	note.name = "Note"
+	note.text = "MAP ONLY  ·  no 3D camera"
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	note.offset_left = -200
+	note.offset_right = 200
+	note.offset_top = 6
+	note.offset_bottom = 34
+	var ls := LabelSettings.new()
+	ls.font_size = 18
+	ls.font_color = Color(0.95, 0.75, 0.3)
+	ls.outline_size = 4
+	ls.outline_color = Color(0, 0, 0, 0.8)
+	note.label_settings = ls
+	back.add_child(note)
+	ui.add_child(back)
+	ui.move_child(back, 0) # under everything: the map, and the probe's HUD
+	_map_only_ui = back
+	get_viewport().size_changed.connect(_layout_map_only)
 
 
 func _toggle_map() -> void:

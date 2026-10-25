@@ -27,7 +27,7 @@ export const blindRallyRules: string[] = [
   "Stuck in a ditch? The Driver can reset to the last checkpoint. It costs 5 seconds, and the car sits still a moment first.",
   "Checkpoints count in order only, and the finish only counts after all of them.",
   "Lose a phone mid-race and your team's clock stops for up to 30 seconds while you reconnect. After that it's a DNF.",
-  "Assists: the host picks how much the Navigator gets. A live car marker on the map, a trip meter, printed pace notes. Classic is no marker, the other two on.",
+  "Assists: the host picks how much the Navigator gets. A live car marker on the map, a trip meter, printed pace notes, the 3D view itself. Classic is no marker, the rest on. Nightmare is all off: the Navigator gets a map and their wits.",
   "Solo stage: every car has its own copy of the road. Shared stage: one road, and Navigators see the other cars as ghosts that can't hit you. Following a rival is allowed. Following a lost rival is a choice.",
   "Each team has a colour, a shape and a number, on its car and its seats.",
   "Fastest time wins. Anyone still out there when the time runs out is DNF.",
@@ -39,7 +39,7 @@ const pickIndex = <T>(options: readonly T[], value: T) => Math.max(0, options.in
 const CAMERA_LABELS: Record<CameraPolicy, string> = { free: "Any", topdown: "Top-down", chase: "Chase", bonnet: "Bonnet" };
 const WEATHER_LABELS: Record<Weather, string> = { clear: "Clear", patchy: "Patchy cloud", murky: "Murky" };
 const PRESET_LABELS: Record<AssistPreset, string> = { beginner: "Beginner", classic: "Classic", nightmare: "Nightmare", custom: "Custom" };
-const ASSIST_LABELS: Record<keyof Assists, string> = { liveMarker: "Live car marker", tripMeter: "Trip meter", paceNotes: "Pace notes" };
+const ASSIST_LABELS: Record<keyof Assists, string> = { liveMarker: "Live car marker", tripMeter: "Trip meter", paceNotes: "Pace notes", camera3d: "3D camera" };
 const ASSIST_KEYS = Object.keys(ASSIST_LABELS) as (keyof Assists)[];
 const bool = (v: unknown) => typeof v === "boolean";
 
@@ -57,11 +57,13 @@ export function parseSettings(input: unknown): BlindRallySettings | null {
     ASSIST_PRESETS.includes(s.assists) &&
     ASSIST_KEYS.every((k) => bool(s[k]));
   if (!ok) return null;
-  const { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes } = s;
-  return { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes };
+  const { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
+  return { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes, camera3d };
 }
 
-const onOff = (a: Assists) => ASSIST_KEYS.map((k) => `${a[k] ? "" : "no "}${ASSIST_LABELS[k].toLowerCase()}`).join(", ");
+/** Mid-sentence: "Live car marker" reads "live car marker", "3D camera" stays as it is. */
+const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const onOff = (a: Assists) => ASSIST_KEYS.map((k) => `${a[k] ? "" : "no "}${lower(ASSIST_LABELS[k])}`).join(", ");
 
 /**
  * The rules as they'll be, in short lines: the preview everyone sees before
@@ -74,7 +76,7 @@ export function rulesPreview(raw: unknown): { label: string; value: string }[] {
     { label: "Stage", value: s.mode === "practice" ? "Practice, one pair" : s.stageMode === "shared" ? "Shared: one road, rivals as ghosts" : "Solo: a road each" },
     { label: "Time limit", value: `${s.timeLimit} min, then DNF` },
     { label: "Assists", value: `${PRESET_LABELS[s.assists]}: ${onOff(a)}` },
-    { label: "Navigator camera", value: s.camera === "free" ? "Any of the three" : `${CAMERA_LABELS[s.camera]} only` },
+    { label: "Navigator camera", value: !a.camera3d ? "None: map only" : s.camera === "free" ? "Any of the three" : `${CAMERA_LABELS[s.camera]} only` },
     { label: "Weather", value: WEATHER_LABELS[s.weather] },
     { label: "Reset", value: `+${RESET_PENALTY_MS / 1000} s, back to the last checkpoint` },
     { label: "Drop-outs", value: `Clock stops, ${RACE_GRACE_MS / 1000} s to get back` },
@@ -143,6 +145,7 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
           ],
           ...(k === "liveMarker" && { hint: s[k] ? "The Navigator's map shows the car" : "The map never moves: find yourselves" }),
           ...(k === "tripMeter" && { hint: "Metres driven, detours and all" }),
+          ...(k === "camera3d" && { hint: s[k] ? "The Navigator sees the car and the road" : "Map only. Punishing, on purpose" }),
         }))
       : []),
     {

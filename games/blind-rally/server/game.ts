@@ -128,7 +128,10 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
 
     case "race.reset": {
       const seat = seatOf(prev, playerId);
-      if (!seat || seat.role !== "driver") return reject("not-driver", "Only the Driver can reset the car.");
+      // The Driver's button, or the Navigator's Godot reporting the car fell out of the world
+      // (it parks the car and waits for this, rather than teleporting on its own).
+      const fell = action.reason === "fell" && seat?.role === "navigator";
+      if (!seat || (seat.role !== "driver" && !fell)) return reject("not-driver", "Only the Driver can reset the car.");
       if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Not while the car's parked.");
       if (seat.team.run!.away.length) return reject("paused", "Your team's paused until everyone's back.");
       const state = clone(prev);

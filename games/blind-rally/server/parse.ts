@@ -27,10 +27,11 @@ export function parseAction(input: unknown): BlindRallyAction | null {
         return { type: "race.event", kind: "cp", checkpointId: a.checkpointId as number };
       }
       return null;
+    case "race.reset":
+      return a.reason === "fell" ? { type: "race.reset", reason: "fell" } : { type: "race.reset" };
     case "team.leave":
     case "race.start":
     case "race.end":
-    case "race.reset":
       return { type: a.type };
     default:
       return null;

@@ -299,13 +299,15 @@ describe("parsing", () => {
     expect(parseAction({ type: "race.event", kind: "cp", checkpointId: "2" })).toBeNull();
     expect(parseAction({ type: "race.event", kind: "finish", checkpointId: 9 })).toEqual({ type: "race.event", kind: "finish" });
     expect(parseAction({ type: "race.event", kind: "impact" })).toBeNull();
+    expect(parseAction({ type: "race.reset", reason: "fell" })).toEqual({ type: "race.reset", reason: "fell" });
+    expect(parseAction({ type: "race.reset", reason: "bored" })).toEqual({ type: "race.reset" });
     expect(parseAction(null)).toBeNull();
   });
 
   it("settings", () => {
     expect(parseSettings(undefined)).toEqual({
       mode: "race", timeLimit: 5, camera: "free", weather: "patchy", stageMode: "solo",
-      assists: "classic", liveMarker: false, tripMeter: true, paceNotes: true,
+      assists: "classic", liveMarker: false, tripMeter: true, paceNotes: true, camera3d: true,
     });
     expect(parseSettings({ stageMode: "shared" })!.stageMode).toBe("shared");
     expect(parseSettings({ stageMode: "mixed" })).toBeNull();

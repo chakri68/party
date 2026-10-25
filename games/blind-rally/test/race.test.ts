@@ -114,6 +114,20 @@ describe("reset", () => {
     const s = game.onPlayerDisconnected!(one(), "p1", ctx(GO)).state;
     refused(s, "p0", { type: "race.reset" }, "paused", ctx(GO + 1));
   });
+
+  it("the Navigator's Godot may ask for one when the car's fallen out of the world, and pays the same", () => {
+    const { state, now } = passCheckpoints(one(), "p1", 1, GO);
+    // Not just because it'd like one, and never for a rival.
+    refused(state, "p1", { type: "race.reset" }, "not-driver", ctx(now));
+    refused(two(), "p3", { type: "race.reset", reason: "fell" }, "wrong-phase", ctx(COUNTDOWN_MS - 1));
+    const r = game.handleAction(state, "p1", { type: "race.reset", reason: "fell" }, ctx(now));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(run(r.transition.state)).toMatchObject({ resets: 1, penaltyMs: RESET_PENALTY_MS, movedAt: now, holdUntil: now + RESET_HOLD_MS });
+    expect(r.transition.events[1]).toEqual({ visibility: { kind: "private", playerId: "p1" }, event: { type: "recover", teamId: 1, checkpoint: 1, holdMs: RESET_HOLD_MS } });
+    // Godot's car reappears on anchor 1, and that jump is the one the server takes.
+    expect(game.onStream!(r.transition.state, "p1", snapAt(TRACK.recovery[1]!.position), ctx(now + 100))).not.toBeNull();
+  });
 });
 
 describe("DNF and results", () => {

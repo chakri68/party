@@ -8,6 +8,7 @@ extends Node
 ##   host.receiveControl({steer, throttle, brake, seq?})
 ##   host.initSession(roomConfig, seatToken)
 ##   host.receiveAuthoritativeRaceEvent(event)
+##   host.receiveGhostSnapshot(teamId, ghost)   shared stage: a rival's car
 ## and from our side:
 ##   host.emitSnapshot({tick, position, heading, velocity, speed, distance, checkpointHint, surface})
 ##   host.emitPhysicsEvent({kind, ...})
@@ -17,6 +18,9 @@ extends Node
 signal control_received(steer: float, throttle: float, brake: float)
 signal session_started(config: Dictionary, seat_token: String)
 signal race_event(event: Dictionary)
+signal ghost_received(team_id: int, ghost: Dictionary)
+## Every physics event Godot raises, sent to the host or not (tests listen here).
+signal physics_event(event: Dictionary)
 
 const SNAPSHOT_HZ := 10.0
 const HOST_POLL_S := 0.25
@@ -36,6 +40,7 @@ var _json: JavaScriptObject
 var _cb_control: JavaScriptObject
 var _cb_init: JavaScriptObject
 var _cb_event: JavaScriptObject
+var _cb_ghost: JavaScriptObject
 var _snap_accum := 0.0
 var _poll_accum := 0.0
 var _poll_total := 0.0
@@ -49,7 +54,11 @@ func _ready() -> void:
 		set_physics_process(false)
 		return
 	_json = JavaScriptBridge.get_interface("JSON")
-	_try_attach()
+	# Deferred: attaching calls host.ready(), and the room answers with
+	# initSession on the spot. This node is readied before main.gd, so an
+	# attach here would emit session_started before anyone listens, and the
+	# session (livery, assists, room, checkpoints) would be lost.
+	_try_attach.call_deferred()
 
 
 func _process(dt: float) -> void:
@@ -84,9 +93,11 @@ func _try_attach() -> void:
 	_cb_control = JavaScriptBridge.create_callback(_on_control)
 	_cb_init = JavaScriptBridge.create_callback(_on_init)
 	_cb_event = JavaScriptBridge.create_callback(_on_event)
+	_cb_ghost = JavaScriptBridge.create_callback(_on_ghost)
 	_host.receiveControl = _cb_control
 	_host.initSession = _cb_init
 	_host.receiveAuthoritativeRaceEvent = _cb_event
+	_host.receiveGhostSnapshot = _cb_ghost
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -110,6 +121,7 @@ func snapshot() -> Dictionary:
 
 
 func emit_physics_event(ev: Dictionary) -> void:
+	physics_event.emit(ev)
 	if connected:
 		_emit("emitPhysicsEvent", ev)
 
@@ -151,6 +163,16 @@ func _on_event(args: Array) -> void:
 	var parsed: Variant = JSON.parse_string(String(_json.stringify(args[0])))
 	if parsed is Dictionary:
 		race_event.emit(parsed)
+
+
+## (teamId, ghost). At up to 10 Hz per rival: still the JSON round trip,
+## since a JavaScriptObject's array fields don't come over as Arrays.
+func _on_ghost(args: Array) -> void:
+	if args.size() < 2 or not (args[1] is JavaScriptObject):
+		return
+	var parsed: Variant = JSON.parse_string(String(_json.stringify(args[1])))
+	if parsed is Dictionary:
+		ghost_received.emit(int(_num(args[0])), parsed)
 
 
 func _num(v: Variant) -> float:

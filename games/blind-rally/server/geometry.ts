@@ -6,9 +6,8 @@ import { parseTrackFile, type TrackData } from "../shared/track-data.ts";
 // claims. Validated at module load, so a bad export breaks the Worker's
 // startup, not the third checkpoint of someone's race.
 //
-// TODO(M1 step 9, Godot half): data/tracks.json is hand-written from
-// godot/tools/build_pine_panic.gd for now; godot/tools/export_tracks.gd
-// should write it from the scenes.
+// data/tracks.json is written by godot/tools/export_tracks.gd from the track
+// scenes (scripts/export-godot.mjs runs it on every export).
 
 const TRACKS: readonly TrackData[] = parseTrackFile(file);
 

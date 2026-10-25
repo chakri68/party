@@ -19,9 +19,8 @@ export type StageMode = "solo" | "shared";
 export type AssistPreset = "beginner" | "classic" | "nightmare" | "custom";
 
 /**
- * The M1 subset of spec §4.3's assists. The fourth, the 3D camera, is the
- * `camera` setting for now (Nightmare will switch it off once Godot has a
- * map-only mode).
+ * Spec §4.3's four assists. `camera` (the setting) says which 3D views are
+ * allowed; `camera3d` says whether there's a 3D view at all.
  */
 export interface Assists {
   /** The car's dot and heading on the static map. Off: the map never moves. */
@@ -30,6 +29,8 @@ export interface Assists {
   tripMeter: boolean;
   /** The printed, hand-scrolled notes. Never auto-advanced. */
   paceNotes: boolean;
+  /** The Navigator's 3D view. Off: the static map and nothing else (Godot's map-only mode). */
+  camera3d: boolean;
 }
 
 export interface BlindRallySettings {
@@ -44,6 +45,7 @@ export interface BlindRallySettings {
   liveMarker: boolean;
   tripMeter: boolean;
   paceNotes: boolean;
+  camera3d: boolean;
 }
 
 export const MODES: readonly Mode[] = ["race", "practice"];
@@ -54,14 +56,16 @@ export const WEATHERS: readonly Weather[] = ["clear", "patchy", "murky"];
 export const STAGE_MODES: readonly StageMode[] = ["solo", "shared"];
 export const ASSIST_PRESETS: readonly AssistPreset[] = ["beginner", "classic", "nightmare", "custom"];
 export const PRESET_ASSISTS: Record<Exclude<AssistPreset, "custom">, Assists> = {
-  beginner: { liveMarker: true, tripMeter: true, paceNotes: true },
-  classic: { liveMarker: false, tripMeter: true, paceNotes: true },
-  nightmare: { liveMarker: false, tripMeter: false, paceNotes: false },
+  beginner: { liveMarker: true, tripMeter: true, paceNotes: true, camera3d: true },
+  classic: { liveMarker: false, tripMeter: true, paceNotes: true, camera3d: true },
+  nightmare: { liveMarker: false, tripMeter: false, paceNotes: false, camera3d: false },
 };
 
 /** What the Navigator actually gets. */
 export function effectiveAssists(s: BlindRallySettings): Assists {
-  return s.assists === "custom" ? { liveMarker: s.liveMarker, tripMeter: s.tripMeter, paceNotes: s.paceNotes } : { ...PRESET_ASSISTS[s.assists] };
+  return s.assists === "custom"
+    ? { liveMarker: s.liveMarker, tripMeter: s.tripMeter, paceNotes: s.paceNotes, camera3d: s.camera3d }
+    : { ...PRESET_ASSISTS[s.assists] };
 }
 /** Godot's cloud intensity per setting (weather.gd: 0 none, 1 heavy). */
 export const CLOUDS: Record<Weather, number> = { clear: 0, patchy: 0.4, murky: 0.8 };
@@ -291,8 +295,12 @@ export type BlindRallyAction =
   | { type: "race.start" }
   /** Host: stop the race now and go to results (teams carry over). */
   | { type: "race.end" }
-  /** Driver: back to the last checkpoint, plus RESET_PENALTY_MS. */
-  | { type: "race.reset" }
+  /**
+   * Driver: back to the last checkpoint, plus RESET_PENALTY_MS. The
+   * Navigator's Godot may ask too, with `reason: "fell"`, when the car's
+   * dropped out of the world: same penalty, same anchor, server's say-so.
+   */
+  | { type: "race.reset"; reason?: "fell" }
   /**
    * Navigator's Godot: through a gate, or over the line. A game-action, not a
    * stream: it changes standings, has to survive an eviction, and the

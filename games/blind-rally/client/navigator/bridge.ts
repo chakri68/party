@@ -40,8 +40,8 @@ interface HostObject {
   receiveAuthoritativeRaceEvent?(event: { kind: string; [k: string]: unknown }): void;
   /**
    * Shared stage (spec §7.4): a rival car to draw as a non-colliding ghost in
-   * the 3D view only (never the map), interpolated ~100-150 ms behind. Not in
-   * web_bridge.gd yet; until it is, ghosts are dropped here.
+   * the 3D view only (never the map), interpolated ~120 ms behind
+   * (godot/scripts/ghosts.gd).
    */
   receiveGhostSnapshot?(teamId: number, snapshot: GhostRelay): void;
 }
