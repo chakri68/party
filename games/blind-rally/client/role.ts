@@ -1,6 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
 import type { GameClientApi } from "@games/ui";
-import { teamColor, type BlindRallyEvent, type BlindRallyPrivateState, type BlindRallyPublicState, type TeamColorKey } from "../shared/types.ts";
+import { teamColor, type BlindRallyEvent, type BlindRallyPrivateState, type BlindRallyPublicState, type PublicTeam, type TeamColorKey } from "../shared/types.ts";
 
 // The contract between view.ts and the two lazily loaded seats. view.ts only
 // knows this file's types; driver/ and navigator/ are separate chunks, so a
@@ -35,9 +35,30 @@ export function loadFonts(): void {
   document.head.append(link);
 }
 
-/** Team clock: time since the start, plus penalties. */
+/** Race clock: time since the start, the same for everyone. */
 export const raceElapsed = (game: BlindRallyPublicState, now: number) =>
   game.startsAt === null ? 0 : Math.max(0, Math.min(game.endedAt ?? now, game.endsAt ?? now) - game.startsAt);
+
+/**
+ * One team's clock, the way the server will score it: elapsed, minus any
+ * drop-out pause (frozen while it's running), plus penalties. Final once
+ * they've finished.
+ */
+export function teamClock(game: BlindRallyPublicState, team: PublicTeam | undefined, now: number): number {
+  if (!team) return raceElapsed(game, now);
+  if (team.timeMs !== null) return team.timeMs;
+  const end = Math.min(game.endedAt ?? now, game.endsAt ?? now);
+  const pausing = team.pausedSince !== null && game.startsAt !== null ? Math.max(0, end - Math.max(team.pausedSince, game.startsAt)) : 0;
+  return Math.max(0, raceElapsed(game, now) - team.pausedMs - pausing) + team.penaltyMs;
+}
+
+/** "Sam dropped out: 23 s to get back. Clock stopped." for whichever teammate's gone, or null. */
+export function awayBanner(team: PublicTeam | undefined, nameOf: (role: "driver" | "navigator") => string, now: number): string | null {
+  if (!team || !team.away.length || team.status !== "running") return null;
+  const who = team.away.map(nameOf).join(" and ");
+  const left = team.graceEndsAt === null ? 0 : Math.max(0, Math.ceil((team.graceEndsAt - now) / 1000));
+  return `${who} dropped out: ${left} s to get back. Clock stopped.`;
+}
 
 const SHAPES = {
   circle: '<circle cx="8" cy="8" r="6"/>',

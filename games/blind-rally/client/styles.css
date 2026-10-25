@@ -134,6 +134,14 @@
 .br-status { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--br-border); color: var(--br-muted); }
 .br-status-running { color: var(--br-accent); border-color: var(--br-accent); }
 .br-status-dnf { color: var(--br-warn); border-color: var(--br-warn); }
+.br-status.paused { color: var(--br-warn); border-color: var(--br-warn); }
+.br-status-finished { color: var(--br-text); border-color: var(--br-text); }
+.br-rules { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--br-border); border-radius: 10px; background: var(--br-panel); }
+.br-rules h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.br-rules h3::before { content: ">"; color: var(--br-accent); margin-right: 6px; }
+.br-rules dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12px; }
+.br-rules dt { color: var(--br-muted); }
+.br-rules dd { margin: 0; }
 
 /* ---- shared by both seats ------------------------------------------------ */
 
@@ -190,3 +198,7 @@
 @media (prefers-reduced-motion: reduce) {
   .blind-rally * { transition: none !important; animation: none !important; }
 }
+
+/* A dropped teammate, on both seats: the clock's stopped, the grace is counting. */
+.br-banner { margin: 0; padding: 6px 10px; border: 1px solid var(--br-warn); border-radius: 8px; color: var(--br-warn); background: rgb(255 106 43 / 0.08); font-size: 12px; text-align: center; }
+.br-banner[hidden] { display: none; }

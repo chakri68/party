@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "source": "TODO(M1 step 9, Godot half): hand-written from godot/tools/build_pine_panic.gd's scene (markers, centreline, landmarks) until godot/tools/export_tracks.gd writes this file",
+  "tracks": [
+    {
+      "id": "pine_panic",
+      "revision": 1,
+      "name": "Pine Panic",
+      "difficulty": "easy",
+      "length": 2260,
+      "par_seconds": null,
+      "bounds": { "x": -492, "z": -346.56, "width": 1002.92, "depth": 730.43 },
+      "spawn": { "position": [-438.17, 0.6, 352.73], "heading": -1.681 },
+      "checkpoints": [
+        { "id": 1, "position": [-196.79, 1.5, 200.85], "radius": 8, "distance": 376 },
+        { "id": 2, "position": [111.93, 1.5, 123.18], "radius": 8, "distance": 776 },
+        { "id": 3, "position": [-86.59, 1.5, -139.78], "radius": 8, "distance": 1154 },
+        { "id": 4, "position": [212.63, 0.33, -315.87], "radius": 8, "distance": 1554 },
+        { "id": 5, "position": [463.04, 3.38, -73.21], "radius": 8, "distance": 1954 }
+      ],
+      "finish": { "position": [417.91, 1.5, 179.96], "radius": 8, "distance": 2260 },
+      "recovery": [
+        { "afterCheckpoint": 0, "position": [-438.17, 0.6, 352.73], "heading": -1.681 },
+        { "afterCheckpoint": 1, "position": [-196.54, 0.59, 194.89], "heading": -0.185 },
+        { "afterCheckpoint": 2, "position": [112.05, 0.6, 117.18], "heading": -0.033 },
+        { "afterCheckpoint": 3, "position": [-85.36, 0.6, -145.65], "heading": -0.215 },
+        { "afterCheckpoint": 4, "position": [218.58, -0.21, -315.13], "heading": -1.653 },
+        { "afterCheckpoint": 5, "position": [462.96, 2.71, -67.21], "heading": -3.141 }
+      ],
+      "paceNotes": [
+        { "distance": 0, "text": "START" },
+        { "distance": 170, "text": "LEFT 4" },
+        { "distance": 370, "text": "RIGHT 3 long" },
+        { "distance": 460, "text": "RIGHT 5" },
+        { "distance": 525, "text": "RIGHT 5" },
+        { "distance": 650, "text": "bridge" },
+        { "distance": 700, "text": "LEFT 3 long" },
+        { "distance": 1150, "text": "RIGHT 3" },
+        { "distance": 1270, "text": "ranger cabin" },
+        { "distance": 1290, "text": "LEFT 4" },
+        { "distance": 1670, "text": "sawmill" },
+        { "distance": 1790, "text": "HAIRPIN LEFT" },
+        { "distance": 1850, "text": "RIGHT 3" },
+        { "distance": 2110, "text": "LEFT 2" },
+        { "distance": 2260, "text": "FINISH" }
+      ],
+      "landmarks": [
+        { "id": "wooden_bridge", "label": "wooden bridge", "position": [33.05, 0, 178.77], "distance": 660 },
+        { "id": "ranger_cabin", "label": "ranger cabin", "position": [11.06, -0.09, -141.01], "distance": 1270 },
+        { "id": "sawmill", "label": "sawmill", "position": [335.17, -0.1, -270.95], "distance": 1670 }
+      ]
+    }
+  ]
+}

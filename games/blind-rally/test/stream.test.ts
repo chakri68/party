@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseControl } from "../shared/wire.ts";
-import { COUNTDOWN_MS, type BlindRallyState } from "../shared/types.ts";
-import { act, ctx, game, newGame, racing } from "./helpers.ts";
+import { COUNTDOWN_MS, RESET_HOLD_MS, type BlindRallyState } from "../shared/types.ts";
+import { act, ctx, east, game, newGame, passCheckpoints, racing, SPAWN, snapAt, TRACK } from "./helpers.ts";
 
 // Two cars: p0 drives for p1, p2 drives for p3. The race opens at COUNTDOWN_MS.
 const GO = COUNTDOWN_MS;
@@ -75,12 +75,11 @@ describe("driver input relay", () => {
 });
 
 describe("navigator snapshots and impacts", () => {
-  const snap = { t: "snap", tick: 9, position: [12.5, 0.3, -88.1], heading: 1.2, velocity: [3, 0, 4], speed: 23.456, distance: 410, checkpointHint: 2, surface: "gravel" };
+  const snap = snapAt();
 
   it("reach the Driver as speed only: no position, nothing road-shaped", () => {
     const out = stream(two(), "p1", snap)!;
     expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 23.5 } }]);
-    expect(out.persist).toBe(false);
     const hit = stream(two(), "p1", { t: "ev", kind: "impact", strength: 2.37 })!;
     expect(hit.relays).toEqual([{ to: ["p0"], data: { t: "hit", strength: 2.4 } }]);
   });
@@ -94,15 +93,14 @@ describe("navigator snapshots and impacts", () => {
 });
 
 describe("shared stage ghosts", () => {
-  const snap = { t: "snap", tick: 9, position: [12.5, 0.3, -88.1], heading: 1.2, velocity: [3, 0, 4], speed: 23.4, distance: 410, checkpointHint: 2, surface: "gravel" };
+  const snap = snapAt(SPAWN, { speed: 23.4 });
   const three = (stageMode: "solo" | "shared") => racing([["p0", "p1"], ["p2", "p3"], ["p4", "p5"]], 6, { stageMode });
 
   it("go to the other teams' Navigators, and no Driver", () => {
     const out = stream(three("shared"), "p1", snap)!;
-    expect(out.persist).toBe(false);
     expect(out.relays).toEqual([
       { to: ["p0"], data: { t: "dash", speed: 23.4 } },
-      { to: ["p3", "p5"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: [12.5, 0.3, -88.1], heading: 1.2, speed: 23.4 } },
+      { to: ["p3", "p5"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 23.4 } },
     ]);
     const drivers = ["p0", "p2", "p4"];
     for (const r of out.relays!) if ((r.data as { t: string }).t === "ghost") expect(r.to.some((id) => drivers.includes(id))).toBe(false);
@@ -113,15 +111,103 @@ describe("shared stage ghosts", () => {
     expect(out.relays!.map((r) => (r.data as { t: string }).t)).toEqual(["dash"]);
   });
 
-  it("not to a car that's out of the race, and not from a snapshot without a position", () => {
+  it("not to a car that's out of the race", () => {
     const s = three("shared");
     s.teams[1]!.run!.status = "dnf";
     expect(stream(s, "p1", snap)!.relays![1]!.to).toEqual(["p5"]);
-    expect(stream(s, "p1", { t: "snap", speed: 3 })!.relays!.map((r) => (r.data as { t: string }).t)).toEqual(["dash"]);
   });
 
   it("tell the Navigator's Godot to expect them", () => {
     const nav = game.getPrivateState(three("shared"), "p3");
     expect(nav.role === "navigator" && nav.session.ghosts).toBe(true);
+  });
+});
+
+describe("snapshot plausibility (step 8)", () => {
+  const one = () => racing([["p0", "p1"]]);
+  const nav = (s: BlindRallyState, data: unknown, now: number) => stream(s, "p1", data, now);
+  /** A run whose last accepted snapshot is on the line at GO. */
+  const started = () => nav(one(), snapAt(), GO)!.state;
+
+  it("keeps the last accepted snapshot, by server time", () => {
+    const s = nav(started(), snapAt(east(20), { speed: 20, distance: 21 }), GO + 1_000)!.state;
+    expect(s.teams[0]!.run!.snap).toEqual({ at: GO + 1_000, tick: 9, position: east(20), speed: 20, distance: 21 });
+  });
+
+  it("the first one of a run has to be on the line", () => {
+    expect(nav(one(), snapAt(east(40)), GO)).toBeNull();
+    expect(nav(one(), snapAt(east(10)), GO)).not.toBeNull();
+  });
+
+  it("max speed × Δt, Δt measured on the server's clock with slack", () => {
+    const s = started();
+    // 1 s later: 45 m/s × (1 + 0.5 s) + 5 m = 72.5 m is the most it can have gone.
+    expect(nav(s, snapAt(east(70)), GO + 1_000)).not.toBeNull();
+    expect(nav(s, snapAt(east(75)), GO + 1_000)).toBeNull();
+    // The same 75 m two seconds on is fine: the server's clock decides, not Godot's tick.
+    expect(nav(s, snapAt(east(75), { tick: 10 }), GO + 2_000)).not.toBeNull();
+    // A long silence doesn't buy a long jump: Δt caps at 3 s.
+    expect(nav(s, snapAt(east(170)), GO + 60_000)).toBeNull();
+  });
+
+  it("refuses a teleport, and keeps refusing until the car's back where it was", () => {
+    let s = started();
+    expect(nav(s, snapAt(TRACK.checkpoints[2]!.position), GO + 100)).toBeNull();
+    // The refused one changed nothing: the next is still measured from the line.
+    s = nav(s, snapAt(east(5)), GO + 200)!.state;
+    expect(s.teams[0]!.run!.snap!.position).toEqual(east(5));
+  });
+
+  it("refuses an impossible speed, and anything off the map", () => {
+    const s = started();
+    expect(nav(s, snapAt(east(1), { speed: 46 }), GO + 100)).toBeNull();
+    expect(nav(s, snapAt(east(1), { speed: -46 }), GO + 100)).toBeNull();
+    expect(nav(s, snapAt(east(1), { speed: 44 }), GO + 100)).not.toBeNull();
+    expect(nav(s, snapAt([TRACK.bounds.x - 60, 0, SPAWN[2]]), GO + 3_000)).toBeNull();
+    // Malformed: no position, no heading, not numbers.
+    expect(nav(s, { t: "snap", speed: 3 }, GO + 100)).toBeNull();
+    expect(nav(s, snapAt(SPAWN, { heading: "north" }), GO + 100)).toBeNull();
+  });
+
+  it("a jump to the recovery anchor only right after a server-authorised reset", () => {
+    let s = started();
+    ({ state: s } = passCheckpoints(s, "p1", 2, GO));
+    const now = GO + 120_000;
+    const anchor = TRACK.recovery[2]!.position;
+    // Wander off, 180 m from the anchor: further than even a 3 s gap allows.
+    for (const at of [now - 2_000, now - 1_000, now]) s = nav(s, snapAt(east(60, s.teams[0]!.run!.snap!.position)), at)!.state;
+    expect(nav(s, snapAt(anchor), now + 100)).toBeNull(); // no reset, no jump
+    s = act(s, "p0", { type: "race.reset" }, ctx(now + 200));
+    const back = nav(s, snapAt(anchor), now + 300)!;
+    expect(back.state.teams[0]!.run!.snap!.position).toEqual(anchor);
+    // One jump per reset: the window closes once it's used.
+    expect(back.state.teams[0]!.run!.movedAt).toBeNull();
+    // Only to the anchor of the checkpoints the server counted, never further on.
+    expect(nav(s, snapAt(TRACK.recovery[4]!.position), now + 300)).toBeNull();
+    // And not long after: the window shuts after 10 s.
+    expect(nav(s, snapAt(anchor), now + 200 + 10_001)).toBeNull();
+  });
+
+  it("goes to storage at most once a second", () => {
+    let s = one();
+    const writes: boolean[] = [];
+    for (let i = 0; i < 25; i++) {
+      const out = nav(s, snapAt(east(i)), GO + i * 100)!;
+      writes.push(out.persist !== false);
+      s = out.state;
+    }
+    // 2.5 s of snapshots at 10 Hz: written at 0, 1 and 2 s.
+    expect(writes.flatMap((w, i) => (w ? [i] : []))).toEqual([0, 10, 20]);
+  });
+
+  it("the Driver still only ever hears the speed", () => {
+    const out = nav(started(), snapAt(east(10), { speed: 12.34 }), GO + 500)!;
+    expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 12.3 } }]);
+  });
+
+  it("Driver input is dropped while the car's held after a reset", () => {
+    const s = act(started(), "p0", { type: "race.reset" }, ctx(GO + 1_000));
+    expect(stream(s, "p0", input(1), GO + 1_000 + RESET_HOLD_MS - 1)).toBeNull();
+    expect(stream(s, "p0", input(1), GO + 1_000 + RESET_HOLD_MS)).not.toBeNull();
   });
 });

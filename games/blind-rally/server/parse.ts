@@ -20,6 +20,13 @@ export function parseAction(input: unknown): BlindRallyAction | null {
     }
     case "player.ready":
       return typeof a.ready === "boolean" ? { type: "player.ready", ready: a.ready } : null;
+    case "race.event":
+      if (a.kind === "finish") return { type: "race.event", kind: "finish" };
+      // Godot counts gates 1..n; nobody builds a track with a thousand.
+      if (a.kind === "cp" && Number.isInteger(a.checkpointId) && (a.checkpointId as number) >= 1 && (a.checkpointId as number) <= 999) {
+        return { type: "race.event", kind: "cp", checkpointId: a.checkpointId as number };
+      }
+      return null;
     case "team.leave":
     case "race.start":
     case "race.end":

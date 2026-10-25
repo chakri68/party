@@ -46,6 +46,30 @@ export function parseHit(input: unknown): HitRelay | null {
   return { t: "hit", strength: clamp(o.strength, 0, 10) };
 }
 
+/** What the server keeps from a Navigator snapshot: its own clean copy, before any plausibility check. */
+export interface ParsedSnapshot {
+  tick: number;
+  position: [number, number, number];
+  heading: number;
+  speed: number;
+  distance: number;
+}
+
+/** A Navigator's `snap`. Position, heading and speed are required; tick and the trip meter default to 0. */
+export function parseSnapshot(input: unknown): ParsedSnapshot | null {
+  const o = obj(input);
+  if (!o || o.t !== "snap") return null;
+  const p = o.position;
+  if (!Array.isArray(p) || p.length !== 3 || !p.every(finite) || !finite(o.heading) || !finite(o.speed)) return null;
+  return {
+    tick: Number.isInteger(o.tick) ? (o.tick as number) : 0,
+    position: [q(p[0] as number), q(p[1] as number), q(p[2] as number)],
+    heading: Math.round(o.heading * 1000) / 1000,
+    speed: Math.round(o.speed * 10) / 10,
+    distance: finite(o.distance) && o.distance >= 0 ? Math.round(o.distance * 10) / 10 : 0,
+  };
+}
+
 /** A shared-stage rival, on the Navigator's side. */
 export function parseGhost(input: unknown): GhostRelay | null {
   const o = obj(input);

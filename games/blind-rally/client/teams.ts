@@ -1,5 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
+import { rulesPreview } from "../shared/rules-text.ts";
 import { trackName } from "../shared/tracks-public.ts";
 import { formatClock } from "../shared/wire.ts";
 import { teamColor, type BlindRallyPublicState, type PublicTeam, type Role } from "../shared/types.ts";
@@ -108,7 +109,15 @@ export class TeamsScreen {
           "header",
           {},
           h("h3", {}, teamBadge(team)),
-          team.status ? h("span", { class: `br-status br-status-${team.status}` }, STATUS_LABEL[team.status], team.penaltyMs ? ` +${team.penaltyMs / 1000} s` : "") : null,
+          team.status
+            ? h(
+                "span",
+                { class: `br-status br-status-${team.status}${team.away.length ? " paused" : ""}` },
+                team.away.length && team.status === "running" ? "Paused" : STATUS_LABEL[team.status],
+                team.timeMs !== null ? ` ${formatClock(team.timeMs)}` : "",
+                team.penaltyMs ? ` +${team.penaltyMs / 1000} s` : "",
+              )
+            : null,
         ),
         seatCell(team, "driver"),
         seatCell(team, "navigator"),
@@ -156,6 +165,13 @@ export class TeamsScreen {
         h("p", { class: "br-sub" }, `${trackName(game.trackId)}, ${game.mode === "practice" ? "practice" : `${game.stageMode} stage race`}, ${game.timeLimitMs / 60_000} min`, this.clock),
       ),
       h("div", { class: "br-grid" }, game.teams.map(card)),
+      // Everyone sees the rules before they ready up (spec §4.3): the room's settings, in words.
+      h(
+        "section",
+        { class: "br-rules", "aria-label": "Rules for this race" },
+        h("h3", {}, editable ? "This race" : "Rules"),
+        h("dl", {}, rulesPreview(room.settings).flatMap((r) => [h("dt", {}, r.label), h("dd", {}, r.value)])),
+      ),
       spares.length
         ? h("div", { class: "br-spares" }, h("h3", {}, editable ? "Not in a car" : "Watching"), h("div", { class: "br-spare-list" }, spares.map((p) => person(p.id))))
         : null,

@@ -25,3 +25,12 @@
 .br-navigator .br-count { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-family: var(--br-pixel); font-size: clamp(56px, 18dvh, 120px); color: var(--br-accent); text-shadow: 0 0 28px rgb(255 176 0 / 0.6); }
 .br-navigator .br-count:empty { display: none; }
 .br-navigator .br-count:not(:empty):not(.go) { background: rgb(0 0 0 / 0.35); }
+.br-trip { font-variant-numeric: tabular-nums; color: var(--br-text); }
+.br-trip[hidden] { display: none; }
+.br-navigator .br-banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: rgb(0 0 0 / 0.75); z-index: 2; }
+/* Pace notes: a static list, scrolled by hand. Nothing here moves on its own (spec §4.3). */
+.br-notes { position: absolute; top: 8px; right: 8px; bottom: 8px; width: min(260px, calc(100% - 16px)); overflow-y: auto; padding: 10px 12px; background: rgb(0 0 0 / 0.82); border: 1px solid var(--br-border); border-radius: 10px; z-index: 1; scrollbar-width: thin; }
+.br-notes[hidden] { display: none; }
+.br-notes h3 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--br-accent); }
+.br-notes ol { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.br-note-at { display: inline-block; min-width: 4.5em; color: var(--br-muted); font-variant-numeric: tabular-nums; }

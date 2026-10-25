@@ -1,5 +1,5 @@
 import { blindRallyGame } from "@games/blind-rally/server";
-import type { BlindRallyPrivateState, BlindRallyPublicState } from "@games/blind-rally/shared";
+import type { BlindRallyPrivateState, BlindRallyPublicState, BlindRallyState } from "@games/blind-rally/shared";
 import { seededRandomInt, type AnyGameDefinition, type GameContext, type MatchContext } from "@games/game-core";
 import {
   CHAT_KEEP,
@@ -1141,7 +1141,64 @@ describe("game registry flags (map D1)", () => {
   });
 });
 
+/** Where Pine Panic's car starts: a run's first snapshot has to be there (data/tracks.json). */
+const PINE_PANIC_SPAWN = [-438.17, 0.6, 352.73];
+
 describe("Blind Rally through the room", () => {
+  /** Host, Driver and Navigator seated in car 1, the race started and the stage open. */
+  async function racingRoom() {
+    const world = new World();
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true }), "blind-rally");
+    await room.load();
+    await room.claim();
+    const [host, drv, nav] = [await join(world, room, "Ana"), await join(world, room, "Ben"), await join(world, room, "Cy")];
+    const act = (c: FakeConn, action: object) => send(room, c, { type: "game-action", clientActionId: "a", action });
+    await send(room, host, { type: "start-game" });
+    await act(drv, { type: "team.join", teamId: 1, role: "driver" });
+    await act(nav, { type: "team.join", teamId: 1, role: "navigator" });
+    await act(drv, { type: "player.ready", ready: true });
+    await act(nav, { type: "player.ready", ready: true });
+    await act(host, { type: "race.start" });
+    await world.tick(room, 3_000);
+    const pub = () => roomOf(host).game as BlindRallyPublicState;
+    return { world, room, host, drv, nav, act, pub };
+  }
+
+  it("a dropped Driver pauses the team and parks the car; 30 s on, the team's out and the race over, inside the room's own 60 s", async () => {
+    const { world, room, host, drv, nav, pub } = await racingRoom();
+    const drvToken = drv.last("welcome")!.resumeToken;
+    await world.tick(room, 10_000);
+    await world.disconnect(room, drv);
+    expect(pub().teams[0]).toMatchObject({ away: ["driver"], status: "running" });
+    // The Navigator's told to stop the car; nobody else hears it.
+    expect(nav.last("update")!.events).toContainEqual({ type: "park", teamId: 1 });
+    expect(host.last("update")!.events).toEqual([]);
+    // Back inside grace: resumed, with 5 s off the clock.
+    await world.tick(room, 5_000);
+    const back = await join(world, room, "Ben", drvToken);
+    expect(pub().teams[0]).toMatchObject({ away: [], pausedMs: 5_000 });
+    // Gone again, for good this time. The game's 30 s fires before the room's 60 s seat grace.
+    await world.disconnect(room, back);
+    await world.tick(room, 30_000);
+    expect(pub().teams[0]!.status).toBe("dnf");
+    expect(roomOf(host).phase).toBe("results");
+    expect(roomOf(host).seats.find((x) => x.name === "Ben")!.presence).toBe("reconnecting");
+    // The room's grace runs out later and only marks the seat; the result stands.
+    await world.tick(room, 30_000);
+    expect(roomOf(host).result!.standings[0]!.label).toMatch(/DNF, 0\/5 checkpoints \(35\.0 s paused off\)/);
+  });
+
+  it("a Navigator's checkpoint is a game-action: checked, persisted, and refused out of order", async () => {
+    const { world, room, nav, act } = await racingRoom();
+    await send(room, nav, { type: "stream", data: { t: "snap", speed: 0, position: PINE_PANIC_SPAWN, heading: 0 } });
+    await act(nav, { type: "race.event", kind: "cp", checkpointId: 2 });
+    expect(nav.last("action-rejected")).toMatchObject({ code: "out-of-order" });
+    await act(nav, { type: "race.event", kind: "cp", checkpointId: 1 });
+    expect(nav.last("action-rejected")).toMatchObject({ code: "too-far" });
+    const saved = world.store.get("room") as { game: { state: BlindRallyState } };
+    expect(saved.game.state.teams[0]!.run!.snap!.position).toEqual(PINE_PANIC_SPAWN);
+  });
+
   it("seats a pair, counts down, and relays the Driver's input to their Navigator only, without a write", async () => {
     const world = new World();
     const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true }), "blind-rally");
@@ -1180,7 +1237,7 @@ describe("Blind Rally through the room", () => {
     expect(JSON.stringify(world.store.get("room"))).toBe(writes);
 
     // And the Navigator's snapshot reaches the Driver as a speed, nothing more.
-    await send(room, nav, { type: "stream", data: { t: "snap", speed: 10, position: [1, 2, 3], heading: 0 } });
+    await send(room, nav, { type: "stream", data: { t: "snap", speed: 10, position: PINE_PANIC_SPAWN, heading: 0 } });
     expect(drv.of("stream")).toEqual([{ type: "stream", from: idn, data: { t: "dash", speed: 10 } }]);
     expect(host.of("stream")).toEqual([]);
 

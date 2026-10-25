@@ -1,9 +1,10 @@
 import { audio } from "@games/audio";
 import { h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
-import type { NavigatorSession } from "../../shared/types.ts";
-import { raceElapsed, teamBadge, type RoleProps, type RoleView } from "../role.ts";
+import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
+import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { GodotBridge } from "./bridge.ts";
+import { navigatorTrack } from "./track.ts";
 import "./navigator.css";
 
 // The Navigator's screen (spec §4.2): the Godot course, edge to edge, with a
@@ -11,7 +12,11 @@ import "./navigator.css";
 // to this file. Its jobs:
 //   Driver's `in` relays → receiveControl
 //   Godot snapshots / impacts → `snap` / `ev` streams (the server reduces them for the Driver)
-//   phase and clock → freeze / go race events
+//   Godot cp / finish → `race.event` game-actions (the server checks order and position)
+//   phase, clock, reset hold, a dropped teammate → freeze / go race events
+//   the server's `recover` → a reset event naming the checkpoint to go back to
+//   assists: liveMarker goes to Godot in initSession; the trip meter and the
+//     pace notes are drawn here, in TS, from snapshots and the track data
 //   initSession from the navigator DTO (seed, clouds, camera, allowedCameras,
 //     teamNumber/teamColor/teamShape, ghosts)
 //   shared stage: rivals' `ghost` relays → receiveGhostSnapshot (seam: Godot side TBD)
@@ -33,6 +38,12 @@ class NavigatorView implements RoleView {
   private team = h("span", { class: "br-teamtag" });
   private driver = h("span", { class: "br-link", role: "status" });
   private clock = h("span", { class: "br-nclock" });
+  /** Metres driven, from Godot's snapshots: detours count (spec §4.3). */
+  private trip = h("span", { class: "br-trip", title: "Distance actually driven, wrong turns included" });
+  private notesBtn = h("button", { type: "button", class: "br-back", "aria-expanded": "false" }, "Notes");
+  /** Static and hand-scrolled: never advanced or highlighted, which would give the car away. */
+  private notes = h("aside", { class: "br-notes", "aria-label": "Pace notes", hidden: true });
+  private banner = h("p", { class: "br-banner", role: "alert" });
   private back = h("button", { type: "button", class: "br-back" }, "Not ready");
   /** The host readies up too; Start has to be reachable from the seat. */
   private start = h("button", { type: "button", class: "br-start-seat primary" }, "Start race");
@@ -43,8 +54,8 @@ class NavigatorView implements RoleView {
   private root = h(
     "div",
     { class: "br-navigator" },
-    h("div", { class: "br-strip" }, this.team, this.driver, this.clock, this.back, this.start, this.end),
-    h("div", { class: "br-view" }, this.stage, this.boot, this.count, this.msg),
+    h("div", { class: "br-strip" }, this.team, this.driver, this.trip, this.clock, this.notesBtn, this.back, this.start, this.end),
+    h("div", { class: "br-view" }, this.stage, this.boot, this.count, this.notes, this.banner, this.msg),
   );
 
   /** What Godot has last been told, so each race event is sent once. */
@@ -54,6 +65,8 @@ class NavigatorView implements RoleView {
   private liveSince = 0;
   private ticker: ReturnType<typeof setInterval>;
   private seenEvents = new WeakSet<object>();
+  private tripM: number | null = null;
+  private notesFor: string | null = null;
 
   constructor(api: GameClientApi) {
     this.api = api;
@@ -66,17 +79,25 @@ class NavigatorView implements RoleView {
         this.boot.replaceChildren(h("p", {}, why), h("p", { class: "br-dim" }, "The Driver can't move until this loads."));
       },
       snapshot: (s) => {
+        if (typeof s.distance === "number") this.tripM = s.distance;
         // Only mid-race: the server drops anything else, so why send it.
         if (this.live()) api.stream({ ...s, t: "snap" });
       },
       physics: (e) => {
-        if (e.kind === "impact" && this.live()) api.stream({ t: "ev", kind: "impact", strength: e.strength });
-        // cp / finish become game-actions in step 10; Godot's own count is a hint until then.
+        if (!this.live()) return;
+        if (e.kind === "impact") api.stream({ t: "ev", kind: "impact", strength: e.strength });
+        // Reliable and answered: a "no" (out of order, nowhere near) comes back through rejected().
+        else if (e.kind === "cp" && typeof e.checkpointId === "number") api.act({ type: "race.event", kind: "cp", checkpointId: e.checkpointId });
+        else if (e.kind === "finish") api.act({ type: "race.event", kind: "finish" });
       },
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
     this.end.addEventListener("click", () => confirm("End the race now? Anyone still out is DNF.") && api.act({ type: "race.end" }));
+    this.notesBtn.addEventListener("click", () => {
+      this.notes.hidden = !this.notes.hidden;
+      this.notesBtn.setAttribute("aria-expanded", String(!this.notes.hidden));
+    });
     this.ticker = setInterval(() => this.tick(), 100);
   }
 
@@ -103,10 +124,17 @@ class NavigatorView implements RoleView {
     for (const ev of props.events) {
       if (this.seenEvents.has(ev)) continue;
       this.seenEvents.add(ev);
-      // The server's said yes to the Driver's reset; Godot puts the car back on its last checkpoint.
-      if (ev.type === "reset" && ev.teamId === props.private.teamId) {
-        this.bridge.event({ kind: "reset" });
-        this.msg.textContent = `Reset: +${ev.penaltyMs / 1000} s so far.`;
+      if (ev.type === "reset" && ev.teamId === props.private.teamId) this.msg.textContent = `Reset: +${ev.penaltyMs / 1000} s so far.`;
+      // The server's said yes to the Driver's reset: back to the anchor after the checkpoint
+      // *it* counted, held for holdMs (tick() freezes until private.run.holdUntil too).
+      if (ev.type === "recover" && ev.teamId === props.private.teamId) {
+        this.bridge.event({ kind: "reset", checkpoint: ev.checkpoint, holdMs: ev.holdMs });
+        this.frozen = null;
+      }
+      // The Driver's gone: stop the car now, not after Godot's input timeout.
+      if (ev.type === "park" && ev.teamId === props.private.teamId) {
+        this.bridge.event({ kind: "neutral" });
+        this.frozen = null;
       }
     }
     this.tick();
@@ -135,13 +163,15 @@ class NavigatorView implements RoleView {
 
   private sendSession() {
     const session = this.session();
+    this.renderNotes(session);
     if (this.sessionSent || !session || !this.bridge.isReady) return;
     this.sessionSent = true;
+    const run = this.props!.private.role === "navigator" ? this.props!.private.run : null;
     this.bridge.init(
       {
         ...session,
-        // M1 has no assists yet (step 11): the static map, no live marker.
-        assists: { liveMarker: false },
+        // A reloaded Navigator's car goes back to the anchor of what the server counted.
+        checkpoints: run?.checkpoints ?? 0,
         keyboard: false,
         autopilot: false,
         muted: !audio.settings.sound,
@@ -153,13 +183,43 @@ class NavigatorView implements RoleView {
     this.tick();
   }
 
+  private myTeam(): PublicTeam | undefined {
+    const p = this.props;
+    return p?.game.teams.find((t) => t.id === p.private.teamId);
+  }
+
+  /** The server would take our snapshots now: the stage is open, the run's on, nobody's dropped. */
   private live(): boolean {
     const p = this.props;
     if (!p) return false;
     const g = p.game;
     const now = this.api.serverNow();
-    const run = g.teams.find((t) => t.id === p.private.teamId)?.status;
-    return (g.phase === "countdown" || g.phase === "racing") && run === "running" && g.startsAt !== null && g.endsAt !== null && now >= g.startsAt && now < g.endsAt;
+    const team = this.myTeam();
+    return (g.phase === "countdown" || g.phase === "racing") && team?.status === "running" && !team.away.length && g.startsAt !== null && g.endsAt !== null && now >= g.startsAt && now < g.endsAt;
+  }
+
+  /** live(), and the car's not being held on its anchor after a reset. */
+  private canMove(): boolean {
+    const p = this.props;
+    return this.live() && p?.private.role === "navigator" && this.api.serverNow() >= p.private.run.holdUntil;
+  }
+
+  /** The printed notes for this track, once; or nothing, if the assist's off. */
+  private renderNotes(session: NavigatorSession | null) {
+    const on = !!session?.assists.paceNotes;
+    this.notesBtn.hidden = !on;
+    if (!on) {
+      this.notes.hidden = true;
+      return;
+    }
+    if (this.notesFor === session!.trackId) return;
+    this.notesFor = session!.trackId;
+    const track = navigatorTrack(session!.trackId);
+    this.notes.replaceChildren(
+      h("h3", {}, "Pace notes"),
+      h("p", { class: "br-dim" }, "Distances are along the clean line. Your trip meter counts what you actually drove."),
+      h("ol", {}, (track?.paceNotes ?? []).map((n) => h("li", {}, h("span", { class: "br-note-at" }, `${n.distance} m`), " ", n.text))),
+    );
   }
 
   private tick() {
@@ -168,17 +228,25 @@ class NavigatorView implements RoleView {
     const g = p.game;
     const now = this.api.serverNow();
     const live = this.live();
+    const move = this.canMove();
     if (live && !this.liveSince) this.liveSince = performance.now();
     if (!live) this.liveSince = 0;
 
-    // The car sits still until the server's start time, and again once the run's over.
-    if (this.bridge.isReady && this.sessionSent && this.frozen !== !live) {
-      this.frozen = !live;
-      this.bridge.event({ kind: live ? "go" : "freeze" });
+    // The car sits still until the server's start time, while it's held after a reset,
+    // while a teammate's dropped, and again once the run's over.
+    if (this.bridge.isReady && this.sessionSent && this.frozen !== !move) {
+      this.frozen = !move;
+      this.bridge.event({ kind: move ? "go" : "freeze" });
     }
 
-    const team = g.teams.find((t) => t.id === p.private.teamId);
-    this.clock.textContent = g.phase === "teams" ? "" : formatClock(raceElapsed(g, now) + (team?.penaltyMs ?? 0));
+    const team = this.myTeam();
+    this.clock.textContent = g.phase === "teams" ? "" : formatClock(teamClock(g, team, now));
+    const tripOn = !!this.session()?.assists.tripMeter;
+    this.trip.hidden = !tripOn || g.phase === "teams";
+    if (tripOn) this.trip.textContent = `trip ${this.tripM === null ? "-" : this.tripM < 1000 ? `${Math.round(this.tripM)} m` : `${(this.tripM / 1000).toFixed(2)} km`}`;
+    const banner = awayBanner(team, (r) => (r === "driver" ? "Your Driver" : "You"), now);
+    this.banner.hidden = !banner;
+    if (banner && this.banner.textContent !== banner) this.banner.textContent = banner;
     this.back.hidden = g.phase !== "teams";
     this.start.hidden = g.phase !== "teams" || p.room.hostId !== p.playerId;
     this.start.disabled = g.startBlocker !== null;

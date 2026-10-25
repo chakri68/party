@@ -1,7 +1,7 @@
 import { audio } from "@games/audio";
 import { h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseDash, parseHit } from "../../shared/wire.ts";
-import { raceElapsed, teamBadge, type RoleProps, type RoleView } from "../role.ts";
+import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { teamColor } from "../../shared/types.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Controls, Sender, type Control } from "./input.ts";
@@ -47,6 +47,8 @@ class DriverView implements RoleView {
   private clockSub = h("span", { class: "br-clock-sub" });
   private reset = h("button", { type: "button", class: "br-reset" }, "Reset car");
   private msg = h("p", { class: "br-msg", "aria-live": "polite" });
+  /** A teammate's dropped: the clock's stopped and the car's parked. */
+  private banner = h("p", { class: "br-banner", role: "alert", hidden: true });
   private count = h("div", { class: "br-count", "aria-live": "assertive" });
   /** Ready put you here; this takes you back to the teams screen until the race starts. */
   private back = h("button", { type: "button", class: "br-back" }, "Not ready");
@@ -61,6 +63,7 @@ class DriverView implements RoleView {
     this.dash.el,
     h("div", { class: "br-clock" }, this.clock, this.clockSub),
     this.reset,
+    this.banner,
     this.msg,
   );
   private root = h("div", { class: "br-driver" }, this.steer, this.cockpit, this.pedals, this.count);
@@ -167,8 +170,9 @@ class DriverView implements RoleView {
     if (!p) return false;
     const g = p.game;
     const now = this.api.serverNow();
-    const run = g.teams.find((t) => t.id === p.private.teamId)?.status;
-    return (g.phase === "countdown" || g.phase === "racing") && run === "running" && g.startsAt !== null && g.endsAt !== null && now >= g.startsAt && now < g.endsAt;
+    const team = g.teams.find((t) => t.id === p.private.teamId);
+    // A paused team's input is dropped by the server anyway: stop sending it.
+    return (g.phase === "countdown" || g.phase === "racing") && team?.status === "running" && !team.away.length && g.startsAt !== null && g.endsAt !== null && now >= g.startsAt && now < g.endsAt;
   }
 
   private tick() {
@@ -193,11 +197,16 @@ class DriverView implements RoleView {
     // Clock: elapsed plus penalties, like the timing board will show it.
     const team = g.teams.find((t) => t.id === p.private.teamId);
     const penalty = team?.penaltyMs ?? 0;
-    this.clock.textContent = formatClock(raceElapsed(g, now) + penalty);
+    this.clock.textContent = formatClock(teamClock(g, team, now));
+    const banner = awayBanner(team, (r) => (r === "navigator" ? "Your Navigator" : "You"), now);
+    this.banner.hidden = !banner;
+    if (banner && this.banner.textContent !== banner) this.banner.textContent = banner;
     this.clockSub.textContent = g.phase === "teams"
       ? `${g.timeLimitMs / 60_000} min limit`
       : g.phase === "finished"
         ? team?.status === "dnf" ? "DNF" : "Finished"
+        : team?.status === "finished" ? "Finished"
+        : team?.status === "dnf" ? "DNF"
         : `${penalty ? `+${penalty / 1000} s · ` : ""}${formatClock(Math.max(0, (g.endsAt ?? now) - Math.max(now, g.startsAt ?? now)))} left`;
 
     // Countdown and GO, from the server's start time; the phase may still say countdown after it.

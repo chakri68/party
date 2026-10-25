@@ -3,7 +3,7 @@ import { parseAction } from "../server/parse.ts";
 import { canMove } from "../server/phases.ts";
 import { seatOf } from "../server/teams.ts";
 import { blindRallySettingFields, parseSettings } from "../shared/rules-text.ts";
-import { COUNTDOWN_MS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
+import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
 import { act, ctx, game, newGame, racing, refused } from "./helpers.ts";
 
 const pub = (s: ReturnType<typeof newGame>) => game.getPublicState(s) as BlindRallyPublicState;
@@ -42,7 +42,7 @@ describe("phases", () => {
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
     expect(s.phase).toBe("finished");
     expect(s.teams[0]!.run!.status).toBe("dnf");
-    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(["Team 1 · DNF", "Team 1 · DNF"]);
+    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(["1st · Team 1 · DNF, 0/5 checkpoints", "1st · Team 1 · DNF, 0/5 checkpoints"]);
   });
 
   it("the start asks for both timers: the go and the time limit", () => {
@@ -255,7 +255,11 @@ describe("reset", () => {
     t = act(t, "p0", { type: "race.reset" }, ctx(COUNTDOWN_MS + 10));
     expect(t.teams[0]!.run).toMatchObject({ resets: 2, penaltyMs: 2 * RESET_PENALTY_MS });
     const r = game.handleAction(t, "p0", { type: "race.reset" }, ctx(COUNTDOWN_MS + 20));
-    expect(r.ok && r.transition.events).toEqual([{ visibility: { kind: "public" }, event: { type: "reset", teamId: 1, penaltyMs: 3 * RESET_PENALTY_MS } }]);
+    expect(r.ok && r.transition.events).toEqual([
+      { visibility: { kind: "public" }, event: { type: "reset", teamId: 1, penaltyMs: 3 * RESET_PENALTY_MS } },
+      // Where to, only for the Navigator: it names a checkpoint.
+      { visibility: { kind: "private", playerId: "p1" }, event: { type: "recover", teamId: 1, checkpoint: 0, holdMs: RESET_HOLD_MS } },
+    ]);
   });
 });
 
@@ -290,11 +294,19 @@ describe("parsing", () => {
     expect(parseAction({ type: "player.ready", ready: "yes" })).toBeNull();
     expect(parseAction({ type: "race.start", extra: 1 })).toEqual({ type: "race.start" });
     expect(parseAction({ type: "teleport" })).toBeNull();
+    expect(parseAction({ type: "race.event", kind: "cp", checkpointId: 2, extra: 1 })).toEqual({ type: "race.event", kind: "cp", checkpointId: 2 });
+    expect(parseAction({ type: "race.event", kind: "cp", checkpointId: 0 })).toBeNull();
+    expect(parseAction({ type: "race.event", kind: "cp", checkpointId: "2" })).toBeNull();
+    expect(parseAction({ type: "race.event", kind: "finish", checkpointId: 9 })).toEqual({ type: "race.event", kind: "finish" });
+    expect(parseAction({ type: "race.event", kind: "impact" })).toBeNull();
     expect(parseAction(null)).toBeNull();
   });
 
   it("settings", () => {
-    expect(parseSettings(undefined)).toEqual({ mode: "race", timeLimit: 5, camera: "free", weather: "patchy", stageMode: "solo" });
+    expect(parseSettings(undefined)).toEqual({
+      mode: "race", timeLimit: 5, camera: "free", weather: "patchy", stageMode: "solo",
+      assists: "classic", liveMarker: false, tripMeter: true, paceNotes: true,
+    });
     expect(parseSettings({ stageMode: "shared" })!.stageMode).toBe("shared");
     expect(parseSettings({ stageMode: "mixed" })).toBeNull();
     expect(parseSettings({ timeLimit: 4 })).toBeNull();

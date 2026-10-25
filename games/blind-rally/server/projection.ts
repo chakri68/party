@@ -1,12 +1,15 @@
 import {
   CAMERA_MODES,
   CLOUDS,
+  effectiveAssists,
   teamColor,
   type BlindRallyPrivateState,
   type BlindRallyPublicState,
   type BlindRallyState,
   type CameraMode,
 } from "../shared/types.ts";
+import { trackData } from "./geometry.ts";
+import { effectiveTime } from "./race.ts";
 import { captainOf, seatOf, startBlocker } from "./teams.ts";
 
 // Three audiences (spec §8.2, map §2). Public and Driver DTOs are built from
@@ -29,6 +32,12 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
       status: t.run?.status ?? null,
       resets: t.run?.resets ?? 0,
       penaltyMs: t.run?.penaltyMs ?? 0,
+      pausedMs: t.run?.pausedMs ?? 0,
+      pausedSince: t.run?.pausedSince ?? null,
+      away: t.run ? [...t.run.away] : [],
+      graceEndsAt: t.run?.graceEndsAt ?? null,
+      // Checkpoints stay server-side until the results: a Driver mustn't count gates (spec §4.1).
+      timeMs: t.run?.status === "finished" ? effectiveTime(state, t.run, t.run.finishedAt!) : null,
     })),
     players: state.players.map((p) => ({ id: p.id, ready: p.ready })),
     startsAt: state.startsAt,
@@ -59,6 +68,12 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
       teamColor: teamColor(team.color).hex,
       teamShape: teamColor(team.color).shape,
       ghosts: state.settings.stageMode === "shared",
+      assists: effectiveAssists(state.settings),
+    },
+    run: {
+      checkpoints: team.run?.cp ?? 0,
+      checkpointCount: trackData(state.trackId).checkpoints.length,
+      holdUntil: team.run?.holdUntil ?? 0,
     },
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as shared from "../shared/index.ts";
 import { COUNTDOWN_MS, type BlindRallyState } from "../shared/types.ts";
-import { act, ctx, game, newGame, racing } from "./helpers.ts";
+import { act, ctx, driveTo, finishRun, game, newGame, passCheckpoints, racing, snapAt, TRACK } from "./helpers.ts";
 
 // Spec §8.2: the Driver (and anyone looking at public state) never gets road
 // geometry, the map, checkpoints, the car's position or the notes. This walks
@@ -14,15 +14,26 @@ const DENY = [
   /coord/i,
   /heading|yaw|rotation|velocity/i,
   /geometry|mesh|terrain|bounds|centre?line/i,
-  /checkpoint|^cps?$|waypoint|spawn|recovery|anchor/i,
-  /notes?$|pace/i,
+  /checkpoint|^cps?$|waypoint|spawn|recovery|anchor|gate|radius|finishLine/i,
+  /notes?$|pace|callout/i,
   /map|landmark|route|path/i,
   /distance|trip|progress|surface/i,
   // The weather follows the race clock from this seed: mist positions over the road.
   /seed|cloud|weather/i,
 ];
 
+/**
+ * Keys the deny-list would catch that are meant to be public: the assist
+ * switches in the rules preview, which say *whether* there are pace notes,
+ * not what they say. Booleans only.
+ */
+const ALLOWED_FLAGS = new Set(["tripMeter", "paceNotes"]);
+
+/** The track's own words: a pace note or a landmark showing up anywhere is a leak, whatever the key. */
+const TRACK_WORDS = [...TRACK.paceNotes.map((n) => n.text), ...TRACK.landmarks.map((l) => l.label)].filter((w) => !/^(START|FINISH)$/.test(w));
+
 function leaks(value: unknown, path = "$"): string[] {
+  if (typeof value === "string") return TRACK_WORDS.filter((w) => value.includes(w)).map((w) => `${path} says "${w}"`);
   if (Array.isArray(value)) {
     // A pair or triple of numbers is a coordinate whatever it's called.
     if (value.length >= 2 && value.length <= 3 && value.every((v) => typeof v === "number")) return [`${path} looks like a coordinate`];
@@ -30,7 +41,7 @@ function leaks(value: unknown, path = "$"): string[] {
   }
   if (value && typeof value === "object") {
     return Object.entries(value).flatMap(([k, v]) => [
-      ...(DENY.some((re) => re.test(k)) ? [`${path}.${k}`] : []),
+      ...(DENY.some((re) => re.test(k)) && !(ALLOWED_FLAGS.has(k) && typeof v === "boolean") ? [`${path}.${k}`] : []),
       ...leaks(v, `${path}.${k}`),
     ]);
   }
@@ -38,7 +49,11 @@ function leaks(value: unknown, path = "$"): string[] {
 }
 
 const GO = COUNTDOWN_MS;
-const snap = { t: "snap", tick: 1, position: [1, 2, 3], heading: 0.5, velocity: [1, 0, 1], speed: 12, distance: 99, checkpointHint: 1, surface: "grass" };
+const snap = snapAt();
+
+/** Events a Driver or a spare would get: public ones, and private ones addressed to them. */
+const seenBy = (events: { visibility: { kind: string; playerId?: string }; event: unknown }[], ids: string[]) =>
+  events.filter((e) => e.visibility.kind === "public" || ids.includes(e.visibility.playerId!)).map((e) => e.event);
 
 /** One game, walked through every phase, with input, snapshots and a reset along the way. */
 function everyPhase(stageMode: "solo" | "shared" = "solo"): BlindRallyState[] {
@@ -53,8 +68,18 @@ function everyPhase(stageMode: "solo" | "shared" = "solo"): BlindRallyState[] {
   states.push(s);
   s = game.onTimer!(s, "go", ctx(GO)).state;
   s = game.onStream!(s, "p0", { t: "in", seq: 3, steer: 1, throttle: 1, brake: 0 }, ctx(GO))!.state;
-  s = game.onStream!(s, "p1", snap, ctx(GO))?.state ?? s;
+  s = game.onStream!(s, "p1", snap, ctx(GO))!.state;
   s = act(s, "p0", { type: "race.reset" }, ctx(GO + 1));
+  states.push(s);
+  // Team 1 through two gates, team 2's Driver drops out and back.
+  let now: number;
+  ({ state: s, now } = passCheckpoints(s, "p1", 2, GO + 2_000));
+  states.push(s);
+  s = game.onPlayerDisconnected!(s, "p2", ctx(now)).state;
+  states.push(s);
+  s = game.onPlayerReconnected!(s, "p2", ctx(now + 5_000)).state;
+  // Team 1 home; team 2 still out there.
+  ({ state: s, now } = finishRun(s, "p1", now + 5_000));
   states.push(s);
   s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
   states.push(s);
@@ -83,6 +108,9 @@ describe("projection deny-list", () => {
     for (const s of [...everyPhase("solo"), ...everyPhase("shared")]) {
       for (const id of ["p0", "p2", "p4"]) expect(leaks(game.getPrivateState(s, id)), `${s.phase} ${id}`).toEqual([]);
     }
+    // And the Navigator's does get what it's for, so the walker's not just blind.
+    const nav = game.getPrivateState(everyPhase()[4]!, "p1");
+    expect(nav.role === "navigator" && nav.run.checkpoints).toBe(2);
   });
 
   it("only Drivers and spares get those DTOs: p0 drives, p4 is spare", () => {
@@ -91,14 +119,29 @@ describe("projection deny-list", () => {
     expect(game.getPrivateState(s, "p4").role).toBeNull();
   });
 
-  it("events everyone sees are clean", () => {
-    let s = racing([["p0", "p1"]]);
+  it("events a Driver or spare can see are clean: resets, gates, drop-outs, finishes, the end", () => {
+    const viewers = ["p0", "p2", "p4"];
+    let s = racing([["p0", "p1"], ["p2", "p3"]], 5);
     const r = game.handleAction(s, "p0", { type: "race.reset" }, ctx(GO));
     expect(r.ok).toBe(true);
-    if (r.ok) {
-      s = r.transition.state;
-      expect(leaks(r.transition.events)).toEqual([]);
-    }
+    if (!r.ok) return;
+    s = r.transition.state;
+    expect(leaks(seenBy(r.transition.events, viewers))).toEqual([]);
+    // The recover event names a checkpoint: it's the Navigator's alone.
+    expect(r.transition.events.find((e) => e.event.type === "recover")!.visibility).toEqual({ kind: "private", playerId: "p1" });
+    const dc = game.onPlayerDisconnected!(s, "p0", ctx(GO + 10));
+    expect(leaks(seenBy(dc.events, viewers))).toEqual([]);
+    s = game.onPlayerReconnected!(dc.state, "p0", ctx(GO + 20)).state;
+    let now: number;
+    ({ state: s, now } = passCheckpoints(s, "p1", 1, GO + 2_000));
+    const at = driveTo(s, "p1", TRACK.checkpoints[1]!.position, now);
+    const cp = game.handleAction(at.state, "p1", { type: "race.event", kind: "cp", checkpointId: 2 }, ctx(at.now));
+    expect(cp.ok && leaks(seenBy(cp.transition.events, viewers))).toEqual([]);
+    const fin = finishRun(s, "p1", now);
+    const out = game.onPlayerDisconnected!(fin.state, "p3", ctx(fin.now));
+    const grace = game.onTimer!(out.state, "grace:2", ctx(fin.now + 30_000));
+    expect(leaks(seenBy(grace.events, viewers))).toEqual([]);
+    expect(grace.events.map((e) => e.event.type)).toEqual(["team-out", "race-over"]);
     expect(leaks(game.onTimer!(s, "time-up", ctx(s.endsAt!)).events)).toEqual([]);
   });
 
@@ -119,5 +162,15 @@ describe("projection deny-list", () => {
   it("the eagerly bundled shared module carries no track internals", () => {
     expect(leaks(shared.TRACKS)).toEqual([]);
     for (const t of shared.TRACKS) expect(Object.keys(t).sort()).toEqual(["difficulty", "id", "name", "par_seconds"]);
+    // The track-data contract and its loaders stay out of it: they're for server/ and navigator/.
+    for (const name of ["parseTrackFile", "trackProblems", "trackFileProblems", "recoveryFor", "trackData"]) expect(shared).not.toHaveProperty(name);
+    // No pace note or landmark in it either (its settings constants are fine: they're not the road).
+    const text = JSON.stringify(shared);
+    for (const w of TRACK_WORDS) expect(text).not.toContain(w);
+  });
+
+  it("the rules preview says which assists are on, never what's in them", () => {
+    for (const assists of ["beginner", "classic", "nightmare"] as const) expect(leaks(shared.rulesPreview({ assists }))).toEqual([]);
+    for (const s of everyPhase()) expect(leaks(game.getPublicState(s))).toEqual([]);
   });
 });

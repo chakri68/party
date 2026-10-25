@@ -14,8 +14,22 @@ import {
 import { parseAction } from "./parse.ts";
 import { GO, TIME_UP } from "./phases.ts";
 import { privateState, publicState } from "./projection.ts";
-import { endRace, liveRun, onRaceStream, resetCar, startCountdown, type Out } from "./race.ts";
-import { carryOf, fitTeams, members, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
+import {
+  checkGate,
+  endRace,
+  GRACE_TIMER,
+  liveRun,
+  onRaceStream,
+  passGate,
+  playerAway,
+  playerBack,
+  resetCar,
+  startCountdown,
+  teamOut,
+  type Out,
+} from "./race.ts";
+import { result } from "./scoring.ts";
+import { carryOf, fitTeams, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
 
 type State = BlindRallyState;
 
@@ -116,9 +130,25 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const seat = seatOf(prev, playerId);
       if (!seat || seat.role !== "driver") return reject("not-driver", "Only the Driver can reset the car.");
       if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Not while the car's parked.");
+      if (seat.team.run!.away.length) return reject("paused", "Your team's paused until everyone's back.");
       const state = clone(prev);
       const out = newOut();
-      resetCar(seatOf(state, playerId)!.team, out);
+      resetCar(seatOf(state, playerId)!.team, ctx.now, out);
+      return { ok: true, transition: done(state, out) };
+    }
+
+    case "race.event": {
+      const seat = seatOf(prev, playerId);
+      if (!seat || seat.role !== "navigator") return reject("not-navigator", "Only the Navigator's course reports gates.");
+      if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Not while the car's parked.");
+      const run = seat.team.run!;
+      if (run.away.length) return reject("paused", "Your team's paused until everyone's back.");
+      const claim = action.kind === "cp" ? { kind: "cp" as const, checkpointId: action.checkpointId } : { kind: "finish" as const };
+      const error = checkGate(prev, run, claim, ctx.now);
+      if (error) return { ok: false, error };
+      const state = clone(prev);
+      const out = newOut();
+      passGate(state, seatOf(state, playerId)!.team, claim, ctx, out);
       return { ok: true, transition: done(state, out) };
     }
   }
@@ -173,7 +203,28 @@ export const blindRallyGame: GameDefinition<
       endRace(state, ctx, "time", out);
       return done(state, out);
     }
+    if (timerId.startsWith(GRACE_TIMER)) {
+      const state = clone(prev);
+      const out = newOut();
+      return teamOut(state, Number(timerId.slice(GRACE_TIMER.length)), "grace", ctx, out) ? done(state, out) : unchanged(prev);
+    }
     return unchanged(prev);
+  },
+
+  // Spec §8.3. The runtime's own seat grace is 60 s and, mid-game, only marks
+  // the seat "disconnected" when it runs out (no hook): ours is 30 s and
+  // fires first, so the team is already DNF by then. A reconnect after our
+  // grace finds the team out and changes nothing.
+  onPlayerDisconnected(prev, playerId, ctx) {
+    const state = clone(prev);
+    const out = newOut();
+    return playerAway(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
+  },
+
+  onPlayerReconnected(prev, playerId, ctx) {
+    const state = clone(prev);
+    const out = newOut();
+    return playerBack(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
   },
 
   onPlayerJoined(prev, playerId) {
@@ -185,16 +236,20 @@ export const blindRallyGame: GameDefinition<
     return unchanged(state);
   },
 
-  onPlayerRemoved(prev, playerId) {
+  onPlayerRemoved(prev, playerId, ctx) {
     if (!prev.players.some((p) => p.id === playerId)) return unchanged(prev);
     const state = clone(prev);
-    // Mid-race the seat stays filled (step 12 turns a missing teammate into a DNF).
     if (state.phase === "teams") {
       unseat(state, playerId);
       state.players = state.players.filter((p) => p.id !== playerId);
       fitTeams(state);
+      return unchanged(state);
     }
-    return unchanged(state);
+    // Mid-race the seat stays filled, for the results, and the car's out.
+    const seat = seatOf(state, playerId);
+    const out = newOut();
+    if (seat) teamOut(state, seat.team.id, "left", ctx, out);
+    return done(state, out);
   },
 
   onStream(state, playerId, data, ctx) {
@@ -208,20 +263,7 @@ export const blindRallyGame: GameDefinition<
   getAwaitedPlayerIds: () => [],
 
   getResult(state) {
-    if (state.phase !== "finished") return null;
-    // M1 has no finish line yet (step 10), so every car is DNF and ties on
-    // progress; step 10 ranks finishers by time + penalties ahead of them.
-    const standings = state.teams
-      .filter((t) => t.run)
-      .flatMap((t) => {
-        const run = t.run!;
-        const penalty = run.penaltyMs ? ` (+${run.penaltyMs / 1000} s)` : "";
-        const label = `Team ${t.id} · ${run.status === "dnf" ? "DNF" : run.status}${penalty}`;
-        return members(t).map((playerId) => ({ playerId, value: 0, label }));
-      });
-    const seated = new Set(standings.map((s) => s.playerId));
-    for (const p of state.players) if (!seated.has(p.id)) standings.push({ playerId: p.id, value: 0, label: "Watched" });
-    return { winnerIds: [], standings };
+    return state.phase === "finished" ? result(state) : null;
   },
 
   carryOver: carryOf,
