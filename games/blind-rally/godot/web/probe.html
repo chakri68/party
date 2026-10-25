@@ -1,0 +1,151 @@
+<!doctype html>
+<!--
+  Throwaway M0 bridge probe (repo map §5 M0 step 5). Not part of the app.
+  export-godot.mjs copies this next to the export as probe.html; serve that
+  dir and open /probe.html. It iframes ./index.html, plays host, and drives
+  the car through receiveControl at 30 Hz.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blind Rally bridge probe</title>
+<style>
+  :root { color-scheme: dark; font: 14px/1.4 system-ui, sans-serif; }
+  body { margin: 0; background: #151816; color: #dde3dc; display: flex; flex-direction: column; height: 100dvh; }
+  #stage { flex: 1; min-height: 0; position: relative; background: #000; }
+  iframe { border: 0; width: 100%; height: 100%; display: block; }
+  #bar { padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; padding: 6px 10px; background: #2b322d; color: inherit; border: 1px solid #47524a; border-radius: 6px; }
+  button[aria-pressed="true"] { background: #6b4b10; border-color: #c08a20; }
+  #stats { font-family: ui-monospace, monospace; font-size: 12px; white-space: pre; padding: 0 12px 8px; max-height: 7.5em; overflow: auto; }
+  .pad { touch-action: none; user-select: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="bar">
+  <button id="auto" aria-pressed="true">auto drive</button>
+  <button class="pad" data-k="left">◀</button>
+  <button class="pad" data-k="gas">gas</button>
+  <button class="pad" data-k="brake">brake</button>
+  <button class="pad" data-k="right">▶</button>
+  <button id="silence">go silent</button>
+  <button id="gps" aria-pressed="false">gps marker</button>
+  <button id="reset">reset car</button>
+  <button id="remount">remount ×5</button>
+</div>
+<div id="stats">booting…</div>
+<script>
+const SEND_HZ = 30;
+const stage = document.getElementById('stage');
+const statsEl = document.getElementById('stats');
+const state = window.probeState = {
+  mounts: 0, ready: false, snapshots: 0, snapHz: 0, last: null, events: [],
+  sent: 0, auto: true, silent: false, keys: new Set(), firstPos: null,
+};
+let iframe = null, host = null, sendTimer = null;
+
+function makeHost() {
+  // What the real Navigator host will hand to Godot (map §3.4).
+  return {
+    emitSnapshot(s) {
+      state.snapshots++; state.last = s;
+      if (!state.firstPos) state.firstPos = s.position;
+    },
+    emitPhysicsEvent(e) { state.events.push(e); if (state.events.length > 20) state.events.shift(); },
+    ready() {
+      state.ready = true;
+      host.initSession({ assists: { liveMarker: gpsBtn.getAttribute('aria-pressed') === 'true' }, keyboard: false }, 'probe-seat');
+    },
+  };
+}
+
+function attach() {
+  // Set it now and again on load: the iframe's about:blank window can be
+  // replaced when the real document arrives. Godot polls for it anyway.
+  if (iframe && iframe.contentWindow && !iframe.contentWindow.blindRallyHost) iframe.contentWindow.blindRallyHost = host;
+}
+
+function mount() {
+  unmount();
+  state.mounts++; state.ready = false; state.firstPos = null; state.snapshots = 0;
+  host = makeHost();
+  iframe = document.createElement('iframe');
+  iframe.src = './index.html';
+  iframe.allow = 'fullscreen';
+  stage.appendChild(iframe);
+  attach();
+  iframe.addEventListener('load', attach);
+}
+
+function unmount() {
+  if (iframe) { iframe.remove(); iframe = null; host = null; }
+}
+
+function control() {
+  if (state.auto) {
+    const t = performance.now() / 1000;
+    return { steer: Math.sin(t * 0.9) * 0.6, throttle: 0.8, brake: 0 };
+  }
+  const k = state.keys;
+  return {
+    steer: (k.has('right') ? 1 : 0) - (k.has('left') ? 1 : 0),
+    throttle: k.has('gas') ? 1 : 0,
+    brake: k.has('brake') ? 1 : 0,
+  };
+}
+
+let seq = 0;
+sendTimer = setInterval(() => {
+  if (!host || !host.receiveControl || state.silent) return;
+  host.receiveControl({ seq: ++seq, ...control() });
+  state.sent++;
+}, 1000 / SEND_HZ);
+
+// Snapshot rate, measured over 1 s windows.
+let lastCount = 0;
+setInterval(() => {
+  state.snapHz = state.snapshots - lastCount; lastCount = state.snapshots;
+  const s = state.last;
+  statsEl.textContent =
+    `mounts ${state.mounts}  ready ${state.ready}  sent ${state.sent}  snapshots ${state.snapshots} (${state.snapHz}/s)\n` +
+    (s ? `pos ${s.position.map(n => n.toFixed(1)).join(', ')}  speed ${s.speed}  heading ${s.heading}  trip ${s.distance}  cp ${s.checkpointHint}  ${s.surface}\n` : '') +
+    (performance.memory ? `js heap ${(performance.memory.usedJSHeapSize / 1048576).toFixed(0)} MiB\n` : '') +
+    state.events.slice(-4).map(e => JSON.stringify(e)).join('\n');
+}, 1000);
+
+// Controls.
+const autoBtn = document.getElementById('auto');
+autoBtn.onclick = () => { state.auto = !state.auto; autoBtn.setAttribute('aria-pressed', state.auto); };
+for (const b of document.querySelectorAll('.pad')) {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { b.setPointerCapture(e.pointerId); state.keys.add(k); state.auto = false; autoBtn.setAttribute('aria-pressed', false); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => state.keys.delete(k));
+}
+const KEYMAP = { KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyW: 'gas', ArrowUp: 'gas', KeyS: 'brake', ArrowDown: 'brake' };
+addEventListener('keydown', e => { const k = KEYMAP[e.code]; if (k) { state.keys.add(k); state.auto = false; autoBtn.setAttribute('aria-pressed', false); } });
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) state.keys.delete(k); });
+addEventListener('blur', () => state.keys.clear());
+const silenceBtn = document.getElementById('silence');
+silenceBtn.onclick = () => { state.silent = !state.silent; silenceBtn.setAttribute('aria-pressed', state.silent); };
+const gpsBtn = document.getElementById('gps');
+gpsBtn.onclick = () => {
+  const on = gpsBtn.getAttribute('aria-pressed') !== 'true';
+  gpsBtn.setAttribute('aria-pressed', on);
+  host?.receiveAuthoritativeRaceEvent?.({ kind: 'assists', liveMarker: on });
+};
+document.getElementById('reset').onclick = () => host?.receiveAuthoritativeRaceEvent?.({ kind: 'reset' });
+document.getElementById('remount').onclick = async () => {
+  // iOS memory check: watch Safari's memory gauge across these.
+  for (let i = 0; i < 5; i++) {
+    mount();
+    await new Promise(r => { const t = setInterval(() => { if (state.ready) { clearInterval(t); r(); } }, 200); });
+    await new Promise(r => setTimeout(r, 1500));
+  }
+};
+
+mount();
+</script>
+</body>
+</html>

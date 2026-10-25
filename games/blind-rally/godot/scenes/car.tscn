@@ -1,0 +1,91 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/car_controller.gd" id="1_car"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.8, 1.0, 3.8)
+
+[sub_resource type="StandardMaterial3D" id="Mat_paint"]
+albedo_color = Color(0.98, 0.62, 0.08, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_glass"]
+albedo_color = Color(0.12, 0.16, 0.22, 1)
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_tyre"]
+albedo_color = Color(0.08, 0.08, 0.08, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+material = SubResource("Mat_paint")
+size = Vector3(1.8, 0.6, 3.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cabin"]
+material = SubResource("Mat_glass")
+size = Vector3(1.5, 0.5, 1.8)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_wheel"]
+material = SubResource("Mat_tyre")
+top_radius = 0.38
+bottom_radius = 0.38
+height = 0.3
+radial_segments = 8
+rings = 0
+
+[sub_resource type="PrismMesh" id="PrismMesh_nose"]
+material = SubResource("Mat_paint")
+size = Vector3(0.6, 0.4, 0.1)
+
+[node name="Car" type="CharacterBody3D" groups=["car"]]
+collision_layer = 2
+collision_mask = 1
+floor_snap_length = 0.3
+safe_margin = 0.02
+script = ExtResource("1_car")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="SurfaceRay" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+target_position = Vector3(0, -3, 0)
+collision_mask = 8
+hit_back_faces = true
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+layers = 2
+mesh = SubResource("BoxMesh_body")
+
+[node name="Cabin" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0.3)
+layers = 2
+mesh = SubResource("BoxMesh_cabin")
+
+[node name="Nose" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.91, -1.4)
+layers = 2
+mesh = SubResource("PrismMesh_nose")
+
+[node name="WheelFL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, -0.95, 0.38, -1.2)
+layers = 2
+mesh = SubResource("CylinderMesh_wheel")
+
+[node name="WheelFR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, 0.95, 0.38, -1.2)
+layers = 2
+mesh = SubResource("CylinderMesh_wheel")
+
+[node name="WheelRL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, -0.95, 0.38, 1.2)
+layers = 2
+mesh = SubResource("CylinderMesh_wheel")
+
+[node name="WheelRR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, 0.95, 0.38, 1.2)
+layers = 2
+mesh = SubResource("CylinderMesh_wheel")

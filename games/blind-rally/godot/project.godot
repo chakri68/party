@@ -1,0 +1,47 @@
+; Engine configuration file.
+; Blind Rally navigator client (M0 spike). Hand-written; the editor will
+; reformat it on first save, which is fine.
+
+config_version=5
+
+[application]
+
+config/name="Blind Rally"
+config/description="Navigator view for Blind Rally: the car, the course, and a map that refuses to help."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0.11, 0.13, 0.12, 1)
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=6
+
+[physics]
+
+common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=8
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=0
+lights_and_shadows/directional_shadow/size=1024
+lights_and_shadows/directional_shadow/size.mobile=512
+environment/defaults/default_clear_color=Color(0.55, 0.7, 0.62, 1)
+
+[layer_names]
+
+3d_render/layer_1="world"
+3d_render/layer_2="car (hidden from the static map)"
+3d_physics/layer_1="world"
+3d_physics/layer_2="car"
+3d_physics/layer_3="triggers"
+3d_physics/layer_4="surfaces (road type probes only, not solid)"
