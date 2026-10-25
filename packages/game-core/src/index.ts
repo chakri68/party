@@ -14,6 +14,13 @@ export interface GameManifest {
    * the answer). Room chat goes read-only while a round's on.
    */
   ownChat?: boolean;
+  /**
+   * New seats may join while a game is on. The game hears about each through
+   * `onPlayerJoined` and decides what they are (a spectator, say); every other
+   * hook can then see ids that `createGame` never did. They count toward
+   * `maxPlayers` like anyone else.
+   */
+  lateJoin?: boolean;
 }
 
 /**
@@ -37,6 +44,8 @@ export interface GamePlayer {
 export interface MatchContext {
   roundNumber: number;
   dealerSeat: number;
+  /** What the last finished game of this kind handed on (`carryOver`), e.g. teams for a rematch. */
+  carry?: unknown;
 }
 
 export interface GameContext {
@@ -93,6 +102,27 @@ export interface GameOutcome {
   names?: Record<string, string>;
 }
 
+/** A relay for some players only. Ids nobody's connected as are skipped. */
+export interface StreamRelay {
+  to: string[];
+  data: unknown;
+}
+
+export interface StreamResult<TState> {
+  state: TState;
+  /** Goes to every other seated player, as-is. */
+  relay?: unknown;
+  /** Each goes to its `to` and nobody else. Alongside `relay`, or instead of it. */
+  relays?: StreamRelay[];
+  /**
+   * False skips the storage write. The state still lives on in memory and goes
+   * out with the next write, but an eviction before then loses it. Worth it at
+   * input rates: a Durable Object holds outgoing messages until the write
+   * before them is durable, so every persisted chunk delays its own relay.
+   */
+  persist?: boolean;
+}
+
 export interface CreateGameOptions {
   /** Test-only. Never reachable from client input. */
   deck?: unknown[];
@@ -125,16 +155,20 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
   onPlayerDisconnected?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
   onPlayerReconnected?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
   onPlayerRemoved?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
+  /** Someone took a new seat mid-game. Only with `manifest.lateJoin`. */
+  onPlayerJoined?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
 
   skipTurn?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
 
   /**
    * High-frequency, best-effort input (drawing strokes, §35). The game checks it
-   * and folds it into state; `relay` goes to everyone else as-is, outside the
-   * versioned update stream. Null drops it silently: by the time a stale chunk
-   * lands, the sender has moved on anyway.
+   * and folds it into state; `relay` goes to everyone else as-is, `relays` only
+   * where they're addressed, both outside the versioned update stream. Null
+   * drops it silently: by the time a stale chunk lands, the sender has moved on
+   * anyway. The runtime always passes `ctx`; it's optional so tests calling the
+   * hook directly needn't make one up.
    */
-  onStream?(state: TState, playerId: string, data: unknown): { state: TState; relay: unknown } | null;
+  onStream?(state: TState, playerId: string, data: unknown, ctx?: GameContext): StreamResult<TState> | null;
   /**
    * The stream's history, e.g. the drawing so far. Only snapshots carry it:
    * every chat line would otherwise resend the whole picture to everyone.
@@ -147,6 +181,12 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
 
   /** Non-null exactly when the game is finished. */
   getResult(state: TState): GameOutcome | null;
+
+  /**
+   * Read once the game finishes; the next `createGame` of this game gets it as
+   * `match.carry`. Lets teams and roles survive a rematch.
+   */
+  carryOver?(state: TState): unknown;
 }
 
 /** What the room runtime holds. `any` is the point: the room can't know game-specific types. */

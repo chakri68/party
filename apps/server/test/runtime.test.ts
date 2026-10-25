@@ -1,4 +1,4 @@
-import { seededRandomInt, type AnyGameDefinition } from "@games/game-core";
+import { seededRandomInt, type AnyGameDefinition, type MatchContext } from "@games/game-core";
 import {
   CHAT_KEEP,
   CHAT_MAX_LENGTH,
@@ -635,6 +635,151 @@ describe("ephemeral streams (§35)", () => {
     const back = await join(world, reloaded, "Cy", cy.last("welcome")!.resumeToken);
     expect(back.last("update")).toMatchObject({ snapshot: true, stream: { turn: turn(), nextId: 1, strokes: [{ id: 0, points: [1, 2, 3, 4] }] } });
     expect((back.last("update")!.private as ScribblPrivateState).chat.at(-1)).toMatchObject({ kind: "msg", text: "a boat?" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A bare-bones game for the opt-in extensions: just enough rules to drive them.
+
+interface RallyState {
+  players: string[];
+  joined: string[];
+  carry: unknown;
+  laps: number;
+  done: boolean;
+}
+
+function rallyGame(manifest: Partial<AnyGameDefinition["manifest"]> = {}): AnyGameDefinition {
+  return {
+    manifest: { id: "rally", name: "Rally", description: "", minPlayers: 2, maxPlayers: 6, icon: "car", ...manifest },
+    defaultSettings: {},
+    parseSettings: (s) => s ?? {},
+    parseAction: (a) => (a && typeof a === "object" ? a : null),
+    createGame: (players, _settings, match) => ({
+      state: { players: players.map((p) => p.id), joined: [], carry: match.carry, laps: 0, done: false } satisfies RallyState,
+      events: [],
+    }),
+    handleAction: (st: RallyState) => ({ ok: true, transition: { state: { ...st, done: true }, events: [] } }),
+    onPlayerJoined: (st: RallyState, playerId) => ({ state: { ...st, joined: [...st.joined, playerId] }, events: [] }),
+    onStream(st: RallyState, _playerId, data, ctx) {
+      const d = data as { kind: string; to?: string[] };
+      const state = { ...st, laps: st.laps + 1 };
+      if (d.kind === "all") return { state, relay: d };
+      if (d.kind === "to") return { state, relays: [{ to: d.to!, data: { now: ctx!.now } }], persist: false };
+      return null;
+    },
+    carryOver: (st: RallyState) => ({ teams: [...st.players].reverse() }),
+    getPublicState: (st: RallyState) => ({ joined: st.joined, carry: st.carry }),
+    getPrivateState: () => null,
+    getAwaitedPlayerIds: () => [],
+    getResult: (st: RallyState) => (st.done ? { winnerIds: [], standings: [] } : null),
+  };
+}
+
+describe("opt-in stream and match extensions", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let ps: FakeConn[];
+  let ids: string[];
+  let sevensMatch: MatchContext | undefined;
+
+  async function setup(manifest: Partial<AnyGameDefinition["manifest"]> = {}) {
+    world = new World();
+    const sevens: AnyGameDefinition = {
+      ...sevensGame,
+      createGame: (players, settings, match, ctx, options) => {
+        sevensMatch = match;
+        return sevensGame.createGame(players, settings, match, ctx, options);
+      },
+    };
+    room = new RoomRuntime("K7DX", world.host(), { rally: rallyGame(manifest), sevens }, "rally");
+    await room.load();
+    await room.claim();
+    ps = [];
+    for (const n of ["Ana", "Ben", "Cy"]) ps.push(await join(world, room, n));
+    ids = ps.map((p) => p.last("welcome")!.playerId);
+    await send(room, ps[0]!, { type: "start-game" });
+  }
+
+  const stored = () => (world.store.get("room") as { game: { state: RallyState } }).game.state;
+  const pubOf = (c: FakeConn) => roomOf(c).game as { joined: string[]; carry: unknown };
+
+  it("sends relays only where they're addressed, with the server's clock, and skips the write", async () => {
+    await setup();
+    await send(room, ps[0]!, { type: "stream", data: { kind: "to", to: [ids[2]] } });
+    expect(ps[2]!.of("stream")).toEqual([{ type: "stream", from: ids[0], data: { now: world.clock } }]);
+    expect(ps[0]!.of("stream")).toEqual([]);
+    expect(ps[1]!.of("stream")).toEqual([]);
+    expect(stored().laps).toBe(0);
+
+    // Held in memory all the same: the next write takes it along.
+    await send(room, ps[0]!, { type: "stream", data: { kind: "all" } });
+    expect(stored().laps).toBe(2);
+  });
+
+  it("a plain relay still goes to everyone else and is persisted", async () => {
+    await setup();
+    const versions = ps.map((p) => p.last("update")!.stateVersion);
+    await send(room, ps[1]!, { type: "stream", data: { kind: "all" } });
+    for (const p of [ps[0]!, ps[2]!]) expect(p.of("stream")).toEqual([{ type: "stream", from: ids[1], data: { kind: "all" } }]);
+    expect(ps[1]!.of("stream")).toEqual([]);
+    expect(stored().laps).toBe(1);
+    expect(ps.map((p) => p.last("update")!.stateVersion)).toEqual(versions);
+  });
+
+  it("drops a stream flood silently, then lets up", async () => {
+    await setup();
+    for (let i = 0; i < 50; i++) await send(room, ps[0]!, { type: "stream", data: { kind: "all" } });
+    expect(ps[1]!.of("stream")).toHaveLength(40);
+    expect(ps[0]!.of("error")).toEqual([]);
+    // Per seat: Ben's own budget is untouched.
+    await send(room, ps[1]!, { type: "stream", data: { kind: "all" } });
+    expect(ps[0]!.of("stream")).toHaveLength(1);
+    world.clock += 1_000;
+    await send(room, ps[0]!, { type: "stream", data: { kind: "all" } });
+    expect(ps[1]!.of("stream")).toHaveLength(41);
+  });
+
+  it("refuses mid-game joins unless the game asks for them", async () => {
+    await setup();
+    const late = await join(world, room, "Late");
+    expect(late.last("error")).toMatchObject({ code: "game-in-progress", fatal: true });
+    expect(roomOf(ps[0]!).seats).toHaveLength(3);
+  });
+
+  it("with lateJoin, seats a newcomer mid-game and tells the game", async () => {
+    await setup({ lateJoin: true });
+    const late = await join(world, room, "Late");
+    const id = late.last("welcome")!.playerId;
+    expect(late.of("error")).toEqual([]);
+    expect(roomOf(late).phase).toBe("playing");
+    expect(pubOf(ps[0]!).joined).toEqual([id]);
+    expect(stored().players).toEqual(ids); // not dealt in, just filed
+  });
+
+  it("lateJoin still respects maxPlayers", async () => {
+    await setup({ lateJoin: true, maxPlayers: 3 });
+    const late = await join(world, room, "Late");
+    expect(late.last("error")).toMatchObject({ code: "room-full", fatal: true });
+  });
+
+  it("hands the finished game's carry-over to the rematch, and only to the same game", async () => {
+    await setup();
+    expect(pubOf(ps[0]!).carry).toBeUndefined();
+    await send(room, ps[0]!, { type: "game-action", clientActionId: "a", action: { type: "finish" } });
+    expect(roomOf(ps[0]!).phase).toBe("results");
+
+    // Survives a trip through the lobby too.
+    await send(room, ps[0]!, { type: "return-to-lobby" });
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(pubOf(ps[0]!).carry).toEqual({ teams: [...ids].reverse() });
+
+    await send(room, ps[0]!, { type: "return-to-lobby" });
+    await send(room, ps[0]!, { type: "select-game", gameId: "sevens" });
+    await send(room, ps[0]!, { type: "start-game" });
+    expect(roomOf(ps[0]!).phase).toBe("playing");
+    expect(sevensMatch).toBeDefined();
+    expect(sevensMatch!.carry).toBeUndefined();
   });
 });
 

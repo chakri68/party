@@ -96,7 +96,8 @@ interface RoomData {
   seats: SeatData[];
   gameId: string;
   settings: unknown;
-  match: { roundNumber: number; nextDealerSeat: number };
+  /** `carry` is tagged with its game, so picking another one can't inherit it. */
+  match: { roundNumber: number; nextDealerSeat: number; carry?: { gameId: string; data: unknown } };
   game: { gameId: string; state: unknown } | null;
   awaiting: string[];
   awaitingSince: number | null;
@@ -117,6 +118,8 @@ export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 /** Flood guards: this many per window, per seat. Emotes are meant to be mashed. */
 const CHAT_LIMIT = { burst: 5, windowMs: 5_000 };
 const EMOTE_LIMIT = { burst: 10, windowMs: 3_000 };
+/** Room for 25 Hz input plus edge sends. Scribbl flushes at 25 Hz too. */
+const STREAM_LIMIT = { burst: 40, windowMs: 1_000 };
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_POLICY = 4000;
@@ -346,10 +349,11 @@ export class RoomRuntime {
       // A room whose host timed out while nobody else was around gets one now.
       this.ensureHost();
     } else {
-      if (data.phase === "playing") {
+      const def = this.games[data.gameId]!;
+      const late = data.phase === "playing";
+      if (late && !def.manifest.lateJoin) {
         return this.fatal(conn, "game-in-progress", "A game is already underway. Try again after this round.");
       }
-      const def = this.games[data.gameId]!;
       if (this.activeSeats().length >= def.manifest.maxPlayers) {
         return this.fatal(conn, "room-full", "This room is full.");
       }
@@ -365,6 +369,7 @@ export class RoomRuntime {
       };
       data.seats.push(seat);
       data.hostId ??= seat.id;
+      if (late) events = this.applyGameHook((def, st) => def.onPlayerJoined?.(st, seat!.id, this.ctx()));
     }
 
     conn.setState({ hello: true, playerId: seat.id });
@@ -437,15 +442,21 @@ export class RoomRuntime {
       case "stream": {
         // Best-effort (§35): anything out of place is dropped without a word.
         if (data.phase !== "playing" || !data.game) return;
-        const out = this.games[data.game.gameId]!.onStream?.(data.game.state, seat.id, msg.data);
+        if (!this.allow("stream", seat.id, STREAM_LIMIT)) return;
+        const out = this.games[data.game.gameId]!.onStream?.(data.game.state, seat.id, msg.data, this.ctx());
         if (!out) return;
         data.game.state = out.state;
         // Not a transition: no version bump, no update. Persisted all the same,
-        // so a snapshot after an eviction still has the drawing.
-        await this.persist();
+        // so a snapshot after an eviction still has the drawing, unless the
+        // game would rather the relay didn't wait on the write.
+        if (out.persist !== false) await this.persist();
         for (const c of this.liveConns()) {
           const pid = c.state?.playerId;
-          if (pid && pid !== seat.id) c.send({ type: "stream", from: seat.id, data: out.relay });
+          if (!pid) continue;
+          if (out.relay !== undefined && pid !== seat.id) c.send({ type: "stream", from: seat.id, data: out.relay });
+          for (const r of out.relays ?? []) {
+            if (r.to.includes(pid)) c.send({ type: "stream", from: seat.id, data: r.data });
+          }
         }
         return;
       }
@@ -607,6 +618,7 @@ export class RoomRuntime {
     data.match.roundNumber++;
     data.match.nextDealerSeat = (dealerSeat + 1) % n;
 
+    const carry = data.match.carry?.gameId === def.manifest.id ? data.match.carry.data : undefined;
     const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
     const options: CreateGameOptions | undefined = debug?.deck ? { deck: debug.deck } : undefined;
     let transition: GameTransition<unknown, unknown>;
@@ -614,7 +626,7 @@ export class RoomRuntime {
       transition = def.createGame(
         data.seats.map((s) => ({ id: s.id })),
         settings,
-        { roundNumber: data.match.roundNumber, dealerSeat },
+        { roundNumber: data.match.roundNumber, dealerSeat, ...(carry !== undefined && { carry }) },
         ctx,
         options,
       );
@@ -667,6 +679,7 @@ export class RoomRuntime {
 
     if (def.getResult(game.state)) {
       data.phase = "results";
+      if (def.carryOver) data.match.carry = { gameId: game.gameId, data: def.carryOver(game.state) };
       this.resetReady();
       this.setAwaiting([]);
       for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
