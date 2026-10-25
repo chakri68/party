@@ -40,15 +40,31 @@ signal finish_entered(body: Node3D)
 
 func _ready() -> void:
 	# Shader detail noise is made at load, not saved into the scene.
-	var road := get_node_or_null("Road/Mesh") as MeshInstance3D
-	if road and road.mesh and road.mesh.surface_get_material(0) is ShaderMaterial:
-		(road.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("detail", DetailNoise.texture())
+	for m in world_materials():
+		m.set_shader_parameter("detail", DetailNoise.texture())
 	for cp in get_checkpoints():
 		var idx: int = cp.get_meta("index")
 		cp.body_entered.connect(func(b: Node3D) -> void: checkpoint_entered.emit(idx, b))
 	var fin := get_finish()
 	if fin:
 		fin.body_entered.connect(func(b: Node3D) -> void: finish_entered.emit(b))
+
+
+## The track's own shader materials (road pieces, ground tiles), for whoever
+## feeds them per-frame uniforms (Weather). The palette material isn't here:
+## it's a shared resource, not the track's.
+func world_materials() -> Array[ShaderMaterial]:
+	var out: Array[ShaderMaterial] = []
+	var road := get_node_or_null("Road")
+	if road:
+		for c in road.get_children():
+			var mi := c as MeshInstance3D
+			if mi and mi.mesh and mi.mesh.surface_get_material(0) is ShaderMaterial and not out.has(mi.mesh.surface_get_material(0)):
+				out.append(mi.mesh.surface_get_material(0))
+	var ground := get_node_or_null("Ground") as Terrain
+	if ground and ground.material:
+		out.append(ground.material)
+	return out
 
 
 func get_spawn() -> Marker3D:

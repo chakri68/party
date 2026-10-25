@@ -6,12 +6,15 @@ extends Node3D
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP,
 ## M expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
 ## F dust and marks, L shadows, P debug autopilot, V cycle clouds,
-## Y camera: top-down -> chase -> bonnet (experimental).
+## Y camera: top-down -> chase -> bonnet, skipping any not allowed.
 ##
 ## initSession config read here: assists.liveMarker, keyboard, muted,
 ## reducedMotion, seed and clouds (weather; same seed = same sky for every
-## team), autopilot (debug only), camera ("topdown" | "chase" | "bonnet",
-## experimental; default top-down).
+## team), autopilot (debug only), camera ("topdown" | "chase" | "bonnet";
+## default top-down), allowedCameras (a list of those names, default all
+## three: a host setting or a sabotage can lock the Navigator to one view;
+## Y only cycles through these, and a camera outside the list falls back to
+## the first one in it).
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -34,6 +37,17 @@ var _map_expanded := false
 var _map_small := Rect2()
 var recoveries := 0 ## resets so far, for tests and the autopilot's report card
 var race_time := 0.0 ## physics seconds since spawn, until the finish
+var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pick
+var eye_forest: EyeForest ## built the first time a perspective camera is used
+var _pending_mode := -1
+
+const PALETTE := preload("res://assets/materials/vertex_color.tres")
+## The eye-level sky and its haze, one family of colours: the depth fog is the
+## horizon a shade darker, so far trees sink into something slightly denser
+## than the sky behind them, and the treeline ring is drawn in exactly the fog.
+const SKY_TOP := Color(0.36, 0.52, 0.72)
+const SKY_HORIZON := Color(0.78, 0.83, 0.86)
+const FOG := Color(0.69, 0.74, 0.77)
 
 
 func _ready() -> void:
@@ -43,6 +57,9 @@ func _ready() -> void:
 	autopilot.process_physics_priority = -1 # decide before the car moves
 	weather.car = car
 	weather.bounds = track.bounds
+	weather.register(PALETTE)
+	for m in track.world_materials():
+		weather.register(m)
 	# Locally there's no session yet: a random sky, light cloud. initSession
 	# replaces both.
 	weather.configure(randi(), 0.4)
@@ -60,8 +77,13 @@ func _ready() -> void:
 		fx.density = 0.5
 	map.car = car
 	_map_small = Rect2(map.offset_left, map.offset_top, map.offset_right, map.offset_bottom)
-	map.render_static_map(track)
 	cam.perspective_env = _perspective_env()
+	# The map is one render of the baked forest; a camera switch that lands
+	# before it (an early initSession) waits, so it can't hide those chunks
+	# from it.
+	await map.render_static_map(track)
+	if _pending_mode >= 0:
+		set_camera_mode(_pending_mode)
 
 
 ## The eye-level modes need what top-down never shows: a sky above the
@@ -71,10 +93,10 @@ func _perspective_env() -> Environment:
 	var we := track.get_node_or_null("Environment") as WorldEnvironment
 	var env: Environment = we.environment.duplicate() if we and we.environment else Environment.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.36, 0.52, 0.72)
-	sky_mat.sky_horizon_color = Color(0.72, 0.78, 0.8)
-	sky_mat.ground_horizon_color = Color(0.72, 0.78, 0.8)
-	sky_mat.ground_bottom_color = Color(0.3, 0.34, 0.3)
+	sky_mat.sky_top_color = SKY_TOP
+	sky_mat.sky_horizon_color = SKY_HORIZON
+	sky_mat.ground_horizon_color = FOG
+	sky_mat.ground_bottom_color = FOG.darkened(0.3)
 	sky_mat.sun_angle_max = 20.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
@@ -85,10 +107,13 @@ func _perspective_env() -> Environment:
 	# Lighting stays colour-ambient as before; the sky is only a backdrop.
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.7, 0.76, 0.78)
-	env.fog_depth_begin = 35.0
-	env.fog_depth_end = 115.0
-	env.fog_depth_curve = 1.4
+	# Starts closer than the forest LOD swap (EyeForest.NEAR_R, 50 m), so
+	# the swap happens in haze; total just behind the treeline ring (106 m),
+	# and the far plane (118 m) is only a little past that.
+	env.fog_light_color = FOG
+	env.fog_depth_begin = 24.0
+	env.fog_depth_end = 108.0
+	env.fog_depth_curve = 1.25
 	env.fog_density = 1.0
 	env.fog_sky_affect = 0.0
 	env.fog_aerial_perspective = 0.0
@@ -98,9 +123,60 @@ func _perspective_env() -> Environment:
 const CAMERA_MODES := ["topdown", "chase", "bonnet"]
 
 
-func set_camera_mode(m: int) -> void:
+## Switches the Navigator's view. A mode outside allowed_cameras is refused
+## (returns false). Perspective modes swap the forest for EyeForest and the
+## mist for its ground-hugging form; top-down swaps back.
+func set_camera_mode(m: int) -> bool:
+	if not allowed_cameras.has(m):
+		return false
+	if map.render_count == 0:
+		_pending_mode = m
+		return true
+	_pending_mode = -1
 	cam.set_mode(m)
-	weather.ground_shadow = cam.mode == FollowCamera.Mode.TOP_DOWN
+	var eye := cam.mode != FollowCamera.Mode.TOP_DOWN
+	if eye and eye_forest == null:
+		eye_forest = EyeForest.new()
+		eye_forest.name = "EyeForest"
+		eye_forest.fog_color = FOG
+		add_child(eye_forest)
+		eye_forest.build(track, PALETTE, weather)
+	if eye_forest:
+		eye_forest.visible = eye
+	var forest := track.get_node_or_null("Forest")
+	if forest:
+		for sc in forest.get_children():
+			if sc is Scatter:
+				(sc as Scatter).set_drawn(not eye)
+	weather.eye_level = eye
+	return true
+
+
+## Y: the next allowed camera after the current one.
+func cycle_camera() -> void:
+	for step in range(1, 4):
+		var m := (cam.mode + step) % 3
+		if allowed_cameras.has(m):
+			set_camera_mode(m)
+			return
+
+
+## Locks the Navigator to these modes (names as in CAMERA_MODES). Unknown
+## names are ignored; an empty result means all three. If the current view
+## isn't allowed any more, it moves to the first allowed one.
+func set_allowed_cameras(names: Array) -> void:
+	var out: Array[int] = []
+	for n in names:
+		var i := CAMERA_MODES.find(String(n))
+		if i >= 0 and not out.has(i):
+			out.append(i)
+	if out.is_empty():
+		out = [0, 1, 2]
+	out.sort()
+	allowed_cameras = out
+	var now := _pending_mode if _pending_mode >= 0 else int(cam.mode)
+	if not out.has(now):
+		set_camera_mode(out[0])
 
 
 func _physics_process(dt: float) -> void:
@@ -113,6 +189,8 @@ func _physics_process(dt: float) -> void:
 
 
 func _process(_dt: float) -> void:
+	if eye_forest and eye_forest.visible:
+		eye_forest.follow(cam, car.global_position.y)
 	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s%s" % [
 		Engine.get_frames_per_second(), absf(car.forward_speed) * 3.6, car.surface,
 		car.distance_travelled, checkpoints_passed, track.get_checkpoints().size(),
@@ -152,7 +230,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_K: cam.kick_enabled = not cam.kick_enabled
 		KEY_F: fx.enabled = not fx.enabled
 		KEY_P: set_autopilot(not autopilot.enabled)
-		KEY_Y: set_camera_mode((cam.mode + 1) % 3)
+		KEY_Y: cycle_camera()
 		KEY_V: weather.configure(weather.seed_value, fposmod(snappedf(weather.clouds, 0.5) + 0.5, 1.5))
 		KEY_L:
 			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
@@ -200,8 +278,11 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
 	set_autopilot(bool(cfg.get("autopilot", false)))
+	set_allowed_cameras(cfg["allowedCameras"] if cfg.get("allowedCameras") is Array else [])
 	if cfg.has("camera"):
-		set_camera_mode(maxi(CAMERA_MODES.find(String(cfg["camera"])), 0))
+		var want := maxi(CAMERA_MODES.find(String(cfg["camera"])), 0)
+		if not set_camera_mode(want):
+			set_camera_mode(allowed_cameras[0])
 
 
 func _on_race_event(ev: Dictionary) -> void:

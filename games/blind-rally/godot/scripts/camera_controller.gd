@@ -14,11 +14,12 @@ extends Camera3D
 ## show each metre, but never below min_view, because the Navigator still
 ## has to read the next corner. The speed pull-back works on top of that.
 ##
-## Experimental, off by default: two perspective modes (Y cycles, or
-## initSession `camera`). CHASE sits behind and above the car on a lagged
-## arm, BONNET rides the roof line. Both swap in their own Environment (sky
-## and distance fog) through Camera3D.environment, so the world's environment
-## and the static map, which renders through it, stay exactly as they were.
+## Two perspective modes beside it (Y cycles, initSession `camera`,
+## `allowedCameras` limits which): CHASE sits behind and above the car on a
+## lagged arm, BONNET rides the bonnet. Both swap in their own Environment
+## (sky and distance fog) through Camera3D.environment, so the world's
+## environment and the static map, which renders through it, stay exactly as
+## they were. main.gd swaps the forest and the mist for their eye-level forms.
 
 @export var target: Node3D
 @export var pitch_deg := 55.0 ## down-tilt from horizontal
@@ -34,7 +35,7 @@ extends Camera3D
 @export var rotate_with_car := false
 @export var min_px_per_m := 12.5 ## CSS pixels per metre the view won't drop below
 @export var min_view := 27.0 ## ...unless that would show fewer metres than this
-@export_group("Perspective (experimental)")
+@export_group("Perspective")
 @export var chase_back := 6.0 ## metres behind the car
 @export var chase_up := 2.5 ## metres above it
 @export var chase_aim := Vector2(10.0, 0.8) ## look at: metres ahead, metres up
@@ -42,7 +43,8 @@ extends Camera3D
 @export var chase_fov := Vector2(68.0, 80.0) ## vertical FOV at rest, at top speed
 @export var bonnet_offset := Vector3(0.0, 1.3, -1.05) ## car space, -z forward: over the bonnet, ahead of the light pod
 @export var bonnet_fov := Vector2(70.0, 78.0)
-@export var persp_far := 130.0 ## fog has closed in by here; the tree walls hide the rest
+@export var bonnet_pitch := -2.5 ## degrees: a little more bonnet (and its stripes) for perspective
+@export var persp_far := 118.0 ## fog is total by 108 m (main.gd) and the treeline ring stands at 106
 @export_group("Impact kick")
 @export var kick_enabled := true ## off = no shake at all (reduced motion)
 @export var kick_per_ms := 0.035 ## metres of kick per m/s of impact speed
@@ -210,7 +212,7 @@ func _process_perspective(dt: float, v: Vector3, top: float) -> void:
 		_kick = _kick.limit_length(kick_max * 0.5)
 	if mode == Mode.BONNET:
 		var b := Basis(Vector3.UP, car_yaw)
-		global_transform = Transform3D(b, target.global_position + b * bonnet_offset + _kick * 0.3)
+		global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(bonnet_pitch)), target.global_position + b * bonnet_offset + _kick * 0.3)
 		return
 	var k := 1.0 - exp(-chase_lag * dt)
 	_arm_yaw = lerp_angle(_arm_yaw, car_yaw, k)

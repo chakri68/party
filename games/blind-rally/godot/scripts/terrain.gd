@@ -26,6 +26,7 @@ const GROUND_SHADER := preload("res://shaders/ground.gdshader")
 
 var heights := PackedFloat32Array()
 var tiles := 0
+var material: ShaderMaterial ## shared by every tile; Weather registers it
 
 
 func _ready() -> void:
@@ -93,6 +94,7 @@ func _build_mesh() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = GROUND_SHADER
 	mat.set_shader_parameter("detail", DetailNoise.texture())
+	material = mat
 	for tz in range(0, d - 1, TILE):
 		for tx in range(0, w - 1, TILE):
 			var mesh := _tile(tx, tz, mini(tx + TILE, w - 1), mini(tz + TILE, d - 1))

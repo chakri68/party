@@ -1,8 +1,21 @@
-[gd_resource type="StandardMaterial3D" format=3]
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/palette.gdshader" id="1_140w4"]
 
 [resource]
 resource_name = "vertex_color"
-vertex_color_use_as_albedo = true
-vertex_color_is_srgb = true
-metallic_specular = 0.25
-roughness = 0.95
+render_priority = 0
+shader = ExtResource("1_140w4")
+shader_parameter/cloud_offset = null
+shader_parameter/cloud_coverage = null
+shader_parameter/cloud_strength = null
+shader_parameter/mist_puffs = null
+shader_parameter/mist_count = null
+shader_parameter/mist_car = null
+shader_parameter/mist_keyhole = null
+shader_parameter/mist_max = null
+shader_parameter/mist_density = null
+shader_parameter/mist_top = null
+shader_parameter/mist_tint = null
+shader_parameter/lod_mode = null
+shader_parameter/lod_range = null

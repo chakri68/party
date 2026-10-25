@@ -1,10 +1,23 @@
 class_name Weather
 extends Node3D
 ## Clouds over the stage: drifting cloud shadows on everything, and low mist
-## banks that drift between the camera and the ground and hide stretches of
-## road for a few seconds at a time. 3D view only: everything here is on
-## render layer 4, which the static map camera never draws (spec: modifiers
-## change the 3D view, not the map).
+## banks that hide stretches of road for a few seconds at a time. 3D view
+## only, never the static map (spec: modifiers change the 3D view, not the map).
+##
+## Cloud shadows aren't geometry: every world material (ground, road, the
+## palette shared by trees, props and the car, the eye-level forest) carries
+## the cloud term, shaders/weather.gdshaderinc, and Weather pushes the
+## numbers to whatever was register()ed. Same for the eye-level mist. Those
+## shaders skip both when the camera can't see render layer 4, which is how
+## the map camera stays clean.
+##
+## Mist looks different per camera, from the same banks:
+## - Top-down: soft puff sprites at treetop height (the Mist node, layer 4),
+##   with a clear hole round the car.
+## - Chase and bonnet (eye_level): the sprites would float overhead hiding
+##   nothing, so they're hidden and the nearest MIST_MAX puffs go to the
+##   shaders as ground-hugging discs; each pixel fogs by how much bank its
+##   view ray crosses past the car.
 ##
 ## Deterministic: configure(seed, clouds) plus the race clock fully decide
 ## where every bank is and how thick it is, so every team in a Fair Race gets
@@ -26,46 +39,40 @@ const BANK_HEIGHT := 16.0 ## metres above the car's ground: in the treetops, wel
 const MAX_BANKS := 48
 const KEYHOLE := Vector2(3.5, 9.0) ## mist-free radius round the car, and where it's back to full
 const MAX_ALPHA := 0.78 ## thickest mist still lets the road show through a little
+const EYE_KEYHOLE := Vector2(4.0, 18.0) ## eye level: clear for x metres past the car, full by y (a slow ramp, so no wall)
+const MIST_MAX := 16 ## puffs the eye-level shaders get (weather.gdshaderinc MIST_MAX)
+const MIST_RANGE := 150.0 ## metres: puffs further than this from the camera fade out of the list
+const MIST_DENSITY := 0.075 ## per metre of bank crossed at full opacity
+const MIST_TOP := 11.0 ## metres above the car where the eye-level mist has thinned out
+const MIST_TINT := Color(0.8, 0.83, 0.85)
+const SHADE_SCALE := 180.0 ## metres per cloud-noise tile; keep in sync with weather.gdshaderinc
 
 @export var clouds := 0.0 ## 0 = clear, 1 = heavy
 var seed_value := 0
 var time := 0.0 ## seconds of race clock; Weather advances it in physics time
 
 var car: Node3D
-## The cloud shadow is a flat quad drawn over everything at the car's height.
-## From above that reads as shade on the ground; from eye level it's a hard
-## line at the horizon. main turns it off for the perspective cameras.
-var ground_shadow := true:
+## Chase and bonnet: mist goes to the shaders as ground-hugging banks and the
+## overhead puff sprites hide. main sets it with the camera mode.
+var eye_level := false:
 	set(v):
-		ground_shadow = v
-		if _shadow:
-			_shadow.visible = clouds > 0.0 and v
+		eye_level = v
+		if _mist:
+			_mist.visible = clouds > 0.0 and not v
+		_push_mist()
 var bounds := Rect2(-500, -500, 1000, 1000)
 
 var _wind := Vector2.ZERO
 var _banks: Array = [] # {origin: Vector2, phase, period, thick, puffs: [[offset Vector2, size]]}
-var _shadow: MeshInstance3D
-var _shadow_mat: ShaderMaterial
+var _mats: Array[ShaderMaterial] = []
+var _cloud := {} # shader parameter -> value, for materials registered later
+var _eye_puffs := PackedVector4Array() # what the shaders got last, for the CPU mirror
 var _mist: MultiMeshInstance3D
 var _mist_mat: ShaderMaterial
 var _mm: MultiMesh
 
 
 func _ready() -> void:
-	_shadow_mat = ShaderMaterial.new()
-	_shadow_mat.shader = preload("res://shaders/cloud_shadow.gdshader")
-	_shadow_mat.set_shader_parameter("detail", DetailNoise.texture())
-	_shadow_mat.render_priority = -1
-	var quad := PlaneMesh.new()
-	quad.size = Vector2(600, 600)
-	quad.material = _shadow_mat
-	_shadow = MeshInstance3D.new()
-	_shadow.name = "CloudShadow"
-	_shadow.mesh = quad
-	_shadow.layers = LAYER
-	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_shadow)
-
 	_mist_mat = ShaderMaterial.new()
 	_mist_mat.shader = preload("res://shaders/mist.gdshader")
 	_mist_mat.set_shader_parameter("detail", DetailNoise.texture())
@@ -119,12 +126,53 @@ func configure(seed_in: int, clouds_in: float) -> void:
 			bank.puffs.append([Vector2(cos(a), sin(a)) * rng.randf_range(0.0, 18.0), rng.randf_range(22.0, 38.0), Vector2(rng.randf(), rng.randf())])
 		if b < count:
 			_banks.append(bank)
-	_shadow_mat.set_shader_parameter("coverage", lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2)
-	_shadow_mat.set_shader_parameter("strength", lerpf(0.22, 0.38, clouds))
-	_shadow.visible = clouds > 0.0 and ground_shadow
-	_mist.visible = clouds > 0.0
+	_cloud = {
+		"cloud_coverage": lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2,
+		"cloud_strength": lerpf(0.22, 0.38, clouds) if clouds > 0.0 else 0.0,
+		"cloud_offset": _wind * time,
+	}
+	for m in _mats:
+		_apply_cloud(m)
+	_mist.visible = clouds > 0.0 and not eye_level
 	_mm.visible_instance_count = _banks.size() * BANK_PUFFS
 	_update_mist()
+	_push_mist()
+
+
+## A world material that should get cloud shade and eye-level mist. It must
+## use shaders/weather.gdshaderinc. Registering twice is harmless.
+func register(mat: ShaderMaterial) -> void:
+	if mat == null or _mats.has(mat):
+		return
+	_mats.append(mat)
+	mat.set_shader_parameter("detail", DetailNoise.texture())
+	mat.set_shader_parameter("mist_keyhole", EYE_KEYHOLE)
+	mat.set_shader_parameter("mist_max", MAX_ALPHA)
+	mat.set_shader_parameter("mist_density", MIST_DENSITY)
+	mat.set_shader_parameter("mist_top", MIST_TOP)
+	mat.set_shader_parameter("mist_tint", MIST_TINT)
+	_apply_cloud(mat)
+	_apply_mist(mat)
+
+
+func materials() -> Array[ShaderMaterial]:
+	return _mats
+
+
+func _apply_cloud(m: ShaderMaterial) -> void:
+	for k in _cloud:
+		m.set_shader_parameter(k, _cloud[k])
+
+
+func _apply_mist(m: ShaderMaterial) -> void:
+	var n := _eye_puffs.size()
+	m.set_shader_parameter("mist_count", n)
+	if n > 0:
+		var arr := _eye_puffs.duplicate()
+		arr.resize(MIST_MAX)
+		m.set_shader_parameter("mist_puffs", arr)
+	if car:
+		m.set_shader_parameter("mist_car", car.global_position)
 
 
 func _physics_process(dt: float) -> void:
@@ -134,15 +182,105 @@ func _physics_process(dt: float) -> void:
 func _process(_dt: float) -> void:
 	if clouds <= 0.0:
 		return
-	var cam := get_viewport().get_camera_3d()
-	var centre := car.global_position if car else (cam.global_position if cam else Vector3.ZERO)
-	# The shadow quad rides along under the car; the pattern stays in world space.
-	_shadow.global_position = Vector3(centre.x, centre.y, centre.z)
-	_shadow_mat.set_shader_parameter("offset", _wind * time)
+	_cloud["cloud_offset"] = _wind * time
+	for m in _mats:
+		m.set_shader_parameter("cloud_offset", _wind * time)
+	if eye_level:
+		_push_mist()
+		return
 	if car:
 		_mist_mat.set_shader_parameter("car_pos", car.global_position)
 	_mist_mat.set_shader_parameter("drift", time * 0.004)
 	_update_mist()
+
+
+## Eye level: the MIST_MAX puffs nearest the camera, as (x, z, radius,
+## opacity). Opacity eases to 0 over the last 30 m of MIST_RANGE, so a puff
+## leaving the list has already faded (and past ~120 m the depth fog has the
+## view anyway). Top-down or clear sky: none.
+func eye_puffs(from: Vector3) -> PackedVector4Array:
+	var out := PackedVector4Array()
+	if not eye_level or clouds <= 0.0:
+		return out
+	var cand := []
+	for b in _banks.size():
+		var a := bank_alpha(b)
+		if a < 0.01:
+			continue
+		var c := bank_centre(b)
+		for k in BANK_PUFFS:
+			var p: Array = _banks[b].puffs[k]
+			var r: float = p[1] * 0.5
+			var at: Vector2 = c + p[0]
+			var gap := at.distance_to(Vector2(from.x, from.z)) - r
+			if gap > MIST_RANGE:
+				continue
+			cand.append([gap, Vector4(at.x, at.y, r, a * (1.0 - smoothstep(MIST_RANGE - 30.0, MIST_RANGE, gap)))])
+	cand.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0])
+	for i in mini(cand.size(), MIST_MAX):
+		out.append(cand[i][1])
+	return out
+
+
+func _push_mist() -> void:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	_eye_puffs = eye_puffs(cam.global_position if cam else (car.global_position if car else Vector3.ZERO))
+	for m in _mats:
+		_apply_mist(m)
+
+
+## CPU copy of the shaders' eye_mist(): how much mist lies between `cam` and
+## `world` right now, 0..MAX_ALPHA. For tests and tools.
+func eye_mist(cam: Vector3, world: Vector3) -> float:
+	var puffs := eye_puffs(cam)
+	if puffs.is_empty() or not car:
+		return 0.0
+	var o := Vector2(cam.x, cam.z)
+	var to := Vector2(world.x, world.z) - o
+	var length := to.length()
+	var car_d := Vector2(car.global_position.x, car.global_position.z).distance_to(o)
+	var t0 := car_d + EYE_KEYHOLE.x
+	if length <= t0:
+		return 0.0
+	var d := to / length
+	var acc := 0.0
+	for p in puffs:
+		var oc := Vector2(p.x, p.y) - o
+		var tc := oc.dot(d)
+		var h2 := oc.dot(oc) - tc * tc
+		var r2 := p.z * p.z
+		if h2 < r2:
+			var hw := sqrt(r2 - h2)
+			acc += maxf(minf(tc + hw, length) - maxf(tc - hw, t0), 0.0) * p.w * (1.0 - h2 / r2)
+	var ramp := smoothstep(car_d + EYE_KEYHOLE.x, car_d + EYE_KEYHOLE.y, length)
+	var low := 1.0 - smoothstep(MIST_TOP * 0.35, MIST_TOP, world.y - car.global_position.y)
+	return minf(1.0 - exp(-acc * MIST_DENSITY), MAX_ALPHA) * ramp * low
+
+
+## CPU copy of the shaders' cloud_shade_at(): how much darker the ground at
+## world (x, z) is right now under cloud, 0 = full sun. Same in every camera.
+func cloud_shade(x: float, z: float) -> float:
+	if clouds <= 0.0:
+		return 0.0
+	var img := DetailNoise.texture().get_image()
+	var p := (Vector2(x, z) - _wind * time) / SHADE_SCALE
+	var n := _sample(img, p).r * 0.7 + _sample(img, p * 2.3 + Vector2(0.31, 0.77)).g * 0.3
+	var cov: float = _cloud["cloud_coverage"]
+	return smoothstep(1.0 - cov - 0.12, 1.0 - cov + 0.12, n) * float(_cloud["cloud_strength"])
+
+
+static func _sample(img: Image, uv: Vector2) -> Color:
+	var s := Vector2(img.get_width(), img.get_height())
+	var q := Vector2(fposmod(uv.x, 1.0), fposmod(uv.y, 1.0)) * s - Vector2(0.5, 0.5)
+	var i := Vector2i(floori(q.x), floori(q.y))
+	var f := q - Vector2(i)
+	var w := img.get_width()
+	var h := img.get_height()
+	var c00 := img.get_pixel(posmod(i.x, w), posmod(i.y, h))
+	var c10 := img.get_pixel(posmod(i.x + 1, w), posmod(i.y, h))
+	var c01 := img.get_pixel(posmod(i.x, w), posmod(i.y + 1, h))
+	var c11 := img.get_pixel(posmod(i.x + 1, w), posmod(i.y + 1, h))
+	return c00.lerp(c10, f.x).lerp(c01.lerp(c11, f.x), f.y)
 
 
 ## Opacity of bank b right now: a slow breathing cycle, thick for a while,

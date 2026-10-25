@@ -761,8 +761,14 @@ func _profile(i: int) -> Array:
 	]
 
 
+## Road pieces this many centreline samples long (~120 m). One mesh for the
+## whole stage put all 35k triangles through the GPU every frame from any
+## camera; pieces let the camera cull what it can't see, for two or three
+## extra draw calls.
+const ROAD_PIECE := 60
+
+
 func _road() -> void:
-	var st := _st()
 	var rows: Array = []
 	for i in n:
 		var row: Array = []
@@ -777,28 +783,30 @@ func _road() -> void:
 			row.append([pos, Color(c.r * shade, c.g * shade, c.b * shade), Vector2(lat, i * STEP), Vector2(half_w[i], half_w[i] + verge_w[i])])
 		rows.append(row)
 	var cols: int = (rows[0] as Array).size()
-	for i in n - 1:
-		for j in cols - 1:
-			var a: Array = rows[i][j]
-			var b: Array = rows[i][j + 1]
-			var c: Array = rows[i + 1][j]
-			var d: Array = rows[i + 1][j + 1]
-			for v in [a, c, b, b, c, d]:
-				st.set_color(v[1])
-				st.set_uv(v[2])
-				st.set_uv2(v[3])
-				st.set_normal(terrain.normal_at(v[0].x, v[0].z))
-				st.add_vertex(v[0])
-	st.index()
 	var body := StaticBody3D.new()
 	body.name = "Road"
 	body.add_to_group("track_road", true)
 	body.set_meta("surface", "road")
 	body.collision_layer = LAYER_SURFACE
 	body.collision_mask = 0
-	var mi := _mesh_node("Mesh", _commit(st, road_mat))
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.add_child(mi)
+	for i0 in range(0, n - 1, ROAD_PIECE):
+		var st := _st()
+		for i in range(i0, mini(i0 + ROAD_PIECE, n - 1)):
+			for j in cols - 1:
+				var a: Array = rows[i][j]
+				var b: Array = rows[i][j + 1]
+				var c: Array = rows[i + 1][j]
+				var d: Array = rows[i + 1][j + 1]
+				for v in [a, c, b, b, c, d]:
+					st.set_color(v[1])
+					st.set_uv(v[2])
+					st.set_uv2(v[3])
+					st.set_normal(terrain.normal_at(v[0].x, v[0].z))
+					st.add_vertex(v[0])
+		st.index()
+		var mi := _mesh_node("Mesh%d" % (i0 / ROAD_PIECE), _commit(st, road_mat))
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(mi)
 	# Probe covers road and verge, not the ditch, and follows the ground (in
 	# three strips across, so camber is carried, not averaged away).
 	var faces := PackedVector3Array()

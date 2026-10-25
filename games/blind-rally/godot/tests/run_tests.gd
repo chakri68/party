@@ -44,6 +44,11 @@ func _run() -> void:
 	test_weather()
 	test_camera_fit()
 	await test_camera_modes()
+	await test_cloud_shadow()
+	await test_eye_mist()
+	test_allowed_cameras()
+	await test_eye_forest()
+	await test_map_static_after_modes()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -345,6 +350,26 @@ func test_map_static() -> void:
 	check(uv.x > 0 and uv.x < 1 and uv.y > 0 and uv.y < 1, "spawn maps inside the map (%s)" % uv)
 
 
+## After every camera mode and weather change: the map is the same image,
+## rendered once, with no weather and none of the eye-level forest in it.
+func test_map_static_after_modes() -> void:
+	print("map after camera modes")
+	check(map.render_count == 1, "still exactly one map render")
+	check(main.eye_forest != null and not track.is_ancestor_of(main.eye_forest), "the eye forest isn't part of the track the map frames")
+	var gps := map.gps_enabled
+	map.gps_enabled = false
+	var s0 := _map_state()
+	main.set_camera_mode(FollowCamera.Mode.BONNET)
+	await process_frame
+	main.weather.configure(9, 1.0)
+	await process_frame
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	await process_frame
+	check(_map_state() == s0 and map.render_count == 1, "map unchanged through mode and weather switches")
+	map.gps_enabled = gps
+	main.weather.configure(4242, 0.4)
+
+
 func test_bridge_noop() -> void:
 	print("bridge")
 	var b: WebBridge = main.bridge
@@ -513,13 +538,184 @@ func test_weather() -> void:
 	var mist_mat: ShaderMaterial = (w.get_node("Mist") as MultiMeshInstance3D).multimesh.mesh.surface_get_material(0)
 	var hole: Vector2 = mist_mat.get_shader_parameter("keyhole")
 	check(hole.x >= 3.0 and float(mist_mat.get_shader_parameter("max_alpha")) < 0.85, "the car always has a clear hole (%.1f m), mist never goes opaque" % hole.x)
-	var layers_ok := true
-	for n in [w.get_node("Mist"), w.get_node("CloudShadow")]:
-		layers_ok = layers_ok and ((n as VisualInstance3D).layers & MapController.CULL_MASK) == 0
-	check(layers_ok, "weather is invisible to the static map camera")
+	check((w.get_node("Mist") as VisualInstance3D).layers & MapController.CULL_MASK == 0, "mist sprites are invisible to the static map camera")
+	check(w.get_node_or_null("CloudShadow") == null, "no cloud-shadow overlay quad any more (it lives in the shaders)")
+	# Every registered world material gates both weather terms on the camera
+	# seeing render layer 4, which the map camera doesn't.
+	var gated := not w.materials().is_empty()
+	for m in w.materials():
+		gated = gated and (m.shader.code.contains("weather_seen(CAMERA_VISIBLE_LAYERS)") or _includes_gate(m.shader.code))
+	check(gated, "%d world materials, all gated on the weather layer" % w.materials().size())
+	check((MapController.CULL_MASK & Weather.LAYER) == 0, "and the map camera doesn't draw that layer")
 	check(map.render_count == 1, "and the map is still the one render")
 	w.configure(4242, 0.0)
-	check(w.bank_count() == 0 and not w.get_node("Mist").visible and not w.get_node("CloudShadow").visible, "clouds 0: clear sky")
+	check(w.bank_count() == 0 and not w.get_node("Mist").visible, "clouds 0: clear sky")
+	var shade_off := true
+	for m in w.materials():
+		shade_off = shade_off and float(m.get_shader_parameter("cloud_strength")) == 0.0 and int(m.get_shader_parameter("mist_count")) == 0
+	check(shade_off, "clouds 0: no shade, no mist in any material")
+
+
+func _includes_gate(code: String) -> bool:
+	# palette/ground/road/forest shaders call it through the shared include.
+	return code.contains("weather.gdshaderinc") and code.contains("weather_seen(")
+
+
+## Cloud shadows: one field, in every camera, on ground, road, trees and car.
+func test_cloud_shadow() -> void:
+	print("cloud shadow")
+	var w: Weather = main.weather
+	w.time = 12.0
+	w.configure(77, 0.8)
+	var core: Array = [main.PALETTE] + track.world_materials()
+	var registered := true
+	for m in core:
+		registered = registered and w.materials().has(m)
+	check(registered, "palette, road and ground materials all get the weather")
+	var lit := 0
+	var shaded := 0
+	for i in 400:
+		var s := w.cloud_shade(track.bounds.position.x + (i % 20) * 50.0, track.bounds.position.y + (i / 20) * 36.0)
+		lit += int(s < 0.01)
+		shaded += int(s > 0.15)
+	check(lit > 20 and shaded > 20, "the shade is patchy: %d of 400 points in sun, %d under cloud" % [lit, shaded])
+	for mode in [FollowCamera.Mode.TOP_DOWN, FollowCamera.Mode.CHASE, FollowCamera.Mode.BONNET]:
+		main.set_camera_mode(mode)
+		await process_frame
+		var all_on := true
+		for m in w.materials():
+			all_on = all_on and float(m.get_shader_parameter("cloud_strength")) > 0.2 and float(m.get_shader_parameter("cloud_coverage")) > 0.3
+		check(all_on, "%s: cloud shade on in all %d materials" % [main.CAMERA_MODES[mode], w.materials().size()])
+	var o0: Vector2 = main.PALETTE.get_shader_parameter("cloud_offset")
+	for f in 30:
+		await physics_frame
+	await process_frame
+	check((main.PALETTE.get_shader_parameter("cloud_offset") as Vector2).distance_to(o0) > 0.5, "and it drifts with the wind")
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	w.configure(4242, 0.4)
+
+
+## Eye-level mist: in chase and bonnet a bank on the road ahead has to
+## actually hide it, from the camera's point of view, without touching the car.
+func test_eye_mist() -> void:
+	print("eye-level mist")
+	var w: Weather = main.weather
+	w.time = 30.0
+	w.configure(3, 1.0)
+	# The thickest bank sitting on the road, and a spot ~30 m before it.
+	var pts := track.centerline
+	var best := 0.0
+	var at := -1
+	var bank_i := -1
+	for b in w.bank_count():
+		var c := w.bank_centre(b)
+		for j in range(30, pts.size() - 30, 3):
+			if Vector2(pts[j].x, pts[j].z).distance_to(c) < 10.0 and w.bank_alpha(b) > best:
+				best = w.bank_alpha(b)
+				at = j
+				bank_i = b
+	check(at > 0 and best > 0.5, "seed 3 has a thick bank on the road (alpha %.2f)" % best)
+	var start := at - 15 # STEP is 2 m: 30 m back
+	var fwd3 := (pts[start + 1] - pts[start - 1]).normalized()
+	await place(Transform3D(Basis.looking_at(fwd3, Vector3.UP), pts[start] + Vector3(0, 0.6, 0)))
+	var c2 := w.bank_centre(bank_i)
+	var in_bank := Vector3(c2.x, track.height_at(c2.x, c2.y) + 0.3, c2.y)
+	for mode in [FollowCamera.Mode.CHASE, FollowCamera.Mode.BONNET]:
+		main.set_camera_mode(mode)
+		main.cam.snap()
+		await process_frame
+		var cp: Vector3 = main.cam.global_position
+		var road_m := w.eye_mist(cp, in_bank)
+		var car_m := w.eye_mist(cp, car.global_position + Vector3(0, 0.6, 0))
+		var near_m := w.eye_mist(cp, car.global_position + fwd3 * 3.0)
+		var name: String = main.CAMERA_MODES[mode]
+		check(road_m > 0.5, "%s: the road inside the bank, %.0f m ahead, is %.0f%% mist" % [name, cp.distance_to(in_bank), road_m * 100.0])
+		check(car_m == 0.0 and near_m == 0.0, "%s: the car and the 3 m in front of it are clear" % name)
+		check(road_m <= Weather.MAX_ALPHA + 0.001, "%s: and never fully opaque (cap %.2f)" % [name, Weather.MAX_ALPHA])
+		check(int(main.PALETTE.get_shader_parameter("mist_count")) > 0 and not w.get_node("Mist").visible, "%s: the shaders get the banks, the overhead sprites hide" % name)
+	# Smooth: the mist over that road point never jumps between frames.
+	var worst := 0.0
+	var prev := w.eye_mist(main.cam.global_position, in_bank)
+	for f in 240:
+		w.time += 1.0 / 60.0
+		var now := w.eye_mist(main.cam.global_position, in_bank)
+		worst = maxf(worst, absf(now - prev))
+		prev = now
+	check(worst < 0.02, "eye-level mist fades, never pops (worst %.4f per frame)" % worst)
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	await process_frame
+	check(w.eye_mist(main.cam.global_position, in_bank) == 0.0 and int(main.PALETTE.get_shader_parameter("mist_count")) == 0, "top-down: no eye-level mist in the shaders")
+	check(w.get_node("Mist").visible, "top-down: the overhead puffs are back")
+	w.configure(4242, 0.4)
+
+
+## allowedCameras: a host setting or sabotage can pin the Navigator's view.
+func test_allowed_cameras() -> void:
+	print("allowed cameras")
+	var cam: FollowCamera = main.cam
+	main._on_session({}, "")
+	check(main.allowed_cameras == [0, 1, 2] and cam.mode == FollowCamera.Mode.TOP_DOWN, "default: all three allowed, top-down")
+	var seen := []
+	for i in 3:
+		main.cycle_camera()
+		seen.append(int(cam.mode))
+	check(seen == [1, 2, 0], "Y cycles top-down -> chase -> bonnet -> top-down (%s)" % [seen])
+	main._on_session({"allowedCameras": ["chase"]}, "")
+	check(cam.mode == FollowCamera.Mode.CHASE, "allowedCameras [chase]: moves to chase")
+	main.cycle_camera()
+	check(cam.mode == FollowCamera.Mode.CHASE, "and Y stays there")
+	check(not main.set_camera_mode(FollowCamera.Mode.TOP_DOWN) and cam.mode == FollowCamera.Mode.CHASE, "a direct switch outside the list is refused")
+	main._on_session({"allowedCameras": ["bonnet"], "camera": "topdown"}, "")
+	check(cam.mode == FollowCamera.Mode.BONNET, "camera: topdown with only bonnet allowed lands on bonnet")
+	main._on_session({"allowedCameras": ["topdown", "bonnet"], "camera": "topdown"}, "")
+	seen = []
+	for i in 3:
+		main.cycle_camera()
+		seen.append(int(cam.mode))
+	check(seen == [2, 0, 2], "[topdown, bonnet]: Y skips chase (%s)" % [seen])
+	main._on_session({"allowedCameras": ["nonsense"], "camera": "chase"}, "")
+	check(main.allowed_cameras == [0, 1, 2] and cam.mode == FollowCamera.Mode.CHASE, "unknown names: all allowed again")
+	main._on_session({"camera": "topdown"}, "")
+	check(cam.mode == FollowCamera.Mode.TOP_DOWN and main.allowed_cameras == [0, 1, 2], "a session without the key: all three")
+
+
+## The eye-level forest: same trees, each drawn once, map untouched.
+func test_eye_forest() -> void:
+	print("eye-level forest")
+	main.set_camera_mode(FollowCamera.Mode.CHASE)
+	await place(track.get_spawn().global_transform)
+	main.cam.snap()
+	await process_frame
+	var ef: EyeForest = main.eye_forest
+	var trees := 0
+	for sc in track.get_node("Forest").get_children():
+		if sc.get_meta("kind", "") == "tree":
+			trees += sc.instance_total
+	check(ef != null and ef.counts["impostor"] == trees, "every tree has an impostor (%d)" % trees)
+	check(ef.counts["impostor_mm"] < 400 and ef.counts["near_mm"] <= 6 and ef.counts["floor_mm"] <= 8, "%d impostor cells, %d near and %d floor streams" % [ef.counts["impostor_mm"], ef.counts["near_mm"], ef.counts["floor_mm"]])
+	var n := ef.streamed()
+	check(n > 50 and n < 3000, "streams hold only what's round the camera (%d instances)" % n)
+	var baked_hidden := true
+	for sc in track.get_node("Forest").get_children():
+		for c in sc.get_children():
+			if c is MultiMeshInstance3D:
+				baked_hidden = baked_hidden and not c.visible
+	check(baked_hidden and ef.visible, "chase draws the eye-level forest instead of the baked chunks")
+	# Move 40 m: the streams refill.
+	var before := ef._centre
+	await place(Transform3D(car.global_basis, car.global_position - car.global_basis.z * 40.0))
+	main.cam.snap()
+	await process_frame
+	await process_frame
+	check(ef._centre.distance_to(before) > 20.0, "and refill as the camera moves")
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	var baked_back := true
+	for sc in track.get_node("Forest").get_children():
+		for c in sc.get_children():
+			if c is MultiMeshInstance3D:
+				baked_back = baked_back and c.visible
+	check(baked_back and not ef.visible, "top-down: baked chunks back, eye forest hidden")
+	check(map.render_count == 1, "the map was never re-rendered")
 
 
 func test_camera_fit() -> void:
@@ -537,7 +733,7 @@ func test_camera_fit() -> void:
 	cam.fit_css(Vector2(1280, 720))
 
 
-## The eye-level cameras are an experiment: top-down stays the default, and
+## Top-down stays the default next to the eye-level cameras, and
 ## going there and back leaves it exactly as it was.
 func test_camera_modes() -> void:
 	print("camera modes")
@@ -558,4 +754,4 @@ func test_camera_modes() -> void:
 	check(nose.z < 0.0 and nose.y > 1.0 and cam.near < 0.15, "bonnet rides the front of the car, near plane %.2f m" % cam.near)
 	main._on_session({"camera": "topdown"}, "")
 	check(cam.projection == Camera3D.PROJECTION_ORTHOGONAL and cam.environment == null and [cam.near, cam.far, cam.keep_aspect] == before, "back to top-down restores it exactly")
-	check(main.weather.ground_shadow, "and the cloud shadow comes back")
+	check(not main.weather.eye_level, "and the mist is back to overhead puffs")

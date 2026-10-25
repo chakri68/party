@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/car_controller.gd" id="1_car"]
 [ext_resource type="ArrayMesh" path="res://assets/meshes/car_body.res" id="2_body"]
@@ -32,6 +32,10 @@ bottom_radius = 0.1
 height = 0.05
 radial_segments = 10
 rings = 0
+
+[sub_resource type="BoxMesh" id="BoxMesh_stripe"]
+material = SubResource("Mat_roundel")
+size = Vector3(0.11, 0.02, 0.86)
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_roundel"]
 material = SubResource("Mat_roundel")
@@ -126,6 +130,16 @@ modulate = Color(0.08, 0.08, 0.1, 1)
 outline_size = 0
 text = "7"
 font_size = 96
+
+[node name="StripeL" type="MeshInstance3D" parent="Visual/Body"]
+transform = Transform3D(1, 0, 0, 0, 0.963558, -0.267499, 0, 0.267499, 0.963558, 0.13, 0.975, 1.29)
+layers = 2
+mesh = SubResource("BoxMesh_stripe")
+
+[node name="StripeR" type="MeshInstance3D" parent="Visual/Body"]
+transform = Transform3D(1, 0, 0, 0, 0.963558, -0.267499, 0, 0.267499, 0.963558, -0.13, 0.975, 1.29)
+layers = 2
+mesh = SubResource("BoxMesh_stripe")
 
 [node name="WheelFL" type="MeshInstance3D" parent="Visual"]
 position = Vector3(0.587, 0.414, 1.118)

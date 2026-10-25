@@ -15,12 +15,14 @@
 shader_type spatial;
 render_mode cull_back;
 
-uniform sampler2D detail : filter_linear_mipmap, repeat_enable;
+#include "res://shaders/weather.gdshaderinc"
 
 varying vec3 world;
+varying float v_mist; // per vertex: a smooth field, and the ground is most of the screen
 
 void vertex() {
 	world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_mist = weather_seen(CAMERA_VISIBLE_LAYERS) ? eye_mist(INV_VIEW_MATRIX[3].xyz, world) : 0.0;
 }
 
 void fragment() {
@@ -56,7 +58,13 @@ void fragment() {
 	// Grass and moss creeping in from the edge, in patches.
 	float creep = smoothstep(UV2.x - 0.5, UV2.y, lat) * smoothstep(0.45, 0.6, fray.g);
 	c = mix(c, vec3(0.30, 0.36, 0.18), creep * 0.75);
-	ALBEDO = c;
+	float mist = 0.0;
+	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
+		c *= 1.0 - cloud_shade_at(world.xz, false);
+		mist = v_mist;
+	}
+	ALBEDO = c * (1.0 - mist);
+	EMISSION = mist_tint * mist;
 	ROUGHNESS = mix(0.95, 0.8, damp);
 	SPECULAR = 0.25; // as the palette material, so the road lights like everything else
 }

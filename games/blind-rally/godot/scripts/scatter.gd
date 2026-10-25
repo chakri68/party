@@ -76,6 +76,15 @@ func _ready() -> void:
 		instance_total += count
 
 
+## Draws (or stops drawing) this chunk's meshes; colliders are untouched.
+## The eye-level cameras swap in EyeForest's finer, LOD'd copy of the same
+## records.
+func set_drawn(on: bool) -> void:
+	for c in get_children():
+		if c is MultiMeshInstance3D:
+			(c as MultiMeshInstance3D).visible = on
+
+
 ## Instance positions of one mesh, for tests and tools.
 func positions(mesh_index: int) -> PackedVector3Array:
 	var out := PackedVector3Array()

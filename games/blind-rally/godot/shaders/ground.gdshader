@@ -6,9 +6,10 @@
 shader_type spatial;
 render_mode cull_back;
 
-uniform sampler2D detail : filter_linear_mipmap, repeat_enable;
+#include "res://shaders/weather.gdshaderinc"
 
 varying vec3 world;
+varying float v_mist; // per vertex: a smooth field, and the ground is most of the screen
 
 // sRGB, like the rest of the palette.
 const vec3 NEEDLES = vec3(0.46, 0.34, 0.21); // rust pine needles
@@ -18,6 +19,7 @@ const vec3 SOIL = vec3(0.42, 0.33, 0.24);
 
 void vertex() {
 	world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_mist = weather_seen(CAMERA_VISIBLE_LAYERS) ? eye_mist(INV_VIEW_MATRIX[3].xyz, world) : 0.0;
 }
 
 void fragment() {
@@ -38,7 +40,14 @@ void fragment() {
 	const vec3 REF = vec3(0.353, 0.290, 0.212);
 	float lum = dot(base, vec3(0.3, 0.55, 0.15)) / dot(REF, vec3(0.3, 0.55, 0.15));
 	vec3 forest = floor_c * clamp(lum, 0.45, 1.25);
-	ALBEDO = mix(base * (0.88 + fine * 0.24), forest, COLOR.a);
+	vec3 albedo = mix(base * (0.88 + fine * 0.24), forest, COLOR.a);
+	float mist = 0.0;
+	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
+		albedo *= 1.0 - cloud_shade_at(world.xz, false);
+		mist = v_mist;
+	}
+	ALBEDO = albedo * (1.0 - mist);
+	EMISSION = mist_tint * mist;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.25;
 }

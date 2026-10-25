@@ -40,7 +40,9 @@ const CAR_PAINT := Color("1f6fe0")
 
 ## id: [source, scale, palette, options]. Options: "only" = node names to keep,
 ## "skip" = node names to drop, "centre" = recentre on the AABB, "ao" = darken
-## toward the base (cheap contact shading for things that stand on the ground).
+## toward the base (cheap contact shading for things that stand on the ground),
+## "drop" = [AABB, max area]: small triangles whose centre lands in the box
+## (baked, scaled space) are left out.
 const JOBS := {
 	"pine_tall": [NATURE + "tree_pineTallA.glb", 7.0, "nature", {"ao": true}],
 	"pine_default": [NATURE + "tree_pineDefaultA.glb", 6.5, "nature", {"ao": true}],
@@ -63,7 +65,11 @@ const JOBS := {
 	"flag_green": [RACING + "flagGreen.glb", 2.5, "racing", {}],
 	"tent": [RACING + "tent.glb", 4.0, "racing", {}],
 	"cone": [RACING + "pylon.glb", 5.0, "racing", {}],
-	"car_body": [CAR + "hatchback-sports.glb", 1.38, "car", {"only": ["body"]}],
+	# The hatchback's octagonal tow eyes stick out of both bumpers with a pale
+	# cap, and from the chase camera that's the brightest thing on the car.
+	"car_body": [CAR + "hatchback-sports.glb", 1.38, "car", {"only": ["body"], "drop": [
+		[AABB(Vector3(-0.27, 0.15, 1.84), Vector3(0.54, 0.5, 0.2)), 0.05],
+		[AABB(Vector3(-0.27, 0.15, -2.05), Vector3(0.54, 0.5, 0.25)), 0.05]]}],
 	"car_wheel": [CAR + "hatchback-sports.glb", 1.38, "car", {"only": ["wheel-front-left"], "centre": true}],
 }
 
@@ -73,12 +79,11 @@ var _atlas_cache := {}
 func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(MATERIAL.get_base_dir()))
-	var mat := StandardMaterial3D.new()
+	# Vertex colour as albedo, roughness 0.95, specular 0.25, plus the weather
+	# terms (cloud shade, eye-level mist): see shaders/palette.gdshader.
+	var mat := ShaderMaterial.new()
 	mat.resource_name = "vertex_color"
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
-	mat.roughness = 0.95
-	mat.metallic_specular = 0.25
+	mat.shader = load("res://shaders/palette.gdshader")
 	ResourceSaver.save(mat, MATERIAL)
 	mat = load(MATERIAL) # saved copy, so meshes reference the file, not an embed
 
@@ -127,6 +132,8 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 		var mat_src: Material = p[5]
 		var nb := xf.basis.inverse().transposed()
 		for t in range(0, idx.size(), 3):
+			if _dropped(opts, [(xf * verts[idx[t]] + shift) * scale, (xf * verts[idx[t + 1]] + shift) * scale, (xf * verts[idx[t + 2]] + shift) * scale]):
+				continue
 			var col := _source_colour(mat_src, uvs, idx, t)
 			col = _remap(col, mat_src.resource_name if mat_src else "", palette)
 			for k in 3:
@@ -147,6 +154,15 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 	mesh.surface_set_material(0, mat)
 	mesh.resource_name = src.get_file().get_basename()
 	return mesh
+
+
+func _dropped(opts: Dictionary, tri: Array) -> bool:
+	var centre: Vector3 = (tri[0] + tri[1] + tri[2]) / 3.0
+	var area: float = (tri[1] - tri[0]).cross(tri[2] - tri[0]).length() * 0.5
+	for d in opts.get("drop", []):
+		if (d[0] as AABB).has_point(centre) and area <= d[1]:
+			return true
+	return false
 
 
 ## Gathers [transform, verts, normals, uvs, indices, material] per surface.
