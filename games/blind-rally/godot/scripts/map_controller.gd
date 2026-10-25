@@ -68,7 +68,7 @@ func render_static_map(t: Track) -> void:
 	cam.size = side
 	cam.near = 1.0
 	cam.far = 400.0
-	cam.cull_mask = 1 # world only; the car lives on layer 2
+	cam.cull_mask = 1 | 4 # world plus the map-only overlay; the car and its dust live on layer 2
 	vp.add_child(cam)
 	add_child(vp)
 	# Straight down, north up. Set after entering the tree so global_* works.

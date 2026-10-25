@@ -1,40 +1,63 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/car_controller.gd" id="1_car"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/car_body.res" id="2_body"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/car_wheel.res" id="3_wheel"]
+[ext_resource type="Script" path="res://scripts/car_fx.gd" id="4_fx"]
+[ext_resource type="Script" path="res://scripts/car_audio.gd" id="5_audio"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.8, 1.0, 3.8)
 
-[sub_resource type="StandardMaterial3D" id="Mat_paint"]
-albedo_color = Color(0.98, 0.62, 0.08, 1)
-roughness = 0.6
+[sub_resource type="StandardMaterial3D" id="Mat_pod"]
+albedo_color = Color(0.1, 0.1, 0.11, 1)
+roughness = 0.5
 
-[sub_resource type="StandardMaterial3D" id="Mat_glass"]
-albedo_color = Color(0.12, 0.16, 0.22, 1)
-roughness = 0.3
+[sub_resource type="StandardMaterial3D" id="Mat_lamp"]
+shading_mode = 0
+albedo_color = Color(1, 0.97, 0.82, 1)
 
-[sub_resource type="StandardMaterial3D" id="Mat_tyre"]
-albedo_color = Color(0.08, 0.08, 0.08, 1)
+[sub_resource type="StandardMaterial3D" id="Mat_roundel"]
+albedo_color = Color(0.96, 0.96, 0.94, 1)
+roughness = 0.7
 
-[sub_resource type="BoxMesh" id="BoxMesh_body"]
-material = SubResource("Mat_paint")
-size = Vector3(1.8, 0.6, 3.8)
+[sub_resource type="BoxMesh" id="BoxMesh_pod"]
+material = SubResource("Mat_pod")
+size = Vector3(1.1, 0.14, 0.3)
 
-[sub_resource type="BoxMesh" id="BoxMesh_cabin"]
-material = SubResource("Mat_glass")
-size = Vector3(1.5, 0.5, 1.8)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_wheel"]
-material = SubResource("Mat_tyre")
-top_radius = 0.38
-bottom_radius = 0.38
-height = 0.3
-radial_segments = 8
+[sub_resource type="CylinderMesh" id="CylinderMesh_lamp"]
+material = SubResource("Mat_lamp")
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.05
+radial_segments = 10
 rings = 0
 
-[sub_resource type="PrismMesh" id="PrismMesh_nose"]
-material = SubResource("Mat_paint")
-size = Vector3(0.6, 0.4, 0.1)
+[sub_resource type="CylinderMesh" id="CylinderMesh_roundel"]
+material = SubResource("Mat_roundel")
+top_radius = 0.42
+bottom_radius = 0.42
+height = 0.02
+radial_segments = 16
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="Mat_xray"]
+transparency = 1
+no_depth_test = true
+shading_mode = 0
+albedo_color = Color(1, 0.92, 0.35, 0.0)
+render_priority = 2
+
+[sub_resource type="TorusMesh" id="TorusMesh_xray"]
+material = SubResource("Mat_xray")
+inner_radius = 2.35
+outer_radius = 2.6
+rings = 24
+ring_segments = 4
+
+[sub_resource type="PrismMesh" id="PrismMesh_xray"]
+material = SubResource("Mat_xray")
+size = Vector3(1.1, 0.9, 0.05)
 
 [node name="Car" type="CharacterBody3D" groups=["car"]]
 collision_layer = 2
@@ -54,38 +77,96 @@ collision_mask = 8
 hit_back_faces = true
 
 [node name="Visual" type="Node3D" parent="."]
+rotation = Vector3(0, 3.14159, 0)
 
 [node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 layers = 2
-mesh = SubResource("BoxMesh_body")
+mesh = ExtResource("2_body")
 
-[node name="Cabin" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0.3)
+[node name="LightPod" type="MeshInstance3D" parent="Visual/Body"]
+position = Vector3(0, 1.56, 0.62)
 layers = 2
-mesh = SubResource("BoxMesh_cabin")
+mesh = SubResource("BoxMesh_pod")
 
-[node name="Nose" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.91, -1.4)
+[node name="Lamp1" type="MeshInstance3D" parent="Visual/Body/LightPod"]
+position = Vector3(-0.39, 0, 0.16)
+rotation = Vector3(1.0472, 0, 0)
 layers = 2
-mesh = SubResource("PrismMesh_nose")
+mesh = SubResource("CylinderMesh_lamp")
+
+[node name="Lamp2" type="MeshInstance3D" parent="Visual/Body/LightPod"]
+position = Vector3(-0.13, 0, 0.16)
+rotation = Vector3(1.0472, 0, 0)
+layers = 2
+mesh = SubResource("CylinderMesh_lamp")
+
+[node name="Lamp3" type="MeshInstance3D" parent="Visual/Body/LightPod"]
+position = Vector3(0.13, 0, 0.16)
+rotation = Vector3(1.0472, 0, 0)
+layers = 2
+mesh = SubResource("CylinderMesh_lamp")
+
+[node name="Lamp4" type="MeshInstance3D" parent="Visual/Body/LightPod"]
+position = Vector3(0.39, 0, 0.16)
+rotation = Vector3(1.0472, 0, 0)
+layers = 2
+mesh = SubResource("CylinderMesh_lamp")
+
+[node name="Roundel" type="MeshInstance3D" parent="Visual/Body"]
+position = Vector3(0, 1.53, -0.15)
+layers = 2
+mesh = SubResource("CylinderMesh_roundel")
+
+[node name="Number" type="Label3D" parent="Visual/Body/Roundel"]
+position = Vector3(0, 0.02, 0)
+rotation = Vector3(-1.5708, 3.14159, 0)
+layers = 2
+pixel_size = 0.0075
+modulate = Color(0.08, 0.08, 0.1, 1)
+outline_size = 0
+text = "7"
+font_size = 96
 
 [node name="WheelFL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, -0.95, 0.38, -1.2)
+position = Vector3(0.587, 0.414, 1.118)
 layers = 2
-mesh = SubResource("CylinderMesh_wheel")
+mesh = ExtResource("3_wheel")
 
 [node name="WheelFR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, 0.95, 0.38, -1.2)
+position = Vector3(-0.587, 0.414, 1.118)
+rotation = Vector3(0, 3.14159, 0)
 layers = 2
-mesh = SubResource("CylinderMesh_wheel")
+mesh = ExtResource("3_wheel")
 
 [node name="WheelRL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, -0.95, 0.38, 1.2)
+position = Vector3(0.587, 0.414, -1.118)
 layers = 2
-mesh = SubResource("CylinderMesh_wheel")
+mesh = ExtResource("3_wheel")
 
 [node name="WheelRR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(-4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0, 1, 0.95, 0.38, 1.2)
+position = Vector3(-0.587, 0.414, -1.118)
+rotation = Vector3(0, 3.14159, 0)
 layers = 2
-mesh = SubResource("CylinderMesh_wheel")
+mesh = ExtResource("3_wheel")
+
+[node name="XRay" type="Node3D" parent="."]
+visible = false
+
+[node name="Ring" type="MeshInstance3D" parent="XRay"]
+transform = Transform3D(1, 0, 0, 0, 0.05, 0, 0, 0, 1, 0, 0.3, 0)
+layers = 2
+cast_shadow = 0
+mesh = SubResource("TorusMesh_xray")
+
+[node name="Arrow" type="MeshInstance3D" parent="XRay"]
+position = Vector3(0, 0.3, -3.2)
+rotation = Vector3(-1.5708, 0, 0)
+layers = 2
+cast_shadow = 0
+mesh = SubResource("PrismMesh_xray")
+
+[node name="Fx" type="Node3D" parent="."]
+script = ExtResource("4_fx")
+
+[node name="Audio" type="Node" parent="."]
+script = ExtResource("5_audio")

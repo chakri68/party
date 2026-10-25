@@ -4,7 +4,11 @@ extends Node3D
 ## checkpoint order and timing (spec §5, §8).
 ##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP,
-## M expand map, C camera rotates with car, -/= zoom.
+## M expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
+## F dust and marks, L shadows.
+##
+## Phones (web on Android/iOS) start with shadows off and half the dust.
+## Audio waits for the first tap or key press, as browsers require.
 
 @onready var track: Track = $Track
 @onready var car: CarController = $Car
@@ -12,9 +16,12 @@ extends Node3D
 @onready var map: MapController = $UI/Map
 @onready var hud: Label = $UI/Hud
 @onready var bridge: WebBridge = $WebBridge
+@onready var fx: CarFx = $Car/Fx
+@onready var audio: CarAudio = $Car/Audio
 
 var checkpoints_passed := 0
 var finished := false
+var is_phone := false
 var _map_expanded := false
 var _map_small := Rect2()
 
@@ -28,7 +35,12 @@ func _ready() -> void:
 	track.checkpoint_entered.connect(_on_checkpoint)
 	track.finish_entered.connect(_on_finish)
 	car.impact.connect(func(strength: float, _who: Object) -> void:
+		cam.kick(strength, car.last_impact_normal)
 		bridge.emit_physics_event({"kind": "impact", "strength": snappedf(strength, 0.1)}))
+	is_phone = OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile")
+	if is_phone:
+		set_shadows(false)
+		fx.density = 0.5
 	map.car = car
 	_map_small = Rect2(map.offset_left, map.offset_top, map.offset_right, map.offset_bottom)
 	map.render_static_map(track)
@@ -41,12 +53,27 @@ func _physics_process(_dt: float) -> void:
 
 
 func _process(_dt: float) -> void:
-	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s" % [
+	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s" % [
 		Engine.get_frames_per_second(), absf(car.forward_speed) * 3.6, car.surface,
 		car.distance_travelled, checkpoints_passed, track.get_checkpoints().size(),
 		"  FINISHED" if finished else "", _compass(car.global_rotation.y),
 		"on" if map.gps_enabled else "off", "up" if bridge.connected else "-",
+		"muted" if audio.muted else ("on" if audio.started else "tap to start"),
 	]
+
+
+## Browsers only allow audio after a gesture; any press counts.
+func _input(e: InputEvent) -> void:
+	if audio.started:
+		return
+	if (e is InputEventKey and e.pressed) or (e is InputEventMouseButton and e.pressed) or (e is InputEventScreenTouch and e.pressed):
+		audio.start()
+
+
+func set_shadows(on: bool) -> void:
+	var sun := track.get_node_or_null("Sun") as DirectionalLight3D
+	if sun:
+		sun.shadow_enabled = on
 
 
 func _unhandled_key_input(e: InputEvent) -> void:
@@ -60,11 +87,19 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_C: cam.rotate_with_car = not cam.rotate_with_car
 		KEY_MINUS: cam.zoom(1.15)
 		KEY_EQUAL: cam.zoom(1.0 / 1.15)
+		KEY_N: audio.muted = not audio.muted
+		KEY_K: cam.kick_enabled = not cam.kick_enabled
+		KEY_F: fx.enabled = not fx.enabled
+		KEY_L:
+			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
+			if sun:
+				set_shadows(not sun.shadow_enabled)
 
 
 func recover() -> void:
 	car.reset_to(track.recovery_for(checkpoints_passed).global_transform)
 	cam.snap()
+	fx.reset_trail()
 
 
 func _on_checkpoint(index: int, body: Node3D) -> void:
@@ -86,6 +121,9 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 	var assists: Dictionary = cfg.get("assists", {})
 	map.gps_enabled = bool(assists.get("liveMarker", false))
 	car.keyboard_enabled = bool(cfg.get("keyboard", false))
+	audio.muted = bool(cfg.get("muted", audio.muted))
+	if cfg.has("reducedMotion"):
+		cam.kick_enabled = not bool(cfg["reducedMotion"])
 
 
 func _on_race_event(ev: Dictionary) -> void:

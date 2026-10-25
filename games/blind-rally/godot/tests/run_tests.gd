@@ -93,8 +93,14 @@ func test_track_interface() -> void:
 		ordered = ordered and int(cps[i].get_meta("index")) == i + 1
 	check(ordered, "checkpoint indices are 1..n")
 	check(track.get_recovery_anchors().size() == cps.size() + 1, "recovery anchor per checkpoint plus start")
-	check(track.get_landmarks().size() == 2, "two landmarks")
-	check(get_nodes_in_group("track_obstacle").size() > 50, "obstacles (%d)" % get_nodes_in_group("track_obstacle").size())
+	check(track.get_landmarks().size() == 3, "three landmarks (bridge, cabin, sawmill)")
+	# Forest chunks are one node with hundreds of colliders each; count both.
+	var nodes := get_nodes_in_group("track_obstacle")
+	var colliders := 0
+	for o in nodes:
+		colliders += (o as Scatter).collider_total if o is Scatter else 1
+	check(nodes.size() > 50 and colliders > 5000, "obstacles (%d nodes, %d colliders)" % [nodes.size(), colliders])
+	check(track.centerline.size() > 100 and track.length_m > 2000.0, "centreline and length (%.0f m)" % track.length_m)
 	check(track.recovery_for(2).get_meta("after_checkpoint") == 2, "recovery_for picks last passed CP")
 
 
@@ -169,13 +175,19 @@ func _clear_offroad_xf() -> Variant:
 				var xf := Transform3D(Basis(Vector3.UP, yaw), Vector3(gx, 0.6, gz))
 				var d := -xf.basis.z
 				var side := xf.basis.x
-				var clear := true
+				# Sweep a car-sized box the whole way: thin rays slip between trunks.
+				var sweep := PhysicsShapeQueryParameters3D.new()
+				var box := BoxShape3D.new()
+				box.size = Vector3(2.4, 1.0, 4.0)
+				sweep.shape = box
+				sweep.transform = xf
+				sweep.motion = d * 60.0
+				sweep.collision_mask = 1 | 8
+				var clear := space.cast_motion(sweep)[0] >= 1.0 and space.intersect_shape(sweep, 1).is_empty()
 				for lane in [-1.5, 0.0, 1.5]:
-					var o: Vector3 = xf.origin + side * lane
-					var q := PhysicsRayQueryParameters3D.create(o, o + d * 60.0, 1 | 8)
-					if not space.intersect_ray(q).is_empty():
-						clear = false
+					if not clear:
 						break
+					var o: Vector3 = xf.origin + side * lane
 					# Not sitting on road either.
 					var down := PhysicsRayQueryParameters3D.create(o + Vector3.UP * 2, o + Vector3.DOWN * 2, 8)
 					down.hit_back_faces = true
@@ -201,7 +213,10 @@ func test_offroad_slower() -> void:
 	await place(xf)
 	check(car.surface == "offroad", "grass reads as offroad")
 	var o0 := car.global_position
+	impacts.clear()
 	await drive(2.0, 0.0, 1.0)
+	if impacts.size() > 0:
+		print("    off-road run hit something at %s (from %s)" % [car.global_position, o0])
 	var off_dist := car.global_position.distance_to(o0)
 	print("    2 s full throttle: road %.1f m (%.1f m/s), grass %.1f m (%.1f m/s)" % [road_dist, road_speed, off_dist, car.forward_speed])
 	check(off_dist < road_dist * 0.8 and car.forward_speed < road_speed * 0.7, "grass is clearly slower")
@@ -210,7 +225,7 @@ func test_offroad_slower() -> void:
 
 func test_collision() -> void:
 	print("collision")
-	var barn: Node3D = track.get_node("Landmarks/BlueBarn")
+	var barn: Node3D = track.get_node("Landmarks/Sawmill")
 	var target := barn.global_position
 	# Approach from 30 m out along the barn's local +Z face normal.
 	var n := barn.global_basis.z.normalized()
@@ -220,7 +235,7 @@ func test_collision() -> void:
 	impacts.clear()
 	var peak := 0.0
 	var hit_frame_speed := 0.0
-	for f in 150:
+	for f in 240: # 4 s: the yard is off-road, slower since the rally retune
 		if f % 2 == 0:
 			car.set_control(0.0, 1.0, 0.0)
 		var before := car.forward_speed
@@ -231,21 +246,37 @@ func test_collision() -> void:
 	var depth := (car.global_position - target).dot(n)
 	print("    peak %.1f m/s, impacts %d (first %.1f), now %.1f m/s, %.1f m from barn centre" % [peak, impacts.size(), impacts[0] if impacts.size() else 0.0, car.forward_speed, depth])
 	check(impacts.size() >= 1, "hitting the barn emits impact")
-	check(depth > 5.5 - 0.3 + 1.0, "car doesn't pass through (barn half-depth 5.5)")
+	check(depth > 5.5 - 0.3 + 1.0, "car doesn't pass through (sawmill half-depth 5.5)")
 	check(car.forward_speed < 3.0, "momentum is lost against the wall")
-	# A tree too: smaller, round, the usual victim.
-	var tree: Node3D = null
-	for o in get_nodes_in_group("track_obstacle"):
-		if o.get_meta("kind", "") == "tree":
-			tree = o
-			break
-	var tp := tree.global_position
+	# A tree too: smaller, round, the usual victim. Pick one with a clear 14 m
+	# run-up from the south, so it's this tree we hit and not a neighbour.
+	var tp := _lone_tree()
 	await place(Transform3D(Basis.looking_at(Vector3(0, 0, -1), Vector3.UP), tp + Vector3(0, 0.6, 14)))
 	impacts.clear()
 	await drive(2.0, 0.0, 1.0)
 	print("    tree run: impacts %s, z %.2f, speed %.2f, tree z %.2f" % [impacts, car.global_position.z, car.forward_speed, tp.z])
 	check(impacts.size() >= 1, "tree in the way: impact (%d)" % impacts.size())
 	check(car.global_position.z > tp.z, "and the car stops short of driving through it (z %.1f vs tree %.1f)" % [car.global_position.z, tp.z])
+
+
+func _lone_tree() -> Vector3:
+	var space := car.get_world_3d().direct_space_state
+	for o in get_nodes_in_group("track_obstacle"):
+		if not (o is Scatter and o.get_meta("kind", "") == "tree"):
+			continue
+		for i in (o as Scatter).meshes.size():
+			for p in (o as Scatter).positions(i):
+				if not track.bounds.grow(-20.0).has_point(Vector2(p.x, p.z)):
+					continue # scenery past the world walls
+				var from := p + Vector3(0, 0.6, 14)
+				var q := PhysicsRayQueryParameters3D.create(from, p + Vector3(0, 0.6, 0), 1)
+				var hit := space.intersect_ray(q)
+				var wide := PhysicsRayQueryParameters3D.create(from + Vector3(1.2, 0, 0), p + Vector3(1.2, 0.6, 2), 1)
+				var wide2 := PhysicsRayQueryParameters3D.create(from + Vector3(-1.2, 0, 0), p + Vector3(-1.2, 0.6, 2), 1)
+				if not hit.is_empty() and Vector2(hit.position.x - p.x, hit.position.z - p.z).length() < 1.5 \
+						and space.intersect_ray(wide).is_empty() and space.intersect_ray(wide2).is_empty():
+					return p
+	return Vector3.ZERO
 
 
 func test_checkpoint_order() -> void:
@@ -293,6 +324,7 @@ func test_map_static() -> void:
 	check(marker.position == m0, "GPS off: marker isn't even updated")
 	check(map.render_count == 1, "still rendered once after driving")
 	map.gps_enabled = true
+	await place(track.get_spawn().global_transform) # the steering run ends in the trees
 	await process_frame
 	var p1 := marker.position
 	check(marker.visible, "GPS on: marker visible")

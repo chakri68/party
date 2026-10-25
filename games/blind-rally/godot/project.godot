@@ -40,7 +40,8 @@ environment/defaults/default_clear_color=Color(0.55, 0.7, 0.62, 1)
 [layer_names]
 
 3d_render/layer_1="world"
-3d_render/layer_2="car (hidden from the static map)"
+3d_render/layer_2="car and its effects (hidden from the static map)"
+3d_render/layer_3="map-only overlay (hidden from the 3D camera)"
 3d_physics/layer_1="world"
 3d_physics/layer_2="car"
 3d_physics/layer_3="triggers"

@@ -10,11 +10,13 @@ extends Node3D
 ##   track_checkpoint  Area3D, meta "index" = 1..n, traversal order.
 ##   track_recovery    Marker3D, meta "after_checkpoint" = 0..n (0 = start).
 ##   track_landmark    Node3D, meta "label". Visible in 3D and on the map.
-##   track_obstacle    StaticBody3D you can hit (trees, barriers, buildings).
+##   track_obstacle    StaticBody3D you can hit (buildings, logs, bales). Forest
+##                     chunks are Scatter bodies here too, many trees per node.
 ##   track_road        StaticBody3D with meta "surface" (road, offroad, sand, ice).
 ##
-## Physics layers: 1 world, 2 car, 3 triggers. Render layer 2 is the car, which
-## the static map camera never draws.
+## Physics layers: 1 world, 2 car, 3 triggers, 4 surface probes. Render layers:
+## 1 world, 2 car and its effects (the static map camera never draws it),
+## 3 map-only overlay (road ribbon, landmark icons; the 3D camera skips it).
 
 signal checkpoint_entered(index: int, body: Node3D)
 signal finish_entered(body: Node3D)
@@ -25,6 +27,11 @@ signal finish_entered(body: Node3D)
 ## World-space XZ rectangle the course lives in. The map camera frames it and
 ## world_to_map() converts against it, so pins and replays agree with the map.
 @export var bounds := Rect2(-100, -100, 200, 200)
+@export_enum("easy", "medium", "hard") var difficulty := "easy"
+## Road centreline from start to finish, evenly spaced. For pace notes,
+## replays and tests; gameplay never reads it (checkpoints are volumes).
+@export var centerline := PackedVector3Array()
+@export var length_m := 0.0
 
 
 func _ready() -> void:

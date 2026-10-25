@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="PackedScene" path="res://scenes/tracks/test_loop.tscn" id="2_track"]
+[ext_resource type="PackedScene" path="res://scenes/tracks/pine_panic.scn" id="2_track"]
 [ext_resource type="PackedScene" path="res://scenes/car.tscn" id="3_car"]
 [ext_resource type="Script" path="res://scripts/camera_controller.gd" id="4_cam"]
 [ext_resource type="Script" path="res://scripts/map_controller.gd" id="5_map"]
