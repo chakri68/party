@@ -69,6 +69,10 @@ func _run() -> void:
 	await test_ghosts_no_collision()
 	test_team_paint()
 	await test_room_hud()
+	await test_big_map_inputs()
+	await test_big_map_modes()
+	await test_big_map_static()
+	await test_big_map_map_only()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -1480,3 +1484,225 @@ func test_room_hud() -> void:
 	_probe_session()
 	await process_frame
 	check(main.hud.visible, "probe: shown")
+
+
+# --- big map ---------------------------------------------------------------------
+
+var map_events: Array = []
+
+
+func _map_event(ev: Dictionary) -> void:
+	if ev.get("kind") == "map":
+		map_events.append(ev.get("open"))
+
+
+## A click: press and release at a canvas point, through the root viewport
+## like a real mouse.
+func click(at: Vector2) -> void:
+	for down in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = down
+		e.position = at
+		e.global_position = at
+		root.push_input(e, true)
+	await process_frame
+
+
+## A finger: a screen touch through Input, which (emulate_mouse_from_touch,
+## the default) is how a phone's tap reaches the GUI.
+func tap(at: Vector2) -> void:
+	var win: Vector2 = root.get_final_transform() * at
+	for down in [true, false]:
+		var t := InputEventScreenTouch.new()
+		t.index = 0
+		t.pressed = down
+		t.position = win
+		Input.parse_input_event(t)
+		Input.flush_buffered_events()
+	await process_frame
+
+
+func key(code: Key) -> void:
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.physical_keycode = code
+		k.keycode = code
+		k.pressed = down
+		Input.parse_input_event(k)
+		Input.flush_buffered_events()
+	await process_frame
+
+
+## Game seconds, not frames: with --fixed-fps 60 a frame is 1/60 s, without
+## it a headless frame is whatever the machine manages, and the map's tween
+## runs on the same clock as this timer either way.
+func wait_s(seconds: float) -> void:
+	await create_timer(seconds).timeout
+	await process_frame
+
+
+## Long enough for the open / close animation to finish.
+func settle() -> void:
+	await wait_s(main.MAP_ANIM_S + 0.04)
+
+
+func _map_centre() -> Vector2:
+	return map.get_global_rect().get_center()
+
+
+## Open and close by every input: mouse, touch, keyboard, the X, outside.
+func test_big_map_inputs() -> void:
+	print("big map: open and close")
+	_probe_session()
+	if not main.bridge.physics_event.is_connected(_map_event):
+		main.bridge.physics_event.connect(_map_event)
+	map_events.clear()
+	var small := map.get_global_rect()
+	var vs := main.get_viewport().get_visible_rect().size
+	await click(_map_centre())
+	check(main.map_expanded, "a click on the corner map opens it")
+	check(map_events == [true], "and the bridge hears {kind: map, open: true} (%s)" % [map_events])
+	# Mid-flight, then done within the budget (the click above took a frame).
+	await create_timer(0.05).timeout
+	var mid := map.get_global_rect()
+	check(mid.size.x > small.size.x and mid.size.x < main._big_map_rect().size.x, "animated: part way after 50 ms (%s)" % mid)
+	await create_timer(0.15).timeout
+	var big := map.get_global_rect()
+	check(big.is_equal_approx(main._big_map_rect()), "fully open inside 200 ms")
+	check(big.size.x > small.size.x * 2.5 and big.size.y > small.size.y * 2.0, "most of the screen (%s of %s)" % [big, vs])
+	check(Rect2(Vector2.ZERO, vs).encloses(big) and big.position.y > 0.0 and big.end.x < vs.x, "with a margin all round")
+	check(map.detail and map.big, "detail on: labels and checkpoint numbers")
+	check(main._map_scrim.visible, "the 3D view is dimmed behind it")
+	check(main.get_viewport().scaling_3d_scale < 1.0, "and drawn at reduced resolution while covered (%s)" % main.get_viewport().scaling_3d_scale)
+	await tap(_map_centre())
+	check(not main.map_expanded and map_events == [true, false], "a tap on the big map closes it, and says so")
+	await settle()
+	check(map.get_global_rect().is_equal_approx(small) and not map.detail and not main._map_scrim.visible, "back in its corner, labels off, no dimming")
+	check(is_equal_approx(main.get_viewport().scaling_3d_scale, 1.0), "3D back at full resolution")
+	await tap(_map_centre())
+	await settle()
+	check(main.map_expanded, "a touch on the corner map opens it too")
+	var corner: Control = map.get_node("Corner")
+	var cr := corner.get_global_rect()
+	check(corner.visible and map.get_global_rect().encloses(cr) and cr.size.x >= 40.0 and cr.get_center().x > map.get_global_rect().get_center().x, "an X in the big map's top-right, at least 40 px")
+	await click(cr.get_center())
+	await settle()
+	check(not main.map_expanded, "the X closes it")
+	await key(KEY_M)
+	await settle()
+	check(main.map_expanded and map.get_global_rect().is_equal_approx(main._big_map_rect()), "M opens it")
+	await key(KEY_M)
+	await settle()
+	check(not main.map_expanded, "M again closes it")
+	await key(KEY_M)
+	await settle()
+	await key(KEY_ESCAPE)
+	await settle()
+	check(not main.map_expanded and map.get_global_rect().is_equal_approx(small), "Esc closes it")
+	map_events.clear()
+	await key(KEY_ESCAPE)
+	check(not main.map_expanded and map_events.is_empty(), "Esc on a closed map: nothing, and no event")
+	await click(_map_centre())
+	await settle()
+	var outside := Vector2(map.get_global_rect().position.x * 0.5, vs.y * 0.5)
+	await click(outside)
+	await settle()
+	check(not main.map_expanded and map_events == [true, false], "a click outside it (on the dimmed 3D) closes it")
+	# Turned round mid-flight: the state follows the last tap.
+	await click(_map_centre())
+	await process_frame
+	await click(_map_centre())
+	await settle()
+	check(not main.map_expanded and map.get_global_rect().is_equal_approx(small), "open then close mid-animation lands closed, in the corner")
+	map_events.clear()
+
+
+## Every camera mode: opens, stays open through Y, closes.
+func test_big_map_modes() -> void:
+	print("big map: camera modes")
+	_probe_session()
+	for m in [0, 1, 2]:
+		main.set_camera_mode(m)
+		await process_frame
+		await click(_map_centre())
+		await settle()
+		var ok: bool = main.map_expanded and map.get_global_rect().is_equal_approx(main._big_map_rect()) and not main.get_viewport().disable_3d
+		await click(_map_centre())
+		await settle()
+		check(ok and not main.map_expanded, "%s: opens over the running 3D view and closes" % main.CAMERA_MODES[m])
+	main.set_map_expanded(true, false)
+	var before: int = main.cam.mode
+	main.cycle_camera()
+	await process_frame
+	check(main.cam.mode != before and main.map_expanded, "Y switches the camera underneath; the map stays open")
+	main.set_map_expanded(false, false)
+	main.set_camera_mode(0)
+	_probe_session()
+
+
+## The big map is the same one render: same image, same cull mask (never the
+## eggs on layer 5, never the ghosts on layer 6), and with the live marker
+## off, nothing on it moves for the car or points at it.
+func test_big_map_static() -> void:
+	print("big map: static")
+	_probe_session()
+	map.gps_enabled = false
+	var tex := map.image_rect.texture
+	main.set_map_expanded(true, false)
+	await process_frame
+	check(map.render_count == 1 and map.image_rect.texture == tex, "the same image, not a new render")
+	var cam := map.map_camera()
+	check((MapController.CULL_MASK & (16 | 32)) == 0 and (cam == null or cam.cull_mask == MapController.CULL_MASK), "map camera's cull mask still skips layers 5 (eggs) and 6 (ghosts)")
+	check((EasterEggs.LAYER | GhostCars.LAYER) & MapController.CULL_MASK == 0, "and those are the layers eggs and ghosts use")
+	var marker: Polygon2D = map.image_rect.get_node("GpsMarker")
+	check(not marker.visible, "liveMarker off: no car marker on the big map")
+	var d := map.detail_items()
+	check(d.checkpoints == [1, 2, 3, 4, 5], "checkpoints numbered 1-5 (%s)" % [d.checkpoints])
+	var labels: Array = d.labels
+	var want := _callouts().map(func(l: Node) -> String: return String(l.get_meta("label")))
+	check(want.all(func(w: String) -> bool: return labels.has(w)) and labels.has("start") and labels.has("finish"), "every landmark labelled, plus start and finish")
+	check(not labels.any(func(l: String) -> bool: return l.contains("car") and l != "wrecked car"), "no label for the car")
+	await place(track.get_spawn().global_transform)
+	var before := _map_tree_state()
+	await drive(1.5, 0.4, 1.0)
+	for f in 3:
+		await process_frame
+	check(_map_tree_state() == before and not marker.visible, "marker off, map open: nothing under the map moved, scaled or showed while driving")
+	map.gps_enabled = true
+	await process_frame
+	check(marker.visible and marker.scale.x > 1.0, "marker on: it shows, sized for the big map")
+	map.gps_enabled = false
+	main.set_map_expanded(false, false)
+	await process_frame
+	check(marker.scale.x == 1.0, "and back to its corner size after")
+	_probe_session()
+
+
+## Map-only (camera3d off): the map is already the main view, so a tap,
+## M or Esc does nothing; and opening it first doesn't strand it.
+func test_big_map_map_only() -> void:
+	print("big map: map-only mode")
+	_probe_session()
+	var small := map.get_global_rect()
+	main.set_map_expanded(true, false)
+	map_events.clear()
+	main._on_race_event({"kind": "assists", "camera3d": false})
+	await process_frame
+	check(main.map_only and not main.map_expanded and map_events == [false], "going map-only closes the big map first, and says so")
+	var r := map.get_global_rect()
+	await click(_map_centre())
+	await key(KEY_M)
+	await settle()
+	check(not main.map_expanded and map.get_global_rect() == r and main.get_viewport().disable_3d, "map-only: a click and M change nothing")
+	check(map_events == [false], "and no map event")
+	check(map.detail and not (map.get_node("Corner") as Control).visible, "labels shown on the map-only map; no expand hint")
+	main._on_race_event({"kind": "assists", "camera3d": true})
+	await process_frame
+	check(map.get_global_rect() == small and not map.detail and not main.get_viewport().disable_3d, "camera3d back: corner map, labels off")
+	await click(_map_centre())
+	await settle()
+	check(main.map_expanded, "and it opens again")
+	main.set_map_expanded(false, false)
+	check(map.render_count == 1, "still one map render through all of it")
+	_probe_session()

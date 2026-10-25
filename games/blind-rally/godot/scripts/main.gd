@@ -5,7 +5,8 @@ extends Node3D
 ##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP
 ## (probe and editor only: in the room a reset is the server's call), M
-## expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
+## big map (tap or click the corner map too; Esc, a tap on it, outside it or
+## on its X closes it), C camera rotates with car, -/= zoom, N mute, K impact kick,
 ## F dust and marks, L shadows, P debug autopilot, V cycle clouds,
 ## Y camera: top-down -> chase -> bonnet, skipping any not allowed.
 ##
@@ -42,8 +43,14 @@ extends Node3D
 var checkpoints_passed := 0
 var finished := false
 var is_phone := false
-var _map_expanded := false
-var _map_small := Rect2()
+## The big map: the corner map grown over most of the screen. Not a pause:
+## the car drives, the 3D view keeps drawing (at OPEN_3D_SCALE, since most of
+## it is covered), and the bridge hears {kind: "map", open} each way.
+var map_expanded := false
+var _map_corner := {} ## the corner map's anchors and offsets
+var _map_tween: Tween
+var _map_scrim: ColorRect
+var _3d_scale := 1.0 ## the root viewport's 3D scale before the map opened
 var recoveries := 0 ## resets so far, for tests and the autopilot's report card
 var race_time := 0.0 ## physics seconds since spawn, until the finish
 var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pick
@@ -70,6 +77,13 @@ var _map_layout := {} ## the map's anchors and offsets before map-only
 
 ## Seconds between "fell" requests while the server hasn't answered.
 const FELL_RETRY_S := 3.0
+## Open / close animation, seconds.
+const MAP_ANIM_S := 0.16
+## Margin round the big map, CSS pixels (MapController.css_px).
+const MAP_MARGIN_PX := 10.0
+## 3D resolution while the big map is open: it covers 60-75% of the screen,
+## and what's left is dimmed, so nobody misses the pixels.
+const OPEN_3D_SCALE := 0.5
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
 ## The eye-level sky and its haze, one family of colours: the depth fog is the
@@ -117,12 +131,14 @@ func _ready() -> void:
 		set_shadows(false)
 		fx.density = 0.5
 	map.car = car
-	_map_small = Rect2(map.offset_left, map.offset_top, map.offset_right, map.offset_bottom)
+	_map_corner = _layout_of(map)
+	map.tapped.connect(_on_map_tapped)
 	cam.perspective_env = _perspective_env()
 	# The map is one render of the baked forest; a camera switch that lands
 	# before it (an early initSession) waits, so it can't hide those chunks
 	# from it.
 	_build_map_only_ui()
+	_build_map_scrim()
 	await map.render_static_map(track)
 	if _pending_mode >= 0:
 		set_camera_mode(_pending_mode)
@@ -294,9 +310,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_R:
 			if not room:
 				recover()
-		KEY_M:
-			if not map_only:
-				_toggle_map()
+		KEY_M: toggle_map()
+		KEY_ESCAPE: set_map_expanded(false)
 		KEY_C: cam.rotate_with_car = not cam.rotate_with_car
 		KEY_MINUS: cam.zoom(1.15)
 		KEY_EQUAL: cam.zoom(1.0 / 1.15)
@@ -436,40 +451,42 @@ func set_map_only(on: bool) -> void:
 	map_only = on
 	if map.render_count == 0:
 		return # _ready applies it once the map exists; the map render needs the 3D world
+	if on:
+		set_map_expanded(false, false) # map only is already the big map
 	get_viewport().disable_3d = on
 	_map_only_ui.visible = on
+	map.detail = on
+	map.crop = on
+	map.expandable = not on
 	if on:
 		if _map_layout.is_empty():
-			_map_layout = {"al": map.anchor_left, "at": map.anchor_top, "ar": map.anchor_right, "ab": map.anchor_bottom,
-				"ol": map.offset_left, "ot": map.offset_top, "or": map.offset_right, "ob": map.offset_bottom}
+			_map_layout = _layout_of(map)
 		_layout_map_only()
 	elif not _map_layout.is_empty():
-		var l := _map_layout
-		map.anchor_left = l.al
-		map.anchor_top = l.at
-		map.anchor_right = l.ar
-		map.anchor_bottom = l.ab
-		map.offset_left = l.ol
-		map.offset_top = l.ot
-		map.offset_right = l.or
-		map.offset_bottom = l.ob
+		_apply_layout(map, _map_layout)
 		_map_layout = {}
-		_map_expanded = false
 
 
 func _layout_map_only() -> void:
 	if not map_only:
 		return
+	# The big map's shape (cropped to the course), centred, under the note.
 	var vs := get_viewport().get_visible_rect().size
-	var side := maxf(minf(vs.x, vs.y - 40.0) - 24.0, 120.0)
+	var f := MapController.FRAME * 2.0
+	var a := minf(map.content_aspect(), 1.0)
+	var h := maxf(vs.y - 40.0 - 24.0, 120.0)
+	var w := (h - f) / a + f
+	if w > vs.x - 24.0:
+		w = maxf(vs.x - 24.0, 120.0)
+		h = (w - f) * a + f
 	map.anchor_left = 0.5
 	map.anchor_right = 0.5
 	map.anchor_top = 0.5
 	map.anchor_bottom = 0.5
-	map.offset_left = -side * 0.5
-	map.offset_right = side * 0.5
-	map.offset_top = -side * 0.5 + 16.0
-	map.offset_bottom = side * 0.5 + 16.0
+	map.offset_left = -w * 0.5
+	map.offset_right = w * 0.5
+	map.offset_top = -h * 0.5 + 16.0
+	map.offset_bottom = h * 0.5 + 16.0
 
 
 func _build_map_only_ui() -> void:
@@ -507,16 +524,147 @@ func _build_map_only_ui() -> void:
 	get_viewport().size_changed.connect(_layout_map_only)
 
 
-func _toggle_map() -> void:
-	_map_expanded = not _map_expanded
-	if _map_expanded:
-		var vs := get_viewport().get_visible_rect().size
-		var side := minf(vs.x, vs.y) - 24.0
-		map.offset_left = -side - 12.0
-		map.offset_bottom = 12.0 + side
+func _layout_of(c: Control) -> Dictionary:
+	return {"al": c.anchor_left, "at": c.anchor_top, "ar": c.anchor_right, "ab": c.anchor_bottom,
+		"ol": c.offset_left, "ot": c.offset_top, "or": c.offset_right, "ob": c.offset_bottom}
+
+
+func _apply_layout(c: Control, l: Dictionary) -> void:
+	c.anchor_left = l.al
+	c.anchor_top = l.at
+	c.anchor_right = l.ar
+	c.anchor_bottom = l.ab
+	c.offset_left = l.ol
+	c.offset_top = l.ot
+	c.offset_right = l.or
+	c.offset_bottom = l.ob
+
+
+## Where a saved layout puts its control on the current screen.
+func _rect_of(l: Dictionary) -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	var p0 := Vector2(l.al * vs.x + l.ol, l.at * vs.y + l.ot)
+	var p1 := Vector2(l.ar * vs.x + l.or, l.ab * vs.y + l.ob)
+	return Rect2(p0, p1 - p0)
+
+
+## Pins the map to a plain rect (top-left anchors), for the tween.
+func _set_map_rect(r: Rect2) -> void:
+	map.anchor_left = 0.0
+	map.anchor_top = 0.0
+	map.anchor_right = 0.0
+	map.anchor_bottom = 0.0
+	map.offset_left = r.position.x
+	map.offset_top = r.position.y
+	map.offset_right = r.end.x
+	map.offset_bottom = r.end.y
+
+
+## The big map: full height less a margin, as wide as the course's bounds
+## make it (the empty strips of the square render are cropped), pinned to the
+## right edge so it grows out of the corner map and leaves the widest strip
+## of 3D view it can on the left. Nothing here depends on the car.
+func _big_map_rect() -> Rect2:
+	var vs := get_viewport().get_visible_rect().size
+	var m := maxf(12.0, MAP_MARGIN_PX * map.css_px())
+	var f := MapController.FRAME * 2.0
+	var a := minf(map.content_aspect(), 1.0)
+	var h := vs.y - m * 2.0
+	var w := (h - f) / a + f
+	if w > vs.x - m * 2.0:
+		w = vs.x - m * 2.0
+		h = (w - f) * a + f
+	return Rect2(vs.x - m - w, (vs.y - h) * 0.5, w, h)
+
+
+func toggle_map() -> void:
+	set_map_expanded(not map_expanded)
+
+
+## Opens or closes the big map. Refused in map-only mode (the map is the
+## whole screen already) and before the map exists. Animated unless
+## `animate` is false; either way the state flips now, so a quick second tap
+## turns it round mid-flight.
+func set_map_expanded(on: bool, animate := true) -> void:
+	if on and (map_only or map.render_count == 0):
+		return
+	if on == map_expanded:
+		return
+	map_expanded = on
+	if _map_tween:
+		_map_tween.kill()
+	var vp := get_viewport()
+	var from := map.get_rect()
+	_map_scrim.visible = true
+	map.detail = false
+	if on:
+		_3d_scale = vp.scaling_3d_scale
+		map.big = true
+		_set_map_rect(from)
+		var to := _big_map_rect()
+		if animate:
+			_map_tween = create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			_map_tween.tween_method(_set_map_rect, from, to, MAP_ANIM_S)
+			_map_tween.tween_property(_map_scrim, "modulate:a", 1.0, MAP_ANIM_S)
+			_map_tween.chain().tween_callback(_map_opened)
+		else:
+			_set_map_rect(to)
+			_map_scrim.modulate.a = 1.0
+			_map_opened()
 	else:
-		map.offset_left = _map_small.position.x
-		map.offset_bottom = _map_small.size.y
+		vp.scaling_3d_scale = _3d_scale
+		var to := _rect_of(_map_corner)
+		if animate:
+			_map_tween = create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			_map_tween.tween_method(_set_map_rect, from, to, MAP_ANIM_S)
+			_map_tween.tween_property(_map_scrim, "modulate:a", 0.0, MAP_ANIM_S)
+			_map_tween.chain().tween_callback(_map_closed)
+		else:
+			_map_closed()
+	bridge.emit_physics_event({"kind": "map", "open": on})
+
+
+func _map_opened() -> void:
+	map.detail = true
+	get_viewport().scaling_3d_scale = _3d_scale * OPEN_3D_SCALE
+
+
+func _map_closed() -> void:
+	map.big = false
+	_map_scrim.visible = false
+	_map_scrim.modulate.a = 0.0
+	_apply_layout(map, _map_corner)
+
+
+func _on_map_tapped() -> void:
+	if not map_only:
+		toggle_map()
+
+
+## Dims the 3D view under the big map; a tap on it closes the map.
+func _build_map_scrim() -> void:
+	var s := ColorRect.new()
+	s.name = "MapScrim"
+	s.color = Color(0.02, 0.03, 0.02, 0.45)
+	s.set_anchors_preset(Control.PRESET_FULL_RECT)
+	s.mouse_filter = Control.MOUSE_FILTER_STOP
+	s.visible = false
+	s.modulate.a = 0.0
+	s.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb and mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+			s.accept_event()
+			set_map_expanded(false))
+	var ui := map.get_parent()
+	ui.add_child(s)
+	ui.move_child(s, map.get_index())
+	_map_scrim = s
+	get_viewport().size_changed.connect(func() -> void:
+		if map_expanded:
+			if _map_tween:
+				_map_tween.kill()
+			_set_map_rect(_big_map_rect())
+			_map_opened())
 
 
 func _compass(yaw: float) -> String:
