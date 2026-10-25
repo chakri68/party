@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20260921.1 2026-09-01
 interface __BaseEnv_Env {
 	ASSETS: Fetcher;
+	BLIND_RALLY: string;
 	DEV_TOOLS: string;
 	Room: DurableObjectNamespace<import("./src/index").Room>;
 }
@@ -18,7 +19,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DEV_TOOLS">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "BLIND_RALLY" | "DEV_TOOLS">> {}
 }
 
 // Begin runtime types

@@ -1,0 +1,192 @@
+/* Blind Rally: the amber-phosphor terminal from ui_theme.md, scoped to the
+   game so the shell keeps its lime. One accent, black wells, hairlines, glow
+   instead of shadow. driver/ and navigator/ bring their own sheets. */
+
+.blind-rally {
+  --br-bg: #000;
+  --br-panel: #0b0b0a;
+  --br-panel-2: #000;
+  --br-border: #2b2925;
+  --br-text: #ece7da;
+  --br-muted: #8b8574;
+  --br-accent: #ffb000;
+  --br-accent-dim: #cc8a00;
+  --br-warn: #ff6a2b;
+  --br-danger: #ff6b6b;
+  --br-glow: 0 0 14px rgb(255 176 0 / 0.5);
+  --br-pixel: "Press Start 2P", ui-monospace, monospace;
+  --br-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  font-family: var(--br-mono);
+  font-size: 13px;
+  color: var(--br-text);
+  background: var(--br-bg);
+  border: 1px solid var(--br-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.blind-rally button, .blind-rally select { font-family: var(--br-mono); }
+.blind-rally :focus-visible { outline: 1px solid var(--br-accent); outline-offset: 1px; }
+
+/* Both layers share one cell; whichever's on top is the screen. */
+.br-layer { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+.br-seat-layer { display: grid; }
+.br-teams { z-index: 1; background: var(--br-bg); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3a362e transparent; }
+.blind-rally.on-seat .br-teams { visibility: hidden; }
+.blind-rally:not(.on-seat) .br-seat-layer { visibility: hidden; }
+
+/* ---- teams ---------------------------------------------------------------- */
+
+.br-teams { padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+.br-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.br-title {
+  margin: 0;
+  font-family: var(--br-pixel);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  color: var(--br-accent);
+  text-shadow: var(--br-glow);
+}
+.br-sub { margin: 0; color: var(--br-muted); font-size: 12px; }
+.br-tclock { font-variant-numeric: tabular-nums; color: var(--br-text); }
+
+.br-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.br-team {
+  background: var(--br-panel);
+  border: 1px solid var(--br-border);
+  border-radius: 9px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+/* The team's colour is a stripe and its badge; amber still means "you" and "act". */
+.br-team { border-left: 4px solid var(--br-team, var(--br-border)); }
+.br-team.mine { border-color: var(--br-accent-dim); border-left-color: var(--br-team, var(--br-accent-dim)); }
+.br-team > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.br-team h3, .br-spares h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.br-spares h3::before { content: ">"; color: var(--br-accent); margin-right: 6px; }
+.br-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--br-team); }
+.br-badge svg { width: 13px; height: 13px; fill: currentColor; flex: none; }
+
+.br-slot { border: 1px solid var(--br-border); border-radius: 6px; padding: 8px; display: grid; gap: 6px; background: var(--br-panel-2); }
+.br-slot-head { display: flex; justify-content: space-between; align-items: center; }
+.br-role { font-size: 11px; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.br-captain { font-size: 11px; color: var(--br-accent); }
+.br-job, .br-empty { margin: 0; font-size: 11px; color: var(--br-muted); }
+
+.br-person { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; }
+.br-person.away { opacity: 0.55; }
+.br-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-person.me .br-name { color: var(--br-accent); }
+.br-you { color: var(--br-muted); }
+.br-ready { font-size: 11px; color: var(--br-muted); border: 1px solid var(--br-border); border-radius: 999px; padding: 2px 8px; }
+.br-ready.on { color: var(--br-accent); border-color: var(--br-accent); font-weight: 700; }
+
+.blind-rally .br-sit {
+  min-height: 40px;
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--br-border);
+  border-radius: 6px;
+  color: var(--br-muted);
+  font-weight: 500;
+  font-size: 13px;
+}
+.blind-rally .br-sit:hover { color: var(--br-text); border-color: var(--br-accent); }
+
+.br-move {
+  background: var(--br-panel-2);
+  color: var(--br-muted);
+  border: 1px solid var(--br-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  max-width: 13em;
+}
+.br-move:hover { border-color: var(--br-accent-dim); color: var(--br-text); }
+
+.br-spares { display: grid; gap: 8px; }
+.br-spare-list { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+
+.br-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--br-border); }
+.br-me { margin: 0; flex: 1 1 14em; }
+.blind-rally .br-bar button {
+  min-height: 44px;
+  border-radius: 8px;
+  background: var(--br-panel-2);
+  border: 1px solid var(--br-border);
+  color: var(--br-text);
+  font-size: 13px;
+}
+.blind-rally .br-bar button:hover:not(:disabled) { border-color: var(--br-accent-dim); }
+.blind-rally .br-bar button.link { border-color: transparent; color: var(--br-muted); }
+.blind-rally .br-bar button.primary { background: var(--br-accent); border-color: var(--br-accent); color: #000; font-weight: 700; }
+.blind-rally .br-bar button.primary:hover:not(:disabled) { background: var(--br-accent-dim); border-color: var(--br-accent-dim); }
+.blind-rally .br-bar .br-ready-btn.on { background: var(--br-panel-2); color: var(--br-accent); }
+.br-blocker { margin: 0; color: var(--br-muted); font-size: 12px; flex-basis: 100%; }
+.br-note { margin: 0; min-height: 1.3em; font-size: 12px; color: var(--br-muted); }
+.br-note.err { color: var(--br-danger); }
+
+.br-status { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--br-border); color: var(--br-muted); }
+.br-status-running { color: var(--br-accent); border-color: var(--br-accent); }
+.br-status-dnf { color: var(--br-warn); border-color: var(--br-warn); }
+
+/* ---- shared by both seats ------------------------------------------------ */
+
+/* inline-block, not flex, so a long name can ellipsize with the dot still in front. */
+.br-link { display: inline-block; color: var(--br-text); min-width: 0; }
+.br-link::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
+.br-link[data-tone="ok"]::before { background: var(--br-accent); box-shadow: 0 0 6px var(--br-accent); }
+.br-link[data-tone="warn"] { color: var(--br-muted); }
+.br-link[data-tone="warn"]::before { background: var(--br-warn); }
+.br-link[data-tone="bad"] { color: var(--br-danger); }
+.blind-rally .br-start-seat {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--br-accent);
+  border: 1px solid var(--br-accent);
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+}
+.blind-rally .br-start-seat:disabled { opacity: 0.4; }
+.blind-rally .br-fs, .blind-rally .br-back {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--br-border);
+  background: var(--br-panel-2);
+  color: var(--br-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+
+/* ---- the shell around a seat --------------------------------------------- */
+
+/* A seat wants the whole screen, Dominion-style: no page scroll, slim header. */
+.room:has(.blind-rally.on-seat) { max-width: none; height: 100dvh; min-height: 0; padding: 0 8px 8px; }
+.room:has(.blind-rally.on-seat) .room-body { min-height: 0; gap: 8px; }
+.room:has(.blind-rally.on-seat) .game-host { min-height: 0; }
+.room:has(.blind-rally.on-seat) .turn-controls:empty { display: none; }
+@media (orientation: landscape) and (max-height: 540px) {
+  .room:has(.blind-rally.on-seat) { padding: 0 max(4px, env(safe-area-inset-right)) 4px max(4px, env(safe-area-inset-left)); }
+  .room:has(.blind-rally.on-seat) .room-header { padding: 2px 4px; gap: 8px; min-height: 0; }
+  .room:has(.blind-rally.on-seat) .room-header .brand > span:not(.mark) { display: none; }
+  .room:has(.blind-rally.on-seat) .room-header .brand .mark { width: 22px; height: 22px; }
+  .room:has(.blind-rally.on-seat) .room-header .icon-btn { width: 30px; height: 30px; min-height: 30px; }
+  .room:has(.blind-rally.on-seat) .room-body { gap: 4px; }
+  .room:has(.blind-rally.on-seat) .turn-controls:not(:empty) { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; }
+  .room:has(.blind-rally.on-seat) .turn-controls button { min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  .room:has(.blind-rally.on-seat) .results { max-height: 46dvh; overflow-y: auto; }
+  .blind-rally.on-seat { border-radius: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blind-rally * { transition: none !important; animation: none !important; }
+}

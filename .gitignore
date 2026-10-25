@@ -29,3 +29,5 @@ spec.md
 .wrangler
 # Self-host config written by scripts/host.mjs
 wrangler.selfhost.json
+# Blind Rally's Godot export, copied in by games/blind-rally/scripts/export-godot.mjs (map D1)
+apps/web/public/blind-rally/godot/

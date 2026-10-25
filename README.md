@@ -50,3 +50,14 @@ pnpm host       # the self-host CLI, from this checkout
 ```
 
 Games live in `games/<name>` (rules, server logic and client view in one package), the shell in `apps/web`, and the worker in `apps/server`.
+
+### Blind Rally and its flag
+
+Blind Rally's Navigator runs a Godot export that isn't in git: a ~38 MiB `.wasm` has no business in a repo. So the game only exists in builds that ship one:
+
+- `VITE_BLIND_RALLY=1` at build time puts it in the lobby's game list. Without it, Vite drops the entry and all its chunks.
+- `BLIND_RALLY=1` on the worker lets a room pick it. Without it, `select-game` says "Unknown game."
+
+`pnpm dev` sets both (`apps/web/.env.development`, `--var BLIND_RALLY:1`). `pnpm deploy` sets neither yet: the Godot files are served from R2, and until that route exists a deployed Blind Rally would 404 its own engine. Flip it on in both deploy scripts when R2 lands. `pnpm host` sets neither, so self-hosted copies never list a game they can't load.
+
+To get the export into dev: `node games/blind-rally/scripts/export-godot.mjs` (needs Godot 4.7.2 and its web templates; `--no-export` republishes whatever's already in `games/blind-rally/build/web`). It copies the build into `apps/web/public/blind-rally/godot/<hash>/` and writes `games/blind-rally/client/navigator/godot-build.json`, which pins the client to that hash.

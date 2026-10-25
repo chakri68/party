@@ -21,6 +21,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@games/blind-rally':
+        specifier: workspace:*
+        version: link:../../games/blind-rally
       '@games/cheat':
         specifier: workspace:*
         version: link:../../games/cheat
@@ -70,6 +73,9 @@ importers:
       '@games/audio':
         specifier: workspace:*
         version: link:../../packages/audio
+      '@games/blind-rally':
+        specifier: workspace:*
+        version: link:../../games/blind-rally
       '@games/cheat':
         specifier: workspace:*
         version: link:../../games/cheat
@@ -106,6 +112,25 @@ importers:
       '@games/sevens':
         specifier: workspace:*
         version: link:../../games/sevens
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+    devDependencies:
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(esbuild@0.28.1)
+
+  games/blind-rally:
+    dependencies:
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

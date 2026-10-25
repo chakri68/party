@@ -1,30 +1,9 @@
-import { cheatGame } from "@games/cheat/server";
-import { crazyEightsGame } from "@games/crazy-eights/server";
-import { dominionGame } from "@games/dominion/server";
-import { secureRandomInt, type AnyGameDefinition } from "@games/game-core";
-import { goFishGame } from "@games/go-fish/server";
+import { secureRandomInt } from "@games/game-core";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
-import { oldMaidGame } from "@games/old-maid/server";
-import { passTheBombGame } from "@games/pass-the-bomb/server";
-import { presidentGame } from "@games/president/server";
-import { scribblGame } from "@games/scribbl/server";
-import { sevensGame } from "@games/sevens/server";
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 import { generateRoomCode } from "./codes.ts";
+import { gamesFor } from "./games.ts";
 import { RoomRuntime, type Conn, type ConnState, type RoomHost } from "./runtime.ts";
-
-/** Server half of the game registry (§43). */
-const GAMES: Record<string, AnyGameDefinition> = {
-  sevens: sevensGame,
-  "crazy-eights": crazyEightsGame,
-  "old-maid": oldMaidGame,
-  "go-fish": goFishGame,
-  president: presidentGame,
-  scribbl: scribblGame,
-  "pass-the-bomb": passTheBombGame,
-  cheat: cheatGame,
-  dominion: dominionGame,
-};
 
 function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(18)); // 144 bits
@@ -81,7 +60,7 @@ export class Room extends Server<Env> {
         isOwnerKey: (key) => isOwnerKey(this.env, key),
         ownerRequired: true,
       };
-      this.#runtime = new RoomRuntime(this.name, host, GAMES, "sevens");
+      this.#runtime = new RoomRuntime(this.name, host, gamesFor({ blindRally: this.env.BLIND_RALLY === "1" }), "sevens");
     }
     return this.#runtime;
   }

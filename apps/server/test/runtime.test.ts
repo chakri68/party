@@ -1,4 +1,6 @@
-import { seededRandomInt, type AnyGameDefinition, type MatchContext } from "@games/game-core";
+import { blindRallyGame } from "@games/blind-rally/server";
+import type { BlindRallyPrivateState, BlindRallyPublicState } from "@games/blind-rally/shared";
+import { seededRandomInt, type AnyGameDefinition, type GameContext, type MatchContext } from "@games/game-core";
 import {
   CHAT_KEEP,
   CHAT_MAX_LENGTH,
@@ -14,6 +16,7 @@ import type { ScribblPrivateState, ScribblPublicState } from "@games/scribbl/sha
 import { sevensGame } from "@games/sevens/server";
 import { makeDeck, type SevensPrivateState, type SevensPublicState } from "@games/sevens/shared";
 import { beforeEach, describe, expect, it } from "vitest";
+import { gamesFor } from "../src/games.ts";
 import { CLEANUP_AFTER_MS, RoomRuntime, type Conn, type ConnState, type RoomHost } from "../src/runtime.ts";
 
 // ---------------------------------------------------------------------------
@@ -1089,5 +1092,102 @@ describe("owner gate", () => {
       expect(wire).not.toContain(OWNER_KEY);
       expect(wire.toLowerCase()).not.toContain("owner");
     }
+  });
+});
+
+describe("the room host on ctx", () => {
+  it("is passed to every game hook, and follows host migration", async () => {
+    const world = new World();
+    const seen: (string | null | undefined)[] = [];
+    const spy = (ctx: GameContext) => void seen.push(ctx.hostId);
+    const game: AnyGameDefinition = {
+      ...rallyGame(),
+      createGame: (players, settings, match, ctx) => (spy(ctx), rallyGame().createGame(players, settings, match, ctx)),
+      handleAction: (st, _p, _a, ctx) => (spy(ctx), { ok: true, transition: { state: st, events: [] } }),
+    };
+    const room = new RoomRuntime("K7DX", world.host(), { rally: game }, "rally");
+    await room.load();
+    await room.claim();
+    const a = await join(world, room, "Ana");
+    const b = await join(world, room, "Ben");
+    const [ida, idb] = [a, b].map((c) => c.last("welcome")!.playerId);
+    await send(room, a, { type: "start-game" });
+    await send(room, b, { type: "game-action", clientActionId: "x", action: {} });
+    expect(seen).toEqual([ida, ida]);
+    await world.disconnect(room, a);
+    await world.tick(room, GRACE_MS + 1);
+    await send(room, b, { type: "game-action", clientActionId: "y", action: {} });
+    expect(seen.at(-1)).toBe(idb);
+  });
+});
+
+describe("game registry flags (map D1)", () => {
+  it("lists Blind Rally only when the build asks for it", () => {
+    expect(Object.keys(gamesFor({ blindRally: false }))).not.toContain("blind-rally");
+    expect(gamesFor({ blindRally: true })["blind-rally"]).toBe(blindRallyGame);
+    // Everything else is the same either way.
+    const off = Object.keys(gamesFor({ blindRally: false }));
+    expect(Object.keys(gamesFor({ blindRally: true })).filter((k) => k !== "blind-rally")).toEqual(off);
+  });
+
+  it("a room without the flag refuses to pick it", async () => {
+    const world = new World();
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: false }), "sevens");
+    await room.load();
+    await room.claim();
+    const a = await join(world, room, "Ana");
+    await send(room, a, { type: "select-game", gameId: "blind-rally" });
+    expect(a.last("error")).toMatchObject({ code: "unknown-game" });
+  });
+});
+
+describe("Blind Rally through the room", () => {
+  it("seats a pair, counts down, and relays the Driver's input to their Navigator only, without a write", async () => {
+    const world = new World();
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true }), "blind-rally");
+    await room.load();
+    await room.claim();
+    const [host, drv, nav] = [await join(world, room, "Ana"), await join(world, room, "Ben"), await join(world, room, "Cy")];
+    const [, idd, idn] = [host, drv, nav].map((c) => c.last("welcome")!.playerId);
+    const act = (c: FakeConn, action: object) => send(room, c, { type: "game-action", clientActionId: "a", action });
+    const pub = () => roomOf(host).game as BlindRallyPublicState;
+
+    await send(room, host, { type: "start-game" });
+    expect(pub().phase).toBe("teams");
+    await act(drv, { type: "team.join", teamId: 1, role: "driver" });
+    await act(nav, { type: "team.join", teamId: 1, role: "navigator" });
+    await act(drv, { type: "player.ready", ready: true });
+    await act(nav, { type: "player.ready", ready: true });
+    // Only the room's host may start it; the game knows who that is from ctx.
+    await act(drv, { type: "race.start" });
+    expect(drv.last("action-rejected")).toMatchObject({ code: "not-host" });
+    await act(host, { type: "race.start" });
+    expect(pub().phase).toBe("countdown");
+    expect((drv.last("update")!.private as BlindRallyPrivateState).role).toBe("driver");
+
+    const input = (seq: number) => ({ type: "stream", data: { t: "in", seq, steer: -1, throttle: 1, brake: 0 } });
+    await send(room, drv, input(1)); // before the start: dropped
+    expect(nav.of("stream")).toEqual([]);
+
+    await world.tick(room, 3_000);
+    expect(pub().phase).toBe("racing");
+    const writes = JSON.stringify(world.store.get("room"));
+    await send(room, drv, input(2));
+    await send(room, drv, input(2)); // stale
+    expect(nav.of("stream")).toEqual([{ type: "stream", from: idd, data: { t: "in", seq: 2, steer: -1, throttle: 1, brake: 0 } }]);
+    expect(host.of("stream")).toEqual([]);
+    expect(drv.of("stream")).toEqual([]);
+    expect(JSON.stringify(world.store.get("room"))).toBe(writes);
+
+    // And the Navigator's snapshot reaches the Driver as a speed, nothing more.
+    await send(room, nav, { type: "stream", data: { t: "snap", speed: 10, position: [1, 2, 3], heading: 0 } });
+    expect(drv.of("stream")).toEqual([{ type: "stream", from: idn, data: { t: "dash", speed: 10 } }]);
+    expect(host.of("stream")).toEqual([]);
+
+    // Time's up: results, and the teams wait for the rematch.
+    await world.tick(room, 5 * 60_000);
+    expect(roomOf(host).phase).toBe("results");
+    await send(room, host, { type: "start-game" });
+    expect(pub().teams[0]).toMatchObject({ driverId: idd, navigatorId: idn, color: "orange" });
   });
 });

@@ -53,6 +53,12 @@ export interface GameContext {
   now: number;
   /** Injected RNG, uniform in [0, maxExclusive). Secure in production. */
   randomInt(maxExclusive: number): number;
+  /**
+   * The room's host right now, for games with host-only moves of their own
+   * (Blind Rally's seat assignments). It can change mid-game when the host
+   * drops. The runtime always sets it; tests may leave it out.
+   */
+  hostId?: string | null;
 }
 
 export interface GameError {

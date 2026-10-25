@@ -1,6 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
+import { blindRallyManifest, blindRallyRules, blindRallySettingFields } from "@games/blind-rally/shared";
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
@@ -21,6 +22,14 @@ export interface GameEntry {
   settingFields(settings: unknown, players: number): SettingField[];
   loadClient(): Promise<GameClientModule>;
 }
+
+/**
+ * Blind Rally needs a Godot export that isn't in git (map D1). Vite inlines
+ * the flag, so a build without it drops the entry and its chunks entirely:
+ * `pnpm dev` and `pnpm deploy` set VITE_BLIND_RALLY=1, scripts/host.mjs
+ * doesn't. The server checks its own BLIND_RALLY var the same way.
+ */
+const BLIND_RALLY = import.meta.env.VITE_BLIND_RALLY === "1";
 
 export const games: Record<string, GameEntry> = {
   sevens: {
@@ -77,4 +86,12 @@ export const games: Record<string, GameEntry> = {
     settingFields: dominionSettingFields,
     loadClient: () => import("@games/dominion/client").then((m) => m.default),
   },
+  ...(BLIND_RALLY && {
+    "blind-rally": {
+      manifest: blindRallyManifest,
+      rules: blindRallyRules,
+      settingFields: blindRallySettingFields,
+      loadClient: () => import("@games/blind-rally/client").then((m) => m.default),
+    },
+  }),
 };

@@ -3,12 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 8787 --var DEV_TOOLS:1 --var OWNER_KEY:dev",
+    "dev": "wrangler dev --port 8787 --var DEV_TOOLS:1 --var OWNER_KEY:dev --var BLIND_RALLY:1",
     "deploy": "wrangler deploy",
     "types": "wrangler types --strict-vars=false",
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@games/blind-rally": "workspace:*",
     "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",

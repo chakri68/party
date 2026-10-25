@@ -612,7 +612,7 @@ export class RoomRuntime {
     // A debug seed makes the whole deal reproducible, dealer included.
     const ctx = debug?.seed === undefined
       ? this.ctx()
-      : { now: this.host.now(), randomInt: seededRandomInt(debug.seed) };
+      : { now: this.host.now(), randomInt: seededRandomInt(debug.seed), hostId: data.hostId };
     if (data.match.roundNumber === 0 || debug?.seed !== undefined) data.match.nextDealerSeat = ctx.randomInt(n);
     const dealerSeat = data.match.nextDealerSeat % n;
     data.match.roundNumber++;
@@ -646,7 +646,7 @@ export class RoomRuntime {
   // ---- game plumbing ------------------------------------------------------
 
   private ctx(): GameContext {
-    return { now: this.host.now(), randomInt: (max) => this.host.randomInt(max) };
+    return { now: this.host.now(), randomInt: (max) => this.host.randomInt(max), hostId: this.data!.hostId };
   }
 
   /** Runs an optional hook against the live game and applies whatever it returns. */

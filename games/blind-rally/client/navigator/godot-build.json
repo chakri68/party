@@ -1,0 +1,26 @@
+{
+  "hash": "e2b28a6321",
+  "base": "/blind-rally/godot/e2b28a6321/",
+  "files": [
+    "index.apple-touch-icon.png",
+    "index.audio.position.worklet.js",
+    "index.audio.worklet.js",
+    "index.html",
+    "index.icon.png",
+    "index.js",
+    "index.pck",
+    "index.png",
+    "index.wasm"
+  ],
+  "sizes": {
+    "index.apple-touch-icon.png": 11944,
+    "index.audio.position.worklet.js": 2973,
+    "index.audio.worklet.js": 7298,
+    "index.html": 5444,
+    "index.icon.png": 5700,
+    "index.js": 279815,
+    "index.pck": 2177844,
+    "index.png": 21443,
+    "index.wasm": 39514754
+  }
+}

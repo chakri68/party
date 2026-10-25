@@ -1,0 +1,157 @@
+/* The Driver's phone. Landscape first: wheel | instruments | pedals, each
+   thumb zone a full-height well. Portrait stacks instruments over the two
+   zones. Pads are quiet until pressed; the speed readout is the one thing
+   that glows. */
+
+html.br-locked, html.br-locked body { overscroll-behavior: none; }
+
+.br-driver {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.8fr) minmax(0, 1fr);
+  grid-template-areas: "steer cockpit pedals";
+  gap: 8px;
+  padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  min-height: 0;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---- thumb zones ---------------------------------------------------------- */
+
+.br-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; touch-action: none; cursor: pointer; }
+.br-steer { grid-area: steer; }
+.br-pedals { grid-area: pedals; grid-template-columns: 1fr 1.25fr; }
+
+.br-pad {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 96px;
+  border: 1px solid var(--br-border);
+  border-radius: 14px;
+  background: var(--br-panel);
+  color: var(--br-muted);
+  transition: background 0.08s, border-color 0.08s, color 0.08s;
+}
+.br-pad.down {
+  background: rgb(255 176 0 / 0.14);
+  border-color: var(--br-accent);
+  color: var(--br-accent);
+  box-shadow: inset 0 0 24px rgb(255 176 0 / 0.18);
+}
+.br-pad-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+.br-glyph svg { width: 44px; height: 44px; display: block; }
+/* Pedals as pedals: brake short and wide, gas tall and narrow. */
+.br-glyph-brake, .br-glyph-gas { display: block; border: 2px solid currentColor; border-radius: 6px; }
+.br-glyph-brake { width: 46px; height: 30px; }
+.br-glyph-gas { width: 26px; height: 56px; }
+.br-pad.down .br-glyph-brake, .br-pad.down .br-glyph-gas { background: rgb(255 176 0 / 0.25); }
+
+/* ---- cockpit -------------------------------------------------------------- */
+
+.br-cockpit {
+  grid-area: cockpit;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px 4px;
+  overflow: hidden;
+  border-radius: 14px;
+  transition: box-shadow 0.12s;
+}
+.br-top { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 10px; width: 100%; font-size: 11px; }
+.br-top .br-link { flex: 0 1 auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.blind-rally .br-top .br-fs { min-height: 26px; width: 26px; padding: 0; line-height: 1; }
+.br-teamtag { color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+/* Sized as a container so the readout scales with the dial, not the viewport. */
+/* Never flex-shrunk: squashing it vertically turns the dial into an ellipse. */
+.br-gauge { position: relative; width: min(100%, 230px, 50dvh); aspect-ratio: 1; flex: none; container-type: inline-size; }
+.br-arc { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The team's colour, as a ring just inside the segments: whose car this is, at a glance. */
+.br-gauge::before { content: ""; position: absolute; inset: 15%; border-radius: 50%; border: 2px solid var(--br-team, var(--br-border)); opacity: 0.85; }
+.br-arc rect { fill: #1d1b17; transition: fill 0.1s; }
+.br-arc rect.on { fill: var(--br-accent); filter: drop-shadow(0 0 1.5px rgb(255 176 0 / 0.8)); }
+.br-speed { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 4cqi; }
+.br-speed-digits {
+  font-family: var(--br-pixel);
+  /* Three pixel glyphs, each about 1em wide, inside the 70% ring. */
+  font-size: 17cqi;
+  letter-spacing: -0.04em;
+  color: var(--br-accent);
+  text-shadow: var(--br-glow);
+  font-variant-numeric: tabular-nums;
+}
+.br-speed-lead { color: #2a2620; text-shadow: none; }
+.br-unit { font-size: max(10px, 5.5cqi); color: var(--br-muted); }
+.br-gear { font-family: var(--br-pixel); font-size: max(9px, 5cqi); color: var(--br-muted); border: 1px solid var(--br-border); border-radius: 4px; padding: 3px 5px; }
+.br-gear.rev { color: var(--br-warn); border-color: var(--br-warn); }
+
+.br-clock { display: grid; justify-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.br-clock-main { font-size: clamp(18px, 6dvh, 24px); font-weight: 700; letter-spacing: 0.02em; }
+.br-clock-sub { font-size: 11px; color: var(--br-muted); }
+
+.blind-rally .br-reset {
+  min-height: 40px;
+  width: min(100%, 190px);
+  border-radius: 8px;
+  border: 1px solid var(--br-border);
+  background: var(--br-panel-2);
+  color: var(--br-text);
+  font-size: 13px;
+  font-weight: 500;
+  touch-action: manipulation;
+}
+.blind-rally .br-reset.confirm { border-color: var(--br-warn); color: var(--br-warn); }
+.blind-rally .br-reset:disabled { opacity: 0.35; }
+.br-msg { margin: 0; min-height: 1.3em; font-size: 11px; color: var(--br-muted); text-align: center; }
+
+/* Impacts: the cockpit flashes warn-orange and the screen jolts, scaled by --br-hit. */
+.br-driver.hit .br-cockpit { box-shadow: inset 0 0 0 2px var(--br-warn), 0 0 calc(30px * var(--br-hit, 0.5)) rgb(255 106 43 / 0.55); }
+.br-driver.hit { animation: br-jolt 0.32s cubic-bezier(.2,.8,.2,1); }
+@keyframes br-jolt {
+  20% { transform: translate(calc(-6px * var(--br-hit, 0.5)), calc(3px * var(--br-hit, 0.5))); }
+  45% { transform: translate(calc(5px * var(--br-hit, 0.5)), calc(-2px * var(--br-hit, 0.5))); }
+  70% { transform: translate(calc(-2px * var(--br-hit, 0.5)), 0); }
+}
+
+/* ---- countdown ------------------------------------------------------------ */
+
+.br-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: var(--br-pixel);
+  font-size: clamp(56px, 22dvh, 120px);
+  color: var(--br-accent);
+  text-shadow: 0 0 28px rgb(255 176 0 / 0.6);
+}
+.br-count:empty { display: none; }
+.br-count:not(:empty) { background: rgb(0 0 0 / 0.55); }
+.br-count.go { background: none; }
+
+/* ---- portrait: instruments on top, thumbs below --------------------------- */
+
+@media (orientation: portrait) {
+  .br-driver {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(220px, 0.95fr);
+    grid-template-areas: "cockpit cockpit" "steer pedals";
+  }
+  .br-gauge { width: min(70vw, 240px, 34dvh); }
+  .br-zone { gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-driver.hit { animation: none; }
+}

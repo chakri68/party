@@ -11,6 +11,7 @@
   "dependencies": {
     "@games/animation": "workspace:*",
     "@games/audio": "workspace:*",
+    "@games/blind-rally": "workspace:*",
     "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",
