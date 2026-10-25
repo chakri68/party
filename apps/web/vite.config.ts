@@ -7,6 +7,7 @@ const WORKER = "http://127.0.0.1:8787";
 export default defineConfig({
   server: {
     host: true, // reachable from phones on the same Wi-Fi
+    allowedHosts: [".trycloudflare.com"], // or through a cloudflared quick tunnel
     proxy: {
       "/api": WORKER,
       "/parties": { target: WORKER, ws: true },

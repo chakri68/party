@@ -32,6 +32,8 @@ export class BlindRallyView implements GameView {
 
   mount(container: HTMLElement) {
     container.append(this.root);
+    // The lobby's Start game sits at the bottom of a long page; the teams screen starts at its top.
+    window.scrollTo(0, 0);
   }
 
   destroy() {

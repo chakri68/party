@@ -4,7 +4,9 @@ import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
 import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
 import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { GodotBridge } from "./bridge.ts";
+import { StageLoader } from "./loader.ts";
 import { navigatorTrack } from "./track.ts";
+import { trackName } from "../../shared/tracks-public.ts";
 import "./navigator.css";
 
 // The Navigator's screen (spec §4.2): the Godot course, edge to edge, with a
@@ -44,22 +46,27 @@ class NavigatorView implements RoleView {
   private clock = h("span", { class: "br-nclock" });
   /** Metres driven, from Godot's snapshots: detours count (spec §4.3). */
   private trip = h("span", { class: "br-trip", title: "Distance actually driven, wrong turns included" });
-  private notesBtn = h("button", { type: "button", class: "br-back", "aria-expanded": "false" }, "Notes");
-  /** Static and hand-scrolled: never advanced or highlighted, which would give the car away. */
+  private notesBtn = h("button", { type: "button", class: "br-chip", "aria-expanded": "false" }, "Notes");
+  /**
+   * Static and hand-scrolled: never advanced or highlighted by the game, which
+   * would give the car away. The one mark on it is the Navigator's own: tap a
+   * line to say "we're about here".
+   */
   private notes = h("aside", { class: "br-notes", "aria-label": "Pace notes", hidden: true });
+  private notesMark: number | null = null;
   private banner = h("p", { class: "br-banner", role: "alert" });
-  private back = h("button", { type: "button", class: "br-back" }, "Not ready");
+  private back = h("button", { type: "button", class: "br-chip" }, "Not ready");
   /** The host readies up too; Start has to be reachable from the seat. */
-  private start = h("button", { type: "button", class: "br-start-seat primary" }, "Start race");
-  private end = h("button", { type: "button", class: "br-back" }, "End race");
-  private boot = h("div", { class: "br-boot" }, h("p", {}, "Loading the course…"));
+  private start = h("button", { type: "button", class: "br-chip primary" }, "Start race");
+  private end = h("button", { type: "button", class: "br-chip danger" }, "End race");
+  private loader: StageLoader;
   private count = h("div", { class: "br-count", "aria-live": "assertive" });
   private msg = h("p", { class: "br-nmsg", "aria-live": "polite" });
   private root = h(
     "div",
     { class: "br-navigator" },
     h("div", { class: "br-strip" }, this.team, this.driver, this.trip, this.clock, this.notesBtn, this.back, this.start, this.end),
-    h("div", { class: "br-view" }, this.stage, this.boot, this.count, this.notes, this.banner, this.msg),
+    h("div", { class: "br-view" }, this.stage, this.count, this.notes, this.banner, this.msg),
   );
 
   /** What Godot has last been told, so each race event is sent once. */
@@ -74,13 +81,18 @@ class NavigatorView implements RoleView {
 
   constructor(api: GameClientApi) {
     this.api = api;
+    this.loader = new StageLoader(() => this.bridge.retry());
+    this.root.querySelector(".br-view")!.append(this.loader.el);
     this.bridge = new GodotBridge({
       ready: () => {
-        this.boot.hidden = true;
+        this.loader.el.hidden = true;
         this.sendSession();
       },
-      missing: (why) => {
-        this.boot.replaceChildren(h("p", {}, why), h("p", { class: "br-dim" }, "The Driver can't move until this loads."));
+      progress: (loaded, total) => this.loader.progress(loaded, total),
+      started: () => this.loader.started(),
+      failed: (why) => {
+        this.loader.el.hidden = false;
+        this.loader.failed(why);
       },
       snapshot: (s) => {
         if (typeof s.distance === "number") this.tripM = s.distance;
@@ -124,6 +136,7 @@ class NavigatorView implements RoleView {
 
   update(props: RoleProps) {
     this.props = props;
+    this.loader.setStage(trackName(props.game.trackId));
     const mine = props.game.teams.find((t) => t.id === props.private.teamId);
     if (mine) this.team.replaceChildren(teamBadge(mine));
     this.sendSession();
@@ -223,12 +236,40 @@ class NavigatorView implements RoleView {
     }
     if (this.notesFor === session!.trackId) return;
     this.notesFor = session!.trackId;
+    this.notesMark = null;
     const track = navigatorTrack(session!.trackId);
+    const lines = (track?.paceNotes ?? []).map((n, i) => {
+      // Calls are written in capitals in the track data (RIGHT 4, HAIRPIN LEFT); landmarks aren't.
+      const call = /^[A-Z]{2,}/.test(n.text);
+      const line = h(
+        "button",
+        { type: "button", class: `br-line${call ? " call" : ""}`, "aria-pressed": "false" },
+        h("span", { class: "br-line-at" }, String(n.distance)),
+        h("span", { class: "br-line-text" }, n.text),
+      );
+      line.addEventListener("click", () => this.markNote(i));
+      return h("li", {}, line);
+    });
     this.notes.replaceChildren(
-      h("h3", {}, "Pace notes"),
-      h("p", { class: "br-dim" }, "Distances are along the clean line. Your trip meter counts what you actually drove."),
-      h("ol", {}, (track?.paceNotes ?? []).map((n) => h("li", {}, h("span", { class: "br-note-at" }, `${n.distance} m`), " ", n.text))),
+      h(
+        "div",
+        { class: "br-pad" },
+        spiral(),
+        h(
+          "div",
+          { class: "br-pad-scroll" },
+          h("p", { class: "br-pad-head" }, h("span", {}, "Pace notes"), h("span", { class: "br-pad-track" }, trackName(session!.trackId))),
+          h("p", { class: "br-pad-sub" }, "Metres along the clean line. Tap a line to mark your place."),
+          h("ol", { class: "br-pad-lines" }, lines),
+        ),
+      ),
     );
+  }
+
+  /** The Navigator's own pencil mark: one line at a time, tap it again to rub it out. */
+  private markNote(i: number) {
+    this.notesMark = this.notesMark === i ? null : i;
+    this.notes.querySelectorAll(".br-line").forEach((b, j) => b.setAttribute("aria-pressed", String(j === this.notesMark)));
   }
 
   private tick() {
@@ -252,7 +293,7 @@ class NavigatorView implements RoleView {
     this.clock.textContent = g.phase === "teams" ? "" : formatClock(teamClock(g, team, now));
     const tripOn = !!this.session()?.assists.tripMeter;
     this.trip.hidden = !tripOn || g.phase === "teams";
-    if (tripOn) this.trip.textContent = `trip ${this.tripM === null ? "-" : this.tripM < 1000 ? `${Math.round(this.tripM)} m` : `${(this.tripM / 1000).toFixed(2)} km`}`;
+    if (tripOn) this.trip.textContent = `Trip ${this.tripM === null ? "-" : this.tripM < 1000 ? `${Math.round(this.tripM)} m` : `${(this.tripM / 1000).toFixed(2)} km`}`;
     const banner = awayBanner(team, (r) => (r === "driver" ? "Your Driver" : "You"), now);
     this.banner.hidden = !banner;
     if (banner && this.banner.textContent !== banner) this.banner.textContent = banner;
@@ -281,7 +322,25 @@ class NavigatorView implements RoleView {
     else if (g.phase === "finished") [text, tone] = ["Race over", "warn"];
     else if (live && performance.now() - Math.max(this.lastInput, this.liveSince) > DRIVER_QUIET_MS) [text, tone] = [`${name} isn't touching anything`, "warn"];
     else [text, tone] = [`${name} driving`, "ok"];
+    text = text[0]!.toUpperCase() + text.slice(1); // "your Driver dropped out" opens a sentence
     if (this.driver.textContent !== text) this.driver.textContent = text;
     this.driver.dataset.tone = tone;
   }
+}
+
+/**
+ * The pad's wire binding, drawn once: a hole punched in the paper and a coil
+ * over the top edge, tiled across whatever width the pad is.
+ */
+function spiral(): SVGSVGElement {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `<svg class="br-spiral" width="100%" height="24" aria-hidden="true" focusable="false">
+    <defs><pattern id="br-coil" width="20" height="24" patternUnits="userSpaceOnUse" x="6">
+      <circle cx="10" cy="17" r="3.2" fill="#0e0e0c"/>
+      <path d="M8.2 17V5.5a2.6 2.6 0 0 1 5.2 0V15.5" fill="none" stroke="#6f6c62" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M8.2 17V5.5a2.6 2.6 0 0 1 5.2 0" fill="none" stroke="#c9c5b8" stroke-width="1" stroke-linecap="round"/>
+    </pattern></defs>
+    <rect width="100%" height="24" fill="url(#br-coil)"/>
+  </svg>`;
+  return wrap.firstElementChild as SVGSVGElement;
 }

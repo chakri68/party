@@ -1,179 +1,210 @@
-/* Blind Rally: the amber-phosphor terminal from ui_theme.md, scoped to the
-   game so the shell keeps its lime. One accent, black wells, hairlines, glow
-   instead of shadow. driver/ and navigator/ bring their own sheets. */
+/* Blind Rally. The shell's Ink & Lime tokens (--bg, --surface, --line, --ink,
+   --muted, --accent, --card, --radius) and its buttons, selects and seat rows;
+   the personality is the team colours, worn as rally door plates. Lime still
+   means "you can act on this". driver/ and navigator/ bring their own sheets. */
 
 .blind-rally {
-  --br-bg: #000;
-  --br-panel: #0b0b0a;
-  --br-panel-2: #000;
-  --br-border: #2b2925;
-  --br-text: #ece7da;
-  --br-muted: #8b8574;
-  --br-accent: #ffb000;
-  --br-accent-dim: #cc8a00;
-  --br-warn: #ff6a2b;
-  --br-danger: #ff6b6b;
-  --br-glow: 0 0 14px rgb(255 176 0 / 0.5);
-  --br-pixel: "Press Start 2P", ui-monospace, monospace;
-  --br-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
+  --br-warn: #ffb35c;
   flex: 1;
   min-height: 0;
   display: grid;
-  font-family: var(--br-mono);
-  font-size: 13px;
-  color: var(--br-text);
-  background: var(--br-bg);
-  border: 1px solid var(--br-border);
-  border-radius: 16px;
-  overflow: hidden;
 }
-.blind-rally button, .blind-rally select { font-family: var(--br-mono); }
-.blind-rally :focus-visible { outline: 1px solid var(--br-accent); outline-offset: 1px; }
 
 /* Both layers share one cell; whichever's on top is the screen. */
 .br-layer { grid-area: 1 / 1; min-width: 0; min-height: 0; }
 .br-seat-layer { display: grid; }
-.br-teams { z-index: 1; background: var(--br-bg); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3a362e transparent; }
-.blind-rally.on-seat .br-teams { visibility: hidden; }
+.br-teams { z-index: 1; background: var(--bg); }
+/* Out of the layout too: the teams page is taller than a seat, and a seat is exactly the screen. */
+.blind-rally.on-seat .br-teams { display: none; }
 .blind-rally:not(.on-seat) .br-seat-layer { visibility: hidden; }
+
+/* ---- door plates ---------------------------------------------------------- */
+
+/* A team's number on its colour, like the plate on a rally car's door. The
+   shape rides along so nobody has to tell green from orange (spec §10). */
+.br-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 8px;
+  background: var(--br-team, var(--surface-2));
+  color: #141414;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.br-badge svg { width: 12px; height: 12px; fill: currentColor; flex: none; }
 
 /* ---- teams ---------------------------------------------------------------- */
 
-.br-teams { padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 16px; }
-.br-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
-.br-title {
-  margin: 0;
-  font-family: var(--br-pixel);
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: -0.5px;
-  color: var(--br-accent);
-  text-shadow: var(--br-glow);
+.br-teams {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-.br-sub { margin: 0; color: var(--br-muted); font-size: 12px; }
-.br-tclock { font-variant-numeric: tabular-nums; color: var(--br-text); }
+.br-head { display: grid; gap: 2px; }
+.br-title { margin: 0; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; }
+.br-sub { margin: 0; color: var(--muted); }
+.br-tclock { font-variant-numeric: tabular-nums; color: var(--ink); }
 
-.br-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.br-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .br-team {
-  background: var(--br-panel);
-  border: 1px solid var(--br-border);
-  border-radius: 9px;
-  padding: 10px;
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
   display: grid;
   gap: 8px;
+  align-content: start;
 }
-/* The team's colour is a stripe and its badge; amber still means "you" and "act". */
-.br-team { border-left: 4px solid var(--br-team, var(--br-border)); }
-.br-team.mine { border-color: var(--br-accent-dim); border-left-color: var(--br-team, var(--br-accent-dim)); }
-.br-team > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.br-team h3, .br-spares h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.br-spares h3::before { content: ">"; color: var(--br-accent); margin-right: 6px; }
-.br-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--br-team); }
-.br-badge svg { width: 13px; height: 13px; fill: currentColor; flex: none; }
+/* Your car: its own colour round the edge. */
+.br-team.mine { border-color: color-mix(in srgb, var(--br-team) 70%, var(--line)); }
+.br-team > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.br-team h3 { margin: 0; font-size: inherit; }
 
-.br-slot { border: 1px solid var(--br-border); border-radius: 6px; padding: 8px; display: grid; gap: 6px; background: var(--br-panel-2); }
-.br-slot-head { display: flex; justify-content: space-between; align-items: center; }
-.br-role { font-size: 11px; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.br-captain { font-size: 11px; color: var(--br-accent); }
-.br-job, .br-empty { margin: 0; font-size: 11px; color: var(--br-muted); }
+/* A seat is the shell's seat row with its role written in front. */
+.br-slot {
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  min-height: 54px;
+  padding: 6px 8px 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.br-slot:not(.taken) { border-style: dashed; background: none; }
+.br-slot-head { display: grid; gap: 1px; }
+.br-role { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.br-captain { margin-left: 6px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); vertical-align: 1px; }
+.br-job { grid-column: 2; margin: 0; font-size: 0.8rem; color: var(--muted); }
+.br-empty { margin: 0; color: var(--muted); }
 
-.br-person { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; }
+/* Wraps when the host's seat picker would squeeze the name: the picker drops to its own line. */
+.br-person { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; min-height: 40px; }
 .br-person.away { opacity: 0.55; }
-.br-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.br-person.me .br-name { color: var(--br-accent); }
-.br-you { color: var(--br-muted); }
-.br-ready { font-size: 11px; color: var(--br-muted); border: 1px solid var(--br-border); border-radius: 999px; padding: 2px 8px; }
-.br-ready.on { color: var(--br-accent); border-color: var(--br-accent); font-weight: 700; }
+.br-name { flex: 1 1 6em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.br-you { margin-left: 6px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: 1px; }
+.br-ready { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.br-ready.on { color: var(--accent); }
 
+/* An empty seat is the whole row: "Sit here", the job underneath. */
 .blind-rally .br-sit {
+  grid-column: 2;
+  justify-self: stretch;
   min-height: 40px;
-  width: 100%;
-  background: none;
-  border: 1px dashed var(--br-border);
-  border-radius: 6px;
-  color: var(--br-muted);
-  font-weight: 500;
-  font-size: 13px;
+  padding: 0 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-weight: 700;
 }
-.blind-rally .br-sit:hover { color: var(--br-text); border-color: var(--br-accent); }
+.blind-rally .br-sit:hover:not(:disabled) { border-color: var(--accent); }
 
-.br-move {
-  background: var(--br-panel-2);
-  color: var(--br-muted);
-  border: 1px solid var(--br-border);
-  border-radius: 4px;
-  padding: 4px 6px;
-  font-size: 12px;
-  max-width: 13em;
+/* The host's seat picker: the shell's select, kept narrow. */
+.br-move { flex: 0 1 10.5rem; min-width: 8rem; min-height: 36px; font-size: 0.85rem; }
+
+.br-spares { display: grid; gap: 6px; }
+.br-spares h3, .br-rules h3 { margin: 0; font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.br-spare-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.br-spare-list .br-person { padding: 4px 8px 4px 6px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); }
+.br-spare-list .br-name { flex: 0 1 auto; }
+
+/* What the host picked, in words (spec §4.3). Read-only, so no controls: rows on a hairline. */
+.br-rules { display: grid; gap: 6px; }
+.br-rules dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
 }
-.br-move:hover { border-color: var(--br-accent-dim); color: var(--br-text); }
+.br-rules dt, .br-rules dd { padding: 8px 14px; border-top: 1px solid var(--line); }
+.br-rules dt { color: var(--muted); padding-right: 6px; }
+.br-rules dd { margin: 0; font-weight: 500; }
+.br-rules dt:first-of-type, .br-rules dd:first-of-type { border-top: none; }
 
-.br-spares { display: grid; gap: 8px; }
-.br-spare-list { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.br-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.br-me { margin: 0; flex: 1 0 100%; font-weight: 600; }
+.br-bar > button { flex: 1 1 8rem; }
+.br-bar > button.link { flex: 0 0 auto; }
+/* Ready is a toggle: pressed, it's the soft lime of something already done. */
+.blind-rally .br-ready-btn.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.br-blocker { margin: 0; flex-basis: 100%; color: var(--muted); font-size: 0.9rem; }
+.br-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--muted); }
+.br-note.err { color: var(--danger); }
 
-.br-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 6px; border-top: 1px solid var(--br-border); }
-.br-me { margin: 0; flex: 1 1 14em; }
-.blind-rally .br-bar button {
-  min-height: 44px;
-  border-radius: 8px;
-  background: var(--br-panel-2);
-  border: 1px solid var(--br-border);
-  color: var(--br-text);
-  font-size: 13px;
+.br-status { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.br-status-running { background: var(--accent-soft); color: var(--accent); }
+.br-status-dnf, .br-status.paused { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+
+@media (max-width: 440px) {
+  .br-title { font-size: 1.55rem; }
+  .br-slot { grid-template-columns: 4.9rem minmax(0, 1fr); padding-left: 10px; }
 }
-.blind-rally .br-bar button:hover:not(:disabled) { border-color: var(--br-accent-dim); }
-.blind-rally .br-bar button.link { border-color: transparent; color: var(--br-muted); }
-.blind-rally .br-bar button.primary { background: var(--br-accent); border-color: var(--br-accent); color: #000; font-weight: 700; }
-.blind-rally .br-bar button.primary:hover:not(:disabled) { background: var(--br-accent-dim); border-color: var(--br-accent-dim); }
-.blind-rally .br-bar .br-ready-btn.on { background: var(--br-panel-2); color: var(--br-accent); }
-.br-blocker { margin: 0; color: var(--br-muted); font-size: 12px; flex-basis: 100%; }
-.br-note { margin: 0; min-height: 1.3em; font-size: 12px; color: var(--br-muted); }
-.br-note.err { color: var(--br-danger); }
-
-.br-status { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--br-border); color: var(--br-muted); }
-.br-status-running { color: var(--br-accent); border-color: var(--br-accent); }
-.br-status-dnf { color: var(--br-warn); border-color: var(--br-warn); }
-.br-status.paused { color: var(--br-warn); border-color: var(--br-warn); }
-.br-status-finished { color: var(--br-text); border-color: var(--br-text); }
-.br-rules { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--br-border); border-radius: 10px; background: var(--br-panel); }
-.br-rules h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--br-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.br-rules h3::before { content: ">"; color: var(--br-accent); margin-right: 6px; }
-.br-rules dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12px; }
-.br-rules dt { color: var(--br-muted); }
-.br-rules dd { margin: 0; }
 
 /* ---- shared by both seats ------------------------------------------------ */
 
 /* inline-block, not flex, so a long name can ellipsize with the dot still in front. */
-.br-link { display: inline-block; color: var(--br-text); min-width: 0; }
-.br-link::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
-.br-link[data-tone="ok"]::before { background: var(--br-accent); box-shadow: 0 0 6px var(--br-accent); }
-.br-link[data-tone="warn"] { color: var(--br-muted); }
+.br-link { display: inline-block; color: var(--ink); min-width: 0; }
+.br-link::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
+.br-link[data-tone="ok"]::before { background: var(--accent); }
+.br-link[data-tone="warn"] { color: var(--muted); }
 .br-link[data-tone="warn"]::before { background: var(--br-warn); }
-.br-link[data-tone="bad"] { color: var(--br-danger); }
-.blind-rally .br-start-seat {
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--br-accent);
-  border: 1px solid var(--br-accent);
-  color: #000;
-  font-size: 12px;
-  font-weight: 700;
-}
-.blind-rally .br-start-seat:disabled { opacity: 0.4; }
-.blind-rally .br-fs, .blind-rally .br-back {
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid var(--br-border);
-  background: var(--br-panel-2);
-  color: var(--br-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
+.br-link[data-tone="bad"] { color: var(--danger); }
 
+/* Small shell buttons for a seat's top row: same border, radius and lime, less height. */
+.blind-rally .br-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.blind-rally .br-chip[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.blind-rally .br-chip.danger { background: none; }
+
+/* A dropped teammate, on both seats: the clock's stopped, the grace is counting. */
+.br-banner {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1.5px solid color-mix(in srgb, var(--danger) 60%, var(--line));
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+.br-banner[hidden] { display: none; }
+
+/* 3, 2, 1 over either seat; GO is the one lime thing on screen. */
+.br-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-size: clamp(64px, 24dvh, 150px);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.br-count:empty { display: none; }
+.br-count:not(:empty) { background: rgb(14 14 12 / 0.6); }
+.br-count.go { background: none; color: var(--accent); }
+.br-count:not(:empty) { animation: br-tick 260ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes br-tick { from { transform: scale(1.12); opacity: 0.4; } }
 
 /* ---- the shell around a seat --------------------------------------------- */
 
@@ -187,18 +218,13 @@
   .room:has(.blind-rally.on-seat) .room-header { padding: 2px 4px; gap: 8px; min-height: 0; }
   .room:has(.blind-rally.on-seat) .room-header .brand > span:not(.mark) { display: none; }
   .room:has(.blind-rally.on-seat) .room-header .brand .mark { width: 22px; height: 22px; }
-  .room:has(.blind-rally.on-seat) .room-header .icon-btn { width: 30px; height: 30px; min-height: 30px; }
+  .room:has(.blind-rally.on-seat) .room-header .icon-btn { width: 32px; height: 32px; min-height: 32px; min-width: 32px; }
   .room:has(.blind-rally.on-seat) .room-body { gap: 4px; }
   .room:has(.blind-rally.on-seat) .turn-controls:not(:empty) { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; }
   .room:has(.blind-rally.on-seat) .turn-controls button { min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
   .room:has(.blind-rally.on-seat) .results { max-height: 46dvh; overflow-y: auto; }
-  .blind-rally.on-seat { border-radius: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .blind-rally * { transition: none !important; animation: none !important; }
 }
-
-/* A dropped teammate, on both seats: the clock's stopped, the grace is counting. */
-.br-banner { margin: 0; padding: 6px 10px; border: 1px solid var(--br-warn); border-radius: 8px; color: var(--br-warn); background: rgb(255 106 43 / 0.08); font-size: 12px; text-align: center; }
-.br-banner[hidden] { display: none; }

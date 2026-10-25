@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--
+  The Navigator's Godot page (export_presets.cfg: html/custom_html_shell).
+  Godot's stock shell draws its own splash and progress bar; this one draws
+  nothing and tells the parent page instead, which draws the loader in the
+  party-games style (client/navigator/loader.ts). Messages go to the parent
+  with postMessage, so they arrive whether or not blindRallyHost is attached
+  yet:
+    { blindRallyBoot: "progress", loaded, total }   total 0 = unknown
+    { blindRallyBoot: "started" }                   wasm in, main loop running
+    { blindRallyBoot: "failed", message }
+  Opened on its own (probe.html aside, nobody does), it just shows a black
+  page until the engine's up.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+<title>$GODOT_PROJECT_NAME</title>
+<style>
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+/* The shell's --bg, so the frame before Godot's first draw matches the page around it. */
+body { background: #0e0e0c; overflow: hidden; touch-action: none; }
+#canvas { display: block; }
+#canvas:focus { outline: none; }
+</style>
+$GODOT_HEAD_INCLUDE
+</head>
+<body>
+<canvas id="canvas">Your browser does not support the canvas tag.</canvas>
+<noscript>Your browser does not support JavaScript.</noscript>
+<script src="$GODOT_URL"></script>
+<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const post = (stage, extra) => {
+		if (window.parent === window) return;
+		try {
+			window.parent.postMessage(Object.assign({ blindRallyBoot: stage }, extra), location.origin);
+		} catch (err) {
+			/* a parent on another origin: nothing to tell */
+		}
+	};
+	const fail = (err) => {
+		console.error(err);
+		post('failed', { message: err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error' });
+	};
+
+	const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+	if (missing.length !== 0) {
+		fail('This browser is missing ' + missing.join(', '));
+		return;
+	}
+	post('progress', { loaded: 0, total: 0 });
+	engine.startGame({
+		onProgress: (current, total) => post('progress', { loaded: current, total: total }),
+	}).then(() => post('started'), fail);
+}());
+</script>
+</body>
+</html>

@@ -51,10 +51,10 @@ class DriverView implements RoleView {
   private banner = h("p", { class: "br-banner", role: "alert", hidden: true });
   private count = h("div", { class: "br-count", "aria-live": "assertive" });
   /** Ready put you here; this takes you back to the teams screen until the race starts. */
-  private back = h("button", { type: "button", class: "br-back" }, "Not ready");
+  private back = h("button", { type: "button", class: "br-chip" }, "Not ready");
   /** The host readies up too; Start has to be reachable from the seat. */
-  private start = h("button", { type: "button", class: "br-start-seat primary" }, "Start race");
-  private end = h("button", { type: "button", class: "br-back" }, "End race");
+  private start = h("button", { type: "button", class: "br-chip primary" }, "Start race");
+  private end = h("button", { type: "button", class: "br-chip danger" }, "End race");
   private top = h("div", { class: "br-top" }, this.team, this.link, this.back, this.start, this.end);
   private cockpit = h(
     "div",
@@ -99,7 +99,9 @@ class DriverView implements RoleView {
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
     this.end.addEventListener("click", () => confirm("End the race now? Anyone still out is DNF.") && api.act({ type: "race.end" }));
     if (coarse() && document.fullscreenEnabled) {
-      this.top.append(h("button", { type: "button", class: "br-fs", "aria-label": "Full screen", onclick: () => void toggleFullscreen() }, "⛶"));
+      const fs = h("button", { type: "button", class: "br-fs", "aria-label": "Full screen", onclick: () => void toggleFullscreen() });
+      fs.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      this.top.append(fs);
     }
     if (!coarse()) this.msg.textContent = "WASD or arrow keys.";
 
@@ -237,6 +239,7 @@ class DriverView implements RoleView {
     else if (p.game.phase === "finished") [text, tone] = ["Race over", "warn"];
     else if (this.liveSince && performance.now() - Math.max(this.lastDash, this.liveSince) > SIGNAL_LOST_MS) [text, tone] = [`No signal from ${navName}`, "warn"];
     else [text, tone] = [`${navName} navigating`, "ok"];
+    text = text[0]!.toUpperCase() + text.slice(1); // "your Driver dropped out" opens a sentence
     if (this.link.textContent !== text) this.link.textContent = text;
     this.link.dataset.tone = tone;
   }

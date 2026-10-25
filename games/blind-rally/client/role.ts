@@ -25,16 +25,6 @@ export interface RoleView {
 
 export type RoleViewFactory = (api: GameClientApi) => RoleView;
 
-/** Fonts from ui_theme.md, loaded once: the pixel face must never flash a fallback. */
-export function loadFonts(): void {
-  if (document.querySelector("link[data-blind-rally-fonts]")) return;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=block";
-  link.dataset.blindRallyFonts = "";
-  document.head.append(link);
-}
-
 /** Race clock: time since the start, the same for everyone. */
 export const raceElapsed = (game: BlindRallyPublicState, now: number) =>
   game.startsAt === null ? 0 : Math.max(0, Math.min(game.endedAt ?? now, game.endsAt ?? now) - game.startsAt);

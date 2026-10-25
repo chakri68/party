@@ -69,14 +69,13 @@ export class TeamsScreen {
       return select;
     };
 
-    const person = (id: string, extra?: Node | null) => {
+    const person = (id: string, tag?: Node | null) => {
       const s = seatOf((x) => x.id === id);
       return h(
         "div",
         { class: `br-person${id === me ? " me" : ""}${s && s.presence !== "connected" ? " away" : ""}` },
         avatar(s?.name ?? "?", s?.avatarSeed ?? id, "sm"),
-        h("span", { class: "br-name" }, name(id), id === me ? h("span", { class: "br-you" }, " (you)") : null),
-        extra ?? null,
+        h("span", { class: "br-name" }, name(id), id === me ? h("span", { class: "br-you" }, "you") : null, tag ?? null),
         mover(id),
       );
     };
@@ -87,9 +86,14 @@ export class TeamsScreen {
       return h(
         "div",
         { class: `br-slot br-slot-${role}${id ? " taken" : ""}` },
-        h("div", { class: "br-slot-head" }, h("span", { class: "br-role" }, ROLE_NAME[role]), captain ? h("span", { class: "br-captain", title: "Captain: votes for the team" }, "captain") : null),
+        h(
+          "div",
+          { class: "br-slot-head" },
+          h("span", { class: "br-role" }, ROLE_NAME[role]),
+          id && editable ? h("span", { class: `br-ready${ready(id) ? " on" : ""}` }, ready(id) ? "Ready" : "Not ready") : null,
+        ),
         id
-          ? person(id, editable ? h("span", { class: `br-ready${ready(id) ? " on" : ""}` }, ready(id) ? "ready" : "not ready") : null)
+          ? person(id, captain ? h("span", { class: "br-captain", title: "Captain: votes for the team" }, "captain") : null)
           : editable
             ? h("button", { type: "button", class: "br-sit", onclick: () => this.api.act({ type: "team.join", teamId: team.id, role }) }, "Sit here")
             : h("p", { class: "br-empty" }, "Empty"),
