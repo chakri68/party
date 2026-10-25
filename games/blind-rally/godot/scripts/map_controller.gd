@@ -9,6 +9,9 @@ extends Control
 ## does the conversion, so pins and replays can share it later.
 
 const MAP_PX := 512
+## What the map camera draws: world plus the map-only overlay. Not the car
+## and its effects (layer 2), not the weather (layer 4).
+const CULL_MASK := 1 | 4
 
 @export var gps_enabled := false:
 	set(v):
@@ -68,7 +71,7 @@ func render_static_map(t: Track) -> void:
 	cam.size = side
 	cam.near = 1.0
 	cam.far = 400.0
-	cam.cull_mask = 1 | 4 # world plus the map-only overlay; the car and its dust live on layer 2
+	cam.cull_mask = CULL_MASK
 	vp.add_child(cam)
 	add_child(vp)
 	# Straight down, north up. Set after entering the tree so global_* works.

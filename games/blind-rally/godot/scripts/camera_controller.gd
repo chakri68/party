@@ -7,6 +7,12 @@ extends Camera3D
 ##
 ## The car stays pinned (no positional lag); only the lead and the zoom are
 ## smoothed, so the car never swims around the screen at speed.
+##
+## Small screens: view_size is metres across the screen's short side on a
+## desktop-sized view. On a phone that many metres would shrink the car to a
+## few pixels, so the view tightens until at least min_px_per_m CSS pixels
+## show each metre, but never below min_view, because the Navigator still
+## has to read the next corner. The speed pull-back works on top of that.
 
 @export var target: Node3D
 @export var pitch_deg := 55.0 ## down-tilt from horizontal
@@ -20,6 +26,8 @@ extends Camera3D
 @export var smoothing := 6.0 ## 1/s, how fast the lead settles
 @export var zoom_smoothing := 1.8 ## 1/s, slower: the pull-back should breathe, not pump
 @export var rotate_with_car := false
+@export var min_px_per_m := 12.5 ## CSS pixels per metre the view won't drop below
+@export var min_view := 27.0 ## ...unless that would show fewer metres than this
 @export_group("Impact kick")
 @export var kick_enabled := true ## off = no shake at all (reduced motion)
 @export var kick_per_ms := 0.035 ## metres of kick per m/s of impact speed
@@ -31,6 +39,7 @@ var _yaw := 0.0
 var _speed_k := 0.0
 var _kick := Vector3.ZERO
 var _kick_vel := Vector3.ZERO
+var _fit := 1.0 ## small-screen tightening, 0..1 multiplier on view_size
 
 
 func _ready() -> void:
@@ -39,8 +48,34 @@ func _ready() -> void:
 	near = 1.0
 	far = distance * 2.5
 	cull_mask &= ~4 # render layer 3 is the map-only overlay
+	get_viewport().size_changed.connect(fit_to_screen)
+	fit_to_screen()
 	if target:
 		snap()
+
+
+## Recomputes the small-screen fit. Runs on every resize (rotation included).
+func fit_to_screen() -> void:
+	var win := Vector2(DisplayServer.window_get_size())
+	if DisplayServer.get_name() == "headless" or win.x <= 0.0:
+		_fit = 1.0
+		return
+	# window_get_size is device pixels; the web reports devicePixelRatio as the scale.
+	fit_css(win / maxf(DisplayServer.screen_get_scale(), 1.0))
+
+
+## The fit for a screen of `css` CSS pixels. Split out so tests can ask
+## "what would a 844x390 phone get" without a phone.
+func fit_css(css: Vector2) -> void:
+	# Portrait: size the short (horizontal) side, not the long one.
+	keep_aspect = KEEP_WIDTH if css.x < css.y else KEEP_HEIGHT
+	var want := maxf(minf(css.x, css.y) / min_px_per_m, min_view)
+	_fit = clampf(want / view_size, 0.0, 1.0)
+
+
+## Metres across the short side of the screen right now, before speed.
+func base_view() -> float:
+	return maxf(view_size * _fit, minf(min_view, view_size))
 
 
 func snap() -> void:
@@ -77,7 +112,7 @@ func _process(dt: float) -> void:
 		top = (target as CarController).max_speed
 	var k_zoom := 1.0 - exp(-zoom_smoothing * dt)
 	_speed_k = lerpf(_speed_k, clampf(v.length() / top, 0.0, 1.0), k_zoom)
-	size = clampf(view_size * (1.0 + speed_zoom * _speed_k * _speed_k), zoom_range.x, zoom_range.y)
+	size = clampf(base_view() * (1.0 + speed_zoom * _speed_k * _speed_k), minf(zoom_range.x, min_view), zoom_range.y)
 
 	var lead_t := lerpf(look_ahead, look_ahead_fast, _speed_k)
 	var want := v * lead_t

@@ -62,6 +62,7 @@ var _xray: Node3D
 var _xray_mat: StandardMaterial3D
 var _xray_a := 0.0
 var _probe := SphereShape3D.new()
+var _ground_up := Vector3.UP
 
 
 func _ready() -> void:
@@ -215,6 +216,13 @@ func _animate_visual(dt: float, speed: float) -> void:
 	var pitch := clampf((_car.throttle_input - _car.brake_input) * 0.025 * clampf(speed / 8.0, 0.0, 1.0), -0.03, 0.03)
 	var body: Node3D = _visual.get_node("Body")
 	var k := 1.0 - exp(-8.0 * dt)
+	# Sit on the slope: tilt the whole visual to the ground under it. The
+	# physics body stays upright (it's a box sliding on a heightfield); only
+	# what you see follows the hill.
+	if _car.is_on_floor():
+		_ground_up = _car.global_basis.inverse() * _car.get_floor_normal()
+	var tilt := Basis(Quaternion(Vector3.UP, _ground_up.normalized()))
+	_visual.basis = Basis(_visual.basis.get_rotation_quaternion().slerp(Quaternion(tilt * Basis(Vector3.UP, PI)), k))
 	body.rotation.z = lerpf(body.rotation.z, -roll, k)
 	body.rotation.x = lerpf(body.rotation.x, -pitch, k)
 
@@ -281,8 +289,9 @@ func _step_puffs(dt: float) -> void:
 		v.y -= _p_grav[i] * dt
 		v *= 1.0 - (2.2 if _p_grav[i] == 0.0 else 0.4) * dt # dust hangs, grit flies
 		var p := _p_pos[i] + v * dt
-		if p.y < 0.05 and _p_grav[i] > 0.0:
-			p.y = 0.05
+		var floor_y := _car.global_position.y + 0.05 # near enough: grit lives half a second
+		if p.y < floor_y and _p_grav[i] > 0.0:
+			p.y = floor_y
 			v = Vector3.ZERO
 		_p_pos[i] = p
 		_p_vel[i] = v
@@ -312,7 +321,7 @@ func _tyre_marks(xf: Transform3D, speed: float, lat: float, road: bool) -> void:
 		# Fronts only mark in a big slide or under braking.
 		var mark := on and (not front or lat > 4.5 or braking)
 		var p: Vector3 = xf * wheels[w]
-		p.y = 0.05
+		p.y += 0.05 # on the ground under the wheel; the car follows the terrain
 		if not mark:
 			_mark_last[w] = null
 			continue

@@ -38,6 +38,11 @@ func _run() -> void:
 	await test_checkpoint_order()
 	await test_map_static()
 	test_bridge_noop()
+	test_terrain()
+	await test_crest()
+	await test_autopilot_stage()
+	test_weather()
+	test_camera_fit()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -348,3 +353,184 @@ func test_bridge_noop() -> void:
 	for k in ["tick", "position", "heading", "velocity", "speed", "distance", "checkpointHint"]:
 		check(s.has(k), "snapshot has %s" % k)
 	print("    sample snapshot: ", JSON.stringify(s))
+
+
+# --- terrain, autopilot, weather, framing ----------------------------------------
+
+## Ground under p by a downward ray against the world (the heightfield).
+func _ground_y(p: Vector3) -> float:
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 20.0, p + Vector3.DOWN * 40.0, 1)
+	q.exclude = [car.get_rid()]
+	var hit := car.get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.position.y if hit else -INF
+
+
+func test_terrain() -> void:
+	print("terrain")
+	var lo := INF
+	var hi := -INF
+	var off := 0.0
+	for p in track.centerline:
+		lo = minf(lo, p.y)
+		hi = maxf(hi, p.y)
+		off = maxf(off, absf(p.y - track.height_at(p.x, p.z)))
+	print("    road height %.1f..%.1f m" % [lo, hi])
+	check(hi - lo > 3.0, "the stage has ups and downs (%.1f m of relief)" % (hi - lo))
+	check(off < 0.01, "centreline sits on the terrain (worst %.3f m)" % off)
+	# The collider is the same grid: a ray agrees with height_at.
+	var worst := 0.0
+	for i in range(0, track.centerline.size(), 37):
+		var p := track.centerline[i]
+		worst = maxf(worst, absf(_ground_y(p) - track.height_at(p.x, p.z)))
+	check(worst < 0.05, "ground collider matches height_at (worst %.3f m)" % worst)
+	var bad := []
+	for a in track.get_recovery_anchors() + [track.get_spawn()]:
+		var gap: float = a.global_position.y - _ground_y(a.global_position)
+		if absf(gap - 0.6) > 0.15:
+			bad.append("%s %.2f" % [a.name, gap])
+	check(bad.is_empty(), "spawn and recovery anchors sit 0.6 m over the ground %s" % [bad])
+	bad.clear()
+	for g in track.get_checkpoints() + [track.get_finish()]:
+		var gap: float = g.global_position.y - _ground_y(g.global_position)
+		if absf(gap - 1.5) > 0.3:
+			bad.append("%s %.2f" % [g.name, gap])
+	check(bad.is_empty(), "checkpoint and finish gates stand on the road %s" % [bad])
+
+
+## The sharpest crest, by the centreline's second difference in height.
+func _crest_index() -> int:
+	var c := track.centerline
+	var best := 0.0
+	var bi := 0
+	for i in range(10, c.size() - 10):
+		var k := (c[i - 10].y + c[i + 10].y - 2.0 * c[i].y)
+		if k < best:
+			best = k
+			bi = i
+	return bi
+
+
+func test_crest() -> void:
+	print("crest")
+	var ci := _crest_index()
+	var c := track.centerline
+	var start := maxi(ci - 75, 1) # 150 m run-up
+	var xf := Transform3D(Basis.looking_at(c[start + 1] - c[start - 1], Vector3.UP).orthonormalized(), c[start] + Vector3(0, 0.6, 0))
+	await place(xf)
+	main.autopilot.flat_out = true
+	main.autopilot.enabled = true
+	var air := 0
+	var max_air := 0
+	var lowest := INF
+	var crest_speed := 0.0
+	var frames := 0
+	impacts.clear()
+	while frames < 60 * 14:
+		await physics_frame
+		frames += 1
+		var p := car.global_position
+		lowest = minf(lowest, p.y - track.height_at(p.x, p.z))
+		air = 0 if car.is_on_floor() else air + 1
+		max_air = maxi(max_air, air)
+		var near := c[ci]
+		if Vector2(p.x - near.x, p.z - near.z).length() < 4.0:
+			crest_speed = maxf(crest_speed, car.forward_speed)
+		if (p - c[mini(ci + 30, c.size() - 1)]).length() < 6.0:
+			break
+	main.autopilot.enabled = false
+	main.autopilot.flat_out = false
+	print("    crest at %.0f m: %.1f m/s over it, longest airtime %d frames, lowest %.2f m vs ground, impacts %d" % [ci * 2.0, crest_speed, max_air, lowest, impacts.size()])
+	check(crest_speed > 0.8 * car.max_speed, "crest taken near full speed (%.0f km/h)" % (crest_speed * 3.6))
+	check(max_air < 30, "at most a hop over the crest (%d frames airborne)" % max_air)
+	check(lowest > -0.25, "never sinks through the ground (lowest %.2f m)" % lowest)
+	check(impacts.is_empty(), "and doesn't launch into the trees")
+
+
+func test_autopilot_stage() -> void:
+	print("autopilot")
+	await place(track.get_spawn().global_transform)
+	main.checkpoints_passed = 0
+	main.finished = false
+	main.recoveries = 0
+	impacts.clear()
+	main.set_autopilot(true)
+	check(not main.bridge.forward_control, "autopilot takes the car from the bridge")
+	var t := 0.0
+	var trip0 := car.distance_travelled
+	var top := 0.0
+	var max_slip := 0.0
+	while t < 240.0 and not main.finished:
+		await physics_frame
+		t += 1.0 / 60.0
+		top = maxf(top, car.forward_speed)
+		max_slip = maxf(max_slip, absf(car.slip_angle))
+	main.set_autopilot(false)
+	print("    stage time %.1f s (%d:%04.1f), top %.0f km/h, max slip %.0f deg, impacts %d, trip %.0f m" % [t, int(t) / 60, fmod(t, 60.0), top * 3.6, rad_to_deg(max_slip), impacts.size(), car.distance_travelled - trip0])
+	check(main.finished, "autopilot finishes the stage (CP %d/%d)" % [main.checkpoints_passed, track.get_checkpoints().size()])
+	check(main.recoveries == 0, "without a reset")
+	check(t > 60.0 and t < 180.0, "in a sane time (%.1f s)" % t)
+	check(max_slip > deg_to_rad(4.0), "and it slides a little doing it (%.0f deg)" % rad_to_deg(max_slip))
+	check(main.bridge.forward_control, "autopilot off hands control back")
+	main.finished = false
+	main.checkpoints_passed = 0
+
+
+func _bank_snapshot(w: Weather) -> Array:
+	var out := []
+	for b in w.bank_count():
+		out.append([w.bank_centre(b), snappedf(w.bank_alpha(b), 0.0001)])
+	return out
+
+
+func test_weather() -> void:
+	print("weather")
+	var w: Weather = main.weather
+	w.time = 37.0
+	w.configure(4242, 1.0)
+	var a := _bank_snapshot(w)
+	check(w.bank_count() > 20, "heavy cloud: %d mist banks" % w.bank_count())
+	w.configure(4242, 1.0)
+	check(_bank_snapshot(w) == a, "same seed, same time: same weather")
+	w.configure(99, 1.0)
+	check(_bank_snapshot(w) != a, "another seed, another sky")
+	w.configure(4242, 0.5)
+	var half := _bank_snapshot(w)
+	var subset := true
+	for b in half.size():
+		subset = subset and half[b][0] == a[b][0]
+	check(half.size() < a.size() and subset, "lighter cloud is a subset of the same sky")
+	# Fades are smooth: no bank changes opacity by more than 2% in a frame.
+	var worst := 0.0
+	for f in 600:
+		var before := []
+		for b in w.bank_count():
+			before.append(w.bank_alpha(b))
+		w.time += 1.0 / 60.0
+		for b in w.bank_count():
+			worst = maxf(worst, absf(w.bank_alpha(b) - before[b]))
+	check(worst < 0.02, "mist fades, never pops (worst %.4f per frame)" % worst)
+	var mist_mat: ShaderMaterial = (w.get_node("Mist") as MultiMeshInstance3D).multimesh.mesh.surface_get_material(0)
+	var hole: Vector2 = mist_mat.get_shader_parameter("keyhole")
+	check(hole.x >= 3.0 and float(mist_mat.get_shader_parameter("max_alpha")) < 0.85, "the car always has a clear hole (%.1f m), mist never goes opaque" % hole.x)
+	var layers_ok := true
+	for n in [w.get_node("Mist"), w.get_node("CloudShadow")]:
+		layers_ok = layers_ok and ((n as VisualInstance3D).layers & MapController.CULL_MASK) == 0
+	check(layers_ok, "weather is invisible to the static map camera")
+	check(map.render_count == 1, "and the map is still the one render")
+	w.configure(4242, 0.0)
+	check(w.bank_count() == 0 and not w.get_node("Mist").visible and not w.get_node("CloudShadow").visible, "clouds 0: clear sky")
+
+
+func test_camera_fit() -> void:
+	print("camera framing")
+	var cam: FollowCamera = main.cam
+	cam.fit_css(Vector2(1280, 720))
+	check(is_equal_approx(cam.base_view(), cam.view_size), "desktop keeps the full view (%.0f m)" % cam.base_view())
+	cam.fit_css(Vector2(844, 390))
+	var v := cam.base_view()
+	print("    844x390 landscape phone: %.1f m across the short side, %.1f px/m (desktop 720 px: %.1f px/m)" % [v, 390.0 / v, 720.0 / cam.view_size])
+	check(v < cam.view_size and 390.0 / v >= 12.0, "a short phone screen zooms in to keep the car legible")
+	check(v >= cam.min_view, "but still shows %.0f m+ for the corners ahead" % cam.min_view)
+	cam.fit_css(Vector2(390, 844))
+	check(cam.keep_aspect == Camera3D.KEEP_WIDTH, "portrait sizes the short side")
+	cam.fit_css(Vector2(1280, 720))

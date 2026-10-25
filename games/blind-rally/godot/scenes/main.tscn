@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/tracks/pine_panic.scn" id="2_track"]
@@ -6,6 +6,8 @@
 [ext_resource type="Script" path="res://scripts/camera_controller.gd" id="4_cam"]
 [ext_resource type="Script" path="res://scripts/map_controller.gd" id="5_map"]
 [ext_resource type="Script" path="res://scripts/web_bridge.gd" id="6_bridge"]
+[ext_resource type="Script" path="res://scripts/weather.gd" id="7_weather"]
+[ext_resource type="Script" path="res://scripts/autopilot.gd" id="8_autopilot"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_hud"]
 font_size = 18
@@ -26,6 +28,12 @@ target = NodePath("../Car")
 
 [node name="WebBridge" type="Node" parent="."]
 script = ExtResource("6_bridge")
+
+[node name="Weather" type="Node3D" parent="."]
+script = ExtResource("7_weather")
+
+[node name="Autopilot" type="Node" parent="."]
+script = ExtResource("8_autopilot")
 
 [node name="UI" type="CanvasLayer" parent="."]
 

@@ -14,9 +14,13 @@ extends Node3D
 ##                     chunks are Scatter bodies here too, many trees per node.
 ##   track_road        StaticBody3D with meta "surface" (road, offroad, sand, ice).
 ##
+## Ground: a Terrain child named "Ground" (optional; without one the world is
+## flat at y = 0). height_at() is the floor everything stands on.
+##
 ## Physics layers: 1 world, 2 car, 3 triggers, 4 surface probes. Render layers:
 ## 1 world, 2 car and its effects (the static map camera never draws it),
-## 3 map-only overlay (road ribbon, landmark icons; the 3D camera skips it).
+## 3 map-only overlay (road ribbon, landmark icons; the 3D camera skips it),
+## 4 weather (clouds and mist: 3D view only, never the map).
 
 signal checkpoint_entered(index: int, body: Node3D)
 signal finish_entered(body: Node3D)
@@ -35,6 +39,10 @@ signal finish_entered(body: Node3D)
 
 
 func _ready() -> void:
+	# Shader detail noise is made at load, not saved into the scene.
+	var road := get_node_or_null("Road/Mesh") as MeshInstance3D
+	if road and road.mesh and road.mesh.surface_get_material(0) is ShaderMaterial:
+		(road.mesh.surface_get_material(0) as ShaderMaterial).set_shader_parameter("detail", DetailNoise.texture())
 	for cp in get_checkpoints():
 		var idx: int = cp.get_meta("index")
 		cp.body_entered.connect(func(b: Node3D) -> void: checkpoint_entered.emit(idx, b))
@@ -78,6 +86,12 @@ func recovery_for(checkpoints_passed: int) -> Marker3D:
 		if int(a.get_meta("after_checkpoint")) <= checkpoints_passed:
 			best = a
 	return best if best else get_spawn()
+
+
+## Ground height at world (x, z): the same surface the car drives on.
+func height_at(x: float, z: float) -> float:
+	var t := get_node_or_null("Ground") as Terrain
+	return t.height_at(x, z) if t else 0.0
 
 
 func get_landmarks() -> Array[Node3D]:

@@ -35,6 +35,7 @@ const SURFACES := {
 @export var max_reverse := 7.0
 @export var drag := 0.15 ## linear drag coefficient, 1/s
 @export var rolling := 1.2 ## constant rolling resistance, m/s²
+@export var slope_pull := 5.0 ## m/s² per unit of grade, uphill slows, downhill speeds
 
 @export_group("Steering")
 @export var max_yaw_rate := 2.4 ## rad/s at full lock and ideal speed
@@ -135,6 +136,10 @@ func _physics_process(dt: float) -> void:
 		d += 1.5
 	v_fwd -= v_fwd * d * dt
 	v_fwd = move_toward(v_fwd, 0.0, rolling * s.drag * dt * (0.0 if throttle > 0.0 else 1.0))
+	# Hills: a share of gravity along the slope, so crests cost a little and
+	# dips give it back. Arcade share, not the full 9.8.
+	if is_on_floor():
+		v_fwd -= slope_pull * -get_floor_normal().dot(fwd) * dt
 	if frozen:
 		v_fwd = move_toward(v_fwd, 0.0, brake_decel * dt)
 

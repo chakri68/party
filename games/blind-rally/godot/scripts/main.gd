@@ -5,7 +5,11 @@ extends Node3D
 ##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP,
 ## M expand map, C camera rotates with car, -/= zoom, N mute, K impact kick,
-## F dust and marks, L shadows.
+## F dust and marks, L shadows, P debug autopilot, V cycle clouds.
+##
+## initSession config read here: assists.liveMarker, keyboard, muted,
+## reducedMotion, seed and clouds (weather; same seed = same sky for every
+## team), autopilot (debug only).
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -18,17 +22,28 @@ extends Node3D
 @onready var bridge: WebBridge = $WebBridge
 @onready var fx: CarFx = $Car/Fx
 @onready var audio: CarAudio = $Car/Audio
+@onready var weather: Weather = $Weather
+@onready var autopilot: Autopilot = $Autopilot
 
 var checkpoints_passed := 0
 var finished := false
 var is_phone := false
 var _map_expanded := false
 var _map_small := Rect2()
+var recoveries := 0 ## resets so far, for tests and the autopilot's report card
+var race_time := 0.0 ## physics seconds since spawn, until the finish
 
 
 func _ready() -> void:
 	car.reset_to(track.get_spawn().global_transform)
 	cam.snap()
+	autopilot.setup(track, car)
+	autopilot.process_physics_priority = -1 # decide before the car moves
+	weather.car = car
+	weather.bounds = track.bounds
+	# Locally there's no session yet: a random sky, light cloud. initSession
+	# replaces both.
+	weather.configure(randi(), 0.4)
 	bridge.car = car
 	bridge.session_started.connect(_on_session)
 	bridge.race_event.connect(_on_race_event)
@@ -46,19 +61,23 @@ func _ready() -> void:
 	map.render_static_map(track)
 
 
-func _physics_process(_dt: float) -> void:
+func _physics_process(dt: float) -> void:
+	if not finished:
+		race_time += dt
 	# Fell out of the world somehow: put it back where it would reset to.
-	if car.global_position.y < -5.0:
+	var p := car.global_position
+	if p.y < track.height_at(p.x, p.z) - 5.0:
 		recover()
 
 
 func _process(_dt: float) -> void:
-	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s" % [
+	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s%s" % [
 		Engine.get_frames_per_second(), absf(car.forward_speed) * 3.6, car.surface,
 		car.distance_travelled, checkpoints_passed, track.get_checkpoints().size(),
 		"  FINISHED" if finished else "", _compass(car.global_rotation.y),
 		"on" if map.gps_enabled else "off", "up" if bridge.connected else "-",
 		"muted" if audio.muted else ("on" if audio.started else "tap to start"),
+		"\nAUTOPILOT" if autopilot.enabled else "",
 	]
 
 
@@ -90,13 +109,23 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_N: audio.muted = not audio.muted
 		KEY_K: cam.kick_enabled = not cam.kick_enabled
 		KEY_F: fx.enabled = not fx.enabled
+		KEY_P: set_autopilot(not autopilot.enabled)
+		KEY_V: weather.configure(weather.seed_value, fposmod(snappedf(weather.clouds, 0.5) + 0.5, 1.5))
 		KEY_L:
 			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
 			if sun:
 				set_shadows(not sun.shadow_enabled)
 
 
+## Debug autopilot on or off. While it's on it owns the car: remote control
+## from the bridge is dropped so the two don't fight over set_control().
+func set_autopilot(on: bool) -> void:
+	autopilot.enabled = on
+	bridge.forward_control = not on
+
+
 func recover() -> void:
+	recoveries += 1
 	car.reset_to(track.recovery_for(checkpoints_passed).global_transform)
 	cam.snap()
 	fx.reset_trail()
@@ -124,6 +153,10 @@ func _on_session(cfg: Dictionary, _seat: String) -> void:
 	audio.muted = bool(cfg.get("muted", audio.muted))
 	if cfg.has("reducedMotion"):
 		cam.kick_enabled = not bool(cfg["reducedMotion"])
+	# Weather: the room picks the seed so every team gets the same sky.
+	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
+	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
+	set_autopilot(bool(cfg.get("autopilot", false)))
 
 
 func _on_race_event(ev: Dictionary) -> void:
@@ -133,6 +166,8 @@ func _on_race_event(ev: Dictionary) -> void:
 		"go": car.frozen = false
 		"neutral": car.neutralize()
 		"assists": map.gps_enabled = bool(ev.get("liveMarker", map.gps_enabled))
+		"autopilot": set_autopilot(bool(ev.get("on", false))) # debug, the probe's auto-drive
+		"weather": weather.configure(int(ev.get("seed", weather.seed_value)), float(ev.get("clouds", weather.clouds)))
 
 
 func _toggle_map() -> void:

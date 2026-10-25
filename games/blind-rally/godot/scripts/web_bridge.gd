@@ -25,6 +25,9 @@ const HOST_POLL_GIVE_UP_S := 20.0
 var car: CarController
 var checkpoint_hint := 0
 var connected := false
+## Off while the debug autopilot drives: controls still arrive (and still
+## emit control_received) but don't reach the car.
+var forward_control := true
 
 var _host: JavaScriptObject
 var _json: JavaScriptObject
@@ -127,7 +130,7 @@ func _on_control(args: Array) -> void:
 	var steer := _num(o.steer)
 	var throttle := _num(o.throttle)
 	var brake := _num(o.brake)
-	if car:
+	if car and forward_control:
 		car.set_control(steer, throttle, brake)
 	control_received.emit(steer, throttle, brake)
 
