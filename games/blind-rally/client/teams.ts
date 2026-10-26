@@ -1,6 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
-import { rulesPreview } from "../shared/rules-text.ts";
+import { roleBriefing, rulesPreview, type BriefingLine } from "../shared/rules-text.ts";
 import { trackName } from "../shared/tracks-public.ts";
 import { formatClock } from "../shared/wire.ts";
 import { teamColor, type BlindRallyPublicState, type PublicTeam, type PublicTrack, type Role } from "../shared/types.ts";
@@ -173,9 +173,12 @@ export class TeamsScreen {
     const amReady = ready(me);
 
     const bar: (Node | null)[] = [];
+    // Seated and not ready: the briefing card is the ready control (it carries the role buttons too).
+    const brief = editable && mine && myRole && !amReady ? this.briefing(room.settings, mine, myRole) : null;
     if (editable && mine && myRole) {
       const otherRole: Role = myRole === "driver" ? "navigator" : "driver";
-      bar.push(
+      // Ready, but the seat's screen hasn't loaded yet: the old row, to back out of it.
+      if (!brief) bar.push(
         h("p", { class: "br-me" }, `You're the ${ROLE_NAME[myRole]} in Team ${mine.id}.`),
         h("button", { type: "button", onclick: () => this.api.act({ type: "role.pick", role: otherRole }) }, `Be ${ROLE_NAME[otherRole]}`),
         h("button", { type: "button", class: "link", onclick: () => this.api.act({ type: "team.leave" }) }, "Leave seat"),
@@ -211,6 +214,7 @@ export class TeamsScreen {
       ),
       editable ? this.stages(game, me, isHost, name) : null,
       h("div", { class: "br-grid" }, game.teams.map(card)),
+      brief,
       // Everyone sees the rules before they ready up (spec §4.3): the room's settings, in words.
       h(
         "section",
@@ -229,6 +233,40 @@ export class TeamsScreen {
     this.ticker = undefined;
     this.tick();
     if (game.phase === "countdown" || game.phase === "racing") this.ticker = setInterval(() => this.tick(), 100);
+  }
+
+  /**
+   * Before ready-up: your seat's job and every control it has, for this
+   * race's settings. "I'm ready" here is the only ready button, so nobody
+   * gets to the start without having had it in front of them. Mid-race (a
+   * rejoin) the seat's screen is up instead and this never shows.
+   */
+  private briefing(settings: unknown, team: PublicTeam, role: Role) {
+    const b = roleBriefing(role, settings);
+    const other: Role = role === "driver" ? "navigator" : "driver";
+    const keys = (line: BriefingLine) =>
+      line.keys.length
+        ? h("span", { class: "br-keys" }, line.keys.flatMap((chord, i) => [i ? h("span", { class: "br-keys-or" }, "or") : null, ...chord.map((k) => h("kbd", {}, k))]))
+        : null;
+    return h(
+      "section",
+      { class: "br-brief", "aria-label": "Your briefing", style: `--br-team: ${teamColor(team.color).hex}` },
+      h(
+        "header",
+        { class: "br-brief-head" },
+        h("p", { class: "br-brief-kicker" }, teamBadge(team), h("span", {}, ROLE_NAME[role])),
+        h("h3", { class: "br-brief-title" }, b.title),
+        h("p", { class: "br-brief-lead" }, b.lead),
+      ),
+      h("dl", { class: "br-brief-list" }, b.lines.flatMap((line) => [h("dt", {}, line.label), h("dd", {}, keys(line), h("span", {}, line.text))])),
+      h(
+        "footer",
+        { class: "br-brief-foot" },
+        h("button", { type: "button", class: "link", onclick: () => this.api.act({ type: "team.leave" }) }, "Leave seat"),
+        h("button", { type: "button", onclick: () => this.api.act({ type: "role.pick", role: other }) }, `Be ${ROLE_NAME[other]}`),
+        h("button", { type: "button", class: "primary br-ready-btn", onclick: () => this.api.act({ type: "player.ready", ready: true }) }, "I'm ready"),
+      ),
+    );
   }
 
   /** The track's on a coin flip: the ballot's top was level and the seed broke it. */

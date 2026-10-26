@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseControl } from "../shared/wire.ts";
+import { bearing, parseControl, parseDash } from "../shared/wire.ts";
 import { COUNTDOWN_MS, RESET_HOLD_MS, type BlindRallyState } from "../shared/types.ts";
 import { act, ctx, east, game, newGame, passCheckpoints, racing, SPAWN, snapAt, TRACK } from "./helpers.ts";
 
@@ -77,9 +77,10 @@ describe("driver input relay", () => {
 describe("navigator snapshots and impacts", () => {
   const snap = snapAt();
 
-  it("reach the Driver as speed only: no position, nothing road-shaped", () => {
+  it("reach the Driver as speed and compass only: no position, nothing road-shaped", () => {
     const out = stream(two(), "p1", snap)!;
-    expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 23.5 } }]);
+    // Godot's yaw 1.2 rad is 69° left of north: "WNW", bearing 291.
+    expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 23.5, heading: 291 } }]);
     const hit = stream(two(), "p1", { t: "ev", kind: "impact", strength: 2.37 })!;
     expect(hit.relays).toEqual([{ to: ["p0"], data: { t: "hit", strength: 2.4 } }]);
   });
@@ -92,6 +93,32 @@ describe("navigator snapshots and impacts", () => {
   });
 });
 
+describe("the Driver's dash relay", () => {
+  it("reads Godot's yaw the way the Navigator's HUD does: 0 north, clockwise", () => {
+    // main.gd _compass: yaw 0 faces -Z (north); a left turn is +yaw, so west is +π/2.
+    expect(bearing(0)).toBe(0);
+    expect(bearing(-Math.PI / 2)).toBe(90);
+    expect(bearing(Math.PI)).toBe(180);
+    expect(bearing(Math.PI / 2)).toBe(270);
+    expect(bearing(-0.001)).toBe(0); // rounds to 0, never "-0" or 360
+    expect(bearing(0.01)).toBe(359);
+    expect(bearing(-2 * Math.PI - 0.5)).toBe(29); // a few laps of spin still lands in 0..359
+  });
+
+  it("keeps a heading as whole degrees in 0..359, and drops a bad one without dropping the speed", () => {
+    expect(parseDash({ t: "dash", speed: 10, heading: 42 })).toEqual({ t: "dash", speed: 10, heading: 42 });
+    expect(parseDash({ t: "dash", speed: 10, heading: 359.6 })).toEqual({ t: "dash", speed: 10, heading: 0 });
+    expect(parseDash({ t: "dash", speed: 10, heading: -1 })).toEqual({ t: "dash", speed: 10, heading: 359 });
+    expect(parseDash({ t: "dash", speed: 10, heading: 725 })).toEqual({ t: "dash", speed: 10, heading: 5 });
+    // An older server sends no heading; junk in it is ignored, the speedo still moves.
+    for (const heading of [undefined, "north", NaN, Infinity, null, [90]]) {
+      expect(parseDash({ t: "dash", speed: 10, heading })).toEqual({ t: "dash", speed: 10 });
+    }
+    expect(parseDash({ t: "dash", heading: 90 })).toBeNull(); // no speed is still malformed
+    expect(Object.keys(parseDash({ t: "dash", speed: 1, heading: 1, position: [1, 2, 3] })!).sort()).toEqual(["heading", "speed", "t"]);
+  });
+});
+
 describe("shared stage ghosts", () => {
   const snap = snapAt(SPAWN, { speed: 23.4 });
   const three = (stageMode: "solo" | "shared") => racing([["p0", "p1"], ["p2", "p3"], ["p4", "p5"]], 6, { stageMode });
@@ -99,7 +126,7 @@ describe("shared stage ghosts", () => {
   it("go to the other teams' Navigators, and no Driver", () => {
     const out = stream(three("shared"), "p1", snap)!;
     expect(out.relays).toEqual([
-      { to: ["p0"], data: { t: "dash", speed: 23.4 } },
+      { to: ["p0"], data: { t: "dash", speed: 23.4, heading: 291 } },
       { to: ["p3", "p5"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 23.4 } },
     ]);
     const drivers = ["p0", "p2", "p4"];
@@ -200,9 +227,9 @@ describe("snapshot plausibility (step 8)", () => {
     expect(writes.flatMap((w, i) => (w ? [i] : []))).toEqual([0, 10, 20]);
   });
 
-  it("the Driver still only ever hears the speed", () => {
+  it("the Driver still only ever hears the speed and the compass", () => {
     const out = nav(started(), snapAt(east(10), { speed: 12.34 }), GO + 500)!;
-    expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 12.3 } }]);
+    expect(out.relays).toEqual([{ to: ["p0"], data: { t: "dash", speed: 12.3, heading: 291 } }]);
   });
 
   it("Driver input is dropped while the car's held after a reset", () => {

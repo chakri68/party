@@ -20,7 +20,7 @@ export interface ControlState {
 
 export const NEUTRAL: ControlState = { steer: 0, throttle: 0, brake: 0 };
 
-const KEYS: Record<string, Control> = {
+export const KEYS: Record<string, Control> = {
   KeyA: "left",
   ArrowLeft: "left",
   KeyD: "right",

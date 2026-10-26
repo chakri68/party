@@ -1,5 +1,5 @@
 import type { GameContext, GameError, GameEventEnvelope, StreamRelay, StreamResult, TimerRequest } from "@games/game-core";
-import { parseControl, parseSnapshot, type ParsedSnapshot } from "../shared/wire.ts";
+import { bearing, parseControl, parseSnapshot, type ParsedSnapshot } from "../shared/wire.ts";
 import { flatDistance, insideBounds, recoveryFor, type TrackData } from "../shared/track-data.ts";
 import {
   COUNTDOWN_MS,
@@ -361,8 +361,10 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
  * - `snap` from a Navigator: checked (speed cap, distance from the last
  *   accepted one by server time, bounds; a jump only to the anchor of an
  *   authorised move), kept as the last accepted snapshot, and written to
- *   storage at most once a second. The Driver gets the speed and nothing
- *   else; on a shared stage the other Navigators get a ghost (spec §8.2).
+ *   storage at most once a second. The Driver gets the speed and a
+ *   compass bearing and nothing else, riding every snapshot (one small
+ *   int, no state to diff against); on a shared stage the other Navigators
+ *   get a ghost (spec §8.2).
  * - `ev` impacts: a hit flash on the Driver's dash.
  *
  * A paused team (someone's dropped) sends nothing that counts.
@@ -399,7 +401,7 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
       ...(verdict === "anchor" && { movedAt: null }),
       ...(save && { savedAt: now }),
     });
-    const relays: StreamRelay[] = [{ to: [team.driverId], data: { t: "dash", speed: s.speed } }];
+    const relays: StreamRelay[] = [{ to: [team.driverId], data: { t: "dash", speed: s.speed, heading: bearing(s.heading) } }];
     if (state.settings.stageMode === "shared") {
       // The other cars' Navigators, and only them: a Driver must never learn where anything is.
       const to = state.teams.filter((r) => r.id !== team.id && r.run?.status === "running" && r.navigatorId).map((r) => r.navigatorId!);

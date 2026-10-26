@@ -192,6 +192,56 @@
 .br-rules dd { margin: 0; font-weight: 500; }
 .br-rules dt:first-of-type, .br-rules dd:first-of-type { border-top: none; }
 
+/* The briefing: your seat's job and controls, and the only Ready button. Your
+   car's colour down the edge, like the team card it came from. */
+.br-brief {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1.5px solid var(--line);
+  border-left: 4px solid var(--br-team, var(--accent));
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.br-brief-head { display: grid; gap: 4px; }
+.br-brief-kicker { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.br-brief-title { margin: 2px 0 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
+.br-brief-lead { margin: 0; color: var(--muted); max-width: 52ch; }
+.br-brief-list { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 14px; }
+.br-brief-list dt, .br-brief-list dd { padding: 9px 0; border-top: 1px solid var(--line); }
+.br-brief-list dt { font-weight: 600; font-size: 0.9rem; }
+.br-brief-list dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; color: var(--muted); font-size: 0.9rem; }
+.br-brief-list dd > span:last-child { flex: 1 1 14rem; }
+.br-keys { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.br-keys-or { font-size: 0.75rem; color: var(--muted); padding: 0 2px; }
+.br-brief kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.9em;
+  height: 1.75em;
+  padding: 0 6px;
+  border: 1.5px solid var(--line);
+  border-bottom-width: 3px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.br-brief-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.br-brief-foot > button { flex: 0 1 10rem; }
+.br-brief-foot > button.link { flex: 0 0 auto; margin-right: auto; }
+.br-brief-foot > .br-ready-btn { flex: 1 1 12rem; }
+@media (max-width: 440px) {
+  .br-brief { padding: 14px 12px 14px 14px; }
+  /* A label over its keys and words: two columns don't fit a phone. */
+  .br-brief-list { grid-template-columns: minmax(0, 1fr); }
+  .br-brief-list dt { padding-bottom: 0; }
+  .br-brief-list dd { border-top: none; padding-top: 4px; }
+}
+
 .br-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .br-me { margin: 0; flex: 1 0 100%; font-weight: 600; }
 .br-bar > button { flex: 1 1 8rem; }

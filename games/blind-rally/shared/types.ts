@@ -447,10 +447,13 @@ export interface PhysicsEventStream {
   strength?: number;
 }
 
-/** Server → Driver: all a Driver ever learns about the car. m/s, negative in reverse. */
+/** Server → Driver: all a Driver ever learns about the car. How fast and which way it points; never where. */
 export interface DashRelay {
   t: "dash";
+  /** m/s, negative in reverse. */
   speed: number;
+  /** Compass bearing, whole degrees: 0 north, 90 east (see `bearing`). */
+  heading?: number;
 }
 
 /**

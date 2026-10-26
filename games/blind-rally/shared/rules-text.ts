@@ -17,12 +17,13 @@ import {
   type Assists,
   type BlindRallySettings,
   type CameraPolicy,
+  type Role,
   type Weather,
 } from "./types.ts";
 
 /** Plain-language rules for the lobby's Rules button. */
 export const blindRallyRules: string[] = [
-  "You race in pairs. The Driver has the pedals and the wheel and no idea where the road goes. The Navigator sees the course and the car, and can't touch a thing.",
+  "You race in pairs. The Driver has the pedals, the wheel, a speedo and a compass, and no idea where the road goes. The Navigator sees the course and the car, and can't touch a thing.",
   "Talk. Out loud, in the same room or on a call: \"left four, don't cut\", \"tree, TREE\", that sort of thing.",
   "After Start, pick your seats: up to four teams, one Driver and one Navigator each. The host can move people around. Ready up when you're sat down.",
   "Three, two, one, go. Every car starts at once and the clock is the room's, not yours.",
@@ -101,6 +102,74 @@ export function rulesPreview(raw: unknown, track?: TrackLine): { label: string; 
     { label: "Reset", value: `+${RESET_PENALTY_MS / 1000} s, back to the last checkpoint` },
     { label: "Drop-outs", value: `Clock stops, ${RACE_GRACE_MS / 1000} s to get back` },
   ];
+}
+
+/** One thing you can do in your seat: the keys for it (alternatives, each a chord of chips), and what it does. */
+export interface BriefingLine {
+  label: string;
+  /** [["A", "D"], ["←", "→"]] reads "A D or ← →". Empty: touch only. */
+  keys: string[][];
+  text: string;
+}
+
+export interface Briefing {
+  title: string;
+  lead: string;
+  lines: BriefingLine[];
+}
+
+/**
+ * The pre-race card for one seat: the job, then every control it has, under
+ * this race's settings (spec §4.1, §4.2). The keys are the real bindings:
+ * driver/input.ts for the Driver, Godot's main.gd `_unhandled_key_input` and
+ * map_controller.gd for the Navigator. Change one there, change it here.
+ */
+export function roleBriefing(role: Role, raw: unknown): Briefing {
+  const s = parseSettings(raw) ?? DEFAULT_SETTINGS;
+  const a = effectiveAssists(s);
+  if (role === "driver") {
+    return {
+      title: "You drive. Blind.",
+      lead: "You can't see the road. Your Navigator can: listen to them, and tell them what you're doing.",
+      lines: [
+        { label: "Steer", keys: [["A", "D"], ["←", "→"]], text: "Hold Left or Right, the pads under your left thumb." },
+        { label: "Gas", keys: [["W"], ["↑"]], text: "The tall pad under your right thumb." },
+        { label: "Brake", keys: [["S"], ["↓"]], text: "The wide pad. Keep holding once you've stopped and you reverse." },
+        { label: "Reset car", keys: [], text: `Tap twice: back to the last checkpoint, +${RESET_PENALTY_MS / 1000} s.` },
+        { label: "Compass", keys: [], text: "Which way the bonnet points, like 042° NE. “Head north” is a call your Navigator can make." },
+        { label: "Speedo", keys: [], text: "Your speed, and D or R for the way you're going." },
+      ],
+    };
+  }
+  const lines: BriefingLine[] = [];
+  if (a.camera3d) {
+    lines.push(
+      s.camera === "free"
+        ? { label: "Camera", keys: [["Y"]], text: "Cycles top-down, chase and bonnet." }
+        : { label: "Camera", keys: [], text: `${CAMERA_LABELS[s.camera]} only, this race.` },
+      { label: "Zoom", keys: [["−", "="]], text: "Out and in." },
+      { label: "Rotate", keys: [["C"]], text: "Turns the view with the car, or back to north up." },
+      { label: "Map", keys: [["M"]], text: "Opens the big map, or tap the corner map. Esc, or a tap outside it, closes it." },
+      { label: "Guess pin", keys: [], text: "On the big map, tap where you think the car is. A long press clears it. Your closest guess makes the results." },
+    );
+  } else {
+    lines.push(
+      { label: "Map", keys: [], text: "No camera this race: the map is your whole view." },
+      { label: "Guess pin", keys: [], text: "Tap the map where you think the car is. A long press clears it. Your closest guess makes the results." },
+    );
+  }
+  if (a.liveMarker) lines.push({ label: "GPS", keys: [["G"]], text: "The car's live dot on the map. G hides or shows it." });
+  if (a.tripMeter) lines.push({ label: "Trip meter", keys: [], text: "Metres driven, top bar. Wrong turns count too." });
+  if (a.paceNotes) lines.push({ label: "Pace notes", keys: [], text: "Notes, top bar: the stage's notes in order. Tap a line to keep your place." });
+  lines.push(
+    { label: "Sound", keys: [["N"]], text: "Mutes the engine." },
+    { label: "Pause", keys: [], text: `There isn't one. If a phone drops, your clock stops for up to ${RACE_GRACE_MS / 1000} s while it reconnects.` },
+  );
+  return {
+    title: "You see it all. Touch nothing.",
+    lead: "Your Driver has pedals and a compass and no road. Call the corners early; say what's coming, not what just went by.",
+    lines,
+  };
 }
 
 /** What the lobby shows (and the host can change) before a game. */

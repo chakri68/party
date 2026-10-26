@@ -33,11 +33,30 @@ export function parseControl(input: unknown): ControlInput | null {
   };
 }
 
-/** The Driver's dashboard. 100 m/s is 360 km/h, well past anything with wheels here. */
+/** Whole degrees, 0..359: 360 is 0 and -1 is 359. */
+const wrap360 = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
+
+/**
+ * Godot's yaw as a compass bearing, the way the Navigator's "heading N 003"
+ * reads it (main.gd `_compass`): yaw 0 faces -Z, which the map draws as north,
+ * and yaw grows counter-clockwise seen from above, so the bearing is minus yaw,
+ * in whole degrees 0..359.
+ */
+export function bearing(yaw: number): number {
+  return wrap360((-yaw * 180) / Math.PI);
+}
+
+/**
+ * The Driver's dashboard. 100 m/s is 360 km/h, well past anything with wheels
+ * here. `heading` is a bearing in degrees, wrapped into 0..359; it's optional,
+ * so a dash without one (or with junk in it) still moves the speedo.
+ */
 export function parseDash(input: unknown): DashRelay | null {
   const o = obj(input);
   if (!o || o.t !== "dash" || !finite(o.speed)) return null;
-  return { t: "dash", speed: clamp(o.speed, -100, 100) };
+  const dash: DashRelay = { t: "dash", speed: clamp(o.speed, -100, 100) };
+  if (finite(o.heading)) dash.heading = wrap360(o.heading);
+  return dash;
 }
 
 export function parseHit(input: unknown): HitRelay | null {

@@ -179,8 +179,13 @@ describe("projection deny-list", () => {
     for (const [from, data] of [["p1", snap], ["p3", snap], ["p1", { t: "ev", kind: "impact", strength: 1, position: [1, 2, 3] }]] as const) {
       const out = game.onStream!(s, from, data, ctx(GO))!;
       for (const r of out.relays!) {
-        if (r.to.some((id) => drivers.includes(id))) expect(leaks(r.data)).toEqual([]);
-        else ghosts++; // the Navigators' ghosts, which are meant to have positions
+        if (r.to.some((id) => drivers.includes(id))) {
+          // The one heading a Driver gets on purpose: the dash's compass, which way the bonnet
+          // points as a whole-degree bearing. Not where the car is, nothing about the road.
+          const { heading, ...rest } = r.data as { heading?: unknown };
+          if (heading !== undefined) expect(Number.isInteger(heading) && (heading as number) >= 0 && (heading as number) < 360).toBe(true);
+          expect(leaks(rest)).toEqual([]);
+        } else ghosts++; // the Navigators' ghosts, which are meant to have positions
       }
     }
     expect(ghosts).toBe(2);

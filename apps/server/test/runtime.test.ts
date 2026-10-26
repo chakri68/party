@@ -1236,9 +1236,9 @@ describe("Blind Rally through the room", () => {
     expect(drv.of("stream")).toEqual([]);
     expect(JSON.stringify(world.store.get("room"))).toBe(writes);
 
-    // And the Navigator's snapshot reaches the Driver as a speed, nothing more.
+    // And the Navigator's snapshot reaches the Driver as a speed and a compass bearing, nothing more.
     await send(room, nav, { type: "stream", data: { t: "snap", speed: 10, position: PINE_PANIC_SPAWN, heading: 0 } });
-    expect(drv.of("stream")).toEqual([{ type: "stream", from: idn, data: { t: "dash", speed: 10 } }]);
+    expect(drv.of("stream")).toEqual([{ type: "stream", from: idn, data: { t: "dash", speed: 10, heading: 0 } }]);
     expect(host.of("stream")).toEqual([]);
 
     // Time's up: results, and the teams wait for the rematch.

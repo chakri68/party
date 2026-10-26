@@ -13,6 +13,9 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
   grid-template-areas: "steer cockpit pedals";
   gap: 8px;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* A laptop is a wide phone: past this the cockpit was mostly floor between two far-off pads. */
+  width: min(100%, 1100px);
+  margin-inline: auto;
   min-height: 0;
   height: 100%;
   touch-action: none;
@@ -23,7 +26,7 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 
 /* ---- thumb zones ---------------------------------------------------------- */
 
-.br-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; touch-action: none; cursor: pointer; }
+.br-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; container-type: size; touch-action: none; cursor: pointer; }
 .br-steer { grid-area: steer; }
 .br-pedals { grid-area: pedals; grid-template-columns: 1fr 1.2fr; }
 
@@ -32,7 +35,8 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
   place-items: center;
   align-content: center;
   gap: 12px;
-  min-height: 96px;
+  min-height: 0;
+  overflow: hidden;
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -41,6 +45,10 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 }
 .br-pad.down { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .br-pad-label { font-size: 0.85rem; font-weight: 600; }
+/* Only after the race, with the results above a short phone: the pads give way
+   to the clock, and they're dead by then anyway. Glyphs only, then words only. */
+@container (max-height: 99px) { .br-pad { gap: 0; } .br-pad-label { display: none; } }
+@container (max-height: 55px) { .br-pad .br-glyph { display: none; } .br-pad-label { display: block; } }
 .br-glyph svg { width: 48px; height: 48px; display: block; }
 /* Pedals as pedals: brake short and wide, gas tall and narrow. */
 .br-glyph-brake, .br-glyph-gas { display: block; border: 2.5px solid currentColor; border-radius: 8px; }
@@ -64,13 +72,32 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
   border-radius: var(--radius);
   transition: box-shadow 120ms;
 }
-.br-top { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 10px; width: 100%; font-size: 0.85rem; }
+.br-top { margin-bottom: auto; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 10px; width: 100%; font-size: 0.85rem; }
 .br-top .br-link { flex: 0 1 auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .blind-rally .br-top .br-fs { min-height: 36px; width: 36px; padding: 0; line-height: 1; border-radius: 10px; color: var(--muted); }
 .br-teamtag { display: inline-flex; }
+/* The instrument row is the one thing in the cockpit that gives: it takes the
+   height left after the top row, clock and Reset, and the dial and compass size
+   themselves from that box (cq units), never from flex. A flexed dial got a
+   height from the column and a width from its max-width, and stopped being round. */
+.br-dials {
+  --br-dial-max: 280px;
+  --br-gap: 12px;
+  /* The compass: under half the dial, and room under it for its readout. */
+  --br-compass: min(var(--br-dial-max) * 0.42, 30cqw, 70cqh - 18px);
+  flex: 1 1 0;
+  align-self: stretch;
+  min-height: 0;
+  /* No taller than the dial: spare height goes round the instruments, not into them. */
+  max-height: var(--br-dial-max);
+  container: br-dials / size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--br-gap);
+}
 /* Sized as a container so the readout scales with the dial, not the viewport. */
-/* Never flex-shrunk: squashing it vertically turns the dial into an ellipse. */
-.br-gauge { position: relative; width: min(100%, 220px, 48dvh); aspect-ratio: 1; flex: none; container-type: inline-size; }
+.br-gauge { position: relative; flex: none; width: min(var(--br-dial-max), 100cqh, 100cqw - var(--br-compass) - var(--br-gap)); aspect-ratio: 1; container-type: inline-size; }
 .br-arc { position: absolute; inset: 0; width: 100%; height: 100%; }
 .br-gauge::before { content: ""; position: absolute; inset: 16%; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--line); }
 .br-arc rect { fill: var(--line); transition: fill 100ms; }
@@ -90,16 +117,44 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 .br-unit { font-size: max(11px, 6cqi); color: var(--muted); }
 .br-gear { margin-top: 2cqi; min-width: 2em; text-align: center; font-size: max(11px, 6cqi); font-weight: 700; color: var(--muted); border: 1.5px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .br-gear.rev { color: var(--danger); border-color: var(--danger); }
+/* A small dial: km/h goes before the digits outgrow the disc. */
+@container (max-width: 109px) { .br-unit { display: none; } }
 
-.br-readout { display: contents; }
+/* Heading indicator: the card turns under the fixed lubber line and the car
+   in the middle. Same disc as the dial, so the two read as one panel. */
+.br-compass { flex: none; display: grid; justify-items: center; gap: calc(var(--br-compass) * 0.06); }
+.br-compass-face { display: block; width: var(--br-compass); height: var(--br-compass); overflow: visible; shape-rendering: geometricPrecision; }
+.br-compass-bezel { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+/* Turns about its own centre: the tick ring is symmetric, so that's (0, 0). */
+.br-compass-card { transform-box: fill-box; transform-origin: center; transform: rotate(calc(-1 * var(--br-turned, 0deg))); transition: transform 160ms linear; }
+.br-compass-card line { stroke: color-mix(in srgb, var(--muted) 55%, transparent); stroke-width: 1.2; stroke-linecap: round; }
+.br-compass-card line.major { stroke: color-mix(in srgb, var(--ink) 75%, transparent); stroke-width: 1.8; }
+/* Undoes the card's turn and its own place on it: always upright. */
+.br-compass-letter {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(calc(var(--br-turned, 0deg) - var(--br-at, 0deg)));
+  transition: transform 160ms linear;
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--muted);
+}
+.br-compass-letter.north { fill: var(--accent); }
+.br-compass-lubber { fill: var(--ink); }
+.br-compass-car { fill: var(--muted); }
+.br-compass-label { font-size: clamp(11px, calc(var(--br-compass) * 0.15), 17px); font-weight: 600; letter-spacing: 0.02em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Too short for a round dial worth reading: the clock and Reset matter more. */
+@container br-dials (max-height: 63px) { .br-gauge, .br-compass { display: none; } }
+
+.br-readout { display: flex; flex: none; align-items: center; justify-content: center; gap: 12px; width: 100%; }
 .br-clock { display: grid; justify-items: center; gap: 0; font-variant-numeric: tabular-nums; }
 .br-clock-main { font-size: clamp(20px, 7dvh, 28px); font-weight: 700; letter-spacing: -0.02em; }
 .br-clock-sub { font-size: 0.8rem; color: var(--muted); }
 
-.blind-rally .br-reset { min-height: 48px; width: min(100%, 220px); flex: none; touch-action: manipulation; }
+.blind-rally .br-reset { min-height: 48px; flex: 0 1 200px; min-width: 0; touch-action: manipulation; }
 /* The second tap costs 5 s: it looks like the shell's danger button. */
 .blind-rally .br-reset.confirm { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
-.br-msg { margin: 0; min-height: 1.3em; font-size: 0.8rem; color: var(--muted); text-align: center; }
+.br-msg { margin: auto 0 0; min-height: 1.3em; font-size: 0.8rem; color: var(--muted); text-align: center; }
 .br-cockpit .br-banner { width: 100%; font-size: 0.8rem; padding: 6px 10px; }
 
 /* Impacts: a red ring round the cockpit and a jolt, scaled by --br-hit. */
@@ -115,8 +170,7 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 
 @media (orientation: landscape) and (max-height: 540px) {
   .br-cockpit { padding: 2px 0; gap: 2px; }
-  /* Gives, as in portrait: a host's End race wraps the top row, and a fixed dial then pushed Reset off the bottom. */
-  .br-gauge { flex: 1 1 0; width: auto; max-width: min(100%, 200px); min-height: 72px; }
+  .br-dials { --br-dial-max: 200px; --br-gap: 8px; }
   .blind-rally .br-top .br-chip, .blind-rally .br-top .br-fs { min-height: 32px; }
   .blind-rally .br-reset { min-height: 44px; }
 }
@@ -124,20 +178,24 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 /* ---- portrait: instruments on top, thumbs below --------------------------- */
 
 /* A tall phone is still short once the pads have their half: at 360x640 the
-   cockpit gets under 300px. So the clock sits beside Reset, and the gauge is
-   the one thing that gives, taking whatever height is left (a fixed size
-   pushed the clock and Reset under the pads). */
+   cockpit gets under 300px, less with the results above it. The instrument
+   row takes what's left (a fixed dial pushed the clock and Reset under the pads). */
 @media (orientation: portrait) {
   .br-driver {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(180px, 0.7fr);
+    /* The cockpit never goes under its clock and Reset; the pads take the rest. */
+    grid-template-rows: minmax(min-content, 1fr) minmax(0, 0.7fr);
     grid-template-areas: "cockpit cockpit" "steer pedals";
   }
-  .br-gauge { flex: 1 1 0; width: auto; max-width: min(100%, 240px); min-height: 72px; }
-  .br-readout { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
-  .blind-rally .br-readout .br-reset { flex: 0 1 200px; }
+}
+
+/* ---- laptop and desktop: room to read the dial from arm's length -------- */
+
+@media (min-width: 1000px) and (min-height: 760px) {
+  .br-dials { --br-dial-max: 340px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .br-driver.hit { animation: none; }
+  .br-compass-card, .br-compass-letter { transition: none; }
 }

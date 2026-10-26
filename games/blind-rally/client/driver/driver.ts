@@ -61,7 +61,7 @@ class DriverView implements RoleView {
     { class: "br-cockpit" },
     this.top,
     this.dash.el,
-    // One box only so portrait can sit the clock beside Reset; landscape sees through it.
+    // One row: the clock beside Reset, so the dial is the only thing that gives.
     h("div", { class: "br-readout" }, h("div", { class: "br-clock" }, this.clock, this.clockSub), this.reset),
     this.banner,
     this.msg,
@@ -158,6 +158,7 @@ class DriverView implements RoleView {
     if (dash) {
       this.lastDash = performance.now();
       this.dash.speed(dash.speed);
+      if (dash.heading !== undefined) this.dash.heading(dash.heading);
       return;
     }
     const hit = parseHit(data);
