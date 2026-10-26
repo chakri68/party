@@ -133,6 +133,14 @@ func _profile(_i: int) -> Array:
 	return []
 
 
+## The road shader's UV2 at sample i: (half width, verge edge), which sets
+## where the creep from the edge starts and where the apron frays. A stage
+## can move it (Cliffhanger pushes it out past the walls in its tunnel, so
+## no moss grows in the dark).
+func _road_uv2(i: int) -> Vector2:
+	return Vector2(half_w[i], half_w[i] + verge_w[i])
+
+
 ## Packs the finished track and writes it.
 func _save(out: String) -> int:
 	_own(track)
@@ -483,6 +491,7 @@ func _road() -> void:
 	for i in n:
 		var row: Array = []
 		var shade := 1.0 + noise.get_noise_2d(pts[i].x * 2.0, pts[i].z * 2.0) * 0.12
+		var uv2 := _road_uv2(i)
 		for p in _profile(i):
 			# Per-vertex mottle on top of the slow noise: loose gravel isn't a smooth band.
 			var c: Color = (p[1] as Color).darkened(rng.randf_range(-0.05, 0.09))
@@ -490,7 +499,7 @@ func _road() -> void:
 			# On the ground itself, lifted a hair; the ground is the same grid
 			# the car drives on, so the road can't float or sink.
 			var pos := _g(pts[i] + _right(i) * lat, 0.04)
-			row.append([pos, Color(c.r * shade, c.g * shade, c.b * shade, c.a), Vector2(lat, i * STEP), Vector2(half_w[i], half_w[i] + verge_w[i])])
+			row.append([pos, Color(c.r * shade, c.g * shade, c.b * shade, c.a), Vector2(lat, i * STEP), uv2])
 		rows.append(row)
 	var cols: int = (rows[0] as Array).size()
 	var body := StaticBody3D.new()

@@ -360,17 +360,17 @@ func _physics_process(dt: float) -> void:
 		race_time += dt
 	_hold_left = maxf(0.0, _hold_left - dt)
 	car.frozen = _server_frozen or _hold_left > 0.0
-	# Fell out of the world somehow. Locally: put it back where it would reset
-	# to. In the room that teleport would be one the server never authorised
-	# (it'd refuse every snapshot after it), so park the car and ask; the
-	# server's `reset` event does the move.
+	# Fell out of the world somehow, or off a cliff (Track.fall_y). Locally:
+	# put it back where it would reset to. In the room that teleport would be
+	# one the server never authorised (it'd refuse every snapshot after it),
+	# so park the car and ask; the server's `reset` event does the move.
 	var p := car.global_position
 	if _fell_pending:
 		_fell_retry -= dt
 		if _fell_retry <= 0.0:
 			_fell_retry = FELL_RETRY_S
 			bridge.emit_physics_event({"kind": "fell"})
-	elif p.y < track.height_at(p.x, p.z) - 5.0:
+	elif p.y < track.height_at(p.x, p.z) - 5.0 or p.y < track.fall_y:
 		if room:
 			_fell_out()
 		else:

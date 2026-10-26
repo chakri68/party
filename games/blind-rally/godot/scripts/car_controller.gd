@@ -26,13 +26,16 @@ const CONTROL_TIMEOUT := 0.3
 ## on/off pads: the slip cap below catches the slide on ice too. The gritted
 ## patches at its hairpins are "road". "traction" (1 when absent) scales
 ## engine and brakes: on ice the wheels spin up and lock, so it pulls away
-## slower and stops in twice the distance.
+## slower and stops in twice the distance. Cliffhanger: old broken tarmac
+## grips harder than the gravel and hardly slides (it's not loose), and pulls
+## and stops a touch better.
 const SURFACES := {
 	"road": {"drag": 1.0, "grip": 1.0, "top": 1.0, "loose": 1.0},
 	"offroad": {"drag": 5.3, "grip": 0.75, "top": 0.5, "loose": 0.6},
 	"sand": {"drag": 7.5, "grip": 0.65, "top": 0.4, "loose": 0.8},
 	"snow": {"drag": 1.1, "grip": 0.72, "top": 0.97, "loose": 1.15, "traction": 0.9},
 	"ice": {"drag": 0.7, "grip": 0.32, "top": 1.0, "loose": 0.6, "traction": 0.45},
+	"tarmac": {"drag": 0.92, "grip": 1.15, "top": 1.0, "loose": 0.55, "traction": 1.08},
 }
 
 @export_group("Engine")

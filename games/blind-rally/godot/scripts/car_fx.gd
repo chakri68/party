@@ -33,9 +33,11 @@ var plume := 1.0
 var grit := Color("4a4136")
 var marks := Color(0.16, 0.12, 0.08)
 
-## Surfaces that throw the road dust; and ice, which throws hardly any.
-const ROAD_LIKE := ["road", "snow", "ice"]
+## Surfaces that throw the road dust; ice, which throws hardly any, and
+## tarmac, which throws a little off the grit on it.
+const ROAD_LIKE := ["road", "snow", "ice", "tarmac"]
 const ICE_SPRAY := 0.3
+const TARMAC_SPRAY := 0.35
 
 ## Wheel contact points in the car's frame (-Z forward).
 var wheels := [Vector3(-0.59, 0, -1.12), Vector3(0.59, 0, -1.12), Vector3(-0.59, 0, 1.12), Vector3(0.59, 0, 1.12)]
@@ -245,7 +247,7 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 	var slide_k := clampf((lat - 1.0) / 6.0, 0.0, 1.0)
 	var spin_k := clampf(_car.throttle_input * (1.0 - speed / 10.0), 0.0, 1.0) if speed > 0.5 else 0.0
 	# Puffs per second, per rear wheel.
-	var ice := ICE_SPRAY if _car.surface == "ice" else 1.0
+	var ice := ICE_SPRAY if _car.surface == "ice" else (TARMAC_SPRAY if _car.surface == "tarmac" else 1.0)
 	var rate := (pow(speed_k, 1.3) * 30.0 + slide_k * 80.0 + spin_k * 25.0) * density * sqrt(plume) * ice
 	var grit_rate := (_car.throttle_input * speed_k * 10.0 + slide_k * 30.0 + spin_k * 25.0) * density * ice
 	if speed < 2.0:

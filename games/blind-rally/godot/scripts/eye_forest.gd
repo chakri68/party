@@ -39,7 +39,8 @@ extends Node3D
 ## the haze takes over from there; the horizon ring is mesas, not pines;
 ## and the canyon walls, which are terrain, do the hiding the forest does.
 ## Snow (Snowblind): the forest's machinery, with the impostors' tips white
-## (Biome.tree_snow).
+## (Biome.tree_snow). Coast (Cliffhanger): the forest's machinery for its
+## pine clumps, and no horizon ring (ring "none"): the sea is the horizon.
 
 const BUCKET := 16.0 ## streaming grid
 const STREAM_STEP := 4.0 ## camera metres between refills
@@ -158,16 +159,17 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 	var unit := _impostor_mesh()
 	for key in imp:
 		_impostors(g_far, unit, imp[key])
-	ring = MeshInstance3D.new()
-	ring.name = "Treeline"
-	ring.mesh = _ring_mesh(ring_r) if biome.ring == "pines" else _mesa_ring(ring_r)
-	var rmat := ShaderMaterial.new()
-	rmat.shader = preload("res://shaders/treeline.gdshader")
-	rmat.set_shader_parameter("haze", fog_color)
-	ring.material_override = rmat
-	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	ring.extra_cull_margin = 200.0
-	add_child(ring)
+	if biome.ring != "none":
+		ring = MeshInstance3D.new()
+		ring.name = "Treeline"
+		ring.mesh = _ring_mesh(ring_r) if biome.ring == "pines" else _mesa_ring(ring_r)
+		var rmat := ShaderMaterial.new()
+		rmat.shader = preload("res://shaders/treeline.gdshader")
+		rmat.set_shader_parameter("haze", fog_color)
+		ring.material_override = rmat
+		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ring.extra_cull_margin = 200.0
+		add_child(ring)
 	var lm_shader := preload("res://shaders/far_landmark.gdshader")
 	for t in track.get_tree().get_nodes_in_group("track_tall"):
 		if not track.is_ancestor_of(t) or not t.has_meta("proxy_mesh"):

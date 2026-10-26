@@ -21,21 +21,21 @@ The license was checked on each pack's page ("Creative Commons CC0") and in the 
 
 | File | Baked as | Used for |
 | --- | --- | --- |
-| `tree_pineTallA.glb` | `pine_tall` | forest |
-| `tree_pineDefaultA.glb` | `pine_default` | forest |
-| `tree_pineRoundC.glb` | `pine_round` | forest |
-| `tree_pineSmallA.glb` | `pine_small` | forest, road edge |
+| `tree_pineTallA.glb` | `pine_tall` | forest; Cliffhanger's wind-bent pines (sheared copies) |
+| `tree_pineDefaultA.glb` | `pine_default` | forest; Cliffhanger's wind-bent pines |
+| `tree_pineRoundC.glb` | `pine_round` | forest; Cliffhanger's wind-bent pines |
+| `tree_pineSmallA.glb` | `pine_small` | forest, road edge; Cliffhanger's wind-bent pines |
 | `log.glb` | `log` | roadside logs |
 | `log_large.glb` | `log_large` | roadside, sawmill |
 | `log_stackLarge.glb` | `log_stack` | sawmill piles, cabin woodpile, log landing |
-| `rock_largeA.glb` | `rock_a` | roadside, forest floor |
-| `rock_largeC.glb` | `rock_c` | roadside, stream banks |
-| `rock_smallA.glb` | `rock_small` | stream banks |
-| `rock_tallA.glb` | `rock_tall` | roadside |
+| `rock_largeA.glb` | `rock_a` | roadside, forest floor; Cliffhanger's cuts and waterline |
+| `rock_largeC.glb` | `rock_c` | roadside, stream banks; Cliffhanger's cuts |
+| `rock_smallA.glb` | `rock_small` | stream banks; Cliffhanger heath |
+| `rock_tallA.glb` | `rock_tall` | roadside; Cliffhanger's cuts and headlands |
 | `stump_old.glb` | `stump` | roadside, forest floor |
-| `plant_bushLarge.glb` | `bush` | forest floor |
-| `plant_bush.glb` | `bush_small` | forest floor |
-| `grass_large.glb` | `grass` | ditch tufts |
+| `plant_bushLarge.glb` | `bush` | forest floor; Cliffhanger's coastal scrub |
+| `plant_bush.glb` | `bush_small` | forest floor; Cliffhanger's coastal scrub |
+| `grass_large.glb` | `grass` | ditch tufts; Cliffhanger heath |
 | `campfire_logs.glb` | `campfire` | ranger cabin, campsite |
 | `tent_detailedOpen.glb` | `tent_camp` | campsite (recoloured red) |
 | `campfire_stones.glb` | `fire_ring` | campsite |
@@ -50,8 +50,8 @@ The license was checked on each pack's page ("Creative Commons CC0") and in the 
 | `rock_tallE.glb` | `hoodoo_e` | stone arch legs |
 | `rock_smallC.glb` | `pebble` | desert floor, berms |
 | `rock_smallFlatA.glb` | `flat_rock` | the sand drift on the desert wreck |
-| `plant_bushSmall.glb` | `scrub` | desert scrub |
-| `plant_bushTriangle.glb` | `scrub_tri` | desert scrub |
+| `plant_bushSmall.glb` | `scrub` | desert scrub; Cliffhanger heath |
+| `plant_bushTriangle.glb` | `scrub_tri` | desert scrub; Cliffhanger heath |
 | `grass.glb` | `dry_grass` | dry tufts, berms |
 
 **Racing Kit** → `kenney_racing-kit/`
@@ -78,7 +78,7 @@ The license was checked on each pack's page ("Creative Commons CC0") and in the 
 | File | Baked as | Used for |
 | --- | --- | --- |
 | `barrels.glb` | `drums` | fuel depot, mine, shack (recoloured faded red) |
-| `barrel.glb` | `drum`, `drum_yellow` | fuel depot |
+| `barrel.glb` | `drum`, `drum_yellow` | fuel depot; Cliffhanger's bait shack |
 | `satelliteDish_detailed.glb` | `dish` | radio tower |
 | `machine_wireless.glb` | `radio_box` | radio tower's equipment box |
 | `crater.glb` | `crater` | UFO easter egg (scorched) |
@@ -101,12 +101,12 @@ The license was checked on each pack's page ("Creative Commons CC0") and in the 
 | `tree-snow-a.glb` | `snow_pine_a` | Snowblind forest |
 | `tree-snow-b.glb` | `snow_pine_b` | Snowblind forest |
 | `tree-snow-c.glb` | `snow_pine_c`, `snow_pine_small` | Snowblind forest, road edge |
-| `rocks-large.glb` | `granite_l` | rock walls |
+| `rocks-large.glb` | `granite_l` | rock walls; Cliffhanger's headland rock |
 | `rocks-medium.glb` | `granite_m` | rock walls, forest floor |
-| `rocks-small.glb` | `granite_s` | forest floor |
+| `rocks-small.glb` | `granite_s` | forest floor; Cliffhanger heath |
 | `snow-pile.glb` | `snow_pile` | forest floor drifts |
 | `lantern.glb` | `lantern` | the chalet |
-| `bench.glb` | `bench` | chalet, frozen pond, ski hut |
+| `bench.glb` | `bench` | chalet, frozen pond, ski hut; Cliffhanger's lay-by |
 | `Textures/colormap.png` | (sampled at bake time) | colours for all of the above, moved off the kit's pastels |
 
 ## Everything else
@@ -116,3 +116,5 @@ The road, ground, stream, bridge, ranger cabin, sawmill, chevron boards, hay bal
 Dust Devil (`tools/build_dust_devil.gd`, sharing `tools/stage_builder.gd`) generates its canyon terrain, roads and spurs, the stone arch's span, the radio tower's lattice, the fuel depot's tank, pump and hut, the windpump, shack, water tank, old mine and the drift on the wreck. Its easter eggs are generated in `scripts/easter_eggs.gd`: the tumbleweeds, roadrunner, vultures, cow skull and the flying saucer. The Kenney pieces they use are listed above.
 
 Snowblind (`tools/build_snowblind.gd`) generates its mountain terrain, the packed-snow road with its ice and grit patches, the snowbanks, the chalet, the ski lift (pylons, cable, chairs, stations), the frozen pond and its ice hut, the wayside shrine, the parked plough, the avalanche fence and the ski hut. Snowfall is `shaders/snowfall.gdshader`, driven from `scripts/weather.gd`; the snow spray is `scripts/car_fx.gd`. Its easter eggs are generated in `scripts/easter_eggs.gd`: the snowmen, the skiers, the elk, the snowmobile and the yeti. The Kenney pieces it uses are listed above.
+
+Cliffhanger (`tools/build_cliffhanger.gd`) generates its coast: the cliffs and the rock shelf under them, the road with its broken tarmac, the armco and the dry stone walls, the sea tunnel (bore, portals, lamps, and the rock over it, `shaders/tunnel_roof.gdshader` driven by `scripts/tunnel_roof.gd`), the lighthouse and keeper's cottage, the pier and its boats, the lobster pots, the chapel, the shipwreck on the rocks, the phone box, the lay-by, and the wind-bent pines (the Kenney pines above, sheared at build time). The sea is one plane on `shaders/sea.gdshader`; the sea fog is `scripts/weather.gd`'s banks in their "fog" style. Its easter eggs are generated in `scripts/easter_eggs.gd`: the gulls, the whale, the fishing boat, the seal, and the sea serpent or the kraken. The Kenney pieces it uses are listed above.

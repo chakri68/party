@@ -213,6 +213,62 @@
         { "id": "avalanche_fence", "label": "avalanche fence", "position": [143.19, 105.77, 47.63], "distance": 1842 },
         { "id": "ski_hut", "label": "ski hut", "position": [-65.45, 108.81, 69.95], "distance": 2047 }
       ]
+    },
+    {
+      "id": "cliffhanger",
+      "revision": 1,
+      "name": "Cliffhanger",
+      "difficulty": "hard",
+      "length": 2415,
+      "par_seconds": null,
+      "bounds": { "x": -162.63, "z": -745.08, "width": 455.42, "depth": 1335.08 },
+      "spawn": { "position": [40.05, 3.8, 536], "heading": 0.01 },
+      "checkpoints": [
+        { "id": 1, "position": [-70.28, 15.52, 319.55], "radius": 7, "distance": 306 },
+        { "id": 2, "position": [-58.92, 40.03, 269.35], "radius": 7, "distance": 636 },
+        { "id": 3, "position": [94.5, 56.92, 10.49], "radius": 7, "distance": 1126 },
+        { "id": 4, "position": [-89.29, 56.95, -470.62], "radius": 7, "distance": 1736 },
+        { "id": 5, "position": [1.6, 38.8, -569], "radius": 7, "distance": 2075 }
+      ],
+      "finish": { "position": [187.92, 26.9, -671.7], "radius": 7, "distance": 2415 },
+      "recovery": [
+        { "afterCheckpoint": 0, "position": [40.05, 3.8, 536], "heading": 0.01 },
+        { "afterCheckpoint": 1, "position": [-76.27, 15.13, 319.37], "heading": 1.489 },
+        { "afterCheckpoint": 2, "position": [-64.89, 39.64, 268.79], "heading": 1.524 },
+        { "afterCheckpoint": 3, "position": [94.98, 56.02, 4.52], "heading": -0.15 },
+        { "afterCheckpoint": 4, "position": [-88.05, 55.98, -476.49], "heading": -0.17 },
+        { "afterCheckpoint": 5, "position": [-4.39, 37.39, -568.6], "heading": 1.612 }
+      ],
+      "paceNotes": [
+        { "distance": 0, "text": "START" },
+        { "distance": 58, "text": "pier" },
+        { "distance": 176, "text": "lobster pots" },
+        { "distance": 182, "text": "LEFT 3" },
+        { "distance": 350, "text": "HAIRPIN RIGHT" },
+        { "distance": 520, "text": "HAIRPIN LEFT" },
+        { "distance": 688, "text": "HAIRPIN RIGHT" },
+        { "distance": 855, "text": "chapel" },
+        { "distance": 866, "text": "LEFT 3" },
+        { "distance": 976, "text": "lighthouse" },
+        { "distance": 1086, "text": "shipwreck" },
+        { "distance": 1188, "text": "LEFT 5" },
+        { "distance": 1382, "text": "RIGHT 5 long" },
+        { "distance": 1536, "text": "sea tunnel" },
+        { "distance": 1752, "text": "RIGHT 5 long" },
+        { "distance": 1786, "text": "phone box" },
+        { "distance": 1942, "text": "HAIRPIN LEFT" },
+        { "distance": 2111, "text": "HAIRPIN RIGHT" },
+        { "distance": 2415, "text": "FINISH" }
+      ],
+      "landmarks": [
+        { "id": "pier", "label": "pier", "position": [53.97, 2.4, 477.88], "distance": 58 },
+        { "id": "lobster_pots", "label": "lobster pots", "position": [27.94, 4.67, 361.51], "distance": 176 },
+        { "id": "chapel", "label": "chapel", "position": [1.47, 53.42, 225.49], "distance": 855 },
+        { "id": "lighthouse", "label": "lighthouse", "position": [104.49, 55.69, 160.46], "distance": 976 },
+        { "id": "shipwreck", "label": "shipwreck", "position": [123.39, -1.6, 59.16], "distance": 1086 },
+        { "id": "sea_tunnel", "label": "sea tunnel", "position": [-117.03, 61.32, -272.78], "distance": 1536 },
+        { "id": "phone_box", "label": "phone box", "position": [-70.89, 54.51, -518.87], "distance": 1786 }
+      ]
     }
   ]
 }

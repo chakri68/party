@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/biome.gd" id="1_biome"]
+
+[resource]
+script = ExtResource("1_biome")
+id = "coast"
+sky_top = Color(0.4, 0.57, 0.74, 1)
+sky_horizon = Color(0.8, 0.85, 0.88, 1)
+fog = Color(0.72, 0.78, 0.82, 1)
+fog_begin = 28.0
+fog_end = 116.0
+fog_curve = 1.3
+persp_far = 126.0
+ground_params = {
+"band_m": 2.2,
+"c_litter": Vector3(0.36, 0.4, 0.24),
+"c_moss": Vector3(0.34, 0.45, 0.24),
+"c_needles": Vector3(0.48, 0.47, 0.3),
+"c_rock_a": Vector3(0.34, 0.33, 0.31),
+"c_rock_b": Vector3(0.46, 0.45, 0.41),
+"c_rock_c": Vector3(0.6, 0.58, 0.52),
+"c_soil": Vector3(0.44, 0.39, 0.31),
+"roots": 0.18,
+"rock_slope": 0.76,
+"strata": 1.0
+}
+road_params = {
+"c_creep": Vector3(0.36, 0.43, 0.24),
+"c_drift": Vector3(0.8, 0.78, 0.7),
+"c_stone_dark": Vector3(0.3, 0.29, 0.27),
+"c_stone_light": Vector3(0.72, 0.7, 0.66),
+"creep_k": 0.7,
+"damp_k": 0.3,
+"drift": 0.0,
+"washboard": 0.0
+}
+impostors = "pines"
+near_r = 50.0
+ring = "none"
+weather = "fog"
+weather_tint = Color(0.86, 0.89, 0.91, 1)
+wind = 0.75
+wind_heading_deg = 180.0
+dust_road = Color(0.86, 0.83, 0.77, 1)
+dust_off = Color(0.7, 0.66, 0.56, 1)
+plume = 1.0
+grit = Color(0.36, 0.34, 0.31, 1)
+marks = Color(0.2, 0.18, 0.15, 1)
+tree_snow = 0.0

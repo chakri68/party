@@ -3,8 +3,8 @@ extends Resource
 ## What a stage looks like, as opposed to where its road goes (map: "Future:
 ## biomes"). A track scene points at one (Track.biome); main.gd, the ground
 ## and road shaders, EyeForest, Weather and CarFx read it. Pine Panic is the
-## forest, Dust Devil the desert canyon, Snowblind the alpine snow;
-## Cliffhanger gets its own .tres in res://biomes/.
+## forest, Dust Devil the desert canyon, Snowblind the alpine snow,
+## Cliffhanger the coast (sea fog, no horizon treeline).
 ##
 ## Light isn't here: the sun and ambient are nodes in the track scene (Sun,
 ## Environment), which the stage builder sets.
@@ -40,19 +40,26 @@ extends Resource
 @export_enum("pines", "none") var impostors := "pines"
 ## Detail -> impostor (or -> nothing) radius, horizontal metres.
 @export var near_r := 50.0
-## The ring on the horizon: "pines" (a ragged treeline) or "mesas" (flat
-## topped buttes and the odd spire).
-@export_enum("pines", "mesas") var ring := "pines"
+## The ring on the horizon: "pines" (a ragged treeline), "mesas" (flat
+## topped buttes and the odd spire) or "none" (the coast: the sea runs out
+## to the fog, and a treeline standing in it would look like an island).
+@export_enum("pines", "mesas", "none") var ring := "pines"
 
 @export_group("Weather")
 ## What the seeded weather banks are: "mist" (pale, slow, in the treetops),
-## "dust" (warm, faster, low and streaky) or "snow" (blowing snow, low and
-## fast like dust, plus falling flakes as thick as the clouds). Same system,
-## same seed rules.
-@export_enum("mist", "dust", "snow") var weather := "mist"
+## "dust" (warm, faster, low and streaky), "snow" (blowing snow, low and
+## fast like dust, plus falling flakes as thick as the clouds) or "fog" (sea
+## fog: big, slow banks low over the ground, rolling in off the water on
+## wind_heading). Same system, same seed rules.
+@export_enum("mist", "dust", "snow", "fog") var weather := "mist"
 @export var weather_tint := Color(0.8, 0.83, 0.85)
 ## Wind speed multiplier for the banks.
 @export var wind := 1.0
+## Which way the banks drift, degrees (0 = east, 90 = south, as the route
+## turtles count). Negative: the seed picks (the forest, the desert, the
+## snow). The coast sets it onshore, so the fog always comes in off the sea;
+## the seed still swings it up to ~25 degrees either way and sets its speed.
+@export var wind_heading_deg := -1.0
 
 @export_group("Car effects")
 ## Dust off the road / off anything else. Paler than what it comes off, or it

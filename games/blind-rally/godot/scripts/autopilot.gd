@@ -14,11 +14,18 @@ extends Node
 ##
 ## Output goes through car.set_control(), the same call the Driver's phone
 ## ends up in, so it exercises the real handling, timeout and all.
+##
+## `pads`: drive the way the Driver's phone does, on/off. Steer is left,
+## right or nothing, throttle and brake on or off, and all of it lands
+## pad_delay late (a network round trip). The stage tests use it to show a
+## stage can be driven on pads with the softened steering, not just by a
+## perfect analogue hand.
 
 @export var enabled := false:
 	set(v):
 		enabled = v
 		_i = -1
+		_late.clear()
 		if not v and car:
 			car.neutralize()
 @export var lookahead_min := 7.0 ## metres
@@ -27,12 +34,16 @@ extends Node
 @export var brake_g := 14.0 ## m/s² it plans to brake at (the car can do ~26)
 @export var plan_ahead := 90.0 ## metres of road it reads for corners
 @export var flat_out := false ## tests: ignore the speed plan, full throttle
+@export var pads := false ## on/off controls, late, like the Driver's phone
+@export var pad_delay := 0.12 ## seconds the pads land late
 
 var car: CarController
 var track: Track
 
 var _i := -1 # centreline sample we're nearest, tracked forward
 var _corner_v := PackedFloat32Array() # per sample: cornering speed from its radius
+var _late: Array = [] # pads: [due time, steer, throttle, brake], oldest first
+var _clock := 0.0
 
 const STEP_GUESS := 2.0
 
@@ -59,9 +70,10 @@ func setup(t: Track, c: CarController) -> void:
 	_corner_v = smoothed
 
 
-func _physics_process(_dt: float) -> void:
+func _physics_process(dt: float) -> void:
 	if not enabled or car == null or track == null or track.centerline.size() < 2:
 		return
+	_clock += dt
 	var pts := track.centerline
 	var n := pts.size()
 	var pos := _xz(car.global_position)
@@ -104,7 +116,28 @@ func _physics_process(_dt: float) -> void:
 	# Way off line (spun, or a tree said no): slow down and let pursuit recover.
 	if absf(alpha) > 1.2:
 		throttle = minf(throttle, 0.4)
+	if pads:
+		_press(steer, throttle, brake)
+		return
 	car.set_control(steer, throttle, brake)
+
+
+## Pads: what a thumb would press for that (steer past a third of lock is
+## a press, throttle past half, any real braking), sent now, arriving
+## pad_delay later. No feathering: it holds a pad or it doesn't, which is
+## the hard case for the handling.
+func _press(steer: float, throttle: float, brake: float) -> void:
+	var s := 0.0
+	if absf(steer) > 0.33:
+		s = signf(steer)
+	var b := 1.0 if brake > 0.25 else 0.0
+	var th := 1.0 if throttle > 0.5 and b == 0.0 else 0.0
+	_late.append([_clock + pad_delay, s, th, b])
+	var now: Array = []
+	while not _late.is_empty() and float(_late[0][0]) <= _clock:
+		now = _late.pop_front()
+	if not now.is_empty():
+		car.set_control(now[1], now[2], now[3])
 
 
 ## Nearest sample, searched in a window ahead of the last one so it can't

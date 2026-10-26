@@ -80,6 +80,8 @@ func _run() -> void:
 	await test_dust_devil()
 	# Third stage: Snowblind.
 	await preload("res://tests/snowblind_tests.gd").new(self).run()
+	# Fourth stage: Cliffhanger.
+	await preload("res://tests/cliffhanger_tests.gd").new(self).run()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)

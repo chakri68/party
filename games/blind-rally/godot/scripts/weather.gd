@@ -38,7 +38,11 @@ extends Node3D
 ## car (shaders/snowfall.gdshader: one draw call, moved in the shader), as
 ## thick as the clouds say times a seeded share. They drift on the same wind
 ## as the banks and run on the race clock, so every team gets the same
-## snow; clouds 0 is a clear day here too.
+## snow; clouds 0 is a clear day here too. Fog (the coast): sea fog,
+## the same banks again, but bigger, slower, lower, greyer and denser in the
+## middle, drifting onshore (Biome.wind_heading_deg, swung a little by the
+## seed) so they roll in off the water and across the cliff road. The
+## readability caps hold: same MAX_ALPHA, same keyholes.
 ##
 ## Later: the NIGHT modifier (spec §7.2) fits the same slot. A dark multiply
 ## pass like the cloud shadow, with the car's keyhole as headlights, would
@@ -81,6 +85,8 @@ var tint := MIST_TINT
 var wind_k := 1.0
 var bank_height := BANK_HEIGHT
 var shade_k := 1.0
+var size_k := 1.0 ## puff size multiplier (sea fog banks are bigger)
+var heading := -1.0 ## radians the banks drift toward; < 0: the seed's
 ## How hard it's snowing, 0..1: clouds times a seeded share (snow biome only).
 var snowfall := 0.0
 
@@ -130,8 +136,10 @@ func set_biome(b: Biome) -> void:
 	style = b.weather
 	tint = b.weather_tint
 	wind_k = b.wind
-	bank_height = BANK_HEIGHT * (0.55 if style in ["dust", "snow"] else 1.0)
-	shade_k = 0.55 if style == "dust" else (0.8 if style == "snow" else 1.0)
+	bank_height = BANK_HEIGHT * (0.55 if style in ["dust", "snow"] else (0.7 if style == "fog" else 1.0))
+	shade_k = 0.55 if style == "dust" else (0.8 if style == "snow" else (0.7 if style == "fog" else 1.0))
+	size_k = 1.45 if style == "fog" else 1.0
+	heading = deg_to_rad(b.wind_heading_deg) if b.wind_heading_deg >= 0.0 else -1.0
 	if style == "snow" and _snow == null:
 		_build_snowfall()
 	if _mist_mat:
@@ -147,8 +155,11 @@ func configure(seed_in: int, clouds_in: float) -> void:
 	clouds = clampf(clouds_in, 0.0, 1.0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_in
-	var heading := rng.randf() * TAU
-	_wind = Vector2(cos(heading), sin(heading)) * rng.randf_range(2.5, 5.5) * wind_k
+	var dir := rng.randf() * TAU
+	if heading >= 0.0:
+		# Onshore, swung up to ~25 degrees by the same number.
+		dir = heading + (dir / TAU - 0.5) * deg_to_rad(50.0)
+	_wind = Vector2(cos(dir), sin(dir)) * rng.randf_range(2.5, 5.5) * wind_k
 	_banks.clear()
 	var count := roundi(clouds * MAX_BANKS)
 	var area := bounds.grow(80.0)
@@ -164,7 +175,7 @@ func configure(seed_in: int, clouds_in: float) -> void:
 		}
 		for k in BANK_PUFFS:
 			var a := rng.randf() * TAU
-			bank.puffs.append([Vector2(cos(a), sin(a)) * rng.randf_range(0.0, 18.0), rng.randf_range(22.0, 38.0), Vector2(rng.randf(), rng.randf())])
+			bank.puffs.append([Vector2(cos(a), sin(a)) * rng.randf_range(0.0, 18.0) * size_k, rng.randf_range(22.0, 38.0) * size_k, Vector2(rng.randf(), rng.randf())])
 		if b < count:
 			_banks.append(bank)
 	# After every bank's numbers, so the snow never shifts a bank.

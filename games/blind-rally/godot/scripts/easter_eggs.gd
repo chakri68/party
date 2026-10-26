@@ -12,6 +12,10 @@ extends Node3D
 ## skiers schussing across down the piste under the lift, an elk watching
 ## from a clearing, a snowmobile that races the car along its trail, and
 ## (one run in twenty) a yeti, who has been practising the Bigfoot walk.
+## Cliffhanger: gulls on the guard rail that lift off as the car comes by,
+## a whale breaching offshore, a fishing boat working along the coast, a
+## seal on the rocks who watches you go, and (one run in twenty) something
+## in the water: a sea serpent's coils, or a kraken's arm.
 ## A kind only happens on a track that has spots for it.
 ##
 ## Deterministic like the weather: make_schedule(seed) decides which spots
@@ -52,12 +56,14 @@ const BIGFOOT_WALK := 5.0 ## metres, once, when the car comes within 70 m
 ## Order the dice are thrown in; never reorder (it would change every seed's run).
 const KINDS := ["deer", "birds", "moose", "camper", "bigfoot", "wrongway",
 	"tumbleweed", "roadrunner", "vultures", "skull", "ufo",
-	"snowman", "skier", "elk", "snowmobile", "yeti"]
+	"snowman", "skier", "elk", "snowmobile", "yeti",
+	"gulls", "whale", "boat", "seal", "serpent"]
 ## Chance a spot is live in a run. Rare by design: most runs see two or
 ## three things, Bigfoot about one run in seventeen.
 const CHANCE := {"deer": 0.35, "birds": 0.5, "moose": 0.3, "camper": 0.75, "bigfoot": 0.06, "wrongway": 0.4,
 	"tumbleweed": 0.55, "roadrunner": 0.35, "vultures": 0.5, "skull": 0.5, "ufo": 0.05,
-	"snowman": 0.5, "skier": 0.4, "elk": 0.35, "snowmobile": 0.35, "yeti": 0.05}
+	"snowman": 0.5, "skier": 0.4, "elk": 0.35, "snowmobile": 0.35, "yeti": 0.05,
+	"gulls": 0.55, "whale": 0.35, "boat": 0.5, "seal": 0.45, "serpent": 0.05}
 const WEED_LEAD := 2.6 ## seconds: a tumbleweed sets off when the car is about this far away
 const WEED_FROM := 9.0 ## metres off the centreline it starts
 const WEED_END := 32.0
@@ -70,6 +76,11 @@ const SKIER_FROM := 22.0 ## metres up the slope from the centreline
 const SKIER_END := 34.0 ## ...and how far down the other side they stop
 const SLED_TRIGGER := 50.0
 const SLED_TIME := 5.0 ## seconds alongside before it peels off
+const GULL_TRIGGER := 30.0 ## metres: the gulls on the rail lift off when the car is this close
+const GULL_TIME := 8.0 ## seconds flying before they're gone
+const GULL_SCALE := 1.7
+const BREACH_TIME := 3.6 ## seconds from the whale breaking the surface to the splash
+const BOAT_RANGE := 70.0 ## metres the boat works up and down the coast from its spot (spot meta "range" if shorter)
 const MESH_DIR := "res://assets/meshes/"
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
@@ -164,6 +175,22 @@ static func make_schedule(seed_in: int, counts: Dictionary) -> Array:
 				"yeti":
 					e.open = a * 45.0
 					e.close = e.open + 80.0 + b * 100.0
+				"gulls":
+					e.count = 4 + int(a * 4.0)
+				"whale":
+					e.pace = lerpf(9.0, 15.0, a) # seconds between breaches
+					e.skew = b # where in that cycle the run starts
+					e.from = -1.0 if c < 0.5 else 1.0 # which way it rolls
+				"boat":
+					e.from = -1.0 if a < 0.5 else 1.0
+					e.skew = b
+					e.pace = lerpf(1.6, 2.6, c)
+				"seal":
+					e.count = 1 if a < 0.7 else 2
+				"serpent":
+					e["variant"] = "kraken" if b < 0.45 else "serpent"
+					e.open = c * 45.0
+					e.close = e.open + 90.0 + d * 100.0
 			out.append(e)
 	return out
 
@@ -988,6 +1015,237 @@ func _make_yeti(r: Dictionary) -> void:
 func _tick_yeti(r: Dictionary, dt: float) -> void:
 	_tick_bigfoot(r, dt)
 
+# --- gulls -------------------------------------------------------------------------
+
+func _make_gulls(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(r.e.seed)
+	var side := float(spot.get_meta("side", 1.0))
+	var edge := float(spot.get_meta("edge", 3.5))
+	var gap := float(spot.get_meta("along", 1.6))
+	var bi := _nearest_sample(spot.global_position)
+	var fwd := -spot.global_basis.z
+	var away := Vector3(-fwd.z, 0, fwd.x) * side
+	r.gulls = []
+	for k in int(r.e.count):
+		var along := (k - 0.5 * (int(r.e.count) - 1)) * gap + rng.randf_range(-0.35, 0.35)
+		var p := _along_road(bi, along, side * edge)
+		p.y = spot.global_position.y
+		var mi := _mi(_mesh("gull_sit"))
+		# Bigger than life, like the deer: a true-size gull is a white dot.
+		mi.global_transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * GULL_SCALE), p)
+		r.nodes.append(mi)
+		# Out over the drop and on up the road, so the car sees them go.
+		r.gulls.append({"node": mi, "p0": p, "dir": (away + fwd * 0.7).normalized().rotated(Vector3.UP, rng.randf_range(-0.5, 0.5)),
+			"speed": rng.randf_range(4.0, 6.5), "climb": rng.randf_range(1.2, 2.2), "flap": rng.randf_range(3.2, 4.4),
+			"phase": rng.randf() * TAU, "delay": rng.randf_range(0.0, 0.7), "up": false})
+
+
+func _tick_gulls(r: Dictionary, _dt: float) -> void:
+	var spot: Node3D = r.spot
+	if r.state == "wait":
+		if _flat(car.global_position).distance_to(_flat(spot.global_position)) < GULL_TRIGGER:
+			r.state = "fly"
+			r.t0 = time
+		return
+	if r.state != "fly":
+		return
+	var t := time - float(r.t0)
+	if t > GULL_TIME:
+		r.state = "done"
+		for g in r.gulls:
+			(g.node as Node3D).visible = false
+		return
+	for g in r.gulls:
+		var tb := t - float(g.delay)
+		if tb <= 0.0:
+			continue
+		if not g.up:
+			g.up = true
+			(g.node as MeshInstance3D).mesh = _mesh("gull_fly")
+		# A hop off the rail, then out over the drop, climbing, wings beating
+		# slower than the forest birds: they're gulls, they've got all day.
+		var p: Vector3 = g.p0 + (g.dir as Vector3) * float(g.speed) * tb + Vector3(0, float(g.climb) * tb + 0.15 * tb * tb + 0.8 * minf(tb * 3.0, 1.0), 0)
+		var flap := sin(tb * TAU * float(g.flap) + float(g.phase))
+		var sy := signf(flap) * maxf(absf(flap), 0.2)
+		var heading := (g.dir as Vector3) + Vector3(0, 0.25, 0)
+		(g.node as Node3D).global_transform = Transform3D(Basis.looking_at(heading.normalized(), Vector3.UP).scaled(Vector3(1.0, sy, 1.0) * GULL_SCALE), p)
+
+
+# --- whale -------------------------------------------------------------------------
+
+func _make_whale(r: Dictionary) -> void:
+	var body := _mi(_mesh("whale"))
+	var splash := _mi(_mesh("splash"))
+	r.nodes.append(body)
+	r.nodes.append(splash)
+	_tick_whale(r, 0.0)
+
+
+## A breach every e.pace seconds, on the clock: up out of the water nose
+## first, over onto its side at the top, down with a splash. Between
+## breaches it's under (and not drawn).
+func _tick_whale(r: Dictionary, _dt: float) -> void:
+	var spot: Node3D = r.spot
+	var body: Node3D = r.nodes[0]
+	var splash: Node3D = r.nodes[1]
+	var sea := float(spot.get_meta("sea_y", 0.0))
+	var period := float(r.e.pace)
+	var tt := fposmod(time + float(r.e.skew) * period, period)
+	var fwd := -spot.global_basis.z
+	var base := spot.global_position
+	base.y = sea
+	var u := tt / BREACH_TIME
+	body.visible = u < 1.0
+	if u < 1.0:
+		var lift := sin(PI * u)
+		var p := base + fwd * (u - 0.5) * 9.0 + Vector3(0, -5.0 + 11.5 * lift, 0)
+		# Out of the water nearly upright, over at the top, falling back flat.
+		var pitch := lerpf(1.35, -0.55, smoothstep(0.12, 1.0, u))
+		var roll := float(r.e.from) * 1.6 * smoothstep(0.3, 0.75, u)
+		body.global_transform = Transform3D(Basis.looking_at(fwd, Vector3.UP) * Basis(Vector3.RIGHT, pitch) * Basis(Vector3.FORWARD, roll), p)
+	# The splash: where it broke the surface, then a bigger one where it came down.
+	var s := -1.0
+	if u < 0.3:
+		s = u / 0.3
+	elif u > 0.78 and tt < BREACH_TIME + 1.4:
+		s = 1.0 + (tt - BREACH_TIME * 0.78) / 1.4 * 0.8
+	splash.visible = s > 0.0
+	if s > 0.0:
+		var rise := sin(clampf(s, 0.0, 1.0) * PI) if s <= 1.0 else maxf(1.0 - (s - 1.0) * 1.25, 0.0)
+		splash.global_transform = Transform3D(Basis.IDENTITY.scaled(Vector3(0.6 + s * 0.5, 0.1 + rise * 1.1, 0.6 + s * 0.5)), base + fwd * ((u - 0.5) * 9.0 if u > 0.5 else -4.5))
+
+
+# --- fishing boat --------------------------------------------------------------------
+
+func _make_boat(r: Dictionary) -> void:
+	var mi := _mi(_mesh("boat"), true)
+	r.nodes.append(mi)
+	r.yaw = 0.0
+	r.yaw_set = false
+	_tick_boat(r, 0.0)
+
+
+## Up and down its stretch of coast on a slow sine, so it eases to a stop
+## and comes about at the ends; bobbing and rolling on the swell.
+func _tick_boat(r: Dictionary, dt: float) -> void:
+	var spot: Node3D = r.spot
+	var mi: Node3D = r.nodes[0]
+	var fwd := -spot.global_basis.z
+	var reach := float(spot.get_meta("range", BOAT_RANGE))
+	var w := float(r.e.pace) / reach
+	var ph := float(r.e.skew) * TAU
+	var along := reach * sin(time * w + ph) * float(r.e.from)
+	var v := cos(time * w + ph) * float(r.e.from)
+	var p := spot.global_position + fwd * along
+	p.y = float(spot.get_meta("sea_y", 0.0)) + 0.12 * sin(time * 1.3 + ph)
+	var want := atan2(fwd.x, fwd.z) + (PI if v > 0.0 else 0.0)
+	if not r.yaw_set:
+		r.yaw = want
+		r.yaw_set = true
+	r.yaw = lerp_angle(float(r.yaw), want, 1.0 - exp(-0.6 * dt))
+	var basis := Basis(Vector3.UP, float(r.yaw)) * Basis(Vector3.FORWARD, 0.07 * sin(time * 0.9 + ph)) * Basis(Vector3.RIGHT, 0.04 * sin(time * 1.7))
+	mi.global_transform = Transform3D(basis, p)
+
+
+# --- seal ----------------------------------------------------------------------------
+
+func _make_seal(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(r.e.seed)
+	r.heads = []
+	for k in int(r.e.count):
+		var body := _mi(_mesh("seal_body"), true)
+		var xf := spot.global_transform.rotated_local(Vector3.UP, rng.randf_range(-0.8, 0.8))
+		xf.origin += spot.global_basis.x * (k * 2.2 - 0.6 * (int(r.e.count) - 1)) + spot.global_basis.z * rng.randf_range(-0.6, 0.6)
+		# Half as big again as life, like the gulls: from the road it's a
+		# grey lump on grey rock otherwise.
+		body.global_transform = xf.scaled_local(Vector3.ONE * (1.5 if k == 0 else 1.1))
+		var head := MeshInstance3D.new()
+		head.mesh = _mesh("seal_head")
+		head.layers = LAYER
+		head.position = Vector3(0, 0.42, -0.72)
+		body.add_child(head)
+		r.nodes.append(body)
+		r.heads.append(head)
+
+
+## Lies there. Lifts its head and follows the car when it's close.
+func _tick_seal(r: Dictionary, dt: float) -> void:
+	for head: Node3D in r.heads:
+		var body := head.get_parent() as Node3D
+		var local := body.global_transform.affine_inverse() * car.global_position
+		var near := local.length() < 60.0
+		var want := clampf(atan2(-local.x, -local.z), -1.3, 1.3) if near else 0.0
+		head.rotation.y = lerp_angle(head.rotation.y, want, 1.0 - exp(-2.5 * dt))
+		head.rotation.x = lerpf(head.rotation.x, 0.45 if near else 0.0, 1.0 - exp(-2.0 * dt))
+
+
+# --- serpent / kraken ----------------------------------------------------------------
+
+func _make_serpent(r: Dictionary) -> void:
+	var n := 4 if r.e.get("variant", "serpent") == "serpent" else 9
+	r.parts = []
+	for k in n:
+		var id := "serpent_hump"
+		if r.e.get("variant", "serpent") == "serpent":
+			id = "serpent_head" if k == n - 1 else "serpent_hump"
+		else:
+			id = "tentacle_%d" % k
+		var mi := _mi(_mesh(id), true)
+		r.nodes.append(mi)
+		r.parts.append(mi)
+	_tick_serpent(r, 0.0)
+
+
+## The serpent: three coils and a head, gliding slowly up and down offshore,
+## the coils rolling through the water. The kraken: one arm out of the
+## water, curling and uncurling. Either way, transforms on a clock.
+func _tick_serpent(r: Dictionary, _dt: float) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var right := spot.global_basis.x
+	var sea := float(spot.get_meta("sea_y", 0.0))
+	var c := spot.global_position
+	c.y = sea
+	var parts: Array = r.parts
+	if r.e.get("variant", "serpent") == "serpent":
+		var glide := sin(time * 0.06) * 18.0
+		for k in parts.size():
+			var head: bool = k == parts.size() - 1
+			var along := glide + (k - 1.5) * 4.2
+			var bob := sin(time * 1.1 - k * 0.9)
+			var p := c + fwd * along + right * sin(time * 0.3 + k * 0.7) * 1.2
+			var basis := Basis.looking_at(fwd, Vector3.UP)
+			if head:
+				p.y = sea + 1.6 + bob * 0.3
+				# The head turns to look at the car.
+				var to := car.global_position - p
+				to.y = 0.0
+				if to.length() > 1.0:
+					basis = Basis.looking_at(fwd.lerp(to.normalized(), 0.6).normalized(), Vector3.UP)
+			else:
+				p.y = sea - 0.9 + bob * 0.55
+			(parts[k] as Node3D).global_transform = Transform3D(basis, p)
+		return
+	# Kraken: a chain of segments, each turned a little more than the last;
+	# the curl breathes, so the tip coils in and lashes out.
+	var t := time * 0.7
+	var p := c
+	var dir := Vector3.UP
+	var bend_axis := right
+	var curl := 0.16 + 0.12 * sin(t)
+	for k in parts.size():
+		var seg := 1.5 * (1.0 - k * 0.06)
+		var basis := Basis.looking_at(dir, fwd if absf(dir.dot(fwd)) < 0.95 else right)
+		(parts[k] as Node3D).global_transform = Transform3D(basis, p)
+		p += dir * seg
+		var a := curl * (0.6 + k * 0.18) + 0.08 * sin(t * 1.7 + k * 0.6)
+		dir = dir.rotated(bend_axis, a).rotated(Vector3.UP, 0.05 * sin(t * 0.8 + k)).normalized()
+
+
 static func _glow_mat(col: Color, energy: float, pulse: float) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = preload("res://shaders/glow.gdshader")
@@ -1346,3 +1604,144 @@ func _build_sign(st: SurfaceTool, id: String) -> void:
 					st.set_color(face[1])
 					st.set_normal(Vector3(0, 0, face[2]))
 					st.add_vertex(Vector3(poly[k].x, 1.75 + poly[k].y, face[0]))
+
+
+func _build_gull(st: SurfaceTool, id: String) -> void:
+	var white := Color("eef0ee")
+	var grey := Color("9aa3a8")
+	var tip := Color("2a2a2c")
+	var beak := Color("e8b43a")
+	if id == "gull_sit":
+		_box(st, _at(Vector3(0, 0.17, 0.02)), Vector3(0.17, 0.17, 0.4), white)
+		_box(st, _at(Vector3(0, 0.29, -0.15)), Vector3(0.12, 0.12, 0.13), white)
+		_box(st, _at(Vector3(0, 0.28, -0.25)), Vector3(0.04, 0.035, 0.08), beak)
+		for x in [-0.095, 0.095]:
+			_box(st, _at(Vector3(x, 0.2, 0.06)), Vector3(0.03, 0.11, 0.36), grey) # folded wings
+		_box(st, _at(Vector3(0, 0.2, 0.26)), Vector3(0.12, 0.04, 0.12), tip)
+		for x in [-0.04, 0.04]:
+			_box(st, _at(Vector3(x, 0.04, 0.0)), Vector3(0.02, 0.08, 0.02), beak)
+		return
+	# Flying: a body and two long wings in a shallow V, both windings.
+	_box(st, _at(Vector3(0, 0, 0)), Vector3(0.15, 0.13, 0.42), white)
+	_box(st, _at(Vector3(0, 0.04, -0.25)), Vector3(0.1, 0.1, 0.11), white)
+	_box(st, _at(Vector3(0, 0.03, -0.33)), Vector3(0.035, 0.03, 0.07), beak)
+	for sx in [-1.0, 1.0]:
+		var root := Vector3(sx * 0.06, 0.02, -0.06)
+		var elbow := Vector3(sx * 0.42, 0.14, -0.02)
+		var tipp := Vector3(sx * 0.78, 0.2, 0.08)
+		for tri in [[root, elbow, root + Vector3(0, 0, 0.18)], [elbow, tipp, elbow + Vector3(0, 0, 0.14)]]:
+			var col := grey if tri[0] == root else tip
+			for order in [[0, 1, 2], [0, 2, 1]]:
+				var a: Vector3 = tri[order[0]]
+				var b: Vector3 = tri[order[1]]
+				var c: Vector3 = tri[order[2]]
+				var nrm := (c - a).cross(b - a).normalized()
+				for v in [a, b, c]:
+					st.set_color(col)
+					st.set_normal(nrm)
+					st.add_vertex(v)
+
+
+## A humpback-ish whale, 12 m: a long tapering body (front -Z), a white
+## throat, long white flippers and the flukes. Origin mid-body.
+func _build_whale(st: SurfaceTool, _id: String) -> void:
+	var back := Color("2f3a44")
+	var belly := Color("c9cfd2")
+	_box(st, _at(Vector3(0, 0, -2.2)), Vector3(2.6, 2.4, 5.0), back)
+	_box(st, _at(Vector3(0, -0.1, 1.6)), Vector3(2.1, 2.0, 3.2), back)
+	_box(st, _at(Vector3(0, -0.15, 4.1)), Vector3(1.2, 1.2, 2.2), back)
+	_box(st, _at(Vector3(0, -0.2, 5.7)), Vector3(0.6, 0.6, 1.4), back)
+	_box(st, Transform3D(Basis(Vector3.RIGHT, 0.12), Vector3(0, 0.1, -5.2)), Vector3(2.0, 1.6, 1.6), back) # head
+	_box(st, _at(Vector3(0, -1.1, -3.2)), Vector3(2.0, 0.4, 4.2), belly) # throat
+	_box(st, _at(Vector3(0, 1.22, 2.6)), Vector3(0.18, 0.4, 0.9), back) # the little dorsal
+	for sx in [-1.0, 1.0]:
+		_box(st, Transform3D(Basis(Vector3.FORWARD, sx * 0.5) * Basis(Vector3.UP, sx * 0.5), Vector3(sx * 2.4, -0.7, -2.6)), Vector3(3.6, 0.18, 0.9), belly)
+		_box(st, Transform3D(Basis(Vector3.UP, sx * 0.35), Vector3(sx * 1.25, -0.2, 6.6)), Vector3(2.4, 0.16, 1.0), back) # flukes
+
+
+## White water: a ring of tilted slabs and a column, unit size (scaled).
+func _build_splash(st: SurfaceTool, _id: String) -> void:
+	var foam := Color("eef3f3")
+	for k in 8:
+		var a := TAU * k / 8.0
+		var o := Vector3(cos(a), 0, sin(a))
+		_box(st, Transform3D(Basis(Vector3.UP, -a) * Basis(Vector3.FORWARD, 0.35), o * 2.2 + Vector3(0, 0.9, 0)), Vector3(0.5, 2.0, 1.6), foam)
+	_box(st, _at(Vector3(0, 1.6, 0)), Vector3(1.8, 3.2, 1.8), foam)
+
+
+## An inshore fishing boat, about 9 m: a red hull with a white rubbing
+## strake, a wheelhouse aft of midships, a mast and a boom for the nets.
+func _build_boat(st: SurfaceTool, _id: String) -> void:
+	var hull := Color("a8322c")
+	var white := Color("ece9e2")
+	var dark := Color("2b2f33")
+	var wood := Color("8a6a46")
+	_box(st, _at(Vector3(0, 0.1, 0.5)), Vector3(2.8, 1.1, 6.0), hull)
+	_box(st, Transform3D(Basis(Vector3.UP, 0.0), Vector3(0, 0.25, -3.2)), Vector3(2.2, 1.3, 1.6), hull)
+	_box(st, _at(Vector3(0, 0.45, -4.25)), Vector3(1.0, 1.1, 0.8), hull) # bow
+	_box(st, _at(Vector3(0, 0.62, 0.0)), Vector3(2.9, 0.14, 8.0), white) # strake
+	_box(st, _at(Vector3(0, -0.5, 0.0)), Vector3(2.4, 0.3, 7.4), dark) # boot top
+	_box(st, _at(Vector3(0, 0.72, 0.4)), Vector3(2.5, 0.08, 6.8), wood) # deck
+	_box(st, _at(Vector3(0, 1.55, 1.2)), Vector3(1.7, 1.6, 1.8), white) # wheelhouse
+	_box(st, _at(Vector3(0, 2.4, 1.2)), Vector3(1.9, 0.12, 2.0), dark)
+	_box(st, _at(Vector3(0, 1.75, 0.3)), Vector3(1.5, 0.5, 0.04), Color("2e4a5e")) # windows
+	_beam(st, Vector3(0, 0.7, -1.6), Vector3(0, 5.2, -1.6), 0.14, white) # mast
+	_beam(st, Vector3(0, 3.6, -1.6), Vector3(0, 1.4, 3.6), 0.1, white) # boom
+	_box(st, _at(Vector3(0, 1.0, 3.2)), Vector3(1.6, 0.5, 0.9), Color("e07b2a")) # buoys and nets in a heap
+
+
+## A harbour seal lying on the rocks, front -Z, ~1.6 m. Head separate.
+func _build_seal(st: SurfaceTool, id: String) -> void:
+	var coat := Color("7c7a74")
+	var dark := Color("55534e")
+	if id == "seal_head":
+		_box(st, _at(Vector3(0, 0.08, -0.12)), Vector3(0.36, 0.32, 0.38), coat)
+		_box(st, _at(Vector3(0, 0.02, -0.33)), Vector3(0.22, 0.16, 0.12), dark)
+		for x in [-0.1, 0.1]:
+			_box(st, _at(Vector3(x, 0.15, -0.31)), Vector3(0.05, 0.05, 0.03), Color("151515"))
+		return
+	_box(st, _at(Vector3(0, 0.24, -0.25)), Vector3(0.62, 0.48, 0.9), coat)
+	_box(st, _at(Vector3(0, 0.2, 0.45)), Vector3(0.5, 0.38, 0.7), coat)
+	_box(st, _at(Vector3(0, 0.12, 0.95)), Vector3(0.3, 0.2, 0.45), dark)
+	_box(st, Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 0.08, 1.22)), Vector3(0.5, 0.06, 0.22), dark) # tail flippers
+	for sx in [-1.0, 1.0]:
+		_box(st, Transform3D(Basis(Vector3.UP, sx * 0.5), Vector3(sx * 0.36, 0.06, -0.3)), Vector3(0.12, 0.05, 0.34), dark)
+	_box(st, _at(Vector3(0, 0.49, -0.1)), Vector3(0.4, 0.04, 0.5), dark) # mottled back
+
+
+## Sea serpent: a coil (an arch out of the water) and the head on its neck.
+func _build_serpent(st: SurfaceTool, id: String) -> void:
+	var skin := Color("2f5a4a")
+	var belly := Color("a9b48a")
+	var fin := Color("b0452c")
+	if id == "serpent_head":
+		_beam(st, Vector3(0, -2.2, 1.2), Vector3(0, 0.2, 0.0), 0.75, skin) # neck out of the water
+		_box(st, Transform3D(Basis(Vector3.RIGHT, -0.15), Vector3(0, 0.4, -0.6)), Vector3(0.9, 0.7, 1.6), skin)
+		_box(st, _at(Vector3(0, 0.18, -0.95)), Vector3(0.7, 0.22, 1.0), belly) # jaw
+		for x in [-0.32, 0.32]:
+			_box(st, _at(Vector3(x, 0.66, -0.9)), Vector3(0.12, 0.12, 0.12), Color("e8d24a"))
+		_box(st, Transform3D(Basis(Vector3.RIGHT, 0.5), Vector3(0, 0.95, -0.1)), Vector3(0.08, 0.6, 1.0), fin)
+		return
+	# A coil: five beams bent in an arch, ~4 m long, 2 m tall, fin on top.
+	var pts := []
+	for k in 6:
+		var a := PI * k / 5.0
+		pts.append(Vector3(0, sin(a) * 2.0, -cos(a) * 2.1))
+	for k in 5:
+		_beam(st, pts[k], pts[k + 1], 0.75 - absf(k - 2.0) * 0.04, skin)
+	for k in range(1, 4):
+		_box(st, Transform3D(Basis.IDENTITY, (pts[k] + pts[k + 1]) * 0.5 + Vector3(0, 0.55, 0)), Vector3(0.08, 0.5, 0.5), fin)
+
+
+## Kraken: one arm segment per id (tentacle_0 the thickest), from the
+## origin down -Z (the tick points -Z along the arm), suckers on +Y.
+func _build_tentacle(st: SurfaceTool, id: String) -> void:
+	var k := int(id.get_slice("_", 1))
+	var w := 0.95 * (1.0 - k * 0.085)
+	var len := 1.5 * (1.0 - k * 0.06) + 0.12
+	var skin := Color("7a2f3c")
+	var sucker := Color("e3b8a8")
+	_box(st, _at(Vector3(0, 0, -len * 0.5)), Vector3(w, w, len), skin)
+	# Suckers down the inside of the curl (+Y side of each segment).
+	_box(st, _at(Vector3(0, w * 0.5 + 0.02, -len * 0.3)), Vector3(w * 0.35, 0.06, w * 0.35), sucker)
+	_box(st, _at(Vector3(0, w * 0.5 + 0.02, -len * 0.75)), Vector3(w * 0.3, 0.06, w * 0.3), sucker)

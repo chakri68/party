@@ -21,6 +21,11 @@ extends Node3D
 ##                     (EasterEggs decides per seed).
 ##   track_fork        Marker3D at a junction where a spur leaves the road
 ##                     (meta distance_m, keep, spur). Real road, goes nowhere.
+##   track_shaded      A MeshInstance3D whose own ShaderMaterial uses the
+##                     weather terms (Cliffhanger's sea, its tunnel roof), so
+##                     Weather registers it with the road and the ground.
+##   track_gap         Marker3D where a guard wall stops and the edge doesn't
+##                     (Cliffhanger's lay-by). Tests drive off it.
 ##
 ## Ground: a Terrain child named "Ground" (optional; without one the world is
 ## flat at y = 0). height_at() is the floor everything stands on.
@@ -49,14 +54,22 @@ signal finish_entered(body: Node3D)
 ## What the stage looks like: palette, sky, haze, scenery style, weather
 ## flavour (scripts/biome.gd). Null = the forest.
 @export var biome: Biome
+## Below this height the car is gone, whatever the ground under it says:
+## Cliffhanger's waterline (the seabed and the rocks at the cliff foot are
+## solid ground, so "5 m under the ground" never fires there). main.gd
+## treats it like falling through the world: in a room, ask the server.
+@export var fall_y := -1.0e9
 
 
 func _ready() -> void:
 	# Shader detail noise is made at load, not saved into the scene; so are
 	# the biome's ground and road colours (the materials are made at load too).
 	var b := get_biome()
+	var road := _road_materials()
 	for m in world_materials():
 		m.set_shader_parameter("detail", DetailNoise.texture())
+		if m != _ground_material() and not road.has(m):
+			continue
 		var params: Dictionary = b.ground_params if m == _ground_material() else b.road_params
 		for k in params:
 			m.set_shader_parameter(k, params[k])
@@ -72,6 +85,21 @@ func _ready() -> void:
 ## feeds them per-frame uniforms (Weather). The palette material isn't here:
 ## it's a shared resource, not the track's.
 func world_materials() -> Array[ShaderMaterial]:
+	var out := _road_materials()
+	var ground := get_node_or_null("Ground") as Terrain
+	if ground and ground.material:
+		out.append(ground.material)
+	for n in _group("track_shaded"):
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var m := mi.mesh.surface_get_material(0) as ShaderMaterial
+		if m and not out.has(m):
+			out.append(m)
+	return out
+
+
+func _road_materials() -> Array[ShaderMaterial]:
 	var out: Array[ShaderMaterial] = []
 	var road := get_node_or_null("Road")
 	if road:
@@ -79,9 +107,6 @@ func world_materials() -> Array[ShaderMaterial]:
 			var mi := c as MeshInstance3D
 			if mi and mi.mesh and mi.mesh.surface_get_material(0) is ShaderMaterial and not out.has(mi.mesh.surface_get_material(0)):
 				out.append(mi.mesh.surface_get_material(0))
-	var ground := get_node_or_null("Ground") as Terrain
-	if ground and ground.material:
-		out.append(ground.material)
 	return out
 
 
