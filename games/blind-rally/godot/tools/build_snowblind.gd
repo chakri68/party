@@ -68,7 +68,7 @@ const CHALET_AT := 84.0
 ## station just over the last climb. The road passes under it twice.
 const LIFT_BASE := Vector2(-5, 236)
 const LIFT_TOP := Vector2(-5, 14)
-const POND := Vector2(98, 186) ## on its shelf below the traverse
+const POND := Vector2(98, 176) ## on its shelf just below the traverse, near enough for the top-down frame
 const POND_R := 16.0
 ## Smaller callouts: [id, stage metres, side (+1 right of travel, -1 left),
 ## metres off the centreline, flat-ground radius].
@@ -83,7 +83,7 @@ const SCENERY := [
 const EGG_SPOTS := [
 	["snowman", 150.0, 1.0, 0.0], ["snowman", 1036.0, -1.0, 0.0], ["snowman", 1904.0, -1.0, 0.0],
 	["skier", -1.0, -1.0, 0.0], ["skier", -2.0, 1.0, 0.0],
-	["elk", 206.0, 1.0, 17.0], ["elk", 1984.0, -1.0, 18.0],
+	["elk", 206.0, 1.0, 11.5], ["elk", 1984.0, -1.0, 12.0],
 	["snowmobile", 940.0, -1.0, 0.0], ["snowmobile", 1846.0, 1.0, 0.0],
 	["yeti", 2094.0, 1.0, 24.0],
 ]
@@ -370,7 +370,7 @@ func _plan_sites() -> void:
 	print("lift crosses the road at %s m" % [lift_cross])
 	pads.append([LIFT_BASE, 12.0, profile_h[_nearest_sample(LIFT_BASE.x, LIFT_BASE.y)] - 1.0])
 	pads.append([LIFT_TOP, 10.0, profile_h[_nearest_sample(LIFT_TOP.x, LIFT_TOP.y)] + 1.0])
-	pads.append([POND, POND_R + 5.0, profile_h[_nearest_sample(POND.x, POND.y)] - 1.2])
+	pads.append([POND, POND_R + 5.0, profile_h[_nearest_sample(POND.x, POND.y)] - 0.6])
 	for sc in SCENERY:
 		var i := clampi(int(float(sc[1]) / STEP), 0, n - 1)
 		var side: float = sc[2]
@@ -1070,7 +1070,7 @@ func _frozen_pond() -> void:
 			var d: Vector3 = ring_pts[r + 1][k1]
 			for v in [a, cc, b, b, cc, d]:
 				var dark := 0.5 + 0.5 * pn.get_noise_2d(v.x * 4.0, v.z * 4.0)
-				var col := Color("88a5b9").lerp(Color("b4c8d6"), dark)
+				var col := Color("7393ab").lerp(Color("a3bccd"), dark) # a shade under the snow, so it reads at a glance
 				col = col.lerp(C_BANK, smoothstep(0.82, 1.0, v.length() / POND_R) * 0.7)
 				col.a = 0.0
 				st.set_color(col)
@@ -1125,8 +1125,17 @@ func _frozen_pond() -> void:
 	track.add_child(probe)
 	clearings.append([POND, POND_R + 3.0])
 	yards.append([POND, POND_R + 3.5, C_BANK])
+	# A wide view down to it: the pines between the road and the shore come
+	# out over the last 70 m of the approach and a little past, so it's open
+	# snow and then the ice, not a glimpse down one gap in the trunks.
 	var side := 1.0 if _right(ni).dot(Vector3(POND.x, 0, POND.y) - pts[ni]) > 0.0 else -1.0
-	_sightline([ni, side, Vector3(POND.x, pts[ni].y, POND.y)])
+	for j in range(maxi(ni - 36, 0), mini(ni + 10, n), 3):
+		var a := pts[j] + _right(j) * side * (half_w[j] + verge_w[j] + ditch + 1.0)
+		var b := Vector3(POND.x, 0, POND.y) + (Vector3(a.x, 0, a.z) - Vector3(POND.x, 0, POND.y)).normalized() * POND_R * 0.8
+		var steps := maxi(int(Vector2(a.x - b.x, a.z - b.z).length() / 3.0), 1)
+		for k in steps + 1:
+			var q := a.lerp(b, float(k) / steps)
+			clearings.append([Vector2(q.x, q.z), 3.6])
 	print("frozen pond at %.0f m, %.0f m off the road, %.1f m below it" % [ni * STEP, _road_dist(c.x, c.z), pts[ni].y - c.y])
 
 
@@ -1310,11 +1319,15 @@ func _egg_spots() -> void:
 				# Uphill side; the piste under the lift is the way down.
 				m.set_meta("uphill", side)
 			"elk":
+				# In a clearing that opens to the road, against snow rather
+				# than trunks, and seen the whole way in: the approach is cut
+				# back too, so it's a shape on white from 60 m out.
 				m.transform = Transform3D(_facing_road(i, p), p)
-				for s in 6:
-					var q := pts[i] + _right(i) * side * lerpf(8.0, off + 4.0, s / 5.0)
-					clearings.append([Vector2(q.x, q.z), 5.5])
-				_sightline([i, side, p])
+				for s in 7:
+					var q := pts[i] + _right(i) * side * lerpf(7.0, off + 14.0, s / 6.0)
+					clearings.append([Vector2(q.x, q.z), 7.0])
+				for back in range(0, 31, 5):
+					_sightline([maxi(i - back, 0), side, p])
 			"snowmobile":
 				m.set_meta("lat", TRAIL_LAT)
 				for s in range(i, mini(i + int(TRAIL_LEN / STEP) + 6, n), 2):

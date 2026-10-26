@@ -38,11 +38,13 @@ func run() -> void:
 	check(main.weather.style == "fog", "the weather is sea fog")
 	await _surfaces(track)
 	_rails(track)
+	_layby_pocket(track)
 	await _over_the_edge(main, track)
 	await _tunnel(main, track)
 	_sea(track)
 	_fog(main)
 	await _eggs(main, track)
+	await _sea_eggs_seen(main, track)
 	_export(track)
 	await t.test_autopilot_stage()
 	await _pads(main, track)
@@ -112,6 +114,63 @@ func _rails(track: Track) -> void:
 	var lp := lay.origin + Vector3(0, -0.2, 0)
 	var through := space.intersect_ray(PhysicsRayQueryParameters3D.create(lp, lp + right * 12.0, 1))
 	check(not through or through.collider != rails, "the lay-by is a gap in the wall: %s" % [through])
+
+
+## Behind the lay-by gap is a pocket: the return walls close it off from
+## the strip of heath behind the guard, so a car that goes in either goes
+## over or comes back out the way it went in. Flood fill on foot from the
+## pocket over drivable ground (a 1.5 m grid, no step over 1.2 m, nothing
+## solid in the way at bumper height), stopping at the road and the drop.
+func _layby_pocket(track: Track) -> void:
+	var r := pocket_flood(track, Builder.LAYBY_AT)
+	check(r.road and r.drop and r.along < 20.0 and r.cells < 1000,
+		"the lay-by is a pocket: back to the road or over the edge, nowhere else (%d cells, %.0f m along at most)" % [r.cells, r.along])
+
+
+static func pocket_flood(track: Track, at_m: float) -> Dictionary:
+	const CELL := 1.5
+	var c := track.centerline
+	var i := int(at_m / 2.0)
+	var tan := (c[i + 1] - c[i - 1]).normalized()
+	var right := Vector3(-tan.z, 0, tan.x)
+	var space := track.get_world_3d().direct_space_state
+	var start := c[i] + right * 6.0
+	var seen := {Vector2i.ZERO: true}
+	var queue: Array[Vector2i] = [Vector2i.ZERO]
+	var head := 0
+	var out := {"cells": 0, "along": 0.0, "drop": false, "road": false}
+	var q := PhysicsRayQueryParameters3D.new()
+	q.collision_mask = 1
+	q.exclude = [(track.get_node("Ground") as CollisionObject3D).get_rid()]
+	while head < queue.size() and queue.size() < 20000:
+		var k := queue[head]
+		head += 1
+		var p := start + Vector3(k.x * CELL, 0, k.y * CELL)
+		p.y = track.height_at(p.x, p.z)
+		out.cells += 1
+		out.along = maxf(out.along, absf((p - c[i]).dot(tan)))
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nk: Vector2i = k + d
+			if seen.has(nk):
+				continue
+			var np := start + Vector3(nk.x * CELL, 0, nk.y * CELL)
+			np.y = track.height_at(np.x, np.z)
+			var on := space.intersect_ray(PhysicsRayQueryParameters3D.create(np + Vector3(0, 3.0, 0), np - Vector3(0, 3.0, 0), 8))
+			if not on.is_empty() and (on.collider as Node).is_in_group("track_road"):
+				out.road = true
+				continue
+			if np.y < c[i].y - 6.0 or np.y < track.fall_y:
+				out.drop = true
+				continue
+			if absf(np.y - p.y) > 1.2:
+				continue
+			q.from = p + Vector3(0, 0.5, 0)
+			q.to = np + Vector3(0, 0.5, 0)
+			if not space.intersect_ray(q).is_empty():
+				continue
+			seen[nk] = true
+			queue.append(nk)
+	return out
 
 
 ## Through the lay-by gap and over the cliff, in a room: the car parks and
@@ -291,6 +350,65 @@ func _eggs(main: Node3D, track: Track) -> void:
 	check(serpents > 5 and serpents < 45 and variants.size() == 2, "something in the water is rare: %d runs in 400, as %s" % [serpents, variants.keys()])
 	eggs.force = {}
 	eggs.configure(4242)
+	await t.place(track.get_spawn().global_transform)
+
+
+## Every sea egg is somewhere the player can actually see: from the road in
+## the chase view at least a few times (in the frustum, under 100 m, nothing
+## solid in between), and never under the minimap in the top-down frame (at
+## rest or at speed, on a 16:9 screen and a wide phone's 1558 x 720), and
+## far enough from the start line to switch on.
+func _sea_eggs_seen(main: Node3D, track: Track) -> void:
+	var car: CarController = t.car
+	var cam: FollowCamera = main.cam
+	var space := track.get_world_3d().direct_space_state
+	var c := track.centerline
+	var spawn := track.get_spawn().global_position
+	var size0: Vector2i = t.root.size
+	var mode0 = cam.mode
+	var bad := []
+	var seen := {}
+	for res in [Vector2i(1280, 720), Vector2i(1558, 720)]:
+		t.root.size = res
+		for f in 3:
+			await t.process_frame
+		var vp: Vector2 = t.root.get_visible_rect().size
+		var maprect: Rect2 = (t.map as Control).get_global_rect().grow(12.0)
+		for m in track.get_tree().get_nodes_in_group("track_egg"):
+			var kind := String(m.get_meta("kind"))
+			if kind == "gulls":
+				continue
+			var p: Vector3 = m.global_position
+			var aim := p + Vector3(0, 0.5 if kind == "seal" else 1.5, 0)
+			if Vector2(p.x - spawn.x, p.z - spawn.z).length() < EasterEggs.SHOW_R + 5.0:
+				bad.append("%s too near the start" % m.name)
+			var n_seen := 0
+			for i in range(2, c.size() - 2):
+				if Vector2(c[i].x - p.x, c[i].z - p.z).length() > 110.0:
+					continue
+				var tn := (c[i + 1] - c[i - 1]).normalized()
+				car.reset_to(Transform3D(Basis.looking_at(tn, Vector3.UP), c[i] + Vector3(0, 0.6, 0)))
+				cam.set_mode(FollowCamera.Mode.CHASE)
+				cam.snap()
+				if cam.is_position_in_frustum(aim) and cam.global_position.distance_to(aim) < 100.0 \
+						and space.intersect_ray(PhysicsRayQueryParameters3D.create(cam.global_position, aim, 1)).is_empty():
+					n_seen += 1
+				cam.set_mode(FollowCamera.Mode.TOP_DOWN)
+				for fast in [false, true]:
+					cam.snap()
+					if fast:
+						cam.size = cam.base_view() * 1.25
+						cam._focus = car.global_position + tn * cam.size * cam.max_lead
+						cam._place()
+					if cam.is_position_in_frustum(p) and maprect.has_point(cam.unproject_position(p)):
+						bad.append("%s under the map at %d m (%s)" % [m.name, i * 2, res])
+			seen[m.name] = mini(int(seen.get(m.name, 1000)), n_seen)
+	t.root.size = size0
+	cam.set_mode(mode0)
+	car.velocity = Vector3.ZERO
+	var unseen: Array = seen.keys().filter(func(k: String) -> bool: return int(seen[k]) < 3)
+	check(seen.size() == 7 and unseen.is_empty(), "every sea egg is in the chase view from the road (road samples: %s)" % [seen])
+	check(bad.is_empty(), "none under the minimap, none too near the start: %s" % [bad.slice(0, 4)])
 	await t.place(track.get_spawn().global_transform)
 
 

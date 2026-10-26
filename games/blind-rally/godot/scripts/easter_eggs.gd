@@ -79,6 +79,7 @@ const SLED_TIME := 5.0 ## seconds alongside before it peels off
 const GULL_TRIGGER := 30.0 ## metres: the gulls on the rail lift off when the car is this close
 const GULL_TIME := 8.0 ## seconds flying before they're gone
 const GULL_SCALE := 1.7
+const ELK_SCALE := 1.4
 const BREACH_TIME := 3.6 ## seconds from the whale breaking the surface to the splash
 const BOAT_RANGE := 70.0 ## metres the boat works up and down the coast from its spot (spot meta "range" if shorter)
 const MESH_DIR := "res://assets/meshes/"
@@ -918,7 +919,9 @@ func _place_skier(r: Dictionary, sk: Dictionary, dt: float, moving: bool) -> voi
 func _make_elk(r: Dictionary) -> void:
 	var spot: Node3D = r.spot
 	var body := _mi(_mesh("elk_body"), true)
-	body.global_transform = spot.global_transform.rotated_local(Vector3.UP, PI - 1.1)
+	# Broadside to the road and bigger than life, like the seals: end-on and
+	# true to size it's a brown post among brown trunks. The head turns.
+	body.global_transform = spot.global_transform.rotated_local(Vector3.UP, PI - 1.4).scaled_local(Vector3.ONE * ELK_SCALE)
 	body.global_position.y = track.height_at(body.global_position.x, body.global_position.z) - 0.05
 	var head := MeshInstance3D.new()
 	head.mesh = _mesh("elk_head")

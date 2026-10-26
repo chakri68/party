@@ -74,6 +74,10 @@ var road_surface := "road"
 var hay := true
 ## Metres past the verge before the scenery starts (sightlines cut from here).
 var ditch := 1.4
+## Split each ground cell along whichever diagonal follows the slope (see
+## Terrain.flips): straight-edged walls instead of sawtooth ones, for a
+## stage that has walls. Costs a trimesh collider in place of a heightmap.
+var terrain_flips := false
 
 # --- state ---------------------------------------------------------------------
 
@@ -406,6 +410,8 @@ func _bake_heights(bb: Rect2) -> void:
 			bytes.encode_s16((iz * terrain.w + ix) * 2, clampi(roundi(hh * 100.0), -32000, 32000))
 	terrain.heights_cm = bytes
 	terrain.decode()
+	if terrain_flips:
+		print("terrain: %d of %d cells split the other way" % [terrain.pick_flips(), (terrain.w - 1) * (terrain.d - 1)])
 	for i in n:
 		pts[i].y = terrain.height_at(pts[i].x, pts[i].z)
 	var lo := INF

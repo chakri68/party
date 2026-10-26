@@ -192,7 +192,7 @@
         { "distance": 988, "text": "snow plough" },
         { "distance": 1102, "text": "ski lift" },
         { "distance": 1136, "text": "ICE" },
-        { "distance": 1213, "text": "frozen pond" },
+        { "distance": 1209, "text": "frozen pond" },
         { "distance": 1240, "text": "ICE" },
         { "distance": 1346, "text": "HAIRPIN LEFT" },
         { "distance": 1515, "text": "HAIRPIN RIGHT" },
@@ -209,7 +209,7 @@
         { "id": "shrine", "label": "wayside shrine", "position": [-158.32, 0.09, 256.61], "distance": 148 },
         { "id": "snow_plough", "label": "snow plough", "position": [-119.59, 53.3, 129.17], "distance": 988 },
         { "id": "ski_lift", "label": "ski lift", "position": [-5.37, 58.22, 132.7], "distance": 1102 },
-        { "id": "frozen_pond", "label": "frozen pond", "position": [98, 62.14, 186], "distance": 1213 },
+        { "id": "frozen_pond", "label": "frozen pond", "position": [98, 62.62, 176], "distance": 1209 },
         { "id": "avalanche_fence", "label": "avalanche fence", "position": [143.19, 105.77, 47.63], "distance": 1842 },
         { "id": "ski_hut", "label": "ski hut", "position": [-65.45, 108.81, 69.95], "distance": 2047 }
       ]
@@ -261,11 +261,11 @@
         { "distance": 2415, "text": "FINISH" }
       ],
       "landmarks": [
-        { "id": "pier", "label": "pier", "position": [53.97, 2.4, 477.88], "distance": 58 },
+        { "id": "pier", "label": "pier", "position": [54.17, 2.4, 477.87], "distance": 58 },
         { "id": "lobster_pots", "label": "lobster pots", "position": [27.94, 4.67, 361.51], "distance": 176 },
         { "id": "chapel", "label": "chapel", "position": [1.47, 53.42, 225.49], "distance": 855 },
         { "id": "lighthouse", "label": "lighthouse", "position": [104.49, 55.69, 160.46], "distance": 976 },
-        { "id": "shipwreck", "label": "shipwreck", "position": [123.39, -1.6, 59.16], "distance": 1086 },
+        { "id": "shipwreck", "label": "shipwreck", "position": [123.58, -1.6, 59.21], "distance": 1086 },
         { "id": "sea_tunnel", "label": "sea tunnel", "position": [-117.03, 61.32, -272.78], "distance": 1536 },
         { "id": "phone_box", "label": "phone box", "position": [-70.89, 54.51, -518.87], "distance": 1786 }
       ]

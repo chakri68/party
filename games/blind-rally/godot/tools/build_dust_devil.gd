@@ -158,6 +158,7 @@ func _init() -> void:
 	road_half_width = ROAD_HALF_WIDTH
 	shoulder = SHOULDER
 	verge_surface = "sand"
+	terrain_flips = true # the canyon walls run every which way across the grid
 	rng.seed = SEED
 	srng.seed = SEED + 21
 	noise.seed = SEED
@@ -858,7 +859,10 @@ static func drivable(t: Terrain, x: int, z: int) -> bool:
 			var b := t.h(qx + 1, qz)
 			var c := t.h(qx, qz + 1)
 			var e := t.h(qx + 1, qz + 1)
-			if Vector2(b - a, e - b).length() > MAX_GRADE * t.cell or Vector2(e - c, c - a).length() > MAX_GRADE * t.cell:
+			if t.flipped(qx, qz):
+				if Vector2(b - a, c - a).length() > MAX_GRADE * t.cell or Vector2(e - c, e - b).length() > MAX_GRADE * t.cell:
+					return false
+			elif Vector2(b - a, e - b).length() > MAX_GRADE * t.cell or Vector2(e - c, c - a).length() > MAX_GRADE * t.cell:
 				return false
 	return true
 

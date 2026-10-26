@@ -32,7 +32,7 @@ extends "res://tools/stage_builder.gd"
 const OUT := "res://scenes/tracks/cliffhanger.scn"
 const BIOME := "res://biomes/coast.tres"
 const SEED := 53
-const ROAD_HALF_WIDTH := 2.6 ## narrowest yet: 5.2 m of gravel
+const ROAD_HALF_WIDTH := 2.8 ## narrow: 5.6 m of gravel
 const SHOULDER := 0.7
 const TERRAIN_AMP := 2.0
 const SEA_Y := 0.0
@@ -42,7 +42,7 @@ const SEABED := -9.0
 ## the foot, a metre above the water, where the usual "5 m under the
 ## ground" rule never fires. The lowest road (the harbour) is 3 m up.
 const FALL_Y := 1.2
-const WALL_OFF := 0.25 ## metres past the verge where the rail / wall stands
+const WALL_OFF := 0.6 ## metres past the verge where the rail / wall stands
 
 ## The route as a turtle, as Snowblind: start, heading (0 = east, + turns
 ## right seen from above with north up), ["S", metres, degrees, grade] or
@@ -96,17 +96,19 @@ const LAYBY_AT := 1230.0
 ## gulls, the cliff foot for things at sea)].
 const EGG_SPOTS := [
 	["gulls", 600.0, 1.0, 0.0], ["gulls", 1290.0, 1.0, 0.0], ["gulls", 2130.0, 1.0, 0.0],
-	# Out at sea. From a cliff top the water under the cliff is hidden by
-	# the edge in the chase and bonnet views (it's 25-55 m down), so one of
-	# each is off the harbour, where the road is 3 m above the water and the
-	# sea is open from 30 m out; the other is close in under the cliff-top
-	# road where it runs nearest the edge, for the top-down frame (only
-	# ~30 m either side of the car). All of them more than SHOW_R from the
-	# start line, or they'd never switch on. Metres off the cliff foot.
-	["whale", 160.0, 1.0, 14.0], ["whale", 1170.0, 1.0, 3.0],
-	["boat", 200.0, 1.0, 20.0], ["boat", 1090.0, 1.0, 3.0],
-	["seal", 130.0, 1.0, 0.0], ["seal", 1060.0, 1.0, 0.0],
-	["serpent", 175.0, 1.0, 26.0],
+	# Out at sea, by world x/z: the bay below the first switchbacks, the only
+	# water the chase camera ever gets a look at (from the cliff tops the
+	# edge hides everything under it). Far out (x 95+) is never in the
+	# top-down frame; nearer in, the top-down frame has it in the top right,
+	# under the minimap, so nothing goes there. All of them well over SHOW_R
+	# from the start line, or they'd never switch on. Boats: x/z is the
+	# middle of the run, then how far up and down it goes.
+	["whale", Vector2(101, 371)], ["whale", Vector2(95, 329)],
+	["boat", Vector2(101, 350), 24.0], ["boat", Vector2(95, 311), 16.0],
+	["serpent", Vector2(98, 398)],
+	# Seals on skerries close in under the harbour road, where the water's
+	# in the chase view and the top-down frame has it bottom left.
+	["seal", Vector2(59, 405)], ["seal", Vector2(60, 391)],
 ]
 
 ## Palette (sRGB).
@@ -355,7 +357,7 @@ func _plan_tunnel() -> void:
 	var hw := 0.0
 	for i in range(tun_i0, tun_i1 + 1):
 		hw = maxf(hw, half_w[i] + verge_w[i])
-	tun_half = hw + 0.7
+	tun_half = hw + 1.0
 	var t := (pts[tun_i1] - pts[tun_i0]).normalized()
 	print("tunnel: %.0f-%.0f m, heading %.0f deg (0 = north), half width %.1f m" % [tun_i0 * STEP, tun_i1 * STEP, rad_to_deg(atan2(t.x, -t.z)), tun_half])
 
@@ -732,7 +734,7 @@ func _tunnel_ridge(x: float, z: float) -> float:
 	# Across: flat over the headland, falling away into the sea far east and
 	# into the hills west; the bore and the cuttings at road height.
 	var across := 1.0 - smoothstep(110.0, 190.0, lat)
-	var bore := smoothstep(tun_half + 0.6, tun_half + 4.6, lat) if absf(along) < len * 0.5 + 34.0 else 1.0
+	var bore := smoothstep(tun_half + 2.6, tun_half + 6.6, lat) if absf(along) < len * 0.5 + 34.0 else 1.0
 	return RIDGE_H * hump * across * bore
 
 
@@ -908,7 +910,11 @@ func _walls() -> void:
 						_box(st, Transform3D(Basis.looking_at(tans[i], Vector3.UP), a + Vector3(0, 0.95, 0) + out * 0.05), Vector3(0.1, 0.16, 0.05), C_REFLECT if side > 0 else C_RED)
 				var lo := Vector3(0, -0.4, 0)
 				var hi := Vector3(0, 1.15, 0)
-				faces.append_array([a + lo, b + lo, a + hi, a + hi, b + lo, b + hi])
+				# Each face a hair longer than its piece: no seam between
+				# pieces, and none at the end post by a gap, to slip through.
+				var ea := a - dir.normalized() * 0.15
+				var eb := b + dir.normalized() * 0.15
+				faces.append_array([ea + lo, eb + lo, ea + hi, ea + hi, eb + lo, eb + hi])
 		if not any:
 			continue
 		var mi := _mesh_node("Rail%d" % (i0 / PIECE), _commit(st))
@@ -1301,7 +1307,7 @@ func _lighthouse() -> void:
 	body.add_child(cs)
 	body.add_child(_glow("Lamp", 9.0, _glow_mat(Color(1.0, 0.86, 0.5), 1.25, 6.0, Vector2(220.0, 520.0)), Vector3(0, H + 2.4, 0)))
 	body.add_to_group("track_tall", true)
-	body.set_meta("proxy_mesh", _lighthouse_proxy(H, p.y))
+	body.set_meta("proxy_mesh", _lighthouse_proxy(H, p.y, body.transform))
 	_landmarks().add_child(body)
 	clearings.append([Vector2(p.x, p.z), 16.0])
 	yards.append([Vector2(p.x, p.z), 12.0, C_GRASS.lightened(0.1)])
@@ -1318,14 +1324,46 @@ func _lighthouse() -> void:
 ## red enough as a beacon, and these are paint), the lantern lit, and the
 ## headland under it down to the sea, since the real ground under it is
 ## past the far plane too and the tower would otherwise hang in the sky.
-func _lighthouse_proxy(h: float, above_sea: float) -> ArrayMesh:
+func _lighthouse_proxy(h: float, above_sea: float, xf: Transform3D) -> ArrayMesh:
 	var st := _st()
 	_cyl(st, 2.5, 1.8, h, 1.0, C_WHITE, 10)
 	for b in [[5.0, 2.2], [10.4, 2.2]]:
 		_cyl(st, lerpf(2.5, 1.8, b[0] / h) + 0.04, lerpf(2.5, 1.8, (b[0] + b[1]) / h) + 0.04, b[1], 1.0 + b[0], Color("9c4a40"), 10)
 	_cyl(st, 1.45, 1.45, 2.2, h + 1.35, Color("e02a20"), 8) # the lamp: pulses
 	_cyl(st, 1.6, 0.2, 1.6, h + 3.5, Color("5a3a34"), 8)
-	_cyl(st, 48.0, 36.0, above_sea + 1.0, -above_sea, C_STONE_DARK, 7) # a headland, flat-topped
+	# The headland: the real ground round the tower on a polar grid, let
+	# down to the sea toward the rim, so from afar it's the point's own
+	# hump falling away to the water rather than a drum.
+	const R := 46.0
+	const SEG := 16
+	var radii := [0.0, 7.0, 15.0, 24.0, 34.0, R]
+	var ring := []
+	for ri in radii.size():
+		var row := []
+		for k in SEG:
+			var a := TAU * k / SEG
+			var lp := Vector3(cos(a), 0.0, sin(a)) * float(radii[ri])
+			var w := xf * lp
+			var y := clampf(terrain.height_at(w.x, w.z) - xf.origin.y, -above_sea, 1.0)
+			y = lerpf(y, -above_sea, smoothstep(0.45, 1.0, float(radii[ri]) / R))
+			row.append(Vector3(lp.x, y, lp.z))
+		ring.append(row)
+	for ri in radii.size() - 1:
+		for k in SEG:
+			var k1 := (k + 1) % SEG
+			var quad: Array = [ring[ri][k], ring[ri + 1][k], ring[ri + 1][k1], ring[ri][k1]]
+			for t in [[0, 1, 2], [0, 2, 3]]:
+				var a: Vector3 = quad[t[0]]
+				var b: Vector3 = quad[t[1]]
+				var c: Vector3 = quad[t[2]]
+				if a.distance_to(c) < 0.01 or a.distance_to(b) < 0.01:
+					continue # the centre's collapsed quads
+				if (c - a).cross(b - a).y < 0.0:
+					var tmp := b
+					b = c
+					c = tmp
+				var up := (c - a).cross(b - a).normalized().y
+				_tri(st, a, b, c, C_STONE_DARK.lerp(C_GRASS.darkened(0.25), smoothstep(0.75, 0.92, up)))
 	return _commit(st)
 
 
@@ -1578,7 +1616,7 @@ func _layby() -> void:
 	_merge(st, meshes["bench"], Transform3D(Basis.looking_at(-r, Vector3.UP).rotated(Vector3.UP, PI), spot - tans[i] * 2.0))
 	_box(st, _at(spot + tans[i] * 2.0 + Vector3(0, 0.6, 0)), Vector3(0.12, 1.2, 0.12), Color("2b2f33"))
 	_box(st, Transform3D(Basis.looking_at(r, Vector3.UP), spot + tans[i] * 2.0 + Vector3(0, 1.3, 0)), Vector3(0.24, 0.24, 0.6), Color("2f6f9e"))
-	var sign_at := _g(pts[i] + r * (half_w[i] + verge_w[i] + 0.8) - tans[i] * 10.0)
+	var sign_at := _g(pts[i] + r * (half_w[i] + verge_w[i] + WALL_OFF + 0.7) - tans[i] * 10.0)
 	_box(st, _at(sign_at + Vector3(0, 0.9, 0)), Vector3(0.08, 1.8, 0.08), Color("6b6660"))
 	_box(st, Transform3D(Basis.looking_at(tans[i], Vector3.UP), sign_at + Vector3(0, 1.7, 0)), Vector3(0.8, 0.8, 0.04), Color("2a5fb0"))
 	g.add_child(_mesh_node("Mesh", _commit(st)))
@@ -1586,6 +1624,13 @@ func _layby() -> void:
 		var q := pts[i] + r * 6.0 + tans[i] * k * 2.0
 		yards.append([Vector2(q.x, q.z), 4.0, C_YARD])
 		clearings.append([Vector2(q.x, q.z), 5.0])
+	# The pocket between the returns: nothing solid to get hung up on while
+	# turning round in it.
+	for k in range(-4, 5):
+		for d in range(10, int(edge) + 2, 4):
+			var q := pts[i] + r * float(d) + tans[i] * k * 2.0
+			clearings.append([Vector2(q.x, q.z), 3.0])
+	_returns(g, int((LAYBY_AT - 8.0) / STEP) - 1, int((LAYBY_AT + 8.0) / STEP) + 1, 1.0)
 	var m := Marker3D.new()
 	m.name = "Edge"
 	m.position = spot
@@ -1593,6 +1638,67 @@ func _layby() -> void:
 	m.add_to_group("track_gap", true)
 	g.add_child(m)
 	print("lay-by at %.0f m: %.1f m from the road to the edge" % [i * STEP, edge])
+
+
+## Return walls: where the guard stops for a gap, it turns and runs out to
+## the cliff edge and a little down over it, either end of the gap. What's
+## behind the gap is then a pocket, open to the road and to the drop and
+## nothing else: a car that goes in and doesn't go over drives back out,
+## instead of finding the strip of heath behind the guard and getting lost
+## along it. Same dry stone as the guard; solid.
+func _returns(g: Node3D, i_a: int, i_b: int, side: float) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Returns"
+	body.collision_layer = LAYER_WORLD
+	body.collision_mask = 0
+	body.add_to_group("track_obstacle", true)
+	body.set_meta("kind", "rail")
+	var st := _st()
+	var faces := PackedVector3Array()
+	var wn := FastNoiseLite.new()
+	wn.seed = SEED + 79
+	wn.frequency = 1.0
+	for i in [i_a, i_b]:
+		var out := _right(i) * side
+		var base := pts[i] + out * (half_w[i] + verge_w[i] + WALL_OFF)
+		# Out past the cliff edge, to where the ground is well down the
+		# face: past the end there's nothing to drive round on.
+		var len := 2.0
+		while len < 60.0 and _sea_s(base.x + out.x * len, base.z + out.z * len) < 2.5:
+			len += 1.0
+		var steps := ceili(len / 1.5)
+		for k in steps:
+			var a := _g(base + out * (len * k / steps))
+			var b := _g(base + out * (len * (k + 1) / steps))
+			var dir := b - a
+			var mid := (a + b) * 0.5
+			var hh := 0.85 + wn.get_noise_1d(i * 3.1 + k * 0.9) * 0.1
+			var basis := Basis.looking_at(Vector3(dir.x, 0, dir.z), Vector3.UP)
+			var dy := absf(b.y - a.y)
+			_box(st, Transform3D(basis, mid + Vector3(0, hh * 0.5 - 0.15 - dy * 0.5, 0)), Vector3(0.55, hh + 0.3 + dy, Vector2(dir.x, dir.z).length() + 0.05), C_STONE.darkened(0.08 + 0.08 * wn.get_noise_1d(k * 2.3)))
+			_box(st, Transform3D(Basis.looking_at(dir, Vector3.UP), mid + Vector3(0, hh + 0.04, 0)), Vector3(0.66, 0.14, dir.length() + 0.05), C_STONE_CAP)
+			# Flat top and bottom per step: over the lip the ground between
+			# two steps bulges above the chord, and a sloped face would let
+			# a car squeeze over it.
+			var top := maxf(a.y, b.y) + 1.15
+			var bot := minf(a.y, b.y) - 0.4
+			var a_lo := Vector3(a.x, bot, a.z)
+			var b_lo := Vector3(b.x, bot, b.z)
+			var a_hi := Vector3(a.x, top, a.z)
+			var b_hi := Vector3(b.x, top, b.z)
+			faces.append_array([a_lo, b_lo, a_hi, a_hi, b_lo, b_hi])
+		print("  return wall at %.0f m: %.1f m out to the drop" % [i * STEP, len])
+	var mi := _mesh_node("Mesh", _commit(st))
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(mi)
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	shape.backface_collision = true
+	var cs := CollisionShape3D.new()
+	cs.name = "Shape"
+	cs.shape = shape
+	body.add_child(cs)
+	g.add_child(body)
 
 
 # --- easter-egg spots -----------------------------------------------------------------
@@ -1603,13 +1709,22 @@ func _layby() -> void:
 ## out from the coast (not the road): the coast decides where the sea is.
 func _egg_spots() -> void:
 	var g := _group("EggSpots")
+	var skerries := _st()
 	var k := 0
 	for spot in EGG_SPOTS:
 		var kind: String = spot[0]
-		var i := clampi(int(float(spot[1]) / STEP), 0, n - 1)
-		var side: float = spot[2]
-		var edge := half_w[i] + verge_w[i] + WALL_OFF
+		var at_sea: bool = spot[1] is Vector2
+		var i: int
+		var side := 1.0
 		var p: Vector3
+		if at_sea:
+			var xz: Vector2 = spot[1]
+			i = _nearest_sample(xz.x, xz.y)
+			p = Vector3(xz.x, SEA_Y, xz.y)
+		else:
+			i = clampi(int(float(spot[1]) / STEP), 0, n - 1)
+			side = spot[2]
+		var edge := half_w[i] + verge_w[i] + WALL_OFF
 		match kind:
 			"gulls":
 				# On the guard's top: armco rail 0.86 m, the stone wall's cap ~1 m.
@@ -1626,17 +1741,13 @@ func _egg_spots() -> void:
 				edge = half_w[i] + verge_w[i] + WALL_OFF
 				p = _g(pts[i] + _right(i) * side * edge, 0.86 if wall_kind[i] == 0 else 1.0)
 			"seal":
-				# On the rocks at the cliff foot, level with the road's sample
-				# (the sea is always east).
-				# Out from the cliff edge to the last dry ground over the water.
-				var z := pts[i].z
-				var x := -_sea_s(0.0, z)
-				while x < -_sea_s(0.0, z) + 30.0 and terrain.height_at(x + 0.5, z) > SEA_Y + 0.35:
-					x += 0.5
-				p = Vector3(x - 0.6, terrain.height_at(x - 0.6, z) + 0.02, z)
-			_:
-				var x := -_sea_s(0.0, pts[i].z) + _coast_w_at(pts[i].z) + float(spot[3])
-				p = Vector3(x, SEA_Y, pts[i].z)
+				# A skerry: a flat Kenney rock, a metre and a bit proud of the water.
+				assert(terrain.height_at(p.x, p.z) < SEA_Y - 2.0, "seal skerry at %s is not in the sea" % p)
+				var mesh: Mesh = meshes["rock_c"]
+				var xf := Transform3D(Basis(Vector3.UP, 0.7 * k).scaled(Vector3(2.4, 2.4, 2.4)), Vector3(p.x, SEA_Y - 0.6, p.z))
+				_merge(skerries, mesh, xf, Color("8a8984"))
+				_merge(skerries, meshes["rock_small"], Transform3D(Basis(Vector3.UP, k).scaled(Vector3.ONE * 2.0), xf * Vector3(1.9, 0.0, 1.2) + Vector3(0, 0.5, 0)), Color("7d7c78"))
+				p.y = _top_of(mesh, xf, Vector2(p.x, p.z), 1.6)
 		var m := Marker3D.new()
 		m.name = "%s%d" % [kind.capitalize().replace(" ", ""), k]
 		m.add_to_group("track_egg", true)
@@ -1650,32 +1761,35 @@ func _egg_spots() -> void:
 				m.set_meta("along", 1.6) # metres between birds on the rail
 			"seal":
 				m.transform = Transform3D(_facing_road(i, p), p)
-				clearings.append([Vector2(p.x, p.z), 3.5]) # no rock on top of it
 			"whale", "serpent", "boat":
 				m.set_meta("sea_y", SEA_Y)
 				# Facing up the coast (north), so "along" runs with the shore.
-				var z := pts[i].z
-				var along := Vector3(-_sea_s(0.0, z - 6.0) + _sea_s(0.0, z + 6.0), 0, -12.0).normalized()
+				var along := Vector3(0, 0, -1)
 				m.transform = Transform3D(Basis.looking_at(along, Vector3.UP), p)
 				if kind == "boat":
-					# How far up and down the coast it can work and stay
-					# afloat (a headland is in the way, sometimes).
-					var reach := 0.0
-					while reach < 70.0:
-						var ok := true
-						for sgn in [-1.0, 1.0]:
-							var q: Vector3 = p + along * sgn * (reach + 2.0)
-							for o in [-3.0, 0.0, 3.0]:
-								var qq: Vector3 = q + Vector3(-along.z, 0, along.x) * o
-								ok = ok and terrain.height_at(qq.x, qq.z) < SEA_Y - 1.5
-						if not ok:
-							break
-						reach += 2.0
-					assert(reach >= 20.0, "boat at %d m has no water to work" % (i * STEP))
+					var reach: float = spot[2]
+					for sgn in [-1.0, 1.0]:
+						for o in [-3.0, 0.0, 3.0]:
+							var q: Vector3 = p + along * sgn * (reach + 2.0) + Vector3(o, 0, 0)
+							assert(terrain.height_at(q.x, q.z) < SEA_Y - 1.5, "boat at %s runs aground" % p)
 					m.set_meta("range", reach)
 		g.add_child(m)
 		k += 1
+	var sk := _mesh_node("Skerries", _commit(skerries))
+	sk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	track.add_child(sk)
 	print("egg spots: %d" % k)
+
+
+## Highest point of a mesh (placed by xf) within r of xz: where a prop sits on it.
+func _top_of(mesh: Mesh, xf: Transform3D, xz: Vector2, r: float) -> float:
+	var top := -INF
+	for sf in mesh.get_surface_count():
+		for v: Vector3 in mesh.surface_get_arrays(sf)[Mesh.ARRAY_VERTEX]:
+			var w := xf * v
+			if Vector2(w.x, w.z).distance_to(xz) < r:
+				top = maxf(top, w.y)
+	return top
 
 
 # --- rocks --------------------------------------------------------------------
@@ -2125,31 +2239,76 @@ func _map_backdrop(g: Node3D) -> void:
 	var clumps := FastNoiseLite.new()
 	clumps.seed = SEED + 101 # the forest's clump field, so it carries on
 	clumps.frequency = 0.022
-	var fine := FastNoiseLite.new()
-	fine.seed = SEED + 5
-	fine.frequency = 0.21
-	var base := Color8(136, 150, 88)
-	var light := Color8(158, 162, 102)
-	var dark := Color8(92, 114, 70)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for iz in nz:
 		for ix in nx:
 			var x := minf(x0 + ix * C, x1)
 			var z := z0 + iz * C
-			var c := base.lerp(light, clampf(fine.get_noise_2d(x, z) * 0.9 + 0.3, 0.0, 1.0))
-			c = c.lerp(dark, smoothstep(0.05, 0.35, clumps.get_noise_2d(x, z)) * 0.55)
-			st.set_color(c)
+			# The far ground's tint, as _ground_tints bakes it, with the
+			# canopy shade where the forest's clumps would be.
+			var k := noise.get_noise_2d(x, z) * 0.5 + 0.5
+			var shade := (0.95 + k * 0.12) * lerpf(1.0, 0.8, smoothstep(0.05, 0.35, clumps.get_noise_2d(x, z)) * 0.6)
+			st.set_color(Color(C_FLOOR_REF.r * shade, C_FLOOR_REF.g * shade, C_FLOOR_REF.b * shade, 1.0))
+			st.set_normal(Vector3.UP)
 			st.add_vertex(Vector3(x, _hmin - 1.0, z))
 	for iz in nz - 1:
 		for ix in nx - 1:
 			var a := iz * nx + ix
 			for k in [a, a + 1, a + nx, a + 1, a + nx + 1, a + nx]:
 				st.add_index(k)
+	# Under the ground node: Terrain hands it the ground's own material at
+	# load (biome colours, the detail texture), so the heath carries on past
+	# the grid's edge with the same grain instead of a flat wash.
 	var mi := _mesh_node("Backdrop", st.commit(), Transform3D.IDENTITY, RENDER_MAP_ONLY)
-	mi.material_override = map_mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	g.add_child(mi)
+	terrain.add_child(mi)
+	_backdrop_trees(x0, x1, z0, z1, clumps)
+
+
+## The forest past the grid's edge, on the map only: the same clumps of far
+## pines, at the backdrop's height, no colliders, so the map's heath doesn't
+## go bare at the line where the ground stops.
+func _backdrop_trees(x0: float, x1: float, z0: float, z1: float, clumps: FastNoiseLite) -> void:
+	var fx := INF
+	for q in tree_xz:
+		fx = minf(fx, q.x)
+	var trng := RandomNumberGenerator.new()
+	trng.seed = SEED + 103
+	var chunks := {}
+	var counts := {}
+	const CELL := 3.6
+	var x := x0
+	while x < minf(fx, x1 + 40.0):
+		var z := z0
+		while z < z1:
+			var px := x + trng.randf_range(0.0, CELL)
+			var pz := z + trng.randf_range(0.0, CELL)
+			z += CELL
+			var p := smoothstep(0.05, 0.35, clumps.get_noise_2d(px, pz)) * 0.6
+			if trng.randf() > p or px > fx:
+				continue
+			var id := "bent_far" if trng.randf() < 0.6 else "bent_far_b"
+			_add(chunks, counts, id, px, _hmin - 1.0, pz, LEAN_YAW + trng.randf_range(-0.35, 0.35), -trng.randf_range(0.9, 1.25))
+		x += CELL
+	var keys := chunks.keys()
+	keys.sort()
+	for key in keys:
+		var sc := Scatter.new()
+		sc.name = "BackdropTrees_%d_%d" % [key.x, key.y]
+		sc.collision_layer = 0
+		sc.collision_mask = 0
+		sc.layers = RENDER_MAP_ONLY
+		sc.tint_jitter = 0.08
+		sc.cast_shadows = false
+		sc.origin = Vector2(key.x, key.y) * CHUNK
+		sc.span = CHUNK
+		for id in ["bent_far", "bent_far_b"]:
+			sc.meshes.append(meshes[id])
+			sc.packed.append(Scatter.pack(chunks[key].get(id, PackedFloat32Array()), sc.origin, CHUNK))
+			sc.radii.append(0.0)
+		terrain.add_child(sc)
+	print("map backdrop: %s past the grid" % [counts])
 
 
 ## Big-landmark icons (before ICON_SCALE): the lighthouse (tower and a red

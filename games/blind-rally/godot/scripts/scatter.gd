@@ -21,6 +21,8 @@ extends StaticBody3D
 ## Per-instance brightness jitter, so a wall of pines isn't one flat green.
 @export var tint_jitter := 0.1
 @export var cast_shadows := true
+## Render layers for the drawn instances (the map's backdrop forest is map-only).
+@export var layers := 1
 
 const STRIDE := 5 ## floats per record once decoded
 const BYTES := 10 ## per packed record: u16 x, u16 z, s16 y cm, u16 yaw, s16 scale x 1000
@@ -71,6 +73,7 @@ func _ready() -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = "MM%d" % m
 		mmi.multimesh = mm
+		mmi.layers = layers
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
 		instance_total += count
