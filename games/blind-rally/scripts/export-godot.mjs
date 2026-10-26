@@ -2,6 +2,7 @@
 // Headless Web export of the Blind Rally navigator (repo map §3.3).
 //
 //   node games/blind-rally/scripts/export-godot.mjs [--no-export]
+//   node games/blind-rally/scripts/export-godot.mjs --upload [--dry-run] [--local [--persist-to <dir>]]
 //
 // 1. Writes data/tracks.json from the track scenes (godot/tools/export_tracks.gd),
 //    then exports into games/blind-rally/build/web/ (gitignored), copies the bridge
@@ -15,7 +16,16 @@
 //    The navigator chunk imports it, so one JS build names exactly one export
 //    and a stale .pck can't meet a fresh .wasm.
 //
-// Still to come: the R2 upload of the hash dir for deploys (D2). Dev just serves apps/web/public via Vite.
+// --upload (map D2) skips all of the above and puts the dir godot-build.json
+// names into the R2 bucket the Worker serves it from (apps/server/src/godot.ts),
+// under the same path: blind-rally/godot/<hash>/<file>. The .wasm, .pck, .js
+// and .html go up brotli-11 with Content-Encoding: br, so the ~38 MiB wasm
+// crosses the wire at ~7. A .uploaded marker goes last; if it's there the hash
+// is skipped whole, since a content-hashed dir can't have changed. That makes
+// it idempotent and a rerun after a half-finished upload just redoes it.
+// --remote by default (`pnpm deploy` calls this); --local targets wrangler
+// dev's simulated bucket, --dry-run prints the puts without making them.
+// Dev never needs it: Vite serves apps/web/public directly.
 //
 // GODOT_BIN overrides the binary; otherwise `godot` on PATH, then ~/.local/bin/godot.
 
@@ -129,5 +139,112 @@ function publish() {
   console.log(`wrote ${manifestPath}`);
 }
 
-if (!skipExport) exportWeb();
-publish();
+// ---------------------------------------------------------------------------
+// R2 upload (D2)
+// ---------------------------------------------------------------------------
+
+const BUCKET = 'party-games-blind-rally'; // apps/server/wrangler.jsonc r2_buckets
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+const MARKER = '.uploaded';
+const CONTENT_TYPES = {
+  html: 'text/html; charset=utf-8',
+  js: 'text/javascript; charset=utf-8',
+  wasm: 'application/wasm',
+  pck: 'application/octet-stream',
+  png: 'image/png',
+};
+/** PNGs are already compressed; brotli would just spend time saying so. */
+const BROTLI = new Set(['html', 'js', 'wasm', 'pck']);
+const serverDir = resolve(pkg, '..', '..', 'apps', 'server');
+const wranglerJs = join(serverDir, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+
+function argValue(name) {
+  const i = process.argv.indexOf(name);
+  return i === -1 ? undefined : process.argv[i + 1];
+}
+
+function wrangler(args, opts = {}) {
+  // Run from apps/server so wrangler picks up wrangler.jsonc (account, bucket).
+  return spawnSync(process.execPath, [wranglerJs, ...args], { cwd: serverDir, encoding: 'utf8', maxBuffer: 64 * MiB, ...opts });
+}
+
+function upload() {
+  const dryRun = process.argv.includes('--dry-run');
+  const where = process.argv.includes('--local') ? ['--local'] : ['--remote'];
+  const persist = argValue('--persist-to');
+  if (persist) where.push('--persist-to', resolve(persist));
+
+  if (!existsSync(manifestPath)) throw new Error(`no ${manifestPath}: run the export first`);
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const dir = join(publicRoot, manifest.hash);
+  // The client is pinned to this hash, so upload exactly what it names.
+  for (const f of manifest.files) {
+    const p = join(dir, f);
+    if (!existsSync(p)) throw new Error(`${p} is missing: rerun the export (or --no-export) so apps/web/public matches godot-build.json`);
+    if (statSync(p).size !== manifest.sizes[f]) throw new Error(`${p} doesn't match godot-build.json's size: rerun the export`);
+  }
+
+  const prefix = `blind-rally/godot/${manifest.hash}`;
+  console.log(`${dryRun ? '[dry run] ' : ''}upload ${manifest.hash} to r2://${BUCKET}/${prefix}/ (${where.join(' ')})`);
+
+  if (!dryRun) {
+    const probe = wrangler(['r2', 'object', 'get', `${BUCKET}/${prefix}/${MARKER}`, '--pipe', ...where]);
+    if (probe.status === 0) {
+      console.log(`already uploaded (${MARKER} is there): nothing to do`);
+      return;
+    }
+    if (!/does not exist/i.test(probe.stderr + probe.stdout)) {
+      process.stderr.write(probe.stderr);
+      throw new Error('checking the bucket failed (logged in? does the bucket exist?)');
+    }
+  }
+
+  const staging = join(pkg, 'build', 'r2', manifest.hash);
+  if (!dryRun) mkdirSync(staging, { recursive: true });
+  const puts = [];
+  for (const f of manifest.files) {
+    const ext = f.slice(f.lastIndexOf('.') + 1);
+    const src = join(dir, f);
+    const meta = ['--content-type', CONTENT_TYPES[ext] ?? 'application/octet-stream', '--cache-control', IMMUTABLE];
+    let file = src;
+    let size = manifest.sizes[f];
+    if (BROTLI.has(ext)) {
+      file = join(staging, `${f}.br`);
+      meta.push('--content-encoding', 'br');
+      if (!dryRun) {
+        if (!existsSync(file)) {
+          const raw = readFileSync(src);
+          writeFileSync(file, brotliCompressSync(raw, {
+            params: { [zc.BROTLI_PARAM_QUALITY]: 11, [zc.BROTLI_PARAM_SIZE_HINT]: raw.length },
+          }));
+        }
+        size = statSync(file).size;
+      }
+    }
+    puts.push({ key: `${prefix}/${f}`, file, meta, size, br: BROTLI.has(ext) });
+  }
+  // Last, so its presence means everything before it landed.
+  const marker = join(staging, MARKER);
+  if (!dryRun) writeFileSync(marker, `${new Date().toISOString()}\n`);
+  puts.push({ key: `${prefix}/${MARKER}`, file: marker, meta: ['--content-type', 'text/plain'], size: 0, br: false });
+
+  for (const put of puts) {
+    const args = ['r2', 'object', 'put', `${BUCKET}/${put.key}`, '--file', put.file, ...put.meta, ...where];
+    const label = `${(put.size / MiB).toFixed(2).padStart(7)} MiB${put.br && !dryRun ? ' br' : put.br ? ' raw, br on upload' : ''}`;
+    if (dryRun) {
+      console.log(`  ${label}  wrangler ${args.map((a) => (/[\s;]/.test(a) ? `'${a}'` : a)).join(' ')}`);
+      continue;
+    }
+    console.log(`  ${label}  ${put.key}`);
+    const r = wrangler(args, { stdio: ['ignore', 'ignore', 'inherit'] });
+    if (r.status !== 0) throw new Error(`upload of ${put.key} failed (exit ${r.status}); rerun to retry`);
+  }
+  console.log(dryRun ? '[dry run] nothing uploaded' : `uploaded ${puts.length} objects`);
+}
+
+if (process.argv.includes('--upload')) {
+  upload();
+} else {
+  if (!skipExport) exportWeb();
+  publish();
+}

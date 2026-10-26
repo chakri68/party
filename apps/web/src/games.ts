@@ -26,7 +26,7 @@ export interface GameEntry {
 /**
  * Blind Rally needs a Godot export that isn't in git (map D1). Vite inlines
  * the flag, so a build without it drops the entry and its chunks entirely:
- * `pnpm dev` and `pnpm deploy` set VITE_BLIND_RALLY=1, scripts/host.mjs
+ * `pnpm dev` and `pnpm run deploy` set VITE_BLIND_RALLY=1, scripts/host.mjs
  * doesn't. The server checks its own BLIND_RALLY var the same way.
  */
 const BLIND_RALLY = import.meta.env.VITE_BLIND_RALLY === "1";

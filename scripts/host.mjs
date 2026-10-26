@@ -184,6 +184,10 @@ function writeConfig(serverDir) {
   const config = JSON.parse(source.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
   delete config.$schema;
   delete config.routes;
+  // Blind Rally stays hidden on self-host (BLIND_RALLY keeps its "0"), so its
+  // Godot bucket would only ever be an empty local simulation. The worker 404s
+  // /blind-rally/godot/* without it.
+  delete config.r2_buckets;
   const path = join(serverDir, "wrangler.selfhost.json");
   writeFileSync(path, JSON.stringify(config, null, 2));
   return path;

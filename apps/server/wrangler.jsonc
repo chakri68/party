@@ -15,12 +15,18 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // /room/* too, so room links get their own preview title (see roomPage).
-    "run_worker_first": ["/api/*", "/parties/*", "/room/*"]
+    // /blind-rally/godot/* comes from R2 (godot.ts), never from assets.
+    "run_worker_first": ["/api/*", "/parties/*", "/room/*", "/blind-rally/godot/*"]
   },
   // Dev-only debug messages (§41). `pnpm dev` passes --var DEV_TOOLS:1; deploys never do.
   // BLIND_RALLY lists Blind Rally (map D1): `pnpm dev` and `pnpm deploy` pass
   // --var BLIND_RALLY:1; self-hosted copies (scripts/host.mjs) keep the 0.
   "vars": { "DEV_TOOLS": "0", "BLIND_RALLY": "0" },
+  // Blind Rally's Godot export (map D2): the .wasm is over the 25 MiB asset
+  // limit, so the hashed dirs live here. `pnpm deploy` uploads the current one
+  // (export-godot.mjs --upload). Local dev gets an empty simulated bucket,
+  // which is fine: Vite serves the export from apps/web/public instead.
+  "r2_buckets": [{ "binding": "BLIND_RALLY_GODOT", "bucket_name": "party-games-blind-rally" }],
   "durable_objects": {
     "bindings": [{ "name": "Room", "class_name": "Room" }]
   },

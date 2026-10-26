@@ -58,6 +58,21 @@ Blind Rally's Navigator runs a Godot export that isn't in git: a ~38 MiB `.wasm`
 - `VITE_BLIND_RALLY=1` at build time puts it in the lobby's game list. Without it, Vite drops the entry and all its chunks.
 - `BLIND_RALLY=1` on the worker lets a room pick it. Without it, `select-game` says "Unknown game."
 
-`pnpm dev` sets both (`apps/web/.env.development`, `--var BLIND_RALLY:1`). `pnpm deploy` sets neither yet: the Godot files are served from R2, and until that route exists a deployed Blind Rally would 404 its own engine. Flip it on in both deploy scripts when R2 lands. `pnpm host` sets neither, so self-hosted copies never list a game they can't load.
+`pnpm dev` sets both (`apps/web/.env.development`, `--var BLIND_RALLY:1`). `pnpm run deploy` sets both too (`scripts/deploy.mjs`). `pnpm host` sets neither, so self-hosted copies never list a game they can't load; its worker 404s the engine files as well, even if they're sitting in `dist`.
 
 To get the export into dev: `node games/blind-rally/scripts/export-godot.mjs` (needs Godot 4.7.2 and its web templates; `--no-export` republishes whatever's already in `games/blind-rally/build/web`). It copies the build into `apps/web/public/blind-rally/godot/<hash>/` and writes `games/blind-rally/client/navigator/godot-build.json`, which pins the client to that hash.
+
+### Deploying it
+
+The `.wasm` is over Workers' 25 MiB static-asset limit, so deploys don't ship the export as assets. It lives in an R2 bucket (`party-games-blind-rally`, binding `BLIND_RALLY_GODOT`) and the worker serves it at the same path the client already asks for, `/blind-rally/godot/<hash>/<file>` (`apps/server/src/godot.ts`). Same origin matters: the Navigator's iframe bridge pokes `iframe.contentWindow`, which a bucket on its own domain wouldn't allow.
+
+```sh
+pnpm run deploy               # not `pnpm deploy`: that's pnpm's own command
+pnpm run deploy -- --dry-run  # prints the uploads, ends in `wrangler deploy --dry-run`
+```
+
+That uploads the hash `godot-build.json` names, builds with `VITE_BLIND_RALLY=1`, drops the export from `dist`, and runs `wrangler deploy --var BLIND_RALLY:1`. The upload goes first so a new worker never names a hash the bucket hasn't got. Run the export before deploying a Godot change; deploying without one reuses the last hash, and that's a no-op upload.
+
+How the upload works (`export-godot.mjs --upload`): `.wasm`, `.pck`, `.js` and `.html` go up brotli-11 with `Content-Encoding: br` in their R2 metadata, and the worker returns them byte-for-byte with `encodeBody: "manual"`. The wasm is ~38 MiB on disk and ~7 MiB on the wire. A `.uploaded` marker goes last; a hash that has one is skipped whole, which makes reruns cheap and a half-finished upload just redo itself. `--local [--persist-to <dir>]` targets `wrangler dev`'s simulated bucket instead, and `--dry-run` prints the puts.
+
+In dev none of this runs. Vite serves `apps/web/public` and never forwards `/blind-rally` to the worker, so the worker's empty local bucket never comes up.

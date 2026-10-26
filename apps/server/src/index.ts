@@ -2,6 +2,7 @@ import { secureRandomInt } from "@games/game-core";
 import { isValidRoomCode, safeEqual } from "@games/protocol";
 import { getServerByName, routePartykitRequest, Server, type Connection } from "partyserver";
 import { generateRoomCode } from "./codes.ts";
+import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
 import { RoomRuntime, type Conn, type ConnState, type RoomHost } from "./runtime.ts";
 
@@ -127,6 +128,9 @@ export default {
       }
       return (await routePartykitRequest(request, env)) ?? new Response("Not Found", { status: 404 });
     }
+
+    const godot = await serveGodot(request, env);
+    if (godot) return godot;
 
     const room = /^\/room\/([^/]+)\/?$/.exec(url.pathname);
     if (room) return roomPage(request, env, room[1]!.toUpperCase());
