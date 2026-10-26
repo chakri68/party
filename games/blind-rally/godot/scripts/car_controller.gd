@@ -38,10 +38,11 @@ const SURFACES := {
 @export var slope_pull := 5.0 ## m/s² per unit of grade, uphill slows, downhill speeds
 
 @export_group("Steering")
-@export var max_yaw_rate := 2.4 ## rad/s at full lock and ideal speed
-@export var steer_rate := 4.5 ## how fast the wheel can move, full lock per 1/rate s
+@export var max_yaw_rate := 2.0 ## rad/s at full lock and ideal speed
+@export var steer_rate := 2.2 ## how fast the wheel winds on, full lock per 1/rate s
+@export var centre_rate := 6.0 ## how fast it comes back when let go or reversed; quick, so a late release still saves it
 @export var full_steer_speed := 6.0 ## below this, steering fades toward zero
-@export var high_speed_steer := 0.45 ## fraction of yaw rate left at max_speed
+@export var high_speed_steer := 0.38 ## fraction of yaw rate left at max_speed
 @export var yaw_response := 9.0 ## how fast yaw rate chases its target, 1/s; lower = heavier
 
 @export_group("Grip")
@@ -146,7 +147,10 @@ func _physics_process(dt: float) -> void:
 	# Steering: the wheel turns at a limited rate; the grip yaw rate scales with
 	# speed, fades out near standstill and tightens at high speed.
 	var target_steer := 0.0 if frozen else steer_input
-	steer_actual = move_toward(steer_actual, target_steer, steer_rate * dt)
+	# The Driver's pads are on/off and arrive a round trip late, so winding on
+	# is slow (a tap is a nudge, not full lock) and unwinding is quick.
+	var unwinding := absf(target_steer) < absf(steer_actual) or target_steer * steer_actual < 0.0
+	steer_actual = move_toward(steer_actual, target_steer, (centre_rate if unwinding else steer_rate) * dt)
 	var speed := absf(v_fwd)
 	var speed_k := clampf(speed / max_speed, 0.0, 1.0)
 	var low := clampf(speed / full_steer_speed, 0.0, 1.0)
