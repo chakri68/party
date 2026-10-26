@@ -14,6 +14,8 @@ export type CameraMode = "topdown" | "chase" | "bonnet";
 export type Weather = "clear" | "patchy" | "murky";
 /** Spec §7.4. solo: every car on its own copy of the course. shared: one course, rivals as ghosts. */
 export type StageMode = "solo" | "shared";
+/** Spec §7.1: how Fair Race gets its one track. Practice is always the host's pick. */
+export type TrackPick = "host" | "ballot";
 
 /** Spec §4.3's presets. Custom reads the three toggles below; the others ignore them. */
 export type AssistPreset = "beginner" | "classic" | "nightmare" | "custom";
@@ -40,6 +42,7 @@ export interface BlindRallySettings {
   camera: CameraPolicy;
   weather: Weather;
   stageMode: StageMode;
+  trackPick: TrackPick;
   assists: AssistPreset;
   /** Custom's toggles. Kept when a preset is picked, so going back to Custom finds them. */
   liveMarker: boolean;
@@ -54,6 +57,7 @@ export const CAMERA_POLICIES: readonly CameraPolicy[] = ["free", "topdown", "cha
 export const CAMERA_MODES: readonly CameraMode[] = ["topdown", "chase", "bonnet"];
 export const WEATHERS: readonly Weather[] = ["clear", "patchy", "murky"];
 export const STAGE_MODES: readonly StageMode[] = ["solo", "shared"];
+export const TRACK_PICKS: readonly TrackPick[] = ["host", "ballot"];
 export const ASSIST_PRESETS: readonly AssistPreset[] = ["beginner", "classic", "nightmare", "custom"];
 export const PRESET_ASSISTS: Record<Exclude<AssistPreset, "custom">, Assists> = {
   beginner: { liveMarker: true, tripMeter: true, paceNotes: true, camera3d: true },
@@ -67,6 +71,10 @@ export function effectiveAssists(s: BlindRallySettings): Assists {
     ? { liveMarker: s.liveMarker, tripMeter: s.tripMeter, paceNotes: s.paceNotes, camera3d: s.camera3d }
     : { ...PRESET_ASSISTS[s.assists] };
 }
+/** A pair practising has nobody to vote against. */
+export const effectiveTrackPick = (s: Pick<BlindRallySettings, "mode" | "trackPick">): TrackPick =>
+  s.mode === "practice" ? "host" : s.trackPick === "ballot" ? "ballot" : "host";
+
 /** Godot's cloud intensity per setting (weather.gd: 0 none, 1 heavy). */
 export const CLOUDS: Record<Weather, number> = { clear: 0, patchy: 0.4, murky: 0.8 };
 
@@ -76,6 +84,7 @@ export const DEFAULT_SETTINGS: BlindRallySettings = {
   camera: "free",
   weather: "patchy",
   stageMode: "solo",
+  trackPick: "host",
   // Classic Navigation is the featured default (spec §4.3).
   assists: "classic",
   ...PRESET_ASSISTS.classic,
@@ -193,10 +202,35 @@ export interface TeamState {
   run: RunState | null;
 }
 
+/** One team's vote: its captain's, so a pair can't vote twice (spec §7.2.4). */
+export interface TrackVote {
+  teamId: number;
+  trackId: string;
+}
+
+/**
+ * A track ballot. Fair Race has one, `target: "all"`, deciding `trackId` for
+ * everyone. Chaos Cup (M3) adds one per target team, which is why it's a list
+ * and why the target is on the ballot rather than implied.
+ */
+export interface TrackBallot {
+  target: "all" | number;
+  votes: TrackVote[];
+  /** The tracks level on top at the last count, when more than one: the room seed picked between them. */
+  tied: string[];
+}
+
 export interface BlindRallyState {
   phase: Phase;
   settings: BlindRallySettings;
+  /**
+   * The track everyone races (Fair Race; the shared stage in Chaos Cup too).
+   * The host's pick, or the ballot's current leader; it locks when the race
+   * starts, since nothing can vote after TEAMS.
+   */
   trackId: string;
+  /** Fair Race's one ballot; its votes stay empty when the host picks. Older saved states lack it (server/upgrade.ts). */
+  ballots: TrackBallot[];
   /** The room's sky: every team gets the same weather (Fair Race). */
   seed: number;
   players: PlayerState[];
@@ -209,6 +243,8 @@ export interface BlindRallyState {
 /** What survives a rematch (`carryOver` → `match.carry`). */
 export interface BlindRallyCarry {
   teams: { driverId: string | null; navigatorId: string | null; captain: Role; color: TeamColorKey }[];
+  /** Last race's track: the rematch starts on it, whoever picks or votes next. */
+  trackId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,11 +270,33 @@ export interface PublicTeam {
   timeMs: number | null;
 }
 
+/**
+ * A track as a lobby card shows it (map §3.5's public half): names and
+ * numbers, never a coordinate. Built by the server from data/tracks.json.
+ */
+export interface PublicTrack {
+  id: string;
+  name: string;
+  difficulty: "easy" | "medium" | "hard";
+  /** Route length estimate, metres. */
+  length: number;
+  /** How many landmarks it has. A count, not where they are. */
+  landmarkCount: number;
+  /** A clean run's time, once someone's measured one. */
+  par_seconds: number | null;
+}
+
 export interface BlindRallyPublicState {
   phase: Phase;
   mode: Mode;
   stageMode: StageMode;
   trackId: string;
+  /** Effective: practice is always "host". */
+  trackPick: TrackPick;
+  /** Every track the room could race, in the file's order. */
+  tracks: PublicTrack[];
+  /** The lobby-wide ballot, when the teams pick. `tied` non-empty: the leader won a coin flip. */
+  ballot: { votes: TrackVote[]; tied: string[] } | null;
   timeLimitMs: number;
   teams: PublicTeam[];
   /** Everyone in the game, seated in a car or not. */
@@ -292,6 +350,10 @@ export type BlindRallyAction =
   /** Host: put someone in a seat (bumping whoever's there), or `teamId: null` to unseat them. */
   | { type: "team.assign"; playerId: string; teamId: number | null; role?: Role }
   | { type: "player.ready"; ready: boolean }
+  /** Host, host-pick mode, TEAMS only. */
+  | { type: "track.pick"; trackId: string }
+  /** A team captain, ballot mode, TEAMS only. `null` takes the team's vote back. */
+  | { type: "track.vote"; trackId: string | null }
   | { type: "race.start" }
   /** Host: stop the race now and go to results (teams carry over). */
   | { type: "race.end" }

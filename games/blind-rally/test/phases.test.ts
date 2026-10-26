@@ -4,7 +4,7 @@ import { canMove } from "../server/phases.ts";
 import { seatOf } from "../server/teams.ts";
 import { blindRallySettingFields, parseSettings } from "../shared/rules-text.ts";
 import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
-import { act, ctx, game, newGame, racing, refused } from "./helpers.ts";
+import { act, ctx, game, newGame, racing, refused, TRACK } from "./helpers.ts";
 
 const pub = (s: ReturnType<typeof newGame>) => game.getPublicState(s) as BlindRallyPublicState;
 const roleOf = (s: ReturnType<typeof newGame>, id: string) => {
@@ -42,7 +42,7 @@ describe("phases", () => {
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
     expect(s.phase).toBe("finished");
     expect(s.teams[0]!.run!.status).toBe("dnf");
-    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(["1st · Team 1 · DNF, 0/5 checkpoints", "1st · Team 1 · DNF, 0/5 checkpoints"]);
+    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(Array(2).fill(`1st · Team 1 · ${TRACK.name} · DNF, 0/${TRACK.checkpoints.length} checkpoints`));
   });
 
   it("the start asks for both timers: the go and the time limit", () => {
@@ -306,7 +306,7 @@ describe("parsing", () => {
 
   it("settings", () => {
     expect(parseSettings(undefined)).toEqual({
-      mode: "race", timeLimit: 5, camera: "free", weather: "patchy", stageMode: "solo",
+      mode: "race", timeLimit: 5, camera: "free", weather: "patchy", stageMode: "solo", trackPick: "host",
       assists: "classic", liveMarker: false, tripMeter: true, paceNotes: true, camera3d: true,
     });
     expect(parseSettings({ stageMode: "shared" })!.stageMode).toBe("shared");

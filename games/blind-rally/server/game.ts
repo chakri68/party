@@ -1,9 +1,10 @@
 import type { GameContext, GameDefinition, GameResult } from "@games/game-core";
 import { blindRallyManifest } from "../shared/manifest.ts";
 import { parseSettings } from "../shared/rules-text.ts";
-import { DEFAULT_TRACK } from "../shared/tracks-public.ts";
 import {
   DEFAULT_SETTINGS,
+  effectiveTrackPick,
+  type BlindRallyCarry,
   type BlindRallyAction,
   type BlindRallyEvent,
   type BlindRallyPrivateState,
@@ -11,6 +12,8 @@ import {
   type BlindRallySettings,
   type BlindRallyState,
 } from "../shared/types.ts";
+import { fairBallot, settleTrack, setTrack } from "./ballot.ts";
+import { defaultTrack, hasTrack } from "./geometry.ts";
 import { parseAction } from "./parse.ts";
 import { GO, TIME_UP } from "./phases.ts";
 import { privateState, publicState } from "./projection.ts";
@@ -29,7 +32,8 @@ import {
   type Out,
 } from "./race.ts";
 import { result } from "./scoring.ts";
-import { carryOf, fitTeams, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
+import { captainOf, carryOf, fitTeams, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
+import { upgrade } from "./upgrade.ts";
 
 type State = BlindRallyState;
 
@@ -58,6 +62,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       if (holder) return reject("seat-taken", "Someone's in that seat.");
       const state = clone(prev);
       sit(state, playerId, state.teams.find((t) => t.id === action.teamId)!, action.role);
+      settleTrack(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -66,6 +71,8 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       if (!seatOf(prev, playerId)) return reject("not-seated", "You're not in a car.");
       const state = clone(prev);
       unseat(state, playerId);
+      // An emptied car's vote goes with it.
+      settleTrack(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -86,6 +93,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const state = clone(prev);
       if (action.teamId === null) {
         unseat(state, action.playerId);
+        settleTrack(state);
         return { ok: true, transition: unchanged(state) };
       }
       const team = state.teams.find((t) => t.id === action.teamId);
@@ -94,6 +102,34 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const role = action.role ?? (team.navigatorId === null ? "navigator" : team.driverId === null ? "driver" : null);
       if (!role) return reject("team-full", `Team ${team.id} is full.`);
       sit(state, action.playerId, team, role);
+      settleTrack(state);
+      return { ok: true, transition: unchanged(state) };
+    }
+
+    case "track.pick": {
+      if (!isHost(ctx, playerId)) return reject("not-host", "Only the host picks the track.");
+      if (!inTeams) return reject("wrong-phase", "The track's locked once the race starts.");
+      if (effectiveTrackPick(prev.settings) !== "host") return reject("ballot-on", "The teams are voting on this one.");
+      if (!hasTrack(action.trackId)) return reject("no-such-track", "There's no such track.");
+      if (prev.trackId === action.trackId) return { ok: true, transition: unchanged(prev) };
+      const state = clone(prev);
+      setTrack(state, action.trackId);
+      return { ok: true, transition: unchanged(state) };
+    }
+
+    case "track.vote": {
+      if (!inTeams) return reject("wrong-phase", "Voting closed when the race started.");
+      if (effectiveTrackPick(prev.settings) !== "ballot") return reject("host-picks", "The host picks the track this time.");
+      const seat = seatOf(prev, playerId);
+      if (!seat) return reject("not-seated", "Get in a car first: the vote's per team.");
+      if (captainOf(seat.team) !== playerId) return reject("not-captain", "Your team's captain votes for the car.");
+      if (action.trackId !== null && !hasTrack(action.trackId)) return reject("no-such-track", "There's no such track.");
+      const state = clone(prev);
+      const ballot = fairBallot(state);
+      // One vote per team: a new one replaces the old.
+      ballot.votes = ballot.votes.filter((v) => v.teamId !== seat.team.id);
+      if (action.trackId !== null) ballot.votes.push({ teamId: seat.team.id, trackId: action.trackId });
+      settleTrack(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -175,10 +211,13 @@ export const blindRallyGame: GameDefinition<
     if (players.length < minPlayers || players.length > maxPlayers) {
       throw new Error(`blind-rally: needs ${minPlayers}–${maxPlayers} players, got ${players.length}`);
     }
+    const carried = (match.carry as BlindRallyCarry | undefined)?.trackId;
     const state: State = {
       phase: "teams",
       settings,
-      trackId: DEFAULT_TRACK,
+      // A rematch stays on last race's track until someone picks or votes otherwise.
+      trackId: hasTrack(carried) ? carried : defaultTrack(),
+      ballots: [{ target: "all", votes: [], tied: [] }],
       seed: ctx.randomInt(2 ** 31),
       players: players.map((p) => ({ id: p.id, ready: false })),
       teams: [],
@@ -192,9 +231,11 @@ export const blindRallyGame: GameDefinition<
     return { state, events: [] };
   },
 
-  handleAction: handle,
+  // Every way in goes through upgrade(): a room saved by an older Worker gets its new fields first.
+  handleAction: (prev, playerId, action, ctx) => handle(upgrade(prev), playerId, action, ctx),
 
-  onTimer(prev, timerId, ctx) {
+  onTimer(old, timerId, ctx) {
+    const prev = upgrade(old);
     if (timerId === GO && prev.phase === "countdown") {
       const state = clone(prev);
       state.phase = "racing";
@@ -218,19 +259,22 @@ export const blindRallyGame: GameDefinition<
   // the seat "disconnected" when it runs out (no hook): ours is 30 s and
   // fires first, so the team is already DNF by then. A reconnect after our
   // grace finds the team out and changes nothing.
-  onPlayerDisconnected(prev, playerId, ctx) {
+  onPlayerDisconnected(old, playerId, ctx) {
+    const prev = upgrade(old);
     const state = clone(prev);
     const out = newOut();
     return playerAway(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
   },
 
-  onPlayerReconnected(prev, playerId, ctx) {
+  onPlayerReconnected(old, playerId, ctx) {
+    const prev = upgrade(old);
     const state = clone(prev);
     const out = newOut();
     return playerBack(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
   },
 
-  onPlayerJoined(prev, playerId) {
+  onPlayerJoined(old, playerId) {
+    const prev = upgrade(old);
     if (prev.players.some((p) => p.id === playerId)) return unchanged(prev);
     const state = clone(prev);
     state.players.push({ id: playerId, ready: false });
@@ -239,13 +283,15 @@ export const blindRallyGame: GameDefinition<
     return unchanged(state);
   },
 
-  onPlayerRemoved(prev, playerId, ctx) {
+  onPlayerRemoved(old, playerId, ctx) {
+    const prev = upgrade(old);
     if (!prev.players.some((p) => p.id === playerId)) return unchanged(prev);
     const state = clone(prev);
     if (state.phase === "teams") {
       unseat(state, playerId);
       state.players = state.players.filter((p) => p.id !== playerId);
       fitTeams(state);
+      settleTrack(state);
       return unchanged(state);
     }
     // Mid-race the seat stays filled, for the results, and the car's out.
@@ -256,18 +302,18 @@ export const blindRallyGame: GameDefinition<
   },
 
   onStream(state, playerId, data, ctx) {
-    return ctx ? onRaceStream(state, playerId, data, ctx.now) : null;
+    return ctx ? onRaceStream(upgrade(state), playerId, data, ctx.now) : null;
   },
 
-  getPublicState: publicState,
-  getPrivateState: privateState,
+  getPublicState: (state) => publicState(upgrade(state)),
+  getPrivateState: (state, playerId) => privateState(upgrade(state), playerId),
 
   // Nobody takes turns: the shell's nudge and skip controls stay out of it.
   getAwaitedPlayerIds: () => [],
 
   getResult(state) {
-    return state.phase === "finished" ? result(state) : null;
+    return state.phase === "finished" ? result(upgrade(state)) : null;
   },
 
-  carryOver: carryOf,
+  carryOver: (state) => carryOf(upgrade(state)),
 };

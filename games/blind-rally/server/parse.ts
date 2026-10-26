@@ -1,6 +1,8 @@
 import { MAX_TEAMS, type BlindRallyAction, type Role } from "../shared/types.ts";
 
 const isRole = (v: unknown): v is Role => v === "driver" || v === "navigator";
+/** Shape only: whether the track exists is the game's call, against the track file. */
+const trackIdOk = (v: unknown): v is string => typeof v === "string" && /^[a-z0-9_]{1,40}$/.test(v);
 const isTeamId = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= MAX_TEAMS;
 
 /** Untrusted game-action payload → a clean action, or null ("bad-action"). */
@@ -29,6 +31,11 @@ export function parseAction(input: unknown): BlindRallyAction | null {
       return null;
     case "race.reset":
       return a.reason === "fell" ? { type: "race.reset", reason: "fell" } : { type: "race.reset" };
+    case "track.pick":
+      return trackIdOk(a.trackId) ? { type: "track.pick", trackId: a.trackId } : null;
+    case "track.vote":
+      if (a.trackId === null) return { type: "track.vote", trackId: null };
+      return trackIdOk(a.trackId) ? { type: "track.vote", trackId: a.trackId } : null;
     case "team.leave":
     case "race.start":
     case "race.end":

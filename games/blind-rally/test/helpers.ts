@@ -1,8 +1,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { expect } from "vitest";
 import { blindRallyGame as game } from "../server/game.ts";
-import { trackData } from "../server/geometry.ts";
-import { DEFAULT_TRACK } from "../shared/tracks-public.ts";
+import { defaultTrack, trackData } from "../server/geometry.ts";
 import { DEFAULT_SETTINGS, type BlindRallyAction, type BlindRallySettings, type BlindRallyState } from "../shared/types.ts";
 
 export { game };
@@ -44,7 +43,7 @@ export function racing(pairs: [string, string][], players = pairs.length * 2, se
 }
 
 /** The track every test races on, and where its car starts. */
-export const TRACK = trackData(DEFAULT_TRACK);
+export const TRACK = trackData(defaultTrack());
 export const SPAWN = TRACK.spawn.position;
 
 /** A Navigator snapshot at `position` (the spawn by default), as Godot sends it. */

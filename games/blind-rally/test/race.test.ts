@@ -153,9 +153,9 @@ describe("DNF and results", () => {
     const r = game.getResult(s)!;
     expect(r.winnerIds.sort()).toEqual(["p2", "p3"]);
     const labels = [...new Set(r.standings.map((x) => x.label))];
-    expect(labels[0]).toMatch(/^1st · Team 2 · \d:\d\d\.\d$/);
-    expect(labels[1]).toMatch(/^2nd · Team 1 · \d:\d\d\.\d \(\+5 s reset\)$/);
-    expect(labels[2]).toBe(`3rd · Team 3 · DNF, 2/${N} checkpoints`);
+    expect(labels[0]).toMatch(new RegExp(`^1st · Team 2 · ${TRACK.name} · \\d:\\d\\d\\.\\d$`));
+    expect(labels[1]).toMatch(new RegExp(`^2nd · Team 1 · ${TRACK.name} · \\d:\\d\\d\\.\\d \\(\\+5 s reset\\)$`));
+    expect(labels[2]).toBe(`3rd · Team 3 · ${TRACK.name} · DNF, 2/${N} checkpoints`);
     expect(r.standings.map((x) => x.value)).toEqual([1, 1, 2, 2, 3, 3]);
     expect(now).toBeLessThan(s.endsAt!);
   });
@@ -168,9 +168,9 @@ describe("DNF and results", () => {
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
     const labels = [...new Set(game.getResult(s)!.standings.map((x) => x.label))];
     expect(labels).toEqual([
-      `1st · Team 2 · DNF, 3/${N} checkpoints`,
-      `=2nd · Team 1 · DNF, 1/${N} checkpoints`,
-      `=2nd · Team 3 · DNF, 1/${N} checkpoints`,
+      `1st · Team 2 · ${TRACK.name} · DNF, 3/${N} checkpoints`,
+      `=2nd · Team 1 · ${TRACK.name} · DNF, 1/${N} checkpoints`,
+      `=2nd · Team 3 · ${TRACK.name} · DNF, 1/${N} checkpoints`,
     ]);
     // Nobody finished, so nobody won.
     expect(game.getResult(s)!.winnerIds).toEqual([]);

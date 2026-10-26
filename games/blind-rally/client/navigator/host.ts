@@ -136,7 +136,7 @@ class NavigatorView implements RoleView {
 
   update(props: RoleProps) {
     this.props = props;
-    this.loader.setStage(trackName(props.game.trackId));
+    this.loader.setStage(trackName(props.game.tracks, props.game.trackId));
     const mine = props.game.teams.find((t) => t.id === props.private.teamId);
     if (mine) this.team.replaceChildren(teamBadge(mine));
     this.sendSession();
@@ -258,7 +258,7 @@ class NavigatorView implements RoleView {
         h(
           "div",
           { class: "br-pad-scroll" },
-          h("p", { class: "br-pad-head" }, h("span", {}, "Pace notes"), h("span", { class: "br-pad-track" }, trackName(session!.trackId))),
+          h("p", { class: "br-pad-head" }, h("span", {}, "Pace notes"), h("span", { class: "br-pad-track" }, track?.name ?? session!.trackId)),
           h("p", { class: "br-pad-sub" }, "Metres along the clean line. Tap a line to mark your place."),
           h("ol", { class: "br-pad-lines" }, lines),
         ),

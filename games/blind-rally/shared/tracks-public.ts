@@ -1,21 +1,10 @@
-// The public half of the track list (map §3.5): what a lobby, a Driver or a
-// results screen may know. Geometry, checkpoints and pace notes are in
-// data/tracks.json (contract: shared/track-data.ts), and only server/ and
-// client/navigator/ read it. test/tracks.test.ts keeps the two in step.
-// Field names follow that file, hence par_seconds.
+import type { PublicTrack } from "./types.ts";
 
-export interface PublicTrack {
-  id: string;
-  name: string;
-  difficulty: "easy" | "medium" | "hard";
-  /** A clean run's time, once someone's measured one. */
-  par_seconds: number | null;
-}
+// The public half of the track list (map §3.5) arrives in the public state,
+// built by the server from data/tracks.json: names and numbers only. Nothing
+// here lists tracks itself, so a new track is an export, not a code change.
 
-export const TRACKS: readonly PublicTrack[] = [
-  { id: "pine_panic", name: "Pine Panic", difficulty: "easy", par_seconds: null },
-];
+export type { PublicTrack };
 
-export const DEFAULT_TRACK = TRACKS[0]!.id;
-
-export const trackName = (id: string) => TRACKS.find((t) => t.id === id)?.name ?? id;
+/** The track's display name, or its id if this list doesn't know it (a stale page, say). */
+export const trackName = (tracks: readonly PublicTrack[], id: string) => tracks.find((t) => t.id === id)?.name ?? id;

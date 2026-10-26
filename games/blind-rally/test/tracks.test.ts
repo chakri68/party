@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import file from "../data/tracks.json";
-import { trackData } from "../server/geometry.ts";
+import { defaultTrack, hasTrack, trackCatalog, trackData } from "../server/geometry.ts";
 import { parseTrackFile, recoveryFor, trackFileProblems, trackProblems, type TrackData } from "../shared/track-data.ts";
-import { TRACKS } from "../shared/tracks-public.ts";
 
 // The track data contract (spec §14 "Track data contract tests").
 // godot/tools/export_tracks.gd writes the file from the track scenes; these
@@ -23,13 +22,17 @@ describe("data/tracks.json", () => {
     expect(() => parseTrackFile(file)).not.toThrow();
   });
 
-  it("has exactly the public tracks, with the same names, difficulty and par", () => {
+  it("the lobby's cards are the file's tracks, in its order, headers and counts only", () => {
     const data = parseTrackFile(file);
-    expect(data.map((t) => t.id).sort()).toEqual(TRACKS.map((t) => t.id).sort());
-    for (const p of TRACKS) {
+    expect(trackCatalog().map((t) => t.id)).toEqual(data.map((t) => t.id));
+    for (const p of trackCatalog()) {
       const t = trackData(p.id);
-      expect({ id: t.id, name: t.name, difficulty: t.difficulty, par_seconds: t.par_seconds }).toEqual(p);
+      expect(p).toEqual({ id: t.id, name: t.name, difficulty: t.difficulty, length: t.length, landmarkCount: t.landmarks.length, par_seconds: t.par_seconds });
     }
+    expect(defaultTrack()).toBe(data[0]!.id);
+    expect(hasTrack(data[0]!.id)).toBe(true);
+    expect(hasTrack("nowhere")).toBe(false);
+    expect(hasTrack(undefined)).toBe(false);
   });
 });
 

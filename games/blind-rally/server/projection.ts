@@ -7,8 +7,9 @@ import {
   type BlindRallyPublicState,
   type BlindRallyState,
   type CameraMode,
+  effectiveTrackPick,
 } from "../shared/types.ts";
-import { trackData } from "./geometry.ts";
+import { trackCatalog, trackData } from "./geometry.ts";
 import { effectiveTime } from "./race.ts";
 import { captainOf, seatOf, startBlocker } from "./teams.ts";
 
@@ -22,6 +23,10 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
     mode: state.settings.mode,
     stageMode: state.settings.stageMode,
     trackId: state.trackId,
+    trackPick: effectiveTrackPick(state.settings),
+    // Names, difficulty, length, par and a landmark count: the lobby's cards. No geometry (spec §4.1).
+    tracks: trackCatalog(),
+    ballot: effectiveTrackPick(state.settings) === "ballot" ? ballotView(state) : null,
     timeLimitMs: state.settings.timeLimit * 60_000,
     teams: state.teams.map((t) => ({
       id: t.id,
@@ -45,6 +50,12 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
     endedAt: state.endedAt,
     startBlocker: state.phase === "teams" ? startBlocker(state) : null,
   };
+}
+
+/** The fair ballot as everyone sees it: who voted for what, and whether a coin settled it. */
+function ballotView(state: BlindRallyState): BlindRallyPublicState["ballot"] {
+  const b = state.ballots.find((x) => x.target === "all");
+  return { votes: (b?.votes ?? []).map((v) => ({ teamId: v.teamId, trackId: v.trackId })), tied: [...(b?.tied ?? [])] };
 }
 
 export function privateState(state: BlindRallyState, playerId: string): BlindRallyPrivateState {

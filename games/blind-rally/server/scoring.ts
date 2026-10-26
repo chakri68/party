@@ -45,17 +45,18 @@ export function placings(state: BlindRallyState): Placing[] {
   });
 }
 
-/** "1st · Team 2 · 1:42.3 (+5 s reset, 12.0 s paused off)" or "=3rd · Team 1 · DNF, 3/5 checkpoints". */
+/** "1st · Team 2 · Pine Panic · 1:42.3 (+5 s reset, 12.0 s paused off)" or "=3rd · Team 1 · Pine Panic · DNF, 3/5 checkpoints". */
 export function placingLabel(state: BlindRallyState, p: Placing): string {
   const run = p.team.run!;
-  const n = trackData(state.trackId).checkpoints.length;
+  const track = trackData(state.trackId);
+  const n = track.checkpoints.length;
   const extras = [
     run.penaltyMs ? `+${run.penaltyMs / 1000} s reset${run.resets === 1 ? "" : "s"}` : "",
     run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)} s paused off` : "",
   ].filter(Boolean);
   const place = `${p.tied ? "=" : ""}${ordinal(p.rank)}`;
   const result = p.timeMs !== null ? formatClock(p.timeMs) : `DNF, ${run.cp}/${n} checkpoints`;
-  return `${place} · Team ${p.team.id} · ${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
+  return `${place} · Team ${p.team.id} · ${track.name} · ${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }
 
 export function result(state: BlindRallyState): GameOutcome {

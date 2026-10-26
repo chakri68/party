@@ -20,7 +20,7 @@ export class BlindRallyView implements GameView {
   private teams: TeamsScreen;
 
   private role: RoleView | null = null;
-  /** "driver:2": which seat `role` is for, loaded or loading. */
+  /** "driver:2" or "navigator:2:pine_panic": which seat `role` is for, loaded or loading. */
   private roleKey: string | null = null;
   private last: RoleProps | null = null;
 
@@ -61,7 +61,9 @@ export class BlindRallyView implements GameView {
       this.dropRole();
       this.last = null;
     } else {
-      const key = `${priv.role}:${priv.teamId}`;
+      // A Navigator's key names the track too: Godot boots one course, so a new
+      // track (which un-readies everyone) means a fresh Godot on the next ready.
+      const key = `${priv.role}:${priv.teamId}${priv.role === "navigator" ? `:${priv.session.trackId}` : ""}`;
       const roleProps: RoleProps = { room: props.room, game, private: priv, playerId: props.playerId, events: props.events as BlindRallyEvent[] };
       this.last = roleProps;
       const me = game.players.find((p) => p.id === props.playerId);

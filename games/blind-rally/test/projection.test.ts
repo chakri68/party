@@ -25,9 +25,10 @@ const DENY = [
 /**
  * Keys the deny-list would catch that are meant to be public: the assist
  * switches in the rules preview, which say *whether* there are pace notes,
- * not what they say. Booleans only.
+ * not what they say (booleans only), and the track cards' landmark count,
+ * which says how many, not where (a number only).
  */
-const ALLOWED_FLAGS = new Set(["tripMeter", "paceNotes"]);
+const ALLOWED: Record<string, "boolean" | "number"> = { tripMeter: "boolean", paceNotes: "boolean", landmarkCount: "number" };
 
 /** The track's own words: a pace note or a landmark showing up anywhere is a leak, whatever the key. */
 const TRACK_WORDS = [...TRACK.paceNotes.map((n) => n.text), ...TRACK.landmarks.map((l) => l.label)].filter((w) => !/^(START|FINISH)$/.test(w));
@@ -41,7 +42,7 @@ function leaks(value: unknown, path = "$"): string[] {
   }
   if (value && typeof value === "object") {
     return Object.entries(value).flatMap(([k, v]) => [
-      ...(DENY.some((re) => re.test(k)) && !(ALLOWED_FLAGS.has(k) && typeof v === "boolean") ? [`${path}.${k}`] : []),
+      ...(DENY.some((re) => re.test(k)) && !(ALLOWED[k] !== undefined && typeof v === ALLOWED[k]) ? [`${path}.${k}`] : []),
       ...leaks(v, `${path}.${k}`),
     ]);
   }
@@ -54,6 +55,16 @@ const snap = snapAt();
 /** Events a Driver or a spare would get: public ones, and private ones addressed to them. */
 const seenBy = (events: { visibility: { kind: string; playerId?: string }; event: unknown }[], ids: string[]) =>
   events.filter((e) => e.visibility.kind === "public" || ids.includes(e.visibility.playerId!)).map((e) => e.event);
+
+/** The track ballot in TEAMS: a vote cast, a Driver and a spare looking on. */
+function ballotStates(stageMode: "solo" | "shared"): BlindRallyState[] {
+  let b = newGame(5, { stageMode, trackPick: "ballot" });
+  b = act(b, "p1", { type: "team.join", teamId: 1, role: "navigator" });
+  b = act(b, "p0", { type: "team.join", teamId: 1, role: "driver" });
+  b = act(b, "p3", { type: "team.join", teamId: 2, role: "navigator" });
+  const voted = act(b, "p1", { type: "track.vote", trackId: TRACK.id });
+  return [b, voted];
+}
 
 /** One game, walked through every phase, with input, snapshots and a reset along the way. */
 function everyPhase(stageMode: "solo" | "shared" = "solo"): BlindRallyState[] {
@@ -96,7 +107,9 @@ describe("projection deny-list", () => {
   });
 
   it("public state is clean in every phase", () => {
-    for (const s of [...everyPhase("solo"), ...everyPhase("shared")]) expect(leaks(game.getPublicState(s)), s.phase).toEqual([]);
+    for (const s of [...everyPhase("solo"), ...everyPhase("shared"), ...ballotStates("solo"), ...ballotStates("shared")]) {
+      expect(leaks(game.getPublicState(s)), s.phase).toEqual([]);
+    }
   });
 
   it("the room's result is clean", () => {
@@ -105,7 +118,7 @@ describe("projection deny-list", () => {
   });
 
   it("Driver and spare DTOs are clean in every phase, solo or shared", () => {
-    for (const s of [...everyPhase("solo"), ...everyPhase("shared")]) {
+    for (const s of [...everyPhase("solo"), ...everyPhase("shared"), ...ballotStates("solo"), ...ballotStates("shared")]) {
       for (const id of ["p0", "p2", "p4"]) expect(leaks(game.getPrivateState(s, id)), `${s.phase} ${id}`).toEqual([]);
     }
     // And the Navigator's does get what it's for, so the walker's not just blind.
@@ -159,9 +172,18 @@ describe("projection deny-list", () => {
     expect(ghosts).toBe(2);
   });
 
+  it("the track cards are names and numbers: an allow-list, no geometry", () => {
+    const tracks = game.getPublicState(newGame(2)).tracks;
+    expect(tracks.length).toBeGreaterThan(0);
+    for (const t of tracks) expect(Object.keys(t).sort()).toEqual(["difficulty", "id", "landmarkCount", "length", "name", "par_seconds"]);
+    expect(leaks(tracks)).toEqual([]);
+    // A Navigator gets the course itself, but only once seated, and only the one being raced: no outline per card.
+    expect(leaks(game.getPublicState(newGame(2, { trackPick: "ballot" })))).toEqual([]);
+  });
+
   it("the eagerly bundled shared module carries no track internals", () => {
-    expect(leaks(shared.TRACKS)).toEqual([]);
-    for (const t of shared.TRACKS) expect(Object.keys(t).sort()).toEqual(["difficulty", "id", "name", "par_seconds"]);
+    // No track list at all: the cards come from the server, in the public state.
+    expect(shared).not.toHaveProperty("TRACKS");
     // The track-data contract and its loaders stay out of it: they're for server/ and navigator/.
     for (const name of ["parseTrackFile", "trackProblems", "trackFileProblems", "recoveryFor", "trackData"]) expect(shared).not.toHaveProperty(name);
     // No pace note or landmark in it either (its settings constants are fine: they're not the road).

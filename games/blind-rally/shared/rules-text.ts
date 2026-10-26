@@ -7,10 +7,12 @@ import {
   MODES,
   STAGE_MODES,
   TIME_LIMITS,
+  TRACK_PICKS,
   WEATHERS,
   RACE_GRACE_MS,
   RESET_PENALTY_MS,
   effectiveAssists,
+  effectiveTrackPick,
   type AssistPreset,
   type Assists,
   type BlindRallySettings,
@@ -28,6 +30,7 @@ export const blindRallyRules: string[] = [
   "Checkpoints count in order only, and the finish only counts after all of them.",
   "Lose a phone mid-race and your team's clock stops for up to 30 seconds while you reconnect. After that it's a DNF.",
   "Assists: the host picks how much the Navigator gets. A live car marker on the map, a trip meter, printed pace notes, the 3D view itself. Classic is no marker, the rest on. Nightmare is all off: the Navigator gets a map and their wits.",
+  "The track: the host picks it, or the teams vote, one vote per car, cast by its captain. A tie goes to a coin flip, and everyone sees it was one. Changing the track un-readies everyone, since the Navigators' course loads when they ready up.",
   "Solo stage: every car has its own copy of the road. Shared stage: one road, and Navigators see the other cars as ghosts that can't hit you. Following a rival is allowed. Following a lost rival is a choice.",
   "Each team has a colour, a shape and a number, on its car and its seats.",
   "Fastest time wins. Anyone still out there when the time runs out is DNF.",
@@ -54,25 +57,42 @@ export function parseSettings(input: unknown): BlindRallySettings | null {
     WEATHERS.includes(s.weather) &&
     // Shared needs one track for everyone. Fair Race always has that; Chaos Cup (M3) checks its vote.
     STAGE_MODES.includes(s.stageMode) &&
+    TRACK_PICKS.includes(s.trackPick) &&
     ASSIST_PRESETS.includes(s.assists) &&
     ASSIST_KEYS.every((k) => bool(s[k]));
   if (!ok) return null;
-  const { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
-  return { mode, timeLimit, camera, weather, stageMode, assists, liveMarker, tripMeter, paceNotes, camera3d };
+  const { mode, timeLimit, camera, weather, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
+  return { mode, timeLimit, camera, weather, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d };
 }
 
 /** Mid-sentence: "Live car marker" reads "live car marker", "3D camera" stays as it is. */
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const onOff = (a: Assists) => ASSIST_KEYS.map((k) => `${a[k] ? "" : "no "}${lower(ASSIST_LABELS[k])}`).join(", ");
 
+/** The game's word on the track, once there's a game: its name, and whether a coin flip picked it. */
+export interface TrackLine {
+  name: string;
+  tie: boolean;
+}
+
 /**
  * The rules as they'll be, in short lines: the preview everyone sees before
- * ready-up (spec §4.3, §7.4). Plain settings only, nothing about the road.
+ * ready-up (spec §4.3, §7.4). Plain settings only, nothing about the road
+ * but its name. Without `track` (the lobby, before a game) it says how the
+ * track will be chosen.
  */
-export function rulesPreview(raw: unknown): { label: string; value: string }[] {
+export function rulesPreview(raw: unknown, track?: TrackLine): { label: string; value: string }[] {
   const s = parseSettings(raw) ?? DEFAULT_SETTINGS;
   const a = effectiveAssists(s);
+  const ballot = effectiveTrackPick(s) === "ballot";
+  const how = ballot ? "team vote" : "host's pick";
   return [
+    {
+      label: "Track",
+      value: track
+        ? `${track.name}, ${how}${track.tie ? " (tie: picked by coin flip)" : ""}`
+        : ballot ? "Team vote, one per car" : "The host picks",
+    },
     { label: "Stage", value: s.mode === "practice" ? "Practice, one pair" : s.stageMode === "shared" ? "Shared: one road, rivals as ghosts" : "Solo: a road each" },
     { label: "Time limit", value: `${s.timeLimit} min, then DNF` },
     { label: "Assists", value: `${PRESET_LABELS[s.assists]}: ${onOff(a)}` },
@@ -112,6 +132,21 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
         ? "One road for everyone; Navigators see rival cars as ghosts"
         : "Every car has the road to itself",
     },
+    // Practice has one car and nobody to outvote: the host picks, no field.
+    ...(s.mode === "practice"
+      ? []
+      : [{
+          key: "trackPick",
+          label: "Track",
+          selected: pickIndex(TRACK_PICKS, s.trackPick),
+          options: [
+            { label: "Host picks", patch: { trackPick: "host" } },
+            { label: "Team vote", patch: { trackPick: "ballot" } },
+          ],
+          hint: s.trackPick === "ballot"
+            ? "One vote per car, by its captain; a tie goes to a coin flip"
+            : "Picked on the teams screen, before ready-up",
+        } satisfies SettingField]),
     {
       key: "timeLimit",
       label: "Time limit",

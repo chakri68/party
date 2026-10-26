@@ -104,7 +104,10 @@ export function restoreTeams(state: BlindRallyState, carry: unknown): void {
 }
 
 export function carryOf(state: BlindRallyState): BlindRallyCarry {
-  return { teams: state.teams.map((t) => ({ driverId: t.driverId, navigatorId: t.navigatorId, captain: t.captain, color: t.color })) };
+  return {
+    teams: state.teams.map((t) => ({ driverId: t.driverId, navigatorId: t.navigatorId, captain: t.captain, color: t.color })),
+    trackId: state.trackId,
+  };
 }
 
 /** Why the host can't start, in words for the screen; null when they can. */
