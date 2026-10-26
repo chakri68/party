@@ -12,7 +12,8 @@ extends Node3D
 ## session naming another track than the one already loaded (only after
 ## that fallback) reloads the scene and carries the session over.
 ##
-## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP
+## Keys (local testing): WASD/arrows drive, G GPS marker (only where
+## assists.liveMarker allows it; see live_marker_allowed), R reset to last CP
 ## (probe and editor only: in the room a reset is the server's call), M
 ## big map (tap or click the corner map too; Esc, a tap outside it or on its
 ## X closes it; a tap on it places the guess pin, see MapController), C camera
@@ -37,6 +38,9 @@ extends Node3D
 ## pins ({pin, trail}: a reloaded Navigator's own guess pins; a `pins` race
 ## event replaces them too). Placing or clearing one emits {kind: "pin", x, z}
 ## or {kind: "pin", clear: true} on the bridge.
+##
+## The compass (NavCompass, top-left) is the heading indicator of spec §4.2:
+## own car, 3D view only, hidden with it in map-only mode.
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -91,12 +95,18 @@ var room := false
 ## assists.tripMeter. Godot draws no trip meter of its own (the room's TS
 ## chrome does); the debug HUD says when the assist is off.
 var trip_meter := true
+## assists.liveMarker: whether G may show the live marker at all. True only
+## before any session (a bare local run, where G is a debug key); every
+## session sets it, and with it off G does nothing (Classic, Nightmare).
+var live_marker_allowed := true
 ## assists.camera3d off: no 3D view at all, only the static map (spec §4.3).
 var map_only := false
 var team_number := 7
 var team_color := Color("1f6fe0")
 var team_shape := "circle"
 var ghosts: GhostCars
+## The heading indicator (spec §4.2), top-left over the 3D view.
+var compass: NavCompass
 var _server_frozen := false ## freeze / go from the room
 var _hold_left := 0.0 ## seconds the car stays held after a server reset
 var _fell_pending := false ## out of the world, waiting for the server's reset
@@ -239,6 +249,7 @@ func _setup_track() -> void:
 		set_shadows(false)
 		fx.density = 0.5
 	map.car = car
+	_build_compass()
 	_map_corner = _layout_of(map)
 	map.tapped.connect(_on_map_tapped)
 	map.pin_changed.connect(func(at: Variant) -> void:
@@ -393,10 +404,11 @@ func _process(_dt: float) -> void:
 	hud.visible = not room
 	if not hud.visible:
 		return
+	hud.position.y = (compass.get_rect().end.y + 4.0) if compass.visible else 8.0
 	hud.text = "%d fps\n%3.0f km/h  %s\ntrip %4.0f m%s\nCP %d/%d%s\nheading %s\nGPS %s   bridge %s\nsound %s%s" % [
 		Engine.get_frames_per_second(), absf(car.forward_speed) * 3.6, car.surface,
 		car.distance_travelled, "" if trip_meter else " (assist off)", checkpoints_passed, track.get_checkpoints().size(),
-		"  FINISHED" if finished else "", _compass(car.global_rotation.y),
+		"  FINISHED" if finished else "", NavCompass.heading_text(NavCompass.heading_deg(NavCompass.yaw_of(car.global_basis))),
 		"on" if map.gps_enabled else "off", "up" if bridge.connected else "-",
 		"muted" if audio.muted else ("on" if audio.started else "tap to start"),
 		"\nAUTOPILOT" if autopilot.enabled else "",
@@ -422,7 +434,9 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if track == null or not k.pressed or k.echo:
 		return
 	match k.physical_keycode:
-		KEY_G: map.gps_enabled = not map.gps_enabled
+		KEY_G:
+			if live_marker_allowed:
+				map.gps_enabled = not map.gps_enabled
 		KEY_R:
 			if not room:
 				recover()
@@ -467,6 +481,7 @@ func _place_on_anchor() -> void:
 	car.set_physics_process(true)
 	car.reset_to(track.recovery_for(checkpoints_passed).global_transform)
 	cam.snap()
+	compass.snap()
 	fx.reset_trail()
 
 
@@ -569,7 +584,8 @@ func hold(seconds: float) -> void:
 ## liveMarker, tripMeter, camera3d. A session starts from the defaults (no
 ## marker, trip meter on, 3D on); an `assists` event changes only what it names.
 func _apply_assists(a: Dictionary, fresh := false) -> void:
-	map.gps_enabled = bool(a.get("liveMarker", false if fresh else map.gps_enabled))
+	live_marker_allowed = bool(a.get("liveMarker", false if fresh else live_marker_allowed))
+	map.gps_enabled = live_marker_allowed
 	trip_meter = bool(a.get("tripMeter", true if fresh else trip_meter))
 	set_map_only(not bool(a.get("camera3d", true if fresh else not map_only)))
 
@@ -586,6 +602,7 @@ func set_map_only(on: bool) -> void:
 		set_map_expanded(false, false) # map only is already the big map
 	get_viewport().disable_3d = on
 	_map_only_ui.visible = on
+	compass.visible = not on # a heading indicator for a view that isn't there
 	map.detail = on
 	map.crop = on
 	map.expandable = not on
@@ -798,8 +815,13 @@ func _build_map_scrim() -> void:
 			_map_opened())
 
 
-func _compass(yaw: float) -> String:
-	# yaw 0 faces -Z, which the map draws as north (up).
-	var deg := fposmod(-rad_to_deg(yaw), 360.0)
-	const NAMES := ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-	return "%s %03.0f" % [NAMES[int(round(deg / 45.0)) % 8], deg]
+## Under the map in the UI, so the big map's scrim (which goes in at the
+## map's index) dims it along with the 3D view.
+func _build_compass() -> void:
+	compass = NavCompass.new()
+	compass.name = "Compass"
+	compass.car = car
+	var ui := map.get_parent()
+	ui.add_child(compass)
+	ui.move_child(compass, map.get_index())
+	compass.snap()

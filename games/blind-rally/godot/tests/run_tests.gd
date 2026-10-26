@@ -64,6 +64,7 @@ func _run() -> void:
 	test_track_export()
 	test_landmarks_exported()
 	await test_trip_meter_and_marker()
+	await test_g_key_respects_assist()
 	await test_map_only()
 	await test_ghosts()
 	await test_ghosts_no_collision()
@@ -74,6 +75,7 @@ func _run() -> void:
 	await test_big_map_static()
 	await test_big_map_map_only()
 	await preload("res://tests/pin_tests.gd").new(self).run()
+	await preload("res://tests/compass_tests.gd").new(self).run()
 	# Second stage: everything above was Pine Panic. Swap the main scene for
 	# one that loads Dust Devil and check what's new there.
 	await test_track_by_id()
@@ -1293,6 +1295,38 @@ func test_trip_meter_and_marker() -> void:
 	await process_frame
 	check(map.gps_enabled and _map_tree_state() != before, "marker on (assists event): the marker, and only it, moves")
 	main._on_race_event({"kind": "assists", "liveMarker": false})
+	_probe_session()
+
+
+func _press(code: Key) -> void:
+	var k := InputEventKey.new()
+	k.physical_keycode = code
+	k.keycode = code
+	k.pressed = true
+	root.push_input(k)
+	await process_frame
+
+
+## G is the live marker's debug key: with assists.liveMarker off (Classic,
+## Nightmare) it must not switch the marker on, in the room or out of it.
+func test_g_key_respects_assist() -> void:
+	print("G and the live-marker assist")
+	for room in [false, true]:
+		main._on_session({"room": room, "assists": {"liveMarker": false}}, "")
+		var before := _map_tree_state()
+		await _press(KEY_G)
+		await _press(KEY_G)
+		await _press(KEY_G)
+		check(not map.gps_enabled and _map_tree_state() == before, "assist off%s: G does nothing, the map stays as it was" % (" (room)" if room else ""))
+	main._on_session({"room": true, "assists": {"liveMarker": true}}, "")
+	check(map.gps_enabled, "assist on: the marker is on")
+	await _press(KEY_G)
+	check(not map.gps_enabled, "and G can hide it")
+	await _press(KEY_G)
+	check(map.gps_enabled, "and bring it back")
+	main._on_race_event({"kind": "assists", "liveMarker": false})
+	await _press(KEY_G)
+	check(not map.gps_enabled, "switched off mid-race by an assists event: G is dead again")
 	_probe_session()
 
 
