@@ -73,6 +73,10 @@ func _run() -> void:
 	await test_big_map_modes()
 	await test_big_map_static()
 	await test_big_map_map_only()
+	# Second stage: everything above was Pine Panic. Swap the main scene for
+	# one that loads Dust Devil and check what's new there.
+	await test_track_by_id()
+	await test_dust_devil()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -1706,3 +1710,128 @@ func test_big_map_map_only() -> void:
 	main.set_map_expanded(false, false)
 	check(map.render_count == 1, "still one map render through all of it")
 	_probe_session()
+
+
+# --- stage two: Dust Devil ------------------------------------------------------
+
+const DustBuilder := preload("res://tools/build_dust_devil.gd")
+
+
+## A fresh main scene with track_id set before it enters the tree (what
+## --track=, ?track= and a session's trackId all end up doing).
+func _boot(id: String) -> void:
+	if main:
+		main.queue_free()
+		await process_frame
+	main = load("res://scenes/main.tscn").instantiate()
+	main.track_id = id
+	root.add_child(main)
+	await process_frame
+	await process_frame
+	car = main.car
+	track = main.track
+	map = main.map
+	car.keyboard_enabled = false
+	car.impact.connect(func(sp: float, _w: Object) -> void: impacts.append(sp))
+
+
+func test_track_by_id() -> void:
+	print("stage by id")
+	check(main.available_tracks().has("pine_panic") and main.available_tracks().has("dust_devil"), "both stages in the build: %s" % [main.available_tracks()])
+	await _boot("no_such_stage")
+	check(track != null and track.track_id == "pine_panic", "an unknown id falls back to Pine Panic")
+	await _boot("dust_devil")
+	var tracks := main.get_children().filter(func(c: Node) -> bool: return c is Track)
+	check(track.track_id == "dust_devil" and tracks.size() == 1, "track_id dust_devil loads Dust Devil, and only it")
+	check(track.get_biome().id == "desert" and track.difficulty == "medium", "desert biome, medium")
+	check(main.weather.style == "dust", "the weather is dust, not mist")
+	main._on_session({"seed": 7, "trackId": "dust_devil"}, "")
+	check(main.track == track and track.is_inside_tree(), "a session for the loaded stage doesn't reload it")
+
+
+func test_dust_devil() -> void:
+	print("dust devil")
+	check(track.get_checkpoints().size() == 5 and track.get_landmarks().filter(func(l: Node) -> bool: return not l.has_meta("callout")).size() == 3,
+		"5 checkpoints, 3 big landmarks (arch, fuel drums, radio tower)")
+	var forks := track.get_forks()
+	check(forks.size() == 3, "three forks")
+	# No checkpoint between a loop's two ends.
+	var ok := true
+	for f in forks:
+		if f.get_meta("kind") == "loop":
+			for cp in track.get_checkpoints():
+				var d := float(cp.get_meta("distance_m"))
+				ok = ok and not (d > float(f.get_meta("distance_m")) and d < float(f.get_meta("rejoin_m")))
+	check(ok, "no checkpoint inside the loop")
+	# The terrain flood: from before each gate, with the gate in the way,
+	# the road after it can't be reached; with it out of the way, it can.
+	var t: Terrain = track.get_node("Ground")
+	var sealed := true
+	var open := true
+	var gates: Array = track.get_checkpoints()
+	gates.append(track.get_finish())
+	var nowhere := Area3D.new()
+	var ncs := CollisionShape3D.new()
+	ncs.name = "Shape"
+	ncs.shape = BoxShape3D.new()
+	nowhere.add_child(ncs)
+	nowhere.transform = Transform3D(Basis.IDENTITY, Vector3(1e5, 0, 1e5))
+	for gate in gates:
+		var i := int(float(gate.get_meta("distance_m")) / 2.0)
+		var c := track.centerline
+		var after := DustBuilder._cell_of(t, c[mini(i + 14, c.size() - 1)])
+		var reached := DustBuilder.flood_from_gate(t, gate, c[maxi(i - 15, 0)])
+		for j in range(i + 12, c.size(), 4):
+			sealed = sealed and not reached.has(DustBuilder._cell_of(t, c[j]))
+		open = open and DustBuilder.flood_from_gate(t, nowhere, c[maxi(i - 15, 0)]).has(after)
+	nowhere.free()
+	check(sealed, "no way round any gate: every fork and the open ground behind it are walled off")
+	check(open, "and the same flood does reach past each gate when it isn't in the way")
+	# Spurs are real road: drawn, and the surface probe says road on them.
+	var space := track.get_world_3d().direct_space_state
+	var spur_ok := true
+	for f in forks:
+		var name := String(f.get_meta("spur"))
+		spur_ok = spur_ok and track.get_node("Road").has_node("%sMesh0" % name) and track.get_node("Road").has_node("%sShape" % name)
+	check(spur_ok, "each spur has road meshes and a road probe")
+	check(car.SURFACES.has("sand") and track.get_node("Verge").get_meta("surface") == "sand", "the verge is sand")
+	# Eggs: the desert kinds have spots, and none of them ever reach the map.
+	var eggs: EasterEggs = main.eggs
+	var counts := eggs.spot_counts()
+	check(counts.tumbleweed == 6 and counts.roadrunner == 3 and counts.vultures == 2 and counts.skull == 1 and counts.ufo == 1 and counts.deer == 0,
+		"desert egg spots: %s" % [counts])
+	map.gps_enabled = false
+	for f in 4:
+		await process_frame
+	var s0 := _map_state()
+	eggs.force = {"all": true}
+	eggs.configure(9)
+	var kinds := {}
+	var layers_ok := true
+	for r in eggs._live:
+		eggs._set_shown(r, true)
+		kinds[r.e.kind] = true
+		for nd in r.nodes:
+			for v in [nd] + (nd as Node).find_children("*", "VisualInstance3D", true, false):
+				if v is VisualInstance3D:
+					layers_ok = layers_ok and (v as VisualInstance3D).layers == EasterEggs.LAYER
+	for f in 30:
+		await process_frame
+	check(kinds.size() == 5, "every desert kind comes alive when forced: %s" % [kinds.keys()])
+	check(layers_ok, "every egg node is on layer 5 only")
+	check(_map_state() == s0 and map.render_count == 1, "map unchanged with every desert egg out")
+	var a := EasterEggs.make_schedule(1234, counts)
+	check(a == EasterEggs.make_schedule(1234, counts) and a != EasterEggs.make_schedule(1235, counts), "same seed, same desert surprises")
+	eggs.force = {}
+	eggs.configure(4242)
+	# Both stages in the exported file, this one current.
+	var raw := FileAccess.get_file_as_string(ProjectSettings.globalize_path("res://../data/tracks.json").simplify_path())
+	var file: Dictionary = JSON.parse_string(raw)
+	var ids: Array = file.tracks.map(func(x: Dictionary) -> String: return x.id)
+	var theirs: Dictionary = file.tracks.filter(func(x: Dictionary) -> bool: return x.id == "dust_devil")[0] if ids.has("dust_devil") else {}
+	check(ids.has("pine_panic") and ids.has("dust_devil"), "data/tracks.json has both stages")
+	check(JSON.parse_string(Export._fmt(Export.export_track(track), "")) == theirs, "Dust Devil's entry is current")
+	var keeps: Array = theirs.get("paceNotes", []).filter(func(nn: Dictionary) -> bool: return String(nn.text).begins_with("KEEP"))
+	check(keeps.size() == 3, "three KEEP pace notes, one per fork")
+	# And the autopilot drives it: every checkpoint, in order, then the finish.
+	await test_autopilot_stage()

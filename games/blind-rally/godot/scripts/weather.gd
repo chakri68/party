@@ -29,6 +29,12 @@ extends Node3D
 ## seconds (no pops, no flashing), and the mist shader keeps a clear hole
 ## around the car, so it can lose the road but never the car.
 ##
+## Biomes (set_biome): the same banks are mist in the forest and dust in
+## the desert canyon: a warm tint, a stronger wind (so they stream past
+## instead of drifting), lower over the ground, and paler cloud shade, since
+## a dust storm dims the sun rather than casting crisp cloud shadows. Same
+## seed, same storm, for every team.
+##
 ## Later: the NIGHT modifier (spec §7.2) fits the same slot. A dark multiply
 ## pass like the cloud shadow, with the car's keyhole as headlights, would
 ## cut visibility the same way without touching the map. Not built.
@@ -61,6 +67,12 @@ var eye_level := false:
 			_mist.visible = clouds > 0.0 and not v
 		_push_mist()
 var bounds := Rect2(-500, -500, 1000, 1000)
+## "mist" or "dust" (Biome.weather); set_biome() sets these.
+var style := "mist"
+var tint := MIST_TINT
+var wind_k := 1.0
+var bank_height := BANK_HEIGHT
+var shade_k := 1.0
 
 var _wind := Vector2.ZERO
 var _banks: Array = [] # {origin: Vector2, phase, period, thick, puffs: [[offset Vector2, size]]}
@@ -100,6 +112,21 @@ func _ready() -> void:
 	configure(seed_value, clouds)
 
 
+## The stage's weather flavour. Call before configure(); materials
+## registered before or after get the tint.
+func set_biome(b: Biome) -> void:
+	style = b.weather
+	tint = b.weather_tint
+	wind_k = b.wind
+	bank_height = BANK_HEIGHT * (0.55 if style == "dust" else 1.0)
+	shade_k = 0.55 if style == "dust" else 1.0
+	if _mist_mat:
+		_mist_mat.set_shader_parameter("tint", tint.lightened(0.08))
+	for m in _mats:
+		m.set_shader_parameter("mist_tint", tint)
+	configure(seed_value, clouds)
+
+
 ## Same seed + same clouds = same weather. clouds 0 turns it all off.
 func configure(seed_in: int, clouds_in: float) -> void:
 	seed_value = seed_in
@@ -107,7 +134,7 @@ func configure(seed_in: int, clouds_in: float) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_in
 	var heading := rng.randf() * TAU
-	_wind = Vector2(cos(heading), sin(heading)) * rng.randf_range(2.5, 5.5)
+	_wind = Vector2(cos(heading), sin(heading)) * rng.randf_range(2.5, 5.5) * wind_k
 	_banks.clear()
 	var count := roundi(clouds * MAX_BANKS)
 	var area := bounds.grow(80.0)
@@ -128,7 +155,7 @@ func configure(seed_in: int, clouds_in: float) -> void:
 			_banks.append(bank)
 	_cloud = {
 		"cloud_coverage": lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2,
-		"cloud_strength": lerpf(0.22, 0.38, clouds) if clouds > 0.0 else 0.0,
+		"cloud_strength": lerpf(0.22, 0.38, clouds) * shade_k if clouds > 0.0 else 0.0,
 		"cloud_offset": _wind * time,
 	}
 	for m in _mats:
@@ -150,7 +177,7 @@ func register(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("mist_max", MAX_ALPHA)
 	mat.set_shader_parameter("mist_density", MIST_DENSITY)
 	mat.set_shader_parameter("mist_top", MIST_TOP)
-	mat.set_shader_parameter("mist_tint", MIST_TINT)
+	mat.set_shader_parameter("mist_tint", tint)
 	_apply_cloud(mat)
 	_apply_mist(mat)
 
@@ -316,7 +343,7 @@ func _update_mist() -> void:
 			var p: Array = _banks[b].puffs[k]
 			var i := b * BANK_PUFFS + k
 			var s: float = p[1]
-			var pos := Vector3(c.x + p[0].x, ground_y + BANK_HEIGHT + k * 0.3, c.y + p[0].y)
+			var pos := Vector3(c.x + p[0].x, ground_y + bank_height + k * 0.3, c.y + p[0].y)
 			_mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(s, 1, s)), pos))
 			_mm.set_instance_color(i, Color(1, 1, 1, a))
 			_mm.set_instance_custom_data(i, Color(p[2].x, p[2].y, 0, 0))

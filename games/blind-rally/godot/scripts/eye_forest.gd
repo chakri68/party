@@ -32,6 +32,12 @@ extends Node3D
 ##
 ## Built on demand, the first time a perspective camera is used (~0.5 s);
 ## a top-down-only session never pays for it.
+##
+## The biome (Track.get_biome()) picks the style. Forest: all of the above.
+## Desert ("impostors": "none"): the scatter is sparse (cacti, scrub, rocks),
+## so every tall instance is simply streamed out to the biome's near_r and
+## the haze takes over from there; the horizon ring is mesas, not pines;
+## and the canyon walls, which are terrain, do the hiding the forest does.
 
 const BUCKET := 16.0 ## streaming grid
 const STREAM_STEP := 4.0 ## camera metres between refills
@@ -58,6 +64,9 @@ const SHAPES := [
 ]
 
 var fog_color := Color(0.69, 0.73, 0.76)
+var near_r := NEAR_R
+var ring_r := RING_R
+var fog_range := Vector2(24.0, 108.0) ## the biome's depth fog, for the far silhouettes
 var built := false
 var near_mat: ShaderMaterial
 var floor_mat: ShaderMaterial
@@ -81,15 +90,20 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 		return
 	built = true
 	_track = track
+	var biome := track.get_biome()
+	near_r = biome.near_r
+	ring_r = biome.fog_end - 2.0
+	fog_range = Vector2(biome.fog_begin, biome.fog_end)
+	var pines := biome.impostors == "pines"
 	near_mat = palette.duplicate()
 	near_mat.set_shader_parameter("lod_mode", 1)
-	near_mat.set_shader_parameter("lod_range", Vector2(NEAR_R, 0.0))
+	near_mat.set_shader_parameter("lod_range", Vector2(near_r, 0.0))
 	floor_mat = palette.duplicate()
 	floor_mat.set_shader_parameter("lod_mode", 2)
 	floor_mat.set_shader_parameter("lod_range", Vector2(FLOOR_R, FLOOR_BAND))
 	far_mat = ShaderMaterial.new()
 	far_mat.shader = preload("res://shaders/forest_far.gdshader")
-	far_mat.set_shader_parameter("near_r", NEAR_R)
+	far_mat.set_shader_parameter("near_r", near_r)
 	for m in [near_mat, floor_mat, far_mat]:
 		weather.register(m)
 
@@ -112,6 +126,9 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 				if not is_tree:
 					_put(_floor, mesh, _cell(x, z, BUCKET), rec)
 					continue
+				if not pines:
+					_put(_near, mesh, _cell(x, z, BUCKET), rec)
+					continue
 				var key := _cell(x, z, IMP_CELL)
 				if not imp.has(key):
 					imp[key] = PackedFloat32Array()
@@ -126,7 +143,7 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 	var g_floor := _group("Floor")
 	var g_far := _group("Far")
 	for mesh in _near:
-		_stream(g_near, mesh, _near[mesh], near_mat, NEAR_R + STREAM_STEP * 2.0)
+		_stream(g_near, mesh, _near[mesh], near_mat, near_r + STREAM_STEP * 2.0)
 	for mesh in _floor:
 		_stream(g_floor, mesh, _floor[mesh], floor_mat, FLOOR_R + STREAM_STEP * 2.0)
 	for mesh in _near:
@@ -140,7 +157,7 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 		_impostors(g_far, unit, imp[key])
 	ring = MeshInstance3D.new()
 	ring.name = "Treeline"
-	ring.mesh = _ring_mesh()
+	ring.mesh = _ring_mesh(ring_r) if biome.ring == "pines" else _mesa_ring(ring_r)
 	var rmat := ShaderMaterial.new()
 	rmat.shader = preload("res://shaders/treeline.gdshader")
 	rmat.set_shader_parameter("haze", fog_color)
@@ -239,7 +256,7 @@ func _place_tall(cam_p: Vector3) -> void:
 		var k := PROXY_R / d
 		var about := Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * k), cam_p * (1.0 - k))
 		mi.global_transform = about * t.global_transform
-		var fog_at := pow(clampf((PROXY_R - 24.0) / 84.0, 0.0, 1.0), 1.25)
+		var fog_at := pow(clampf((PROXY_R - fog_range.x) / (fog_range.y - fog_range.x), 0.0, 1.0), 1.25)
 		(mi.material_override as ShaderMaterial).set_shader_parameter("haze_k", minf(fog_at + (d - PROXY_R) / 2500.0, 0.8))
 
 
@@ -379,9 +396,46 @@ static func _cone(st: SurfaceTool, sides: int, r: float, y0: float, y1: float, c
 			st.add_vertex(v)
 
 
+## Flat-topped buttes and mesas all the way round, with the odd spire: the
+## desert's horizon. Same rules as the treeline: y is metres above the car's
+## ground, the shader colours it as haze.
+static func _mesa_ring(radius: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	const SEGS := 180
+	var n := FastNoiseLite.new()
+	n.seed = 9
+	n.frequency = 0.045
+	var heights := PackedFloat32Array()
+	for i in SEGS + 1:
+		var v := n.get_noise_1d(i % SEGS)
+		# Terraced: a plateau, a lower bench, or open desert, with hard steps.
+		var h := 15.0 + _jit(i, 3.0) * 1.2 if v > 0.12 else (8.0 + _jit(i, 4.0) * 0.8 if v > -0.18 else 2.5)
+		heights.append(h)
+	var low := -14.0
+	for i in SEGS:
+		var a0 := TAU * i / SEGS
+		var a1 := TAU * (i + 1) / SEGS
+		var b0 := Vector3(cos(a0), 0, sin(a0)) * radius
+		var b1 := Vector3(cos(a1), 0, sin(a1)) * radius
+		var h0 := heights[i]
+		var h1 := heights[i + 1]
+		# A step between plateaus stays a step: both corners take the segment's height.
+		var top := maxf(h0, h1) if absf(h0 - h1) < 1.5 else h0
+		var verts := [b0 + Vector3(0, low, 0), b1 + Vector3(0, low, 0), b0 + Vector3(0, top, 0),
+			b0 + Vector3(0, top, 0), b1 + Vector3(0, low, 0), b1 + Vector3(0, top, 0)]
+		if _jit(i, 11.0) > 0.93: # a spire
+			var bm := (b0 + b1) * 0.5
+			verts.append_array([b0 + Vector3(0, top, 0), b1 + Vector3(0, top, 0), bm + Vector3(0, top + 9.0 + _jit(i, 5.0) * 6.0, 0)])
+		for v in verts:
+			st.set_uv(Vector2(clampf((v.y - low) / (20.0 - low), 0.0, 1.0), 0.0))
+			st.add_vertex(v)
+	return st.commit()
+
+
 ## A ragged band of treetops all the way round, 240 spikes. y is metres
 ## above the car's ground; the shader colours it as haze.
-static func _ring_mesh() -> ArrayMesh:
+static func _ring_mesh(radius := RING_R) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	const SPIKES := 240
@@ -396,9 +450,9 @@ static func _ring_mesh() -> ArrayMesh:
 		var v0 := hill + 4.0 + _jit(i, 1.0) * 1.5
 		var v1 := 3.0 + n.get_noise_1d(i + 1) * 4.0 + 4.0 + _jit(i + 1, 1.0) * 1.5
 		var tip := hill + 8.0 + _jit(i, 7.0) * 5.0
-		var b0 := Vector3(cos(a0), 0, sin(a0)) * RING_R
-		var b1 := Vector3(cos(a1), 0, sin(a1)) * RING_R
-		var bm := Vector3(cos(am), 0, sin(am)) * RING_R
+		var b0 := Vector3(cos(a0), 0, sin(a0)) * radius
+		var b1 := Vector3(cos(a1), 0, sin(a1)) * radius
+		var bm := Vector3(cos(am), 0, sin(am)) * radius
 		var low := -14.0
 		for v in [b0 + Vector3(0, low, 0), b1 + Vector3(0, low, 0), b0 + Vector3(0, v0, 0),
 				b0 + Vector3(0, v0, 0), b1 + Vector3(0, low, 0), b1 + Vector3(0, v1, 0),

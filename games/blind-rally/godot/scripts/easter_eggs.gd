@@ -1,9 +1,14 @@
 class_name EasterEggs
 extends Node3D
-## Rare surprises along the stage: deer bounding across the road, birds
-## bursting out of the canopy, a moose staring from a glade, campers who wave
-## (and duck when the car slides at them), a very rare Bigfoot, and a sign at
-## a junction to nowhere pointing the wrong way.
+## Rare surprises along the stage. Pine Panic: deer bounding across the
+## road, birds bursting out of the canopy, a moose staring from a glade,
+## campers who wave (and duck when the car slides at them), a very rare
+## Bigfoot, and a sign at a junction to nowhere pointing the wrong way.
+## Dust Devil: tumbleweeds rolling across in front of the car, a roadrunner
+## that races it down the road and peels off, vultures circling over some
+## bones, a cow skull nailed to a LOST COW sign, and (one run in twenty) a
+## flying saucer nose-down in a fresh crater, its pilot watching you go by.
+## A kind only happens on a track that has spots for it.
 ##
 ## Deterministic like the weather: make_schedule(seed) decides which spots
 ## are live and every creature's numbers, and windows run on this node's
@@ -41,10 +46,19 @@ const DUCK_SLIP := 0.21 ## radians of slide (12 deg) that sends the campers divi
 const BIGFOOT_WALK := 5.0 ## metres, once, when the car comes within 70 m
 
 ## Order the dice are thrown in; never reorder (it would change every seed's run).
-const KINDS := ["deer", "birds", "moose", "camper", "bigfoot", "wrongway"]
+const KINDS := ["deer", "birds", "moose", "camper", "bigfoot", "wrongway",
+	"tumbleweed", "roadrunner", "vultures", "skull", "ufo"]
 ## Chance a spot is live in a run. Rare by design: most runs see two or
 ## three things, Bigfoot about one run in seventeen.
-const CHANCE := {"deer": 0.35, "birds": 0.5, "moose": 0.3, "camper": 0.75, "bigfoot": 0.06, "wrongway": 0.4}
+const CHANCE := {"deer": 0.35, "birds": 0.5, "moose": 0.3, "camper": 0.75, "bigfoot": 0.06, "wrongway": 0.4,
+	"tumbleweed": 0.55, "roadrunner": 0.35, "vultures": 0.5, "skull": 0.5, "ufo": 0.05}
+const WEED_LEAD := 2.6 ## seconds: a tumbleweed sets off when the car is about this far away
+const WEED_FROM := 9.0 ## metres off the centreline it starts
+const WEED_END := 32.0
+const RUNNER_TRIGGER := 48.0 ## metres: the roadrunner sets off when the car is this close
+const RUNNER_TIME := 3.6 ## seconds racing down the road before it peels off
+const VULTURE_HEIGHT := Vector2(26.0, 38.0)
+const MESH_DIR := "res://assets/meshes/"
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
 
@@ -122,6 +136,15 @@ static func make_schedule(seed_in: int, counts: Dictionary) -> Array:
 					e.close = e.open + 80.0 + b * 100.0
 				"camper":
 					e.count = 2
+				"tumbleweed":
+					e.count = 1 if a < 0.6 else (2 if a < 0.9 else 3)
+					e.from = -1.0 if b < 0.5 else 1.0
+					e.skew = (c - 0.5) * 0.5
+					e.pace = lerpf(4.5, 7.5, d)
+				"roadrunner":
+					e.from = -1.0 if b < 0.5 else 1.0
+				"vultures":
+					e.count = 3 + int(a * 3.0)
 			out.append(e)
 	return out
 
@@ -479,8 +502,296 @@ func _tick_wrongway(_r: Dictionary, _dt: float) -> void:
 	pass
 
 
+# --- tumbleweed -------------------------------------------------------------------
+
+func _make_tumbleweed(r: Dictionary) -> void:
+	var e: Dictionary = r.e
+	var spot: Node3D = r.spot
+	r.edge = float(spot.get_meta("edge", 5.0))
+	r.weeds = []
+	for k in int(e.count):
+		var mi := _mi(_mesh("weed_%d" % (k % 2)), true)
+		var s := 1.0 - k * 0.18
+		r.weeds.append({"node": mi, "lat": float(e.from) * (WEED_FROM + k * 2.5), "along": (k - 0.5 * (e.count - 1)) * 4.0,
+			"delay": k * 0.6, "scale": s, "roll": k * 1.3, "phase": k * 0.9})
+		r.nodes.append(mi)
+		_place_weed(r, r.weeds[k], 0.0, false)
+
+
+func _tick_tumbleweed(r: Dictionary, dt: float) -> void:
+	var spot: Node3D = r.spot
+	var to := spot.global_position - car.global_position
+	to.y = 0.0
+	var gap := to.length()
+	var speed := Vector2(car.velocity.x, car.velocity.z).length()
+	if r.state == "wait" and gap < 110.0 and car.velocity.dot(to) > 0.0 and gap / maxf(speed, 6.0) < WEED_LEAD:
+		r.state = "roll"
+		r.t0 = time
+	var done := true
+	for w in r.weeds:
+		var go: bool = r.state == "roll" and time - float(r.t0) >= float(w.delay) and absf(w.lat) < WEED_END
+		if go:
+			w.lat -= float(r.e.from) * float(r.e.pace) * dt
+			w.along += float(r.e.skew) * float(r.e.pace) * dt
+			if signf(w.lat) != float(r.e.from) and absf(w.lat) >= WEED_END:
+				w.lat = -float(r.e.from) * WEED_END
+		done = done and r.state == "roll" and absf(w.lat) >= WEED_END and signf(w.lat) != float(r.e.from)
+		_place_weed(r, w, dt, go)
+	if done:
+		r.state = "gone"
+
+
+## Bounces along in low hops and rolls the way it's going: a ball of twigs.
+func _place_weed(r: Dictionary, w: Dictionary, dt: float, moving: bool) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var p: Vector3 = spot.global_position + right * float(w.lat) + fwd * float(w.along)
+	var s: float = w.scale
+	var hop := 0.0
+	if moving:
+		w.phase += dt * float(r.e.pace) / 2.6 * PI
+		w.roll += dt * float(r.e.pace) / (0.55 * s)
+		hop = 0.55 * absf(sin(w.phase)) * s
+	var move := (-right * float(r.e.from) + fwd * float(r.e.skew)).normalized()
+	var axis := move.cross(Vector3.UP).normalized()
+	p.y = track.height_at(p.x, p.z) + 0.55 * s + hop
+	(w.node as Node3D).global_transform = Transform3D(Basis(axis, -float(w.roll)).scaled(Vector3.ONE * s), p)
+
+
+# --- roadrunner --------------------------------------------------------------------
+
+func _make_roadrunner(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var mi := _mi(_mesh("runner_a"))
+	r.edge = float(spot.get_meta("edge", 5.0))
+	r.lat = float(r.e.from) * (r.edge + 1.5)
+	r.along = 0.0
+	r.speed = 0.0
+	r.step = 0.0
+	r.bi = _nearest_sample(spot.global_position)
+	var meep := Label3D.new()
+	meep.text = "meep meep"
+	meep.font_size = 40
+	meep.pixel_size = 0.01
+	meep.outline_size = 8
+	meep.modulate = Color("fff4d6")
+	meep.outline_modulate = Color("3a2a1a")
+	meep.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	meep.layers = LAYER
+	meep.position = Vector3(0, 1.6, 0)
+	meep.visible = false
+	mi.add_child(meep)
+	r.meep = meep
+	r.nodes.append(mi)
+	_place_runner(r)
+
+
+func _tick_roadrunner(r: Dictionary, dt: float) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var mi: MeshInstance3D = r.nodes[0]
+	var rel := mi.global_position - car.global_position
+	rel.y = 0.0
+	if r.state == "wait":
+		# Only from behind: a car coming the other way gets ignored.
+		if rel.length() < RUNNER_TRIGGER and car.velocity.dot(fwd) > 4.0 and rel.dot(fwd) > 0.0:
+			r.state = "run"
+			r.t0 = time
+			(r.meep as Label3D).visible = true
+		return
+	if r.state == "gone":
+		return
+	var t := time - float(r.t0)
+	var car_v := maxf(car.velocity.dot(fwd), 0.0)
+	if r.state == "run":
+		# Onto the crown, then just ahead of the car, a little faster than it.
+		r.speed = clampf(car_v + 3.5, 9.0, 34.0)
+		r.along += float(r.speed) * dt
+		r.lat = move_toward(float(r.lat), 0.0, 6.0 * dt)
+		if t > 1.4:
+			(r.meep as Label3D).visible = false
+		if t > RUNNER_TIME:
+			r.state = "veer"
+	elif r.state == "veer":
+		r.speed = move_toward(float(r.speed), 8.0, 10.0 * dt)
+		r.along += float(r.speed) * dt * 0.6
+		r.lat += -float(r.e.from) * float(r.speed) * dt
+		if absf(float(r.lat)) > 28.0:
+			r.state = "gone"
+	r.step += dt * float(r.speed) / 0.9
+	mi.mesh = _mesh("runner_a" if int(r.step) % 2 == 0 else "runner_b")
+	_place_runner(r)
+
+
+## On the road at (lat, along) from the spot, on the ground, facing its way.
+## Bigger than life (a real one is a fleck from the top-down camera).
+func _place_runner(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var p: Vector3 = spot.global_position + right * float(r.lat) + fwd * float(r.along)
+	# The road isn't straight for long: follow the centreline sideways.
+	if r.along > 0.0 and track.centerline.size() > 1:
+		p = _along_road(int(r.bi), float(r.along), float(r.lat))
+	p.y = track.height_at(p.x, p.z)
+	var dir := fwd
+	if r.state == "veer":
+		dir = (fwd * 0.6 - right * float(r.e.from)).normalized()
+	elif r.state == "wait":
+		dir = -right * float(r.e.from)
+	(r.nodes[0] as Node3D).global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP).scaled(Vector3.ONE * 1.8), p)
+
+
+func _nearest_sample(from: Vector3) -> int:
+	var line := track.centerline
+	var best := INF
+	var bi := 0
+	for i in line.size():
+		var d := Vector2(line[i].x - from.x, line[i].z - from.z).length_squared()
+		if d < best:
+			best = d
+			bi = i
+	return bi
+
+
+## The point `along` metres down the centreline from sample bi, `lat`
+## metres to its right.
+func _along_road(bi: int, along: float, lat: float) -> Vector3:
+	var line := track.centerline
+	var step := track.length_m / maxf(line.size() - 1, 1)
+	var f := bi + along / step
+	var i0 := clampi(int(f), 0, line.size() - 2)
+	var p := line[i0].lerp(line[i0 + 1], clampf(f - i0, 0.0, 1.0))
+	var tan := (line[i0 + 1] - line[i0]).normalized()
+	return p + Vector3(-tan.z, 0, tan.x) * lat
+
+
+# --- vultures ----------------------------------------------------------------------
+
+func _make_vultures(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(r.e.seed)
+	r.birds = []
+	for k in int(r.e.count):
+		var mi := _mi(_mesh("vulture"))
+		r.birds.append({"node": mi, "radius": rng.randf_range(10.0, 19.0), "h": rng.randf_range(VULTURE_HEIGHT.x, VULTURE_HEIGHT.y),
+			"phase": rng.randf() * TAU, "rate": rng.randf_range(0.16, 0.24) * (1.0 if k % 3 else -1.0)})
+		r.nodes.append(mi)
+	# What they're circling.
+	var bones := _mi(_baked("bones"))
+	bones.global_transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU), spot.global_position)
+	bones.global_position.y = track.height_at(spot.global_position.x, spot.global_position.z) - 0.05
+	r.nodes.append(bones)
+	_tick_vultures(r, 0.0)
+
+
+func _tick_vultures(r: Dictionary, _dt: float) -> void:
+	var c: Vector3 = (r.spot as Node3D).global_position
+	var g := track.height_at(c.x, c.z)
+	for b in r.birds:
+		var a: float = float(b.phase) + time * float(b.rate)
+		var p := c + Vector3(cos(a), 0, sin(a)) * float(b.radius)
+		p.y = g + float(b.h) + sin(time * 0.4 + float(b.phase)) * 1.2
+		var tangent := Vector3(-sin(a), 0, cos(a)) * signf(float(b.rate))
+		# Banked into the circle, wings near level: soaring, not flapping.
+		var basis := Basis.looking_at(tangent, Vector3.UP) * Basis(Vector3.FORWARD, -0.32 * signf(float(b.rate)))
+		(b.node as Node3D).global_transform = Transform3D(basis.scaled(Vector3.ONE * 1.6), p)
+
+
+# --- cow skull sign ----------------------------------------------------------------
+
+func _make_skull(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var post := _mi(_baked("signpost"))
+	post.global_transform = spot.global_transform
+	post.global_position.y = track.height_at(post.global_position.x, post.global_position.z) - 0.05
+	var skull := MeshInstance3D.new()
+	skull.mesh = _mesh("skull")
+	skull.layers = LAYER
+	skull.position = Vector3(0, 2.2, 0.08)
+	post.add_child(skull)
+	var label := Label3D.new()
+	label.text = "LOST COW\nREWARD"
+	label.font_size = 40
+	label.pixel_size = 0.0075
+	label.outline_size = 0
+	label.modulate = Color("2a1a12")
+	label.layers = LAYER
+	label.position = Vector3(0, 1.62, 0.12)
+	post.add_child(label)
+	r.nodes.append(post)
+
+
+func _tick_skull(_r: Dictionary, _dt: float) -> void:
+	pass
+
+
+# --- UFO -----------------------------------------------------------------------------
+
+func _make_ufo(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var base := spot.global_position
+	base.y = track.height_at(base.x, base.z)
+	var crater := _mi(_baked("crater"))
+	crater.global_transform = Transform3D(spot.global_basis, base + Vector3(0, -1.2, 0))
+	r.nodes.append(crater)
+	var saucer := _mi(_mesh("saucer"), true)
+	# Nose-down in the crater, a good 35 degrees over.
+	saucer.global_transform = Transform3D(spot.global_basis * Basis(Vector3.RIGHT, 0.6) * Basis(Vector3.FORWARD, 0.25), base + Vector3(0, 0.6, 0))
+	r.nodes.append(saucer)
+	# Its lights still going (slow, never flashing), and a wisp over it.
+	for k in 4:
+		var a := TAU * k / 4.0
+		var q := QuadMesh.new()
+		q.size = Vector2(1.6, 1.6)
+		var g := MeshInstance3D.new()
+		g.mesh = q
+		g.layers = LAYER
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.material_override = _glow_mat(Color(0.45, 1.0, 0.7) if k % 2 == 0 else Color(1.0, 0.45, 0.85), 1.2, 2.4 + k * 0.7)
+		g.position = Vector3(cos(a) * 4.1, 0.25, sin(a) * 4.1)
+		saucer.add_child(g)
+	var alien := _mi(_baked("alien"), true)
+	var side := spot.global_basis.x
+	alien.global_position = base + side * 7.5
+	alien.global_position.y = track.height_at(alien.global_position.x, alien.global_position.z)
+	r.nodes.append(alien)
+	r.alien = alien
+
+
+func _tick_ufo(r: Dictionary, dt: float) -> void:
+	# The pilot turns to watch the car go by, like the moose.
+	var alien: Node3D = r.alien
+	var to := car.global_position - alien.global_position
+	to.y = 0.0
+	if to.length() < 1.0:
+		return
+	var want := atan2(-to.x, -to.z) + PI
+	alien.rotation.y = lerp_angle(alien.rotation.y, want, 1.0 - exp(-2.0 * dt))
+
+
+static func _glow_mat(col: Color, energy: float, pulse: float) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/glow.gdshader")
+	m.set_shader_parameter("color", col)
+	m.set_shader_parameter("energy", energy)
+	m.set_shader_parameter("pulse_period", pulse)
+	m.set_shader_parameter("fade", Vector2(70.0, 125.0))
+	return m
+
+
 # --- meshes ----------------------------------------------------------------------
 # All front -Z, origin at the feet. Built once per process.
+
+## One of the baked Kenney meshes (tools/bake_assets.gd), loaded the first
+## time a live egg needs it.
+func _baked(id: String) -> Mesh:
+	var key := "baked:" + id
+	if not _mesh_cache.has(key):
+		_mesh_cache[key] = load(MESH_DIR + id + ".res")
+	return _mesh_cache[key]
 
 func _mesh(id: String) -> ArrayMesh:
 	if not _mesh_cache.has(id):
@@ -603,6 +914,97 @@ func _build_bigfoot(st: SurfaceTool, _id: String) -> void:
 	_box(st, _at(Vector3(0, 2.05, -0.3)), Vector3(0.24, 0.2, 0.04), face)
 	for x in [-0.5, 0.5]:
 		_beam(st, Vector3(x, 1.85, -0.05), Vector3(x * 1.15, 0.85, -0.2), 0.2, fur) # long arms
+
+
+## A ball of tangled twigs: a few dozen thin sticks round a sphere, two
+## variants. Origin at the centre (it rolls about it).
+func _build_weed(st: SurfaceTool, id: String) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41 if id.ends_with("0") else 97
+	var cols := [Color("a7864f"), Color("8c6b3d"), Color("bf9d63")]
+	for k in 34:
+		var a := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * rng.randf_range(0.35, 0.6)
+		var b := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * rng.randf_range(0.35, 0.6)
+		_beam(st, a, b, 0.045, cols[k % 3])
+
+
+## Roadrunner: long tail, crest, legs in two strides (a and b).
+func _build_runner(st: SurfaceTool, id: String) -> void:
+	var body := Color("6e5a42")
+	var light := Color("cbb994")
+	var dark := Color("2f2620")
+	_box(st, Transform3D(Basis(Vector3.RIGHT, 0.25), Vector3(0, 0.42, 0)), Vector3(0.16, 0.16, 0.4), body)
+	_box(st, _at(Vector3(0, 0.36, 0.0)), Vector3(0.13, 0.08, 0.3), light)
+	_beam(st, Vector3(0, 0.48, -0.16), Vector3(0, 0.62, -0.26), 0.08, body) # neck
+	_box(st, _at(Vector3(0, 0.66, -0.29)), Vector3(0.1, 0.1, 0.14), body)
+	_box(st, _at(Vector3(0, 0.65, -0.42)), Vector3(0.04, 0.04, 0.14), dark) # beak
+	_box(st, Transform3D(Basis(Vector3.RIGHT, -0.5), Vector3(0, 0.74, -0.26)), Vector3(0.04, 0.12, 0.08), dark) # crest
+	_box(st, Transform3D(Basis(Vector3.RIGHT, -0.35), Vector3(0, 0.55, 0.42)), Vector3(0.07, 0.04, 0.42), dark) # tail, up
+	var stride := 0.2 if id == "runner_a" else -0.2
+	for s: float in [-1.0, 1.0]:
+		var swing := stride * s
+		_beam(st, Vector3(s * 0.04, 0.36, 0.02), Vector3(s * 0.05, 0.0, swing), 0.03, Color("8a7a52"))
+
+
+## A soaring vulture: a broad, slightly bowed wing, fingered tips, a pale neck.
+func _build_vulture(st: SurfaceTool, _id: String) -> void:
+	var c := Color("231e1c")
+	_box(st, _at(Vector3(0, 0, 0)), Vector3(0.22, 0.14, 0.62), c)
+	_box(st, _at(Vector3(0, 0.02, -0.38)), Vector3(0.09, 0.08, 0.16), Color("b65a4a")) # bare red head
+	for s in [-1.0, 1.0]:
+		_box(st, Transform3D(Basis(Vector3.FORWARD, s * 0.08), Vector3(s * 0.55, 0.03, 0.0)), Vector3(0.95, 0.03, 0.34), c)
+		_box(st, Transform3D(Basis(Vector3.FORWARD, s * 0.2), Vector3(s * 1.15, 0.08, 0.03)), Vector3(0.35, 0.025, 0.26), c.lightened(0.08))
+	_box(st, _at(Vector3(0, 0, 0.42)), Vector3(0.26, 0.03, 0.2), c) # tail
+
+
+## Cow skull: a bleached box of a head, eye holes, and the horns.
+func _build_skull(st: SurfaceTool, _id: String) -> void:
+	var bone := Color("ece2cc")
+	var hole := Color("2a2420")
+	_box(st, _at(Vector3(0, 0, 0)), Vector3(0.34, 0.26, 0.16), bone)
+	_box(st, _at(Vector3(0, -0.22, 0.02)), Vector3(0.2, 0.26, 0.12), bone) # muzzle
+	for s in [-1.0, 1.0]:
+		_box(st, _at(Vector3(s * 0.09, 0.02, 0.08)), Vector3(0.08, 0.07, 0.02), hole)
+		_beam(st, Vector3(s * 0.16, 0.08, 0), Vector3(s * 0.42, 0.14, 0), 0.06, bone)
+		_beam(st, Vector3(s * 0.42, 0.14, 0), Vector3(s * 0.5, 0.32, -0.02), 0.045, Color("d8cdb2"))
+
+
+## The flying saucer: a wide disc, a rim band, a glass dome. Origin at its centre.
+func _build_saucer(st: SurfaceTool, _id: String) -> void:
+	var hull := Color("aab3ba")
+	var rim := Color("6b737a")
+	var disc := CylinderMesh.new()
+	disc.top_radius = 2.6
+	disc.bottom_radius = 4.4
+	disc.height = 0.8
+	disc.radial_segments = 16
+	disc.rings = 1
+	_prim(st, disc, _at(Vector3(0, 0.4, 0)), hull)
+	var under := CylinderMesh.new()
+	under.top_radius = 4.4
+	under.bottom_radius = 2.0
+	under.height = 0.6
+	under.radial_segments = 16
+	under.rings = 1
+	_prim(st, under, _at(Vector3(0, -0.3, 0)), rim)
+	var dome := SphereMesh.new()
+	dome.radius = 1.6
+	dome.height = 2.0
+	dome.radial_segments = 12
+	dome.rings = 5
+	dome.is_hemisphere = true
+	_prim(st, dome, _at(Vector3(0, 0.75, 0)), Color("4fbfa8"))
+
+
+static func _prim(st: SurfaceTool, prim: PrimitiveMesh, xf: Transform3D, col: Color) -> void:
+	var a := prim.get_mesh_arrays()
+	var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var nm: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var nb := xf.basis.inverse().transposed()
+	for i in a[Mesh.ARRAY_INDEX]:
+		st.set_color(col)
+		st.set_normal((nb * nm[i]).normalized())
+		st.add_vertex(xf * v[i])
 
 
 func _build_sign(st: SurfaceTool, id: String) -> void:

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/biome.gd" id="1_biome"]
+
+[resource]
+script = ExtResource("1_biome")
+id = "desert"
+sky_top = Color(0.38, 0.56, 0.78, 1)
+sky_horizon = Color(0.93, 0.82, 0.66, 1)
+fog = Color(0.86, 0.74, 0.6, 1)
+fog_begin = 30.0
+fog_end = 125.0
+fog_curve = 1.4
+persp_far = 135.0
+ground_params = {
+"band_m": 3.4,
+"c_litter": Vector3(0.66, 0.46, 0.33),
+"c_moss": Vector3(0.72, 0.55, 0.4),
+"c_needles": Vector3(0.68, 0.43, 0.3),
+"c_rock_a": Vector3(0.58, 0.32, 0.22),
+"c_rock_b": Vector3(0.66, 0.4, 0.28),
+"c_rock_c": Vector3(0.78, 0.62, 0.48),
+"c_soil": Vector3(0.56, 0.38, 0.28),
+"roots": 0.22,
+"rock_slope": 0.78,
+"strata": 1.0
+}
+road_params = {
+"c_creep": Vector3(0.76, 0.58, 0.42),
+"c_drift": Vector3(0.8, 0.64, 0.48),
+"c_stone_dark": Vector3(0.42, 0.28, 0.2),
+"c_stone_light": Vector3(0.78, 0.66, 0.52),
+"creep_k": 0.6,
+"damp_k": 0.0,
+"drift": 0.55,
+"washboard": 0.07
+}
+impostors = "none"
+near_r = 75.0
+ring = "mesas"
+weather = "dust"
+weather_tint = Color(0.84, 0.66, 0.46, 1)
+wind = 1.8
+dust_road = Color(0.95, 0.87, 0.75, 1)
+dust_off = Color(0.815686, 0.65098, 0.470588, 1)
+plume = 2.1

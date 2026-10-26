@@ -3,6 +3,15 @@ extends Node3D
 ## map and the web bridge. Race rules here are hints only; the server owns
 ## checkpoint order and timing (spec §5, §8).
 ##
+## Which track: initSession.trackId. The stage scene is loaded once that's
+## known (res://scenes/tracks/<id>.scn), so only the chosen stage is ever in
+## memory. Before a session, or without one: `track_id` if a tool set it,
+## then `?track=<id>` on the page URL (web) or `--track=<id>` after `--` on
+## the command line, then DEFAULT_TRACK. On the web with a host page the
+## session decides; HOST_WAIT_S without one and it's the fallback. A
+## session naming another track than the one already loaded (only after
+## that fallback) reloads the scene and carries the session over.
+##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP
 ## (probe and editor only: in the room a reset is the server's call), M
 ## big map (tap or click the corner map too; Esc, a tap on it, outside it or
@@ -29,7 +38,7 @@ extends Node3D
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
 
-@onready var track: Track = $Track
+var track: Track ## null until the stage is loaded; see track_ready
 @onready var car: CarController = $Car
 @onready var cam: FollowCamera = $Camera
 @onready var map: MapController = $UI/Map
@@ -39,6 +48,23 @@ extends Node3D
 @onready var audio: CarAudio = $Car/Audio
 @onready var weather: Weather = $Weather
 @onready var autopilot: Autopilot = $Autopilot
+
+signal track_ready
+
+const DEFAULT_TRACK := "pine_panic"
+const TRACK_DIR := "res://scenes/tracks/"
+## Web: how long to wait for a host page (and its initSession) before
+## loading the fallback track.
+const HOST_WAIT_S := 3.0
+## Web, host attached: how long its initSession may take.
+const SESSION_WAIT_S := 12.0
+
+## Set before the node enters the tree to pick the stage without a session
+## (tools, tests). Empty: see the header.
+@export var track_id := ""
+## A session that arrived for another track than the one loaded; the
+## reloaded scene picks it up.
+static var _carried_session := {}
 
 var checkpoints_passed := 0
 var finished := false
@@ -86,21 +112,97 @@ const MAP_MARGIN_PX := 10.0
 const OPEN_3D_SCALE := 0.5
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
-## The eye-level sky and its haze, one family of colours: the depth fog is the
-## horizon a shade darker, so far trees sink into something slightly denser
-## than the sky behind them, and the treeline ring is drawn in exactly the fog.
-const SKY_TOP := Color(0.36, 0.52, 0.72)
-const SKY_HORIZON := Color(0.78, 0.83, 0.86)
-const FOG := Color(0.69, 0.74, 0.77)
+var biome: Biome ## the loaded track's (Track.get_biome())
+var _session_seen := false
+var _pending_session: Array = [] ## [cfg, seat] that came before the track did
 
 
 func _ready() -> void:
+	bridge.car = car
+	bridge.session_started.connect(_on_session)
+	var want := track_id
+	if want == "":
+		want = _requested_track()
+	if not _carried_session.is_empty():
+		want = String(_carried_session.cfg.get("trackId", want))
+	if want == "" and OS.has_feature("web"):
+		want = await _wait_for_session_track()
+	if track == null:
+		_load_track(want)
+
+
+## --track=<id> after `--`, or ?track=<id> on the page. "" if neither.
+func _requested_track() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--track="):
+			return a.trim_prefix("--track=")
+	if OS.has_feature("web"):
+		var q: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('track') || ''", true)
+		if q is String:
+			return q
+	return ""
+
+
+## Web: the host page's session names the track. Gives up (returns "") after
+## HOST_WAIT_S without a host, or SESSION_WAIT_S with one.
+func _wait_for_session_track() -> String:
+	var t := 0.0
+	while not _session_seen:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if t > (SESSION_WAIT_S if bridge.connected else HOST_WAIT_S):
+			break
+	if _pending_session.is_empty():
+		return ""
+	return String((_pending_session[0] as Dictionary).get("trackId", ""))
+
+
+static func track_path(id: String) -> String:
+	return TRACK_DIR + id + ".scn"
+
+
+## Ids with a scene in the build.
+static func available_tracks() -> PackedStringArray:
+	var out := PackedStringArray()
+	for f in ResourceLoader.list_directory(TRACK_DIR):
+		if f.ends_with(".scn"):
+			out.append(f.get_basename())
+	return out
+
+
+## Loads one stage and wires everything that hangs off it. Unknown ids fall
+## back to DEFAULT_TRACK (with a warning), so a typo can't leave a blank page.
+func _load_track(id: String) -> void:
+	if id == "" or not id.is_valid_ascii_identifier() or not ResourceLoader.exists(track_path(id)):
+		if id != "":
+			push_warning("no track %s; loading %s" % [id, DEFAULT_TRACK])
+		id = DEFAULT_TRACK
+	var scene: PackedScene = load(track_path(id))
+	track = scene.instantiate() as Track
+	track.name = "Track"
+	add_child(track)
+	move_child(track, 0)
+	track_id = track.track_id
+	biome = track.get_biome()
+	_setup_track()
+	track_ready.emit()
+	if not _carried_session.is_empty():
+		var s := _carried_session
+		_carried_session = {}
+		_on_session(s.cfg, s.seat)
+	for s in _pending_session:
+		_on_session(s[0], s[1])
+	_pending_session.clear()
+
+
+func _setup_track() -> void:
 	car.reset_to(track.get_spawn().global_transform)
 	cam.snap()
 	autopilot.setup(track, car)
 	autopilot.process_physics_priority = -1 # decide before the car moves
 	weather.car = car
 	weather.bounds = track.bounds
+	weather.set_biome(biome)
 	weather.register(PALETTE)
 	for m in track.world_materials():
 		weather.register(m)
@@ -117,8 +219,6 @@ func _ready() -> void:
 	ghosts.car = car
 	ghosts.weather = weather
 	add_child(ghosts)
-	bridge.car = car
-	bridge.session_started.connect(_on_session)
 	bridge.race_event.connect(_on_race_event)
 	bridge.ghost_received.connect(ghosts.receive)
 	track.checkpoint_entered.connect(_on_checkpoint)
@@ -127,6 +227,9 @@ func _ready() -> void:
 		cam.kick(strength, car.last_impact_normal)
 		bridge.emit_physics_event({"kind": "impact", "strength": snappedf(strength, 0.1)}))
 	is_phone = OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile")
+	fx.dust_road = biome.dust_road
+	fx.dust_off = biome.dust_off
+	fx.plume = biome.plume
 	if is_phone:
 		set_shadows(false)
 		fx.density = 0.5
@@ -134,6 +237,7 @@ func _ready() -> void:
 	_map_corner = _layout_of(map)
 	map.tapped.connect(_on_map_tapped)
 	cam.perspective_env = _perspective_env()
+	cam.persp_far = biome.persp_far
 	# The map is one render of the baked forest; a camera switch that lands
 	# before it (an early initSession) waits, so it can't hide those chunks
 	# from it.
@@ -153,10 +257,10 @@ func _perspective_env() -> Environment:
 	var we := track.get_node_or_null("Environment") as WorldEnvironment
 	var env: Environment = we.environment.duplicate() if we and we.environment else Environment.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = SKY_TOP
-	sky_mat.sky_horizon_color = SKY_HORIZON
-	sky_mat.ground_horizon_color = FOG
-	sky_mat.ground_bottom_color = FOG.darkened(0.3)
+	sky_mat.sky_top_color = biome.sky_top
+	sky_mat.sky_horizon_color = biome.sky_horizon
+	sky_mat.ground_horizon_color = biome.fog
+	sky_mat.ground_bottom_color = biome.fog.darkened(0.3)
 	sky_mat.sun_angle_max = 20.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
@@ -167,13 +271,14 @@ func _perspective_env() -> Environment:
 	# Lighting stays colour-ambient as before; the sky is only a backdrop.
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	# Starts closer than the forest LOD swap (EyeForest.NEAR_R, 50 m), so
+	# Forest: starts closer than the LOD swap (EyeForest near_r, 50 m), so
 	# the swap happens in haze; total just behind the treeline ring (106 m),
-	# and the far plane (118 m) is only a little past that.
-	env.fog_light_color = FOG
-	env.fog_depth_begin = 24.0
-	env.fog_depth_end = 108.0
-	env.fog_depth_curve = 1.25
+	# and the far plane (118 m) is only a little past that. Other biomes
+	# keep the same order of things at their own distances.
+	env.fog_light_color = biome.fog
+	env.fog_depth_begin = biome.fog_begin
+	env.fog_depth_end = biome.fog_end
+	env.fog_depth_curve = biome.fog_curve
 	env.fog_density = 1.0
 	env.fog_sky_affect = 0.0
 	env.fog_aerial_perspective = 0.0
@@ -198,7 +303,7 @@ func set_camera_mode(m: int) -> bool:
 	if eye and eye_forest == null:
 		eye_forest = EyeForest.new()
 		eye_forest.name = "EyeForest"
-		eye_forest.fog_color = FOG
+		eye_forest.fog_color = biome.fog
 		add_child(eye_forest)
 		eye_forest.build(track, PALETTE, weather)
 	if eye_forest:
@@ -242,6 +347,8 @@ func set_allowed_cameras(names: Array) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if track == null:
+		return
 	if not finished:
 		race_time += dt
 	_hold_left = maxf(0.0, _hold_left - dt)
@@ -272,6 +379,8 @@ func _fell_out() -> void:
 
 
 func _process(_dt: float) -> void:
+	if track == null:
+		return
 	if eye_forest and eye_forest.visible:
 		eye_forest.follow(cam, car.global_position.y)
 	hud.visible = not room
@@ -303,7 +412,7 @@ func set_shadows(on: bool) -> void:
 
 func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
-	if not k.pressed or k.echo:
+	if track == null or not k.pressed or k.echo:
 		return
 	match k.physical_keycode:
 		KEY_G: map.gps_enabled = not map.gps_enabled
@@ -369,7 +478,18 @@ func _on_finish(body: Node3D) -> void:
 	bridge.emit_physics_event({"kind": "finish"})
 
 
-func _on_session(cfg: Dictionary, _seat: String) -> void:
+func _on_session(cfg: Dictionary, seat: String) -> void:
+	_session_seen = true
+	if track == null:
+		_pending_session.append([cfg, seat])
+		return
+	var session_track := String(cfg.get("trackId", track_id))
+	if session_track != track_id and ResourceLoader.exists(track_path(session_track)) and session_track.is_valid_ascii_identifier():
+		# Only after a fallback load: start again on the right stage.
+		push_warning("session is for %s, %s is loaded: reloading" % [session_track, track_id])
+		_carried_session = {"cfg": cfg, "seat": seat}
+		get_tree().reload_current_scene.call_deferred()
+		return
 	room = bool(cfg.get("room", false))
 	var assists: Dictionary = cfg["assists"] if cfg.get("assists") is Dictionary else {}
 	_apply_assists(assists, true)

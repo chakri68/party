@@ -19,6 +19,8 @@ extends Node3D
 ##                     "proxy_mesh" is drawn as a haze silhouette (EyeForest).
 ##   track_egg         Marker3D, meta "kind": where an easter egg can happen
 ##                     (EasterEggs decides per seed).
+##   track_fork        Marker3D at a junction where a spur leaves the road
+##                     (meta distance_m, keep, spur). Real road, goes nowhere.
 ##
 ## Ground: a Terrain child named "Ground" (optional; without one the world is
 ## flat at y = 0). height_at() is the floor everything stands on.
@@ -44,12 +46,20 @@ signal finish_entered(body: Node3D)
 ## replays and tests; gameplay never reads it (checkpoints are volumes).
 @export var centerline := PackedVector3Array()
 @export var length_m := 0.0
+## What the stage looks like: palette, sky, haze, scenery style, weather
+## flavour (scripts/biome.gd). Null = the forest.
+@export var biome: Biome
 
 
 func _ready() -> void:
-	# Shader detail noise is made at load, not saved into the scene.
+	# Shader detail noise is made at load, not saved into the scene; so are
+	# the biome's ground and road colours (the materials are made at load too).
+	var b := get_biome()
 	for m in world_materials():
 		m.set_shader_parameter("detail", DetailNoise.texture())
+		var params: Dictionary = b.ground_params if m == _ground_material() else b.road_params
+		for k in params:
+			m.set_shader_parameter(k, params[k])
 	for cp in get_checkpoints():
 		var idx: int = cp.get_meta("index")
 		cp.body_entered.connect(func(b: Node3D) -> void: checkpoint_entered.emit(idx, b))
@@ -72,6 +82,26 @@ func world_materials() -> Array[ShaderMaterial]:
 	var ground := get_node_or_null("Ground") as Terrain
 	if ground and ground.material:
 		out.append(ground.material)
+	return out
+
+
+func get_biome() -> Biome:
+	return biome if biome else Biome.forest()
+
+
+func _ground_material() -> ShaderMaterial:
+	var ground := get_node_or_null("Ground") as Terrain
+	return ground.material if ground else null
+
+
+## Forks: spurs that leave the road and go nowhere useful (Marker3D at the
+## junction, group track_fork, meta distance_m, keep "left"/"right", spur
+## PackedVector3Array). For pace notes and tests; nothing in a race reads them.
+func get_forks() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for n in _group("track_fork"):
+		out.append(n as Node3D)
+	out.sort_custom(func(a: Node, b: Node) -> bool: return a.get_meta("distance_m") < b.get_meta("distance_m"))
 	return out
 
 

@@ -1,6 +1,6 @@
 extends SceneTree
 ## Bakes the Kenney glTF sources in assets/kenney_*/ into palette meshes.
-## Run after an import: godot --headless --path . --script res://tools/bake_assets.gd
+## Run after an import: godot --headless --path . --script res://tools/bake_assets.gd [-- id ...]
 ##
 ## Every model is flattened into one ArrayMesh surface whose colour lives in
 ## the vertices, remapped onto the Blind Rally palette (Kenney's pastels would
@@ -14,6 +14,8 @@ const MATERIAL := "res://assets/materials/vertex_color.tres"
 const NATURE := "res://assets/kenney_nature-kit/"
 const RACING := "res://assets/kenney_racing-kit/"
 const CAR := "res://assets/kenney_car-kit/"
+const SPACE := "res://assets/kenney_space-kit/"
+const SURVIVAL := "res://assets/kenney_survival-kit/"
 
 ## Kenney material name -> palette colour (sRGB).
 const NATURE_PALETTE := {
@@ -51,11 +53,32 @@ const SKIDDER_PAINT := Color("c08f2a")
 const GLASS_DEAD := Color("2a3034")
 const SCRAP_DARK := Color("3a3735")
 
+## Dust Devil (desert canyon). Rocks go red sandstone with sand-dusted tops
+## (Kenney's "grass" is the moss on top), scrub sage, grass bleached, the
+## cactus a dusty green.
+const DESERT_PALETTES := {
+	"sandstone": {"dirt": Color("a9583a"), "grass": Color("d29a64"), "_defaultMat": Color("c07a4c")},
+	"pale_rock": {"dirt": Color("c98d5c"), "grass": Color("e0b583"), "_defaultMat": Color("d39c6a")},
+	"scrub": {"grass": Color("7c8457")},
+	"dry_grass": {"grass": Color("bfa463")},
+	"cactus": {"leafsGreen": Color("5a7f45")},
+	# Space Kit: fuel drums in faded red and rust, the dish and mast kit
+	# white and grey, the crater scorched, the alien as Kenney made him.
+	"drum": {"metalRed": Color("b5432c"), "metal": Color("b9b2a1"), "metalDark": Color("5e5850")},
+	"drum_yellow": {"metalRed": Color("d6a128"), "metal": Color("b9b2a1"), "metalDark": Color("5e5850")},
+	"dish": {"metal": Color("d6d9dc"), "metalDark": Color("8a9096"), "metalRed": Color("d8322a"), "dark": Color("3a3d42"), "_defaultMat": Color("d6d9dc")},
+	"crater": {"rockDark": Color("4a3226"), "rock": Color("8a5a3c")},
+	"bone": {"bone": Color("e9dfc8")},
+	"alien": {"crystal": Color("6ff0b8"), "metal": Color("cfd6dc"), "metalRed": Color("e39a3a"), "metalDark": Color("8a9096"), "dark": Color("2f343c")},
+}
+
 ## id: [source, scale, palette, options]. Options: "only" = node names to keep,
 ## "skip" = node names to drop, "centre" = recentre on the AABB, "ao" = darken
 ## toward the base (cheap contact shading for things that stand on the ground),
 ## "drop" = [AABB, max area]: small triangles whose centre lands in the box
-## (baked, scaled space) are left out.
+## (baked, scaled space) are left out. "centre_xz" = recentre in plan and sit
+## the base on y = 0 (the Space Kit models are modelled off-origin). "atlas"
+## = the colormap the triangles sample (Survival Kit), kept as it is.
 const JOBS := {
 	"pine_tall": [NATURE + "tree_pineTallA.glb", 7.0, "nature", {"ao": true}],
 	"pine_default": [NATURE + "tree_pineDefaultA.glb", 6.5, "nature", {"ao": true}],
@@ -90,6 +113,32 @@ const JOBS := {
 	"skidder": [CAR + "tractor-shovel.glb", 2.2, "skidder", {}],
 	"tent_camp": [NATURE + "tent_detailedOpen.glb", 4.6, "camp", {}],
 	"fire_ring": [NATURE + "campfire_stones.glb", 3.2, "camp", {}],
+	# Dust Devil (build_dust_devil.gd).
+	"saguaro": [NATURE + "cactus_tall.glb", 9.0, "cactus", {"ao": true}],
+	"cactus_short": [NATURE + "cactus_short.glb", 5.5, "cactus", {"ao": true}],
+	"red_rock_b": [NATURE + "rock_largeB.glb", 6.0, "sandstone", {"ao": true}],
+	"red_rock_d": [NATURE + "rock_largeD.glb", 5.0, "sandstone", {"ao": true}],
+	"red_rock_e": [NATURE + "rock_largeE.glb", 5.0, "pale_rock", {"ao": true}],
+	"hoodoo_b": [NATURE + "rock_tallB.glb", 9.0, "sandstone", {"ao": true}],
+	"hoodoo_g": [NATURE + "rock_tallG.glb", 11.0, "pale_rock", {"ao": true}],
+	"hoodoo_h": [NATURE + "rock_tallH.glb", 9.0, "sandstone", {"ao": true}],
+	"hoodoo_e": [NATURE + "rock_tallE.glb", 8.0, "sandstone", {"ao": true}],
+	"pebble": [NATURE + "rock_smallC.glb", 3.5, "sandstone", {}],
+	"flat_rock": [NATURE + "rock_smallFlatA.glb", 4.0, "pale_rock", {}],
+	"scrub": [NATURE + "plant_bushSmall.glb", 5.0, "scrub", {"ao": true}],
+	"scrub_tri": [NATURE + "plant_bushTriangle.glb", 4.5, "scrub", {"ao": true}],
+	"dry_grass": [NATURE + "grass.glb", 4.0, "dry_grass", {}],
+	"sand_rock_a": [SURVIVAL + "rock-sand-a.glb", 4.0, "atlas", {"atlas": SURVIVAL + "Textures/colormap.png"}],
+	"sand_rock_b": [SURVIVAL + "rock-sand-b.glb", 4.0, "atlas", {"atlas": SURVIVAL + "Textures/colormap.png"}],
+	"signpost": [SURVIVAL + "signpost.glb", 4.6, "atlas", {"atlas": SURVIVAL + "Textures/colormap.png"}],
+	"drums": [SPACE + "barrels.glb", 4.5, "drum", {"centre_xz": true}],
+	"drum": [SPACE + "barrel.glb", 4.5, "drum", {"centre_xz": true}],
+	"drum_yellow": [SPACE + "barrel.glb", 4.5, "drum_yellow", {"centre_xz": true}],
+	"dish": [SPACE + "satelliteDish_detailed.glb", 5.0, "dish", {"centre_xz": true}],
+	"radio_box": [SPACE + "machine_wireless.glb", 3.0, "dish", {"centre_xz": true}],
+	"crater": [SPACE + "crater.glb", 30.0, "crater", {"centre_xz": true}],
+	"bones": [SPACE + "bones.glb", 3.0, "bone", {"centre_xz": true}],
+	"alien": [SPACE + "alien.glb", 3.2, "alien", {"centre_xz": true}],
 }
 
 var _atlas_cache := {}
@@ -107,7 +156,11 @@ func _init() -> void:
 	mat = load(MATERIAL) # saved copy, so meshes reference the file, not an embed
 
 	var failed := 0
+	# `-- id id ...` bakes just those (a new stage's meshes without touching the rest).
+	var only := OS.get_cmdline_user_args()
 	for id in JOBS:
+		if not only.is_empty() and not only.has(id):
+			continue
 		var job: Array = JOBS[id]
 		var mesh := _bake(job[0], job[1], job[2], job[3], mat)
 		if mesh == null:
@@ -141,6 +194,8 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 	var shift := Vector3.ZERO
 	if opts.get("centre", false):
 		shift = -(lo + hi) * 0.5
+	elif opts.get("centre_xz", false):
+		shift = Vector3(-(lo.x + hi.x) * 0.5, -lo.y, -(lo.z + hi.z) * 0.5)
 	var height := maxf(hi.y - lo.y, 0.001)
 	for p in parts:
 		var xf: Transform3D = p[0]
@@ -153,7 +208,7 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 		for t in range(0, idx.size(), 3):
 			if _dropped(opts, [(xf * verts[idx[t]] + shift) * scale, (xf * verts[idx[t + 1]] + shift) * scale, (xf * verts[idx[t + 2]] + shift) * scale]):
 				continue
-			var col := _source_colour(mat_src, uvs, idx, t)
+			var col := _source_colour(mat_src, uvs, idx, t, opts.get("atlas", ""))
 			var key := xf * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
 			col = _remap(col, mat_src.resource_name if mat_src else "", palette, key)
 			for k in 3:
@@ -215,14 +270,14 @@ func _collect(n: Node, parent_xf: Transform3D, opts: Dictionary, out: Array) -> 
 ## Flat colour of one triangle: the material colour, times the atlas texel at
 ## the triangle's centroid (Kenney atlases are flat swatches, so one sample is
 ## the whole triangle; corners can sit on a swatch edge, the centroid can't).
-func _source_colour(mat: Material, uvs: PackedVector2Array, idx: PackedInt32Array, t: int) -> Color:
+func _source_colour(mat: Material, uvs: PackedVector2Array, idx: PackedInt32Array, t: int, atlas := "") -> Color:
 	var base := Color.WHITE
 	var sm := mat as StandardMaterial3D
 	if sm == null:
 		return base
 	base = sm.albedo_color
 	if sm.albedo_texture and not uvs.is_empty():
-		var img := _atlas(sm.albedo_texture.resource_path)
+		var img := _atlas(atlas if atlas != "" else sm.albedo_texture.resource_path)
 		if img:
 			var uv := (uvs[idx[t]] + uvs[idx[t + 1]] + uvs[idx[t + 2]]) / 3.0
 			var x := clampi(int(fposmod(uv.x, 1.0) * img.get_width()), 0, img.get_width() - 1)
@@ -242,7 +297,11 @@ func _atlas(path: String) -> Image:
 
 
 func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO) -> Color:
+	if DESERT_PALETTES.has(palette):
+		return DESERT_PALETTES[palette].get(mat_name, c)
 	match palette:
+		"atlas":
+			return c
 		"camp":
 			return CAMP_PALETTE.get(mat_name, c)
 		"rust", "skidder":

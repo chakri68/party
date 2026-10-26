@@ -10,7 +10,7 @@ extends Node3D
 ## and slip exactly, and puffs face the camera because we orient them.
 
 const LAYER := 2
-const PUFFS := 220 ## dust + gravel pool
+const PUFFS := 320 ## dust + gravel pool (a desert plume lives longer, so more are alive at once)
 const MARKS := 1400 ## tyre-mark quads; the oldest get overwritten
 const STREAKS := 14
 
@@ -22,6 +22,12 @@ const STREAKS := 14
 				mm.visible = v
 ## Phones get half the dust.
 @export var density := 1.0
+## The biome's (main.gd sets them from Biome): dust off the road and off
+## anything else, and the plume's scale (size, life, a little rate). The
+## desert's dry sand throws a far bigger rooster tail than wet gravel.
+var dust_road := Color("e3d4b4")
+var dust_off := Color("a8957a")
+var plume := 1.0
 
 ## Wheel contact points in the car's frame (-Z forward).
 var wheels := [Vector3(-0.59, 0, -1.12), Vector3(0.59, 0, -1.12), Vector3(-0.59, 0, 1.12), Vector3(0.59, 0, 1.12)]
@@ -231,13 +237,13 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 	var slide_k := clampf((lat - 1.0) / 6.0, 0.0, 1.0)
 	var spin_k := clampf(_car.throttle_input * (1.0 - speed / 10.0), 0.0, 1.0) if speed > 0.5 else 0.0
 	# Puffs per second, per rear wheel.
-	var rate := (pow(speed_k, 1.3) * 30.0 + slide_k * 80.0 + spin_k * 25.0) * density
+	var rate := (pow(speed_k, 1.3) * 30.0 + slide_k * 80.0 + spin_k * 25.0) * density * sqrt(plume)
 	var grit_rate := (_car.throttle_input * speed_k * 10.0 + slide_k * 30.0 + spin_k * 25.0) * density
 	if speed < 2.0:
 		rate = 0.0
 		grit_rate *= spin_k
 	# Paler than the road it comes off, or it vanishes against it from above.
-	var dust_col := Color("e3d4b4") if road else Color("a8957a")
+	var dust_col := dust_road if road else dust_off
 	var fwd := -xf.basis.z
 	var right := xf.basis.x
 	for w in 2:
@@ -246,8 +252,10 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 		while _emit_acc[w] >= 1.0:
 			_emit_acc[w] -= 1.0
 			var v := _car.velocity * 0.25 - fwd * _rng.randf_range(0.5, 2.0) + right * _rng.randf_range(-1.0, 1.0) * (1.0 + slide_k * 2.0) + Vector3.UP * _rng.randf_range(0.6, 1.6)
-			var big := 1.0 + slide_k * 0.8
-			_spawn(contact + Vector3(0, 0.3, 0), v, _rng.randf_range(1.0, 1.9) * big, Vector2(0.9, _rng.randf_range(3.0, 4.4) * big), dust_col.lightened(_rng.randf_range(-0.04, 0.08)), 0.0, 0.55 + 0.25 * slide_k)
+			var big := (1.0 + slide_k * 0.8) * plume
+			# A big plume also climbs: dry dust hangs and rises off the car's wake.
+			v += Vector3.UP * (plume - 1.0) * _rng.randf_range(0.4, 1.2)
+			_spawn(contact + Vector3(0, 0.3, 0), v, _rng.randf_range(1.0, 1.9) * (1.0 + slide_k * 0.8) * lerpf(1.0, plume, 0.8), Vector2(0.9, _rng.randf_range(3.0, 4.4) * big), dust_col.lightened(_rng.randf_range(-0.04, 0.08)), 0.0, (0.55 + 0.25 * slide_k) * lerpf(1.0, 0.9, clampf(plume - 1.0, 0.0, 1.0)))
 		_grit_acc[w] += grit_rate * dt
 		while _grit_acc[w] >= 1.0:
 			_grit_acc[w] -= 1.0

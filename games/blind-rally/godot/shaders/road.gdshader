@@ -6,6 +6,12 @@
 // the ditch the mesh is an apron the noise eats away, so gravel spills onto
 // the forest floor in patches instead of stopping at a ruled line.
 //
+// The colours that aren't baked (stones, the creep from the edge) and how
+// much of each effect there is are uniforms, so a biome can retune them
+// (Track applies Biome.road_params at load); the defaults are Pine Panic's
+// gravel. The desert adds blown sand drifting in across the road (`drift`)
+// and washboard corrugation (`washboard`), both 0 here.
+//
 // Dirt-sim hook (not built, on purpose): a deformation layer would be one more
 // world-space mask sampled here (ruts darken, berms lighten) plus the matching
 // surface lookup in CarController._read_surface. Nothing else needs to move.
@@ -16,6 +22,15 @@ shader_type spatial;
 render_mode cull_back;
 
 #include "res://shaders/weather.gdshaderinc"
+
+uniform vec3 c_stone_light = vec3(0.68, 0.66, 0.61);
+uniform vec3 c_stone_dark = vec3(0.27, 0.25, 0.22);
+uniform vec3 c_creep = vec3(0.30, 0.36, 0.18); // grass and moss at the edge
+uniform float creep_k = 0.75;
+uniform float damp_k = 0.2;
+uniform vec3 c_drift = vec3(0.85, 0.7, 0.5); // blown sand
+uniform float drift = 0.0;
+uniform float washboard = 0.0;
 
 varying vec3 world;
 varying float v_mist; // per vertex: a smooth field, and the ground is most of the screen
@@ -41,7 +56,7 @@ void fragment() {
 	float on_road = 1.0 - smoothstep(UV2.x + 0.2, UV2.y + 0.2, lat);
 	// Damp patches: darker, a touch smoother, mostly off the racing line.
 	float damp = smoothstep(0.6, 0.7, big.g) * on_road;
-	c *= 1.0 - damp * 0.2;
+	c *= 1.0 - damp * damp_k;
 	// Dusty crown between the wheel tracks, drier where it isn't damp.
 	float crown = 1.0 - smoothstep(0.35, 0.8, lat);
 	c = mix(c, c * 1.22 + vec3(0.02), crown * (1.0 - damp) * 0.6);
@@ -52,12 +67,22 @@ void fragment() {
 	// Loose stones: light and dark pebbles, more at the verge than in the ruts.
 	float light_st = smoothstep(0.66, 0.7, stones.r) * loose;
 	float dark_st = smoothstep(0.68, 0.72, stones.g) * loose;
-	c = mix(c, vec3(0.68, 0.66, 0.61), light_st * 0.7);
-	c = mix(c, vec3(0.27, 0.25, 0.22), dark_st * 0.6);
+	c = mix(c, c_stone_light, light_st * 0.7);
+	c = mix(c, c_stone_dark, dark_st * 0.6);
 	c *= 0.9 + gravel * 0.2;
+	// Washboard: ripples across the road, strongest off the wheel tracks.
+	if (washboard > 0.0) {
+		float rip = sin(UV.y * 9.0 + big.r * 4.0);
+		c *= 1.0 - washboard * smoothstep(0.3, 1.0, rip) * (1.0 - track * 0.5) * on_road;
+	}
 	// Grass and moss creeping in from the edge, in patches.
 	float creep = smoothstep(UV2.x - 0.5, UV2.y, lat) * smoothstep(0.45, 0.6, fray.g);
-	c = mix(c, vec3(0.30, 0.36, 0.18), creep * 0.75);
+	c = mix(c, c_creep, creep * creep_k);
+	// Drifts of blown sand across the road, in long tongues off the verge.
+	if (drift > 0.0) {
+		float tongue = smoothstep(0.55, 0.7, texture(detail, vec2(world.x, world.z) / 23.0 + vec2(0.13, 0.71)).r + (lat / max(UV2.y, 0.1)) * 0.25);
+		c = mix(c, c_drift * (0.92 + gravel * 0.16), tongue * drift * (1.0 - track * 0.6));
+	}
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
 		c *= 1.0 - cloud_shade_at(world.xz, false);

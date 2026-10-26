@@ -16,12 +16,17 @@ extends SceneTree
 ## 24 m chord gives a radius per sample, runs of tight samples are corners,
 ## the tightest radius in a run grades it (rally scale, 1 tightest .. 6
 ## nearly flat; a tight one that turns 90 degrees or more is a HAIRPIN),
-## and every landmark gets its own line. A
+## every landmark gets its own line, and every fork (a spur that looks like
+## the road) says which way to keep. A
 ## corner's note sits at its entry, where the co-driver needs to have said
 ## it. Notes are printed static (spec §4.3); this file never says where the
 ## car is.
 
 const TRACK_DIR := "res://scenes/tracks/"
+## File order is the lobby's card order, and the first track is a new room's
+## default, so it's the spec §6 order (easy first), not the alphabet. Scenes
+## not listed here follow, alphabetically.
+const ORDER := ["pine_panic", "dust_devil", "snowblind", "cliffhanger"]
 const OUT := "res://../data/tracks.json"
 
 ## Half the chord, in centreline samples, for the radius estimate. The
@@ -53,7 +58,12 @@ func _run() -> void:
 	var tracks: Array = []
 	var dir := DirAccess.open(TRACK_DIR)
 	var files := Array(dir.get_files())
-	files.sort()
+	files.sort_custom(func(a: String, b: String) -> bool:
+		var ia := ORDER.find(a.get_basename())
+		var ib := ORDER.find(b.get_basename())
+		if ia == -1: ia = ORDER.size()
+		if ib == -1: ib = ORDER.size()
+		return ia < ib or (ia == ib and a < b))
 	for f in files:
 		if not (f.ends_with(".scn") or f.ends_with(".tscn")):
 			continue
@@ -118,6 +128,12 @@ static func export_track(t: Track) -> Dictionary:
 			raw.append([d, raw.size(), c.text])
 	for m in marks:
 		raw.append([m.distance, raw.size(), m.label])
+	# Forks (group track_fork): which way the stage goes. Said at the fork,
+	# after the corner it sits in, so "2 LEFT" then "KEEP LEFT (fork)".
+	for f in t.get_forks():
+		var d := roundf(along.call(f))
+		if d > 0.0 and d < length:
+			raw.append([d, raw.size(), "KEEP %s (fork)" % String(f.get_meta("keep", "left")).to_upper()])
 	raw.append([length, raw.size(), "FINISH"])
 	raw.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0] or (x[0] == y[0] and x[1] < y[1]))
 	var notes: Array = []

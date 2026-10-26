@@ -5,6 +5,10 @@
   dir and open /probe.html. It iframes ./index.html full-screen, plays host,
   and drives the car through receiveControl at 30 Hz.
 
+  Which stage: ?track=<id> on this page (default pine_panic), or the
+  "track" button, which remounts on the next one. The id goes both on the
+  iframe's URL and in initSession.trackId, like the real host.
+
   The controls float over the game, small and translucent, so a landscape
   phone still gets the whole screen for the view (in the real game the
   Navigator has no drive controls at all; the Driver is on another device).
@@ -62,6 +66,7 @@
     <button id="clouds">clouds 0.4</button>
     <button id="reset">reset car</button>
     <button id="remount">remount ×5</button>
+    <button id="track">track</button>
   </div>
   <div style="display:flex;gap:6px">
     <button id="auto" aria-pressed="true">auto</button>
@@ -71,6 +76,8 @@
 <script>
 const SEND_HZ = 30;
 const CLOUD_STEPS = [0, 0.4, 0.8, 1];
+// Stages in the build (godot/scenes/tracks/). The real list is data/tracks.json.
+const TRACKS = ['pine_panic', 'dust_devil'];
 const stage = document.getElementById('stage');
 const statsEl = document.getElementById('stats');
 const state = window.probeState = {
@@ -78,6 +85,7 @@ const state = window.probeState = {
   sent: 0, auto: true, silent: false, keys: new Set(), firstPos: null,
   // One sky per page load, like one sky per race: every remount reuses it.
   seed: Math.floor(Math.random() * 2 ** 31), clouds: 0.4,
+  track: new URLSearchParams(location.search).get('track') || TRACKS[0],
 };
 let iframe = null, host = null;
 
@@ -93,7 +101,7 @@ function makeHost() {
       state.ready = true;
       host.initSession({
         assists: { liveMarker: gpsBtn.getAttribute('aria-pressed') === 'true' }, keyboard: false,
-        seed: state.seed, clouds: state.clouds, autopilot: state.auto,
+        seed: state.seed, clouds: state.clouds, autopilot: state.auto, trackId: state.track,
       }, 'probe-seat');
     },
   };
@@ -110,7 +118,7 @@ function mount() {
   state.mounts++; state.ready = false; state.firstPos = null; state.snapshots = 0;
   host = makeHost();
   iframe = document.createElement('iframe');
-  iframe.src = './index.html';
+  iframe.src = './index.html?track=' + encodeURIComponent(state.track);
   iframe.allow = 'fullscreen';
   stage.appendChild(iframe);
   attach();
@@ -154,7 +162,7 @@ setInterval(() => {
   const s = state.last;
   statsEl.textContent =
     `mounts ${state.mounts}  ready ${state.ready}  sent ${state.sent}  snaps ${state.snapshots} (${state.snapHz}/s)\n` +
-    `sky seed ${state.seed}  clouds ${state.clouds}  ${state.auto ? 'autopilot' : 'manual'}\n` +
+    `track ${state.track}  sky seed ${state.seed}  clouds ${state.clouds}  ${state.auto ? 'autopilot' : 'manual'}\n` +
     (s ? `pos ${s.position.map(n => n.toFixed(1)).join(', ')}  speed ${s.speed}  trip ${s.distance}  cp ${s.checkpointHint}  ${s.surface}\n` : '') +
     (performance.memory ? `js heap ${(performance.memory.usedJSHeapSize / 1048576).toFixed(0)} MiB\n` : '') +
     state.events.slice(-4).map(e => JSON.stringify(e)).join('\n');
@@ -188,6 +196,14 @@ cloudsBtn.onclick = () => {
   state.clouds = CLOUD_STEPS[(CLOUD_STEPS.indexOf(state.clouds) + 1) % CLOUD_STEPS.length];
   cloudsBtn.textContent = `clouds ${state.clouds}`;
   event({ kind: 'weather', seed: state.seed, clouds: state.clouds });
+};
+const trackBtn = document.getElementById('track');
+trackBtn.textContent = `track: ${state.track}`;
+trackBtn.onclick = () => {
+  state.track = TRACKS[(TRACKS.indexOf(state.track) + 1) % TRACKS.length];
+  trackBtn.textContent = `track: ${state.track}`;
+  history.replaceState(null, '', '?track=' + state.track);
+  mount();
 };
 document.getElementById('reset').onclick = () => event({ kind: 'reset' });
 document.getElementById('remount').onclick = async () => {
