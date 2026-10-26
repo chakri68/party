@@ -95,7 +95,7 @@ describe("reset", () => {
     expect(run(s)).toMatchObject({ resets: 1, penaltyMs: RESET_PENALTY_MS, movedAt: now, holdUntil: now + RESET_HOLD_MS });
     expect(r.transition.events[1]).toEqual({ visibility: { kind: "private", playerId: "p1" }, event: { type: "recover", teamId: 1, checkpoint: 2, holdMs: RESET_HOLD_MS } });
     const nav = game.getPrivateState(s, "p1");
-    expect(nav.role === "navigator" && nav.run).toEqual({ checkpoints: 2, checkpointCount: N, holdUntil: now + RESET_HOLD_MS });
+    expect(nav.role === "navigator" && nav.run).toEqual({ checkpoints: 2, checkpointCount: N, holdUntil: now + RESET_HOLD_MS, pins: { pin: null, trail: [] } });
   });
 
   it("can't skip a checkpoint: after it, the next one still has to be driven through", () => {

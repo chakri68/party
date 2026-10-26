@@ -2,7 +2,7 @@ import type { GameOutcome } from "@games/game-core";
 import { formatClock } from "../shared/wire.ts";
 import type { BlindRallyState, TeamState } from "../shared/types.ts";
 import { trackData } from "./geometry.ts";
-import { effectiveTime } from "./race.ts";
+import { closestGuess, effectiveTime } from "./race.ts";
 import { members } from "./teams.ts";
 
 // Results (spec §5): finishers by effective time, then DNFs by checkpoints
@@ -59,12 +59,30 @@ export function placingLabel(state: BlindRallyState, p: Placing): string {
   return `${place} · Team ${p.team.id} · ${track.name} · ${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }
 
+/**
+ * The Navigator's best guess pin against where the server had the car when
+ * they placed it: "Closest guess: 12 m off after CP3". Null with no pin the
+ * server could check. A small stat, not a score.
+ */
+export function guessLine(team: TeamState): string | null {
+  const g = team.run ? closestGuess(team.run) : null;
+  if (!g) return null;
+  const m = Math.round(g.offM);
+  return `Closest guess: ${m < 1 ? "spot on" : `${m} m off`} ${g.cp ? `after CP${g.cp}` : "before CP1"}`;
+}
+
 export function result(state: BlindRallyState): GameOutcome {
   const ps = placings(state);
   const winners = ps.filter((p) => p.rank === 1 && p.timeMs !== null).flatMap((p) => members(p.team));
   const standings = ps.flatMap((p) => {
     const label = placingLabel(state, p);
-    return members(p.team).map((playerId) => ({ playerId, value: p.rank, label }));
+    // One line per team, on the Navigator's row: the pins were theirs. client/styles.css breaks it onto its own line.
+    const guess = guessLine(p.team);
+    return members(p.team).map((playerId) => ({
+      playerId,
+      value: p.rank,
+      label: guess && playerId === p.team.navigatorId ? `${label}\n${guess}` : label,
+    }));
   });
   const seated = new Set(standings.map((s) => s.playerId));
   for (const p of state.players) if (!seated.has(p.id)) standings.push({ playerId: p.id, value: 0, label: "Watched" });

@@ -10,6 +10,10 @@ import {
   teamColor,
   type BlindRallyState,
   type GhostRelay,
+  MAX_PINS,
+  PIN_GAP_MS,
+  type PinRecord,
+  type PinView,
   type Role,
   type RunState,
   type TeamState,
@@ -60,6 +64,7 @@ export const GRACE_TIMER = "grace:";
 export const graceTimer = (teamId: number) => `${GRACE_TIMER}${teamId}`;
 
 const newRun = (): RunState => ({
+  pins: [],
   status: "running",
   lastSeq: 0,
   resets: 0,
@@ -198,6 +203,63 @@ export function passGate(state: BlindRallyState, team: TeamState, claim: GateCla
   run.finishedAt = ctx.now;
   out.events.push(pub({ type: "team-finished", teamId: team.id, timeMs: effectiveTime(state, run, ctx.now) }));
   endIfDone(state, ctx, out);
+}
+
+// ---------------------------------------------------------------------------
+// Guess pins (spec §4.4)
+// ---------------------------------------------------------------------------
+
+/** A snapshot older than this says nothing about where the car is now: the pin gets no error. */
+const PIN_SNAP_AGE_MS = 2_000;
+
+export type PinClaim = { x: number; z: number } | { clear: true };
+
+/** Why this pin can't be stored, or null. The caller has checked it's the Navigator, mid-run. */
+export function checkPin(state: BlindRallyState, run: RunState, claim: PinClaim, now: number): GameError | null {
+  if (!("clear" in claim) && !insideBounds(trackData(state.trackId), [claim.x, 0, claim.z])) return { code: "off-map", message: "That's off the map." };
+  const last = run.pins?.at(-1);
+  if (last && now - (state.startsAt ?? 0) - last[0] < PIN_GAP_MS) return { code: "too-soon", message: "One pin every half second." };
+  return null;
+}
+
+/**
+ * Stores a pin checkPin passed, with where the server last believed the car
+ * was. Nothing reads it mid-race but the Navigator's own DTO.
+ */
+export function storePin(state: BlindRallyState, run: RunState, claim: PinClaim, now: number): void {
+  const t = Math.max(0, now - (state.startsAt ?? now));
+  let rec: PinRecord = [t];
+  if (!("clear" in claim)) {
+    const snap = run.snap && now - run.snap.at <= PIN_SNAP_AGE_MS ? run.snap : null;
+    rec = [t, claim.x, claim.z, snap ? snap.position[0] : null, snap ? snap.position[2] : null, run.cp];
+  }
+  run.pins = [...(run.pins ?? []), rec].slice(-MAX_PINS);
+}
+
+/** Pin history → what the map shows: the current pin and up to 3 before it. Same rules as map_controller.gd. */
+export function pinView(pins: readonly PinRecord[] = []): PinView {
+  let pin: [number, number] | null = null;
+  let trail: [number, number][] = [];
+  for (const r of pins) {
+    if (r.length === 1) {
+      pin = null;
+      continue;
+    }
+    if (pin) trail = [...trail, pin].slice(-3);
+    pin = [r[1], r[2]];
+  }
+  return { pin, trail };
+}
+
+/** The guess nearest the truth, where the server knew the truth. */
+export function closestGuess(run: RunState): { offM: number; cp: number } | null {
+  let best: { offM: number; cp: number } | null = null;
+  for (const r of run.pins ?? []) {
+    if (r.length === 1 || r[3] === null || r[4] === null) continue;
+    const off = Math.hypot(r[1] - r[3], r[2] - r[4]);
+    if (!best || off < best.offM) best = { offM: off, cp: r[5] };
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------

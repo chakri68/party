@@ -14,10 +14,10 @@ extends Node3D
 ##
 ## Keys (local testing): WASD/arrows drive, G GPS marker, R reset to last CP
 ## (probe and editor only: in the room a reset is the server's call), M
-## big map (tap or click the corner map too; Esc, a tap on it, outside it or
-## on its X closes it), C camera rotates with car, -/= zoom, N mute, K impact kick,
-## F dust and marks, L shadows, P debug autopilot, V cycle clouds,
-## Y camera: top-down -> chase -> bonnet, skipping any not allowed.
+## big map (tap or click the corner map too; Esc, a tap outside it or on its
+## X closes it; a tap on it places the guess pin, see MapController), C camera
+## rotates with car, -/= zoom, N mute, K impact kick, F dust and marks, L
+## shadows, P debug autopilot, V cycle clouds, Y camera: top-down -> chase -> bonnet, skipping any not allowed.
 ##
 ## initSession config read here: assists.liveMarker, keyboard, muted,
 ## reducedMotion, seed and clouds (weather; same seed = same sky for every
@@ -33,7 +33,10 @@ extends Node3D
 ## reloaded Navigator mid-race goes back to the anchor of what the server
 ## counted, held that long), assists.tripMeter, assists.camera3d (false: the
 ## map-only view, spec §4.3; Nightmare), teamColor / teamNumber / teamShape
-## (the livery), ghosts (shared stage: draw rivals from receiveGhostSnapshot).
+## (the livery), ghosts (shared stage: draw rivals from receiveGhostSnapshot),
+## pins ({pin, trail}: a reloaded Navigator's own guess pins; a `pins` race
+## event replaces them too). Placing or clearing one emits {kind: "pin", x, z}
+## or {kind: "pin", clear: true} on the bridge.
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
 ## Audio waits for the first tap or key press, as browsers require.
@@ -230,12 +233,16 @@ func _setup_track() -> void:
 	fx.dust_road = biome.dust_road
 	fx.dust_off = biome.dust_off
 	fx.plume = biome.plume
+	fx.grit = biome.grit
+	fx.marks = biome.marks
 	if is_phone:
 		set_shadows(false)
 		fx.density = 0.5
 	map.car = car
 	_map_corner = _layout_of(map)
 	map.tapped.connect(_on_map_tapped)
+	map.pin_changed.connect(func(at: Variant) -> void:
+		bridge.emit_physics_event({"kind": "pin", "clear": true} if at == null else {"kind": "pin", "x": snappedf(at.x, 0.1), "z": snappedf(at.y, 0.1)}))
 	cam.perspective_env = _perspective_env()
 	cam.persp_far = biome.persp_far
 	# The map is one render of the baked forest; a camera switch that lands
@@ -498,7 +505,10 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 		team_number = int(cfg["teamNumber"]) if (cfg.get("teamNumber") is float or cfg.get("teamNumber") is int) else team_number
 		team_shape = CarPaint.valid_shape(String(cfg.get("teamShape", CarPaint.shape_for(cfg["teamColor"]))))
 		CarPaint.apply(car, team_color, team_number, team_shape)
+		map.pin_color = team_color
 		ghosts.own_team = team_number
+	if cfg.get("pins") is Dictionary:
+		map.restore_pins(cfg["pins"])
 	ghosts.enabled = bool(cfg.get("ghosts", true))
 	if not ghosts.enabled:
 		ghosts.clear()
@@ -543,6 +553,7 @@ func _on_race_event(ev: Dictionary) -> void:
 			car.frozen = _hold_left > 0.0
 		"neutral": car.neutralize()
 		"assists": _apply_assists(ev)
+		"pins": map.restore_pins(ev)
 		"autopilot": set_autopilot(bool(ev.get("on", false))) # debug, the probe's auto-drive
 		"weather": weather.configure(int(ev.get("seed", weather.seed_value)), float(ev.get("clouds", weather.clouds)))
 

@@ -11,11 +11,23 @@ extends Control
 ## Big map (main.gd's set_map_expanded): the same image in a larger rect,
 ## cropped to the course bounds, plus `detail`: landmark labels, enlarged
 ## callout icons and numbered checkpoints, drawn in 2D over the image. All of
-## it is static; nothing in detail knows where the car is. A tap anywhere on
-## the map is `tapped` (main decides what that means); the corner glyph is an
-## expand hint when small and the close button when big.
+## it is static; nothing in detail knows where the car is. The corner glyph
+## is an expand hint when small and the close button when big.
+##
+## Taps. Corner map: any tap is `tapped` (main opens the big map). Big map, once
+## open, and map-only: a tap places or moves the guess pin, a long press or
+## the "clear pin" chip removes it, and only the X is `tapped`. Mid-animation
+## a tap is still `tapped`, so a quick second one turns it round.
+##
+## Guess pins (spec §4.4): the Navigator's own "I think we're here". One pin,
+## plus the last TRAIL it replaced, faded, so they can see their own dead
+## reckoning. Kept in world XZ and drawn through Track.world_to_map, on both
+## maps; they never move on their own and nothing about them reads the car.
+## Placing or clearing one is `pin_changed` (main sends it to the room).
 
 signal tapped
+## The Navigator put their pin here (world XZ, a Vector2), or cleared it (null).
+signal pin_changed(at: Variant)
 
 ## 1024 so the big map stays sharp; mipmapped so the 260 px corner map
 ## doesn't shimmer from the downscale. Still one render.
@@ -35,6 +47,15 @@ const CLOSE_PX := 40.0
 const INK := Color(0.05, 0.06, 0.05) ## same as the frame
 const CREAM := Color("f3ead2") ## a lighter cut of the road ribbon
 const AMBER := Color(0.95, 0.75, 0.3) ## the MAP ONLY note's colour
+## Previous pins kept on the map, faded.
+const TRAIL := 3
+## Held this long without moving: clears the pin. Game seconds.
+const LONG_PRESS_S := 0.5
+## A press that wanders further than this (CSS px) is no long press.
+const PRESS_SLOP_PX := 12.0
+## The pin's height on the big map, CSS px; on the corner map, PIN_SMALL units.
+const PIN_PX := 30.0
+const PIN_SMALL := 16.0
 
 @export var gps_enabled := false:
 	set(v):
@@ -55,6 +76,7 @@ var detail := false:
 		if _detail:
 			_detail.visible = v
 			_detail.queue_redraw()
+		_press_at = null
 		_layout_inner()
 ## Big-map look: image cropped to the course bounds, close button.
 var big := false:
@@ -75,10 +97,28 @@ var expandable := true:
 		expandable = v
 		if _corner:
 			_corner.visible = v or big
+		_layout_inner()
+
+## The guess pin, world XZ, or null; and the ones it replaced, oldest first.
+var pin: Variant = null
+var trail: Array[Vector2] = []
+## Team colour for the pins (main sets it from the session's livery).
+var pin_color := Color("e69f00"):
+	set(v):
+		pin_color = v
+		if _pins:
+			_pins.queue_redraw()
 
 var _marker: Polygon2D
 var _detail: Control
 var _corner: Control
+var _pins: Control
+var _clear: Control ## the "clear pin" chip
+## A press in pin mode: where (map-local), how long it's been held, and
+## whether the long press already fired (the release is then spent).
+var _press_at: Variant = null
+var _press_s := 0.0
+var _press_spent := false
 ## Built once from the track: [{label, at: Vector3, tris: PackedVector2Array
 ## (map metres about `at`), cols: PackedColorArray, extent: float}].
 var _items: Array = []
@@ -115,6 +155,13 @@ func _ready() -> void:
 	_detail.draw.connect(_draw_detail)
 	_detail.resized.connect(_detail.queue_redraw)
 	image_rect.add_child(_detail)
+	_pins = Control.new()
+	_pins.name = "Pins"
+	_pins.set_anchors_preset(PRESET_FULL_RECT)
+	_pins.mouse_filter = MOUSE_FILTER_IGNORE
+	_pins.draw.connect(_draw_pins)
+	_pins.resized.connect(_pins.queue_redraw)
+	image_rect.add_child(_pins) # over the labels, under the live marker
 	_marker = Polygon2D.new()
 	_marker.name = "GpsMarker"
 	_marker.polygon = PackedVector2Array([Vector2(0, -9), Vector2(6, 7), Vector2(0, 3), Vector2(-6, 7)])
@@ -126,6 +173,12 @@ func _ready() -> void:
 	_corner.mouse_filter = MOUSE_FILTER_IGNORE # a tap on it is a tap on the map
 	_corner.draw.connect(_draw_corner)
 	add_child(_corner)
+	_clear = Control.new()
+	_clear.name = "ClearPin"
+	_clear.mouse_filter = MOUSE_FILTER_IGNORE # hit-tested in _gui_input, like the corner
+	_clear.visible = false
+	_clear.draw.connect(_draw_clear)
+	add_child(_clear)
 	resized.connect(_layout_inner)
 	_layout_inner()
 
@@ -201,25 +254,226 @@ func css_px() -> float:
 	return clampf(win.y / real.y, 0.5, 4.0)
 
 
+## Pins go down on the big map once it's open, and on the map-only map.
+func pinnable() -> bool:
+	return track != null and ((big and detail) or not expandable)
+
+
 func _gui_input(e: InputEvent) -> void:
 	# Touch arrives as emulated mouse (input_devices/pointing/emulate_mouse_from_touch,
 	# on by default), so a tap is one left button. Without that emulation the
-	# touch itself counts; never both, or a tap would toggle twice.
-	var tap := false
+	# touch itself counts; never both, or a tap would count twice.
+	var at: Variant = null # where a press or release landed
+	var down := false
 	var mb := e as InputEventMouseButton
-	if mb and mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
-		tap = Rect2(Vector2.ZERO, size).has_point(mb.position)
+	if mb and mb.button_index == MOUSE_BUTTON_LEFT:
+		at = mb.position
+		down = mb.pressed
 	var st := e as InputEventScreenTouch
-	if st and not st.pressed and not ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
-		tap = Rect2(Vector2.ZERO, size).has_point(st.position)
-	if tap:
-		accept_event()
-		tapped.emit()
+	if st and st.index == 0 and not ProjectSettings.get_setting("input_devices/pointing/emulate_mouse_from_touch", true):
+		at = st.position
+		down = st.pressed
+	var mm := e as InputEventMouseMotion
+	if mm and _press_at != null and (mm.position - (_press_at as Vector2)).length() > PRESS_SLOP_PX * css_px():
+		_press_s = -INF # dragged: not a long press any more
+	if at == null or not Rect2(Vector2.ZERO, size).has_point(at):
+		if at != null and not down:
+			_press_at = null
+		return
+	accept_event()
+	if not pinnable():
+		if not down:
+			tapped.emit()
+		return
+	if down:
+		_press_at = at
+		_press_s = 0.0
+		_press_spent = false
+		return
+	var spent := _press_spent or _press_at == null
+	_press_at = null
+	if spent:
+		return
+	if big and _corner.visible and Rect2(_corner.position, _corner.size).has_point(at):
+		tapped.emit() # the X
+	elif _clear.visible and Rect2(_clear.position, _clear.size).grow(4.0 * css_px()).has_point(at):
+		clear_pin()
+	else:
+		var w: Variant = local_to_world(at)
+		if w != null:
+			set_pin(w)
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if gps_enabled:
 		_update_marker()
+	if _press_at != null and not _press_spent:
+		_press_s += dt
+		if _press_s >= LONG_PRESS_S:
+			_press_spent = true
+			clear_pin()
+
+
+# --- guess pins ----------------------------------------------------------------
+
+## A point in this control (canvas units) to world XZ, or null off the
+## visible map. Clamped to the track's bounds: that's all the server takes.
+func local_to_world(p: Vector2) -> Variant:
+	if track == null:
+		return null
+	var q := p - image_rect.position
+	if not _visible_rect().has_point(q):
+		return null
+	var r := _drawn_rect()
+	var uv := (q - r.position) / r.size
+	var side := maxf(track.bounds.size.x, track.bounds.size.y)
+	var w := track.bounds.get_center() + (uv - Vector2(0.5, 0.5)) * side
+	return Vector2(clampf(w.x, track.bounds.position.x, track.bounds.end.x), clampf(w.y, track.bounds.position.y, track.bounds.end.y))
+
+
+## Where world XZ lands in this control, canvas units.
+func world_to_local(w: Vector2) -> Vector2:
+	return image_rect.position + _to_px(Vector3(w.x, 0.0, w.y))
+
+
+## Places or moves the pin. The old one joins the trail.
+func set_pin(w: Vector2, emit := true) -> void:
+	if pin != null:
+		trail.append(pin)
+		if trail.size() > TRAIL:
+			trail = trail.slice(trail.size() - TRAIL)
+	pin = w
+	_pins_changed()
+	if emit:
+		pin_changed.emit(w)
+
+
+## Takes the pin off. The trail stays; the cleared pin doesn't join it.
+func clear_pin(emit := true) -> void:
+	if pin == null:
+		return
+	pin = null
+	_pins_changed()
+	if emit:
+		pin_changed.emit(null)
+
+
+## What the room kept: {pin: [x, z] | null, trail: [[x, z], ...]}. Replaces
+## whatever's on the map, quietly (it's the server's copy coming back).
+func restore_pins(d: Dictionary) -> void:
+	var p: Variant = d.get("pin")
+	pin = Vector2(float(p[0]), float(p[1])) if p is Array and p.size() == 2 else null
+	trail.clear()
+	var t: Variant = d.get("trail")
+	if t is Array:
+		for x in t:
+			if x is Array and x.size() == 2:
+				trail.append(Vector2(float(x[0]), float(x[1])))
+	if trail.size() > TRAIL:
+		trail = trail.slice(trail.size() - TRAIL)
+	_pins_changed()
+
+
+func _pins_changed() -> void:
+	_sync_clear()
+	if _pins:
+		_pins.queue_redraw()
+
+
+func _sync_clear() -> void:
+	if _clear == null:
+		return
+	var on := pin != null and pinnable()
+	if _clear.visible != on:
+		_clear.visible = on
+		if _detail:
+			_detail.queue_redraw() # labels keep clear of the chip
+	if on:
+		_clear.queue_redraw()
+
+
+## Pin height in image_rect units: phone-readable on the big map.
+func _pin_h() -> float:
+	return maxf(18.0, PIN_PX * css_px()) if detail else PIN_SMALL
+
+
+## Trail: the pins it replaced, smaller and faded (oldest faintest), joined
+## by a dashed line to the current one: their own dead reckoning. Pin: a
+## teardrop in the team colour, point on the spot, ink rim, cream eye; a
+## shape the live marker's arrow can't be taken for.
+func _draw_pins() -> void:
+	if track == null or (pin == null and trail.is_empty()):
+		return
+	var k := css_px() if detail else 1.0
+	var h := _pin_h()
+	var pts: Array[Vector2] = []
+	for t in trail:
+		pts.append(_to_px(Vector3(t.x, 0.0, t.y)))
+	var head: Variant = _to_px(Vector3(pin.x, 0.0, pin.y)) if pin != null else null
+	var line := pts.duplicate()
+	if head != null:
+		line.append(head)
+	var lw := maxf(1.5, 2.0 * k)
+	for i in line.size() - 1:
+		_pins.draw_dashed_line(line[i], line[i + 1], Color(INK, 0.6), lw + 2.0 * k, 5.0 * k, true)
+	for i in line.size() - 1:
+		_pins.draw_dashed_line(line[i], line[i + 1], Color(pin_color, 0.85), lw, 5.0 * k, true)
+	for i in pts.size():
+		var a := 0.45 + 0.3 * float(i + TRAIL - pts.size()) / float(TRAIL - 1)
+		_draw_drop(pts[i], h * 0.62, k, a)
+	if head == null:
+		return
+	_draw_drop(head, h, k, 1.0)
+	if detail:
+		var font := ThemeDB.fallback_font
+		var fs := int(round(LABEL_PX * 0.9 * k))
+		var at: Vector2 = head + Vector2(h * 0.34 + 5.0 * k, -h * 0.66 + font.get_ascent(fs) * 0.5)
+		_pins.draw_string_outline(font, at, "your guess", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, maxi(3, int(round(4.0 * k))), Color(INK, 0.9))
+		_pins.draw_string(font, at, "your guess", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
+
+
+## One teardrop pin `h` tall with its point at `tip`, at alpha `a`.
+func _draw_drop(tip: Vector2, h: float, k: float, a: float) -> void:
+	var r := h * 0.34
+	var c := tip + Vector2(0.0, -(h - r))
+	var drop := teardrop(c, r, tip)
+	var rim := PackedVector2Array()
+	for p in drop:
+		var d := (p - c).length()
+		rim.append(c + (p - c) * (d + 1.5 * k) / maxf(d, 0.001))
+	_pins.draw_colored_polygon(rim, Color(INK, 0.92 * a))
+	_pins.draw_colored_polygon(drop, Color(pin_color, a))
+	_pins.draw_circle(c, r * 0.42, Color(CREAM, a))
+	_pins.draw_circle(tip, maxf(1.0, 1.2 * k), Color(INK, a))
+
+
+## The pin's outline: a circle round `c`, closed by two tangents to `tip`.
+static func teardrop(c: Vector2, r: float, tip: Vector2) -> PackedVector2Array:
+	var d := (tip - c).length()
+	var a := acos(clampf(r / maxf(d, r + 0.001), -1.0, 1.0)) # from "straight at the tip" to a tangent point
+	var out := PackedVector2Array([tip])
+	var n := 20
+	for i in n + 1:
+		var b := a + (TAU - 2.0 * a) * float(i) / float(n)
+		out.append(c + Vector2(sin(b), cos(b)) * r)
+	return out
+
+
+## For tests: the pin and trail as drawn, in this control's units.
+func pin_points() -> Dictionary:
+	return {"pin": world_to_local(pin) if pin != null else null, "trail": trail.map(world_to_local)}
+
+
+## "clear pin" on an ink chip.
+func _draw_clear() -> void:
+	var s := _clear.size
+	var k := css_px()
+	_clear.draw_rect(Rect2(Vector2.ZERO, s), Color(INK, 0.88))
+	_clear.draw_rect(Rect2(Vector2.ZERO, s), Color(CREAM, 0.5), false, maxf(1.0, 1.5 * k))
+	var font := ThemeDB.fallback_font
+	var fs := int(round(LABEL_PX * k))
+	var tw := font.get_string_size("clear pin", HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	_clear.draw_string(font, Vector2((s.x - tw.x) * 0.5, (s.y + font.get_ascent(fs) - font.get_descent(fs)) * 0.5), "clear pin", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
 
 
 func _update_marker() -> void:
@@ -242,7 +496,7 @@ func _drawn_rect() -> Rect2:
 ## frame is cut to the bounds, so the empty strips above and below the course
 ## are clipped off. The marker and the corner glyph scale with the map.
 func _layout_inner() -> void:
-	if image_rect == null or _corner == null:
+	if image_rect == null or _corner == null or _clear == null:
 		return
 	var inner := size - Vector2(FRAME, FRAME) * 2.0
 	if (big or crop) and inner.x > 0.0:
@@ -257,6 +511,15 @@ func _layout_inner() -> void:
 	_corner.position = Vector2(size.x - side - FRAME - 4.0 * k, FRAME + 4.0 * k) if big else Vector2(FRAME, size.y - side - FRAME)
 	_corner.size = Vector2(side, side)
 	_corner.queue_redraw()
+	# The chip: left of the X on the big map, top-right on map-only.
+	var font := ThemeDB.fallback_font
+	var cs := Vector2(font.get_string_size("clear pin", HORIZONTAL_ALIGNMENT_LEFT, -1, int(round(LABEL_PX * k))).x + 20.0 * k, maxf(side * 0.8, 28.0 * k))
+	var right := (_corner.position.x - 8.0 * k) if big else (size.x - FRAME - 6.0 * k)
+	_clear.size = cs
+	_clear.position = Vector2(right - cs.x, (_corner.position.y + (side - cs.y) * 0.5) if big else FRAME + 6.0 * k)
+	_sync_clear()
+	if _pins:
+		_pins.queue_redraw()
 	# Marker: ~18 units on the corner map; on the big one, a phone-readable size.
 	var ms := maxf(1.0, (minf(inner.x, inner.y) / 252.0) * 0.6) if detail else 1.0
 	ms = maxf(ms, k * 1.4) if detail else ms
@@ -372,6 +635,8 @@ func _draw_detail() -> void:
 	var taken: Array[Rect2] = []
 	if big:
 		taken.append(Rect2(_corner.position - image_rect.position, _corner.size).grow(4.0 * k))
+	if _clear.visible:
+		taken.append(Rect2(_clear.position - image_rect.position, _clear.size).grow(4.0 * k))
 	# Checkpoints: ink disc, amber ring, number.
 	var cr := CP_RADIUS_PX * k
 	for cp in _cps:

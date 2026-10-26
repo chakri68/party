@@ -19,6 +19,7 @@ import { GO, TIME_UP } from "./phases.ts";
 import { privateState, publicState } from "./projection.ts";
 import {
   checkGate,
+  checkPin,
   endRace,
   GRACE_TIMER,
   liveRun,
@@ -28,6 +29,7 @@ import {
   playerBack,
   resetCar,
   startCountdown,
+  storePin,
   teamOut,
   type Out,
 } from "./race.ts";
@@ -189,6 +191,18 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const out = newOut();
       passGate(state, seatOf(state, playerId)!.team, claim, ctx, out);
       return { ok: true, transition: done(state, out) };
+    }
+
+    case "map.guess": {
+      const seat = seatOf(prev, playerId);
+      if (!seat || seat.role !== "navigator") return reject("not-navigator", "Pins are the Navigator's.");
+      if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Pins are for while you're racing.");
+      const claim = "clear" in action ? { clear: true as const } : { x: action.x, z: action.z };
+      const error = checkPin(prev, seat.team.run!, claim, ctx.now);
+      if (error) return { ok: false, error };
+      const state = clone(prev);
+      storePin(state, seatOf(state, playerId)!.team.run!, claim, ctx.now);
+      return { ok: true, transition: unchanged(state) };
     }
   }
 }

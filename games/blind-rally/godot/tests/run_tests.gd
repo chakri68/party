@@ -73,6 +73,7 @@ func _run() -> void:
 	await test_big_map_modes()
 	await test_big_map_static()
 	await test_big_map_map_only()
+	await preload("res://tests/pin_tests.gd").new(self).run()
 	# Second stage: everything above was Pine Panic. Swap the main scene for
 	# one that loads Dust Devil and check what's new there.
 	await test_track_by_id()
@@ -1580,7 +1581,10 @@ func test_big_map_inputs() -> void:
 	check(main._map_scrim.visible, "the 3D view is dimmed behind it")
 	check(main.get_viewport().scaling_3d_scale < 1.0, "and drawn at reduced resolution while covered (%s)" % main.get_viewport().scaling_3d_scale)
 	await tap(_map_centre())
-	check(not main.map_expanded and map_events == [true, false], "a tap on the big map closes it, and says so")
+	check(main.map_expanded and map_events == [true] and map.pin != null, "a tap on the big map doesn't close it: it places the guess pin")
+	map.restore_pins({})
+	await key(KEY_ESCAPE)
+	check(not main.map_expanded and map_events == [true, false], "Esc closes it, and says so")
 	await settle()
 	check(map.get_global_rect().is_equal_approx(small) and not map.detail and not main._map_scrim.visible, "back in its corner, labels off, no dimming")
 	check(is_equal_approx(main.get_viewport().scaling_3d_scale, 1.0), "3D back at full resolution")
@@ -1632,7 +1636,7 @@ func test_big_map_modes() -> void:
 		await click(_map_centre())
 		await settle()
 		var ok: bool = main.map_expanded and map.get_global_rect().is_equal_approx(main._big_map_rect()) and not main.get_viewport().disable_3d
-		await click(_map_centre())
+		await click((map.get_node("Corner") as Control).get_global_rect().get_center())
 		await settle()
 		check(ok and not main.map_expanded, "%s: opens over the running 3D view and closes" % main.CAMERA_MODES[m])
 	main.set_map_expanded(true, false)
@@ -1700,6 +1704,7 @@ func test_big_map_map_only() -> void:
 	await settle()
 	check(not main.map_expanded and map.get_global_rect() == r and main.get_viewport().disable_3d, "map-only: a click and M change nothing")
 	check(map_events == [false], "and no map event")
+	map.restore_pins({}) # that click left a guess pin (pin_tests.gd has the rest)
 	check(map.detail and not (map.get_node("Corner") as Control).visible, "labels shown on the map-only map; no expand hint")
 	main._on_race_event({"kind": "assists", "camera3d": true})
 	await process_frame

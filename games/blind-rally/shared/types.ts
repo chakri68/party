@@ -159,6 +159,20 @@ export interface AcceptedSnapshot {
   distance: number;
 }
 
+/**
+ * One of the Navigator's guess pins (spec §4.4), as a tuple to keep the run
+ * small: `[ms since the start, x, z, car x, car z, checkpoints passed]`, or
+ * `[ms]` when they cleared it. World metres, like snapshots. The car is the
+ * server's last accepted snapshot at that moment, null when it had none
+ * fresh, so the results can say how far off the guess was.
+ */
+export type PinRecord = [t: number, x: number, z: number, carX: number | null, carZ: number | null, cp: number] | [t: number];
+
+/** Pin history kept per team; the oldest go first. */
+export const MAX_PINS = 200;
+/** One pin (or clear) per this long, per team. */
+export const PIN_GAP_MS = 500;
+
 /** One team's race. */
 export interface RunState {
   status: RunStatus;
@@ -189,6 +203,12 @@ export interface RunState {
   away: Role[];
   /** When the grace for `away` runs out. */
   graceEndsAt: number | null;
+  /**
+   * The Navigator's guess pins, oldest first, at most MAX_PINS. Their own
+   * notes: never in a Driver's or the public DTO. Absent in rooms saved
+   * before pins existed.
+   */
+  pins?: PinRecord[];
 }
 
 export interface TeamState {
@@ -331,6 +351,14 @@ export interface NavigatorRun {
   checkpointCount: number;
   /** The car's held on its anchor until then (server time). */
   holdUntil: number;
+  /** Their own guess pins, for a reloaded Godot: the current one (world x, z) and up to 3 before it, oldest first. */
+  pins: PinView;
+}
+
+/** What the Navigator's map shows of their pins. */
+export interface PinView {
+  pin: [number, number] | null;
+  trail: [number, number][];
 }
 
 export type BlindRallyPrivateState =
@@ -369,7 +397,13 @@ export type BlindRallyAction =
    * Navigator wants to hear a "no".
    */
   | { type: "race.event"; kind: "cp"; checkpointId: number }
-  | { type: "race.event"; kind: "finish" };
+  | { type: "race.event"; kind: "finish" }
+  /**
+   * Navigator: "I think we're here", world x/z, or `clear`. A game-action,
+   * not a stream: rare, kept for the results and replays, answered.
+   */
+  | { type: "map.guess"; x: number; z: number }
+  | { type: "map.guess"; clear: true };
 
 export type BlindRallyEvent =
   | { type: "countdown"; startsAt: number }

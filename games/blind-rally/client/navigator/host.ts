@@ -26,10 +26,15 @@ import "./navigator.css";
 //     mid-race, the checkpoints the server counted and what's left of a hold
 //   Godot's `fell` (out of the world, car parked) → race.reset with reason "fell"
 //   shared stage: rivals' `ghost` relays → receiveGhostSnapshot
+//   Godot's `pin` (the Navigator's guess on the big map) → `map.guess`
+//     game-actions, at most one per PIN_SPACING_MS, latest wins; a reload gets
+//     them back as initSession `pins`, and a new race wipes them (a `pins` event)
 
 /** Without input from the Driver for this long mid-race, say so. Godot has already gone neutral. */
 const DRIVER_QUIET_MS = 1_000;
 const GO_SHOWN_MS = 800;
+/** The server takes one pin per 500 ms; leave room for the network bunching two up. */
+const PIN_SPACING_MS = 600;
 
 export function createNavigatorView(api: GameClientApi): RoleView {
   return new NavigatorView(api);
@@ -78,6 +83,10 @@ class NavigatorView implements RoleView {
   private seenEvents = new WeakSet<object>();
   private tripM: number | null = null;
   private notesFor: string | null = null;
+  private lastPinAt = 0;
+  private pendingPin: { x: number; z: number } | { clear: true } | null = null;
+  private pinTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastPhase: string | null = null;
 
   constructor(api: GameClientApi) {
     this.api = api;
@@ -107,6 +116,7 @@ class NavigatorView implements RoleView {
         else if (e.kind === "finish") api.act({ type: "race.event", kind: "finish" });
         // Godot's parked a car that dropped out of the world and won't move it on its own say-so.
         else if (e.kind === "fell") api.act({ type: "race.reset", reason: "fell" });
+        else if (e.kind === "pin") this.queuePin(e.clear === true ? { clear: true } : typeof e.x === "number" && typeof e.z === "number" ? { x: e.x, z: e.z } : null);
       },
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
@@ -126,6 +136,7 @@ class NavigatorView implements RoleView {
 
   destroy() {
     clearInterval(this.ticker);
+    clearTimeout(this.pinTimer);
     this.bridge.dispose();
     this.root.remove();
   }
@@ -140,6 +151,10 @@ class NavigatorView implements RoleView {
     const mine = props.game.teams.find((t) => t.id === props.private.teamId);
     if (mine) this.team.replaceChildren(teamBadge(mine));
     this.sendSession();
+    // A new race on the same Godot (a rematch on the same stage): last race's pins come off the map.
+    const phase = props.game.phase;
+    if (phase === "countdown" && this.lastPhase !== null && this.lastPhase !== "countdown") this.bridge.event({ kind: "pins", pin: null, trail: [] });
+    this.lastPhase = phase;
     for (const ev of props.events) {
       if (this.seenEvents.has(ev)) continue;
       this.seenEvents.add(ev);
@@ -194,6 +209,8 @@ class NavigatorView implements RoleView {
         // held for whatever's left of a reset's hold.
         checkpoints: run?.checkpoints ?? 0,
         holdMs: Math.max(0, (run?.holdUntil ?? 0) - this.api.serverNow()),
+        // Their own guess pins, if Godot's been reloaded mid-race.
+        pins: run?.pins ?? { pin: null, trail: [] },
         keyboard: false,
         autopilot: false,
         muted: !audio.settings.sound,
@@ -203,6 +220,28 @@ class NavigatorView implements RoleView {
     );
     this.frozen = null; // initSession may have reset the car; say it again
     this.tick();
+  }
+
+  /**
+   * A guess pin for the server (the results and, later, replays). Only while
+   * the car's out there, since that's all the server keeps; Godot shows it
+   * either way. Taps faster than PIN_SPACING_MS coalesce: the last one goes.
+   */
+  private queuePin(pin: { x: number; z: number } | { clear: true } | null) {
+    if (!pin || !this.live()) return;
+    this.pendingPin = pin;
+    if (this.pinTimer !== undefined) return;
+    const wait = this.lastPinAt + PIN_SPACING_MS - performance.now();
+    const send = () => {
+      this.pinTimer = undefined;
+      const p = this.pendingPin;
+      this.pendingPin = null;
+      if (!p || !this.live()) return;
+      this.lastPinAt = performance.now();
+      this.api.act({ type: "map.guess", ...p });
+    };
+    if (wait <= 0) send();
+    else this.pinTimer = setTimeout(send, wait);
   }
 
   private myTeam(): PublicTeam | undefined {

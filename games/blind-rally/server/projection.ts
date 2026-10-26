@@ -10,7 +10,7 @@ import {
   effectiveTrackPick,
 } from "../shared/types.ts";
 import { trackCatalog, trackData } from "./geometry.ts";
-import { effectiveTime } from "./race.ts";
+import { effectiveTime, pinView } from "./race.ts";
 import { captainOf, seatOf, startBlocker } from "./teams.ts";
 
 // Three audiences (spec §8.2, map §2). Public and Driver DTOs are built from
@@ -85,6 +85,7 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
       checkpoints: team.run?.cp ?? 0,
       checkpointCount: trackData(state.trackId).checkpoints.length,
       holdUntil: team.run?.holdUntil ?? 0,
+      pins: pinView(team.run?.pins),
     },
   };
 }

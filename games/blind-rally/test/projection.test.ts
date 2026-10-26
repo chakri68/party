@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as shared from "../shared/index.ts";
 import { COUNTDOWN_MS, type BlindRallyState } from "../shared/types.ts";
-import { act, ctx, driveTo, finishRun, game, newGame, passCheckpoints, racing, snapAt, TRACK } from "./helpers.ts";
+import { act, ctx, driveTo, finishRun, game, newGame, passCheckpoints, racing, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Spec §8.2: the Driver (and anyone looking at public state) never gets road
 // geometry, the map, checkpoints, the car's position or the notes. This walks
@@ -20,6 +20,8 @@ const DENY = [
   /distance|trip|progress|surface/i,
   // The weather follows the race clock from this seed: mist positions over the road.
   /seed|cloud|weather/i,
+  // The Navigator's guess pins are their own notes (spec §4.4): results get one distance, nobody gets a pin.
+  /pins?$|guess|trail/i,
 ];
 
 /**
@@ -81,6 +83,10 @@ function everyPhase(stageMode: "solo" | "shared" = "solo"): BlindRallyState[] {
   s = game.onStream!(s, "p0", { t: "in", seq: 3, steer: 1, throttle: 1, brake: 0 }, ctx(GO))!.state;
   s = game.onStream!(s, "p1", snap, ctx(GO))!.state;
   s = act(s, "p0", { type: "race.reset" }, ctx(GO + 1));
+  // Both Navigators pin a guess, and one clears it again.
+  s = act(s, "p1", { type: "map.guess", x: SPAWN[0] + 3, z: SPAWN[2] }, ctx(GO + 2));
+  s = act(s, "p3", { type: "map.guess", x: SPAWN[0], z: SPAWN[2] + 3 }, ctx(GO + 2));
+  s = act(s, "p3", { type: "map.guess", clear: true }, ctx(GO + 900));
   states.push(s);
   // Team 1 through two gates, team 2's Driver drops out and back.
   let now: number;
@@ -117,6 +123,11 @@ describe("projection deny-list", () => {
     expect(leaks(game.getResult(last))).toEqual([]);
   });
 
+  it("a pin is answered with nothing but the next update: no event for anyone", () => {
+    const r = game.handleAction(racing([["p0", "p1"]]), "p1", { type: "map.guess", x: SPAWN[0], z: SPAWN[2] }, ctx(GO));
+    expect(r.ok && r.transition.events).toEqual([]);
+  });
+
   it("Driver and spare DTOs are clean in every phase, solo or shared", () => {
     for (const s of [...everyPhase("solo"), ...everyPhase("shared"), ...ballotStates("solo"), ...ballotStates("shared")]) {
       for (const id of ["p0", "p2", "p4"]) expect(leaks(game.getPrivateState(s, id)), `${s.phase} ${id}`).toEqual([]);
@@ -124,6 +135,9 @@ describe("projection deny-list", () => {
     // And the Navigator's does get what it's for, so the walker's not just blind.
     const nav = game.getPrivateState(everyPhase()[4]!, "p1");
     expect(nav.role === "navigator" && nav.run.checkpoints).toBe(2);
+    // Pins too: the Navigator's DTO carries them, and the walker sees them.
+    expect(nav.role === "navigator" && nav.run.pins.pin).toEqual([SPAWN[0] + 3, SPAWN[2]]);
+    expect(leaks(nav).some((l) => l.includes(".pins"))).toBe(true);
   });
 
   it("only Drivers and spares get those DTOs: p0 drives, p4 is spare", () => {

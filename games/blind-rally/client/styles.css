@@ -271,6 +271,8 @@
 .room:has(.blind-rally.on-seat) .room-body { min-height: 0; gap: 8px; }
 .room:has(.blind-rally.on-seat) .game-host { min-height: 0; }
 .room:has(.blind-rally.on-seat) .turn-controls:empty { display: none; }
+/* The Navigator's result carries a second line, their closest guess pin (server/scoring.ts). */
+.room:has(.blind-rally) .standings .muted { white-space: pre-line; text-align: right; }
 @media (orientation: landscape) and (max-height: 540px) {
   .room:has(.blind-rally.on-seat) { padding: 0 max(4px, env(safe-area-inset-right)) 4px max(4px, env(safe-area-inset-left)); }
   .room:has(.blind-rally.on-seat) .room-header { padding: 2px 4px; gap: 8px; min-height: 0; }
