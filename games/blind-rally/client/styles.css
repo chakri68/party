@@ -271,8 +271,12 @@
 .room:has(.blind-rally.on-seat) .room-body { min-height: 0; gap: 8px; }
 .room:has(.blind-rally.on-seat) .game-host { min-height: 0; }
 .room:has(.blind-rally.on-seat) .turn-controls:empty { display: none; }
-/* The Navigator's result carries a second line, their closest guess pin (server/scoring.ts). */
-.room:has(.blind-rally) .standings .muted { white-space: pre-line; text-align: right; }
+/* Results: the label's two or three lines (server/scoring.ts: who and where,
+   how it went, the Navigator's closest guess) go under the name at full width.
+   Squeezed into the shell's right-hand column they broke mid-time on phones. */
+.room:has(.blind-rally) .standings li { display: grid; grid-template-columns: 1.2em auto 1fr; gap: 2px 10px; }
+.room:has(.blind-rally) .standings .name { grid-column: 3; }
+.room:has(.blind-rally) .standings .muted { grid-column: 2 / -1; white-space: pre-line; font-size: 0.85rem; line-height: 1.4; }
 @media (orientation: landscape) and (max-height: 540px) {
   .room:has(.blind-rally.on-seat) { padding: 0 max(4px, env(safe-area-inset-right)) 4px max(4px, env(safe-area-inset-left)); }
   .room:has(.blind-rally.on-seat) .room-header { padding: 2px 4px; gap: 8px; min-height: 0; }

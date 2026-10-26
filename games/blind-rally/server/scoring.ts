@@ -45,18 +45,26 @@ export function placings(state: BlindRallyState): Placing[] {
   });
 }
 
-/** "1st · Team 2 · Pine Panic · 1:42.3 (+5 s reset, 12.0 s paused off)" or "=3rd · Team 1 · Pine Panic · DNF, 3/5 checkpoints". */
+/** A number and its unit stay on one line: "12.0 s", never "12.0" and then "s". */
+const NB = "\u00a0";
+
+/**
+ * Two lines, who-and-where then how it went, so the shell's narrow standings
+ * column breaks where we say instead of mid-time:
+ * "1st · Team 2 · Pine Panic\n1:42.3 (+5 s reset, 12.0 s paused off)", or
+ * "=3rd · Team 1 · Pine Panic\nDNF, 3/5 checkpoints".
+ */
 export function placingLabel(state: BlindRallyState, p: Placing): string {
   const run = p.team.run!;
   const track = trackData(state.trackId);
   const n = track.checkpoints.length;
   const extras = [
-    run.penaltyMs ? `+${run.penaltyMs / 1000} s reset${run.resets === 1 ? "" : "s"}` : "",
-    run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)} s paused off` : "",
+    run.penaltyMs ? `+${run.penaltyMs / 1000}${NB}s reset${run.resets === 1 ? "" : "s"}` : "",
+    run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)}${NB}s paused off` : "",
   ].filter(Boolean);
   const place = `${p.tied ? "=" : ""}${ordinal(p.rank)}`;
   const result = p.timeMs !== null ? formatClock(p.timeMs) : `DNF, ${run.cp}/${n} checkpoints`;
-  return `${place} · Team ${p.team.id} · ${track.name} · ${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
+  return `${place} · Team ${p.team.id} · ${track.name}\n${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }
 
 /**
@@ -68,7 +76,7 @@ export function guessLine(team: TeamState): string | null {
   const g = team.run ? closestGuess(team.run) : null;
   if (!g) return null;
   const m = Math.round(g.offM);
-  return `Closest guess: ${m < 1 ? "spot on" : `${m} m off`} ${g.cp ? `after CP${g.cp}` : "before CP1"}`;
+  return `Closest guess: ${m < 1 ? "spot on" : `${m}${NB}m off`} ${g.cp ? `after CP${g.cp}` : "before CP1"}`;
 }
 
 export function result(state: BlindRallyState): GameOutcome {
@@ -76,7 +84,7 @@ export function result(state: BlindRallyState): GameOutcome {
   const winners = ps.filter((p) => p.rank === 1 && p.timeMs !== null).flatMap((p) => members(p.team));
   const standings = ps.flatMap((p) => {
     const label = placingLabel(state, p);
-    // One line per team, on the Navigator's row: the pins were theirs. client/styles.css breaks it onto its own line.
+    // One more line, on the Navigator's row: the pins were theirs. client/styles.css honours the line breaks.
     const guess = guessLine(p.team);
     return members(p.team).map((playerId) => ({
       playerId,

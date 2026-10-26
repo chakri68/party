@@ -28,7 +28,9 @@ import "./navigator.css";
 //   shared stage: rivals' `ghost` relays → receiveGhostSnapshot
 //   Godot's `pin` (the Navigator's guess on the big map) → `map.guess`
 //     game-actions, at most one per PIN_SPACING_MS, latest wins; a reload gets
-//     them back as initSession `pins`, and a new race wipes them (a `pins` event)
+//     them back as initSession `pins`, and a new race wipes them (a `pins` event).
+//     Outside the run the server keeps none, so one placed then comes straight
+//     back off the map (a `pins` event with the server's copy), with a reason.
 
 /** Without input from the Driver for this long mid-race, say so. Godot has already gone neutral. */
 const DRIVER_QUIET_MS = 1_000;
@@ -109,6 +111,8 @@ class NavigatorView implements RoleView {
         if (this.live()) api.stream({ ...s, t: "snap" });
       },
       physics: (e) => {
+        // Before the live() gate: a pin outside the run has to be taken back off the map.
+        if (e.kind === "pin") return this.queuePin(e.clear === true ? { clear: true } : typeof e.x === "number" && typeof e.z === "number" ? { x: e.x, z: e.z } : null);
         if (!this.live()) return;
         if (e.kind === "impact") api.stream({ t: "ev", kind: "impact", strength: e.strength });
         // Reliable and answered: a "no" (out of order, nowhere near) comes back through rejected().
@@ -116,7 +120,6 @@ class NavigatorView implements RoleView {
         else if (e.kind === "finish") api.act({ type: "race.event", kind: "finish" });
         // Godot's parked a car that dropped out of the world and won't move it on its own say-so.
         else if (e.kind === "fell") api.act({ type: "race.reset", reason: "fell" });
-        else if (e.kind === "pin") this.queuePin(e.clear === true ? { clear: true } : typeof e.x === "number" && typeof e.z === "number" ? { x: e.x, z: e.z } : null);
       },
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
@@ -224,11 +227,15 @@ class NavigatorView implements RoleView {
 
   /**
    * A guess pin for the server (the results and, later, replays). Only while
-   * the car's out there, since that's all the server keeps; Godot shows it
-   * either way. Taps faster than PIN_SPACING_MS coalesce: the last one goes.
+   * the car's out there: a pin is scored against where the car was, and on
+   * the grid, parked at the finish or paused that's a free "spot on". Godot
+   * draws a pin the moment it's tapped, so one the server won't keep is taken
+   * back off, not left to vanish on the next reload. Taps faster than
+   * PIN_SPACING_MS coalesce: the last one goes.
    */
   private queuePin(pin: { x: number; z: number } | { clear: true } | null) {
-    if (!pin || !this.live()) return;
+    if (!pin) return;
+    if (!this.live()) return this.refusePin();
     this.pendingPin = pin;
     if (this.pinTimer !== undefined) return;
     const wait = this.lastPinAt + PIN_SPACING_MS - performance.now();
@@ -236,12 +243,27 @@ class NavigatorView implements RoleView {
       this.pinTimer = undefined;
       const p = this.pendingPin;
       this.pendingPin = null;
-      if (!p || !this.live()) return;
+      if (!p) return;
+      if (!this.live()) return this.refusePin();
       this.lastPinAt = performance.now();
       this.api.act({ type: "map.guess", ...p });
     };
     if (wait <= 0) send();
     else this.pinTimer = setTimeout(send, wait);
+  }
+
+  /** Puts the map back to the pins the server kept, and says why the new one didn't stick. */
+  private refusePin() {
+    const p = this.props;
+    if (p?.private.role !== "navigator") return;
+    this.bridge.event({ kind: "pins", ...p.private.run.pins });
+    const g = p.game;
+    const team = this.myTeam();
+    this.msg.textContent = g.phase === "teams" || (g.phase === "countdown" && team?.status === "running")
+      ? "Pins count from the green light."
+      : team?.status === "running" && team.away.length
+        ? "Paused: pins wait till everyone's back."
+        : "Race over: your pins are in.";
   }
 
   private myTeam(): PublicTeam | undefined {

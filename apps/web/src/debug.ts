@@ -3,6 +3,11 @@
 //
 // Toggle with the ` key or the bug button. It only ever shows *your* private
 // state; opponents' hands never reach this client, debug or not.
+//
+// The bug button sits at the end of the room header, in flow, not floating:
+// games put their own chrome over the top of the screen on phones held
+// sideways (Blind Rally centres the turn controls there), and a fixed button
+// lands on whatever's under it.
 
 import { motion } from "@games/animation";
 import type { RoomClient, RoomUpdate } from "@games/room-client";
@@ -10,7 +15,7 @@ import { h, replaceChildren } from "@games/ui";
 import { icon } from "./brand.ts";
 
 const STYLE = `
-.dbg-toggle { position: fixed; left: 50%; top: 6px; transform: translateX(-50%); z-index: 1000; min-height: 32px; padding: 0 10px; opacity: .5; }
+.room-header .dbg-toggle { opacity: .5; }
 .dbg { position: fixed; inset: 44px auto auto 50%; transform: translateX(-50%); z-index: 1000; width: min(420px, calc(100vw - 24px));
   max-height: 70dvh; overflow: auto; padding: 12px; border-radius: 12px; background: #0b0f0dee;
   border: 1px solid #fff3; font: 12px/1.4 ui-monospace, monospace; display: grid; gap: 10px; }
@@ -23,7 +28,8 @@ const STYLE = `
 .dbg textarea { width: 100%; min-height: 60px; background: #17221c; color: inherit; border: 1px solid #fff3; border-radius: 6px; }
 `;
 
-export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null): () => void {
+/** `toggle` is for the room header to place; `detach` takes everything back out. */
+export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null): { toggle: HTMLElement; detach: () => void } {
   const style = h("style", {}, STYLE);
   const roomPre = h("pre");
   const privPre = h("pre");
@@ -73,7 +79,7 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
     privPre,
   );
 
-  const toggle = h("button", { type: "button", class: "dbg-toggle", "aria-label": "Debug tools" }, icon("bug"));
+  const toggle = h("button", { type: "button", class: "icon-btn dbg-toggle", "aria-label": "Debug tools" }, icon("bug"));
   const flip = () => {
     panel.hidden = !panel.hidden;
     if (!panel.hidden) refresh();
@@ -97,10 +103,10 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
   const offUpdate = client.on("update", refresh);
   const offStatus = client.on("status", refresh);
 
-  document.body.append(style, toggle, panel);
+  document.body.append(style, panel);
   if (new URLSearchParams(location.search).has("debug")) flip();
 
-  return () => {
+  const detach = () => {
     offUpdate();
     offStatus();
     window.removeEventListener("keydown", onKey);
@@ -108,4 +114,5 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
     toggle.remove();
     panel.remove();
   };
+  return { toggle, detach };
 }

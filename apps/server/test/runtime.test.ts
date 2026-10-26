@@ -1185,7 +1185,7 @@ describe("Blind Rally through the room", () => {
     expect(roomOf(host).seats.find((x) => x.name === "Ben")!.presence).toBe("reconnecting");
     // The room's grace runs out later and only marks the seat; the result stands.
     await world.tick(room, 30_000);
-    expect(roomOf(host).result!.standings[0]!.label).toMatch(/DNF, 0\/5 checkpoints \(35\.0 s paused off\)/);
+    expect(roomOf(host).result!.standings[0]!.label).toMatch(/DNF, 0\/5 checkpoints \(35\.0\u00a0s paused off\)/);
   });
 
   it("a Navigator's checkpoint is a game-action: checked, persisted, and refused out of order", async () => {

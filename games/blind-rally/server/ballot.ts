@@ -44,8 +44,7 @@ export function tally(state: BlindRallyState, ballot: TrackBallot): { trackId: s
 /**
  * After anything that might move the count: drops votes from cars that have
  * gone or emptied, recounts, and moves `trackId` to the leader. Returns
- * whether the track changed; if it did, everyone has to ready up again,
- * because a ready Navigator has already booted the old course.
+ * whether the track changed; see setTrack for who that un-readies.
  */
 export function settleTrack(state: BlindRallyState): boolean {
   if (state.phase !== "teams") return false;
@@ -64,10 +63,17 @@ export function settleTrack(state: BlindRallyState): boolean {
   return true;
 }
 
-/** Moves the room to `trackId`; a change un-readies everyone (see settleTrack). */
+/**
+ * Moves the room to `trackId`. A change un-readies the Navigators and only
+ * them: a ready Navigator has booted the old course, and the Driver's screen
+ * has no track in it. So a vote that doesn't move the leader touches nobody,
+ * and one that does sends each car's Navigator back to look, without making
+ * the whole lobby ready up again for the sake of a stage they can't see.
+ */
 export function setTrack(state: BlindRallyState, trackId: string): boolean {
   if (state.trackId === trackId) return false;
   state.trackId = trackId;
-  for (const p of state.players) p.ready = false;
+  const navigators = new Set(state.teams.map((t) => t.navigatorId));
+  for (const p of state.players) if (navigators.has(p.id)) p.ready = false;
   return true;
 }

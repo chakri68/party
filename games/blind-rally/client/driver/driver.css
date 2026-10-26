@@ -91,6 +91,7 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 .br-gear { margin-top: 2cqi; min-width: 2em; text-align: center; font-size: max(11px, 6cqi); font-weight: 700; color: var(--muted); border: 1.5px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .br-gear.rev { color: var(--danger); border-color: var(--danger); }
 
+.br-readout { display: contents; }
 .br-clock { display: grid; justify-items: center; gap: 0; font-variant-numeric: tabular-nums; }
 .br-clock-main { font-size: clamp(20px, 7dvh, 28px); font-weight: 700; letter-spacing: -0.02em; }
 .br-clock-sub { font-size: 0.8rem; color: var(--muted); }
@@ -114,20 +115,27 @@ html.br-locked, html.br-locked body { overscroll-behavior: none; }
 
 @media (orientation: landscape) and (max-height: 540px) {
   .br-cockpit { padding: 2px 0; gap: 2px; }
-  .br-gauge { width: min(100%, 200px, 44dvh); }
+  /* Gives, as in portrait: a host's End race wraps the top row, and a fixed dial then pushed Reset off the bottom. */
+  .br-gauge { flex: 1 1 0; width: auto; max-width: min(100%, 200px); min-height: 72px; }
   .blind-rally .br-top .br-chip, .blind-rally .br-top .br-fs { min-height: 32px; }
   .blind-rally .br-reset { min-height: 44px; }
 }
 
 /* ---- portrait: instruments on top, thumbs below --------------------------- */
 
+/* A tall phone is still short once the pads have their half: at 360x640 the
+   cockpit gets under 300px. So the clock sits beside Reset, and the gauge is
+   the one thing that gives, taking whatever height is left (a fixed size
+   pushed the clock and Reset under the pads). */
 @media (orientation: portrait) {
   .br-driver {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(200px, 0.8fr);
+    grid-template-rows: minmax(0, 1fr) minmax(180px, 0.7fr);
     grid-template-areas: "cockpit cockpit" "steer pedals";
   }
-  .br-gauge { width: min(64vw, 240px, 32dvh); }
+  .br-gauge { flex: 1 1 0; width: auto; max-width: min(100%, 240px); min-height: 72px; }
+  .br-readout { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+  .blind-rally .br-readout .br-reset { flex: 0 1 200px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

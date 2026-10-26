@@ -42,7 +42,7 @@ describe("phases", () => {
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
     expect(s.phase).toBe("finished");
     expect(s.teams[0]!.run!.status).toBe("dnf");
-    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(Array(2).fill(`1st · Team 1 · ${TRACK.name} · DNF, 0/${TRACK.checkpoints.length} checkpoints`));
+    expect(game.getResult(s)!.standings.map((r) => r.label)).toEqual(Array(2).fill(`1st · Team 1 · ${TRACK.name}\nDNF, 0/${TRACK.checkpoints.length} checkpoints`));
   });
 
   it("the start asks for both timers: the go and the time limit", () => {

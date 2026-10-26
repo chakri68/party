@@ -68,6 +68,8 @@ export class RoomView implements View {
   private stuckTimer: ReturnType<typeof setTimeout> | undefined;
   private stuck = false;
   private detachDebug: (() => void) | null = null;
+  /** The dev panel's bug button, once loaded: the header's last item. */
+  private debugToggle: HTMLElement | null = null;
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
@@ -224,7 +226,11 @@ export class RoomView implements View {
     // the import entirely.
     if (import.meta.env.DEV) {
       void import("../debug.ts").then((m) => {
-        if (this.client === client) this.detachDebug = m.attachDebug(client, () => this.last);
+        if (this.client !== client) return;
+        const debug = m.attachDebug(client, () => this.last);
+        this.debugToggle = debug.toggle;
+        this.detachDebug = debug.detach;
+        this.renderHeader();
       });
     }
   }
@@ -278,6 +284,7 @@ export class RoomView implements View {
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,
+      this.debugToggle,
     );
   }
 

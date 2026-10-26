@@ -61,8 +61,8 @@ class DriverView implements RoleView {
     { class: "br-cockpit" },
     this.top,
     this.dash.el,
-    h("div", { class: "br-clock" }, this.clock, this.clockSub),
-    this.reset,
+    // One box only so portrait can sit the clock beside Reset; landscape sees through it.
+    h("div", { class: "br-readout" }, h("div", { class: "br-clock" }, this.clock, this.clockSub), this.reset),
     this.banner,
     this.msg,
   );

@@ -62,7 +62,7 @@ export class BlindRallyView implements GameView {
       this.last = null;
     } else {
       // A Navigator's key names the track too: Godot boots one course, so a new
-      // track (which un-readies everyone) means a fresh Godot on the next ready.
+      // track (which un-readies the Navigators) means a fresh Godot on the next ready.
       const key = `${priv.role}:${priv.teamId}${priv.role === "navigator" ? `:${priv.session.trackId}` : ""}`;
       const roleProps: RoleProps = { room: props.room, game, private: priv, playerId: props.playerId, events: props.events as BlindRallyEvent[] };
       this.last = roleProps;

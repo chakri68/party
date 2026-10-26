@@ -30,7 +30,7 @@ export const blindRallyRules: string[] = [
   "Checkpoints count in order only, and the finish only counts after all of them.",
   "Lose a phone mid-race and your team's clock stops for up to 30 seconds while you reconnect. After that it's a DNF.",
   "Assists: the host picks how much the Navigator gets. A live car marker on the map, a trip meter, printed pace notes, the 3D view itself. Classic is no marker, the rest on. Nightmare is all off: the Navigator gets a map and their wits.",
-  "The track: the host picks it, or the teams vote, one vote per car, cast by its captain. A tie goes to a coin flip, and everyone sees it was one. Changing the track un-readies everyone, since the Navigators' course loads when they ready up.",
+  "The track: the host picks it, or the teams vote, one vote per car, cast by its captain. A tie goes to a coin flip, and everyone sees it was one. Changing the track un-readies the Navigators, since their course loads when they ready up.",
   "Solo stage: every car has its own copy of the road. Shared stage: one road, and Navigators see the other cars as ghosts that can't hit you. Following a rival is allowed. Following a lost rival is a choice.",
   "Each team has a colour, a shape and a number, on its car and its seats.",
   "Fastest time wins. Anyone still out there when the time runs out is DNF.",

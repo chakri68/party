@@ -34,6 +34,7 @@ function ballot(players = 8, extra: Partial<typeof DEFAULT_SETTINGS> = {}, seat 
 }
 
 const vote = (s: BlindRallyState, who: string, trackId: string | null) => act(s, who, { type: "track.vote", trackId });
+const readiness = (s: BlindRallyState) => Object.fromEntries(s.players.map((p) => [p.id, p.ready]));
 
 describe("host picks (the default)", () => {
   it("the catalogue comes from the file, in its order, and the room starts on its first track", () => {
@@ -65,7 +66,7 @@ describe("host picks (the default)", () => {
     refused(s, "p1", { type: "track.vote", trackId: ICE }, "host-picks");
   });
 
-  it("a new track un-readies everyone: a ready Navigator has booted the old course", () => {
+  it("a new track un-readies the Navigators, who've booted the old course; the Drivers have no course to reload", () => {
     let s = newGame(2);
     s = act(s, "p0", { type: "team.join", teamId: 1, role: "driver" });
     s = act(s, "p1", { type: "team.join", teamId: 1, role: "navigator" });
@@ -74,7 +75,12 @@ describe("host picks (the default)", () => {
     // Picking the one you're on is nothing.
     expect(act(s, "p0", { type: "track.pick", trackId: PINE }).players.every((p) => p.ready)).toBe(true);
     s = act(s, "p0", { type: "track.pick", trackId: ICE });
-    expect(s.players.some((p) => p.ready)).toBe(false);
+    expect(readiness(s)).toEqual({ p0: true, p1: false });
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to ready up.");
+    // Ready again, the Navigator's session names the new course.
+    s = act(s, "p1", { type: "player.ready", ready: true });
+    const nav = game.getPrivateState(s, "p1");
+    expect(nav.role === "navigator" && nav.session.trackId).toBe(ICE);
   });
 
   it("practice is always the host's pick, whatever the setting says", () => {
@@ -187,14 +193,34 @@ describe("team ballot", () => {
     expect(game.getResult(s)!.standings[0]!.label).toContain("Test Ice");
   });
 
-  it("a vote that moves the leader un-readies everyone; one that doesn't, doesn't", () => {
+  it("a vote that moves the leader un-readies the Navigators; one that doesn't touches nobody", () => {
     let s = vote(vote(ballot(6), "p1", ICE), "p3", ICE);
     for (let i = 0; i < 6; i++) s = act(s, `p${i}`, { type: "player.ready", ready: true });
     s = vote(s, "p5", DUNES); // 2–1, Ice still ahead
     expect(s.players.every((p) => p.ready)).toBe(true);
-    s = vote(s, "p3", DUNES); // 1–2: Dunes
+    // Taking a vote back without moving the leader is nothing too.
+    s = vote(s, "p5", null);
+    expect(s.players.every((p) => p.ready)).toBe(true);
+    s = vote(vote(s, "p5", DUNES), "p3", DUNES); // 1–2: Dunes
     expect(s.trackId).toBe(DUNES);
-    expect(s.players.some((p) => p.ready)).toBe(false);
+    expect(readiness(s)).toEqual({ p0: true, p1: false, p2: true, p3: false, p4: true, p5: false });
+  });
+
+  it("a car emptying that moves the leader un-readies the Navigators; a spare had nothing to lose", () => {
+    // Team 3 gets out of a 1–2 for Dunes; its vote goes with it, and the 1–1 tie is the coin's.
+    const leave = (seed: number) => {
+      let s = { ...ballot(7), seed };
+      s = vote(vote(vote(s, "p1", ICE), "p3", DUNES), "p5", DUNES);
+      for (let i = 0; i < 6; i++) s = act(s, `p${i}`, { type: "player.ready", ready: true });
+      return act(act(s, "p5", { type: "team.leave" }), "p4", { type: "team.leave" });
+    };
+    const seeds = Array.from({ length: 40 }, (_, i) => i * 7919);
+    const kept = leave(seeds.find((x) => leave(x).trackId === DUNES)!);
+    expect(kept.players.filter((p) => p.ready)).toHaveLength(4);
+    const moved = leave(seeds.find((x) => leave(x).trackId === ICE)!);
+    expect(pub(moved).ballot!.tied).toEqual([DUNES, ICE]);
+    // p4 and p5 un-readied themselves by getting out; p6 never sat down.
+    expect(readiness(moved)).toEqual({ p0: true, p1: false, p2: true, p3: false, p4: false, p5: false, p6: false });
   });
 });
 

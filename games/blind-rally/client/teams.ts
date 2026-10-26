@@ -316,7 +316,7 @@ export class TeamsScreen {
       { class: "br-stages", "aria-label": "Track" },
       h("h3", {}, ballot ? "Track: team vote" : "Track"),
       h("ul", { class: "br-track-list" }, game.tracks.map(card)),
-      h("p", { class: "br-stage-hint" }, hint, tail, game.tracks.length > 1 ? " Changing the track un-readies everyone." : ""),
+      h("p", { class: "br-stage-hint" }, hint, tail, game.tracks.length > 1 ? " Changing the track un-readies the Navigators." : ""),
     );
   }
 

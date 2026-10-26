@@ -130,7 +130,7 @@ describe("results: closest guess", () => {
     const r = game.getResult(s)!;
     const nav = r.standings.find((x) => x.playerId === "p1")!.label!;
     const drv = r.standings.find((x) => x.playerId === "p0")!.label!;
-    expect(nav.split("\n")).toEqual([drv, "Closest guess: 13 m off before CP1"]);
+    expect(nav).toBe(`${drv}\nClosest guess: 13\u00a0m off before CP1`);
     expect(drv).not.toContain("guess");
   });
 
@@ -147,6 +147,6 @@ describe("results: closest guess", () => {
     let { state: s, now } = driveTo(one(), "p1", east(50), GO);
     s = act(s, "p1", pin(SX + 50, SZ + 20), ctx(now));
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
-    expect(game.getResult(s)!.standings.find((x) => x.playerId === "p1")!.label).toMatch(/\nClosest guess: 20 m off before CP1$/);
+    expect(game.getResult(s)!.standings.find((x) => x.playerId === "p1")!.label).toMatch(/\nClosest guess: 20\u00a0m off before CP1$/);
   });
 });
