@@ -3,8 +3,8 @@ extends Resource
 ## What a stage looks like, as opposed to where its road goes (map: "Future:
 ## biomes"). A track scene points at one (Track.biome); main.gd, the ground
 ## and road shaders, EyeForest, Weather and CarFx read it. Pine Panic is the
-## forest, Dust Devil the desert canyon; Snowblind and Cliffhanger get their
-## own .tres in res://biomes/ and nothing else here needs to change.
+## forest, Dust Devil the desert canyon, Snowblind the alpine snow;
+## Cliffhanger gets its own .tres in res://biomes/.
 ##
 ## Light isn't here: the sun and ambient are nodes in the track scene (Sun,
 ## Environment), which the stage builder sets.
@@ -45,9 +45,11 @@ extends Resource
 @export_enum("pines", "mesas") var ring := "pines"
 
 @export_group("Weather")
-## What the seeded weather banks are: "mist" (pale, slow, in the treetops)
-## or "dust" (warm, faster, low and streaky). Same system, same seed rules.
-@export_enum("mist", "dust") var weather := "mist"
+## What the seeded weather banks are: "mist" (pale, slow, in the treetops),
+## "dust" (warm, faster, low and streaky) or "snow" (blowing snow, low and
+## fast like dust, plus falling flakes as thick as the clouds). Same system,
+## same seed rules.
+@export_enum("mist", "dust", "snow") var weather := "mist"
 @export var weather_tint := Color(0.8, 0.83, 0.85)
 ## Wind speed multiplier for the banks.
 @export var wind := 1.0
@@ -59,6 +61,13 @@ extends Resource
 @export var dust_off := Color("a8957a")
 ## Size, life and rate of the dust plume (1 = the forest's gravel).
 @export var plume := 1.0
+## What the wheels fling (gravel, or clumps of snow) and the tyre marks' colour.
+@export var grit := Color("4a4136")
+@export var marks := Color(0.16, 0.12, 0.08)
+
+@export_group("Trees far off")
+## How white the impostor pines' tips go (0 = bare green, 1 = snow-capped).
+@export var tree_snow := 0.0
 
 
 static var _forest: Biome

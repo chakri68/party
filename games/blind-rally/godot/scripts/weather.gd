@@ -33,7 +33,12 @@ extends Node3D
 ## the desert canyon: a warm tint, a stronger wind (so they stream past
 ## instead of drifting), lower over the ground, and paler cloud shade, since
 ## a dust storm dims the sun rather than casting crisp cloud shadows. Same
-## seed, same storm, for every team.
+## seed, same storm, for every team. Snow: the banks are blowing snow (white,
+## low and quick, like the dust), and flakes fall through a box round the
+## car (shaders/snowfall.gdshader: one draw call, moved in the shader), as
+## thick as the clouds say times a seeded share. They drift on the same wind
+## as the banks and run on the race clock, so every team gets the same
+## snow; clouds 0 is a clear day here too.
 ##
 ## Later: the NIGHT modifier (spec §7.2) fits the same slot. A dark multiply
 ## pass like the cloud shadow, with the car's keyhole as headlights, would
@@ -52,6 +57,9 @@ const MIST_DENSITY := 0.075 ## per metre of bank crossed at full opacity
 const MIST_TOP := 11.0 ## metres above the car where the eye-level mist has thinned out
 const MIST_TINT := Color(0.8, 0.83, 0.85)
 const SHADE_SCALE := 180.0 ## metres per cloud-noise tile; keep in sync with weather.gdshaderinc
+const MAX_FLAKES := 2400 ## at snowfall 1
+const FALL := 1.6 ## m/s a flake drops
+const FLAKE_WIND := 0.45 ## share of the bank wind the flakes drift with (they're near the ground, in the lee)
 
 @export var clouds := 0.0 ## 0 = clear, 1 = heavy
 var seed_value := 0
@@ -67,12 +75,14 @@ var eye_level := false:
 			_mist.visible = clouds > 0.0 and not v
 		_push_mist()
 var bounds := Rect2(-500, -500, 1000, 1000)
-## "mist" or "dust" (Biome.weather); set_biome() sets these.
+## "mist", "dust" or "snow" (Biome.weather); set_biome() sets these.
 var style := "mist"
 var tint := MIST_TINT
 var wind_k := 1.0
 var bank_height := BANK_HEIGHT
 var shade_k := 1.0
+## How hard it's snowing, 0..1: clouds times a seeded share (snow biome only).
+var snowfall := 0.0
 
 var _wind := Vector2.ZERO
 var _banks: Array = [] # {origin: Vector2, phase, period, thick, puffs: [[offset Vector2, size]]}
@@ -82,6 +92,8 @@ var _eye_puffs := PackedVector4Array() # what the shaders got last, for the CPU 
 var _mist: MultiMeshInstance3D
 var _mist_mat: ShaderMaterial
 var _mm: MultiMesh
+var _snow: MultiMeshInstance3D
+var _snow_mat: ShaderMaterial
 
 
 func _ready() -> void:
@@ -118,8 +130,10 @@ func set_biome(b: Biome) -> void:
 	style = b.weather
 	tint = b.weather_tint
 	wind_k = b.wind
-	bank_height = BANK_HEIGHT * (0.55 if style == "dust" else 1.0)
-	shade_k = 0.55 if style == "dust" else 1.0
+	bank_height = BANK_HEIGHT * (0.55 if style in ["dust", "snow"] else 1.0)
+	shade_k = 0.55 if style == "dust" else (0.8 if style == "snow" else 1.0)
+	if style == "snow" and _snow == null:
+		_build_snowfall()
 	if _mist_mat:
 		_mist_mat.set_shader_parameter("tint", tint.lightened(0.08))
 	for m in _mats:
@@ -153,6 +167,13 @@ func configure(seed_in: int, clouds_in: float) -> void:
 			bank.puffs.append([Vector2(cos(a), sin(a)) * rng.randf_range(0.0, 18.0), rng.randf_range(22.0, 38.0), Vector2(rng.randf(), rng.randf())])
 		if b < count:
 			_banks.append(bank)
+	# After every bank's numbers, so the snow never shifts a bank.
+	var share := rng.randf_range(0.55, 1.0)
+	snowfall = clouds * share if style == "snow" else 0.0
+	if _snow:
+		_snow.visible = snowfall > 0.0
+		_snow.multimesh.visible_instance_count = roundi(snowfall * MAX_FLAKES)
+		_push_snow()
 	_cloud = {
 		"cloud_coverage": lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2,
 		"cloud_strength": lerpf(0.22, 0.38, clouds) * shade_k if clouds > 0.0 else 0.0,
@@ -214,6 +235,7 @@ func _physics_process(dt: float) -> void:
 func _process(_dt: float) -> void:
 	if clouds <= 0.0:
 		return
+	_push_snow()
 	_cloud["cloud_offset"] = _wind * time
 	for m in _mats:
 		m.set_shader_parameter("cloud_offset", _wind * time)
@@ -347,3 +369,43 @@ func _update_mist() -> void:
 			_mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(s, 1, s)), pos))
 			_mm.set_instance_color(i, Color(1, 1, 1, a))
 			_mm.set_instance_custom_data(i, Color(p[2].x, p[2].y, 0, 0))
+
+
+## The flakes: MAX_FLAKES quads at fixed random spots in the box (seed 1:
+## where a flake sits in the box isn't weather, only how many fall is).
+func _build_snowfall() -> void:
+	_snow_mat = ShaderMaterial.new()
+	_snow_mat.shader = preload("res://shaders/snowfall.gdshader")
+	_snow_mat.render_priority = 1
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1, 1)
+	quad.material = _snow_mat
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = quad
+	mm.instance_count = MAX_FLAKES
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	for i in MAX_FLAKES:
+		mm.set_instance_transform(i, Transform3D.IDENTITY)
+		mm.set_instance_custom_data(i, Color(rng.randf(), rng.randf(), rng.randf(), rng.randf()))
+	mm.visible_instance_count = 0
+	_snow = MultiMeshInstance3D.new()
+	_snow.name = "Snowfall"
+	_snow.multimesh = mm
+	_snow.layers = LAYER
+	_snow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_snow.custom_aabb = AABB(Vector3(-5000, -500, -5000), Vector3(10000, 1000, 10000))
+	_snow.visible = false
+	add_child(_snow)
+
+
+func _push_snow() -> void:
+	if _snow == null or snowfall <= 0.0:
+		return
+	var w := _wind * FLAKE_WIND * time
+	_snow_mat.set_shader_parameter("drift", Vector3(w.x, -FALL * time, w.y))
+	_snow_mat.set_shader_parameter("t", time)
+	if car:
+		_snow_mat.set_shader_parameter("centre", car.global_position)

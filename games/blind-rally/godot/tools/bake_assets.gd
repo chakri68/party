@@ -16,6 +16,7 @@ const RACING := "res://assets/kenney_racing-kit/"
 const CAR := "res://assets/kenney_car-kit/"
 const SPACE := "res://assets/kenney_space-kit/"
 const SURVIVAL := "res://assets/kenney_survival-kit/"
+const HOLIDAY := "res://assets/kenney_holiday-kit/"
 
 ## Kenney material name -> palette colour (sRGB).
 const NATURE_PALETTE := {
@@ -139,6 +140,19 @@ const JOBS := {
 	"crater": [SPACE + "crater.glb", 30.0, "crater", {"centre_xz": true}],
 	"bones": [SPACE + "bones.glb", 3.0, "bone", {"centre_xz": true}],
 	"alien": [SPACE + "alien.glb", 3.2, "alien", {"centre_xz": true}],
+	# Snowblind (build_snowblind.gd). Holiday Kit's atlas, moved off its
+	# pastels: the teal pines go dark spruce, the lilac rocks granite, the
+	# blue-white snow a cooler, flatter white, the orange trunks bark.
+	"snow_pine_a": [HOLIDAY + "tree-snow-a.glb", 6.0, "snow_tree", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"snow_pine_b": [HOLIDAY + "tree-snow-b.glb", 5.0, "snow_tree", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"snow_pine_c": [HOLIDAY + "tree-snow-c.glb", 4.4, "snow_tree", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"snow_pine_small": [HOLIDAY + "tree-snow-c.glb", 3.0, "snow_tree", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"granite_l": [HOLIDAY + "rocks-large.glb", 3.6, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"granite_m": [HOLIDAY + "rocks-medium.glb", 2.6, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png", "ao": true}],
+	"granite_s": [HOLIDAY + "rocks-small.glb", 2.0, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png"}],
+	"snow_pile": [HOLIDAY + "snow-pile.glb", 3.0, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png"}],
+	"lantern": [HOLIDAY + "lantern.glb", 1.4, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png"}],
+	"bench": [HOLIDAY + "bench.glb", 1.7, "snow_atlas", {"atlas": HOLIDAY + "Textures/colormap.png"}],
 }
 
 var _atlas_cache := {}
@@ -296,7 +310,28 @@ func _atlas(path: String) -> Image:
 	return _atlas_cache[path]
 
 
+## Holiday Kit swatches -> Snowblind. By hue and value, so each swatch's
+## light-to-dark ramp (Kenney shades faces with neighbouring swatches) survives.
+static func snow_remap(c: Color, tree: bool) -> Color:
+	if c.s < 0.25 and c.v > 0.72:
+		# Snow: cooler and flatter than Kenney's sky-blue white, same ramp.
+		var k := clampf((c.v - 0.72) / 0.28, 0.0, 1.0)
+		return Color("c9d3dc").lerp(Color("f1f4f6"), k)
+	if c.h > 0.35 and c.h < 0.52 and c.s > 0.3:
+		# Teal pine -> dark spruce.
+		return Color("1f3a2a").lerp(Color("3e6447"), clampf((c.v - 0.5) / 0.3, 0.0, 1.0))
+	if c.h > 0.58 and c.h < 0.72 and c.v < 0.7:
+		# Lilac stone -> granite.
+		var g := clampf((c.v - 0.35) / 0.3, 0.0, 1.0)
+		return Color("4e5156").lerp(Color("8a8d90"), g)
+	if tree and c.h < 0.1 and c.s > 0.4:
+		return Color("3e2b20").lerp(Color("5e4230"), clampf((c.v - 0.75) / 0.2, 0.0, 1.0))
+	return c
+
+
 func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO) -> Color:
+	if palette == "snow_tree" or palette == "snow_atlas":
+		return snow_remap(c, palette == "snow_tree")
 	if DESERT_PALETTES.has(palette):
 		return DESERT_PALETTES[palette].get(mat_name, c)
 	match palette:

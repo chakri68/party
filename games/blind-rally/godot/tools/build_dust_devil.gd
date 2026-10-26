@@ -45,7 +45,7 @@ const CONTROL := [
 	Vector2(-66, 270), Vector2(-80, 240), Vector2(-52, 220), Vector2(-78, 192), Vector2(-50, 165),
 	Vector2(-62, 128), Vector2(-40, 100), Vector2(-62, 70), Vector2(-50, 40),
 	Vector2(-35, 10), Vector2(-5, -15), Vector2(35, -20), Vector2(70, -5), Vector2(110, -15),
-	Vector2(150, -40), Vector2(185, -45), Vector2(212, -72), Vector2(205, -110), Vector2(220, -150),
+	Vector2(150, -40), Vector2(185, -45), Vector2(212, -72), Vector2(240, -98), Vector2(247, -128), Vector2(220, -150),
 	Vector2(225, -185), Vector2(200, -215), Vector2(165, -205), Vector2(130, -218), Vector2(118, -240),
 	Vector2(140, -262), Vector2(165, -282), Vector2(150, -305), Vector2(118, -298), Vector2(85, -280),
 	Vector2(50, -262), Vector2(20, -275), Vector2(-15, -300), Vector2(-50, -285), Vector2(-70, -255),
@@ -64,7 +64,7 @@ const SPURS := [
 	{"name": "MineRoad", "kind": "dead_end", "from": Vector2(-80, 292),
 		"via": [Vector2(-50, 296), Vector2(-15, 288), Vector2(20, 298), Vector2(50, 290)], "rise": 3.0, "F": 10.0, "H": 16.0},
 	{"name": "ButteLoop", "kind": "loop", "from": Vector2(212, -72),
-		"via": [Vector2(240, -98), Vector2(247, -128)], "to": Vector2(220, -150), "rise": 1.5, "F": 30.0, "H": 13.0},
+		"via": [Vector2(205, -110)], "to": Vector2(220, -150), "rise": 1.5, "F": 30.0, "H": 13.0},
 	{"name": "TowerRoad", "kind": "dead_end", "from": Vector2(-135, -262),
 		"via": [Vector2(-160, -285), Vector2(-180, -310), Vector2(-205, -322)], "rise": 6.0, "F": 11.0, "H": 15.0},
 ]

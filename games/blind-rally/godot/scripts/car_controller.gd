@@ -20,11 +20,19 @@ const CONTROL_TIMEOUT := 0.3
 ## doesn't hit counts as offroad too.
 ## "loose" scales how much throttle and brake can unstick the rear: gravel
 ## road slides, the forest floor bogs down more than it slides.
+## Snowblind: packed snow slides more than gravel and lets go easier; ice
+## barely grips at all, so the car carries on the way it was going while the
+## nose turns (lift early, steer early), yet it still answers the Driver's
+## on/off pads: the slip cap below catches the slide on ice too. The gritted
+## patches at its hairpins are "road". "traction" (1 when absent) scales
+## engine and brakes: on ice the wheels spin up and lock, so it pulls away
+## slower and stops in twice the distance.
 const SURFACES := {
 	"road": {"drag": 1.0, "grip": 1.0, "top": 1.0, "loose": 1.0},
 	"offroad": {"drag": 5.3, "grip": 0.75, "top": 0.5, "loose": 0.6},
 	"sand": {"drag": 7.5, "grip": 0.65, "top": 0.4, "loose": 0.8},
-	"ice": {"drag": 0.6, "grip": 0.15, "top": 1.0, "loose": 0.3},
+	"snow": {"drag": 1.1, "grip": 0.72, "top": 0.97, "loose": 1.15, "traction": 0.9},
+	"ice": {"drag": 0.7, "grip": 0.32, "top": 1.0, "loose": 0.6, "traction": 0.45},
 }
 
 @export_group("Engine")
@@ -122,14 +130,15 @@ func _physics_process(dt: float) -> void:
 	# Longitudinal: throttle forward, brake until stopped, then reverse. Thrust
 	# tapers near the top so the last few km/h take a moment.
 	var top: float = max_speed * s.top
+	var trac: float = s.get("traction", 1.0)
 	if throttle > 0.0 and v_fwd < top:
 		var taper := lerpf(1.0, 0.6, clampf(v_fwd / top, 0.0, 1.0))
-		v_fwd = minf(v_fwd + engine_accel * taper * throttle * dt, top)
+		v_fwd = minf(v_fwd + engine_accel * taper * throttle * trac * dt, top)
 	if brake > 0.0:
 		if v_fwd > 0.5:
-			v_fwd = maxf(v_fwd - brake_decel * brake * dt, 0.0)
+			v_fwd = maxf(v_fwd - brake_decel * brake * trac * dt, 0.0)
 		else:
-			v_fwd = maxf(v_fwd - reverse_accel * brake * dt, -max_reverse)
+			v_fwd = maxf(v_fwd - reverse_accel * brake * trac * dt, -max_reverse)
 	# Drag: linear plus rolling, scaled by surface. Going over the surface's top
 	# speed (just drove onto grass at 25 m/s) bleeds off fast but not instantly.
 	var d: float = drag * s.drag

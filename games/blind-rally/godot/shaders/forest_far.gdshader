@@ -13,6 +13,9 @@ render_mode cull_back;
 #include "res://shaders/weather.gdshaderinc"
 
 uniform float near_r = 50.0;
+// Snow on the branches (Biome.tree_snow): each tier's tip goes white and the
+// colour runs down its faces to the green at the base. 0 = the forest.
+uniform float snow_cap = 0.0;
 
 varying float v_shade;
 varying float v_mist;
@@ -26,6 +29,9 @@ void vertex() {
 		VERTEX = vec3(0.0);
 	} else {
 		float part = UV.x;
+		if (snow_cap > 0.0 && part > 0.5 && length(VERTEX.xz) < 0.01) {
+			COLOR.rgb = mix(COLOR.rgb, vec3(0.92, 0.94, 0.96), snow_cap);
+		}
 		if (c.z > 0.5 && part > 2.5) {
 			// Two-tier variant: the top tier folds into the middle one's apex.
 			VERTEX = vec3(0.0, 7.7, 0.0);

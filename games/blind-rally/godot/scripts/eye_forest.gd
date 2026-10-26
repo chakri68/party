@@ -38,6 +38,8 @@ extends Node3D
 ## so every tall instance is simply streamed out to the biome's near_r and
 ## the haze takes over from there; the horizon ring is mesas, not pines;
 ## and the canyon walls, which are terrain, do the hiding the forest does.
+## Snow (Snowblind): the forest's machinery, with the impostors' tips white
+## (Biome.tree_snow).
 
 const BUCKET := 16.0 ## streaming grid
 const STREAM_STEP := 4.0 ## camera metres between refills
@@ -104,6 +106,7 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 	far_mat = ShaderMaterial.new()
 	far_mat.shader = preload("res://shaders/forest_far.gdshader")
 	far_mat.set_shader_parameter("near_r", near_r)
+	far_mat.set_shader_parameter("snow_cap", biome.tree_snow)
 	for m in [near_mat, floor_mat, far_mat]:
 		weather.register(m)
 

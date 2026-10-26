@@ -67,6 +67,11 @@ var shoulder := 0.7
 ## What the car feels on the verge: "road" (Pine Panic's loose gravel edge
 ## counts as road) or another surface, e.g. "sand", probed separately.
 var verge_surface := "road"
+## What the car feels on the road itself (Snowblind's is packed "snow").
+var road_surface := "road"
+## Straw bales on the outside of the tight corners (Snowblind's snowbanks do
+## that job there).
+var hay := true
 ## Metres past the verge before the scenery starts (sightlines cut from here).
 var ditch := 1.4
 
@@ -485,13 +490,13 @@ func _road() -> void:
 			# On the ground itself, lifted a hair; the ground is the same grid
 			# the car drives on, so the road can't float or sink.
 			var pos := _g(pts[i] + _right(i) * lat, 0.04)
-			row.append([pos, Color(c.r * shade, c.g * shade, c.b * shade), Vector2(lat, i * STEP), Vector2(half_w[i], half_w[i] + verge_w[i])])
+			row.append([pos, Color(c.r * shade, c.g * shade, c.b * shade, c.a), Vector2(lat, i * STEP), Vector2(half_w[i], half_w[i] + verge_w[i])])
 		rows.append(row)
 	var cols: int = (rows[0] as Array).size()
 	var body := StaticBody3D.new()
 	body.name = "Road"
 	body.add_to_group("track_road", true)
-	body.set_meta("surface", "road")
+	body.set_meta("surface", road_surface)
 	body.collision_layer = LAYER_SURFACE
 	body.collision_mask = 0
 	for i0 in range(0, n - 1, ROAD_PIECE):
@@ -809,6 +814,15 @@ func _icon_shape(shape: String) -> Array:
 			for k in 8:
 				drum.append(Vector2(cos(TAU * (k + 0.5) / 8.0), sin(TAU * (k + 0.5) / 8.0)) * 9.0 + Vector2(0, -3))
 			return [[drum, null], [rect.call(-5.0, 9.0, 3.0, 8.0), null], [rect.call(5.0, 9.0, 3.0, 8.0), null]]
+		"shrine": # a cross under a little roof
+			return [[rect.call(0.0, 2.0, 4.0, 18.0), null], [rect.call(0.0, -2.0, 14.0, 4.0), null],
+				[PackedVector2Array([Vector2(-9, -9), Vector2(9, -9), Vector2(0, -15)]), null]]
+		"plough": # truck from above with the angled blade out front
+			return [[rect.call(0.0, 4.0, 10.0, 18.0), null], [rect.call(0.0, -9.0, 20.0, 4.0, 0.3), null]]
+		"fence": # three staggered rows
+			return [[rect.call(-3.0, -8.0, 18.0, 3.0), null], [rect.call(3.0, 0.0, 18.0, 3.0), null], [rect.call(-3.0, 8.0, 18.0, 3.0), null]]
+		"hut": # a house front: box and roof
+			return [[rect.call(0.0, 4.0, 16.0, 11.0), null], [PackedVector2Array([Vector2(-11, -1), Vector2(11, -1), Vector2(0, -13)]), null]]
 	return []
 
 
@@ -952,7 +966,7 @@ func _corner_furniture() -> void:
 			clearings.append([Vector2(p.x, p.z), 1.8])
 			count += 1
 		# Tight ones get a line of hay on the outside of the apex.
-		if c[1] < 22.0:
+		if hay and c[1] < 22.0:
 			var st := _st()
 			var line: Array[Vector3] = []
 			for k in 7:

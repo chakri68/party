@@ -28,6 +28,14 @@ const STREAKS := 14
 var dust_road := Color("e3d4b4")
 var dust_off := Color("a8957a")
 var plume := 1.0
+## What the wheels fling and the marks they leave (Biome.grit, Biome.marks):
+## gravel and brown ruts, or snow clumps and grey-blue tracks in packed snow.
+var grit := Color("4a4136")
+var marks := Color(0.16, 0.12, 0.08)
+
+## Surfaces that throw the road dust; and ice, which throws hardly any.
+const ROAD_LIKE := ["road", "snow", "ice"]
+const ICE_SPRAY := 0.3
 
 ## Wheel contact points in the car's frame (-Z forward).
 var wheels := [Vector3(-0.59, 0, -1.12), Vector3(0.59, 0, -1.12), Vector3(-0.59, 0, 1.12), Vector3(0.59, 0, 1.12)]
@@ -196,7 +204,7 @@ func _process(dt: float) -> void:
 	var speed := Vector2(_car.velocity.x, _car.velocity.z).length()
 	var speed_k := clampf(speed / _car.max_speed, 0.0, 1.0)
 	var lat := absf(_car.lateral_speed)
-	var on_road := _car.surface == "road"
+	var on_road := _car.surface in ROAD_LIKE
 	_animate_visual(dt, speed)
 	if dt <= 0.0:
 		return
@@ -237,8 +245,9 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 	var slide_k := clampf((lat - 1.0) / 6.0, 0.0, 1.0)
 	var spin_k := clampf(_car.throttle_input * (1.0 - speed / 10.0), 0.0, 1.0) if speed > 0.5 else 0.0
 	# Puffs per second, per rear wheel.
-	var rate := (pow(speed_k, 1.3) * 30.0 + slide_k * 80.0 + spin_k * 25.0) * density * sqrt(plume)
-	var grit_rate := (_car.throttle_input * speed_k * 10.0 + slide_k * 30.0 + spin_k * 25.0) * density
+	var ice := ICE_SPRAY if _car.surface == "ice" else 1.0
+	var rate := (pow(speed_k, 1.3) * 30.0 + slide_k * 80.0 + spin_k * 25.0) * density * sqrt(plume) * ice
+	var grit_rate := (_car.throttle_input * speed_k * 10.0 + slide_k * 30.0 + spin_k * 25.0) * density * ice
 	if speed < 2.0:
 		rate = 0.0
 		grit_rate *= spin_k
@@ -263,7 +272,7 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 			var side := signf(_car.lateral_speed) if lat > 1.0 else (1.0 if w == 1 else -1.0)
 			var v := _car.velocity * 0.4 - fwd * _rng.randf_range(2.0, 5.0) + right * side * _rng.randf_range(0.5, 3.0) + Vector3.UP * _rng.randf_range(2.0, 4.5)
 			var s := _rng.randf_range(0.12, 0.22)
-			_spawn(contact + Vector3(0, 0.15, 0), v, _rng.randf_range(0.35, 0.6), Vector2(s, s), Color("4a4136"), 9.8, 1.0)
+			_spawn(contact + Vector3(0, 0.15, 0), v, _rng.randf_range(0.35, 0.6), Vector2(s, s), grit, 9.8, 1.0)
 
 
 func _spawn(p: Vector3, v: Vector3, life: float, size: Vector2, col: Color, grav: float, alpha: float) -> void:
@@ -347,7 +356,7 @@ func _tyre_marks(xf: Transform3D, speed: float, lat: float, road: bool) -> void:
 		var i := _mark_next
 		_mark_next = (_mark_next + 1) % MARKS
 		_mark_mm.set_instance_transform(i, Transform3D(basis, (p + last) * 0.5))
-		var col := Color(0.16, 0.12, 0.08, lerpf(0.25, 0.55, strength)) if road else Color(0.12, 0.1, 0.06, lerpf(0.3, 0.6, strength))
+		var col := Color(marks.r, marks.g, marks.b, lerpf(0.25, 0.55, strength)) if road else Color(marks.r * 0.75, marks.g * 0.8333, marks.b * 0.75, lerpf(0.3, 0.6, strength))
 		_mark_mm.set_instance_color(i, col)
 		_mark_mm.visible_instance_count = mini(_mark_mm.visible_instance_count + 1, MARKS) if _mark_mm.visible_instance_count < MARKS else MARKS
 		_mark_last[w] = p

@@ -78,6 +78,8 @@ func _run() -> void:
 	# one that loads Dust Devil and check what's new there.
 	await test_track_by_id()
 	await test_dust_devil()
+	# Third stage: Snowblind.
+	await preload("res://tests/snowblind_tests.gd").new(self).run()
 
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
@@ -1760,6 +1762,8 @@ func test_dust_devil() -> void:
 		"5 checkpoints, 3 big landmarks (arch, fuel drums, radio tower)")
 	var forks := track.get_forks()
 	check(forks.size() == 3, "three forks")
+	var sides := forks.map(func(f: Node) -> String: return String(f.get_meta("keep")))
+	check(sides.has("left") and sides.has("right"), "and they don't all go the same way: %s" % [sides])
 	# No checkpoint between a loop's two ends.
 	var ok := true
 	for f in forks:

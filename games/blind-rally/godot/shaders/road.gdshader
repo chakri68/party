@@ -10,7 +10,9 @@
 // much of each effect there is are uniforms, so a biome can retune them
 // (Track applies Biome.road_params at load); the defaults are Pine Panic's
 // gravel. The desert adds blown sand drifting in across the road (`drift`)
-// and washboard corrugation (`washboard`), both 0 here.
+// and washboard corrugation (`washboard`), both 0 here. Snowblind bakes its
+// ice patches with vertex alpha under 1: no loose stones there, and a
+// polished, glinting surface (alpha is 1 everywhere else, so no change).
 //
 // Dirt-sim hook (not built, on purpose): a deformation layer would be one more
 // world-space mask sampled here (ruts darken, berms lighten) plus the matching
@@ -42,6 +44,7 @@ void vertex() {
 
 void fragment() {
 	vec3 c = COLOR.rgb;
+	float ice = 1.0 - COLOR.a;
 	float lat = abs(UV.x);
 	float past = lat - UV2.y; // metres beyond the verge: ditch, then apron
 	vec3 fray = texture(detail, world.xz / 3.1).rgb;
@@ -59,17 +62,17 @@ void fragment() {
 	c *= 1.0 - damp * damp_k;
 	// Dusty crown between the wheel tracks, drier where it isn't damp.
 	float crown = 1.0 - smoothstep(0.35, 0.8, lat);
-	c = mix(c, c * 1.22 + vec3(0.02), crown * (1.0 - damp) * 0.6);
+	c = mix(c, c * 1.22 + vec3(0.02), crown * (1.0 - damp) * 0.6 * (1.0 - ice));
 	// Compacted tracks: where the wheels run, the gravel is pushed aside.
 	float track = 1.0 - smoothstep(0.15, 0.5, abs(lat - 1.25));
 	// Loose gravel everywhere off the tracks, thinning out into the apron.
-	float loose = (1.0 - track * 0.75) * (1.0 - smoothstep(1.0, 2.6, past));
+	float loose = (1.0 - track * 0.75) * (1.0 - smoothstep(1.0, 2.6, past)) * (1.0 - ice);
 	// Loose stones: light and dark pebbles, more at the verge than in the ruts.
 	float light_st = smoothstep(0.66, 0.7, stones.r) * loose;
 	float dark_st = smoothstep(0.68, 0.72, stones.g) * loose;
 	c = mix(c, c_stone_light, light_st * 0.7);
 	c = mix(c, c_stone_dark, dark_st * 0.6);
-	c *= 0.9 + gravel * 0.2;
+	c *= 0.9 + gravel * 0.2 * (1.0 - ice * 0.7);
 	// Washboard: ripples across the road, strongest off the wheel tracks.
 	if (washboard > 0.0) {
 		float rip = sin(UV.y * 9.0 + big.r * 4.0);
@@ -81,7 +84,7 @@ void fragment() {
 	// Drifts of blown sand across the road, in long tongues off the verge.
 	if (drift > 0.0) {
 		float tongue = smoothstep(0.55, 0.7, texture(detail, vec2(world.x, world.z) / 23.0 + vec2(0.13, 0.71)).r + (lat / max(UV2.y, 0.1)) * 0.25);
-		c = mix(c, c_drift * (0.92 + gravel * 0.16), tongue * drift * (1.0 - track * 0.6));
+		c = mix(c, c_drift * (0.92 + gravel * 0.16), tongue * drift * (1.0 - track * 0.6) * (1.0 - ice * 0.8));
 	}
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
@@ -90,6 +93,6 @@ void fragment() {
 	}
 	ALBEDO = c * (1.0 - mist);
 	EMISSION = mist_tint * mist;
-	ROUGHNESS = mix(0.95, 0.8, damp);
-	SPECULAR = 0.25; // as the palette material, so the road lights like everything else
+	ROUGHNESS = mix(mix(0.95, 0.8, damp), 0.22, ice);
+	SPECULAR = mix(0.25, 0.6, ice); // 0.25 as the palette material, so the road lights like everything else
 }

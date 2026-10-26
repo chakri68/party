@@ -8,6 +8,10 @@ extends Node3D
 ## that races it down the road and peels off, vultures circling over some
 ## bones, a cow skull nailed to a LOST COW sign, and (one run in twenty) a
 ## flying saucer nose-down in a fresh crater, its pilot watching you go by.
+## Snowblind: snowmen by the road (pass one fast and its head comes off),
+## skiers schussing across down the piste under the lift, an elk watching
+## from a clearing, a snowmobile that races the car along its trail, and
+## (one run in twenty) a yeti, who has been practising the Bigfoot walk.
 ## A kind only happens on a track that has spots for it.
 ##
 ## Deterministic like the weather: make_schedule(seed) decides which spots
@@ -47,17 +51,25 @@ const BIGFOOT_WALK := 5.0 ## metres, once, when the car comes within 70 m
 
 ## Order the dice are thrown in; never reorder (it would change every seed's run).
 const KINDS := ["deer", "birds", "moose", "camper", "bigfoot", "wrongway",
-	"tumbleweed", "roadrunner", "vultures", "skull", "ufo"]
+	"tumbleweed", "roadrunner", "vultures", "skull", "ufo",
+	"snowman", "skier", "elk", "snowmobile", "yeti"]
 ## Chance a spot is live in a run. Rare by design: most runs see two or
 ## three things, Bigfoot about one run in seventeen.
 const CHANCE := {"deer": 0.35, "birds": 0.5, "moose": 0.3, "camper": 0.75, "bigfoot": 0.06, "wrongway": 0.4,
-	"tumbleweed": 0.55, "roadrunner": 0.35, "vultures": 0.5, "skull": 0.5, "ufo": 0.05}
+	"tumbleweed": 0.55, "roadrunner": 0.35, "vultures": 0.5, "skull": 0.5, "ufo": 0.05,
+	"snowman": 0.5, "skier": 0.4, "elk": 0.35, "snowmobile": 0.35, "yeti": 0.05}
 const WEED_LEAD := 2.6 ## seconds: a tumbleweed sets off when the car is about this far away
 const WEED_FROM := 9.0 ## metres off the centreline it starts
 const WEED_END := 32.0
 const RUNNER_TRIGGER := 48.0 ## metres: the roadrunner sets off when the car is this close
 const RUNNER_TIME := 3.6 ## seconds racing down the road before it peels off
 const VULTURE_HEIGHT := Vector2(26.0, 38.0)
+const SNOWMAN_KNOCK := Vector2(9.0, 14.0) ## within 9 m of it at 14 m/s or more, the head comes off
+const SKIER_LEAD := 4.6 ## seconds: a skier pushes off when the car is about this far away (and is across first)
+const SKIER_FROM := 22.0 ## metres up the slope from the centreline
+const SKIER_END := 34.0 ## ...and how far down the other side they stop
+const SLED_TRIGGER := 50.0
+const SLED_TIME := 5.0 ## seconds alongside before it peels off
 const MESH_DIR := "res://assets/meshes/"
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
@@ -145,6 +157,13 @@ static func make_schedule(seed_in: int, counts: Dictionary) -> Array:
 					e.from = -1.0 if b < 0.5 else 1.0
 				"vultures":
 					e.count = 3 + int(a * 3.0)
+				"skier":
+					e.count = 1 if a < 0.65 else 2
+					e.skew = (c - 0.5) * 0.3
+					e.pace = lerpf(8.0, 11.0, d)
+				"yeti":
+					e.open = a * 45.0
+					e.close = e.open + 80.0 + b * 100.0
 			out.append(e)
 	return out
 
@@ -772,6 +791,203 @@ func _tick_ufo(r: Dictionary, dt: float) -> void:
 	alien.rotation.y = lerp_angle(alien.rotation.y, want, 1.0 - exp(-2.0 * dt))
 
 
+
+# --- snowman ---------------------------------------------------------------------
+
+func _make_snowman(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var body := _mi(_mesh("snowman_body"), true)
+	body.global_transform = spot.global_transform
+	body.global_position.y = track.height_at(body.global_position.x, body.global_position.z) - 0.05
+	body.scale = Vector3.ONE * 1.5 # life size is a white dot on white from the top-down camera
+	var head := MeshInstance3D.new()
+	head.mesh = _mesh("snowman_head")
+	head.layers = LAYER
+	head.position = Vector3(0, 1.38, 0)
+	body.add_child(head)
+	r.nodes.append(body)
+	r.head = head
+
+
+func _tick_snowman(r: Dictionary, _dt: float) -> void:
+	var body: Node3D = r.nodes[0]
+	var head: Node3D = r.head
+	if r.state == "wait":
+		var gap := _flat(car.global_position).distance_to(_flat(body.global_position))
+		var speed := Vector2(car.velocity.x, car.velocity.z).length()
+		if gap < SNOWMAN_KNOCK.x and speed > SNOWMAN_KNOCK.y:
+			r.state = "fall"
+			r.t0 = time
+			# Off the back, away from the road: the wind of a car going past.
+			var away := body.global_position - car.global_position
+			away.y = 0.0
+			r.away = body.global_basis.inverse() * away.normalized()
+		return
+	if r.state != "fall":
+		return
+	var t := minf(time - float(r.t0), 0.62)
+	var away: Vector3 = r.away
+	var y := 1.38 + 1.2 * t - 4.9 * t * t * 2.0
+	head.position = Vector3(0, maxf(y, 0.22), 0) + away * 2.2 * t
+	head.rotation = Vector3(away.z, 0, -away.x) * t * 4.0
+	if t >= 0.62:
+		r.state = "fallen"
+
+
+# --- skiers ----------------------------------------------------------------------
+
+func _make_skier(r: Dictionary) -> void:
+	var e: Dictionary = r.e
+	var spot: Node3D = r.spot
+	var up := float(spot.get_meta("uphill", spot.get_meta("side", 1.0)))
+	r.up = up
+	r.skiers = []
+	for k in int(e.count):
+		var mi := _mi(_mesh("skier_%d" % k), true)
+		r.skiers.append({"node": mi, "lat": up * (SKIER_FROM + k * 6.0), "along": k * 1.5, "delay": k * 0.8, "phase": k * 1.3})
+		r.nodes.append(mi)
+		_place_skier(r, r.skiers[k], 0.0, false)
+
+
+func _tick_skier(r: Dictionary, dt: float) -> void:
+	var spot: Node3D = r.spot
+	var to := spot.global_position - car.global_position
+	to.y = 0.0
+	var gap := to.length()
+	var speed := Vector2(car.velocity.x, car.velocity.z).length()
+	if r.state == "wait" and gap < 100.0 and car.velocity.dot(to) > 0.0 and gap / maxf(speed, 6.0) < SKIER_LEAD:
+		r.state = "ski"
+		r.t0 = time
+	var done := true
+	for sk in r.skiers:
+		var go: bool = r.state == "ski" and time - float(r.t0) >= float(sk.delay) and float(sk.lat) * float(r.up) > -SKIER_END
+		if go:
+			sk.lat -= float(r.up) * float(r.e.pace) * dt
+			sk.along += float(r.e.skew) * float(r.e.pace) * dt
+		done = done and float(sk.lat) * float(r.up) <= -SKIER_END
+		_place_skier(r, sk, dt, go)
+	if done and r.state == "ski":
+		r.state = "gone"
+
+
+## Down the fall line in a tuck, carving a little side to side.
+func _place_skier(r: Dictionary, sk: Dictionary, dt: float, moving: bool) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var carve := 0.0
+	if moving:
+		sk.phase += dt * 2.4
+		carve = sin(float(sk.phase)) * 0.35
+	var p: Vector3 = spot.global_position + right * float(sk.lat) + fwd * (float(sk.along) + carve * 1.2)
+	p.y = track.height_at(p.x, p.z)
+	var down := (-right * float(r.up) + fwd * (float(r.e.skew) + carve * 0.4)).normalized()
+	var basis := Basis.looking_at(down, Vector3.UP) * Basis(Vector3.FORWARD, -carve * 0.6)
+	(sk.node as Node3D).global_transform = Transform3D(basis.scaled(Vector3.ONE * 1.3), p)
+
+
+# --- elk -------------------------------------------------------------------------
+
+func _make_elk(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var body := _mi(_mesh("elk_body"), true)
+	body.global_transform = spot.global_transform.rotated_local(Vector3.UP, PI - 1.1)
+	body.global_position.y = track.height_at(body.global_position.x, body.global_position.z) - 0.05
+	var head := MeshInstance3D.new()
+	head.mesh = _mesh("elk_head")
+	head.layers = LAYER
+	head.position = Vector3(0, 1.95, -1.15)
+	body.add_child(head)
+	r.nodes.append(body)
+	r.head = head
+
+
+func _tick_elk(r: Dictionary, dt: float) -> void:
+	var head: Node3D = r.head
+	var body: Node3D = r.nodes[0]
+	var local := body.global_transform.affine_inverse() * car.global_position
+	var want := clampf(atan2(-local.x, -local.z), -1.2, 1.2)
+	head.rotation.y = lerp_angle(head.rotation.y, want, 1.0 - exp(-3.0 * dt))
+
+
+# --- snowmobile --------------------------------------------------------------------
+
+func _make_snowmobile(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var mi := _mi(_mesh("sled"), true)
+	r.side = float(spot.get_meta("side", 1.0))
+	r.lat = r.side * float(spot.get_meta("lat", 11.0))
+	r.along = 0.0
+	r.speed = 0.0
+	r.bi = _nearest_sample(spot.global_position)
+	r.nodes.append(mi)
+	_place_sled(r, 0.0)
+
+
+func _tick_snowmobile(r: Dictionary, dt: float) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var mi: Node3D = r.nodes[0]
+	var rel := mi.global_position - car.global_position
+	rel.y = 0.0
+	if r.state == "wait":
+		if rel.length() < SLED_TRIGGER and car.velocity.dot(fwd) > 4.0 and rel.dot(fwd) > -4.0:
+			r.state = "run"
+			r.t0 = time
+		_place_sled(r, dt)
+		return
+	if r.state == "gone":
+		return
+	var t := time - float(r.t0)
+	# Level with the car and a nose ahead: it's racing you.
+	var car_along := (car.global_position - spot.global_position).dot(fwd)
+	if r.state == "run":
+		var want := clampf(car.velocity.dot(fwd) + (2.0 if float(r.along) < car_along + 4.0 else -1.0), 6.0, 30.0)
+		r.speed = move_toward(float(r.speed), want, 9.0 * dt)
+		r.along += float(r.speed) * dt
+		if t > SLED_TIME:
+			r.state = "veer"
+	elif r.state == "veer":
+		r.speed = move_toward(float(r.speed), 9.0, 6.0 * dt)
+		r.along += float(r.speed) * dt * 0.7
+		r.lat += float(r.side) * float(r.speed) * dt * 0.7
+		if absf(float(r.lat)) > 40.0:
+			r.state = "gone"
+	_place_sled(r, dt)
+
+
+func _place_sled(r: Dictionary, _dt: float) -> void:
+	var spot: Node3D = r.spot
+	var fwd := -spot.global_basis.z
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var p: Vector3 = spot.global_position + right * (float(r.lat) - float(r.side) * float(spot.get_meta("lat", 11.0)))
+	var dir := fwd
+	if float(r.along) > 0.0 and track.centerline.size() > 1:
+		p = _along_road(int(r.bi), float(r.along), float(r.lat))
+		dir = (_along_road(int(r.bi), float(r.along) + 2.0, 0.0) - _along_road(int(r.bi), float(r.along), 0.0)).normalized()
+	if r.state == "veer":
+		dir = (dir + right * float(r.side) * 0.8).normalized()
+	var bounce := sin(time * 9.0) * 0.05 if r.state == "run" else 0.0
+	p.y = track.height_at(p.x, p.z) + bounce
+	(r.nodes[0] as Node3D).global_transform = Transform3D(Basis.looking_at(Vector3(dir.x, 0, dir.z).normalized(), Vector3.UP), p)
+
+
+# --- yeti ------------------------------------------------------------------------
+
+func _make_yeti(r: Dictionary) -> void:
+	var spot: Node3D = r.spot
+	var mi := _mi(_mesh("yeti"))
+	r.from = spot.global_position
+	r.to = spot.global_position + spot.global_basis.x * -BIGFOOT_WALK
+	mi.global_transform = spot.global_transform
+	mi.global_position.y = track.height_at(r.from.x, r.from.z)
+	r.nodes.append(mi)
+
+
+## The same unhurried five metres as Bigfoot. Different coat.
+func _tick_yeti(r: Dictionary, dt: float) -> void:
+	_tick_bigfoot(r, dt)
+
 static func _glow_mat(col: Color, energy: float, pulse: float) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = preload("res://shaders/glow.gdshader")
@@ -914,6 +1130,110 @@ func _build_bigfoot(st: SurfaceTool, _id: String) -> void:
 	_box(st, _at(Vector3(0, 2.05, -0.3)), Vector3(0.24, 0.2, 0.04), face)
 	for x in [-0.5, 0.5]:
 		_beam(st, Vector3(x, 1.85, -0.05), Vector3(x * 1.15, 0.85, -0.2), 0.2, fur) # long arms
+
+
+
+## Three snowballs: body here, the head (carrot, coal, hat) its own mesh so
+## it can come off. Origin at the bottom / the head's centre.
+func _build_snowman(st: SurfaceTool, id: String) -> void:
+	var snow := Color("eef2f5")
+	if id == "snowman_body":
+		for b in [[0.55, 0.45], [0.4, 1.05]]:
+			var sp := SphereMesh.new()
+			sp.radius = b[0]
+			sp.height = b[0] * 2.0
+			sp.radial_segments = 9
+			sp.rings = 5
+			_prim(st, sp, _at(Vector3(0, b[1], 0)), snow)
+		for y in [0.95, 1.15]:
+			_box(st, _at(Vector3(0, y, -0.39)), Vector3(0.07, 0.07, 0.05), Color("1d1d1d")) # buttons
+		_box(st, _at(Vector3(0, 1.3, 0)), Vector3(0.62, 0.1, 0.62), Color("c0392b")) # scarf
+		for s in [-1.0, 1.0]:
+			_beam(st, Vector3(s * 0.35, 1.1, 0), Vector3(s * 0.85, 1.45, 0.05), 0.04, Color("5a3d28")) # stick arms
+	else:
+		var sp := SphereMesh.new()
+		sp.radius = 0.27
+		sp.height = 0.54
+		sp.radial_segments = 8
+		sp.rings = 4
+		_prim(st, sp, _at(Vector3(0, 0.0, 0)), snow)
+		_beam(st, Vector3(0, 0.0, -0.24), Vector3(0, -0.03, -0.5), 0.06, Color("e67e22")) # carrot
+		for s in [-1.0, 1.0]:
+			_box(st, _at(Vector3(s * 0.09, 0.08, -0.24)), Vector3(0.05, 0.05, 0.04), Color("1d1d1d"))
+		_box(st, _at(Vector3(0, 0.27, 0)), Vector3(0.42, 0.04, 0.42), Color("222222"))
+		_box(st, _at(Vector3(0, 0.42, 0)), Vector3(0.26, 0.28, 0.26), Color("222222")) # top hat
+
+
+## A skier in a tuck: skis, poles tucked back, bright suit. Two suits.
+func _build_skier(st: SurfaceTool, id: String) -> void:
+	var suit := Color("d8322a") if id.ends_with("0") else Color("2a6fd6")
+	var ski := Color("f1c40f")
+	for x in [-0.14, 0.14]:
+		_box(st, _at(Vector3(x, 0.03, -0.1)), Vector3(0.09, 0.03, 1.7), ski)
+		_beam(st, Vector3(x, 0.08, 0.0), Vector3(x, 0.5, -0.25), 0.13, Color("2e3440")) # shins
+		_beam(st, Vector3(x, 0.5, -0.25), Vector3(x * 0.8, 0.78, 0.18), 0.15, Color("2e3440")) # thighs
+	_box(st, Transform3D(Basis(Vector3.RIGHT, -1.0), Vector3(0, 0.95, -0.05)), Vector3(0.42, 0.62, 0.28), suit)
+	_box(st, _at(Vector3(0, 1.18, -0.38)), Vector3(0.24, 0.24, 0.26), suit.darkened(0.3)) # helmet
+	_box(st, _at(Vector3(0, 1.17, -0.52)), Vector3(0.2, 0.08, 0.02), Color("f39c12")) # goggles
+	for s in [-1.0, 1.0]:
+		_beam(st, Vector3(s * 0.22, 0.95, -0.25), Vector3(s * 0.25, 0.55, 0.85), 0.03, Color("3a3a3a")) # poles
+
+
+## An elk: a moose's lighter, rangier cousin, swept-back antlers.
+func _build_elk(st: SurfaceTool, id: String) -> void:
+	var coat := Color("8a6440")
+	var mane := Color("4e3824")
+	var legs := Color("5a4632")
+	var antler := Color("c9b48a")
+	if id == "elk_body":
+		_box(st, _at(Vector3(0, 1.45, 0.1)), Vector3(0.75, 0.8, 1.9), coat)
+		_box(st, _at(Vector3(0, 1.55, -0.6)), Vector3(0.72, 0.85, 0.6), mane)
+		_box(st, _at(Vector3(0, 1.5, 1.0)), Vector3(0.6, 0.5, 0.2), Color("d9c49a")) # rump patch
+		_beam(st, Vector3(0, 1.7, -0.8), Vector3(0, 2.0, -1.15), 0.38, mane)
+		for x in [-0.25, 0.25]:
+			_beam(st, Vector3(x, 1.15, -0.65), Vector3(x, 0.0, -0.68), 0.13, legs)
+			_beam(st, Vector3(x, 1.15, 0.8), Vector3(x, 0.0, 0.84), 0.14, legs)
+	else:
+		_box(st, Transform3D(Basis(Vector3.RIGHT, 0.6), Vector3(0, -0.05, -0.3)), Vector3(0.28, 0.32, 0.66), coat)
+		_box(st, _at(Vector3(0, -0.28, -0.56)), Vector3(0.22, 0.1, 0.16), Color("2a1d15"))
+		for s in [-1.0, 1.0]:
+			_beam(st, Vector3(s * 0.1, 0.15, -0.1), Vector3(s * 0.4, 0.75, 0.25), 0.06, antler)
+			_beam(st, Vector3(s * 0.4, 0.75, 0.25), Vector3(s * 0.45, 1.15, 0.65), 0.05, antler)
+			for t in 3:
+				var a := Vector3(s * (0.22 + t * 0.08), 0.4 + t * 0.25, 0.0 + t * 0.2)
+				_beam(st, a, a + Vector3(s * 0.05, 0.3, -0.18), 0.04, antler)
+
+
+## Snowmobile and rider: red cowling, skis in front, the track behind.
+func _build_sled(st: SurfaceTool, _id: String) -> void:
+	var red := Color("c0392b")
+	var dark := Color("1d1d1d")
+	for x in [-0.42, 0.42]:
+		_box(st, _at(Vector3(x, 0.08, -0.9)), Vector3(0.14, 0.06, 1.0), dark) # skis
+		_beam(st, Vector3(x, 0.1, -0.8), Vector3(x * 0.7, 0.45, -0.7), 0.06, dark)
+	_box(st, _at(Vector3(0, 0.28, 0.45)), Vector3(0.6, 0.35, 1.5), dark) # track
+	_box(st, Transform3D(Basis(Vector3.RIGHT, 0.35), Vector3(0, 0.62, -0.55)), Vector3(0.9, 0.42, 1.1), red) # cowl
+	_box(st, Transform3D(Basis(Vector3.RIGHT, -0.6), Vector3(0, 0.95, -0.75)), Vector3(0.6, 0.3, 0.04), Color("6fa8c8")) # screen
+	_box(st, _at(Vector3(0, 0.62, 0.4)), Vector3(0.55, 0.16, 1.0), Color("2e3440")) # seat
+	# Rider.
+	_box(st, _at(Vector3(0, 1.05, 0.25)), Vector3(0.5, 0.62, 0.32), Color("e8c21c"))
+	_box(st, _at(Vector3(0, 1.48, 0.2)), Vector3(0.3, 0.3, 0.32), Color("1d1d1d"))
+	for s in [-1.0, 1.0]:
+		_beam(st, Vector3(s * 0.25, 1.2, 0.2), Vector3(s * 0.32, 0.95, -0.35), 0.11, Color("e8c21c"))
+		_beam(st, Vector3(s * 0.18, 0.7, 0.35), Vector3(s * 0.28, 0.5, -0.05), 0.15, Color("2e3440"))
+
+
+## Bigfoot's build in a white coat, blue-grey face.
+func _build_yeti(st: SurfaceTool, _id: String) -> void:
+	var fur := Color("e6ebee")
+	var face := Color("7d8fa0")
+	for x in [-0.2, 0.2]:
+		_beam(st, Vector3(x, 1.1, 0.02), Vector3(x * 1.1, 0.0, 0.05), 0.3, fur)
+	_box(st, Transform3D(Basis(Vector3.RIGHT, -0.18), Vector3(0, 1.6, 0)), Vector3(0.95, 1.05, 0.58), fur)
+	_box(st, _at(Vector3(0, 2.22, -0.12)), Vector3(0.42, 0.44, 0.42), fur)
+	_box(st, _at(Vector3(0, 2.18, -0.32)), Vector3(0.26, 0.22, 0.04), face)
+	for x in [-0.56, 0.56]:
+		_beam(st, Vector3(x, 1.95, -0.05), Vector3(x * 1.15, 0.85, -0.2), 0.24, fur)
 
 
 ## A ball of tangled twigs: a few dozen thin sticks round a sphere, two

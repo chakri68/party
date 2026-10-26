@@ -88,7 +88,7 @@ func _process(dt: float) -> void:
 	_engine.pitch_scale = lerpf(0.75, 2.6, _rpm)
 	_engine.volume_db = MAX_DB - 8.0 + 6.0 * _car.throttle_input + 3.0 * _rpm
 
-	var loose := _car.surface in ["road", "offroad", "sand"]
+	var loose := _car.surface in ["road", "offroad", "sand", "snow"]
 	var g := clampf(speed / top, 0.0, 1.0) * (1.0 if loose else 0.3)
 	_gravel.volume_db = linear_to_db(maxf(g * 0.55, 0.0001)) + MAX_DB
 	_gravel.pitch_scale = lerpf(0.8, 1.25, g)

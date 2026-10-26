@@ -134,6 +134,13 @@ static func export_track(t: Track) -> Dictionary:
 		var d := roundf(along.call(f))
 		if d > 0.0 and d < length:
 			raw.append([d, raw.size(), "KEEP %s (fork)" % String(f.get_meta("keep", "left")).to_upper()])
+	# Sheet ice (Snowblind's patches: surface probes with a from_m), called
+	# where it starts.
+	for body in t._group("track_road"):
+		if body.get_meta("surface", "") == "ice" and body.has_meta("from_m"):
+			var d := roundf(float(body.get_meta("from_m")) - zero)
+			if d > 0.0 and d < length:
+				raw.append([d, raw.size(), "ICE"])
 	raw.append([length, raw.size(), "FINISH"])
 	raw.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0] or (x[0] == y[0] and x[1] < y[1]))
 	var notes: Array = []
