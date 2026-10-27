@@ -89,13 +89,14 @@ describe("secrets", () => {
     expect(g.getPublicState(s).cards).not.toBeNull();
   });
 
-  it("the night looks the same from outside whoever holds what", () => {
-    // Same deck, cards in different seats, different picks or none: the public
-    // night (steps, lengths, events) must not differ by a byte.
-    const night = (cards: RoleId[], pickers: boolean) => {
+  it("night, day, vote and runoff look the same from outside whoever holds what", () => {
+    // Same deck, cards in different seats, different picks or none, the same
+    // votes: the public view up to the result must not differ by a byte.
+    const run = (cards: RoleId[], pickers: boolean) => {
       let t: T = start(cards, {}, 3);
       for (const id of ids(t.state)) t = ok(act(t.state, id, { type: "ack" }));
       const seen: unknown[] = [];
+      const look = () => seen.push(g.getPublicState(t.state), g.getAwaitedPlayerIds(t.state));
       while (t.state.phase === "night") {
         const role = t.state.steps[t.state.step]!;
         const actor = ids(t.state).find((x) => t.state.cards[x] === role)!;
@@ -103,14 +104,33 @@ describe("secrets", () => {
         if (pickers && (role === "lamplighter" || role === "wanderer")) t = ok(act(t.state, actor, { type: "pick", targets: [other[0]] }));
         if (pickers && role === "matchmaker") t = ok(act(t.state, actor, { type: "pick", targets: [other[0], other[1]] }));
         // A pick's own transition is private by construction; what's public is the state after it.
-        seen.push(g.getPublicState(t.state), g.getAwaitedPlayerIds(t.state));
+        look();
         t = ring(t.state);
-        seen.push(g.getPublicState(t.state), t.events);
+        look();
+        seen.push(t.events);
+      }
+      expect(t.state.phase).toBe("day");
+      t = ok(act(t.state, HOST, { type: "next" }));
+      look();
+      seen.push(t.events);
+      // p1 and p2 tie: a runoff, whatever their cards.
+      const votes: Record<string, string> = { p0: "p1", p1: "p2", p2: "p1", p3: "p2", p4: NOBODY, p5: "p3", p6: "p4", p7: NOBODY, p8: "p5" };
+      for (const [id, choice] of Object.entries(votes)) {
+        t = ok(act(t.state, id, { type: "vote", choice }));
+        look();
+      }
+      t = ok(act(t.state, "p9", { type: "vote", choice: "p6" }));
+      expect(t.state.phase).toBe("runoff");
+      look();
+      seen.push(t.events);
+      for (const [id, choice] of Object.entries({ p0: "p1", p3: "p2", p5: "p1" })) {
+        t = ok(act(t.state, id, { type: "vote", choice }));
+        look();
       }
       return JSON.stringify(seen);
     };
     const shifted = [...FULL.slice(3), ...FULL.slice(0, 3)];
-    expect(night(FULL, true)).toBe(night(shifted, false));
+    expect(run(FULL, true)).toBe(run(shifted, false));
   });
 
   it("a seat that isn't in the game gets no card", () => {

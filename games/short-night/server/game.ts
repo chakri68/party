@@ -141,8 +141,11 @@ function resolvePick(state: State, role: RoleId, targets: string[], ctx: GameCon
     case "wanderer": {
       const theirs = card(targets[0]!);
       // Never its own card: "not the Wanderer" is something it already knew.
-      // Never empty either: two non-wolves are dealt, so a third role is always in the deck.
-      const others = (Object.keys(state.deck) as RoleId[]).filter((r) => r !== theirs && r !== "wanderer");
+      // A dealable deck always has a third role in it (a Wolf and two non-wolves);
+      // a deck that doesn't (a test deck) falls back to any other role, still true.
+      const not = (ids: RoleId[]) => ids.filter((r) => r !== theirs && r !== "wanderer");
+      const fromDeck = not(Object.keys(state.deck) as RoleId[]);
+      const others = fromDeck.length ? fromDeck : not(ROLES.map((r) => r.id));
       return { kind: "wander", target: targets[0]!, notRole: pick(others, ctx) };
     }
     default:
@@ -455,8 +458,9 @@ export const shortNightGame: GameDefinition<
       for (const [voter, choice] of Object.entries(b.votes)) if (choice === playerId) delete b.votes[voter];
       if (state.phase === "runoff") {
         state.tied = state.tied.filter((id) => id !== playerId);
+        // A leave alone mustn't decide who goes (spec §10): the runoff can't finish fairly.
         if (state.tied.length === 1) {
-          settle(state, state.tied[0]!, out);
+          finish(state, "runoff-left", out);
           return done(state, out);
         }
       }
@@ -535,14 +539,12 @@ export const shortNightGame: GameDefinition<
   getResult(state) {
     if (state.phase !== "finished") return null;
     const winners = state.winner ? activeIds(state).filter((id) => roleById(state.cards[id]!).team === state.winner) : [];
-    const headline =
-      state.endReason === "last-wolf-left"
-        ? "Interrupted: the last Wolf left"
-        : state.endReason === "too-few"
-          ? "Interrupted: too few players left"
-          : state.winner === "village"
-            ? "Village wins"
-            : "Wolves win";
+    const interrupted: Partial<Record<EndReason, string>> = {
+      "last-wolf-left": "Interrupted: the last Wolf left",
+      "runoff-left": "Interrupted: a runoff candidate left",
+      "too-few": "Interrupted: too few players left",
+    };
+    const headline = interrupted[state.endReason!] ?? (state.winner === "village" ? "Village wins" : "Wolves win");
     return {
       winnerIds: winners,
       headline,

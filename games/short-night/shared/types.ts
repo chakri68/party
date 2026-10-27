@@ -51,8 +51,8 @@ export type NightResult =
 
 export type Phase = "reveal" | "night" | "day" | "vote" | "runoff" | "finished";
 
-/** "done": the vote settled it. The other two end it with no winner. */
-export type EndReason = "done" | "last-wolf-left" | "too-few";
+/** "done": the vote settled it. The others end it with no winner. */
+export type EndReason = "done" | "last-wolf-left" | "too-few" | "runoff-left";
 
 export interface ShortNightPlayer {
   id: string;

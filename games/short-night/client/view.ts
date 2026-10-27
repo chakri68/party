@@ -1,6 +1,7 @@
 import { audio } from "@games/audio";
 import { roleReveal } from "@games/hidden-roles/reveal";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { describeResult, list } from "../shared/describe.ts";
 import { type RoleId, roleById } from "../shared/roles.ts";
 import {
   type NightResult,
@@ -28,11 +29,6 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 const TEAM_LABEL = { village: "Village", wolves: "Wolves" } as const;
 
-/** "A and B", "A, B and C". */
-function list(names: string[]): string {
-  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
-
 export class ShortNightView implements GameView {
   private api: GameClientApi;
   private props: GameViewProps | null = null;
@@ -57,6 +53,8 @@ export class ShortNightView implements GameView {
 
   /** The picker's choices so far, before they confirm. */
   private chosen: string[] = [];
+  /** Confirmed this step. Local, and the same on every phone: only the real picker's goes anywhere. */
+  private confirmed = false;
   /** Phase and step the picks belong to; a new one clears them. */
   private stage = "";
   private lastTick = -1;
@@ -119,27 +117,7 @@ export class ShortNightView implements GameView {
 
   /** A night result, in words, for the card and for the dawn log. */
   private resultText(r: NightResult, holder: string, props: GameViewProps): string {
-    const n = (id: string) => this.name(id, props);
-    const looks = (id: string, wolf: boolean) => `${this.Name(id, props)} ${id === props.playerId ? "look" : "looks"} like ${wolf ? "a wolf" : "village"}.`;
-    switch (r.kind) {
-      case "wolves": {
-        if (r.pack.length > 1) return `The Wolves: ${list(r.pack.map(n))}.`;
-        const own = holder === props.playerId ? "You're the only Wolf." : `${this.Name(holder, props)} was the only Wolf.`;
-        return r.villager ? `${own} ${this.Name(r.villager, props)} holds a Villager.` : `${own} No Villagers were dealt.`;
-      }
-      case "lamp":
-        return looks(r.target, r.reads === "wolves");
-      case "match":
-        return `${this.Name(r.targets[0], props)} and ${n(r.targets[1])}: ${r.same ? "same side" : "different sides"}.`;
-      case "bell":
-        return `${r.count} of ${list(r.neighbours.map(n))} ${r.count === 1 ? "looks" : "look"} like ${r.count === 1 ? "a wolf" : "wolves"}.`;
-      case "gossip":
-        return `At least one of ${list(r.pair.map(n))} is a wolf.`;
-      case "wander":
-        return `${this.Name(r.target, props)} ${r.target === props.playerId ? "aren't" : "isn't"} the ${roleById(r.notRole).label}.`;
-      case "missed":
-        return holder === props.playerId ? "You didn't pick in time." : "Didn't pick in time.";
-    }
+    return describeResult(r, holder, props.playerId, (id) => this.name(id, props));
   }
 
   // ---- input --------------------------------------------------------------
@@ -150,19 +128,31 @@ export class ShortNightView implements GameView {
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
       this.api.act({ type: "ack" });
-    } else if (game.phase === "night" && me.picking && this.chosen.length === me.picking.count) {
-      this.api.act({ type: "pick", targets: this.chosen });
+    } else if (game.phase === "night" && me.role && !this.confirmed && this.chosen.length === this.pickCount(game)) {
+      // Everyone confirms; only the card that's awake (and that has a pick) sends it.
+      if (me.picking) this.api.act({ type: "pick", targets: this.chosen });
+      this.confirmed = true;
       audio.play("card-place");
+      if (this.props) this.settle(this.props);
     } else if (game.phase === "day" && this.isHost()) {
       this.api.act({ type: "next" });
     }
   }
 
+  /**
+   * How many players this step asks everyone to pick: the awake role's count,
+   * or one for a step with no pick. Public, so every phone asks the same.
+   */
+  private pickCount(game: Pub): number {
+    return roleById(game.steps[game.step]!).picks || 1;
+  }
+
   private toggle(id: string) {
-    const me = this.props?.private as Priv | null | undefined;
-    if (!me?.picking) return;
+    const game = this.props?.game as Pub | undefined;
+    if (!game || game.phase !== "night" || this.confirmed) return;
+    const count = this.pickCount(game);
     if (this.chosen.includes(id)) this.chosen = this.chosen.filter((x) => x !== id);
-    else this.chosen = me.picking.count === 1 ? [id] : [...this.chosen, id].slice(-2);
+    else this.chosen = count === 1 ? [id] : [...this.chosen, id].slice(-2);
     this.note.textContent = "";
     if (this.props) this.settle(this.props);
   }
@@ -206,6 +196,7 @@ export class ShortNightView implements GameView {
     if (stage !== this.stage) {
       this.stage = stage;
       this.chosen = [];
+      this.confirmed = false;
       this.lastTick = -1;
       this.note.textContent = "";
     }
@@ -257,6 +248,7 @@ export class ShortNightView implements GameView {
     let headline = "";
     let sub = "";
     let button: string | null = null;
+    let disabled = false;
     switch (game.phase) {
       case "reveal": {
         const left = game.players.filter((p) => !p.left).length - game.acked;
@@ -266,14 +258,16 @@ export class ShortNightView implements GameView {
         break;
       }
       case "night": {
+        // Word for word the same on every phone, picker or not.
         const step = roleById(game.steps[game.step]!);
-        if (me?.picking) {
-          headline = me.picking.count === 1 ? "Your turn. Pick a player." : "Your turn. Pick two players.";
-          sub = "Then confirm. Nobody else sees this.";
-          if (this.chosen.length === me.picking.count) button = "Confirm";
-        } else {
-          headline = `The ${step.label}${step.id === "wolf" ? "s are" : " is"} awake`;
-          sub = "Everyone else: eyes on your own screen. Your card has anything you learned.";
+        const count = this.pickCount(game);
+        headline = `The ${step.label}${step.id === "wolf" ? "s are" : " is"} awake. Everyone picks ${count === 1 ? "a player" : "two players"}.`;
+        sub = this.confirmed
+          ? "Locked in. Anything you learned is on your card."
+          : "Only the picks of the card that's awake count. Pick anyway, so nobody can tell whose turn it is.";
+        if (me?.role && !this.confirmed) {
+          button = "Confirm";
+          disabled = this.chosen.length !== count;
         }
         break;
       }
@@ -299,12 +293,14 @@ export class ShortNightView implements GameView {
     this.headline.textContent = headline;
     this.sub.textContent = sub;
     this.button.hidden = !button;
+    this.button.disabled = disabled;
     if (button) this.button.textContent = button;
   }
 
   private outcome(props: GameViewProps, game: Pub): string {
     if (game.endReason === "last-wolf-left") return "The last Wolf left. No winner.";
     if (game.endReason === "too-few") return "Too few players left. No winner.";
+    if (game.endReason === "runoff-left") return "A runoff candidate left. No winner.";
     const team = game.winner === "village" ? "The village wins" : "The Wolves win";
     if (!game.out) return `Nobody was voted out. ${team}.`;
     const role = roleById(game.cards![game.out]!).label;
@@ -315,11 +311,13 @@ export class ShortNightView implements GameView {
   /** The picker, the ballot, or the dawn reveal. Nothing for anyone else. */
   private renderPanel(props: GameViewProps, game: Pub, me: Priv | null) {
     this.panel.dataset.kind = "";
-    if (game.phase === "night" && me?.picking) {
+    if (game.phase === "night" && me?.role) {
+      // The same list on every phone: everyone but you, in seat order (the server's choices).
       this.panel.dataset.kind = "pick";
+      const others = game.players.map((p) => p.id).filter((id) => id !== props.playerId);
       return replaceChildren(
         this.panel,
-        h("ul", { class: "sn-list" }, me.picking.choices.map((id) => this.row(props, id, { pressed: this.chosen.includes(id), onclick: () => this.toggle(id) }))),
+        h("ul", { class: "sn-list" }, others.map((id) => this.row(props, id, { pressed: this.chosen.includes(id), disabled: this.confirmed, onclick: () => this.toggle(id) }))),
       );
     }
     if ((game.phase === "vote" || game.phase === "runoff") && me) {
@@ -338,7 +336,7 @@ export class ShortNightView implements GameView {
     replaceChildren(this.panel, h("ul", { class: "sn-list" }, game.players.map((p) => this.row(props, p.id, {}))));
   }
 
-  private row(props: GameViewProps, id: string, opts: { pressed?: boolean; onclick?: () => void; extra?: Node | null }): HTMLElement {
+  private row(props: GameViewProps, id: string, opts: { pressed?: boolean; disabled?: boolean; onclick?: () => void; extra?: Node | null }): HTMLElement {
     const game = props.game as Pub;
     const seat = props.room.seats.find((s) => s.id === id);
     const left = game.players.find((p) => p.id === id)?.left;
@@ -350,7 +348,7 @@ export class ShortNightView implements GameView {
     ];
     const cls = ["sn-row", left && "gone", id === props.playerId && "me"].filter(Boolean).join(" ");
     return opts.onclick
-      ? h("li", { class: cls }, h("button", { type: "button", class: "sn-pick", "aria-pressed": String(!!opts.pressed), onclick: opts.onclick }, inner))
+      ? h("li", { class: cls }, h("button", { type: "button", class: "sn-pick", "aria-pressed": String(!!opts.pressed), disabled: !!opts.disabled, onclick: opts.onclick }, inner))
       : h("li", { class: cls }, h("div", { class: "sn-pick" }, inner));
   }
 
@@ -437,9 +435,9 @@ export class ShortNightView implements GameView {
     for (const e of events) {
       switch (e.type) {
         case "night-step":
-          // Same sound on every phone; the picker's buzz is the only difference, and it's in their hand.
+          // Same sound and buzz on every phone: everyone picks every step.
           audio.play("deal");
-          if (me?.picking) audio.buzz(25);
+          audio.buzz(25);
           break;
         case "day":
           audio.play("shuffle");

@@ -22,12 +22,12 @@ export interface Role extends RoleSpec {
 /** Deck order, which is also the lobby's row order. Acting roles in night order. */
 export const ROLES: readonly Role[] = [
   { id: "wolf", label: "Wolf", team: "wolves", max: 3, picks: 0, blurb: "Wake first and meet the other Wolves. Alone, you learn one Villager." },
-  { id: "lamplighter", label: "Lamplighter", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn whether they're village or wolf." },
-  { id: "matchmaker", label: "Matchmaker", team: "village", max: 1, picks: 2, blurb: "Pick two players. Learn whether they're on the same side." },
-  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Learn how many of your two neighbours are wolves." },
-  { id: "gossip", label: "Gossip", team: "village", max: 1, picks: 0, blurb: "Hear two names. At least one of them is a wolf." },
+  { id: "lamplighter", label: "Lamplighter", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn whether they read as village or as a wolf." },
+  { id: "matchmaker", label: "Matchmaker", team: "village", max: 1, picks: 2, blurb: "Pick two players. Learn whether they read as the same side." },
+  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Learn how many of your two neighbours read as wolves." },
+  { id: "gossip", label: "Gossip", team: "village", max: 1, picks: 0, blurb: "Hear two names. At least one of them reads as a wolf." },
   { id: "wanderer", label: "Wanderer", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn one card they don't hold." },
-  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You're village, but every check above sees you as a wolf." },
+  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You're village, but you read as a wolf to the Lamplighter, Matchmaker, Bellringer and Gossip." },
   { id: "villager", label: "Villager", team: "village", max: 10, picks: null, blurb: "No night. Just your wits." },
 ];
 

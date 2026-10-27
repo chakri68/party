@@ -228,6 +228,18 @@ describe("the night", () => {
   });
 
   describe("Wanderer", () => {
+    it("still says something true when its deck has no third role (a test deck; setupProblem forbids it)", () => {
+      let s = toNight(start(["wolf", "wanderer", "wolf", "wolf"]).state);
+      while (s.steps[s.step] !== "wanderer") s = ring(s).state;
+      for (let seed = 1; seed <= 10; seed++) {
+        const r = ok(act(s, "p1", { type: "pick", targets: ["p0"] }, s.deadline - 1000, seed)).state.results.p1;
+        expect(r).toMatchObject({ kind: "wander", target: "p0" });
+        const not = (r as { notRole: string }).notRole;
+        expect(not).toBeDefined();
+        expect(["wolf", "wanderer"]).not.toContain(not);
+      }
+    });
+
     it("always has something to say, even in the smallest deck", () => {
       for (const target of ["p0", "p2", "p3"]) {
         let s = toNight(start(["wolf", "wanderer", "villager", "villager"]).state);
@@ -466,13 +478,24 @@ describe("leaving", () => {
     expect(t.state).toMatchObject({ phase: "finished", out: "p5", winner: "village" });
   });
 
-  it("a runoff down to one candidate puts them out", () => {
+  it("a runoff down to one candidate, by a leave: interrupted, no winner", () => {
     let s = vote(toVote(start(["wolf", "villager", "villager", "lamplighter", "matchmaker", "wolf"]).state), {
       p0: "p1", p1: "p2", p2: "p1", p3: "p2", p4: NOBODY, p5: "p3",
     }).state;
     expect(s).toMatchObject({ phase: "runoff", tied: ["p1", "p2"] });
-    s = g.onPlayerRemoved!(s, "p1", ctx(s.deadline - 1000)).state;
-    expect(s).toMatchObject({ phase: "finished", out: "p2", winner: "wolves" });
+    const t = g.onPlayerRemoved!(s, "p1", ctx(s.deadline - 1000));
+    expect(t.state).toMatchObject({ phase: "finished", endReason: "runoff-left", winner: null, out: null });
+    expect(types(t)).toEqual(["game-over"]);
+    const r = g.getResult(t.state)!;
+    expect(r.winnerIds).toEqual([]);
+    expect(r.headline).toBe("Interrupted: a runoff candidate left");
+  });
+
+  it("a three-way runoff that loses one goes on between the other two", () => {
+    let s = vote(toVote(six()), { p0: "p1", p1: "p2", p2: "p3", p3: "p1", p4: "p2", p5: "p3" }).state;
+    expect(s).toMatchObject({ phase: "runoff", tied: ["p1", "p2", "p3"] });
+    s = g.onPlayerRemoved!(s, "p3", ctx(s.deadline - 1000)).state;
+    expect(s).toMatchObject({ phase: "runoff", tied: ["p1", "p2"] });
   });
 
   it("after the end, nothing", () => {
