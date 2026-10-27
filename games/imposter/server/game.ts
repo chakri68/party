@@ -356,6 +356,13 @@ function parseAction(input: unknown): ImposterAction | null {
   }
 }
 
+/** What a rematch gets: the words already played, as category|word keys. */
+function parseCarry(carry: unknown): string[] {
+  if (typeof carry !== "object" || carry === null) return [];
+  const used = (carry as { used?: unknown }).used;
+  return Array.isArray(used) ? used.filter((w): w is string => typeof w === "string").slice(-500) : [];
+}
+
 // ---------------------------------------------------------------------------
 // Definition
 // ---------------------------------------------------------------------------
@@ -373,7 +380,7 @@ export const imposterGame: GameDefinition<
   parseSettings,
   parseAction,
 
-  createGame(players, settings, _match, ctx, options) {
+  createGame(players, settings, match, ctx, options) {
     const n = players.length;
     const { minPlayers, maxPlayers } = imposterManifest;
     if (n < minPlayers || n > maxPlayers) {
@@ -388,7 +395,8 @@ export const imposterGame: GameDefinition<
       players: players.map((p) => ({ id: p.id, score: 0, removed: false, away: false, imposterCount: 0 })),
       roundNumber: 1,
       round: blankRound(),
-      used: [],
+      // Last match's words go to the back; pickWord starts over once the pack's spent.
+      used: parseCarry(match.carry),
       deck: options?.deck ? (options.deck as string[]) : null,
       endReason: null,
     };
@@ -624,6 +632,10 @@ export const imposterGame: GameDefinition<
   },
 
   getAwaitedPlayerIds: awaited,
+
+  carryOver(state) {
+    return { used: state.used };
+  },
 
   getResult(state) {
     if (state.phase !== "finished") return null;

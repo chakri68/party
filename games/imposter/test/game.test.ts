@@ -369,6 +369,27 @@ describe("rounds", () => {
     expect(t.state.round.phase).toBe("reveal");
   });
 
+  it("carry the words played into a rematch", () => {
+    const deck = ["A|one", "B|two", "C|three", "D|four"];
+    let s = start(3, { deck, settings: { rounds: 3 } }).state;
+    const words = [s.round.word];
+    for (let i = 0; i < 3; i++) {
+      s = round(s);
+      if (s.phase === "playing") words.push(s.round.word);
+    }
+    expect(s.phase).toBe("finished");
+    const carry = g.carryOver!(s);
+    const next = g.createGame(players(3), { ...DEFAULT_SETTINGS }, { roundNumber: 1, dealerSeat: 0, carry }, ctx(0), { deck });
+    // Three of four played: the rematch opens on the one that wasn't.
+    const left = ["one", "two", "three", "four"].filter((w) => !words.includes(w));
+    expect(left).toHaveLength(1);
+    expect(next.state.round.word).toBe(left[0]);
+    // Junk in the carry is ignored, not trusted.
+    for (const junk of [null, 7, { used: "one" }, { used: [1, 2] }]) {
+      expect(() => g.createGame(players(3), { ...DEFAULT_SETTINGS }, { roundNumber: 1, dealerSeat: 0, carry: junk }, ctx(0), { deck })).not.toThrow();
+    }
+  });
+
   it("finishes after the last round's result; ties share", () => {
     let s = start(3, { settings: { rounds: 3 } }).state;
     for (let i = 0; i < 3; i++) s = round(s);
