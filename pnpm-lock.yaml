@@ -72,6 +72,9 @@ importers:
       '@games/sevens':
         specifier: workspace:*
         version: link:../../games/sevens
+      '@games/short-night':
+        specifier: workspace:*
+        version: link:../../games/short-night
       partyserver:
         specifier: ^0.5.10
         version: 0.5.10(@cloudflare/workers-types@5.20260924.1)
@@ -142,6 +145,9 @@ importers:
       '@games/sevens':
         specifier: workspace:*
         version: link:../../games/sevens
+      '@games/short-night':
+        specifier: workspace:*
+        version: link:../../games/short-night
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

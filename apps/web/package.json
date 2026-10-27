@@ -29,6 +29,7 @@
     "@games/room-client": "workspace:*",
     "@games/scribbl": "workspace:*",
     "@games/sevens": "workspace:*",
+    "@games/short-night": "workspace:*",
     "@games/ui": "workspace:*"
   },
   "devDependencies": {

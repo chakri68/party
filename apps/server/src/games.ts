@@ -14,6 +14,7 @@ import { passTheBombGame } from "@games/pass-the-bomb/server";
 import { presidentGame } from "@games/president/server";
 import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
+import { shortNightGame } from "@games/short-night/server";
 
 /** Server half of the game registry (§43). */
 const GAMES: Record<string, AnyGameDefinition> = {
@@ -32,6 +33,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   "face-off": faceOffGame,
   cheat: cheatGame,
   dominion: dominionGame,
+  "short-night": shortNightGame,
 };
 
 export interface GameFlags {

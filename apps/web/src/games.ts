@@ -17,6 +17,7 @@ import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from 
 import { presidentManifest, presidentRules, presidentSettingFields } from "@games/president/shared";
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
+import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
 import type { GameClientModule } from "@games/ui";
 
 export interface GameEntry {
@@ -127,6 +128,12 @@ export const games: Record<string, GameEntry> = {
     rules: dominionRules,
     settingFields: dominionSettingFields,
     loadClient: () => import("@games/dominion/client").then((m) => m.default),
+  },
+  "short-night": {
+    manifest: shortNightManifest,
+    rules: shortNightRules,
+    settingFields: shortNightSettingFields,
+    loadClient: () => import("@games/short-night/client").then((m) => m.default),
   },
   ...(BLIND_RALLY && {
     "blind-rally": {
