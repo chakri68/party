@@ -83,18 +83,19 @@
 .fo-player.dueling { border-color: var(--ink); }
 .fo-player.away { opacity: 0.55; }
 
-/* ---- The duel: it takes the whole screen, for everyone -------------------- */
+/* ---- The duel: it takes over the game area, for everyone. The shell's
+   header, reactions and chat stay where they are. ---------------------------- */
 
+.fo.dueling > :not(.fo-top):not(.fo-duel) { display: none; }
 .fo-duel {
-  position: fixed;
-  inset: 0;
-  z-index: 25;
   display: grid;
   grid-template-rows: auto 1fr;
-  background: var(--bg);
+  min-height: min(72dvh, 620px);
+  padding: 0 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--ink);
-  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
-  overflow-y: auto;
 }
 .fo-duel[hidden] { display: none; }
 .fo-duel-track { height: 8px; margin: 12px 0 0; border-radius: 4px; background: var(--line); overflow: hidden; }
@@ -130,7 +131,9 @@
   overflow-wrap: anywhere;
   color: var(--ink);
 }
-.fo-say-from { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.fo-say-from, .fo-say-back { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.fo-say-from strong { color: var(--accent); }
+.fo-say-back { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
 
 .fo-pairs { display: grid; gap: 10px; width: 100%; }
 .fo-pair {
@@ -139,10 +142,11 @@
   padding: 12px;
   border: 1.5px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--surface-2);
 }
 .fo-pair.claimed { border-color: var(--accent); }
 .fo-pair-who { font-size: 0.95rem; color: var(--muted); }
+.fo-pair-who strong { color: var(--ink); }
 .fo-pair-cat { font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
 
 .fo-buzzer {

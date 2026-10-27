@@ -73,6 +73,7 @@ Timed phases reject actions with `time-up` once `ctx.now` reaches the deadline, 
 13. **No two players hold the same card.** Draws come from a shuffled order; cards the last match used go to the back (via `carryOver`). If the order runs out, it reshuffles everything not in someone's hand and the table is told (`reshuffled`), per source §11.
 14. **Arrival order is the only order.** The server takes the first buzz it receives; no client timestamps. The vote is there to fix what latency gets wrong.
 15. **Room chat stays open.** It's a spoken game.
+16. **A duel takes over the game area, not the screen.** It replaces the table for everyone, but the shell's header, reactions and chat stay reachable, or ruling 15 would be a lie for most of every spark cycle. A duelist's buzzer takes focus when the duel opens (unless they're typing), so Space and Enter buzz rather than pressing some shell button.
 
 ## Content
 

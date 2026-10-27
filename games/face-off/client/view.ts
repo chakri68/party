@@ -16,9 +16,15 @@ function replay(el: Element, cls: string) {
 /** Keys that buzz, when nothing that takes text has focus. */
 const BUZZ_KEYS = new Set(["Enter", " "]);
 
+/** Anything that takes Enter or Space for itself. */
 function typing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName);
+  return textEntry(target) || target.tagName === "BUTTON";
+}
+
+function textEntry(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
 }
 
 const mmss = (ms: number) => {
@@ -141,6 +147,10 @@ export class FaceOffView implements GameView {
   private send(action: unknown) {
     this.api.act(action);
     audio.buzz(15);
+  }
+
+  private typingNow(): boolean {
+    return textEntry(document.activeElement);
   }
 
   private buzz() {
@@ -270,7 +280,8 @@ export class FaceOffView implements GameView {
       parts.push(
         h("p", { class: "fo-say-kicker" }, "Say out loud"),
         h("strong", { class: "fo-say" }, this.category(game, opp)),
-        h("p", { class: "fo-say-from" }, `${seatName(props.room, opp)}'s card. They're naming ${this.category(game, props.playerId)}.`),
+        h("p", { class: "fo-say-from" }, "From ", h("strong", {}, `${seatName(props.room, opp)}'s card`)),
+        h("p", { class: "fo-say-back" }, `${seatName(props.room, opp)} names `, h("strong", {}, this.category(game, props.playerId)), " (your card)"),
       );
     } else {
       parts.push(
@@ -284,7 +295,7 @@ export class FaceOffView implements GameView {
             h(
               "div",
               { class: ["fo-pair", d.claimId === who && "claimed"].filter(Boolean).join(" ") },
-              h("span", { class: "fo-pair-who" }, `${this.name(who, props)} names`),
+              h("span", { class: "fo-pair-who" }, `${this.name(who, props)} names one from `, h("strong", {}, `${seatName(props.room, whose)}'s card`)),
               h("strong", { class: "fo-pair-cat" }, this.category(game, whose!)),
             ),
           ),
@@ -322,6 +333,10 @@ export class FaceOffView implements GameView {
     }
     if (me?.canRedo) parts.push(h("button", { type: "button", class: "fo-redo", onclick: () => this.send({ type: "redo" }) }, "Redo (no score)"));
     replaceChildren(this.overlayBody, parts);
+    // Space and Enter go to whatever has focus: make that the buzzer, unless
+    // the player is typing somewhere.
+    const buzzer = this.overlayBody.querySelector<HTMLButtonElement>(".fo-buzzer");
+    if (buzzer && !this.typingNow()) buzzer.focus({ preventScroll: true });
     this.overlay.classList.toggle("mine", mine);
     this.overlay.classList.toggle("confirm", confirm);
   }
