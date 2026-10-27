@@ -448,6 +448,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/short-night:
+    dependencies:
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/hidden-roles':
+        specifier: workspace:*
+        version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
   packages/animation: {}
 
   packages/audio: {}

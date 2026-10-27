@@ -1,0 +1,19 @@
+{
+  "name": "@games/short-night",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./shared": "./shared/index.ts",
+    "./server": "./server/index.ts",
+    "./client": "./client/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@games/game-core": "workspace:*",
+    "@games/hidden-roles": "workspace:*",
+    "@games/ui": "workspace:*",
+    "@games/audio": "workspace:*"
+  }
+}
