@@ -42,6 +42,9 @@ importers:
       '@games/go-fish':
         specifier: workspace:*
         version: link:../../games/go-fish
+      '@games/imposter':
+        specifier: workspace:*
+        version: link:../../games/imposter
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
@@ -97,6 +100,9 @@ importers:
       '@games/go-fish':
         specifier: workspace:*
         version: link:../../games/go-fish
+      '@games/imposter':
+        specifier: workspace:*
+        version: link:../../games/imposter
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid

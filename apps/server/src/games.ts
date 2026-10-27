@@ -4,6 +4,7 @@ import { cheatGame } from "@games/cheat/server";
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { dominionGame } from "@games/dominion/server";
 import type { AnyGameDefinition } from "@games/game-core";
+import { imposterGame } from "@games/imposter/server";
 import { goFishGame } from "@games/go-fish/server";
 import { oldMaidGame } from "@games/old-maid/server";
 import { passTheBombGame } from "@games/pass-the-bomb/server";
@@ -21,6 +22,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   scribbl: scribblGame,
   "pass-the-bomb": passTheBombGame,
   "chain-words": chainWordsGame,
+  imposter: imposterGame,
   cheat: cheatGame,
   dominion: dominionGame,
 };

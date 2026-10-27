@@ -1,0 +1,121 @@
+/* Imposter. Uses the shell's tokens (--surface, --line, --ink, --muted, --accent, --danger).
+   Everything is im- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.imposter {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.im-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.im-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
+.im-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
+.imposter.low .im-timer { color: var(--danger); }
+
+.im-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.im-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
+.imposter.low .im-bar { background: var(--danger); }
+
+/* ---- Your card ----------------------------------------------------------- */
+
+.im-card {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 16px 14px 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.im-card.imposter { border-color: var(--danger); background: rgb(255 123 123 / 0.12); }
+.im-card.covered { border-style: dashed; border-color: var(--line); background: var(--surface); padding-top: 10px; }
+.im-card-body { display: grid; gap: 2px; justify-items: center; }
+.im-card-kicker { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.im-card-word {
+  font-size: clamp(1.8rem, 9vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+}
+.im-card.imposter .im-card-word { color: var(--danger); }
+.im-card-cat { font-size: 0.9rem; }
+.im-peek { min-height: 44px; font-size: 0.85rem; }
+
+/* ---- Prompt and input ---------------------------------------------------- */
+
+.im-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; }
+.im-headline.pop { animation: im-pop 380ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes im-pop { from { transform: scale(0.85); opacity: 0; } }
+.im-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+
+.im-form { display: flex; gap: 6px; }
+.im-input { min-height: 50px; font-size: 1.1rem; }
+.im-send, .im-action { min-height: 50px; padding: 0 18px; }
+.im-action { justify-self: center; min-width: 160px; }
+.im-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+
+.imposter .shake { animation: im-shake 300ms ease; }
+@keyframes im-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* ---- The table: players, their clues, the votes --------------------------- */
+
+.im-table { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.im-pick {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.im-pick { cursor: pointer; }
+.im-who { flex: 1; min-width: 0; display: grid; }
+.im-who .name { font-weight: 600; font-size: 0.85rem; color: var(--muted); }
+.im-clue { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.im-clue.none { font-weight: 400; font-style: italic; color: var(--muted); }
+/* Before clues, the name is all there is. */
+.im-who .name:only-child { color: var(--ink); font-size: 0.95rem; }
+.im-score { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: right; }
+.im-tick { color: var(--accent); font-weight: 800; }
+.im-votes { font-weight: 800; color: var(--danger); font-variant-numeric: tabular-nums; }
+.im-row .tag { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.im-row .tag.imp { background: var(--danger); color: var(--bg); }
+
+.im-row.me .im-pick { border-color: #4a483f; }
+.im-row.pickable .im-pick { border-color: var(--muted); }
+.im-row.picked .im-pick { border-color: var(--accent); background: var(--accent-soft); }
+.im-row.accused .im-pick { border-color: var(--danger); }
+.im-row.imp .im-pick { background: rgb(255 123 123 / 0.12); }
+.im-row.gone, .im-row.away { opacity: 0.55; }
+.im-row.away .im-pick { border-style: dashed; }
+
+.im-bubble { font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .im-bar { transition: none; }
+  .im-headline.pop { animation: none; }
+  .imposter .shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+}

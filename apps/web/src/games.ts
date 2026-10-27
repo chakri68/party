@@ -7,6 +7,7 @@ import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shar
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
+import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
@@ -81,6 +82,12 @@ export const games: Record<string, GameEntry> = {
     rules: chainWordsRules,
     settingFields: chainWordsSettingFields,
     loadClient: () => import("@games/chain-words/client").then((m) => m.default),
+  },
+  imposter: {
+    manifest: imposterManifest,
+    rules: imposterRules,
+    settingFields: imposterSettingFields,
+    loadClient: () => import("@games/imposter/client").then((m) => m.default),
   },
   cheat: {
     manifest: cheatManifest,

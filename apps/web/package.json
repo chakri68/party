@@ -17,6 +17,7 @@
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",
     "@games/game-core": "workspace:*",
+    "@games/imposter": "workspace:*",
     "@games/go-fish": "workspace:*",
     "@games/old-maid": "workspace:*",
     "@games/pass-the-bomb": "workspace:*",
