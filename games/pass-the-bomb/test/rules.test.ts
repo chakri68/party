@@ -1,23 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { normalizeWord, ordinal, parseTyping, shapeProblem } from "../shared/rules.ts";
-import { PACKED, WORD_COUNT } from "../server/dictionary.ts";
-import { CLUSTERS, MIN_MATCHES, isWord, unpack } from "../server/words.ts";
+import { allWords } from "@games/words/dictionary";
+import { CLUSTERS, MIN_MATCHES } from "../server/words.ts";
 
-const WORDS = unpack(PACKED);
-
-describe("the dictionary", () => {
-  it("unpacks to sorted, lowercase, 3+ letter words", () => {
-    expect(WORDS).toHaveLength(WORD_COUNT);
-    expect(WORDS.every((w) => /^[a-z]{3,}$/.test(w))).toBe(true);
-    expect(WORDS.every((w, i) => i === 0 || WORDS[i - 1]! < w)).toBe(true);
-    expect(unpack("0abandon7ed7s")).toEqual(["abandon", "abandoned", "abandons"]);
-  });
-
-  it("knows words, and not names, possessives or nonsense", () => {
-    for (const w of ["singer", "train", "house", "quickly", "zebra"]) expect(isWord(w)).toBe(true);
-    for (const w of ["paris", "cat's", "Cat", "xqzt", "", "at"]) expect(isWord(w)).toBe(false);
-  });
-});
+const WORDS = allWords();
 
 describe("clusters", () => {
   it(`each have at least ${MIN_MATCHES} words to find`, () => {

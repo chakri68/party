@@ -1,30 +1,4 @@
-// The dictionary and the letter clusters. Server only: validation happens here,
-// and the client bundle has no business carrying 64k words.
-
-import { PACKED } from "./dictionary.ts";
-
-/** Undoes the front-coding in scripts/build-dictionary.mjs: a digit starts a word, that many letters come from the last one. */
-export function unpack(packed: string): string[] {
-  const words: string[] = [];
-  let word = "";
-  for (let i = 0; i < packed.length; ) {
-    const keep = packed.charCodeAt(i++) - 48;
-    let j = i;
-    while (j < packed.length && packed.charCodeAt(j) > 57) j++;
-    word = word.slice(0, keep) + packed.slice(i, j);
-    words.push(word);
-    i = j;
-  }
-  return words;
-}
-
-let dictionary: Set<string> | null = null;
-
-/** Built on first use (a few ms) and kept for the life of the room's isolate. */
-export function isWord(word: string): boolean {
-  dictionary ??= new Set(unpack(PACKED));
-  return dictionary.has(word);
-}
+// The letter clusters. Server only; the dictionary itself is @games/words/dictionary.
 
 /**
  * What goes on the bomb. Each has at least 250 dictionary words containing it

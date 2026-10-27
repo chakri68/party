@@ -1,8 +1,7 @@
 import { seededRandomInt, type GameContext, type GameTransition } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { passTheBombGame as pb } from "../server/game.ts";
-import { PACKED } from "../server/dictionary.ts";
-import { unpack } from "../server/words.ts";
+import { allWords } from "@games/words/dictionary";
 import {
   BOOM_MS,
   DEFAULT_SETTINGS,
@@ -232,7 +231,7 @@ describe("the typing stream", () => {
 });
 
 describe("random games", () => {
-  const WORDS = unpack(PACKED);
+  const WORDS = allWords();
 
   it("always end, with one winner and everyone else out in order", () => {
     for (let seed = 0; seed < 60; seed++) {

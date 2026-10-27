@@ -1,7 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"]
+    "lib": ["ES2023"],
+    // Only the guard test reads the filesystem; src stays runtime-agnostic.
+    "types": ["node"]
   },
   "include": ["src", "test"]
 }

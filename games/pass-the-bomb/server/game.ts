@@ -17,7 +17,8 @@ import {
   type PassTheBombSettings,
   type TypingData,
 } from "../shared/types.ts";
-import { CLUSTERS, isWord } from "./words.ts";
+import { isWord } from "@games/words/dictionary";
+import { CLUSTERS } from "./words.ts";
 
 type State = PassTheBombServerState;
 type Player = PassTheBombPlayerState;
