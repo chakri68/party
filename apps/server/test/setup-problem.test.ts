@@ -1,5 +1,7 @@
 import type { AnyGameDefinition } from "@games/game-core";
+import { nightfallGame } from "@games/nightfall/server";
 import { sevensGame } from "@games/sevens/server";
+import { shortNightGame } from "@games/short-night/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { RoomRuntime } from "../src/runtime.ts";
 import { FakeConn, join, roomOf, send, World } from "./harness.ts";
@@ -34,7 +36,7 @@ describe("setupProblem", () => {
 
   beforeEach(async () => {
     world = new World();
-    room = new RoomRuntime("K7DX", world.host(), { fussy: fussyGame, sevens: sevensGame }, "fussy");
+    room = new RoomRuntime("K7DX", world.host(), { fussy: fussyGame, sevens: sevensGame, nightfall: nightfallGame, "short-night": shortNightGame }, "fussy");
     await room.load();
     await room.claim();
     ps = [];
@@ -97,5 +99,20 @@ describe("setupProblem", () => {
     await send(room, ps[0]!, { type: "start-game" });
     expect(ps[0]!.last("error")).toMatchObject({ code: "bad-setup", message: "Need exactly 3" });
     expect(roomOf(ps[0]!).phase).toBe("results");
+  });
+
+  it("stays quiet below the minimum head count: that's the lobby's own line", async () => {
+    await seat(["Ana"]);
+    expect(roomOf(ps[0]!).setupProblem).toBeNull();
+  });
+
+  it("a lone host in a hidden-role room sees no setup problem", async () => {
+    await seat(["Ana"]);
+    for (const gameId of ["nightfall", "short-night"]) {
+      await send(room, ps[0]!, { type: "select-game", gameId });
+      expect(roomOf(ps[0]!).setupProblem).toBeNull();
+    }
+    await seat(["Ben"]);
+    expect(roomOf(ps[0]!).setupProblem).toBeNull();
   });
 });

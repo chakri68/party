@@ -852,12 +852,17 @@ export class RoomRuntime {
     };
   }
 
-  /** What `startGame` would refuse over, asked of the selected game, not the one last played. */
+  /**
+   * What `startGame` would refuse over, asked of the selected game, not the one
+   * last played. Outside the game's head count the lobby already says "needs
+   * N–M players", and a deck built for one player is nonsense anyway.
+   */
   private setupProblem(): string | null {
     const data = this.data!;
     const def = this.games[data.gameId];
     if (!def?.setupProblem) return null;
     const n = data.seats.filter((s) => s.presence === "connected").length;
+    if (n < def.manifest.minPlayers || n > def.manifest.maxPlayers) return null;
     return def.setupProblem(def.parseSettings(data.settings) ?? def.defaultSettings, n);
   }
 
