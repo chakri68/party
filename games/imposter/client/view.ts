@@ -1,6 +1,7 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { PLACES, placeById } from "../shared/places.ts";
 import { cleanClue, clueProblem } from "../shared/rules.ts";
 import { MAX_CLUE, MAX_GUESS, type ImposterEvent, type ImposterPrivateState, type ImposterPublicState } from "../shared/types.ts";
 
@@ -9,6 +10,11 @@ type Priv = ImposterPrivateState;
 
 /** The last seconds of a phase tick out loud. */
 const TICK_FROM = 5;
+/** How long "I know where we are" stays armed after the first tap. */
+const ARM_MS = 4000;
+
+/** Alphabetical, for scanning. */
+const SORTED_PLACES = [...PLACES].sort((a, b) => a.name.localeCompare(b.name));
 
 /** Restarts a one-off animation class, even if it's already on. */
 function replay(el: Element, cls: string) {
@@ -21,6 +27,7 @@ const PHASE_LABEL: Record<Pub["phase"], string> = {
   reveal: "Your card",
   clues: "Clues",
   discuss: "Talk it over",
+  talk: "Talk",
   vote: "Vote",
   runoff: "Runoff",
   "reveal-role": "The reveal",
@@ -57,6 +64,11 @@ export class ImposterView implements GameView {
   private send = h("button", { type: "submit", class: "primary im-send" });
   private form = h("form", { class: "im-form" }, this.input, this.send);
   private button = h("button", { type: "button", class: "primary im-action" });
+  /** Spoken mode's "I know where we are". On every screen, same look. */
+  private call = h("button", { type: "button", class: "im-call" });
+  private placeList = h("ul", { class: "im-place-list" });
+  private placeCount = h("summary", { class: "im-places-head" });
+  private places = h("details", { class: "im-places" }, this.placeCount, this.placeList) as HTMLDetailsElement;
   private note = h("p", { class: "im-note", "aria-live": "assertive" });
 
   private table = h("ul", { class: "im-table", "aria-label": "Players" });
@@ -70,6 +82,10 @@ export class ImposterView implements GameView {
   /** Phase + round the input belongs to; a new one clears it. */
   private stage = "";
   private lastTick = -1;
+  /** First tap on the call button; a second within ARM_MS goes through. */
+  private armed: ReturnType<typeof setTimeout> | null = null;
+  /** The place the guesser has tapped, waiting on the confirm. */
+  private picked: string | null = null;
   private clock: ReturnType<typeof setInterval>;
 
   constructor(api: GameClientApi) {
@@ -82,7 +98,9 @@ export class ImposterView implements GameView {
       this.sub,
       this.form,
       this.button,
+      this.call,
       this.note,
+      this.places,
       this.table,
     );
     this.form.addEventListener("submit", (e) => {
@@ -91,6 +109,7 @@ export class ImposterView implements GameView {
     });
     this.input.addEventListener("input", () => (this.note.textContent = ""));
     this.button.addEventListener("click", () => this.press());
+    this.call.addEventListener("click", () => this.callIt());
     this.peek.addEventListener("click", () => {
       this.hidden = !this.hidden;
       if (this.props) this.renderCard(this.props);
@@ -104,6 +123,7 @@ export class ImposterView implements GameView {
 
   destroy() {
     clearInterval(this.clock);
+    this.disarm();
     this.queue.clear();
     this.root.remove();
   }
@@ -187,9 +207,46 @@ export class ImposterView implements GameView {
     if (game.phase === "reveal" && !me.acked) {
       this.hidden = true;
       this.api.act({ type: "ack" });
-    } else if ((game.phase === "discuss" || game.phase === "round-result") && this.isHost()) {
+    } else if (game.phase === "guess" && me.guessing && game.mode === "spoken") {
+      if (this.picked && !this.pending) this.pending = this.api.act({ type: "guess-place", placeId: this.picked });
+    } else if ((game.phase === "discuss" || game.phase === "talk" || game.phase === "round-result") && this.isHost()) {
       this.api.act({ type: "next" });
     }
+  }
+
+  /**
+   * Same two taps for everyone. Only the Imposter's second tap sends; anyone
+   * else gets a note only they can see, and the server would refuse them anyway.
+   */
+  private callIt() {
+    const game = this.game();
+    const me = this.mine();
+    if (!game || !me?.role || game.phase !== "talk") return;
+    if (!this.armed) {
+      this.armed = setTimeout(() => {
+        this.armed = null;
+        if (this.props) this.settle(this.props);
+      }, ARM_MS);
+      if (this.props) this.settle(this.props);
+      return;
+    }
+    this.disarm();
+    if (me.role === "imposter") this.api.act({ type: "call" });
+    else this.note.textContent = "You're not the Imposter. Keep asking.";
+    if (this.props) this.settle(this.props);
+  }
+
+  private disarm() {
+    if (this.armed) clearTimeout(this.armed);
+    this.armed = null;
+  }
+
+  private pickPlace(id: string) {
+    const me = this.mine();
+    if (!me?.guessing || this.pending) return;
+    this.picked = id;
+    audio.play("card-place");
+    if (this.props) this.settle(this.props);
   }
 
   private vote(id: string) {
@@ -220,9 +277,10 @@ export class ImposterView implements GameView {
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = `${secs} s`;
+    // Spoken mode's minutes read better as minutes.
+    this.timer.textContent = game.phase === "talk" && secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs} s`;
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
-    const low = secs <= TICK_FROM && ["clues", "vote", "runoff", "guess", "discuss"].includes(game.phase);
+    const low = secs <= TICK_FROM && ["clues", "vote", "runoff", "guess", "discuss", "talk"].includes(game.phase);
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;
@@ -244,7 +302,13 @@ export class ImposterView implements GameView {
       this.lastTick = -1;
       this.pending = null;
       this.input.value = "";
-      this.note.textContent = game.phase === "reveal" && this.dropped === game.round ? "Someone left mid-round. New word, new Imposter." : "";
+      this.picked = null;
+      this.disarm();
+      // Open for the guess (everyone's, so it says nothing), shut for a new round.
+      if (game.phase === "guess") this.places.open = true;
+      if (game.phase === "reveal") this.places.open = false;
+      const fresh = game.mode === "spoken" ? "New place, new Imposter." : "New word, new Imposter.";
+      this.note.textContent = game.phase === "reveal" && this.dropped === game.round ? `Someone left mid-round. ${fresh}` : "";
     }
     this.roundLabel.textContent = `Round ${game.round} of ${game.rounds}`;
     this.phaseLabel.textContent = PHASE_LABEL[game.phase];
@@ -253,7 +317,34 @@ export class ImposterView implements GameView {
     this.renderCard(props);
     this.renderPrompt(props, game, me);
     this.renderTable(props, game, me);
+    this.renderPlaces(game, me);
     this.renderClock();
+  }
+
+  /** Spoken mode: the list everyone plays from. The guesser's copy is buttons. */
+  private renderPlaces(game: Pub, me: Priv | null) {
+    const show = game.mode === "spoken" && game.phase !== "round-result" && game.phase !== "finished";
+    this.places.hidden = !show;
+    if (!show) return;
+    const guessing = game.phase === "guess" && !!me?.guessing;
+    this.places.classList.toggle("choosing", guessing);
+    this.placeCount.textContent = guessing ? "Where are we? Tap one." : `All places (${PLACES.length})`;
+    replaceChildren(
+      this.placeList,
+      SORTED_PLACES.map((p) =>
+        h(
+          "li",
+          {},
+          guessing
+            ? h(
+                "button",
+                { type: "button", class: "im-place pick", "aria-pressed": this.picked === p.id ? "true" : "false", onclick: () => this.pickPlace(p.id) },
+                p.name,
+              )
+            : h("span", { class: "im-place" }, p.name),
+        ),
+      ),
+    );
   }
 
   private renderCard(props: GameViewProps) {
@@ -267,8 +358,27 @@ export class ImposterView implements GameView {
     this.card.classList.toggle("covered", this.hidden);
     this.peek.textContent = this.hidden ? "Show my card" : "Hide";
     this.peek.hidden = over;
+    const spoken = game.mode === "spoken";
+    this.card.classList.toggle("place", spoken);
     if (this.hidden && !over) {
-      replaceChildren(this.cardBody, h("span", { class: "im-card-kicker" }, `Category: ${game.category}`));
+      replaceChildren(this.cardBody, h("span", { class: "im-card-kicker" }, spoken ? "Card hidden" : `Category: ${game.category}`));
+      return;
+    }
+    if (spoken) {
+      replaceChildren(
+        this.cardBody,
+        imposter
+          ? [
+              h("span", { class: "im-card-kicker" }, "You're the"),
+              h("strong", { class: "im-card-word" }, "Imposter"),
+              h("span", { class: "im-card-cat" }, "No place for you. Listen, and work out where."),
+            ]
+          : [
+              h("span", { class: "im-card-kicker" }, "You're at the"),
+              h("strong", { class: "im-card-word" }, me.word ?? ""),
+              h("span", { class: "im-card-cat" }, "Prove it without naming it."),
+            ],
+      );
       return;
     }
     replaceChildren(
@@ -295,6 +405,9 @@ export class ImposterView implements GameView {
     let sub = "";
     let form: { placeholder: string; label: string; max: number } | null = null;
     let button: string | null = null;
+    let call = false;
+    const spoken = game.mode === "spoken";
+    const thing = spoken ? "place" : "word";
 
     switch (game.phase) {
       case "reveal":
@@ -312,6 +425,12 @@ export class ImposterView implements GameView {
           form = { placeholder: "Your clue", label: "Send", max: MAX_CLUE };
         }
         break;
+      case "talk":
+        headline = "Ask each other questions";
+        sub = `${game.firstAsker ? `${this.name(game.firstAsker, props)} ${game.firstAsker === props.playerId ? "go" : "goes"} first. ` : ""}Out loud. Don't name the place.`;
+        if (host) button = "Vote now";
+        call = inGame;
+        break;
       case "discuss":
         headline = "Who's bluffing?";
         sub = "Talk it out. Room chat's open.";
@@ -326,20 +445,27 @@ export class ImposterView implements GameView {
         headline = game.accusedId
           ? `${this.name(game.accusedId, props)} ${game.accusedId === props.playerId ? "were" : "was"} ${game.accusedRole === "imposter" ? "the Imposter" : "not the Imposter"}`
           : "";
-        sub = game.accusedRole === "imposter" ? "One guess at the word to steal it." : "";
+        sub = game.accusedRole === "imposter" ? `One guess at the ${thing} to steal it.` : "";
         break;
       case "guess":
-        if (me?.guessing) {
+        if (spoken && me?.guessing) {
+          headline = game.early ? "You called it. Where are we?" : "Caught. Where are we?";
+          sub = this.picked ? "Sure? One shot." : "Tap a place on the list. Right, and you take the round.";
+          if (this.picked) button = `It's the ${placeById(this.picked)?.name ?? ""}`;
+        } else if (spoken && game.early) {
+          headline = "The Imposter stopped the clock";
+          sub = "They're picking the place. One shot.";
+        } else if (me?.guessing) {
           headline = "Caught. Guess the word.";
           sub = `Category: ${game.category}. Right, and you take the round.`;
           form = { placeholder: "The word is…", label: "Guess", max: MAX_GUESS };
         } else {
-          headline = `${this.name(game.accusedId, props)} ${game.accusedId === props.playerId ? "are" : "is"} guessing the word`;
+          headline = `${this.name(game.accusedId, props)} ${game.accusedId === props.playerId ? "are" : "is"} guessing the ${thing}`;
         }
         break;
       case "round-result":
         headline = this.resultLine(props, game);
-        sub = `The word was ${(game.word ?? "").toUpperCase()}.${game.guess ? ` Guess: ${game.guess}.` : ""}${game.guessClose ? " So close." : ""}`;
+        sub = `The ${thing} was ${(game.word ?? "").toUpperCase()}.${game.guess ? ` Guess: ${game.guess}.` : ""}${game.guessClose ? " So close." : ""}`;
         if (host) button = game.round >= game.rounds ? "Finish" : "Next round";
         break;
       case "finished":
@@ -347,7 +473,7 @@ export class ImposterView implements GameView {
         // Cut short mid-round: the round never got its result line, so give the secret here.
         if (game.endReason === "abandoned" && game.imposterId && game.word) {
           const youImp = game.imposterId === props.playerId;
-          sub = `${this.name(game.imposterId, props)} ${youImp ? "were" : "was"} the Imposter. The word was ${game.word.toUpperCase()}.`;
+          sub = `${this.name(game.imposterId, props)} ${youImp ? "were" : "was"} the Imposter. The ${thing} was ${game.word.toUpperCase()}.`;
         }
         break;
     }
@@ -365,11 +491,16 @@ export class ImposterView implements GameView {
     }
     this.button.hidden = !button;
     if (button) this.button.textContent = button;
+    this.call.hidden = !call;
+    this.call.classList.toggle("armed", !!this.armed);
+    this.call.textContent = this.armed ? "Tap again to stop the clock" : "I know where we are";
   }
 
   private resultLine(props: GameViewProps, game: Pub): string {
     const imp = this.name(game.imposterId, props);
     const youImp = game.imposterId === props.playerId;
+    const was = `${imp} ${youImp ? "were" : "was"} the Imposter`;
+    if (game.early) return game.guessRight ? `${was}, called it, and got it. Imposter +2` : `${was}, called it, and missed. Innocents +2`;
     if (game.winner === "innocents") return `Caught. ${imp} ${youImp ? "were" : "was"} the Imposter. Innocents +2`;
     if (game.guessRight) return `${imp} ${youImp ? "were" : "was"} caught, and guessed it. Imposter +2`;
     return `${imp} ${youImp ? "were" : "was"} the Imposter, and got away. Imposter +2`;
@@ -434,6 +565,10 @@ export class ImposterView implements GameView {
           break;
         case "clues-in":
           audio.play("deal");
+          break;
+        case "early-guess":
+          audio.play("your-turn");
+          audio.buzz(25);
           break;
         case "vote-open":
           audio.play("your-turn");
