@@ -12,6 +12,7 @@
     "@games/animation": "workspace:*",
     "@games/audio": "workspace:*",
     "@games/blind-rally": "workspace:*",
+    "@games/bluff": "workspace:*",
     "@games/chain-words": "workspace:*",
     "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",

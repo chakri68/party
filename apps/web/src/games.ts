@@ -2,6 +2,7 @@
 // predictable; each game's client code loads only when a game starts.
 
 import { blindRallyManifest, blindRallyRules, blindRallySettingFields, rallyManifest, rallyRules, rallySettingFields } from "@games/blind-rally/shared";
+import { bluffDefinitionsManifest, bluffDefinitionsRules, bluffDefinitionsSettingFields, fakeWordManifest, fakeWordRules, fakeWordSettingFields } from "@games/bluff/shared";
 import { chainWordsManifest, chainWordsRules, chainWordsSettingFields } from "@games/chain-words/shared";
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
@@ -88,6 +89,18 @@ export const games: Record<string, GameEntry> = {
     rules: imposterRules,
     settingFields: imposterSettingFields,
     loadClient: () => import("@games/imposter/client").then((m) => m.default),
+  },
+  "fake-word": {
+    manifest: fakeWordManifest,
+    rules: fakeWordRules,
+    settingFields: fakeWordSettingFields,
+    loadClient: () => import("@games/bluff/client").then((m) => m.fakeWord),
+  },
+  "bluff-definitions": {
+    manifest: bluffDefinitionsManifest,
+    rules: bluffDefinitionsRules,
+    settingFields: bluffDefinitionsSettingFields,
+    loadClient: () => import("@games/bluff/client").then((m) => m.bluffDefinitions),
   },
   cheat: {
     manifest: cheatManifest,

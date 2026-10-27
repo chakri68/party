@@ -1,0 +1,124 @@
+/* Fake Word and Bluff Definitions. Uses the shell's tokens (--surface, --line, --ink, --muted, --accent, --danger).
+   Everything is bl- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.bluff {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.bl-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.bl-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
+.bl-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
+.bluff.low .bl-timer { color: var(--danger); }
+
+.bl-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bl-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
+.bluff.low .bl-bar { background: var(--danger); }
+
+/* ---- The prompt ---------------------------------------------------------- */
+
+.bl-card {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.bl-kicker { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.bl-word {
+  font-size: clamp(1.6rem, 8vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+}
+.bl-meaning { margin: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.bl-notes { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+/* ---- Prompt and input ---------------------------------------------------- */
+
+.bl-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; overflow-wrap: anywhere; }
+.bl-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+
+.bl-form { display: flex; gap: 6px; align-items: stretch; }
+.bl-field { position: relative; flex: 1; min-width: 0; display: grid; }
+.bl-input { min-height: 50px; font: inherit; font-size: 1.1rem; }
+textarea.bl-input { resize: none; line-height: 1.35; padding-bottom: 18px; }
+.bl-count { position: absolute; right: 10px; bottom: 4px; font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+.bl-send, .bl-action { min-height: 50px; padding: 0 18px; }
+.bl-action { justify-self: center; min-width: 160px; }
+.bl-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+
+.bluff .shake { animation: bl-shake 300ms ease; }
+@keyframes bl-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* ---- The options: one style for all, real or not -------------------------- */
+
+.bl-options { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.bl-pick {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.bl-pick { cursor: pointer; }
+.bl-text { font-weight: 600; font-size: 1.05rem; line-height: 1.35; overflow-wrap: anywhere; }
+.bluff.fake-word .bl-text { font-size: 1.25rem; letter-spacing: 0.02em; }
+.bl-verdict { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 0.85rem; color: var(--muted); }
+.bluff .tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); justify-self: start; }
+.bluff .tag.real { background: var(--accent); color: var(--bg); }
+
+.bl-option.pickable .bl-pick { border-color: var(--muted); }
+.bl-option.picked .bl-pick { border-color: var(--accent); background: var(--accent-soft); }
+.bl-option.own .bl-pick { border-style: dashed; }
+.bl-option.real .bl-pick { border-color: var(--accent); background: var(--accent-soft); }
+.bl-option.fake .bl-pick { opacity: 0.85; }
+
+/* ---- Players and scores --------------------------------------------------- */
+
+.bl-table { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; text-align: left; }
+.bl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 12px 4px 6px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+.bl-row .name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-row.me { outline: 1.5px solid #4a483f; }
+.bl-row.gone, .bl-row.away { opacity: 0.55; }
+.bl-tick { color: var(--accent); font-weight: 800; }
+.bl-gain { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+.bl-score { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: right; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bl-bar { transition: none; }
+  .bluff .shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+}

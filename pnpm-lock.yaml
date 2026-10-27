@@ -24,6 +24,9 @@ importers:
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
+      '@games/bluff':
+        specifier: workspace:*
+        version: link:../../games/bluff
       '@games/chain-words':
         specifier: workspace:*
         version: link:../../games/chain-words
@@ -82,6 +85,9 @@ importers:
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
+      '@games/bluff':
+        specifier: workspace:*
+        version: link:../../games/bluff
       '@games/chain-words':
         specifier: workspace:*
         version: link:../../games/chain-words
