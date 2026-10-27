@@ -1,5 +1,6 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
+import { roleReveal } from "@games/hidden-roles/reveal";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { PLACES, placeById } from "../shared/places.ts";
 import { cleanClue, clueProblem } from "../shared/rules.ts";
@@ -46,9 +47,15 @@ export class ImposterView implements GameView {
   private timer = h("span", { class: "im-timer", role: "timer" });
   private bar = h("div", { class: "im-bar" });
 
-  private cardBody = h("div", { class: "im-card-body" });
-  private peek = h("button", { type: "button", class: "link im-peek" });
-  private card = h("section", { class: "im-card", "aria-label": "Your card" }, this.cardBody, this.peek);
+  /** Clues mode's category: public, so it lives outside the face-down card. */
+  private category = h("p", { class: "im-category" });
+  private cardSlot = h("div", { class: "im-card-slot" });
+  /** The kit's card: face down until tapped, and again whenever the tab goes. */
+  private reveal: ReturnType<typeof roleReveal> | null = null;
+  /** Which deal the card belongs to; a new key deals a fresh, face-down card. */
+  private cardKey = "";
+  /** Bumped to turn the card over: "Got it", and a round dealt again. */
+  private flips = 0;
 
   private headline = h("p", { class: "im-headline", role: "status", "aria-live": "polite" });
   private sub = h("p", { class: "im-sub" });
@@ -75,7 +82,6 @@ export class ImposterView implements GameView {
 
   private queue = new AnimationQueue();
   private rows = new Map<string, HTMLElement>();
-  private hidden = false;
   /** The round that started over because the Imposter left, to say so. */
   private dropped = -1;
   private pending: string | null = null;
@@ -84,6 +90,7 @@ export class ImposterView implements GameView {
   private lastTick = -1;
   /** First tap on the call button; a second within ARM_MS goes through. */
   private armed: ReturnType<typeof setTimeout> | null = null;
+  private noteTimer: ReturnType<typeof setTimeout> | null = null;
   /** The place the guesser has tapped, waiting on the confirm. */
   private picked: string | null = null;
   private clock: ReturnType<typeof setInterval>;
@@ -93,7 +100,8 @@ export class ImposterView implements GameView {
     this.root.append(
       h("div", { class: "im-top" }, this.roundLabel, this.phaseLabel, this.timer),
       h("div", { class: "im-track", "aria-hidden": "true" }, this.bar),
-      this.card,
+      this.category,
+      this.cardSlot,
       this.headline,
       this.sub,
       this.form,
@@ -110,10 +118,6 @@ export class ImposterView implements GameView {
     this.input.addEventListener("input", () => (this.note.textContent = ""));
     this.button.addEventListener("click", () => this.press());
     this.call.addEventListener("click", () => this.callIt());
-    this.peek.addEventListener("click", () => {
-      this.hidden = !this.hidden;
-      if (this.props) this.renderCard(this.props);
-    });
     this.clock = setInterval(() => this.renderClock(), 200);
   }
 
@@ -124,6 +128,8 @@ export class ImposterView implements GameView {
   destroy() {
     clearInterval(this.clock);
     this.disarm();
+    if (this.noteTimer) clearTimeout(this.noteTimer);
+    this.reveal?.destroy();
     this.queue.clear();
     this.root.remove();
   }
@@ -142,7 +148,7 @@ export class ImposterView implements GameView {
     if (events.some((e) => e.type === "round-dropped")) {
       // Same round number, new card: show it.
       this.dropped = (props.game as Pub).round;
-      this.hidden = false;
+      this.flips++;
     }
     if (props.snapshot || !this.props) {
       this.queue.clear();
@@ -205,7 +211,8 @@ export class ImposterView implements GameView {
     const me = this.mine();
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
-      this.hidden = true;
+      // Seen it: turn it face down for them.
+      this.flips++;
       this.api.act({ type: "ack" });
     } else if (game.phase === "guess" && me.guessing && game.mode === "spoken") {
       if (this.picked && !this.pending) this.pending = this.api.act({ type: "guess-place", placeId: this.picked });
@@ -223,6 +230,7 @@ export class ImposterView implements GameView {
     const me = this.mine();
     if (!game || !me?.role || game.phase !== "talk") return;
     if (!this.armed) {
+      this.note.textContent = "";
       this.armed = setTimeout(() => {
         this.armed = null;
         if (this.props) this.settle(this.props);
@@ -232,8 +240,19 @@ export class ImposterView implements GameView {
     }
     this.disarm();
     if (me.role === "imposter") this.api.act({ type: "call" });
-    else this.note.textContent = "You're not the Imposter. Keep asking.";
+    else this.notImposter();
     if (this.props) this.settle(this.props);
+  }
+
+  /** Private, and gone again as the button settles back, so it can't linger over someone's shoulder. */
+  private notImposter() {
+    const text = "You're not the Imposter. Keep asking.";
+    this.note.textContent = text;
+    if (this.noteTimer) clearTimeout(this.noteTimer);
+    this.noteTimer = setTimeout(() => {
+      this.noteTimer = null;
+      if (this.note.textContent === text) this.note.textContent = "";
+    }, ARM_MS);
   }
 
   private disarm() {
@@ -297,7 +316,6 @@ export class ImposterView implements GameView {
     const stage = `${game.round}:${game.phase}`;
     if (stage !== this.stage) {
       // New phase: whatever was typed belonged to the last one.
-      if (!this.stage.startsWith(`${game.round}:`)) this.hidden = false;
       this.stage = stage;
       this.lastTick = -1;
       this.pending = null;
@@ -350,50 +368,43 @@ export class ImposterView implements GameView {
   private renderCard(props: GameViewProps) {
     const game = props.game as Pub;
     const me = props.private as Priv | null;
-    const over = game.phase === "round-result" || game.phase === "finished";
-    this.card.hidden = !me?.role || game.phase === "finished";
-    if (!me?.role) return;
+    const playing = !!me?.role && game.phase !== "finished";
+    this.category.hidden = !playing || game.mode === "spoken";
+    this.category.textContent = `Category: ${game.category}`;
+    if (!playing) {
+      this.reveal?.destroy();
+      this.reveal = null;
+      this.cardKey = "";
+      return;
+    }
+    const body = this.cardFace(game, me!);
+    const key = `${game.round}:${this.flips}`;
+    if (this.reveal && key === this.cardKey) return this.reveal.update(body);
+    this.reveal?.destroy();
+    this.reveal = roleReveal({ title: "Your card", body });
+    this.cardKey = key;
+    this.cardSlot.append(this.reveal.el);
+  }
+
+  private cardFace(game: Pub, me: Priv): HTMLElement {
     const imposter = me.role === "imposter";
-    this.card.classList.toggle("imposter", imposter && !this.hidden);
-    this.card.classList.toggle("covered", this.hidden);
-    this.peek.textContent = this.hidden ? "Show my card" : "Hide";
-    this.peek.hidden = over;
     const spoken = game.mode === "spoken";
-    this.card.classList.toggle("place", spoken);
-    if (this.hidden && !over) {
-      replaceChildren(this.cardBody, h("span", { class: "im-card-kicker" }, spoken ? "Card hidden" : `Category: ${game.category}`));
-      return;
-    }
-    if (spoken) {
-      replaceChildren(
-        this.cardBody,
-        imposter
-          ? [
-              h("span", { class: "im-card-kicker" }, "You're the"),
-              h("strong", { class: "im-card-word" }, "Imposter"),
-              h("span", { class: "im-card-cat" }, "No place for you. Listen, and work out where."),
-            ]
-          : [
-              h("span", { class: "im-card-kicker" }, "You're at the"),
-              h("strong", { class: "im-card-word" }, me.word ?? ""),
-              h("span", { class: "im-card-cat" }, "Prove it without naming it."),
-            ],
+    const cls = ["im-card-body", imposter && "imposter", spoken && "place"].filter(Boolean).join(" ");
+    if (imposter) {
+      return h(
+        "div",
+        { class: cls },
+        h("span", { class: "im-card-kicker" }, "You're the"),
+        h("strong", { class: "im-card-word" }, "Imposter"),
+        h("span", { class: "im-card-cat" }, spoken ? "No place for you. Listen, and work out where." : `Category: ${game.category}. Blend in.`),
       );
-      return;
     }
-    replaceChildren(
-      this.cardBody,
-      imposter
-        ? [
-            h("span", { class: "im-card-kicker" }, "You're the"),
-            h("strong", { class: "im-card-word" }, "Imposter"),
-            h("span", { class: "im-card-cat" }, `Category: ${game.category}. Blend in.`),
-          ]
-        : [
-            h("span", { class: "im-card-kicker" }, "The word"),
-            h("strong", { class: "im-card-word" }, me.word ?? ""),
-            h("span", { class: "im-card-cat" }, `Category: ${game.category}`),
-          ],
+    return h(
+      "div",
+      { class: cls },
+      h("span", { class: "im-card-kicker" }, spoken ? "You're at the" : "The word"),
+      h("strong", { class: "im-card-word" }, me.word ?? ""),
+      h("span", { class: "im-card-cat" }, spoken ? "Prove it without naming it." : `Category: ${game.category}`),
     );
   }
 

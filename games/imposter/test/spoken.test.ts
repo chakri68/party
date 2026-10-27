@@ -103,16 +103,16 @@ describe("settings", () => {
     expect(g.parseSettings({ mode: "spoken", talkMinutes: 5 })).toBeNull();
   });
 
-  it("lobby: rounds, then talking time for the mode, then the mode", () => {
+  it("lobby: the mode first, then rounds, then talking time for the mode", () => {
     const clues = imposterSettingFields(null);
-    expect(clues.map((f) => f.key)).toEqual(["rounds", "discussSeconds", "mode"]);
-    expect(clues[2]!.selected).toBe(0);
+    expect(clues.map((f) => f.key)).toEqual(["mode", "rounds", "discussSeconds"]);
+    expect(clues[0]!.selected).toBe(0);
     const spoken = imposterSettingFields({ mode: "spoken", talkMinutes: 8 });
-    expect(spoken.map((f) => f.key)).toEqual(["rounds", "talkMinutes", "mode"]);
-    expect(spoken[1]!.options.map((o) => o.label)).toEqual(["4 min", "6 min", "8 min"]);
-    expect(spoken[1]!.selected).toBe(2);
-    expect(spoken[2]!.selected).toBe(1);
-    expect(imposterSettingFields({ mode: "spoken" })[1]!.selected).toBe(1);
+    expect(spoken.map((f) => f.key)).toEqual(["mode", "rounds", "talkMinutes"]);
+    expect(spoken[2]!.options.map((o) => o.label)).toEqual(["4 min", "6 min", "8 min"]);
+    expect(spoken[2]!.selected).toBe(2);
+    expect(spoken[0]!.selected).toBe(1);
+    expect(imposterSettingFields({ mode: "spoken" })[2]!.selected).toBe(1);
   });
 });
 
@@ -300,12 +300,23 @@ describe("leaving", () => {
     expect(g.onPlayerRemoved!(s, imp(s), ctx(1000)).state.round.winner).toBe("innocents");
   });
 
-  it("an innocent leaving in talk changes nothing; the first asker leaving neither", () => {
+  it("an innocent leaving in talk doesn't stop it", () => {
     const s = toTalk(start(5).state);
     const who = innocents(s)[0]!;
     const t = g.onPlayerRemoved!(s, who, ctx(1000));
     expect(t.state.round.phase).toBe("talk");
     expect(t.events).toEqual([]);
+  });
+
+  it("the first asker leaving hands the line to the next seat still in", () => {
+    // A deal where the first asker isn't the Imposter (their leaving drops the round).
+    const s = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => toTalk(start(5, { seed }).state)).find((x) => x.round.firstAsker !== imp(x))!;
+    const first = g.getPublicState(s).firstAsker!;
+    const t = g.onPlayerRemoved!(s, first, ctx(1000));
+    const seats = s.players.map((p) => p.id);
+    const at = seats.indexOf(first);
+    expect(g.getPublicState(t.state).firstAsker).toBe(seats[(at + 1) % seats.length]);
+    expect(t.state.round.phase).toBe("talk");
   });
 
   it("an innocent leaving mid-vote leaves the ballot", () => {
@@ -356,6 +367,15 @@ describe("rounds and rematch", () => {
     expect(s.phase).toBe("finished");
     const next = g.createGame(players(3), SPOKEN, { roundNumber: 1, dealerSeat: 0, carry: g.carryOver!(s) }, ctx(0), { deck });
     expect(seen).not.toContain(next.state.round.placeId);
+  });
+});
+
+describe("used list", () => {
+  it("a word pack reset keeps places played, and a place reset keeps words", () => {
+    const clues = g.createGame(players(3), DEFAULT_SETTINGS, { roundNumber: 1, dealerSeat: 0, carry: { used: ["place|lighthouse", "A|one"] } }, ctx(0), { deck: ["A|one"] }).state;
+    expect(clues.used).toEqual(["place|lighthouse", "A|one"]);
+    const spokenS = g.createGame(players(3), SPOKEN, { roundNumber: 1, dealerSeat: 0, carry: { used: ["A|one", "place|lighthouse"] } }, ctx(0), { deck: ["lighthouse"] }).state;
+    expect(spokenS.used).toEqual(["A|one", "place|lighthouse"]);
   });
 });
 

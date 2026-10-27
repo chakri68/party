@@ -68,10 +68,10 @@ describe("the last guess", () => {
 
 describe("settings fields", () => {
   it("offer rounds and talking time, with the current pick selected", () => {
-    const [rounds, talk] = imposterSettingFields({ rounds: 7, discussSeconds: 30 });
+    const [, rounds, talk] = imposterSettingFields({ rounds: 7, discussSeconds: 30 });
     expect(rounds!.options.map((o) => o.label)).toEqual(["3", "5", "7"]);
     expect(rounds!.selected).toBe(2);
     expect(talk!.selected).toBe(0);
-    expect(imposterSettingFields(null)[1]!.selected).toBe(1);
+    expect(imposterSettingFields(null)[2]!.selected).toBe(1);
   });
 });

@@ -16,6 +16,7 @@
     "@games/protocol": "workspace:*",
     "@games/animation": "workspace:*",
     "@games/audio": "workspace:*",
-    "@games/words": "workspace:*"
+    "@games/words": "workspace:*",
+    "@games/hidden-roles": "workspace:*"
   }
 }

@@ -139,7 +139,8 @@ const key = (e: { category: string; word: string }) => `${e.category}|${e.word}`
 function pickWord(state: State, deck: { category: string; word: string }[], ctx: GameContext) {
   let fresh = deck.filter((e) => !state.used.includes(key(e)));
   if (!fresh.length) {
-    state.used = [];
+    // Only the words start over; places played this match stay played.
+    state.used = state.used.filter((u) => u.startsWith("place|"));
     fresh = deck;
   }
   const other = fresh.filter((e) => e.category !== state.round.category);
@@ -154,6 +155,7 @@ function pickPlace(state: State, deck: readonly Place[], ctx: GameContext): Plac
   const placeKey = (p: Place) => `place|${p.id}`;
   let fresh = deck.filter((p) => !state.used.includes(placeKey(p)));
   if (!fresh.length) {
+    // Only the places start over; words played stay played.
     state.used = state.used.filter((u) => !u.startsWith("place|"));
     fresh = [...deck];
   }
@@ -581,6 +583,13 @@ export const imposterGame: GameDefinition<
     if (activeIds(state).length < MIN_PLAYERS) {
       finish(state, "abandoned", out);
       return done(state, out);
+    }
+    if (r.firstAsker === playerId) {
+      // Advisory, but naming someone who's gone is noise: hand it to the next seat still in.
+      const seats = state.players;
+      const at = seats.findIndex((x) => x.id === playerId);
+      const next = [...seats.slice(at + 1), ...seats.slice(0, at)].find(active);
+      r.firstAsker = next?.id ?? null;
     }
     if (playerId === r.imposterId && !REVEALED.includes(r.phase)) {
       // Nothing's been shown yet: drop the round, word and all, and deal again.

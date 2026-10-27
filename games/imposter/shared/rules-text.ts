@@ -34,6 +34,13 @@ export function imposterSettingFields(raw: unknown): SettingField[] {
   const minutes = Math.round((settings.rounds * talk) / 60);
   return [
     {
+      key: "mode",
+      label: "Mode",
+      selected: Math.max(0, MODE_OPTIONS.indexOf(modeOf(settings))),
+      options: MODE_OPTIONS.map((m) => ({ label: m === "spoken" ? "Spoken, places" : "Typed clues", patch: { mode: m } })),
+      hint: spoken ? "Talk out loud; no typing" : "A word, one typed clue each",
+    },
+    {
       key: "rounds",
       label: "Rounds",
       selected: Math.max(0, ROUND_OPTIONS.indexOf(settings.rounds)),
@@ -55,12 +62,5 @@ export function imposterSettingFields(raw: unknown): SettingField[] {
           options: DISCUSS_OPTIONS.map((n) => ({ label: `${n} s`, patch: { discussSeconds: n } })),
           hint: "The host can cut it short",
         },
-    {
-      key: "mode",
-      label: "Mode",
-      selected: Math.max(0, MODE_OPTIONS.indexOf(modeOf(settings))),
-      options: MODE_OPTIONS.map((m) => ({ label: m === "spoken" ? "Spoken, places" : "Typed clues", patch: { mode: m } })),
-      hint: spoken ? "Talk out loud; no typing" : "A word, one typed clue each",
-    },
   ];
 }

@@ -28,17 +28,9 @@
 
 /* ---- Your card ----------------------------------------------------------- */
 
-.im-card {
-  display: grid;
-  gap: 4px;
-  justify-items: center;
-  padding: 16px 14px 10px;
-  border: 1.5px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-}
-.im-card.imposter { border-color: var(--danger); background: rgb(255 123 123 / 0.12); }
-.im-card.covered { border-style: dashed; border-color: var(--line); background: var(--surface); padding-top: 10px; }
+/* The card itself is the kit's role-reveal; this is its face. */
+.im-category { margin: 0; font-weight: 700; }
+.im-card-slot { display: grid; justify-items: center; }
 .im-card-body { display: grid; gap: 2px; justify-items: center; }
 .im-card-kicker { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 .im-card-word {
@@ -50,9 +42,8 @@
   overflow-wrap: anywhere;
   color: var(--accent);
 }
-.im-card.imposter .im-card-word { color: var(--danger); }
+.im-card-body.imposter .im-card-word { color: var(--danger); }
 .im-card-cat { font-size: 0.9rem; }
-.im-peek { min-height: 44px; font-size: 0.85rem; }
 
 /* ---- Prompt and input ---------------------------------------------------- */
 
@@ -117,7 +108,7 @@ button.im-pick { cursor: pointer; }
 /* ---- Spoken mode: the call button and the place list ---------------------- */
 
 /* Place names run long; the word size is for single words. */
-.im-card.place .im-card-word { font-size: clamp(1.4rem, 7vw, 2.1rem); }
+.im-card-body.place .im-card-word { font-size: clamp(1.4rem, 7vw, 2.1rem); }
 
 /* Same on every screen: its look must not say who's the Imposter. */
 .im-call {

@@ -39,23 +39,23 @@ Private: unchanged. An innocent's `word` is the place name; the Imposter's is nu
 
 ## Settings
 
-`mode` clues/spoken (default clues), `rounds` 3/5/7, then the second row is "Talking time": 30/60/90 s in clues mode, 4/6/8 min (default 6) in spoken. The mode row goes third, after the two rows the existing lobby and tests already know.
+`mode` clues/spoken (default clues), first, since it decides what the rest mean. Then `rounds` 3/5/7, then "Talking time": 30/60/90 s in clues mode, 4/6/8 min (default 6) in spoken.
 
 ## Rulings
 
 1. **The pack ships in `shared/`.** The brief allows it, and it's the only placement that lets a test treat the dealt place's name as a secret: a public list in state would contain every name. Which place was dealt never leaves the server before `round-result`.
 2. **41 places**, each an id and a display name, picked so a question can split any two ("overnight sleeper train", "ferry crossing", "airport security queue" are three different answers to "how long are you here for?"). A test checks 35+, unique ids and names, and id/name shape.
 3. **Settings fields are optional** (`mode?`, `talkMinutes?`): absent means clues and 6 minutes. `parseSettings` only echoes a new key when the input had one. Old settings, old tests and old rematches keep their exact shape.
-4. **`call` is shown to everyone, gated twice.** First tap arms it ("Tap again to stop the clock"), on every screen. Second tap: the Imposter's client sends `call`; anyone else's shows a private "You're not the Imposter" and sends nothing. The server still rejects a `call` from a non-Imposter. The arm step is the spec's "avoid accidental taps".
+4. **`call` is shown to everyone, gated twice.** First tap arms it ("Tap again to stop the clock"), on every screen. Second tap: the Imposter's client sends `call`; anyone else's shows a private "You're not the Imposter" for a few seconds and sends nothing. The server still rejects a `call` from a non-Imposter. The arm step is the spec's "avoid accidental taps".
 5. **Calling it keeps the Imposter anonymous until the result.** The public event is a bare `early-guess`, `accusedId` stays null, and the awaited list during an early guess is empty: the runtime shows awaited players, and naming the guesser would name the Imposter. The 30 s clock covers a guesser who's dropped.
 6. **The Imposter leaving during an early guess** is a missed guess (as rule 6 of the base design, for the caught case). Leaving in `reveal` or `talk` drops the round, as before.
 7. **A caught guess also picks from the list.** No typing in spoken mode, so no `close` consolation either.
 8. **Guess time is 30 s in spoken mode**, not 20: scanning 41 names takes longer than typing one word you've been thinking about.
-9. **The first asker** is uniform over everyone still in, Imposter included, drawn at round start (spoken only, so clues-mode random draws don't shift). It's advisory and survives them leaving.
+9. **The first asker** is uniform over everyone still in, Imposter included, drawn at round start (spoken only, so clues-mode random draws don't shift). Advisory; if they leave, the line passes to the next seat still in.
 10. **The host can still say "Vote now"** during `talk`, as in `discuss`. A table that's sure shouldn't wait out eight minutes.
-11. **Places don't repeat** within a match or across a rematch: they go into the same `used` list as words, as `place|<id>`, carried by the existing `carryOver`. Once the pack is spent, it starts over.
+11. **Places don't repeat** within a match or across a rematch: they go into the same `used` list as words, as `place|<id>`, carried by the existing `carryOver`. Once a pack is spent it starts over, clearing only its own entries: a word reset keeps places played, and the reverse.
 12. **No occupation tags, no anytime accusations, no conversation prompts.** The roadmap leaves the first two out; prompts would dictate speech.
-13. **The role card stays Imposter's own** (tap to hide/show, auto-hides on "Got it"), not `roleReveal`. It already does the job in both modes; swapping it is a retrofit the roadmap says not to do.
+13. **The secret card is the kit's `roleReveal`, in both modes** (superseded: this first said Imposter's own card stays). Face down until tapped, face down again when the tab is backgrounded or loses focus. "Got it" and a re-dealt round each turn it face down by dealing a fresh card. Clues mode's category is public, so it moves to a line above the card.
 14. **The place list is a collapsible panel**, closed by default and identical for every role, open in `guess` for everyone. The guesser's copy is buttons; everyone else's is read-only.
 
 ## Tests
