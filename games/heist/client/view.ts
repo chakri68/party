@@ -152,12 +152,8 @@ export class HeistView implements GameView {
   private play(card: Card) {
     const me = this.props?.private as Priv | null | undefined;
     if (!me?.onJob) return;
-    // Checked here, not by the server, so a crew player's tap looks like nothing
-    // happened rather than an error sound across the table.
-    if (card === "sabotage" && (me.alignment !== "mole" || !me.budget)) {
-      this.note.textContent = me.alignment === "mole" ? "You're out of Sabotage cards." : "Crew can only play Clean.";
-      return;
-    }
+    // Sent as tapped, by everyone: the server plays a crew Sabotage as Clean, so
+    // every phone on the job answers a tap the same way (ruling 4).
     this.note.textContent = "";
     this.api.act({ type: "card", card });
     audio.play("card-place");
@@ -300,8 +296,9 @@ export class HeistView implements GameView {
         break;
       case "job":
         if (me?.onJob) {
-          headline = "Play a card";
-          sub = me.card ? `You put in ${me.card === "clean" ? "Clean" : "Sabotage"}. You can change it till the clock runs out.` : "Face down. Missing cards play as Clean.";
+          // Same words for every card and every player: the screen never says which.
+          headline = me.card ? "Card in" : "Play a card";
+          sub = me.card ? "You can change it till the clock runs out." : "Face down. Missing cards play as Clean.";
         } else {
           headline = `${this.Name(game.crew[0], props)}${game.crew.length > 1 ? ` and ${game.crew.length - 1} more` : ""} on the job`;
           sub = "Cards are counted when the clock runs out.";
@@ -351,9 +348,10 @@ export class HeistView implements GameView {
     }
     if (game.phase === "job") {
       this.panel.dataset.kind = "job";
-      // Every crew member sees the same two cards (design ruling 4).
-      const mole = me?.alignment === "mole";
-      const sabotageNote = mole ? `${me!.budget} left` : "Moles only";
+      // Every crew member sees the same two cards, enabled the same way (ruling 4).
+      // Below them, a status line everyone gets at the same size: a mole's
+      // count, or a neutral line for crew.
+      const status = me?.alignment === "mole" ? `Sabotage cards left: ${me.budget}` : "Cards stay face down.";
       return replaceChildren(
         this.panel,
         this.crewList(props, game.crew),
@@ -371,10 +369,11 @@ export class HeistView implements GameView {
                 "button",
                 { type: "button", class: "hz-choice card", "aria-pressed": String(me.card === "sabotage"), onclick: () => this.play("sabotage") },
                 h("span", { class: "hz-card-name" }, "Sabotage"),
-                h("span", { class: "hz-card-note" }, sabotageNote),
+                h("span", { class: "hz-card-note" }, "The job fails"),
               ),
             )
           : null,
+        me?.onJob ? h("p", { class: "hz-status" }, status) : null,
       );
     }
     if (game.phase === "finished" && game.alignments) return this.renderDebrief(props, game);

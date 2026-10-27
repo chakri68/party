@@ -163,14 +163,18 @@ function closeVote(state: State, ctx: GameContext, out: Out): void {
   setPhase(state, "job", timers(state).cardMs, ctx, out);
 }
 
-/** The card clock ran out: missing cards are Clean, Sabotage cards are spent. */
+/**
+ * The card clock ran out: missing cards are Clean, Sabotage cards are spent.
+ * A Sabotage card only counts from a mole with one left; from anyone else it
+ * was always going to be Clean (ruling 4).
+ */
 function playCards(state: State, ctx: GameContext, out: Out): void {
   let sabotaged = 0;
   let auto = 0;
   for (const id of state.crew) {
     const card = state.cards[id];
     if (!card) auto++;
-    if (card === "sabotage") {
+    if (card === "sabotage" && state.alignment[id] === "mole" && (state.budget[id] ?? 0) > 0) {
       sabotaged++;
       state.budget[id]!--;
     }
@@ -352,10 +356,8 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
       case "card": {
         if (prev.phase !== "job") return reject("wrong-phase", "No job on.");
         if (!prev.crew.includes(playerId)) return reject("not-on-job", "You're not on this job.");
-        if (action.card === "sabotage") {
-          if (prev.alignment[playerId] !== "mole") return reject("crew-only-clean", "Crew can only play Clean.");
-          if ((prev.budget[playerId] ?? 0) <= 0) return reject("no-sabotage-left", "You're out of Sabotage cards.");
-        }
+        // Taken as tapped from anyone: a refusal would answer crew differently
+        // from moles. Crew Sabotage (or a mole's with none left) plays as Clean.
         state.cards[playerId] = action.card;
         // The job runs on regardless: ending it early would time the slowest card.
         break;
@@ -430,7 +432,8 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
   skipTurn(prev, playerId, ctx) {
     const state = clone(prev);
     const out = newOut();
-    if (prev.phase === "reveal" && find(prev, playerId) && !prev.acks.includes(playerId)) {
+    const p = find(prev, playerId);
+    if (prev.phase === "reveal" && p && !p.left && !prev.acks.includes(playerId)) {
       state.acks.push(playerId);
       check(state, ctx, out);
       return done(state, out);
@@ -457,7 +460,8 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
       score: { ...state.score },
       moleCount: Object.keys(state.budget).length,
       crew: [...state.crew],
-      acked: state.acks.length,
+      // Leavers' acks don't count: "still looking" is of who's still in.
+      acked: activeIds(state).filter((id) => state.acks.includes(id)).length,
       voted: b ? Object.keys(b.votes).length : 0,
       voters: b ? b.eligible.length : 0,
       proposals: state.proposals,

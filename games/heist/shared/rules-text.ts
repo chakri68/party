@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, type HeistSettings, type MoleShift, type PresetId, TI
 export const heistRules: string[] = [
   "Everyone gets a secret card: crew or mole. Moles see who the other moles are; crew know only themselves.",
   `Five jobs. For each, the leader picks a crew of the job's size (themselves allowed), and everyone votes Go or No-go. More than half the table must say Go; a tie fails. When the vote closes, everyone's vote is shown.`,
-  "On a job, each crew member plays one card, face down. Crew can only play Clean. A mole can play Clean or Sabotage. One Sabotage and the job fails. The table sees how many Sabotage cards went in, never whose.",
+  "On a job, each crew member plays one card, face down. Everyone gets both cards, Clean and Sabotage, so no screen looks different. A mole's Sabotage counts; anyone else's does nothing and plays as Clean. One Sabotage and the job fails. The table sees how many Sabotage cards went in, never whose.",
   `Each mole gets ${BUDGET} Sabotage cards for the whole game. Spend them wisely.`,
   `Every failed vote adds heat. At ${MAX_HEAT} heat the job is lost to the moles. Heat cools after every job.`,
   "The leader moves one seat on after every proposal, whether it passed or not.",

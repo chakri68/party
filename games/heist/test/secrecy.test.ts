@@ -6,8 +6,6 @@ import { act, ctx, deal, g, ids, leaderId, ok, propose, ring, type S, start, typ
 /** Moles p1, p3, p5. */
 const SEVEN = "cmcmcmc";
 const ALL = [...SEVEN].map((_, i) => `p${i}`);
-const MOLES = ["p1", "p3", "p5"];
-const CREW = ALL.filter((id) => !MOLES.includes(id));
 
 /**
  * Everything a seat mustn't see before the end: each alignment (as the private
@@ -16,6 +14,10 @@ const CREW = ALL.filter((id) => !MOLES.includes(id));
  */
 function sealed(t: { state: S; events: GameEventEnvelope<unknown>[] }, label: string): void {
   const s = t.state;
+  // Every seat dealt in, leavers too: they still get a private state.
+  const ALL = s.players.map((p) => p.id);
+  const MOLES = ALL.filter((id) => s.alignment[id] === "mole");
+  const CREW = ALL.filter((id) => !MOLES.includes(id));
   const check = (secret: string, allowed: string[]) =>
     expect(findLeaks({ def: g, state: s, events: t.events, players: ALL, secret, allowed }), `${label}: ${secret}`).toEqual([]);
 
@@ -40,6 +42,43 @@ const step = (_prev: T, label: string, next: T): T => {
   sealed(next, label);
   return next;
 };
+
+/**
+ * A whole game, sealed at every step: each leader proposes the next seats
+ * round from themselves, moles vote Go and crew No-go on every other
+ * proposal, moles on a job tap Sabotage then Clean then Sabotage. `stop`
+ * may end it early with a leaver, at a label of its choosing.
+ */
+function playSealed(pattern: string, seed: number, stop?: (t: T) => T | null): T {
+  let t: T = start(pattern, {}, seed);
+  sealed(t, "deal");
+  for (const id of ids(t.state)) t = step(t, `ack ${id}`, ok(act(t.state, id, { type: "ack" })));
+  for (let turn = 0; t.state.phase !== "finished" && turn < 40; turn++) {
+    const s = t.state;
+    const live = ids(s);
+    const size = g.getPublicState(s).sizes[s.job]!;
+    const from = live.indexOf(leaderId(s));
+    const crew = Array.from({ length: size }, (_, i) => live[(from + i) % live.length]!);
+    t = step(t, `propose ${turn}`, ok(act(s, leaderId(s), { type: "propose", crew })));
+    for (const id of live) {
+      const vote = turn % 2 === 0 || s.alignment[id] === "mole" ? "go" : "no-go";
+      if (t.state.phase !== "vote") break;
+      t = step(t, `vote ${turn} ${id}`, ok(act(t.state, id, { type: "vote", vote })));
+    }
+    if (t.state.phase === "vote") t = step(t, `vote ${turn} closes`, ring(t.state));
+    if (t.state.phase !== "job") continue;
+    for (const id of t.state.crew) {
+      for (const card of t.state.alignment[id] === "mole" ? (["sabotage", "clean", "sabotage"] as const) : (["clean"] as const)) {
+        t = step(t, `card ${turn} ${id} ${card}`, ok(act(t.state, id, { type: "card", card })));
+      }
+    }
+    const cut = stop?.(t);
+    if (cut) return step(t, `stop ${turn}`, cut);
+    t = step(t, `job ${turn} ends`, ring(t.state));
+  }
+  expect(t.state.phase).toBe("finished");
+  return t;
+}
 
 describe("secrets", () => {
   it("keep through the reveal, proposals, votes, jobs, heat, voids and leavers", () => {
@@ -78,6 +117,23 @@ describe("secrets", () => {
     expect(t.state).toMatchObject({ phase: "propose", heat: 0, score: { mole: 2 } });
     while (t.state.phase !== "finished") t = step(t, "heat", ring(t.state));
     expect(t.state.winner).toBe("mole");
+  });
+
+  it("keep through whole games at five and at ten", () => {
+    for (const seed of [1, 2]) {
+      expect(playSealed("cmcmc", seed).state.endReason).toBe("done");
+      expect(playSealed("cmccmcmcmc", seed).state.endReason).toBe("done");
+    }
+  });
+
+  it("keep through an interrupted end, mid-job with cards down", () => {
+    const leave = (t: T) => g.onPlayerRemoved!(t.state, t.state.crew[0]!, ctx(t.state.deadline - 1000));
+    const five = playSealed("cmcmc", 3, leave);
+    expect(five.state).toMatchObject({ phase: "finished", endReason: "too-few", winner: null });
+    expect(g.getPublicState(five.state).alignments).not.toBeNull();
+    // At ten, a lone mole walks off a job they're on: the other way it ends.
+    const ten = playSealed("cmcccccccc", 4, (x) => (x.state.crew.includes("p1") ? g.onPlayerRemoved!(x.state, "p1", ctx(x.state.deadline - 1000)) : null));
+    expect(ten.state).toMatchObject({ phase: "finished", endReason: "no-moles" });
   });
 
   it("the alignments come out at the end, and the cards never do", () => {

@@ -72,6 +72,15 @@ describe("the reveal", () => {
     expect(g.skipTurn!(s, "p4", ctx(1000)).state.phase).toBe("propose");
   });
 
+  it("never acks a leaver, and counts only who's still in", () => {
+    let s = start("cmcmcmc").state;
+    s = ok(act(s, "p6", { type: "ack" })).state;
+    s = g.onPlayerRemoved!(s, "p6", ctx(1000)).state;
+    expect(g.getPublicState(s).acked).toBe(0);
+    s = g.onPlayerRemoved!(s, "p5", ctx(1000)).state;
+    expect(g.skipTurn!(s, "p5", ctx(1000)).state.acks).not.toContain("p5");
+  });
+
   it("refuses everything else", () => {
     const s = start(FIVE).state;
     expect(err(act(s, "p0", { type: "propose", crew: ["p0", "p1"] }))).toBe("wrong-phase");
@@ -225,11 +234,22 @@ describe("heat", () => {
 describe("the job", () => {
   const onJob = (crew = ["p0", "p1"]) => voteAll(propose(five(), crew), "go").state;
 
-  it("crew can only play Clean; a mole can Sabotage; nobody off the crew plays", () => {
+  it("anyone on the job may tap either card; nobody off it plays", () => {
     const s = onJob();
-    expect(err(act(s, "p0", { type: "card", card: "sabotage" }))).toBe("crew-only-clean");
     expect(err(act(s, "p2", { type: "card", card: "clean" }))).toBe("not-on-job");
-    expect(ok(act(s, "p1", { type: "card", card: "sabotage" })).state.cards).toEqual({ p1: "sabotage" });
+    const t = ok(act(s, "p0", { type: "card", card: "sabotage" }));
+    expect(t.state.cards).toEqual({ p0: "sabotage" });
+    // Crew get back exactly what a mole would: their tap, no error, no event.
+    expect(g.getPrivateState(t.state, "p0")).toMatchObject({ card: "sabotage", onJob: true });
+    expect(t.events).toEqual([]);
+  });
+
+  it("a crew member's Sabotage plays as Clean", () => {
+    let s = onJob(["p0", "p2"]);
+    s = ok(act(s, "p0", { type: "card", card: "sabotage" })).state;
+    s = ok(act(s, "p2", { type: "card", card: "sabotage" })).state;
+    const t = ring(s);
+    expect(t.state.jobs.at(-1)).toMatchObject({ sabotaged: 0, auto: 0, winner: "crew" });
   });
 
   it("runs its full clock however fast the cards come in; cards can change till then", () => {
@@ -251,11 +271,14 @@ describe("the job", () => {
     expect(t.events.map((e) => e.event)[0]).toEqual({ type: "job-done", job: 0, winner: "mole", sabotaged: 2, heat: false });
   });
 
-  it("a mole with no cards left can only play Clean", () => {
+  it("a mole with no cards left plays Clean whatever they tap", () => {
     let s = onJob(["p1", "p2"]);
     s = { ...s, budget: { ...s.budget, p1: 0 } };
-    expect(err(act(s, "p1", { type: "card", card: "sabotage" }))).toBe("no-sabotage-left");
+    s = ok(act(s, "p1", { type: "card", card: "sabotage" })).state;
     expect(g.getPrivateState(s, "p1").budget).toBe(0);
+    const t = ring(s);
+    expect(t.state.jobs.at(-1)).toMatchObject({ sabotaged: 0, winner: "crew" });
+    expect(t.state.budget.p1).toBe(0);
   });
 
   it("the clock plays Clean for anyone who didn't, and says how many without saying who", () => {

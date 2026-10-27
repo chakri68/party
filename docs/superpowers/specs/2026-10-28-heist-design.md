@@ -10,7 +10,7 @@ Five jobs, played in order. For each job:
 
 1. **Propose.** The leader picks exactly the job's crew size of distinct players, themselves allowed.
 2. **Vote.** Everyone still in votes Go or No-go, secretly. More than half of the players in the game must say Go; a tie fails. When the vote closes, every vote is shown by name.
-3. **Job.** A passed crew plays one card each, face down. Crew can only play Clean. A mole plays Clean or Sabotage, but each mole has two Sabotage cards for the whole game. One Sabotage fails the job. The table learns whether the job came off and how many Sabotage cards were in, never whose.
+3. **Job.** A passed crew plays one card each, face down. Everyone holds both cards; only a mole's Sabotage counts, and each mole has two for the whole game. Anyone else's Sabotage plays as Clean. One Sabotage fails the job. The table learns whether the job came off and how many Sabotage cards were in, never whose.
 
 The leader moves one seat on after every proposal, passed or not.
 
@@ -85,7 +85,7 @@ Flat, two rows: `preset` (beginner, standard, fast) and `moles` (`usual`, `fewer
 1. **Presets differ only in timers.** The brief's Beginner keeps the brief's default timers; Standard takes the source spec's §7.4 numbers (45/20/20); Fast is shorter. No special roles anywhere.
 2. **No "one more mole" option.** The range's top equals the usual count at every N, so it could never be picked. The settings value still parses so a saved room doesn't break.
 3. **The job always runs its full clock,** and the table sees no count of cards in. A job that ended when the last card landed would time the slowest player, and the slow one is the mole thinking it over. Cards can be changed until the clock ends.
-4. **Same screen for every crew member on a job.** Clean and Sabotage cards both show, same size, same place. A crew player's Sabotage card says "Moles only" and does nothing; a mole's says how many are left. At arm's length the screens match.
+4. **Same screen, same behaviour, for every crew member on a job** (fix round 1). Clean and Sabotage show identically for everyone: same labels, same enabled styling, same aria. Any tap is sent as tapped and accepted; the server plays a crew member's Sabotage, or a mole's with none left, as Clean when the clock runs out. Every tap gets the same polite "Card in" confirmation. Below the cards sits a status line everyone on the job gets at the same size: a mole's "Sabotage cards left: N", or a neutral "Cards stay face down." for crew. Earlier drafts labelled crew Sabotage "Moles only" and refused it with a note; both were tells to a screen-watcher or a screen reader. The rules text says crew Sabotage cards do nothing.
 5. **Auto-played cards are counted publicly** per job ("1 card auto-played"), never named, per the brief.
 6. **Missing votes are No-go,** recorded as such in the public history and marked as missed so nobody's blamed for a vote they didn't cast.
 7. **The vote closes early once every connected voter is in.** Approval is public after the close anyway, so early close tells nothing. Pending shows as a count; `getAwaitedPlayerIds` is empty during the vote and the job (spec §10: counts, not names).
@@ -95,7 +95,8 @@ Flat, two rows: `preset` (beginner, standard, fast) and `moles` (`usual`, `fewer
 11. **The deal's public trace is the mole count only.** Lists that come from the deal (the moles' own list) go out in seat order.
 12. **Voids.** A proposal voided mid-vote leaves no record and its open votes are discarded unseen. One voided mid-job already has its votes in the public history; it stays there, marked `voided`.
 13. **Heat-lost jobs** go into the job list with no crew and `heat: true`.
-14. **The Sabotage refusal is local.** A crew player tapping Sabotage gets a note on their own screen and no round trip, so no error sound across the table. The server refuses it anyway.
+14. **There is no Sabotage refusal** (fix round 1, replacing a local "Crew can only play Clean" note). See ruling 4. A seat's private `card` echoes what it tapped; only the hidden resolution differs.
+16. **Leavers don't count in the reveal.** The host's skip never acks a leaver, and the public "acked" count is of players still in, so "N still looking" stays right after someone leaves.
 15. **Out-of-range head counts aren't `setupProblem`'s to report.** The lobby already gates on 5–10; repeating it there would nag while people arrive.
 
 ## Kit fit
