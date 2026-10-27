@@ -1,0 +1,138 @@
+/* Heist. Shell tokens only (--surface, --surface-2, --line, --ink, --muted, --accent, --accent-soft, --danger).
+   Everything is hz- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.heist {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.hz-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hz-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
+.hz-job { flex: 1; text-align: center; }
+.hz-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
+.heist.low .hz-timer { color: var(--danger); }
+
+.hz-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.hz-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
+.heist.low .hz-bar { background: var(--danger); }
+
+/* ---- The board: five jobs and the heat -------------------------------------- */
+
+.hz-board { display: grid; gap: 6px; }
+.hz-jobs { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 8px; }
+.hz-pip {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.hz-pip.now { border-color: var(--ink); color: var(--ink); }
+.hz-pip.won-crew { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.hz-pip.won-mole { border-color: var(--danger); color: var(--danger); }
+.hz-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 14px; font-size: 0.85rem; color: var(--muted); }
+.hz-score { font-weight: 700; color: var(--ink); }
+.hz-heat { display: inline-flex; align-items: center; gap: 4px; }
+.hz-heat-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.hz-heat-dot.on { background: var(--danger); border-color: var(--danger); }
+
+/* ---- The card (inside the kit's roleReveal) ------------------------------ */
+
+.hz-card { display: grid; gap: 4px; justify-items: center; }
+.hz-card-kicker { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.hz-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--accent); }
+.hz-card.mole .hz-card-role { color: var(--danger); }
+.hz-card-blurb { font-size: 0.9rem; color: var(--muted); }
+.hz-card-result { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 0.95rem; }
+
+/* ---- Prompt ----------------------------------------------------------------- */
+
+.hz-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; overflow-wrap: anywhere; }
+.hz-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+.hz-action { justify-self: center; min-width: 160px; min-height: 50px; padding: 0 18px; }
+.hz-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+.hz-note:empty { min-height: 0; }
+
+/* ---- Rows ------------------------------------------------------------------- */
+
+.hz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.hz-pick {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.hz-pick { cursor: pointer; border-color: var(--muted); }
+button.hz-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+button.hz-pick:focus-visible, .hz-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hz-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.hz-row.me .hz-pick { border-color: #4a483f; }
+.hz-row.gone { opacity: 0.55; }
+.hz-tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.hz-tag.lead { background: var(--accent-soft); color: var(--accent); }
+.hz-crew .hz-pick { min-height: 44px; }
+
+/* ---- Go / No-go, Clean / Sabotage: two equal buttons ------------------------- */
+
+.hz-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.hz-choice {
+  min-height: 64px;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  border: 2px solid var(--muted);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.hz-choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hz-card-name { font-size: 1.1rem; }
+.hz-card-note { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+
+/* ---- Last vote, debrief ----------------------------------------------------- */
+
+.hz-last { display: grid; gap: 6px; }
+.hz-last-job { margin: 0; font-size: 0.9rem; font-weight: 600; }
+.hz-dawn-part { display: grid; gap: 6px; text-align: left; }
+.hz-dawn-part h3 { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.hz-proposal p { margin: 0; font-size: 0.9rem; }
+.hz-votes { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.8rem; }
+.hz-votes li { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.hz-votes li.go { border-color: var(--accent); color: var(--accent); }
+.hz-votes li.no-go { color: var(--muted); }
+.hz-side { font-weight: 700; font-size: 0.9rem; }
+.hz-side.crew { color: var(--accent); }
+.hz-side.mole { color: var(--danger); }
+.hz-log { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: 0.9rem; }
+.hz-muted { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hz-bar { transition: none; }
+}
