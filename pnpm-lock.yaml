@@ -245,6 +245,27 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/imposter:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@games/words':
+        specifier: workspace:*
+        version: link:../../packages/words
+
   games/old-maid:
     dependencies:
       '@games/animation':
