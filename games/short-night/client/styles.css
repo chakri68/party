@@ -1,0 +1,123 @@
+/* Short Night. Shell tokens only (--surface, --line, --ink, --muted, --accent, --danger).
+   Everything is sn- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.short-night {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.sn-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sn-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
+.sn-step { flex: 1; text-align: center; }
+.sn-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
+.short-night.low .sn-timer { color: var(--danger); }
+
+.sn-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.sn-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
+.short-night.low .sn-bar { background: var(--danger); }
+
+/* ---- The card (inside the kit's roleReveal) ------------------------------ */
+
+.sn-card { display: grid; gap: 4px; justify-items: center; }
+.sn-card-kicker { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.sn-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--accent); }
+.sn-card.team-wolves .sn-card-role { color: var(--danger); }
+.sn-card-team { font-size: 0.85rem; font-weight: 700; }
+.sn-card-blurb { font-size: 0.9rem; color: var(--muted); }
+.sn-card-result {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 0.95rem;
+}
+
+/* ---- Prompt ----------------------------------------------------------------- */
+
+.sn-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; }
+.sn-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+.sn-action { justify-self: center; min-width: 160px; min-height: 50px; padding: 0 18px; }
+.sn-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+.sn-note:empty { min-height: 0; }
+
+/* ---- Rows: the table, the picker, the ballot, the dawn ----------------------- */
+
+.sn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.sn-pick {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.sn-pick { cursor: pointer; border-color: var(--muted); }
+button.sn-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+button.sn-pick:focus-visible, .sn-nobody:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sn-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.sn-row.me .sn-pick { border-color: #4a483f; }
+.sn-row.gone { opacity: 0.55; }
+.sn-tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+
+.sn-nobody {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 6px;
+  border: 1.5px dashed var(--muted);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sn-nobody[aria-pressed="true"] { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---- The night order --------------------------------------------------------- */
+
+.sn-night {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+.sn-night li { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.sn-night li.past { opacity: 0.5; }
+.sn-night li.now { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+
+/* ---- Dawn ------------------------------------------------------------------------ */
+
+.sn-dawn-part { display: grid; gap: 6px; text-align: left; }
+.sn-dawn-part h3 { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.sn-role { font-weight: 700; font-size: 0.9rem; }
+.sn-role.team-village { color: var(--accent); }
+.sn-role.team-wolves { color: var(--danger); }
+.sn-role.out { text-decoration: underline; text-underline-offset: 3px; }
+.sn-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sn-log, .sn-votes { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: 0.9rem; }
+.sn-muted { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sn-bar { transition: none; }
+}
