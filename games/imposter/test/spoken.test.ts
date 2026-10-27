@@ -91,6 +91,23 @@ describe("the place pack", () => {
       expect(placeById(p.id)).toBe(p);
     }
   });
+
+  it("stays clear of Spyfall's locations, by name and by near paraphrase", () => {
+    // Its two base sets, as the words that give a place away.
+    const theirs = [
+      "airplane", "bank", "beach", "theater", "casino", "cathedral", "pottery-class", "corporate", "crusader", "spa",
+      "embassy", "hospital", "hotel", "military", "movie", "film", "liner", "train", "pirate",
+      "polar", "antarctic", "police", "restaurant", "school", "service station", "space", "submarine",
+      "supermarket", "university", "amusement", "theme park", "museum", "candy", "cat show", "cemetery",
+      "mine", "construction", "convention", "gas station", "harbor", "harbour", "hockey", "jail", "jazz",
+      "library", "night club", "nightclub", "race track", "retirement", "rock concert", "sightseeing",
+      "stadium", "subway", "embassy", "vineyard", "wedding", "zoo",
+    ];
+    for (const p of PLACES) {
+      const name = p.name.toLowerCase();
+      for (const w of theirs) expect(name.includes(w), `${p.name} ~ ${w}`).toBe(false);
+    }
+  });
 });
 
 describe("settings", () => {
@@ -218,8 +235,8 @@ describe("calling it early", () => {
 
   it("wrong hands it to everyone else", () => {
     const s = called(start(4).state).state;
-    const t = ok(act(s, imp(s), { type: "guess-place", placeId: "submarine" }));
-    expect(t.state.round).toMatchObject({ winner: "innocents", guessRight: false, guess: "Submarine", guessClose: false });
+    const t = ok(act(s, imp(s), { type: "guess-place", placeId: "narrowboat" }));
+    expect(t.state.round).toMatchObject({ winner: "innocents", guessRight: false, guess: "Canal narrowboat", guessClose: false });
     expect(innocents(s).map((id) => score(t.state, id))).toEqual([2, 2, 2]);
     expect(score(t.state, imp(s))).toBe(0);
   });
@@ -243,7 +260,7 @@ describe("the caught guess", () => {
 
   it("wrong pays every innocent", () => {
     const s = caught(start(4).state);
-    const t = ok(act(s, imp(s), { type: "guess-place", placeId: "circus" }));
+    const t = ok(act(s, imp(s), { type: "guess-place", placeId: "pottery-class" }));
     expect(innocents(s).map((id) => score(t.state, id))).toEqual([2, 2, 2]);
   });
 
@@ -279,7 +296,7 @@ describe("the vote, same as clues mode", () => {
 
 describe("leaving", () => {
   it("the Imposter leaving in talk drops the round and deals a new place", () => {
-    const s = toTalk(start(5, { deck: ["lighthouse", "circus"] }).state);
+    const s = toTalk(start(5, { deck: ["lighthouse", "pottery-class"] }).state);
     const gone = imp(s);
     const t = g.onPlayerRemoved!(s, gone, ctx(1000));
     expect(types(t)).toEqual(["round-dropped", "round-started"]);
@@ -356,7 +373,7 @@ describe("rounds and rematch", () => {
   }
 
   it("places don't repeat in a match, or across a rematch", () => {
-    const deck = ["lighthouse", "circus", "aquarium", "submarine"];
+    const deck = ["lighthouse", "pottery-class", "aquarium", "narrowboat"];
     let s = start(3, { deck, settings: { rounds: 3 } }).state;
     const seen = [s.round.placeId];
     for (let i = 0; i < 3; i++) {
@@ -393,7 +410,7 @@ describe("secrets", () => {
   }
 
   it("the place and the role stay put through reveal, talk, vote, runoff, reveal-role and the caught guess", () => {
-    const first = start(4, { deck: ["museum-lab"] });
+    const first = start(4, { deck: ["clock-repair"] });
     sealed(first);
     let s = first.state;
     for (const id of ids(s)) {
@@ -420,20 +437,20 @@ describe("secrets", () => {
     sealed(rr);
     expect(rr.state.round.phase).toBe("reveal-role");
     // Caught instead: the role's out (allowed), the place still isn't.
-    const caughtState = caught(start(4, { deck: ["museum-lab"] }).state);
-    for (const secret of ["Museum restoration lab", "museum-lab"]) {
+    const caughtState = caught(start(4, { deck: ["clock-repair"] }).state);
+    for (const secret of ["Clock repair workshop", "clock-repair"]) {
       expect(findLeaks({ def: g, state: caughtState, players: ids(caughtState), secret, allowed: innocents(caughtState) })).toEqual([]);
     }
   });
 
   it("the early guess gives away neither the place nor who's guessing", () => {
-    let s = start(5, { deck: ["film-set"] }).state;
+    let s = start(5, { deck: ["auction-house"] }).state;
     s = toTalk(s);
     const t = ok(act(s, imp(s), { type: "call" }));
     sealed(t);
     // The miss reveals it all at the result, as it should.
-    const done = ok(act(t.state, imp(s), { type: "guess-place", placeId: "circus" }));
-    expect(g.getPublicState(done.state)).toMatchObject({ word: "Film set", imposterId: imp(s) });
+    const done = ok(act(t.state, imp(s), { type: "guess-place", placeId: "pottery-class" }));
+    expect(g.getPublicState(done.state)).toMatchObject({ word: "Auction house sale room", imposterId: imp(s) });
   });
 
   it("a non-Imposter's rejected call says nothing about who is", () => {
