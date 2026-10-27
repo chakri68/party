@@ -498,7 +498,8 @@ export const shortNightGame: GameDefinition<
       step: state.step,
       deck: state.deck,
       players: state.players.map((p) => ({ id: p.id, left: p.left })),
-      acked: state.acks.length,
+      // Leavers' acks don't count: "still looking" is of who's still in (as Heist).
+      acked: activeIds(state).filter((id) => state.acks.includes(id)).length,
       voted: b ? Object.keys(b.votes).length : 0,
       voters: b ? b.eligible.length : 0,
       tied: state.phase === "runoff" || over ? state.tied : [],

@@ -51,6 +51,15 @@ describe("the reveal", () => {
     expect(types(t)).toEqual(["night-step"]);
   });
 
+  it("doesn't count an ack from someone who then left", () => {
+    let s = ok(act(six(), "p1", { type: "ack" })).state;
+    s = ok(act(s, "p2", { type: "ack" })).state;
+    expect(g.getPublicState(s).acked).toBe(2);
+    s = g.onPlayerRemoved!(s, "p1", ctx(1000)).state;
+    expect(s.phase).toBe("reveal");
+    expect(g.getPublicState(s).acked).toBe(1);
+  });
+
   it("or when the clock runs out", () => {
     const t = ring(six());
     expect(t.state).toMatchObject({ phase: "night", step: 0, phaseMs: 15_000 });
