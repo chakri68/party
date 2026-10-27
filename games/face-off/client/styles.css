@@ -1,0 +1,189 @@
+/* Face-Off. Uses the shell's tokens (--bg, --surface, --line, --ink, --muted, --accent, --danger).
+   Everything is fo- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.fo {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* ---- Target and the match clock ------------------------------------------ */
+
+.fo-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Your card ------------------------------------------------------------ */
+
+.fo-mine {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 16px 14px 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.fo-kicker { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.fo-category {
+  font-size: clamp(1.6rem, 8vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+}
+.fo-score { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Status --------------------------------------------------------------- */
+
+.fo-headline { margin: 0; font-weight: 700; font-size: 1.15rem; min-height: 1.4em; }
+.fo-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+
+/* ---- The table ------------------------------------------------------------ */
+
+.fo-table {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  text-align: left;
+}
+.fo-player {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "face name score" "cat cat cat";
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  min-width: 0;
+}
+.fo-player .avatar { grid-area: face; }
+.fo-player-name { grid-area: name; font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; min-width: 0; }
+.fo-player-score { grid-area: score; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.fo-player-cat { grid-area: cat; font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+.fo-player.me { border-color: var(--accent); }
+.fo-player.leading .fo-player-score { color: var(--accent); }
+.fo-player.dueling { border-color: var(--ink); }
+.fo-player.away { opacity: 0.55; }
+
+/* ---- The duel: it takes the whole screen, for everyone -------------------- */
+
+.fo-duel {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--bg);
+  color: var(--ink);
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  overflow-y: auto;
+}
+.fo-duel[hidden] { display: none; }
+.fo-duel-track { height: 8px; margin: 12px 0 0; border-radius: 4px; background: var(--line); overflow: hidden; }
+.fo-duel-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
+.fo-duel.confirm .fo-duel-bar { background: var(--muted); }
+.fo-duel-body {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 0 24px;
+  text-align: center;
+}
+.fo-duel-kicker {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+.fo-secs { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px; }
+
+.fo-say-kicker { margin: 0; font-size: 1rem; color: var(--muted); }
+.fo-say {
+  font-size: clamp(2.2rem, 11vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.05;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.fo-say-from { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+.fo-pairs { display: grid; gap: 10px; width: 100%; }
+.fo-pair {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.fo-pair.claimed { border-color: var(--accent); }
+.fo-pair-who { font-size: 0.95rem; color: var(--muted); }
+.fo-pair-cat { font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
+
+.fo-buzzer {
+  width: min(64vw, 200px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 4px solid var(--ink);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  box-shadow: 0 8px 0 rgb(0 0 0 / 0.45);
+  touch-action: manipulation;
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+.fo-buzzer:active, .fo-buzzer.pressed { transform: translateY(6px); box-shadow: 0 2px 0 rgb(0 0 0 / 0.45); }
+
+.fo-claim { margin: 0; font-size: 1.4rem; font-weight: 800; }
+.fo-votes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.fo-vote { min-height: 72px; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.fo-vote[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
+.fo-note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.fo-redo { min-height: 48px; padding: 0 20px; }
+
+.fo-duel.fo-in .fo-duel-body { animation: fo-in 260ms cubic-bezier(.2, .8, .2, 1.2); }
+@keyframes fo-in { from { transform: scale(0.9); opacity: 0; } }
+.fo-duel-body.fo-flash .fo-claim { animation: fo-flash 400ms ease-out; }
+@keyframes fo-flash { from { transform: scale(1.3); color: var(--accent); } }
+.fo-duel-body.shake, .fo-sub.shake { animation: fo-shake 300ms ease; }
+@keyframes fo-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+.fo-bubble { font-weight: 800; color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fo-duel-bar, .fo-buzzer { transition: none; }
+  .fo-duel.fo-in .fo-duel-body, .fo-duel-body.fo-flash .fo-claim { animation: none; }
+  .fo-duel-body.shake, .fo-sub.shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+}

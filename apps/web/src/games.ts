@@ -8,6 +8,7 @@ import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shar
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
 import { dontSayItManifest, dontSayItRules, dontSayItSettingFields } from "@games/dont-say-it/shared";
+import { faceOffManifest, faceOffRules, faceOffSettingFields } from "@games/face-off/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
@@ -108,6 +109,12 @@ export const games: Record<string, GameEntry> = {
     rules: dontSayItRules,
     settingFields: dontSayItSettingFields,
     loadClient: () => import("@games/dont-say-it/client").then((m) => m.default),
+  },
+  "face-off": {
+    manifest: faceOffManifest,
+    rules: faceOffRules,
+    settingFields: faceOffSettingFields,
+    loadClient: () => import("@games/face-off/client").then((m) => m.default),
   },
   cheat: {
     manifest: cheatManifest,
