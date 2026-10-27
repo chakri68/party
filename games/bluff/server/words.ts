@@ -1,0 +1,132 @@
+// The real words, server only: the answer to every round is in here, so no
+// client or shared file may import it (test/guard.test.ts checks).
+//
+// Provenance: meanings and notes written for this project, in our own words.
+// Every word is in the bundled dictionary (isWord), a–z, 3–18 letters, and its
+// meaning is already in display form (lowercase start, no full stop), since
+// the same text goes up beside the players' fakes.
+
+import type { Entry } from "../shared/types.ts";
+
+export const WORDS: readonly Entry[] = [
+  // ---- People --------------------------------------------------------------
+  { word: "coxcomb", definition: "a vain, conceited man who's very taken with his own looks", notes: "From the jester's cap, which had a red crest like a rooster's comb." },
+  { word: "popinjay", definition: "a vain, chattering person who likes to show off", notes: "It started out as an old word for a parrot." },
+  { word: "kibitzer", definition: "someone who watches a card game and keeps offering advice nobody asked for", notes: "Yiddish. Works just as well for back-seat drivers." },
+  { word: "sybarite", definition: "a person devoted to luxury and pleasure", notes: "After Sybaris, an ancient Greek city in southern Italy famous for its soft living." },
+  { word: "poltroon", definition: "a complete and utter coward", notes: "Old-fashioned, and never a compliment." },
+  { word: "pettifogger", definition: "a petty, quibbling lawyer who relies on shady tricks", notes: "To pettifog is to quibble over trifles." },
+  { word: "lummox", definition: "a big, clumsy, slow-witted person", notes: "American, from the 1800s. Nobody's sure where it came from." },
+  { word: "martinet", definition: "a strict disciplinarian who insists on every rule being followed", notes: "After Jean Martinet, a drillmaster in the army of Louis XIV." },
+  { word: "troglodyte", definition: "a cave dweller; also someone stubbornly behind the times", notes: "Greek for 'one who creeps into holes'." },
+  { word: "rapscallion", definition: "a mischievous rascal, a scamp", notes: "A stretched-out form of rascallion, itself a stretched-out rascal." },
+  { word: "raconteur", definition: "someone who tells stories well and with style", notes: "French, from raconter, to tell." },
+  { word: "mountebank", definition: "a swindler, originally one who sold fake medicines from a platform", notes: "Italian monta in banco: climb on the bench." },
+  { word: "scofflaw", definition: "someone who flouts the law, usually in small ways", notes: "Coined in a 1924 contest to name people who kept drinking during Prohibition." },
+  { word: "flibbertigibbet", definition: "a flighty, chattering, frivolous person", notes: "Shakespeare used it as the name of a fiend in King Lear." },
+  { word: "somnambulist", definition: "a person who walks about while asleep", notes: "Latin somnus, sleep, plus ambulare, to walk." },
+
+  // ---- Character and mood --------------------------------------------------
+  { word: "bibulous", definition: "too fond of alcoholic drink", notes: "Latin bibere, to drink, as in imbibe." },
+  { word: "bumptious", definition: "loudly and irritatingly full of yourself", notes: "A jokey coinage from the 1800s, built on 'bump'." },
+  { word: "callow", definition: "young and inexperienced", notes: "Old English for bald. A callow bird is one that hasn't grown its feathers yet." },
+  { word: "jejune", definition: "naive and simplistic; also dull and lacking in substance", notes: "Latin jejunus, fasting. The jejunum, part of the small intestine, got the name for usually being found empty." },
+  { word: "quixotic", definition: "idealistic to the point of being impractical", notes: "After Don Quixote, who charged at windmills he took for giants." },
+  { word: "perspicacious", definition: "quick to notice and understand things", notes: "Latin perspicere, to see through." },
+  { word: "truculent", definition: "quick to argue or fight; aggressively defiant", notes: "Latin trux, fierce." },
+  { word: "querulous", definition: "complaining in a whiny, peevish way", notes: "Latin queri, to complain, which also gave us quarrel." },
+  { word: "phlegmatic", definition: "calm and unemotional, hard to rattle", notes: "Medieval medicine blamed a calm temper on too much phlegm, one of the four humours." },
+  { word: "impecunious", definition: "having little or no money", notes: "Latin pecunia, money, which comes from pecus, cattle." },
+  { word: "mendacious", definition: "untruthful; given to telling lies", notes: "Latin mendax, lying." },
+  { word: "garrulous", definition: "talking too much, mostly about nothing in particular", notes: "Latin garrire, to chatter." },
+  { word: "unctuous", definition: "smarmy and far too eager to flatter", notes: "Literally oily: Latin unguere, to anoint, the same root as ointment." },
+  { word: "maudlin", definition: "tearfully sentimental, often after a few drinks", notes: "From Mary Magdalene, whom old paintings usually showed weeping." },
+  { word: "lugubrious", definition: "mournful and gloomy, often to an exaggerated degree", notes: "Latin lugere, to mourn." },
+  { word: "pusillanimous", definition: "lacking courage; timid", notes: "Latin pusillus, very small, plus animus, spirit." },
+  { word: "obstreperous", definition: "noisy and hard to control", notes: "Latin obstrepere, to make a racket against something." },
+  { word: "peripatetic", definition: "travelling from place to place, or working in several places in turn", notes: "Aristotle's followers were the Peripatetics, said to be named for his habit of teaching while walking about." },
+
+  // ---- Talk ----------------------------------------------------------------
+  { word: "jeremiad", definition: "a long, mournful speech or piece of writing about how bad things are", notes: "After the prophet Jeremiah, traditionally credited with the Book of Lamentations." },
+  { word: "obloquy", definition: "harsh public criticism, or the disgrace that follows it", notes: "Latin ob, against, plus loqui, to speak." },
+  { word: "contumely", definition: "rude, scornful treatment from someone who thinks they're above you", notes: "Hamlet lists 'the proud man's contumely' among the things that make life hard to bear." },
+  { word: "fustian", definition: "pompous, overblown speech or writing; also a thick, coarse cotton cloth", notes: "The cloth came first. Calling padded speech after it came later, same as bombast." },
+  { word: "philippic", definition: "a bitter speech attacking someone", notes: "After Demosthenes's speeches against Philip II of Macedon." },
+  { word: "spoonerism", definition: "a slip of the tongue that swaps the first sounds of two words, like 'a blushing crow' for 'a crushing blow'", notes: "After William Spooner, an Oxford dean said to do it all the time." },
+  { word: "palaver", definition: "a lot of fuss and pointless talk", notes: "From Portuguese palavra, word." },
+  { word: "claptrap", definition: "pretentious nonsense, said for effect", notes: "Originally a line or trick meant to catch applause." },
+  { word: "scuttlebutt", definition: "rumour and idle gossip", notes: "On a ship, the scuttlebutt was the drinking-water cask. Sailors gathered round it and talked." },
+  { word: "bathos", definition: "a sudden, unintended drop from the grand to the silly", notes: "Greek for depth. Alexander Pope gave it this meaning, writing on the art of sinking in poetry." },
+  { word: "ululate", definition: "to howl or wail, often with a trilling tongue", notes: "Latin ululare, to howl." },
+  { word: "caterwaul", definition: "to make a shrill, wailing howl, like a cat in the night", notes: "Middle English: cat, plus a word that imitates the noise." },
+
+  // ---- Trickery and trouble ------------------------------------------------
+  { word: "imbroglio", definition: "a confused, tangled and usually embarrassing situation", notes: "Italian, from imbrogliare, to tangle. A cousin of embroil." },
+  { word: "dudgeon", definition: "a fit of angry resentment", notes: "Almost always found as 'in high dudgeon'. Low dudgeon isn't a thing." },
+  { word: "nostrum", definition: "a quack medicine, or a pet scheme for fixing everything that won't", notes: "Latin for 'ours', as in our own secret recipe." },
+  { word: "inveigle", definition: "to coax someone into doing something by flattery or trickery", notes: "From an old French word meaning to blind." },
+  { word: "skulduggery", definition: "sneaky, dishonest goings-on", notes: "Also spelled skullduggery. Nothing to do with skulls." },
+  { word: "cozen", definition: "to trick or cheat someone out of something", notes: "Shakespeare's characters cozen each other constantly." },
+  { word: "finagle", definition: "to get something by clever or slightly dishonest means", notes: "American, from the twentieth century." },
+  { word: "boondoggle", definition: "pointless, wasteful work made to look useful", notes: "Also a Scouting word for a braided leather lanyard, which may be where it started." },
+  { word: "flummox", definition: "to baffle someone completely", notes: "Origin unknown, probably English dialect. Fittingly." },
+  { word: "sinecure", definition: "a paid job that involves almost no work", notes: "Latin sine cura, 'without care'. The church had them first: an income with no parish to look after." },
+  { word: "lagniappe", definition: "a small extra something a shopkeeper throws in for free with a purchase", notes: "Louisiana French, by way of Spanish. The thirteenth roll in a baker's dozen is one." },
+  { word: "junket", definition: "a trip made at someone else's expense, mostly for pleasure; also a sweet dessert of set milk", notes: "The dessert came first. Its name may come from the rush baskets it was once made in." },
+
+  // ---- Light, sky and time -------------------------------------------------
+  { word: "welkin", definition: "the sky, or the dome of the heavens", notes: "Mostly survives in 'make the welkin ring': be loud enough to shake the sky." },
+  { word: "effulgent", definition: "shining brightly; radiant", notes: "Latin effulgere, to shine forth." },
+  { word: "gloaming", definition: "the fading light of evening; dusk", notes: "Old English, and much loved by Scottish songwriters." },
+  { word: "halcyon", definition: "calm, happy and peaceful, usually of a time long past", notes: "From a mythical bird said to calm the sea while it nested on the waves." },
+  { word: "zephyr", definition: "a soft, gentle breeze", notes: "Zephyrus was the Greek god of the west wind." },
+  { word: "cynosure", definition: "the centre of attention or admiration", notes: "Greek for 'dog's tail', an old name for the Little Bear, the stars sailors steered by." },
+  { word: "chiaroscuro", definition: "strong contrast between light and shadow in a painting or drawing", notes: "Italian: chiaro, light, plus scuro, dark." },
+  { word: "antediluvian", definition: "ridiculously old or old-fashioned", notes: "Literally 'before the Flood'." },
+  { word: "superannuated", definition: "too old to be useful; retired because of age", notes: "Latin super, beyond, plus annus, year." },
+  { word: "vertiginous", definition: "so high or steep it makes you dizzy", notes: "Same root as vertigo: Latin vertere, to turn." },
+  { word: "diaphanous", definition: "so fine and light it's almost see-through", notes: "Greek for 'showing through'." },
+  { word: "mellifluous", definition: "sweet and smooth to listen to", notes: "Latin for 'flowing with honey'." },
+  { word: "tintinnabulation", definition: "the ringing and jingling of bells", notes: "Edgar Allan Poe put it in his poem The Bells." },
+  { word: "gustatory", definition: "to do with the sense of taste", notes: "Latin gustare, to taste. Gusto comes from the same place." },
+
+  // ---- Things --------------------------------------------------------------
+  { word: "gewgaw", definition: "a showy little trinket that's worth very little", notes: "Nobody's sure where the word came from, which suits something so useless." },
+  { word: "palimpsest", definition: "a manuscript page that's been scraped and written over, with traces of the old text still showing", notes: "Greek for 'scraped again'. Lost works by Archimedes turned up under a medieval prayer book this way." },
+  { word: "verdigris", definition: "the green crust that forms on old copper, brass or bronze", notes: "Old French for 'green of Greece'." },
+  { word: "nacre", definition: "mother-of-pearl, the shiny layer lining some shells", notes: "Pearls are made of it, layer by layer." },
+  { word: "ormolu", definition: "gilded bronze, used to decorate furniture and clocks", notes: "From French or moulu, 'ground gold'." },
+  { word: "scrimshaw", definition: "carving done on bone or ivory, especially by sailors on whaling voyages", notes: "Whale teeth were the usual canvas." },
+  { word: "marquetry", definition: "pictures and patterns made by fitting together pieces of wood veneer", notes: "Its cousin parquetry does the same with geometric shapes, usually on floors." },
+  { word: "intaglio", definition: "a design cut into a surface, so the image sits below it", notes: "The opposite of a cameo, which stands out from its background." },
+  { word: "tumbril", definition: "an open cart that tips backward to unload, famous for carrying the condemned to the guillotine", notes: "It started as a farm cart, for dung." },
+  { word: "howdah", definition: "a seat, often with a canopy, strapped to an elephant's back", notes: "From Arabic, by way of Hindi and Urdu." },
+  { word: "wimple", definition: "a cloth worn by medieval women and some nuns, covering the head, neck and sides of the face", notes: "Still part of the habit in some religious orders." },
+  { word: "busby", definition: "a tall fur hat worn by hussars and some other soldiers", notes: "Often mixed up with the bearskin, the much taller hat of the Guards." },
+  { word: "placket", definition: "a slit in a garment, usually buttoned, that makes it easier to put on", notes: "The buttoned strip at the neck of a polo shirt is one." },
+  { word: "selvage", definition: "the tightly woven edge of a fabric that stops it from unravelling", notes: "Also spelled selvedge: the 'self edge'." },
+  { word: "escutcheon", definition: "a shield bearing a coat of arms; also the metal plate around a keyhole", notes: "A blot on the escutcheon is a stain on someone's good name." },
+  { word: "dibble", definition: "a pointed stick for poking holes in soil to plant seeds or bulbs", notes: "Also a verb: you dibble with a dibble." },
+  { word: "bodkin", definition: "a blunt, thick needle with a large eye, for threading ribbon or elastic", notes: "It used to mean a small dagger too." },
+  { word: "gimlet", definition: "a small hand tool for boring holes; also a cocktail of gin and lime", notes: "A gimlet eye is a piercing stare." },
+  { word: "adze", definition: "a tool like an axe with its blade turned crosswise, for shaping wood", notes: "Also spelled adz. One of the oldest tools there is." },
+  { word: "ferrule", definition: "a metal ring or cap on the end of a stick or handle, to stop it splitting or wearing down", notes: "The metal band holding an eraser to a pencil is one." },
+  { word: "tittle", definition: "the dot over a lowercase i or j", notes: "'Every jot and tittle' means every last detail." },
+  { word: "blancmange", definition: "a sweet, wobbly pudding of milk set with cornflour or gelatine", notes: "French for 'white eating'." },
+  { word: "salver", definition: "a flat tray, usually silver, for handing round drinks or letters", notes: "From Spanish salva, the tasting of food for poison before it was served." },
+  { word: "tureen", definition: "a deep, lidded bowl for serving soup at the table", notes: "Probably from French terrine, an earthenware dish." },
+  { word: "wassail", definition: "spiced ale drunk at Christmas; also going door to door singing and drinking", notes: "From an old toast meaning 'be in good health'." },
+  { word: "abattoir", definition: "a place where animals are slaughtered for meat", notes: "French, from abattre, to strike down." },
+
+  // ---- Buildings -----------------------------------------------------------
+  { word: "mullion", definition: "an upright bar dividing the panes of a window", notes: "Its horizontal partner is a transom." },
+  { word: "wainscot", definition: "wooden panelling on the lower part of a room's walls", notes: "From Middle Dutch, for a fine grade of oak board." },
+  { word: "tympanum", definition: "the carved space above a doorway, inside an arch or under a pediment; also the eardrum", notes: "Latin for drum, from Greek. Same family as timpani." },
+  { word: "clerestory", definition: "the upper part of a church wall, with a row of windows letting in light above the aisle roofs", notes: "Pronounced 'clear story', which is what it is." },
+  { word: "cupola", definition: "a small dome on top of a roof or tower", notes: "Italian, from Latin cupula, a little tub." },
+  { word: "transom", definition: "a crossbar above a door, or the small window above it", notes: "Also the flat back end of a boat." },
+  { word: "jalousie", definition: "a blind or shutter made of angled slats", notes: "French for jealousy: you can see out without being seen." },
+  { word: "sacristy", definition: "the room in a church where the vestments and sacred vessels are kept", notes: "Its keeper is the sacristan, a word that wore down into sexton." },
+  { word: "chasuble", definition: "the sleeveless outer robe a priest wears to say Mass", notes: "From Late Latin casula, a little house: it covers you like one." },
+  { word: "crozier", definition: "the hooked staff carried by a bishop", notes: "Shaped like a shepherd's crook, on purpose." },
+];
