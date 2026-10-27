@@ -1,0 +1,38 @@
+/* The role card (reveal.ts). Shell tokens only, so it sits in any game's view. */
+
+.role-reveal { display: grid; gap: 10px; justify-items: center; }
+.role-reveal-title { margin: 0; font-size: 1rem; color: var(--muted); font-weight: 600; }
+
+.role-reveal-card {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  width: min(100%, 320px);
+  min-height: 180px; /* well past the 44px target: it's the whole point of the screen */
+  padding: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.role-reveal-card:active { transform: scale(0.98); }
+.role-reveal-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.role-reveal[data-state="shown"] .role-reveal-card { border-color: var(--accent); }
+
+.role-reveal-prompt { font-weight: 600; }
+.role-reveal[data-state="hidden"] .role-reveal-prompt { font-size: 1.25rem; }
+.role-reveal[data-state="shown"] .role-reveal-prompt { font-size: 0.8rem; color: var(--muted); }
+.role-reveal-warning { font-size: 0.85rem; color: var(--muted); }
+.role-reveal-body { font-size: 1.1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .role-reveal-card { transition: none; }
+  .role-reveal-card:active { transform: none; }
+}

@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./reveal": "./src/reveal.ts",
+    "./reveal.css": "./src/reveal.css"
   },
   "scripts": {
     "typecheck": "tsc -p ."
