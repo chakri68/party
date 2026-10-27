@@ -438,6 +438,14 @@ describe("fake word checks", () => {
     expect(st.round.phase).toBe("write");
     expect(refused(act(st, "p0", { type: "submit", text: "kettle" }))).toMatch(/real word/);
   });
+
+  it("count from zero in a round saved before the count existed", () => {
+    const st = s();
+    delete (st.round as Partial<S["round"]>).clashes;
+    const t = act(st, "p0", { type: "submit", text: "kettle" });
+    expect(refused(t)).toMatch(/real word/);
+    expect(ok(t).state.round.clashes).toEqual({ p0: 1 });
+  });
 });
 
 describe("bluff definition checks", () => {

@@ -381,8 +381,10 @@ export function makeBluffGame(variant: Variant): Definition {
             // A rejection that knows the answer is an oracle if it can be
             // asked forever. The count has to live in state, so this is a
             // transition with a private "refused" event, not an error.
-            const n = (s.clashes[playerId] ?? 0) + 1;
-            s.clashes[playerId] = n;
+            // A round saved before the count existed (rooms outlive a deploy) has none.
+            const clashes = (s.clashes ??= {});
+            const n = (clashes[playerId] ?? 0) + 1;
+            clashes[playerId] = n;
             out.events.push({ visibility: { kind: "private", playerId }, event: { type: "refused", message: n > HELPFUL_CLASHES ? VAGUE : clash } });
             return { ok: true, transition: done(state, out) };
           }
