@@ -98,6 +98,8 @@
   color: var(--ink);
 }
 .fo-duel[hidden] { display: none; }
+/* The body's parts are wrappers only, so the buzzer can stay put between them. */
+.fo-duel-part { display: contents; }
 .fo-duel-track { height: 8px; margin: 12px 0 0; border-radius: 4px; background: var(--line); overflow: hidden; }
 .fo-duel-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
 .fo-duel.confirm .fo-duel-bar { background: var(--muted); }

@@ -47,6 +47,14 @@ export class FaceOffView implements GameView {
   private overlay = h("section", { class: "fo-duel", "aria-live": "assertive", hidden: true });
   private overlayBar = h("div", { class: "fo-duel-bar" });
   private overlayBody = h("div", { class: "fo-duel-body" });
+  // The body is rebuilt on every update, except the buzzer: it stays in the
+  // DOM for the whole duel, so a Space held across an update still clicks it
+  // (taking a focused button out of the document drops its focus and the press).
+  private duelHead = h("div", { class: "fo-duel-part" });
+  private buzzer = h("button", { type: "button", class: "fo-buzzer", "aria-keyshortcuts": "Enter Space", hidden: true, onclick: () => this.buzz() }, "Buzz");
+  private duelTail = h("div", { class: "fo-duel-part" });
+  /** The duel (by game.duels, which counts sparks, redos included) the buzzer last took focus for. */
+  private focusedDuel = -1;
 
   private queue = new AnimationQueue();
   private ticker: ReturnType<typeof setInterval>;
@@ -60,6 +68,7 @@ export class FaceOffView implements GameView {
 
   constructor(api: GameClientApi) {
     this.api = api;
+    this.overlayBody.append(this.duelHead, this.buzzer, this.duelTail);
     this.overlay.append(h("div", { class: "fo-duel-track", "aria-hidden": "true" }, this.overlayBar), this.overlayBody);
     this.root.append(
       h("div", { class: "fo-top" }, this.target, this.clock),
@@ -154,7 +163,7 @@ export class FaceOffView implements GameView {
   }
 
   private buzz() {
-    this.overlayBody.querySelector(".fo-buzzer")?.classList.add("pressed");
+    this.buzzer.classList.add("pressed");
     this.send({ type: "buzz" });
   }
 
@@ -274,6 +283,9 @@ export class FaceOffView implements GameView {
     const confirm = game.phase === "confirm";
     const kicker = h("p", { class: "fo-duel-kicker" }, d.redone ? "Face-off, redo" : "Face-off", " ", h("span", { class: "fo-secs" }));
     const parts: (Node | null)[] = [kicker];
+    const tail: (Node | null)[] = [];
+    const fresh = game.duels !== this.focusedDuel;
+    if (fresh) this.buzzer.classList.remove("pressed");
 
     if (mine) {
       const opp = d.a === props.playerId ? d.b : d.a;
@@ -303,19 +315,14 @@ export class FaceOffView implements GameView {
       );
     }
 
+    const canBuzz = !confirm && !!me?.canBuzz;
+    this.buzzer.hidden = !canBuzz;
     if (!confirm) {
-      if (me?.canBuzz) {
-        parts.push(
-          h("button", { type: "button", class: "fo-buzzer", "aria-keyshortcuts": "Enter Space", onclick: () => this.buzz() }, "Buzz"),
-          h("p", { class: "fo-note" }, "Said one? Buzz. Enter or Space works too."),
-        );
-      } else {
-        parts.push(h("p", { class: "fo-note" }, "Listen. First to say one and buzz takes it."));
-      }
+      tail.push(h("p", { class: "fo-note" }, canBuzz ? "Said one? Buzz. Enter or Space works too." : "Listen. First to say one and buzz takes it."));
     } else {
       const claim = d.claimId!;
       const other = claim === d.a ? d.b : d.a;
-      parts.push(h("p", { class: "fo-claim" }, `${this.name(claim, props)} buzzed first`));
+      tail.push(h("p", { class: "fo-claim" }, `${this.name(claim, props)} buzzed first`));
       if (me?.canVote) {
         const choice = (c: Choice, label: string, kind: string) =>
           h(
@@ -323,20 +330,24 @@ export class FaceOffView implements GameView {
             { type: "button", class: `fo-vote ${kind}`, "aria-pressed": me.myVote === c ? "true" : "false", onclick: () => this.send({ type: "vote", choice: c }) },
             label,
           );
-        parts.push(
+        tail.push(
           h("div", { class: "fo-votes" }, choice("confirm", `Confirm: ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Overturn: ${seatName(props.room, other)}`, "danger")),
           h("p", { class: "fo-note" }, `Did ${seatName(props.room, claim)} really say one first? ${d.voted} of ${d.voters} voted.`),
         );
       } else {
-        parts.push(h("p", { class: "fo-note" }, d.voters ? `The table's deciding: ${d.voted} of ${d.voters} voted.` : "The table's deciding."));
+        tail.push(h("p", { class: "fo-note" }, d.voters ? `The table's deciding: ${d.voted} of ${d.voters} voted.` : "The table's deciding."));
       }
     }
-    if (me?.canRedo) parts.push(h("button", { type: "button", class: "fo-redo", onclick: () => this.send({ type: "redo" }) }, "Redo (no score)"));
-    replaceChildren(this.overlayBody, parts);
-    // Space and Enter go to whatever has focus: make that the buzzer, unless
-    // the player is typing somewhere.
-    const buzzer = this.overlayBody.querySelector<HTMLButtonElement>(".fo-buzzer");
-    if (buzzer && !this.typingNow()) buzzer.focus({ preventScroll: true });
+    if (me?.canRedo) tail.push(h("button", { type: "button", class: "fo-redo", onclick: () => this.send({ type: "redo" }) }, "Redo (no score)"));
+    replaceChildren(this.duelHead, parts);
+    replaceChildren(this.duelTail, tail);
+    // Space and Enter go to whatever has focus: make that the buzzer, once,
+    // as the duel opens, unless the player is typing somewhere. Later updates
+    // leave focus alone: a reaction or the chat toggle is somewhere they went.
+    if (fresh) {
+      this.focusedDuel = game.duels;
+      if (canBuzz && !this.typingNow()) this.buzzer.focus({ preventScroll: true });
+    }
     this.overlay.classList.toggle("mine", mine);
     this.overlay.classList.toggle("confirm", confirm);
   }
