@@ -94,8 +94,27 @@ describe("settings", () => {
     expect(pace!.hint).toBe("Leader 60 s, vote 30 s, card 20 s");
     expect(moles!.options.map((o) => o.label)).toEqual(["Usual (3)", "One fewer (2)"]);
     expect(moles!.hint).toBe("3 of 7, 2–3 allowed. Crews: 3, 3, 4, 4, 4");
-    expect(heistSettingFields({ moles: "fewer" }, 5)[1]!.hint).toBe("5 players need at least 2 moles");
     expect(heistSettingFields({ preset: "fast" }, 5)[0]!.hint).toBe("Leader 30 s, vote 15 s, card 10 s");
+  });
+
+  it("offers One fewer only where it fits, unless it's already set", () => {
+    const at = (n: number, raw: unknown = DEFAULT_SETTINGS) => heistSettingFields(raw, n)[1]!;
+    expect(at(5).options.map((o) => o.label)).toEqual(["Usual (2)"]);
+    expect(at(6).options.map((o) => o.label)).toEqual(["Usual (2)"]);
+    expect(at(7).options.map((o) => o.label)).toEqual(["Usual (3)", "One fewer (2)"]);
+    // Set at 7, then the table shrinks: still shown and selected, and the hint
+    // doesn't repeat the lobby's problem line.
+    const stale = at(6, { moles: "fewer" });
+    expect(stale.options.map((o) => o.label)).toEqual(["Usual (2)", "One fewer (1)"]);
+    expect(stale.selected).toBe(1);
+    expect(stale.hint).toBe("Usual is 2 for 6 players");
+    expect(stale.hint).not.toBe(setupProblem({ ...DEFAULT_SETTINGS, moles: "fewer" }, 6));
+  });
+
+  it("puts no numbers on a table that can't play yet", () => {
+    const moles = heistSettingFields(DEFAULT_SETTINGS, 4)[1]!;
+    expect(moles.options.map((o) => o.label)).toEqual(["Usual"]);
+    expect(moles.hint).toBe("2 at 5–6 players, 3 at 7–8, 4 at 9–10");
   });
 
   it("five jobs, five names", () => {

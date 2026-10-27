@@ -348,10 +348,10 @@ export class HeistView implements GameView {
     }
     if (game.phase === "job") {
       this.panel.dataset.kind = "job";
-      // Every crew member sees the same two cards, enabled the same way (ruling 4).
-      // Below them, a status line everyone gets at the same size: a mole's
-      // count, or a neutral line for crew.
-      const status = me?.alignment === "mole" ? `Sabotage cards left: ${me.budget}` : "Cards stay face down.";
+      // Every crew member sees the same two cards, enabled the same way, and the
+      // same status line under them (ruling 4). A mole's count is on their card,
+      // behind the tap.
+      const status = "Cards stay face down. Nobody sees yours.";
       return replaceChildren(
         this.panel,
         this.crewList(props, game.crew),
@@ -363,13 +363,13 @@ export class HeistView implements GameView {
                 "button",
                 { type: "button", class: "hz-choice card", "aria-pressed": String(me.card === "clean"), onclick: () => this.play("clean") },
                 h("span", { class: "hz-card-name" }, "Clean"),
-                h("span", { class: "hz-card-note" }, "The job goes ahead"),
+                h("span", { class: "hz-card-note" }, "Job goes ahead"),
               ),
               h(
                 "button",
                 { type: "button", class: "hz-choice card", "aria-pressed": String(me.card === "sabotage"), onclick: () => this.play("sabotage") },
                 h("span", { class: "hz-card-name" }, "Sabotage"),
-                h("span", { class: "hz-card-note" }, "The job fails"),
+                h("span", { class: "hz-card-note" }, "Job fails"),
               ),
             )
           : null,
@@ -407,7 +407,8 @@ export class HeistView implements GameView {
   private renderLast(props: GameViewProps, game: Pub) {
     const show = game.phase !== "finished" && game.phase !== "reveal" && (game.proposals.length > 0 || game.jobs.length > 0);
     this.last.hidden = !show;
-    if (!show) return;
+    // Emptied, not just hidden: a rematch mustn't carry the last game's lines.
+    if (!show) return replaceChildren(this.last);
     const p = game.proposals.at(-1);
     const j = game.jobs.at(-1);
     replaceChildren(

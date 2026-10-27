@@ -20,8 +20,11 @@ const PRESETS: { id: PresetId; label: string }[] = [
   { id: "fast", label: "Fast" },
 ];
 
-/** "more" parses but isn't offered: the range's top is the usual count at every size (design ruling 2). */
-const SHIFTS: MoleShift[] = ["usual", "fewer"];
+/**
+ * In lobby order. "more" never fits (design ruling 2) and "fewer" only from 7,
+ * so each shows only where it fits or is already set.
+ */
+const SHIFTS: MoleShift[] = ["usual", "fewer", "more"];
 const SHIFT_PARSE: readonly MoleShift[] = ["fewer", "usual", "more"];
 
 /** Settings from whatever the room holds. Null: something's off. */
@@ -40,10 +43,24 @@ const secs = (ms: number) => `${ms / 1000} s`;
 export function heistSettingFields(raw: unknown, players: number): SettingField[] {
   const settings = parseHeistSettings(raw) ?? DEFAULT_SETTINGS;
   const t = TIMERS[settings.preset];
-  const n = Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, players));
+  // Counts only mean something for a table that can play; below that, no numbers.
+  const n = players;
+  const sized = n >= MIN_PLAYERS && n <= MAX_PLAYERS;
   const count = (shift: MoleShift) => molesFor({ ...settings, moles: shift }, n);
+  const fits = (shift: MoleShift) => sized && setupProblem({ ...settings, moles: shift }, n) === null;
+  // "One fewer" only where it fits, unless it's what's set: the row must show it.
+  const shifts = SHIFTS.filter((s) => s === "usual" || s === settings.moles || fits(s));
+  const label = (s: MoleShift) => {
+    const name = s === "usual" ? "Usual" : s === "fewer" ? "One fewer" : "One more";
+    return sized ? `${name} (${count(s)})` : name;
+  };
   const [lo, hi] = moleRange(n);
-  const moles = count(settings.moles);
+  // The lobby prints a setup problem on its own line; the hint doesn't repeat it.
+  const hint = !sized
+    ? "2 at 5–6 players, 3 at 7–8, 4 at 9–10"
+    : !fits(settings.moles)
+      ? `Usual is ${count("usual")} for ${n} players`
+      : `${count(settings.moles)} of ${n}${lo === hi ? "" : `, ${lo}–${hi} allowed`}. Crews: ${crewSizes(n).join(", ")}`;
   return [
     {
       key: "preset",
@@ -55,11 +72,9 @@ export function heistSettingFields(raw: unknown, players: number): SettingField[
     {
       key: "moles",
       label: "Moles",
-      selected: Math.max(0, SHIFTS.indexOf(settings.moles)),
-      options: SHIFTS.map((s) => ({ label: s === "usual" ? `Usual (${count(s)})` : `One fewer (${count(s)})`, patch: { moles: s } })),
-      hint:
-        setupProblem(settings, n) ??
-        `${moles} of ${n}${lo === hi ? "" : `, ${lo}–${hi} allowed`}. Crews: ${crewSizes(n).join(", ")}`,
+      selected: Math.max(0, shifts.indexOf(settings.moles)),
+      options: shifts.map((s) => ({ label: label(s), patch: { moles: s } })),
+      hint,
     },
   ];
 }
