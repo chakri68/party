@@ -91,6 +91,8 @@ export interface ImposterServerState {
   round: RoundState;
   /** Words already played, as "category|word". */
   used: string[];
+  /** Test-only word list, as "category|word". Null: the real pack. */
+  deck: string[] | null;
   endReason: EndReason | null;
 }
 
@@ -157,4 +159,5 @@ export type ImposterEvent =
   | { type: "guessed"; right: boolean }
   | { type: "round-over"; winner: Side; imposterId: string; word: string }
   | { type: "round-dropped" }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; reason: EndReason };
