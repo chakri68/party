@@ -71,9 +71,9 @@ Never sent to anyone, ever: who played which card.
 ## Leaving and disconnects
 
 - A disconnected player keeps their seat for the shell's 60 s grace and holds nothing up: the reveal and the vote close once everyone connected is done; a leader who's away is just slow (their timer runs, the host can skip them); the job runs its clock anyway.
-- A leaver on the pending crew (during `vote` or `job`) voids the proposal: no heat, cards put in are taken back (Sabotage cards return to the budget), and the same leader proposes again. If the leader is the leaver, the next seat proposes.
-- A leaver elsewhere drops out of the ballot (`dropVoter`) and the leader rotation. A leader who leaves during `propose` hands it to the next seat at a fresh clock, no heat.
-- Crew sizes follow the head count still in.
+- A leaver on the pending crew (during `vote` or `job`) voids the proposal: no heat, cards put in are dropped unplayed (budgets only drop when a job is played, so Sabotage cards come back by construction), and whoever proposed it proposes again, even though a passed vote had already moved the lead on. If the proposer is gone, the seat after them.
+- A leaver elsewhere drops out of the ballot (`dropVoter`) and the leader rotation. A leader who leaves during `propose` hands it to the next seat at a fresh clock, no heat. A leader who leaves mid-vote, off their own crew, leaves the proposal standing; the close moves the lead on from their seat as usual.
+- Crew sizes follow the head count still in. A crew already on the table keeps its size.
 - Fewer than 5 left, no moles left, or no crew left: the game ends interrupted with no winner and every alignment shown (spec §10).
 
 ## Settings
@@ -93,8 +93,10 @@ Flat, two rows: `preset` (beginner, standard, fast) and `moles` (`usual`, `fewer
 9. **First leader is a random seat;** the rotation then follows seat order, skipping leavers.
 10. **Rematch carries nothing.** Fresh alignments, fresh first leader, fresh budgets.
 11. **The deal's public trace is the mole count only.** Lists that come from the deal (the moles' own list) go out in seat order.
-12. **A voided proposal leaves no record.** Its votes (if the vote had closed) are already history; a vote still open is discarded unseen.
+12. **Voids.** A proposal voided mid-vote leaves no record and its open votes are discarded unseen. One voided mid-job already has its votes in the public history; it stays there, marked `voided`.
 13. **Heat-lost jobs** go into the job list with no crew and `heat: true`.
+14. **The Sabotage refusal is local.** A crew player tapping Sabotage gets a note on their own screen and no round trip, so no error sound across the table. The server refuses it anyway.
+15. **Out-of-range head counts aren't `setupProblem`'s to report.** The lobby already gates on 5–10; repeating it there would nag while people arrive.
 
 ## Kit fit
 
