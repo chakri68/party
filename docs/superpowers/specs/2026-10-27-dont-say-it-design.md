@@ -73,7 +73,7 @@ Timed phases reject actions with `time-up` once `ctx.now` reaches the deadline, 
 5. **The describer starts the clock** (`ready`, untimed). The room shouldn't lose 60 seconds to someone fetching a drink. The runtime's skip-turn covers the idle (after a minute) and the dropped (at once).
 6. **Disputes have a 20 s clock each.** A describer who says nothing escalates (silence isn't a confession); a captain who says nothing drops it (the buzz needs a yes). The turn's clock stays frozen through both.
 7. **The floor applies on every change**, not only at the end, so the total on screen is the total. The turn's net figure counts what actually moved.
-8. **The card in hand when time runs out** is retired unscored ("time" in the summary). It won't come back this match.
+8. **The card in hand when time runs out** is retired unscored ("time" in the summary; "ended" if the turn was cut short by a leaver or a host skip). It won't come back this match.
 9. **Resolved cards go public** with their outcome, during the turn and in the summary. Skipped ones too: they're gone for the match.
 10. **No repeats in a match.** The card order is shuffled at the start, with cards the last match used pushed to the back (carried through `carryOver`). If a match somehow runs through all 160, the order reshuffles and the table is told (`reshuffled`), per source §11.
 11. **Buzzes aren't rationed.** The clock is frozen through a dispute, so a frivolous buzz costs the describing team nothing but patience, and the captain can only uphold what the describer already contested. Honour system, as source §9 asks.
