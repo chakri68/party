@@ -45,6 +45,14 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
   }
 }
 
+/**
+ * The game's word on why this table can't start (a role deck one card short).
+ * It explains a disabled Start, so it sits where the host is looking.
+ */
+function setupProblem(room: RoomPublicState, style?: string): HTMLElement | null {
+  return room.setupProblem ? h("p", { class: "setting-problem", role: "status", style }, room.setupProblem) : null;
+}
+
 export class RoomView implements View {
   private code: string;
   private root = h("main", { class: "room" });
@@ -522,6 +530,7 @@ export class RoomView implements View {
         ),
       ),
       this.gameSettings(room, isHost, seats.length, vt("lobby-settings")),
+      setupProblem(room, vt("lobby-setup-problem")),
       h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
       h(
         "ul",
@@ -560,7 +569,7 @@ export class RoomView implements View {
         isHost
           ? h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min || !room.canStart, onclick: () => this.client?.send({ type: "start-game" }) },
+              { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
               connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Waiting for players…",
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
@@ -709,6 +718,7 @@ export class RoomView implements View {
           );
         }),
       ),
+      setupProblem(room),
       h(
         "div",
         { class: "actions" },
@@ -716,7 +726,7 @@ export class RoomView implements View {
           ? [
               h(
                 "button",
-                { type: "button", class: "primary", disabled: !room.canStart, onclick: () => this.client?.send({ type: "start-game" }) },
+                { type: "button", class: "primary", disabled: !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
                 room.canStart ? `Rematch${readyCount ? ` (${readyCount} ready)` : ""}` : "Waiting for players…",
               ),
               h("button", { type: "button", onclick: () => this.client?.send({ type: "return-to-lobby" }) }, "Back to lobby"),

@@ -108,6 +108,12 @@ export interface RoomPublicState {
    * is here). Deliberately vague on the wire, since it ends up in the UI.
    */
   canStart: boolean;
+  /**
+   * The selected game's objection to its settings at the current head count
+   * (connected seats, the ones a start would deal in), shown as-is. Null when
+   * it has none or doesn't check.
+   */
+  setupProblem: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +184,7 @@ export type ErrorCode =
   | "not-host"
   | "invalid-name"
   | "not-enough-players"
+  | "bad-setup"
   | "unknown-game"
   | "invalid-settings"
   | "wrong-phase"

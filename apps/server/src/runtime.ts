@@ -613,6 +613,13 @@ export class RoomRuntime {
       return this.commit([]);
     }
 
+    const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
+    const problem = def.setupProblem?.(settings, n) ?? null;
+    if (problem) {
+      this.error(conn, "bad-setup", problem);
+      return this.commit([]);
+    }
+
     // A debug seed makes the whole deal reproducible, dealer included.
     const ctx = debug?.seed === undefined
       ? this.ctx()
@@ -623,7 +630,6 @@ export class RoomRuntime {
     data.match.nextDealerSeat = (dealerSeat + 1) % n;
 
     const carry = data.match.carry?.gameId === def.manifest.id ? data.match.carry.data : undefined;
-    const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
     const options: CreateGameOptions | undefined = debug?.deck ? { deck: debug.deck } : undefined;
     let transition: GameTransition<unknown, unknown>;
     try {
@@ -842,7 +848,17 @@ export class RoomRuntime {
       game: def ? def.getPublicState(data.game!.state) : null,
       result: def ? def.getResult(data.game!.state) : null,
       canStart: this.ownerHere(),
+      setupProblem: this.setupProblem(),
     };
+  }
+
+  /** What `startGame` would refuse over, asked of the selected game, not the one last played. */
+  private setupProblem(): string | null {
+    const data = this.data!;
+    const def = this.games[data.gameId];
+    if (!def?.setupProblem) return null;
+    const n = data.seats.filter((s) => s.presence === "connected").length;
+    return def.setupProblem(def.parseSettings(data.settings) ?? def.defaultSettings, n);
   }
 
   private ownerHere(): boolean {

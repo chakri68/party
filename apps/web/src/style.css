@@ -259,6 +259,7 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 .setting select { width: 100%; }
 .setting .setting-value { justify-self: end; text-align: right; }
 .setting-hint { grid-column: 1; font-size: 0.8rem; }
+.setting-problem { margin: 0; color: var(--danger); font-weight: 600; } /* 7.7:1 on --bg */
 select {
   min-height: 40px;
   padding: 0 12px;

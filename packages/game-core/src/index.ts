@@ -146,6 +146,14 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
 
   defaultSettings: TSettings;
   parseSettings(input: unknown): TSettings | null;
+  /**
+   * Why these settings can't deal this many players (a role deck one card short),
+   * or null when they can. `parseSettings` never sees the head count, so this is
+   * where a setup that depends on it gets checked. The runtime refuses to start
+   * with the message as-is and shows it in the lobby, so write it for players:
+   * "Need exactly 8 role cards". Absent means anything that parses is fine.
+   */
+  setupProblem?(settings: TSettings, playerCount: number): string | null;
   parseAction(input: unknown): TAction | null;
 
   createGame(
