@@ -4,13 +4,8 @@ import { CANVAS_H, CANVAS_W, MAX_CHUNK, MAX_GUESS_LENGTH, PALETTE, SIZES, type D
 // Words and guesses
 // ---------------------------------------------------------------------------
 
-/**
- * What a guess is compared as: no accents, no case, letters and digits only.
- * "Ice-cream", "ice cream" and "icecream" are all the same guess.
- */
-export function normalizeGuess(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+// Moved to @games/words for Imposter; re-exported so Scribbl's imports stand.
+export { normalizeGuess } from "@games/words";
 
 /** Chat as the server keeps it: one line, no control characters, capped. */
 export function cleanChat(text: string): string {

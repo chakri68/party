@@ -20,3 +20,11 @@ export function editDistance(a: string, b: string, max = Infinity): number {
 export function isClose(guess: string, word: string): boolean {
   return word.length >= 4 && guess !== word && editDistance(guess, word, 1) === 1;
 }
+
+/**
+ * What a guess is compared as: no accents, no case, letters and digits only.
+ * "Ice-cream", "ice cream" and "icecream" are all the same guess.
+ */
+export function normalizeGuess(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}

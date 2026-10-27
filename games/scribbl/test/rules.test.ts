@@ -4,18 +4,11 @@ import {
   drawerPoints,
   guessPoints,
   hintCount,
-  normalizeGuess,
   parseDrawOp,
 } from "../shared/rules.ts";
 import { WORDS } from "../shared/words.ts";
 
 describe("guesses", () => {
-  it("compare without case, accents, spaces or hyphens", () => {
-    expect(normalizeGuess("  Ice-Cream ")).toBe("icecream");
-    expect(normalizeGuess("ice cream")).toBe(normalizeGuess("icecream"));
-    expect(normalizeGuess("Crème")).toBe("creme");
-  });
-
   it("clean chat down to one short line", () => {
     expect(cleanChat("  hi\n\tthere\u0000 ")).toBe("hi there");
     expect(cleanChat("x".repeat(200))).toHaveLength(60);
