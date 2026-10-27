@@ -11,6 +11,7 @@ import {
   SKIP_AFTER_MS,
   type ServerMessage,
 } from "@games/protocol";
+import { imposterGame } from "@games/imposter/server";
 import { scribblGame } from "@games/scribbl/server";
 import type { ScribblPrivateState, ScribblPublicState } from "@games/scribbl/shared";
 import { sevensGame } from "@games/sevens/server";
@@ -350,6 +351,26 @@ describe("room runtime", () => {
       await send(room, a, { type: "update-settings", settings: { acePosition: "sideways" } });
       expect(a.last("error")?.code).toBe("invalid-settings");
       expect(roomOf(b).settings).toMatchObject({ acePosition: "low", scoring: "remaining-cards" });
+    });
+
+    it("merges a stale patch from the last game into the new one's defaults", async () => {
+      room = world.runtime({ sevens: sevensGame, imposter: imposterGame, scribbl: scribblGame });
+      await room.load();
+      await room.claim();
+      const a = await join(world, room, "Ana");
+      await send(room, a, { type: "select-game", gameId: "imposter" });
+      await send(room, a, { type: "select-game", gameId: "scribbl" });
+      // Imposter's lobby, built before the switch landed, sends its own keys.
+      await send(room, a, { type: "update-settings", settings: { discussSeconds: 60 } });
+      expect(a.last("error")).toBeUndefined();
+      expect(roomOf(a)).toMatchObject({ gameId: "scribbl", settings: scribblGame.defaultSettings });
+      expect(roomOf(a).settings).not.toHaveProperty("discussSeconds");
+      // A key both games have, with a value only Imposter offers: refused, nothing changes.
+      const version = a.last("update")!.stateVersion;
+      await send(room, a, { type: "update-settings", settings: { rounds: 7 } });
+      expect(a.last("error")?.code).toBe("invalid-settings");
+      expect(a.last("update")!.stateVersion).toBe(version);
+      expect(roomOf(a).settings).toEqual(scribblGame.defaultSettings);
     });
 
     it("drops lobby seats that wandered off when the game starts", async () => {
