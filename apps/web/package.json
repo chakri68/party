@@ -23,6 +23,7 @@
     "@games/heist": "workspace:*",
     "@games/imposter": "workspace:*",
     "@games/go-fish": "workspace:*",
+    "@games/nightfall": "workspace:*",
     "@games/old-maid": "workspace:*",
     "@games/pass-the-bomb": "workspace:*",
     "@games/president": "workspace:*",

@@ -10,6 +10,7 @@ import type { AnyGameDefinition } from "@games/game-core";
 import { heistGame } from "@games/heist/server";
 import { imposterGame } from "@games/imposter/server";
 import { goFishGame } from "@games/go-fish/server";
+import { nightfallGame } from "@games/nightfall/server";
 import { oldMaidGame } from "@games/old-maid/server";
 import { passTheBombGame } from "@games/pass-the-bomb/server";
 import { presidentGame } from "@games/president/server";
@@ -36,6 +37,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   dominion: dominionGame,
   "short-night": shortNightGame,
   heist: heistGame,
+  nightfall: nightfallGame,
 };
 
 export interface GameFlags {

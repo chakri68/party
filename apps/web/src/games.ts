@@ -13,6 +13,7 @@ import type { GameManifest, SettingField } from "@games/game-core";
 import { heistManifest, heistRules, heistSettingFields } from "@games/heist/shared";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
+import { nightfallManifest, nightfallRules, nightfallSettingFields } from "@games/nightfall/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
 import { presidentManifest, presidentRules, presidentSettingFields } from "@games/president/shared";
@@ -141,6 +142,12 @@ export const games: Record<string, GameEntry> = {
     rules: heistRules,
     settingFields: heistSettingFields,
     loadClient: () => import("@games/heist/client").then((m) => m.default),
+  },
+  nightfall: {
+    manifest: nightfallManifest,
+    rules: nightfallRules,
+    settingFields: nightfallSettingFields,
+    loadClient: () => import("@games/nightfall/client").then((m) => m.default),
   },
   ...(BLIND_RALLY && {
     "blind-rally": {

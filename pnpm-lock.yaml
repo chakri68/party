@@ -57,6 +57,9 @@ importers:
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
+      '@games/nightfall':
+        specifier: workspace:*
+        version: link:../../games/nightfall
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
@@ -130,6 +133,9 @@ importers:
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
+      '@games/nightfall':
+        specifier: workspace:*
+        version: link:../../games/nightfall
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
