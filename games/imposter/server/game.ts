@@ -13,6 +13,7 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { imposterManifest } from "../shared/manifest.ts";
+import { type Place, PLACES, placeById } from "../shared/places.ts";
 import { cleanClue, cleanGuess, clueProblem, guessMatches } from "../shared/rules.ts";
 import {
   CLUES_MS,
@@ -28,6 +29,9 @@ import {
   type ImposterServerState,
   type ImposterSettings,
   MIN_PLAYERS,
+  MODE_OPTIONS,
+  modeOf,
+  PLACE_GUESS_MS,
   POINTS,
   RESULT_MS,
   REVEAL_MS,
@@ -36,6 +40,8 @@ import {
   type RoundPhase,
   type RoundState,
   type Side,
+  TALK_OPTIONS,
+  talkMinutesOf,
   VOTE_MS,
 } from "../shared/types.ts";
 import { PACK } from "./words.ts";
@@ -56,7 +62,7 @@ const PHASE = "phase";
 /** An alarm this early is a stray, not the deadline (Dominion's guard). */
 const SLACK_MS = 500;
 /** Phases whose deadline closes the door on actions. */
-const TIMED: readonly RoundPhase[] = ["reveal", "clues", "vote", "runoff", "guess"];
+const TIMED: readonly RoundPhase[] = ["reveal", "clues", "talk", "vote", "runoff", "guess"];
 /** Phases where the round's outcome is public. */
 const REVEALED: readonly RoundPhase[] = ["reveal-role", "guess", "round-result"];
 
@@ -78,6 +84,7 @@ const active = (p: Player) => !p.removed;
 const activeIds = (state: State) => state.players.filter(active).map((p) => p.id);
 const find = (state: State, id: string) => state.players.find((p) => p.id === id);
 const voting = (phase: string) => phase === "vote" || phase === "runoff";
+const spoken = (state: State) => modeOf(state.settings) === "spoken";
 
 /**
  * Everyone still here has done it. Dropped players don't hold a phase up,
@@ -115,6 +122,13 @@ function parseDeck(input: unknown[]): { category: string; word: string }[] {
   });
 }
 
+/** Spoken mode's test decks are place ids from the pack. */
+function parsePlaceDeck(input: unknown[]): Place[] {
+  const places = input.map((e) => (typeof e === "string" ? placeById(e) : undefined));
+  if (!input.length || places.some((p) => !p)) throw new Error('A spoken deck must be place ids from the pack, e.g. ["lighthouse"].');
+  return places as Place[];
+}
+
 const ALL = PACK.flatMap((c) => c.words.map((word) => ({ category: c.name, word })));
 const key = (e: { category: string; word: string }) => `${e.category}|${e.word}`;
 
@@ -135,6 +149,19 @@ function pickWord(state: State, deck: { category: string; word: string }[], ctx:
   return pick;
 }
 
+/** A place nobody's had this game; once the pack's spent, it starts over. */
+function pickPlace(state: State, deck: readonly Place[], ctx: GameContext): Place {
+  const placeKey = (p: Place) => `place|${p.id}`;
+  let fresh = deck.filter((p) => !state.used.includes(placeKey(p)));
+  if (!fresh.length) {
+    state.used = state.used.filter((u) => !u.startsWith("place|"));
+    fresh = [...deck];
+  }
+  const pick = fresh[ctx.randomInt(fresh.length)]!;
+  state.used.push(placeKey(pick));
+  return pick;
+}
+
 /** Among whoever's been Imposter the fewest times. */
 function pickImposter(state: State, ctx: GameContext): Player {
   const pool = state.players.filter(active);
@@ -151,6 +178,9 @@ function blankRound(): RoundState {
     imposterId: "",
     category: "",
     word: "",
+    placeId: "",
+    firstAsker: null,
+    early: false,
     acks: [],
     clues: {},
     order: [],
@@ -165,33 +195,36 @@ function blankRound(): RoundState {
   };
 }
 
-function startRound(state: State, deck: { category: string; word: string }[], restarted: boolean, ctx: GameContext, out: Out): void {
-  const pick = pickWord(state, deck, ctx);
+function startRound(state: State, restarted: boolean, ctx: GameContext, out: Out): void {
+  // Clues mode draws word, Imposter, order, in that order; seeded games depend on it.
+  const place = spoken(state) ? pickPlace(state, state.deck ? parsePlaceDeck(state.deck) : PLACES, ctx) : null;
+  const pick = place ? { category: "", word: place.name } : pickWord(state, state.deck ? parseDeck(state.deck) : ALL, ctx);
   const imposter = pickImposter(state, ctx);
   imposter.imposterCount++;
+  const ids = activeIds(state);
   state.round = {
     ...blankRound(),
     imposterId: imposter.id,
     category: pick.category,
     word: pick.word,
-    order: shuffle(activeIds(state), ctx.randomInt),
+    placeId: place?.id ?? "",
+    order: shuffle(ids, ctx.randomInt),
+    firstAsker: place ? ids[ctx.randomInt(ids.length)]! : null,
   };
   setPhase(state, "reveal", REVEAL_MS, ctx, out);
   out.events.push(pub({ type: "round-started", round: state.roundNumber, restarted }));
 }
 
-function deckOf(state: State): { category: string; word: string }[] {
-  return state.deck ? parseDeck(state.deck) : ALL;
-}
-
 function nextRound(state: State, ctx: GameContext, out: Out): void {
   if (state.roundNumber >= state.settings.rounds) return finish(state, "done", out);
   state.roundNumber++;
-  startRound(state, deckOf(state), false, ctx, out);
+  startRound(state, false, ctx, out);
 }
 
-function toClues(state: State, ctx: GameContext, out: Out): void {
-  setPhase(state, "clues", CLUES_MS, ctx, out);
+/** Out of the reveal: typed clues, or in spoken mode, the talk. */
+function afterReveal(state: State, ctx: GameContext, out: Out): void {
+  if (spoken(state)) setPhase(state, "talk", talkMinutesOf(state.settings) * 60_000, ctx, out);
+  else setPhase(state, "clues", CLUES_MS, ctx, out);
 }
 
 function toDiscuss(state: State, ctx: GameContext, out: Out): void {
@@ -250,7 +283,7 @@ function settle(state: State, winner: Side, ctx: GameContext, out: Out): void {
 
 function afterRole(state: State, ctx: GameContext, out: Out): void {
   const r = state.round;
-  if (r.accusedId === r.imposterId) setPhase(state, "guess", GUESS_MS, ctx, out);
+  if (r.accusedId === r.imposterId) setPhase(state, "guess", spoken(state) ? PLACE_GUESS_MS : GUESS_MS, ctx, out);
   else settle(state, "imposter", ctx, out);
 }
 
@@ -264,15 +297,26 @@ function makeGuess(state: State, text: string | null, ctx: GameContext, out: Out
   settle(state, m.right ? "imposter" : "innocents", ctx, out);
 }
 
+/** Spoken mode's guess: a place off the list. Exact, no near misses. */
+function guessPlace(state: State, place: Place, ctx: GameContext, out: Out): void {
+  const r = state.round;
+  r.guess = place.name;
+  r.guessRight = place.id === r.placeId;
+  r.guessClose = false;
+  out.events.push(pub({ type: "guessed", right: r.guessRight }));
+  settle(state, r.guessRight ? "imposter" : "innocents", ctx, out);
+}
+
 /** The clock ran out on the current phase. */
 function expire(state: State, ctx: GameContext, out: Out): void {
   const r = state.round;
   switch (r.phase) {
     case "reveal":
-      return toClues(state, ctx, out);
+      return afterReveal(state, ctx, out);
     case "clues":
       return toDiscuss(state, ctx, out);
     case "discuss":
+    case "talk":
       return openVote(state, activeIds(state), false, ctx, out);
     case "vote":
     case "runoff":
@@ -293,7 +337,7 @@ function check(state: State, ctx: GameContext, out: Out): void {
   const ids = activeIds(state);
   switch (r.phase) {
     case "reveal":
-      if (allHere(state, ids, (id) => r.acks.includes(id))) toClues(state, ctx, out);
+      if (allHere(state, ids, (id) => r.acks.includes(id))) afterReveal(state, ctx, out);
       break;
     case "clues":
       if (allHere(state, ids, (id) => id in r.clues)) toDiscuss(state, ctx, out);
@@ -321,7 +365,8 @@ function awaited(state: State): string[] {
     case "runoff":
       return r.ballot!.eligible.filter((id) => !(id in r.ballot!.votes));
     case "guess":
-      return [r.imposterId];
+      // An early guess is anonymous until the result: listing the guesser would name them.
+      return r.early ? [] : [r.imposterId];
     default:
       return [];
   }
@@ -336,7 +381,17 @@ function parseSettings(input: unknown): ImposterSettings | null {
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...DEFAULT_SETTINGS, ...(input as Partial<ImposterSettings>) };
   if (!ROUND_OPTIONS.includes(s.rounds) || !DISCUSS_OPTIONS.includes(s.discussSeconds)) return null;
-  return { rounds: s.rounds, discussSeconds: s.discussSeconds };
+  const out: ImposterSettings = { rounds: s.rounds, discussSeconds: s.discussSeconds };
+  // The newer keys only come back if they went in, so older settings keep their shape.
+  if (s.mode !== undefined) {
+    if (!MODE_OPTIONS.includes(s.mode)) return null;
+    out.mode = s.mode;
+  }
+  if (s.talkMinutes !== undefined) {
+    if (!TALK_OPTIONS.includes(s.talkMinutes)) return null;
+    out.talkMinutes = s.talkMinutes;
+  }
+  return out;
 }
 
 function parseAction(input: unknown): ImposterAction | null {
@@ -345,7 +400,10 @@ function parseAction(input: unknown): ImposterAction | null {
   switch (a.type) {
     case "ack":
     case "next":
+    case "call":
       return { type: a.type };
+    case "guess-place":
+      return typeof a.placeId === "string" && a.placeId.length <= 100 ? { type: "guess-place", placeId: a.placeId } : null;
     case "clue":
     case "guess":
       return typeof a.text === "string" && a.text.length <= 400 ? { type: a.type, text: a.text } : null;
@@ -387,7 +445,7 @@ export const imposterGame: GameDefinition<
       throw new Error(`imposter: needs ${minPlayers}–${maxPlayers} players, got ${n}`);
     }
     // Checked now, so a bad test deck fails at the start rather than mid-game.
-    if (options?.deck) parseDeck(options.deck);
+    if (options?.deck) (modeOf(settings) === "spoken" ? parsePlaceDeck : parseDeck)(options.deck);
     const state: State = {
       phase: "playing",
       settings,
@@ -401,7 +459,7 @@ export const imposterGame: GameDefinition<
       endReason: null,
     };
     const out = newOut();
-    startRound(state, deckOf(state), false, ctx, out);
+    startRound(state, false, ctx, out);
     return done(state, out);
   },
 
@@ -411,6 +469,11 @@ export const imposterGame: GameDefinition<
     if (!me || !active(me)) return reject("not-in-game", "You're not in this game.");
     const r = prev.round;
     if (TIMED.includes(r.phase) && ctx.now >= r.deadline) return reject("time-up", "Time's up.");
+
+    // Each mode's own actions; the other mode's are refused before anything else.
+    const spokenOnly = action.type === "call" || action.type === "guess-place";
+    const cluesOnly = action.type === "clue" || action.type === "guess";
+    if ((spoken(prev) && cluesOnly) || (!spoken(prev) && spokenOnly)) return reject("wrong-mode", "Not in this mode.");
 
     const state = clone(prev);
     const s = state.round;
@@ -449,9 +512,25 @@ export const imposterGame: GameDefinition<
         makeGuess(state, text, ctx, out);
         break;
       }
+      case "call": {
+        if (r.phase !== "talk") return reject("wrong-phase", "Not now.");
+        if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter can call it.");
+        s.early = true;
+        out.events.push(pub({ type: "early-guess" }));
+        setPhase(state, "guess", PLACE_GUESS_MS, ctx, out);
+        break;
+      }
+      case "guess-place": {
+        if (r.phase !== "guess") return reject("wrong-phase", "Not now.");
+        if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter guesses.");
+        const place = placeById(action.placeId);
+        if (!place) return reject("bad-guess", "Pick a place from the list.");
+        guessPlace(state, place, ctx, out);
+        break;
+      }
       case "next": {
         if (ctx.hostId !== playerId) return reject("host-only", "Only the host can do that.");
-        if (r.phase === "discuss") openVote(state, activeIds(state), false, ctx, out);
+        if (r.phase === "discuss" || r.phase === "talk") openVote(state, activeIds(state), false, ctx, out);
         else if (r.phase === "round-result") nextRound(state, ctx, out);
         else return reject("wrong-phase", "Not now.");
         break;
@@ -506,11 +585,11 @@ export const imposterGame: GameDefinition<
     if (playerId === r.imposterId && !REVEALED.includes(r.phase)) {
       // Nothing's been shown yet: drop the round, word and all, and deal again.
       out.events.push(pub({ type: "round-dropped" }));
-      startRound(state, deckOf(state), true, ctx, out);
+      startRound(state, true, ctx, out);
       return done(state, out);
     }
-    if (playerId === r.imposterId && r.accusedId === r.imposterId && r.phase !== "round-result") {
-      // Caught, then gone before guessing: that's a miss.
+    if (playerId === r.imposterId && (r.accusedId === r.imposterId || r.early) && r.phase !== "round-result") {
+      // Caught (or called it), then gone before guessing: that's a miss.
       makeGuess(state, null, ctx, out);
       return done(state, out);
     }
@@ -591,9 +670,12 @@ export const imposterGame: GameDefinition<
       rounds: state.settings.rounds,
       deadline: r.deadline,
       phaseMs: r.phaseMs,
+      mode: modeOf(state.settings),
       category: r.category,
+      firstAsker: r.phase === "reveal" ? null : r.firstAsker,
+      early: r.early,
       players: state.players.map((p) => ({ id: p.id, score: p.score, removed: p.removed, done: isDone(p.id) })),
-      clues: after(["discuss", "vote", "runoff", ...REVEALED])
+      clues: !spoken(state) && after(["discuss", "vote", "runoff", ...REVEALED])
         ? r.order.filter((id) => id in r.clues).map((id) => ({ playerId: id, text: r.clues[id] ?? null }))
         : null,
       candidates: voting(r.phase) && state.phase !== "finished" ? r.candidates : [],
