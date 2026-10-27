@@ -561,6 +561,8 @@ export const imposterGame: GameDefinition<
     const after = (phases: readonly RoundPhase[]) => phases.includes(r.phase);
     const shown = after(REVEALED);
     const over = r.phase === "round-result";
+    // A game that ends mid-round (too few left) has no round to protect: say who and what.
+    const unsealed = over || state.phase === "finished";
     const isDone = (id: string): boolean => {
       if (state.phase === "finished") return false;
       switch (r.phase) {
@@ -600,8 +602,8 @@ export const imposterGame: GameDefinition<
       accusedRole: shown && r.accusedId ? (r.accusedId === r.imposterId ? "imposter" : "innocent") : null,
       votes: shown && r.ballot ? { ...r.ballot.votes } : null,
       counts,
-      imposterId: over ? r.imposterId : null,
-      word: over ? r.word : null,
+      imposterId: unsealed ? r.imposterId : null,
+      word: unsealed ? r.word : null,
       guess: over ? r.guess : null,
       guessRight: over && r.guessRight,
       guessClose: over && r.guessClose,
@@ -621,7 +623,7 @@ export const imposterGame: GameDefinition<
     const canVote = live && voting(r.phase) && !!r.ballot?.eligible.includes(playerId);
     return {
       role: imposter ? "imposter" : "innocent",
-      word: !imposter || r.phase === "round-result" ? r.word : null,
+      word: !imposter || r.phase === "round-result" || !live ? r.word : null,
       acked: r.acks.includes(playerId),
       clue: r.clues[playerId] ?? null,
       sentClue: playerId in r.clues,

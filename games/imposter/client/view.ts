@@ -344,6 +344,11 @@ export class ImposterView implements GameView {
         break;
       case "finished":
         headline = game.endReason === "abandoned" ? "Not enough players left." : "That's the game.";
+        // Cut short mid-round: the round never got its result line, so give the secret here.
+        if (game.endReason === "abandoned" && game.imposterId && game.word) {
+          const youImp = game.imposterId === props.playerId;
+          sub = `${this.name(game.imposterId, props)} ${youImp ? "were" : "was"} the Imposter. The word was ${game.word.toUpperCase()}.`;
+        }
         break;
     }
 

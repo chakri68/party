@@ -461,7 +461,13 @@ describe("leaving and dropping", () => {
     expect(t.state.phase).toBe("finished");
     expect(types(t)).toEqual(["game-over"]);
     expect(g.getResult(t.state)!.winnerIds).toEqual([]);
-    expect(g.getPublicState(t.state).word).toBeNull();
+  });
+
+  it("ending mid-round lets the secret out, and nothing else of the round", () => {
+    const s = toClues(start(3).state);
+    const t = g.onPlayerRemoved!(s, innocents(s)[0]!, ctx(1000));
+    expect(g.getPublicState(t.state)).toMatchObject({ phase: "finished", imposterId: imp(s), word: "kettle", winner: null, guess: null });
+    expect(g.getPrivateState(t.state, imp(s)).word).toBe("kettle");
   });
 
   it("dropped players don't hold a phase up, and can come back", () => {
