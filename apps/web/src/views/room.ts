@@ -529,7 +529,9 @@ export class RoomView implements View {
           rules,
         ),
       ),
-      this.gameSettings(room, isHost, seats.length, vt("lobby-settings")),
+      // The deal skips seats that aren't connected, and so does the server's
+      // setupProblem: hints built for the same count agree with its line.
+      this.gameSettings(room, isHost, connected, vt("lobby-settings")),
       setupProblem(room, vt("lobby-setup-problem")),
       h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
       h(
