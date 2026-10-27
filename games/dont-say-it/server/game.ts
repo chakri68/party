@@ -117,10 +117,18 @@ function score(state: State, team: TeamId, delta: number): void {
   if (state.turn) state.turn.net += state.scores[team] - before;
 }
 
-/** The next card in the match's order. Ran out: start over, and say so. */
+/**
+ * The next card in the match's order. Ran out: start over, and say so. Every
+ * card has been played by then, so the order is the play order: the older
+ * half goes first, the newer half after it, each shuffled, and the card just
+ * dealt goes dead last, so it can't come straight back.
+ */
 function deal(state: State, ctx: GameContext, out: Out): void {
   if (state.pos >= state.order.length) {
-    state.order = shuffle(deckOf(state).map((_, i) => i), ctx.randomInt);
+    const last = state.order.at(-1)!;
+    const rest = state.order.slice(0, -1);
+    const half = Math.ceil(rest.length / 2);
+    state.order = [...shuffle(rest.slice(0, half), ctx.randomInt), ...shuffle(rest.slice(half), ctx.randomInt), last];
     state.pos = 0;
     state.reshuffled = true;
     out.events.push(pub({ type: "reshuffled" }));
@@ -266,6 +274,22 @@ function awaited(state: State): string[] {
     default:
       return [];
   }
+}
+
+/**
+ * A team's win, said as one: the shell would otherwise read two winners as
+ * two people tying.
+ */
+function headline(state: State): string {
+  const [a, b] = state.scores;
+  const lead: TeamId = a > b ? 0 : 1;
+  const hi = Math.max(a, b);
+  const lo = Math.min(a, b);
+  if (state.endReason === "abandoned") {
+    const short = sizes(state.players)[0] < MIN_TEAM ? TEAM_NAMES[0] : TEAM_NAMES[1];
+    return a === b ? `${short} ran short of players` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}. ${short} ran short of players`;
+  }
+  return a === b ? `A draw, ${a} all. Both teams win` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}`;
 }
 
 /** Last match's ids plus this one's. Once that's the whole deck, just this one's. */
@@ -581,6 +605,7 @@ export const dontSayItGame: GameDefinition<
     const lead: TeamId[] = a === b ? (state.endReason === "abandoned" ? [] : [0, 1]) : [a > b ? 0 : 1];
     const pts = (n: number) => `${n} ${n === 1 ? "point" : "points"}`;
     return {
+      headline: headline(state),
       winnerIds: state.players.filter((p) => active(p) && lead.includes(p.team)).map((p) => p.id),
       standings: [...state.players]
         .sort((x, y) => Number(x.removed) - Number(y.removed) || state.scores[y.team] - state.scores[x.team] || x.team - y.team || x.seat - y.seat)

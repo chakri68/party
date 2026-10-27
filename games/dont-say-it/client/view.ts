@@ -256,7 +256,7 @@ export class DontSayItView implements GameView {
         headline = "Two teams. Even them out, then start.";
         sub = [host ? "Anyone can switch sides. You start when it's right." : "Anyone can switch sides. The host starts."];
         if (me?.team !== null && me?.team !== undefined) buttons.push({ label: `Switch to ${game.teams[other(me.team)].name}`, action: "switch" });
-        if (host) buttons.push({ label: "Shuffle", action: "shuffle" }, { label: "Start", action: "start", kind: "primary" });
+        if (host) buttons.push({ label: "Shuffle", action: "shuffle" }, { label: "Start", action: "start", kind: "primary", wide: true });
         break;
       }
       case "ready": {

@@ -29,6 +29,10 @@
 .dsi-turn { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 
 .dsi-clock { display: grid; gap: 4px; }
+/* No clock before the first turn or after the last: no gap where it would be. */
+.dsi[data-phase="teams"] .dsi-clock, .dsi[data-phase="finished"] .dsi-clock { display: none; }
+/* Picking sides: the teams first, then what to do about them. */
+.dsi[data-phase="teams"] .dsi-buttons { order: 1; }
 .dsi-timer { font-weight: 800; font-size: 1.4rem; font-variant-numeric: tabular-nums; min-height: 1.4em; }
 .dsi.low .dsi-timer { color: var(--danger); }
 .dsi.frozen .dsi-timer { color: var(--muted); }

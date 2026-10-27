@@ -212,6 +212,28 @@ describe("a turn", () => {
     }
     expect(new Set(seen).size).toBe(3);
     expect(s.reshuffled).toBe(true);
+    // The oldest comes back first, not the one just skipped.
+    expect(target(s)).toBe(seen[0]);
+  });
+
+  it("after a run through the deck, the oldest half comes back first and the last card comes back last", () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      let s = toTurn(start(4, { seed }).state);
+      const seen: string[] = [];
+      for (let i = 0; i < DECK.length; i++) {
+        seen.push(target(s));
+        s = ok(act(s, desc(s), { type: "skip" })).state;
+      }
+      expect(s.reshuffled).toBe(true);
+      const again: string[] = [];
+      for (let i = 0; i < DECK.length; i++) {
+        again.push(target(s));
+        s = ok(act(s, desc(s), { type: "skip" })).state;
+      }
+      expect(new Set(again).size).toBe(DECK.length);
+      expect(again.at(-1)).toBe(seen.at(-1));
+      expect(new Set(again.slice(0, 5))).toEqual(new Set(seen.slice(0, 5)));
+    }
   });
 });
 
@@ -319,6 +341,7 @@ describe("turns", () => {
     expect(s.phase).toBe("finished");
     expect(g.getResult(s)!.winnerIds.sort()).toEqual(team(s, first).sort());
     expect(g.getResult(s)!.standings[0]!.label).toMatch(/4 points/);
+    expect(g.getResult(s)!.headline).toBe(`${first === 0 ? "Amber" : "Teal"} win, 4 to 2`);
   });
 
   it("the host can skip the summary; nobody else can", () => {
@@ -341,6 +364,7 @@ describe("turns", () => {
     s = play(s, 0);
     expect(s.phase).toBe("finished");
     expect(g.getResult(s)!.winnerIds.sort()).toEqual(["p0", "p1", "p2", "p3"]);
+    expect(g.getResult(s)!.headline).toBe("A draw, 2 all. Both teams win");
   });
 
   it("sudden death settles it if someone scores", () => {
@@ -428,6 +452,7 @@ describe("leaving and dropping", () => {
     expect(types(t)).toEqual(["game-over"]);
     expect(t.state.endReason).toBe("abandoned");
     expect(g.getResult(t.state)!.winnerIds.sort()).toEqual(lead.sort());
+    expect(g.getResult(t.state)!.headline).toMatch(/^(Amber|Teal) win, 1 to 0\. (Amber|Teal) ran short of players$/);
     expect(t.timers).toContainEqual({ kind: "cancel", timerId: "phase" });
 
     const level = g.onPlayerRemoved!(toTurn(start(4).state), "p1", ctx(1000)).state;
