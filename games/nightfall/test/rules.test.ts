@@ -28,7 +28,8 @@ describe("decks", () => {
 
   it("checks a custom deck: size, a wolf, uniques, two non-wolves, wolves outnumbered", () => {
     expect(setupProblem(custom({ wolf: 1, villager: 3 }), 5)).toBe("Need exactly 5 role cards (have 4)");
-    expect(setupProblem(custom({ villager: 5 }), 5)).toBe("Needs at least one Wolf team card");
+    expect(setupProblem(custom({ villager: 5 }), 5)).toBe("Needs at least one Wolf card");
+    expect(setupProblem(custom({ wolf: 5 }), 5)).toBe("Needs at least one Village card");
     expect(setupProblem(custom({ wolf: 1, watcher: 2, villager: 2 }), 5)).toBe("Watcher is unique");
     expect(setupProblem(custom({ wolf: 3, villager: 2 }), 5)).toBe("Wolves must be fewer than everyone else");
     expect(setupProblem(custom({ wolf: 2, villager: 3 }), 5)).toBeNull();
@@ -52,6 +53,7 @@ describe("settings", () => {
     expect(rows[0]!.hint).toBe("2 Wolf, 1 Watcher, 4 Villager");
     expect(rows[1]!.options.map((o) => o.label)).toEqual(["1 min", "2 min", "3 min", "4 min", "5 min"]);
     expect(rows[1]!.selected).toBe(1);
+    expect(rows[2]!.hint).toBe("Each night runs its full time, whoever acts");
     const customRows = nightfallSettingFields(custom({ wolf: 1, villager: 4 }), 5);
     expect(customRows.map((r) => r.key)).toEqual(["preset", "n:wolf", "n:watcher", "n:keeper", "n:villager", "discussMinutes", "nightSeconds"]);
   });

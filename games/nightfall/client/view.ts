@@ -47,7 +47,7 @@ export class NightfallView implements GameView {
   private cardKey = "";
   private cardSlot = h("div", { class: "nf-card-slot" });
 
-  private outNote = h("p", { class: "nf-out" }, "You're out. Watch, and keep what you know to yourself.");
+  private outNote = h("p", { class: "nf-out" }, "You're out. Keep what you know to yourself.");
   private news = h("p", { class: "nf-news", "aria-live": "polite" });
   private headline = h("p", { class: "nf-headline", role: "status", "aria-live": "polite" });
   private sub = h("p", { class: "nf-sub" });
@@ -406,12 +406,23 @@ export class NightfallView implements GameView {
   private renderHistory(props: GameViewProps, game: Pub) {
     const show = game.phase !== "reveal" && game.phase !== "finished" && game.dawns.length > 0;
     this.history.hidden = !show;
-    if (!show) return;
+    // Emptied, not just hidden: a rematch mustn't carry the last game's record.
+    if (!show) return replaceChildren(this.history);
     const items: HTMLElement[] = [];
     for (const dawn of game.dawns) {
       items.push(h("li", {}, dawn.died ? `Night ${dawn.night}: ${this.Name(dawn.died, props)} taken. ${TEAM_LABEL[dawn.team!]}.` : `Night ${dawn.night}: nobody taken.`));
       const day = game.days.find((d) => d.day === dawn.night);
-      if (day) items.push(h("li", {}, this.verdictText(day, props), this.votesLine(day.votes, props)));
+      if (day) {
+        items.push(
+          h(
+            "li",
+            {},
+            this.verdictText(day, props),
+            this.votesLine(day.votes, props),
+            day.runoffVotes ? h("span", { class: "nf-votes" }, " Runoff:", this.votesLine(day.runoffVotes, props) ?? " no votes.") : null,
+          ),
+        );
+      }
     }
     replaceChildren(this.history, h("h3", {}, "So far"), h("ol", { class: "nf-log" }, items));
   }

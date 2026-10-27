@@ -46,6 +46,7 @@ export function nightfallSettingFields(raw: unknown, players: number): SettingFi
       label: "Night",
       selected: Math.max(0, NIGHT_OPTIONS.indexOf(settings.nightSeconds)),
       options: NIGHT_OPTIONS.map((n) => ({ label: `${n} s`, patch: { nightSeconds: n } })),
+      hint: "Each night runs its full time, whoever acts",
     },
   ];
 }

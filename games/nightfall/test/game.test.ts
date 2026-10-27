@@ -130,6 +130,12 @@ describe("the night", () => {
     expect(many.size).toBe(2);
   });
 
+  it("the tie-break hangs on the match seed alone, not the RNG at the close", () => {
+    const s = ok(act(ok(act(nightOne(), "p1", { type: "pick", target: "p4" })).state, "p5", { type: "pick", target: "p6" })).state;
+    const target = (rng: number) => g.onTimer!(s, "phase", ctx(s.deadline, rng)).state.nights[0]!.target;
+    expect(new Set([1, 2, 3, 99, 12345].map(target)).size).toBe(1);
+  });
+
   it("no Wolf picks, nobody's taken", () => {
     const t = night(nightOne(), { p3: "p0", p2: "p1" });
     expect(t.state.nights[0]).toMatchObject({ target: null, died: null });
@@ -496,6 +502,15 @@ describe("leaving", () => {
     const t = ring(leave(s, "p1").state);
     expect(t.state).toMatchObject({ phase: "finished", endReason: "abandoned", winner: null });
     expect(t.state.days).toEqual([]);
+  });
+
+  it("one Wolf leaving and the other voted out interrupts; it isn't a village win", () => {
+    let s = toVote(dayOne());
+    s = leave(s, "p5").state;
+    const t = vote(s, { p0: "p1", p2: "p1", p3: "p1", p4: "p1", p6: "p1", p1: "p0" });
+    expect(t.state.days[0]!.out).toBe("p1");
+    expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "abandoned" });
+    expect(g.getResult(t.state)!.winnerIds).toEqual([]);
   });
 
   it("every non-Wolf leaving interrupts too", () => {

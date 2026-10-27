@@ -35,7 +35,7 @@ export const teamOf = (id: RoleId): Team => roleById(id).team;
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 12;
 
-export const DECK_RULES: DeckRules = { size: (n) => n, requireTeams: ["wolves", "village"] };
+export const DECK_RULES: DeckRules = { size: (n) => n, requireTeams: ["wolves", "village"], teamLabels: { wolves: "Wolf", village: "Village" } };
 
 export const wolvesFor = (n: number): number => (n >= 10 ? 3 : n >= 7 ? 2 : 1);
 
