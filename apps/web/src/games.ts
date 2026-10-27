@@ -10,6 +10,7 @@ import { dominionManifest, dominionRules, dominionSettingFields } from "@games/d
 import { dontSayItManifest, dontSayItRules, dontSayItSettingFields } from "@games/dont-say-it/shared";
 import { faceOffManifest, faceOffRules, faceOffSettingFields } from "@games/face-off/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
+import { heistManifest, heistRules, heistSettingFields } from "@games/heist/shared";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
@@ -134,6 +135,12 @@ export const games: Record<string, GameEntry> = {
     rules: shortNightRules,
     settingFields: shortNightSettingFields,
     loadClient: () => import("@games/short-night/client").then((m) => m.default),
+  },
+  heist: {
+    manifest: heistManifest,
+    rules: heistRules,
+    settingFields: heistSettingFields,
+    loadClient: () => import("@games/heist/client").then((m) => m.default),
   },
   ...(BLIND_RALLY && {
     "blind-rally": {

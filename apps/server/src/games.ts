@@ -7,6 +7,7 @@ import { dominionGame } from "@games/dominion/server";
 import { dontSayItGame } from "@games/dont-say-it/server";
 import { faceOffGame } from "@games/face-off/server";
 import type { AnyGameDefinition } from "@games/game-core";
+import { heistGame } from "@games/heist/server";
 import { imposterGame } from "@games/imposter/server";
 import { goFishGame } from "@games/go-fish/server";
 import { oldMaidGame } from "@games/old-maid/server";
@@ -34,6 +35,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   cheat: cheatGame,
   dominion: dominionGame,
   "short-night": shortNightGame,
+  heist: heistGame,
 };
 
 export interface GameFlags {

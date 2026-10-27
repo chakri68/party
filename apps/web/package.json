@@ -20,6 +20,7 @@
     "@games/dont-say-it": "workspace:*",
     "@games/face-off": "workspace:*",
     "@games/game-core": "workspace:*",
+    "@games/heist": "workspace:*",
     "@games/imposter": "workspace:*",
     "@games/go-fish": "workspace:*",
     "@games/old-maid": "workspace:*",

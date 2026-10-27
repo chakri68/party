@@ -51,6 +51,9 @@ importers:
       '@games/go-fish':
         specifier: workspace:*
         version: link:../../games/go-fish
+      '@games/heist':
+        specifier: workspace:*
+        version: link:../../games/heist
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
@@ -121,6 +124,9 @@ importers:
       '@games/go-fish':
         specifier: workspace:*
         version: link:../../games/go-fish
+      '@games/heist':
+        specifier: workspace:*
+        version: link:../../games/heist
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
@@ -333,6 +339,21 @@ importers:
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/heist:
+    dependencies:
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/hidden-roles':
+        specifier: workspace:*
+        version: link:../../packages/hidden-roles
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
