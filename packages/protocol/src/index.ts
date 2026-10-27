@@ -49,10 +49,10 @@ export interface ChatMessage {
   reactions: Partial<Record<Reaction, string[]>>;
 }
 
-/** One line, no control characters, capped (by code point, so emoji don't split). */
-export function cleanChatText(input: string): string {
+/** One line, no control characters, capped (by code point, so emoji don't split). Chat's cap unless a clue or definition asks for its own. */
+export function cleanChatText(input: string, max = CHAT_MAX_LENGTH): string {
   const flat = input.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim();
-  return [...flat].slice(0, CHAT_MAX_LENGTH).join("").trim();
+  return [...flat].slice(0, max).join("").trim();
 }
 
 export const isReaction = (v: unknown): v is Reaction => (REACTIONS as readonly unknown[]).includes(v);
