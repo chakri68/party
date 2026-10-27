@@ -228,7 +228,7 @@ export class ShortNightView implements GameView {
     this.cardKey = key;
     const body = h(
       "div",
-      { class: `sn-card team-${r.team}` },
+      { class: "sn-card" },
       h("span", { class: "sn-card-kicker" }, "You're the"),
       h("strong", { class: "sn-card-role" }, r.label),
       h("span", { class: "sn-card-team" }, `${TEAM_LABEL[r.team]} team`),

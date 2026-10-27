@@ -250,7 +250,7 @@ export class NightfallView implements GameView {
     this.cardKey = key;
     const body = h(
       "div",
-      { class: `nf-card team-${r.team}` },
+      { class: "nf-card" },
       h("span", { class: "nf-card-kicker" }, "You're"),
       h("strong", { class: "nf-card-role" }, r.id === "wolf" ? "a Wolf" : r.id === "villager" ? "a Villager" : `the ${r.label}`),
       h("span", { class: "nf-card-team" }, `${TEAM_LABEL[r.team]} team`),

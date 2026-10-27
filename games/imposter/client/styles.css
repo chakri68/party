@@ -40,9 +40,9 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   overflow-wrap: anywhere;
-  color: var(--accent);
+  /* One colour for the word and for "Imposter": a red card reads from across the table. */
+  color: var(--ink);
 }
-.im-card-body.imposter .im-card-word { color: var(--danger); }
 .im-card-cat { font-size: 0.9rem; }
 
 /* ---- Prompt and input ---------------------------------------------------- */

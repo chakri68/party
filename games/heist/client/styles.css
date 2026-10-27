@@ -53,12 +53,13 @@
 
 /* ---- The card (inside the kit's roleReveal) ------------------------------ */
 
+/* Every card's face looks the same from across the table: one colour and weight
+   for every role name, and no tinted box that only some cards carry. Team stays in words. */
 .hz-card { display: grid; gap: 4px; justify-items: center; }
 .hz-card-kicker { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.hz-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--accent); }
-.hz-card.mole .hz-card-role { color: var(--danger); }
+.hz-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--ink); }
 .hz-card-blurb { font-size: 0.9rem; color: var(--muted); }
-.hz-card-result { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 0.95rem; }
+.hz-card-result { margin-top: 6px; font-size: 0.95rem; }
 
 /* ---- Prompt ----------------------------------------------------------------- */
 

@@ -250,7 +250,7 @@ export class HeistView implements GameView {
     this.cardKey = key;
     const body = h(
       "div",
-      { class: `hz-card ${mole ? "mole" : "crew"}` },
+      { class: "hz-card" },
       h("span", { class: "hz-card-kicker" }, "You're"),
       h("strong", { class: "hz-card-role" }, mole ? "A mole" : "Crew"),
       mole

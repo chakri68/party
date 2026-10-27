@@ -29,20 +29,19 @@
 
 /* ---- The card (inside the kit's roleReveal) ------------------------------ */
 
+/* Every card's face looks the same from across the table: one colour and weight
+   for every role name, and no tinted box that only some cards carry. Team stays in words. */
 .nf-card { display: grid; gap: 4px; justify-items: center; }
 .nf-card-kicker { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.nf-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--accent); }
-.nf-card.team-wolves .nf-card-role { color: var(--danger); }
+.nf-card-role { font-size: clamp(1.6rem, 8vw, 2.2rem); font-weight: 800; line-height: 1.1; color: var(--ink); }
 .nf-card-team { font-size: 0.85rem; font-weight: 700; }
 .nf-card-blurb { font-size: 0.9rem; color: var(--muted); }
 .nf-card-info {
   list-style: none;
   margin: 6px 0 0;
-  padding: 8px 10px;
+  padding: 0;
   display: grid;
   gap: 4px;
-  border-radius: 10px;
-  background: var(--accent-soft);
   font-size: 0.95rem;
 }
 

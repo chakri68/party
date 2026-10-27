@@ -389,7 +389,8 @@ export class ImposterView implements GameView {
   private cardFace(game: Pub, me: Priv): HTMLElement {
     const imposter = me.role === "imposter";
     const spoken = game.mode === "spoken";
-    const cls = ["im-card-body", imposter && "imposter", spoken && "place"].filter(Boolean).join(" ");
+    // No role class: nothing on the face may be styled by who holds it.
+    const cls = ["im-card-body", spoken && "place"].filter(Boolean).join(" ");
     if (imposter) {
       return h(
         "div",
