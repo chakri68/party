@@ -454,6 +454,12 @@ importers:
 
   packages/game-core: {}
 
+  packages/hidden-roles:
+    dependencies:
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../game-core
+
   packages/protocol:
     dependencies:
       '@games/game-core':
