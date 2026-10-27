@@ -42,6 +42,9 @@ importers:
       '@games/dont-say-it':
         specifier: workspace:*
         version: link:../../games/dont-say-it
+      '@games/face-off':
+        specifier: workspace:*
+        version: link:../../games/face-off
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -106,6 +109,9 @@ importers:
       '@games/dont-say-it':
         specifier: workspace:*
         version: link:../../games/dont-say-it
+      '@games/face-off':
+        specifier: workspace:*
+        version: link:../../games/face-off
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -291,6 +297,21 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+
+  games/face-off:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
 
   games/go-fish:
     dependencies:

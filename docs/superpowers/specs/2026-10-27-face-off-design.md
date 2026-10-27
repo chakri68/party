@@ -76,7 +76,7 @@ Timed phases reject actions with `time-up` once `ctx.now` reaches the deadline, 
 
 ## Content
 
-`shared/categories.ts`: 130 original, broad, easy categories, lowercase, each finishing "Name …" naturally ("a breakfast food", "something cold"). Public. A test checks the count, no duplicates, the shape and the length.
+`shared/categories.ts`: 155 original, broad, easy categories, lowercase, each finishing "Name …" naturally ("a breakfast food", "something cold"). Public. A test checks the count, no duplicates, the shape and the length.
 
 ## Deferred
 

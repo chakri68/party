@@ -18,6 +18,7 @@
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",
     "@games/dont-say-it": "workspace:*",
+    "@games/face-off": "workspace:*",
     "@games/game-core": "workspace:*",
     "@games/imposter": "workspace:*",
     "@games/go-fish": "workspace:*",
