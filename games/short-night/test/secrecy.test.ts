@@ -6,7 +6,7 @@ import { NOBODY } from "../shared/types.ts";
 import { act, ctx, g, HOST, ids, ok, ring, type S, start, type T } from "./helpers.ts";
 
 /** Every card in play, two Wolves, the Stray: every kind of secret at once. */
-const FULL: RoleId[] = ["villager", "wolf", "lamplighter", "matchmaker", "bellringer", "gossip", "wanderer", "stray", "wolf", "villager"];
+const FULL: RoleId[] = ["villager", "wolf", "lamplighter", "matchmaker", "bellringer", "eavesdropper", "wanderer", "stray", "wolf", "villager"];
 const ALL = FULL.map((_, i) => `p${i}`);
 const WOLVES = ["p1", "p8"];
 

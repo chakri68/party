@@ -15,7 +15,7 @@ describe("night results, in words", () => {
     expect(say({ kind: "match", targets: ["p1", "p2"], same: false })).toBe("P1 and P2 read as different sides.");
     expect(say({ kind: "bell", neighbours: ["p1", "p2"], count: 1 })).toBe("1 of P1 and P2 reads as a wolf.");
     expect(say({ kind: "bell", neighbours: ["p1", "p2"], count: 2 })).toBe("2 of P1 and P2 read as wolves.");
-    expect(say({ kind: "gossip", pair: ["p1", "p2"] })).toBe("At least one of P1 and P2 reads as a wolf.");
+    expect(say({ kind: "eavesdropper", pair: ["p1", "p2"] })).toBe("At least one of P1 and P2 reads as a wolf.");
   });
 
   it("card-level results name cards", () => {
@@ -32,18 +32,18 @@ describe("night results, in words", () => {
 
   it("the rules and the cards say what reading as a wolf means", () => {
     expect(shortNightRules.join(" ")).toMatch(/Reads as a wolf" means a Wolf or the Stray/);
-    for (const r of ROLES.filter((x) => ["lamplighter", "matchmaker", "bellringer", "gossip"].includes(x.id))) {
+    for (const r of ROLES.filter((x) => ["lamplighter", "matchmaker", "bellringer", "eavesdropper"].includes(x.id))) {
       expect(r.blurb, r.id).toMatch(/read/);
       expect(r.blurb, r.id).not.toMatch(/\b(is|are) (a )?wol(f|ves)\b/);
     }
   });
 });
 
-describe("the Gossip with the Stray dealt", () => {
+describe("the Eavesdropper with the Stray dealt", () => {
   it('always names someone who reads as a wolf; sometimes only the Stray, which is why it says "reads as"', () => {
     let strayOnly = 0;
     for (let seed = 1; seed <= 60; seed++) {
-      const s = start(["villager", "gossip", "villager", "wolf", "villager", "stray", "villager"], {}, seed).state;
+      const s = start(["villager", "eavesdropper", "villager", "wolf", "villager", "stray", "villager"], {}, seed).state;
       const pair = (s.results.p1 as { pair: [string, string] }).pair;
       expect(pair.some((id) => readsAsWolf(s.cards[id]!)), `seed ${seed}`).toBe(true);
       if (!pair.some((id) => s.cards[id] === "wolf")) strayOnly++;
@@ -61,7 +61,7 @@ describe("the night headline", () => {
 
 describe("the dawn log", () => {
   it("says who each picker picked, and tells a pick from a step that ran out", () => {
-    let s = start(["wolf", "lamplighter", "matchmaker", "wanderer", "villager", "gossip"]).state;
+    let s = start(["wolf", "lamplighter", "matchmaker", "wanderer", "villager", "eavesdropper"]).state;
     for (const id of ids(s)) s = ok(act(s, id, { type: "ack" })).state;
     while (s.phase === "night") {
       const role = s.steps[s.step];

@@ -6,7 +6,7 @@ Part 3 of the social deduction roadmap (`2026-10-28-social-deduction-design.md`)
 
 4–10 players, one card each, two teams: **village** and **wolves**. One night, one talk, one vote, done. Village wins if a Wolf is voted out; wolves win otherwise.
 
-Every card except Wolf and Villager is original. The night runs in a fixed, published order; each acting role gets its own 15 s step whether or not anyone's acting in it. Every result is computed from the deal, which never changes, so nothing learned at night goes stale.
+Every card except Wolf and Villager is original, and no role name or card text is borrowed from Blood on the Clocktower either: the final review caught a "Gossip" (a Clocktower name, now the Eavesdropper) and a Bellringer blurb worded close to the Empath's, now rewritten. The night runs in a fixed, published order; each acting role gets its own 15 s step whether or not anyone's acting in it. Every result is computed from the deal, which never changes, so nothing learned at night goes stale.
 
 ### Roles
 
@@ -17,8 +17,8 @@ Listed in night order. "Reads as a wolf" means a Wolf or the Stray (ruling 4).
 | Wolf | wolves | 3 | Step 1, passive | The other Wolves. A lone Wolf instead learns one player holding a Villager card (or that there's none). |
 | Lamplighter | village | 1 | Step 2, picks one other player | Whether they read as village or as a wolf. |
 | Matchmaker | village | 1 | Step 3, picks two other players | Whether the two read as the same side or different sides. |
-| Bellringer | village | 1 | Step 4, passive | How many of their two seat neighbours read as wolves: 0, 1 or 2. |
-| Gossip | village | 1 | Step 5, passive | Two other players, at least one of whom reads as a wolf. The partial truth. |
+| Bellringer | village | 1 | Step 4, passive | The players seated either side of them: how many read as wolves, 0, 1 or 2. |
+| Eavesdropper | village | 1 | Step 5, passive | Two other players, at least one of whom reads as a wolf. The partial truth. |
 | Wanderer | village | 1 | Step 6, picks one other player | One role that player's card is *not*, drawn from the roles in this deck other than the Wanderer itself. |
 | Stray | village | 1 | none | Reads as a wolf to every check above. Knows it. |
 | Villager | village | 10 | none | Nothing. |
@@ -53,15 +53,15 @@ Flat, per the kit: `preset` (`beginner` / `standard` / `full` / `custom`), `n:<r
 Presets, wolves 1 at 4–5 players and 2 at 6–10, the remaining seats filled in this order, Villagers after:
 
 - **Beginner**: Lamplighter.
-- **Standard**: Lamplighter, Matchmaker, Gossip.
-- **Full**: Lamplighter, Matchmaker, Gossip, Bellringer, Wanderer, Stray. At 4 players that's the first three; at 10, all six and two Villagers.
+- **Standard**: Lamplighter, Matchmaker, Eavesdropper.
+- **Full**: Lamplighter, Matchmaker, Eavesdropper, Bellringer, Wanderer, Stray. At 4 players that's the first three; at 10, all six and two Villagers.
 
 ## Rulings
 
 1. **The night is as long as the deck says, never shorter.** One step per acting role *in the deck* (Wolf always, plus each info role with a count). The deck is public (the lobby lists it), so this reveals nothing the room didn't already know. A step never ends early, whether its actor acted, never existed, left or is disconnected, so the night's length says nothing about who's acting. Every phone shows the same banner ("Night: Lamplighter, 2 of 5") for every step, and the same order list: only the dealt roles' steps. The brief's literal reading (every step always, dealt or not) was raised in review; the controller ruled the deck-public reading stands.
 2. **Missed actions are no action.** A picker who doesn't pick in their 15 s gets "You didn't pick in time" and nothing else. No random target (§4.5).
-3. **Passive results are drawn at the deal** (Gossip's pair, the lone Wolf's Villager, Bellringer's count) with the game's RNG, and shown from the role's step. Wanderer's "not" role is drawn when they pick. Both deterministic under a seed.
-4. **One role reads as a wolf: the Stray.** It's village, wins with the village, and every team check (Lamplighter, Matchmaker, Bellringer, Gossip) sees it as a wolf. The Wanderer and the lone Wolf deal in cards, not teams, and see the true card: the Wanderer can learn "not a Wolf" about the Stray. That contradiction is the Stray's tell, on purpose. Voting out the Stray is voting out a villager. Full preset only. Results must be literally true (controller), so team-check results are worded in how players *read* ("At least one of A and B reads as a wolf", "A and B read as the same side"), never what they *are*; the rules text says what reading as a wolf means. The wording lives in `shared/describe.ts` and is tested.
+3. **Passive results are drawn at the deal** (Eavesdropper's pair, the lone Wolf's Villager, Bellringer's count) with the game's RNG, and shown from the role's step. Wanderer's "not" role is drawn when they pick. Both deterministic under a seed.
+4. **One role reads as a wolf: the Stray.** It's village, wins with the village, and every team check (Lamplighter, Matchmaker, Bellringer, Eavesdropper) sees it as a wolf. The Wanderer and the lone Wolf deal in cards, not teams, and see the true card: the Wanderer can learn "not a Wolf" about the Stray. That contradiction is the Stray's tell, on purpose. Voting out the Stray is voting out a villager. Full preset only. Results must be literally true (controller), so team-check results are worded in how players *read* ("At least one of A and B reads as a wolf", "A and B read as the same side"), never what they *are*; the rules text says what reading as a wolf means. The wording lives in `shared/describe.ts` and is tested.
 5. **Wolves see each other in step 1**, not at the deal: the role card says "Wolf" from the start, and the wolf list appears when the night reaches them. Same for every role: nobody's result appears before its step.
 6. **The lone Wolf's consolation** is one random player holding a Villager card. A deck with no Villagers says so instead. It's information a Wolf can lean on to claim an info role without being contradicted by that player.
 7. **Targets are any other player in the deal,** including one who left: their card is still on the table.

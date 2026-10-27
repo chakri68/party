@@ -5,7 +5,7 @@ import { deckFor, deckProblem, type Deck, type DeckRules, type Preset, type Role
 import type { ShortNightSettings } from "./types.ts";
 
 export type Team = "village" | "wolves";
-export type RoleId = "wolf" | "villager" | "lamplighter" | "matchmaker" | "bellringer" | "gossip" | "wanderer" | "stray";
+export type RoleId = "wolf" | "villager" | "lamplighter" | "matchmaker" | "bellringer" | "eavesdropper" | "wanderer" | "stray";
 
 /** How many other players a role picks at night. 0: it just reads its result. */
 export type Picks = 0 | 1 | 2;
@@ -24,10 +24,10 @@ export const ROLES: readonly Role[] = [
   { id: "wolf", label: "Wolf", team: "wolves", max: 3, picks: 0, blurb: "Wake first and meet the other Wolves. Alone, you learn one Villager." },
   { id: "lamplighter", label: "Lamplighter", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn whether they read as village or as a wolf." },
   { id: "matchmaker", label: "Matchmaker", team: "village", max: 1, picks: 2, blurb: "Pick two players. Learn whether they read as the same side." },
-  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Learn how many of your two neighbours read as wolves." },
-  { id: "gossip", label: "Gossip", team: "village", max: 1, picks: 0, blurb: "Hear two names. At least one of them reads as a wolf." },
+  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Your bell counts the players on either side of you who read as wolves: none, one or both." },
+  { id: "eavesdropper", label: "Eavesdropper", team: "village", max: 1, picks: 0, blurb: "Hear two names. At least one of them reads as a wolf." },
   { id: "wanderer", label: "Wanderer", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn one card they don't hold." },
-  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You're village, but you read as a wolf to the Lamplighter, Matchmaker, Bellringer and Gossip." },
+  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You're village, but you read as a wolf to the Lamplighter, Matchmaker, Bellringer and Eavesdropper." },
   { id: "villager", label: "Villager", team: "village", max: 10, picks: null, blurb: "No night. Just your wits." },
 ];
 
@@ -69,8 +69,8 @@ function fill(n: number, extras: RoleId[]): Deck {
 
 export const PRESETS: Preset[] = [
   { id: "beginner", label: "Beginner", deck: (n) => fill(n, ["lamplighter"]) },
-  { id: "standard", label: "Standard", deck: (n) => fill(n, ["lamplighter", "matchmaker", "gossip"]) },
-  { id: "full", label: "Full", deck: (n) => fill(n, ["lamplighter", "matchmaker", "gossip", "bellringer", "wanderer", "stray"]) },
+  { id: "standard", label: "Standard", deck: (n) => fill(n, ["lamplighter", "matchmaker", "eavesdropper"]) },
+  { id: "full", label: "Full", deck: (n) => fill(n, ["lamplighter", "matchmaker", "eavesdropper", "bellringer", "wanderer", "stray"]) },
 ];
 
 export function deckOf(settings: ShortNightSettings, players: number): Deck {

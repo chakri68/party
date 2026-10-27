@@ -3,8 +3,8 @@ import { deckOf } from "../shared/roles.ts";
 import { DEFAULT_SETTINGS, NOBODY, REVEAL_MS, RUNOFF_MS, VOTE_MS } from "../shared/types.ts";
 import { act, ctx, err, g, holder, HOST, ids, ok, players, ring, runNight, type S, start, toNight, toVote, types, vote } from "./helpers.ts";
 
-/** p0 wolf, p1 lamplighter, p2 matchmaker, p3 bellringer, p4 gossip, p5 wolf. */
-const SIX = ["wolf", "lamplighter", "matchmaker", "bellringer", "gossip", "wolf"] as const;
+/** p0 wolf, p1 lamplighter, p2 matchmaker, p3 bellringer, p4 eavesdropper, p5 wolf. */
+const SIX = ["wolf", "lamplighter", "matchmaker", "bellringer", "eavesdropper", "wolf"] as const;
 const six = (seed = 1) => start([...SIX], {}, seed).state;
 
 describe("the deal", () => {
@@ -14,7 +14,7 @@ describe("the deal", () => {
     for (const c of Object.values(t.state.cards)) counts[c] = (counts[c] ?? 0) + 1;
     expect(counts).toEqual(deckOf(DEFAULT_SETTINGS, 7));
     expect(t.state.deck).toEqual(counts);
-    expect(t.state.steps).toEqual(["wolf", "lamplighter", "matchmaker", "gossip"]);
+    expect(t.state.steps).toEqual(["wolf", "lamplighter", "matchmaker", "eavesdropper"]);
   });
 
   it("deals differently on another seed", () => {
@@ -88,7 +88,7 @@ describe("the reveal", () => {
 describe("the night", () => {
   it("runs one step per acting role in the deck, each its full length, then day", () => {
     let s = toNight(six());
-    expect(s.steps).toEqual(["wolf", "lamplighter", "matchmaker", "bellringer", "gossip"]);
+    expect(s.steps).toEqual(["wolf", "lamplighter", "matchmaker", "bellringer", "eavesdropper"]);
     const seen: string[] = [];
     while (s.phase === "night") {
       seen.push(s.steps[s.step]!);
@@ -126,7 +126,7 @@ describe("the night", () => {
 
   it("shows nobody a result before their step", () => {
     const s = toNight(six());
-    expect(g.getPrivateState(s, "p4").result).toBeNull(); // Gossip, drawn already
+    expect(g.getPrivateState(s, "p4").result).toBeNull(); // Eavesdropper, drawn already
     expect(s.results.p4).toBeDefined();
     expect(g.getPrivateState(six(), "p0").result).toBeNull(); // Wolf, during the reveal
   });
@@ -139,14 +139,14 @@ describe("the night", () => {
     });
 
     it("a lone Wolf learns a Villager", () => {
-      const s = toNight(start(["villager", "wolf", "lamplighter", "villager", "gossip"]).state);
+      const s = toNight(start(["villager", "wolf", "lamplighter", "villager", "eavesdropper"]).state);
       const r = g.getPrivateState(s, "p1").result;
       expect(r).toMatchObject({ kind: "wolves", pack: ["p1"] });
       expect(["p0", "p3"]).toContain((r as { villager: string }).villager);
     });
 
     it("a lone Wolf with no Villagers dealt is told so", () => {
-      const s = toNight(start(["gossip", "wolf", "lamplighter", "matchmaker"]).state);
+      const s = toNight(start(["eavesdropper", "wolf", "lamplighter", "matchmaker"]).state);
       expect(g.getPrivateState(s, "p1").result).toEqual({ kind: "wolves", pack: ["p1"], villager: null });
     });
 
@@ -213,12 +213,12 @@ describe("the night", () => {
     });
   });
 
-  describe("Gossip", () => {
+  describe("Eavesdropper", () => {
     it("names two others, at least one a wolf (or the Stray), on every seed", () => {
       for (let seed = 1; seed <= 40; seed++) {
-        const s = start(["villager", "gossip", "villager", "wolf", "villager", "stray", "villager"], {}, seed).state;
+        const s = start(["villager", "eavesdropper", "villager", "wolf", "villager", "stray", "villager"], {}, seed).state;
         const r = s.results.p1!;
-        expect(r.kind).toBe("gossip");
+        expect(r.kind).toBe("eavesdropper");
         const pair = (r as { pair: [string, string] }).pair;
         expect(new Set(pair).size).toBe(2);
         expect(pair).not.toContain("p1");
@@ -228,7 +228,7 @@ describe("the night", () => {
 
     it("hears it in its own step", () => {
       let s = toNight(six());
-      while (s.steps[s.step] !== "gossip") {
+      while (s.steps[s.step] !== "eavesdropper") {
         expect(g.getPrivateState(s, "p4").result).toBeNull();
         s = ring(s).state;
       }
@@ -529,7 +529,7 @@ describe("results", () => {
     expect(r.headline).toBe("Village wins");
     expect(r.winnerIds).toEqual(["p1", "p2", "p3", "p4"]);
     expect(r.standings.map((x) => x.label)).toEqual([
-      "Lamplighter, won", "Matchmaker, won", "Bellringer, won", "Gossip, won", "Wolf, lost", "Wolf, lost",
+      "Lamplighter, won", "Matchmaker, won", "Bellringer, won", "Eavesdropper, won", "Wolf, lost", "Wolf, lost",
     ]);
   });
 
@@ -554,13 +554,13 @@ describe("results", () => {
     s = vote(s, { p0: "p1", p1: "p0", p2: "p0", p3: "p1", p4: NOBODY, p5: "p2" }).state;
     s = vote(s, { p0: "p1", p1: "p0", p2: "p0", p3: "p0", p4: "p0", p5: "p1" }).state;
     const pub = g.getPublicState(s);
-    expect(pub.cards).toEqual({ p0: "wolf", p1: "lamplighter", p2: "matchmaker", p3: "bellringer", p4: "gossip", p5: "wolf" });
+    expect(pub.cards).toEqual({ p0: "wolf", p1: "lamplighter", p2: "matchmaker", p3: "bellringer", p4: "eavesdropper", p5: "wolf" });
     expect(pub.night!.map((e) => [e.role, e.holders, e.targets, e.result?.kind])).toEqual([
       ["wolf", ["p0", "p5"], [], "wolves"],
       ["lamplighter", ["p1"], ["p0"], "lamp"],
       ["matchmaker", ["p2"], ["p3", "p4"], "match"],
       ["bellringer", ["p3"], [], "bell"],
-      ["gossip", ["p4"], [], "gossip"],
+      ["eavesdropper", ["p4"], [], "eavesdropper"],
     ]);
     expect(pub.votes).toEqual({ p0: "p1", p1: "p0", p2: "p0", p3: "p1", p4: NOBODY, p5: "p2" });
     expect(pub.runoffVotes).toEqual({ p0: "p1", p1: "p0", p2: "p0", p3: "p0", p4: "p0", p5: "p1" });

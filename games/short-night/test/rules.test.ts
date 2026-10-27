@@ -23,12 +23,27 @@ const custom = (counts: Record<string, number>): ShortNightSettings => ({
 
 describe("roles", () => {
   it("Wolf and Villager plus six of our own, wolves on their own team", () => {
-    expect(ROLES.map((r) => r.id).sort()).toEqual(["bellringer", "gossip", "lamplighter", "matchmaker", "stray", "villager", "wanderer", "wolf"]);
+    expect(ROLES.map((r) => r.id).sort()).toEqual(["bellringer", "eavesdropper", "lamplighter", "matchmaker", "stray", "villager", "wanderer", "wolf"]);
     expect(ROLES.filter((r) => r.team === "wolves").map((r) => r.id)).toEqual(["wolf"]);
   });
 
+  it("borrows no role name from Blood on the Clocktower", () => {
+    // Its town, outsider and traveller names a village card might drift towards.
+    const theirs = [
+      "Washerwoman", "Librarian", "Investigator", "Chef", "Empath", "Fortune Teller", "Undertaker", "Monk", "Ravenkeeper",
+      "Virgin", "Slayer", "Soldier", "Mayor", "Butler", "Drunk", "Recluse", "Saint", "Grandmother", "Sailor", "Chambermaid",
+      "Exorcist", "Innkeeper", "Gambler", "Gossip", "Courtier", "Professor", "Minstrel", "Tea Lady", "Pacifist", "Fool",
+      "Tinker", "Moonchild", "Lunatic", "Clockmaker", "Dreamer", "Snake Charmer", "Mathematician", "Flowergirl", "Town Crier",
+      "Oracle", "Savant", "Seamstress", "Philosopher", "Artist", "Juggler", "Sage", "Mutant", "Sweetheart", "Barber", "Klutz",
+      "Balloonist", "Lycanthrope", "Nightwatchman", "Huntsman", "Fisherman", "Farmer", "Alchemist", "Magician", "Choirboy",
+      "Engineer", "Steward", "Knight", "Noble", "Shugenja", "High Priestess", "Village Idiot", "Banshee", "Hermit", "Princess",
+      "Scapegoat", "Gunslinger", "Beggar", "Bureaucrat", "Thief", "Bishop", "Judge", "Apprentice", "Matron", "Gnome",
+    ].map((n) => n.toLowerCase());
+    for (const r of ROLES) expect(theirs, r.label).not.toContain(r.label.toLowerCase());
+  });
+
   it("acts in a fixed published order, Wolves first", () => {
-    expect(NIGHT_ORDER).toEqual(["wolf", "lamplighter", "matchmaker", "bellringer", "gossip", "wanderer"]);
+    expect(NIGHT_ORDER).toEqual(["wolf", "lamplighter", "matchmaker", "bellringer", "eavesdropper", "wanderer"]);
   });
 
   it("only the Wolf and the Stray read as wolves", () => {
@@ -68,15 +83,15 @@ describe("presets", () => {
     expect(deckOf({ ...DEFAULT_SETTINGS, preset: "beginner" }, 7)).toEqual({ wolf: 2, lamplighter: 1, villager: 4 });
   });
 
-  it("Standard adds the Matchmaker and the Gossip", () => {
-    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "standard" }, 4)).toEqual({ wolf: 1, lamplighter: 1, matchmaker: 1, gossip: 1 });
-    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "standard" }, 8)).toEqual({ wolf: 2, lamplighter: 1, matchmaker: 1, gossip: 1, villager: 3 });
+  it("Standard adds the Matchmaker and the Eavesdropper", () => {
+    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "standard" }, 4)).toEqual({ wolf: 1, lamplighter: 1, matchmaker: 1, eavesdropper: 1 });
+    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "standard" }, 8)).toEqual({ wolf: 2, lamplighter: 1, matchmaker: 1, eavesdropper: 1, villager: 3 });
   });
 
   it("Full fits as many roles as there are seats, Stray last", () => {
-    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "full" }, 4)).toEqual({ wolf: 1, lamplighter: 1, matchmaker: 1, gossip: 1 });
+    expect(deckOf({ ...DEFAULT_SETTINGS, preset: "full" }, 4)).toEqual({ wolf: 1, lamplighter: 1, matchmaker: 1, eavesdropper: 1 });
     expect(deckOf({ ...DEFAULT_SETTINGS, preset: "full" }, 10)).toEqual({
-      wolf: 2, lamplighter: 1, matchmaker: 1, gossip: 1, bellringer: 1, wanderer: 1, stray: 1, villager: 2,
+      wolf: 2, lamplighter: 1, matchmaker: 1, eavesdropper: 1, bellringer: 1, wanderer: 1, stray: 1, villager: 2,
     });
   });
 });
@@ -105,7 +120,7 @@ describe("setupProblem", () => {
   });
 
   it("a custom deck that fit stops fitting when the table grows", () => {
-    const s = custom({ wolf: 1, gossip: 1, villager: 3 });
+    const s = custom({ wolf: 1, eavesdropper: 1, villager: 3 });
     expect(setupProblem(s, 5)).toBeNull();
     expect(setupProblem(s, 6)).toBe("Need exactly 6 role cards (have 5)");
   });
@@ -113,7 +128,7 @@ describe("setupProblem", () => {
 
 describe("nightSteps", () => {
   it("is the night order, cut to the roles in the deck", () => {
-    expect(nightSteps({ wolf: 2, gossip: 1, villager: 3, lamplighter: 1, stray: 1 })).toEqual(["wolf", "lamplighter", "gossip"]);
+    expect(nightSteps({ wolf: 2, eavesdropper: 1, villager: 3, lamplighter: 1, stray: 1 })).toEqual(["wolf", "lamplighter", "eavesdropper"]);
   });
 });
 

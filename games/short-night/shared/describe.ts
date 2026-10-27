@@ -32,7 +32,7 @@ export function describeResult(r: NightResult, holder: string, me: string, name:
       return `${Name(r.targets[0])} and ${name(r.targets[1])} read as ${r.same ? "the same side" : "different sides"}.`;
     case "bell":
       return `${r.count} of ${list(r.neighbours.map(name))} ${r.count === 1 ? "reads as a wolf" : "read as wolves"}.`;
-    case "gossip":
+    case "eavesdropper":
       return `At least one of ${list(r.pair.map(name))} reads as a wolf.`;
     case "wander":
       return `${Name(r.target)} ${you(r.target) ? "aren't" : "isn't"} the ${roleById(r.notRole).label}.`;

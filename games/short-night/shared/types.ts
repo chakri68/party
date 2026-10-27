@@ -40,7 +40,7 @@ export type NightResult =
   | { kind: "lamp"; target: string; reads: Team }
   | { kind: "match"; targets: [string, string]; same: boolean }
   | { kind: "bell"; neighbours: [string, string]; count: number }
-  | { kind: "gossip"; pair: [string, string] }
+  | { kind: "eavesdropper"; pair: [string, string] }
   | { kind: "wander"; target: string; notRole: RoleId }
   /** A picker whose step ran out. */
   | { kind: "missed" };

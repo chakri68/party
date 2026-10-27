@@ -6,10 +6,10 @@ import { DEFAULT_SETTINGS, DISCUSS_OPTIONS, type ShortNightSettings, STEP_OPTION
 /** Plain-language rules for the lobby's Rules button. */
 export const shortNightRules: string[] = [
   "Everyone gets one secret card. Most of you are village; one or two are Wolves.",
-  "Then one night. Every role that acts gets its own short step, in this order: Wolf, Lamplighter, Matchmaker, Bellringer, Gossip, Wanderer. Only the roles in the deck get a step, and every step runs its full time, so the clock gives nothing away.",
+  "Then one night. Every role that acts gets its own short step, in this order: Wolf, Lamplighter, Matchmaker, Bellringer, Eavesdropper, Wanderer. Only the roles in the deck get a step, and every step runs its full time, so the clock gives nothing away.",
   "Everyone picks on every step, whatever their card: only the picks of the card that's awake count. That way nobody can tell whose turn it really is.",
   ...ROLES.map((r) => `${r.label}: ${r.blurb}`),
-  "\"Reads as a wolf\" means a Wolf or the Stray: the Lamplighter, Matchmaker, Bellringer and Gossip can't tell them apart. The Wanderer and a lone Wolf see the real card.",
+  "\"Reads as a wolf\" means a Wolf or the Stray: the Lamplighter, Matchmaker, Bellringer and Eavesdropper can't tell them apart. The Wanderer and a lone Wolf see the real card.",
   "Whatever you learn at night is true, and stays true: nobody's card ever changes.",
   "Then talk, out loud, for a few minutes. Claim what you like. Wolves lie.",
   "Then everyone votes for one other player, or for nobody. Nobody wins only with more votes than every player. A tie between players goes to a 10-second runoff; still tied, nobody goes.",

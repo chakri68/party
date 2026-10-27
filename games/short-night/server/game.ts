@@ -121,11 +121,11 @@ function drawPassive(state: State, ctx: GameContext): void {
     const count = [left, right].filter((n) => readsAsWolf(card(n))).length;
     state.results[id] = { kind: "bell", neighbours: [left, right], count };
   }
-  for (const id of holders(state, "gossip")) {
+  for (const id of holders(state, "eavesdropper")) {
     const others = ids.filter((o) => o !== id);
     const wolf = pick(others.filter((o) => readsAsWolf(card(o))), ctx);
     const other = pick(others.filter((o) => o !== wolf), ctx);
-    state.results[id] = { kind: "gossip", pair: ctx.randomInt(2) ? [wolf, other] : [other, wolf] };
+    state.results[id] = { kind: "eavesdropper", pair: ctx.randomInt(2) ? [wolf, other] : [other, wolf] };
   }
 }
 
