@@ -361,8 +361,10 @@ export class PassTheBombView implements GameView {
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);
     if (typing && !this.form.hidden) this.input.focus({ preventScroll: true });
-    // Voted down and still holding it: straight back to typing.
-    if (backFromVote && holding && !this.form.hidden) {
+    // Voted down and still holding it: straight back to typing, unless they've
+    // wandered off to chat (hiding the form for the vote left focus on body).
+    const idle = document.activeElement === document.body || document.activeElement === null;
+    if (backFromVote && holding && !this.form.hidden && (idle || typing)) {
       this.input.focus({ preventScroll: true });
       this.input.select();
     }
