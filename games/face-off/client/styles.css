@@ -4,6 +4,9 @@
 .fo {
   display: grid;
   gap: 10px;
+  /* The shell's game host is a flex column: without this the game shrinks to
+     its content, so the table sat ~230px wide and the duel jumped to full. */
+  width: 100%;
   max-width: 560px;
   margin: 0 auto;
   text-align: center;
@@ -90,7 +93,6 @@
 .fo-duel {
   display: grid;
   grid-template-rows: auto 1fr;
-  min-height: min(72dvh, 620px);
   padding: 0 14px;
   border: 1.5px solid var(--accent);
   border-radius: var(--radius);
@@ -98,6 +100,9 @@
   color: var(--ink);
 }
 .fo-duel[hidden] { display: none; }
+/* Tall for the duelists, whose buzzer wants the room. Spectators get the card
+   at its content's height, not centred in an empty one. */
+.fo-duel.mine { min-height: min(72dvh, 620px); }
 /* The body's parts are wrappers only, so the buzzer can stay put between them. */
 .fo-duel-part { display: contents; }
 .fo-duel-track { height: 8px; margin: 12px 0 0; border-radius: 4px; background: var(--line); overflow: hidden; }
