@@ -382,6 +382,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/words
 
+  games/nightfall:
+    dependencies:
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/hidden-roles':
+        specifier: workspace:*
+        version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
   games/old-maid:
     dependencies:
       '@games/animation':
