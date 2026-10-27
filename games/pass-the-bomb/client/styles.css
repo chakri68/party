@@ -189,9 +189,86 @@
 .pb-player.away { opacity: 0.6; border-style: dashed; }
 .pb-player.hit { border-color: var(--fire); background: rgb(255 179 71 / 0.16); animation: pb-shake 360ms ease; }
 
+/* ---- Modes and the vote -------------------------------------------------- */
+
+.pb-modes { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.pb-mode {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+
+/* Under the letters, on the bomb's body. */
+.pb-category {
+  position: absolute;
+  left: 46.7%;
+  top: 82%;
+  translate: -50% -50%;
+  font-size: clamp(0.62rem, 2.6vw, 0.8rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fire);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Over the table, not in the flow: the bomb stays put underneath. */
+.pass-the-bomb { position: relative; }
+.pb-vote {
+  position: absolute;
+  z-index: 5;
+  top: 28px;
+  left: 50%;
+  translate: -50% 0;
+  width: min(100%, 360px);
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid var(--fire);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+  animation: pb-lit 260ms cubic-bezier(.2, .8, .2, 1.2);
+}
+.pb-vote[hidden] { display: none; }
+.pb-vote p { margin: 0; }
+.pb-vote-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+.pb-vote-word { font-size: 2rem; font-weight: 800; letter-spacing: 0.06em; overflow-wrap: anywhere; color: var(--fire); }
+.pb-vote-by { font-size: 0.85rem; color: var(--muted); }
+.pb-vote-bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.pb-vote-bar span { display: block; height: 100%; background: var(--fire); transform-origin: left; transform: scaleX(0); }
+.pb-vote-bar span.run { animation: pb-drain var(--left, 4s) linear both; }
+@keyframes pb-drain {
+  from { transform: scaleX(var(--from, 1)); }
+  to { transform: scaleX(0); }
+}
+.pb-vote-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pb-vote-buttons[hidden] { display: none; }
+.pb-vote-buttons button { min-height: 56px; font-size: 1.1rem; font-weight: 700; border-radius: 12px; }
+.pb-vote-allow[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #111); }
+.pb-vote-reject[aria-pressed="true"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.pb-vote-wait { font-weight: 700; }
+.pb-vote-count { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.pb-verdict { margin: 0; font-size: 0.85rem; color: var(--muted); min-height: 0; }
+.pb-verdict b { color: var(--accent); letter-spacing: 0.04em; }
+.pb-verdict.no b { color: var(--danger); text-decoration: line-through; }
+/* Frozen fuse: the spark holds still while the room decides. */
+.pass-the-bomb.voting .pb-spark, .pass-the-bomb.voting .pb-stage.mine .pb-bomb { animation-play-state: paused; }
+.pass-the-bomb.voting .pb-stage { opacity: 0.5; }
+
 @media (prefers-reduced-motion: reduce) {
   .pb-spark, .pb-stage.mine .pb-bomb, .pb-burst:not([hidden]), .pb-burst:not([hidden]) svg { animation: none; }
   .pb-stage.hop .pb-bomb, .pb-stage.hop .pb-cluster, .pb-stage.lit .pb-bomb, .pb-stage.lit .pb-cluster { animation: none; }
   .pass-the-bomb .shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
   .pb-player.hit { animation: none; }
+  .pb-vote { animation: none; }
+  .pb-vote-bar span.run { animation: none; transform: scaleX(1); }
 }

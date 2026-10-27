@@ -98,7 +98,7 @@ Private, added: `canVote`, `myVote`.
 12. **A resumed fuse keeps its remainder, floored at 1 ms**: a vote opened in the last moment resumes into a bang, as it would have without the vote.
 13. **The vote is in public state as a phase, `vote`**, not a flag on `live`. The tick, the typing stream and the host's skip all key off `live`, and all three should stop while the room decides. `getAwaitedPlayerIds` is empty during it: the 4 s timer carries it, so there's nobody to skip.
 14. **Displayed letters are public, effective letters are the client's to work out** with the shared `effectiveCluster`. Reversing three letters is a puzzle, not a secret.
-15. **Two existing tests** pass a two-field settings literal to `createGame`; they now spread `DEFAULT_SETTINGS` so they typecheck. No assertion changes.
+15. **Three existing tests change their setup, not their assertions.** Two pass a two-field settings literal to `createGame` and now spread `DEFAULT_SETTINGS` so they typecheck. The non-word test asks for `unknown: "strict"`: with the default now `vote`, "singz" opens a vote instead of bouncing, and strict is the shipped behaviour that test pins.
 
 ## Deferred
 

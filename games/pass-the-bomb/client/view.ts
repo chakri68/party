@@ -1,8 +1,17 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
-import { MAX_WORD, type PassTheBombEvent, type PassTheBombPrivateState, type PassTheBombPublicState } from "../shared/types.ts";
+import { effectiveCluster, normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
+import {
+  CATEGORY_LABELS,
+  LENGTH_MAX,
+  LENGTH_MIN,
+  MAX_WORD,
+  type PassTheBombEvent,
+  type PassTheBombPrivateState,
+  type PassTheBombPublicState,
+  type VoteChoice,
+} from "../shared/types.ts";
 import { bombEl, burstEl } from "./bomb.ts";
 
 type Pub = PassTheBombPublicState;
@@ -11,6 +20,26 @@ type Pub = PassTheBombPublicState;
 const BOOM_ANIM_MS = 900;
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** What the word needs, worked out from what the bomb shows. */
+const needs = (game: Pub) => effectiveCluster(game.cluster, game.modes);
+
+/** "an animal ending in GNI, backwards": what the holder's after, as the bomb puts it. */
+function ask(game: Pub): string {
+  const what = game.category ? `a word from ${CATEGORY_LABELS[game.category].toUpperCase()}` : "a word";
+  const where = game.modes.ending ? "ending in" : "with";
+  const backwards = game.modes.reverse ? " backwards" : "";
+  const size = game.modes.length ? `, ${LENGTH_MIN}–${LENGTH_MAX} letters` : "";
+  return `${what} ${where} ${game.cluster.toUpperCase()}${backwards}${size}`;
+}
+
+/** "Allow: Sam, You · Reject: Kit" */
+function voteLine(votes: Record<string, VoteChoice>, name: (id: string) => string): string {
+  const by = (c: VoteChoice) => Object.keys(votes).filter((id) => votes[id] === c).map(name);
+  const allow = by("allow");
+  const rej = by("reject");
+  return [allow.length ? `Allow: ${allow.join(", ")}` : "", rej.length ? `Reject: ${rej.join(", ")}` : ""].filter(Boolean).join(" · ") || "Nobody voted";
+}
 
 /** Restarts a one-off animation class, even if it's already on. */
 function replay(el: Element, cls: string) {
@@ -44,6 +73,28 @@ export class PassTheBombView implements GameView {
   private bomb = bombEl();
   private burst = burstEl();
   private cluster = h("span", { class: "pb-cluster" });
+  private category = h("span", { class: "pb-category" });
+  private modes = h("p", { class: "pb-modes", "aria-label": "Modes" });
+  private voteWord = h("p", { class: "pb-vote-word" });
+  private voteBy = h("p", { class: "pb-vote-by" });
+  private voteBar = h("div", { class: "pb-vote-bar", "aria-hidden": "true" }, h("span"));
+  private voteCount = h("p", { class: "pb-vote-count", "aria-live": "polite" });
+  private allowBtn = h("button", { type: "button", class: "pb-vote-allow" }, "Allow");
+  private rejectBtn = h("button", { type: "button", class: "pb-vote-reject" }, "Reject");
+  private voteButtons = h("div", { class: "pb-vote-buttons" }, this.allowBtn, this.rejectBtn);
+  private voteWait = h("p", { class: "pb-vote-wait" }, "The room is deciding");
+  private voteCard = h(
+    "section",
+    { class: "pb-vote", role: "dialog", "aria-label": "Room vote" },
+    h("p", { class: "pb-vote-title" }, "Is this a word?"),
+    this.voteWord,
+    this.voteBy,
+    this.voteBar,
+    this.voteButtons,
+    this.voteWait,
+    this.voteCount,
+  );
+  private verdict = h("p", { class: "pb-verdict" });
   private status = h("p", { class: "pb-status", role: "status", "aria-live": "polite" });
   private typing = h("p", { class: "pb-typing", "aria-hidden": "true" });
   private last = h("p", { class: "pb-last" });
@@ -68,21 +119,29 @@ export class PassTheBombView implements GameView {
   private turn = -1;
   private typed = "";
   private pending: string | null = null;
+  /** The ballot the bar is running for. */
+  private voteId = -1;
   private clock: ReturnType<typeof setInterval>;
 
   constructor(api: GameClientApi) {
     this.api = api;
-    this.stage.append(this.bomb, this.burst, this.cluster);
+    this.stage.append(this.bomb, this.burst, this.cluster, this.category);
+    this.voteCard.hidden = true;
     this.root.append(
       h("div", { class: "pb-top" }, this.round, this.used),
+      this.modes,
       this.stage,
+      this.voteCard,
       this.status,
       this.typing,
       this.form,
       this.note,
       this.last,
+      this.verdict,
       this.players,
     );
+    this.allowBtn.addEventListener("click", () => this.vote("allow"));
+    this.rejectBtn.addEventListener("click", () => this.vote("reject"));
     this.form.addEventListener("submit", (e) => {
       e.preventDefault();
       this.submit();
@@ -118,7 +177,7 @@ export class PassTheBombView implements GameView {
     const t = parseTyping(data);
     const game = this.props?.game as Pub | undefined;
     if (!t || !game || t.turn !== game.turn || this.holding()) return;
-    this.showTyping(t.text, game.cluster);
+    this.showTyping(t.text, needs(game));
     if (t.wrong) replay(this.typing, "shake");
   }
 
@@ -129,7 +188,7 @@ export class PassTheBombView implements GameView {
       const t = parseTyping(props.stream);
       this.settle(props);
       const game = props.game as Pub;
-      if (t && t.turn === game.turn && !this.holding()) this.showTyping(t.text, game.cluster);
+      if (t && t.turn === game.turn && !this.holding()) this.showTyping(t.text, needs(game));
       return;
     }
     this.props = props;
@@ -156,7 +215,7 @@ export class PassTheBombView implements GameView {
     const game = this.props?.game as Pub | undefined;
     if (!game || !this.holding()) return;
     const text = this.input.value.toLowerCase().replace(/[^a-z]/g, "");
-    this.showTyping(text, game.cluster);
+    this.showTyping(text, needs(game));
     this.api.stream({ turn: game.turn, text });
   }
 
@@ -169,9 +228,19 @@ export class PassTheBombView implements GameView {
     }
     const word = normalizeWord(this.input.value);
     if (!word) return;
-    const problem = shapeProblem(word, game.cluster);
+    const problem = shapeProblem(word, needs(game), game.modes);
     if (problem) return this.bounce(problem);
     this.pending = this.api.act({ type: "word", text: word });
+  }
+
+  private vote(choice: VoteChoice) {
+    const game = this.props?.game as Pub | undefined;
+    if (!game?.vote) return;
+    this.api.act({ type: "vote", ballot: game.vote.id, choice });
+    // Lit straight away; the next update confirms it.
+    this.allowBtn.setAttribute("aria-pressed", String(choice === "allow"));
+    this.rejectBtn.setAttribute("aria-pressed", String(choice === "reject"));
+    audio.buzz(15);
   }
 
   /** A word that didn't take: shake, say why, and let the others see it bounce. */
@@ -211,10 +280,10 @@ export class PassTheBombView implements GameView {
       this.pending = null;
       this.input.value = "";
       this.note.textContent = "";
-      this.showTyping("", game.cluster);
+      this.showTyping("", needs(game));
     }
     // Once it's gone off, whatever they were typing went with it.
-    if (game.phase !== "live") this.showTyping("", game.cluster);
+    if (game.phase === "boom" || game.phase === "finished") this.showTyping("", needs(game));
 
     this.round.textContent = `Round ${game.round}`;
     this.used.textContent = `${game.usedCount} ${game.usedCount === 1 ? "word" : "words"} played`;
@@ -226,10 +295,24 @@ export class PassTheBombView implements GameView {
     this.burst.hidden = !boom;
     this.cluster.hidden = boom || game.phase === "finished";
     this.cluster.textContent = game.cluster.toUpperCase();
+    this.category.hidden = this.cluster.hidden || !game.category;
+    this.category.textContent = game.category ? CATEGORY_LABELS[game.category] : "";
+    replaceChildren(
+      this.modes,
+      [
+        game.modes.ending ? "End" : null,
+        game.modes.reverse ? "Backwards" : null,
+        game.modes.length ? `${LENGTH_MIN}–${LENGTH_MAX} letters` : null,
+        game.modes.category ? "Category" : null,
+      ].filter((m): m is string => !!m).map((m) => h("span", { class: "pb-mode" }, m)),
+    );
+    this.modes.hidden = !this.modes.childElementCount;
 
     const holder = game.holderId === me ? "You" : seatName(props.room, game.holderId);
-    if (game.phase === "live") {
-      this.status.textContent = holding ? `Your go: a word with ${game.cluster.toUpperCase()}` : `${holder} has it`;
+    if (game.phase === "vote") {
+      this.status.textContent = "The room's deciding";
+    } else if (game.phase === "live") {
+      this.status.textContent = holding ? `Your go: ${ask(game)}` : `${holder} has it`;
     } else if (game.blownId) {
       const who = game.blownId === me ? "You" : seatName(props.room, game.blownId);
       const left = game.players.find((p) => p.id === game.blownId)?.lives ?? 0;
@@ -240,6 +323,17 @@ export class PassTheBombView implements GameView {
       this.status.textContent = "";
     }
 
+    this.renderVote(props, game);
+    const lv = game.lastVote;
+    const name = (id: string) => (id === me ? "You" : seatName(props.room, id));
+    replaceChildren(
+      this.verdict,
+      lv && game.phase !== "finished"
+        ? [`The room ${lv.allowed ? "allowed" : "rejected"} `, h("b", {}, lv.word.toUpperCase()), `. ${voteLine(lv.votes, name)}`]
+        : null,
+    );
+    this.verdict.classList.toggle("no", !!lv && !lv.allowed);
+
     const lw = game.lastWord;
     replaceChildren(
       this.last,
@@ -249,13 +343,46 @@ export class PassTheBombView implements GameView {
     // Out, watching, or it's over: no keyboard. Otherwise it stays up between
     // turns, so the phone's keyboard doesn't bounce every time the bomb moves.
     const typing = document.activeElement === this.input;
-    this.form.hidden = !inGame || game.phase === "finished";
-    this.input.placeholder = holding ? `Something with ${game.cluster.toUpperCase()}` : game.phase === "live" ? "Wait for the bomb" : "Next round's coming";
+    this.form.hidden = !inGame || game.phase === "finished" || game.phase === "vote";
+    this.input.placeholder = holding
+      ? `Something ${game.modes.ending ? "ending in" : "with"} ${game.cluster.toUpperCase()}${game.modes.reverse ? " backwards" : ""}`
+      : game.phase === "live" ? "Wait for the bomb" : "Next round's coming";
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);
     if (typing && !this.form.hidden) this.input.focus({ preventScroll: true });
 
     this.renderPlayers(props, game);
+  }
+
+  /** The card over the table while the room decides: buttons for voters, a wait for everyone else. */
+  private renderVote(props: GameViewProps, game: Pub) {
+    const v = game.phase === "vote" ? game.vote : null;
+    const priv = props.private as PassTheBombPrivateState | null;
+    this.voteCard.hidden = !v;
+    this.root.classList.toggle("voting", !!v);
+    if (!v) {
+      this.voteId = -1;
+      return;
+    }
+    const me = props.playerId;
+    this.voteWord.textContent = v.word.toUpperCase();
+    this.voteBy.textContent = `${v.by === me ? "You" : seatName(props.room, v.by)} played it. Not in the ${game.category ? `${CATEGORY_LABELS[game.category].toLowerCase()} list` : "dictionary"}.`;
+    this.voteCount.textContent = `${v.voted.length} of ${v.voters.length} voted`;
+    const canVote = !!priv?.canVote;
+    this.voteButtons.hidden = !canVote;
+    this.voteWait.hidden = canVote;
+    this.voteWait.textContent = v.by === me ? "The room is deciding on yours" : "The room is deciding";
+    this.allowBtn.setAttribute("aria-pressed", String(priv?.myVote === "allow"));
+    this.rejectBtn.setAttribute("aria-pressed", String(priv?.myVote === "reject"));
+    if (v.id !== this.voteId) {
+      // The bar drains over whatever's left by the server's clock.
+      this.voteId = v.id;
+      const left = Math.max(0, Math.min(v.ms, v.deadline - this.api.serverNow()));
+      const bar = this.voteBar.firstElementChild as HTMLElement;
+      bar.style.setProperty("--left", `${left}ms`);
+      bar.style.setProperty("--from", String(left / v.ms));
+      replay(bar, "run");
+    }
   }
 
   private renderPlayers(props: GameViewProps, game: Pub) {
@@ -299,11 +426,21 @@ export class PassTheBombView implements GameView {
           break;
         case "passed":
         case "skipped":
-          audio.play(e.type === "passed" ? "correct" : "pass");
+          // An allowed word already got its sound from the vote.
+          if (!(e.type === "passed" && e.voted)) audio.play(e.type === "passed" ? "correct" : "pass");
           if (e.to === me) this.yourGo();
           break;
         case "left":
           if (e.to === me) this.yourGo();
+          break;
+        case "vote-opened": {
+          const priv = props.private as PassTheBombPrivateState | null;
+          audio.play(priv?.canVote ? "nudge" : "pass");
+          if (priv?.canVote) audio.buzz([20, 40, 20]);
+          break;
+        }
+        case "vote-closed":
+          audio.play(e.allowed ? "correct" : "reject");
           break;
         case "boom":
           audio.play("boom");
