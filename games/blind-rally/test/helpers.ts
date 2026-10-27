@@ -2,9 +2,11 @@ import { seededRandomInt, type GameContext } from "@games/game-core";
 import { expect } from "vitest";
 import { blindRallyGame as game } from "../server/game.ts";
 import { defaultTrack, trackData } from "../server/geometry.ts";
+import { rallyGame } from "../server/rally.ts";
+import { parseRallySettings } from "../shared/rally.ts";
 import { DEFAULT_SETTINGS, type BlindRallyAction, type BlindRallySettings, type BlindRallyState } from "../shared/types.ts";
 
-export { game };
+export { game, rallyGame };
 
 /** p0 is the host unless a test says otherwise. */
 export const ctx = (now = 0, hostId: string | null = "p0"): GameContext => ({ now, randomInt: seededRandomInt(1), hostId });
@@ -106,4 +108,22 @@ export function finishRun(state: BlindRallyState, nav: string, now: number) {
   ({ state: s, now: t } = driveTo(s, nav, TRACK.finish.position, t));
   s = act(s, nav, { type: "race.event", kind: "finish" }, ctx(t));
   return { state: s, now: t };
+}
+
+/**
+ * Rally (rally-spec.md): `players` cars of one, p0..pn, on Rally's settings.
+ * Its definition is Blind Rally's with a `variant` on the state, so act(),
+ * driveTo() and the rest work on it as they are.
+ */
+export function newRally(players = 2, settings: Partial<BlindRallySettings> = {}, carry?: unknown): BlindRallyState {
+  const ids = Array.from({ length: players }, (_, i) => ({ id: `p${i}` }));
+  const parsed = parseRallySettings(settings)!;
+  return rallyGame.createGame(ids, parsed, { roundNumber: 1, dealerSeat: 0, ...(carry !== undefined && { carry }) }, ctx()).state;
+}
+
+/** Everyone in a car ready, and the race started at t=0. */
+export function rallying(players = 2, settings: Partial<BlindRallySettings> = {}): BlindRallyState {
+  let s = newRally(players, settings);
+  for (const t of s.teams) if (t.driverId) s = act(s, t.driverId, { type: "player.ready", ready: true });
+  return act(s, "p0", { type: "race.start" });
 }

@@ -45,7 +45,8 @@ export function teamClock(game: BlindRallyPublicState, team: PublicTeam | undefi
 /** "Sam dropped out: 23 s to get back. Clock stopped." for whichever teammate's gone, or null. */
 export function awayBanner(team: PublicTeam | undefined, nameOf: (role: "driver" | "navigator") => string, now: number): string | null {
   if (!team || !team.away.length || team.status !== "running") return null;
-  const who = team.away.map(nameOf).join(" and ");
+  // A Rally car of one is away from both seats: that's one person, said once.
+  const who = [...new Set(team.away.map(nameOf))].join(" and ");
   const left = team.graceEndsAt === null ? 0 : Math.max(0, Math.ceil((team.graceEndsAt - now) / 1000));
   return `${who} dropped out: ${left} s to get back. Clock stopped.`;
 }
@@ -60,14 +61,15 @@ const SHAPES = {
 /**
  * "▲ Team 3" in the team's colour: shape, number and colour together, so
  * nobody has to tell green from orange to find their car (spec §7.4, §10).
+ * Rally's cars of one say "Car 3".
  */
-export function teamBadge(team: { id: number; color: TeamColorKey }): HTMLElement {
+export function teamBadge(team: { id: number; color: TeamColorKey }, word: "Team" | "Car" = "Team"): HTMLElement {
   const c = teamColor(team.color);
   const el = document.createElement("span");
   el.className = "br-badge";
   el.style.setProperty("--br-team", c.hex);
   el.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${SHAPES[c.shape]}</svg>`;
-  el.append(`Team ${team.id}`);
-  el.title = `${c.name} team`;
+  el.append(`${word} ${team.id}`);
+  el.title = `${c.name} ${word.toLowerCase()}`;
   return el;
 }

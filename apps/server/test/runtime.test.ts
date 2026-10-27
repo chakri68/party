@@ -1122,12 +1122,14 @@ describe("the room host on ctx", () => {
 });
 
 describe("game registry flags (map D1)", () => {
-  it("lists Blind Rally only when the build asks for it", () => {
+  it("lists Blind Rally (and Rally, same package) only when the build asks for it", () => {
     expect(Object.keys(gamesFor({ blindRally: false }))).not.toContain("blind-rally");
+    expect(Object.keys(gamesFor({ blindRally: false }))).not.toContain("rally");
     expect(gamesFor({ blindRally: true })["blind-rally"]).toBe(blindRallyGame);
+    expect(gamesFor({ blindRally: true }).rally?.manifest.id).toBe("rally");
     // Everything else is the same either way.
     const off = Object.keys(gamesFor({ blindRally: false }));
-    expect(Object.keys(gamesFor({ blindRally: true })).filter((k) => k !== "blind-rally")).toEqual(off);
+    expect(Object.keys(gamesFor({ blindRally: true })).filter((k) => k !== "blind-rally" && k !== "rally")).toEqual(off);
   });
 
   it("a room without the flag refuses to pick it", async () => {

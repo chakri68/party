@@ -1,7 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
-import { blindRallyManifest, blindRallyRules, blindRallySettingFields } from "@games/blind-rally/shared";
+import { blindRallyManifest, blindRallyRules, blindRallySettingFields, rallyManifest, rallyRules, rallySettingFields } from "@games/blind-rally/shared";
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
@@ -27,7 +27,8 @@ export interface GameEntry {
  * Blind Rally needs a Godot export that isn't in git (map D1). Vite inlines
  * the flag, so a build without it drops the entry and its chunks entirely:
  * `pnpm dev` and `pnpm run deploy` set VITE_BLIND_RALLY=1, scripts/host.mjs
- * doesn't. The server checks its own BLIND_RALLY var the same way.
+ * doesn't. The server checks its own BLIND_RALLY var the same way. Rally
+ * boots the same export, so it hangs off the same flag.
  */
 const BLIND_RALLY = import.meta.env.VITE_BLIND_RALLY === "1";
 
@@ -92,6 +93,12 @@ export const games: Record<string, GameEntry> = {
       rules: blindRallyRules,
       settingFields: blindRallySettingFields,
       loadClient: () => import("@games/blind-rally/client").then((m) => m.default),
+    },
+    rally: {
+      manifest: rallyManifest,
+      rules: rallyRules,
+      settingFields: rallySettingFields,
+      loadClient: () => import("@games/blind-rally/client").then((m) => m.rally),
     },
   }),
 };

@@ -3,7 +3,7 @@ import { h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
 import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
 import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
-import { GodotBridge } from "./bridge.ts";
+import { GodotBridge, type GodotPhysicsEvent, type GodotSnapshot } from "./bridge.ts";
 import { StageLoader } from "./loader.ts";
 import { navigatorTrack } from "./track.ts";
 import { trackName } from "../../shared/tracks-public.ts";
@@ -28,9 +28,14 @@ import "./navigator.css";
 //   shared stage: rivals' `ghost` relays → receiveGhostSnapshot
 //   Godot's `pin` (the Navigator's guess on the big map) → `map.guess`
 //     game-actions, at most one per PIN_SPACING_MS, latest wins; a reload gets
-//     them back as initSession `pins`, and a new race wipes them (a `pins` event).
+//     them back as initSession `pins`, and a new race sends the session again (no pins).
 //     Outside the run the server keeps none, so one placed then comes straight
 //     back off the map (a `pins` event with the server's copy), with a reason.
+//
+// Rally passes a SeatAddon (client/rally/drive.ts): the controls are on this
+// device, so Godot gets `keyboard` and `selfDrive` in initSession (no guess
+// pins, R asks for a reset), the addon feeds receiveControl itself, and the
+// Driver's status line goes.
 
 /** Without input from the Driver for this long mid-race, say so. Godot has already gone neutral. */
 const DRIVER_QUIET_MS = 1_000;
@@ -38,12 +43,32 @@ const GO_SHOWN_MS = 800;
 /** The server takes one pin per 500 ms; leave room for the network bunching two up. */
 const PIN_SPACING_MS = 600;
 
-export function createNavigatorView(api: GameClientApi): RoleView {
-  return new NavigatorView(api);
+/** What a seat can bolt onto this screen. Rally's local controls are one. */
+export interface SeatAddon {
+  /** Chrome for the strip, and anything over the course. */
+  mount(strip: HTMLElement, view: HTMLElement): void;
+  update(props: RoleProps): void;
+  /** Every Godot snapshot, live or not. */
+  snapshot(s: GodotSnapshot): void;
+  /** Godot events this screen doesn't handle itself. */
+  physics(e: GodotPhysicsEvent): void;
+  /** 10 Hz: whether the car may move right now. */
+  tick(move: boolean): void;
+  destroy(): void;
+}
+
+export interface NavigatorOptions {
+  /** The car is driven from this device (Rally). */
+  addon?: (bridge: GodotBridge, api: GameClientApi) => SeatAddon;
+}
+
+export function createNavigatorView(api: GameClientApi, options: NavigatorOptions = {}): RoleView {
+  return new NavigatorView(api, options);
 }
 
 class NavigatorView implements RoleView {
   private api: GameClientApi;
+  private addon: SeatAddon | null = null;
   private props: RoleProps | null = null;
   private bridge: GodotBridge;
 
@@ -90,7 +115,7 @@ class NavigatorView implements RoleView {
   private pinTimer: ReturnType<typeof setTimeout> | undefined;
   private lastPhase: string | null = null;
 
-  constructor(api: GameClientApi) {
+  constructor(api: GameClientApi, options: NavigatorOptions) {
     this.api = api;
     this.loader = new StageLoader(() => this.bridge.retry());
     this.root.querySelector(".br-view")!.append(this.loader.el);
@@ -107,6 +132,7 @@ class NavigatorView implements RoleView {
       },
       snapshot: (s) => {
         if (typeof s.distance === "number") this.tripM = s.distance;
+        this.addon?.snapshot(s);
         // Only mid-race: the server drops anything else, so why send it.
         if (this.live()) api.stream({ ...s, t: "snap" });
       },
@@ -120,6 +146,7 @@ class NavigatorView implements RoleView {
         else if (e.kind === "finish") api.act({ type: "race.event", kind: "finish" });
         // Godot's parked a car that dropped out of the world and won't move it on its own say-so.
         else if (e.kind === "fell") api.act({ type: "race.reset", reason: "fell" });
+        else this.addon?.physics(e);
       },
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
@@ -129,6 +156,11 @@ class NavigatorView implements RoleView {
       this.notes.hidden = !this.notes.hidden;
       this.notesBtn.setAttribute("aria-expanded", String(!this.notes.hidden));
     });
+    if (options.addon) {
+      this.addon = options.addon(this.bridge, api);
+      this.addon.mount(this.root.querySelector(".br-strip")!, this.root.querySelector(".br-view")!);
+      this.driver.hidden = true;
+    }
     this.ticker = setInterval(() => this.tick(), 100);
   }
 
@@ -139,6 +171,7 @@ class NavigatorView implements RoleView {
 
   destroy() {
     clearInterval(this.ticker);
+    this.addon?.destroy();
     clearTimeout(this.pinTimer);
     this.bridge.dispose();
     this.root.remove();
@@ -152,12 +185,15 @@ class NavigatorView implements RoleView {
     this.props = props;
     this.loader.setStage(trackName(props.game.tracks, props.game.trackId));
     const mine = props.game.teams.find((t) => t.id === props.private.teamId);
-    if (mine) this.team.replaceChildren(teamBadge(mine));
-    this.sendSession();
-    // A new race on the same Godot (a rematch on the same stage): last race's pins come off the map.
+    // A Rally car of one is "Car 2", like its grid.
+    if (mine) this.team.replaceChildren(teamBadge(mine, this.addon ? "Car" : "Team"));
+    // A new race on the same Godot (a rematch on the same stage): the session again, from the
+    // new run. Godot's checkpoint count and finish flag go back to zero, the car to the start,
+    // and last race's pins come off the map.
     const phase = props.game.phase;
-    if (phase === "countdown" && this.lastPhase !== null && this.lastPhase !== "countdown") this.bridge.event({ kind: "pins", pin: null, trail: [] });
+    if (phase === "countdown" && this.lastPhase !== null && this.lastPhase !== "countdown") this.sessionSent = false;
     this.lastPhase = phase;
+    this.sendSession();
     for (const ev of props.events) {
       if (this.seenEvents.has(ev)) continue;
       this.seenEvents.add(ev);
@@ -174,6 +210,7 @@ class NavigatorView implements RoleView {
         this.frozen = null;
       }
     }
+    this.addon?.update(props);
     this.tick();
   }
 
@@ -187,7 +224,7 @@ class NavigatorView implements RoleView {
       if (ghost.teamId !== team.id) this.bridge.ghost(ghost);
       return;
     }
-    if (from !== team.driverId) return;
+    if (from !== team.driverId || this.addon) return;
     const input = parseControl(data);
     if (!input) return;
     this.lastInput = performance.now();
@@ -214,7 +251,9 @@ class NavigatorView implements RoleView {
         holdMs: Math.max(0, (run?.holdUntil ?? 0) - this.api.serverNow()),
         // Their own guess pins, if Godot's been reloaded mid-race.
         pins: run?.pins ?? { pin: null, trail: [] },
-        keyboard: false,
+        // Rally: this device drives. WASD in Godot when the course has focus; no pins; R asks for a reset.
+        keyboard: !!this.addon,
+        selfDrive: !!this.addon,
         autopilot: false,
         muted: !audio.settings.sound,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -314,7 +353,7 @@ class NavigatorView implements RoleView {
     this.notes.replaceChildren(
       h(
         "div",
-        { class: "br-pad" },
+        { class: "br-notepad" },
         spiral(),
         h(
           "div",
@@ -349,13 +388,14 @@ class NavigatorView implements RoleView {
       this.frozen = !move;
       this.bridge.event({ kind: move ? "go" : "freeze" });
     }
+    this.addon?.tick(move);
 
     const team = this.myTeam();
     this.clock.textContent = g.phase === "teams" ? "" : formatClock(teamClock(g, team, now));
     const tripOn = !!this.session()?.assists.tripMeter;
     this.trip.hidden = !tripOn || g.phase === "teams";
     if (tripOn) this.trip.textContent = `Trip ${this.tripM === null ? "-" : this.tripM < 1000 ? `${Math.round(this.tripM)} m` : `${(this.tripM / 1000).toFixed(2)} km`}`;
-    const banner = awayBanner(team, (r) => (r === "driver" ? "Your Driver" : "You"), now);
+    const banner = awayBanner(team, (r) => (r === "driver" && !this.addon ? "Your Driver" : "You"), now);
     this.banner.hidden = !banner;
     if (banner && this.banner.textContent !== banner) this.banner.textContent = banner;
     this.back.hidden = g.phase !== "teams";

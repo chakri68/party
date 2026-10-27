@@ -1,6 +1,6 @@
 {
-  "hash": "045dfd09ee",
-  "base": "/blind-rally/godot/045dfd09ee/",
+  "hash": "e95a973498",
+  "base": "/blind-rally/godot/e95a973498/",
   "files": [
     "index.apple-touch-icon.png",
     "index.audio.position.worklet.js",
@@ -19,7 +19,7 @@
     "index.html": 2708,
     "index.icon.png": 5700,
     "index.js": 279815,
-    "index.pck": 8692984,
+    "index.pck": 8693320,
     "index.png": 21443,
     "index.wasm": 39514754
   }

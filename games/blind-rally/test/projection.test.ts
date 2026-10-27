@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as shared from "../shared/index.ts";
 import { COUNTDOWN_MS, type BlindRallyState } from "../shared/types.ts";
-import { act, ctx, driveTo, finishRun, game, newGame, passCheckpoints, racing, snapAt, SPAWN, TRACK } from "./helpers.ts";
+import { act, ctx, driveTo, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Spec §8.2: the Driver (and anyone looking at public state) never gets road
 // geometry, the map, checkpoints, the car's position or the notes. This walks
@@ -213,5 +213,94 @@ describe("projection deny-list", () => {
   it("the rules preview says which assists are on, never what's in them", () => {
     for (const assists of ["beginner", "classic", "nightmare"] as const) expect(leaks(shared.rulesPreview({ assists }))).toEqual([]);
     for (const s of everyPhase()) expect(leaks(game.getPublicState(s))).toEqual([]);
+  });
+});
+
+// Shared stage (spec §7.4, §8.2) and Rally (rally-spec.md): the one thing
+// Navigators get about other teams is a ghost, and nobody else gets even that.
+describe("projection: ghosts and Rally", () => {
+  const GHOST_KEYS = ["color", "heading", "position", "speed", "t", "teamId", "tick"];
+
+  it("a ghost is an allow-list: where, which way, how fast, whose. No gates, no trip, no pins", () => {
+    let s = game.onTimer!(racing([["p0", "p1"], ["p2", "p3"]], 4, { stageMode: "shared" }), "go", ctx(GO)).state;
+    ({ state: s } = passCheckpoints(s, "p1", 1, GO));
+    s = act(s, "p1", { type: "map.guess", x: SPAWN[0], z: SPAWN[2] }, ctx(GO + 9_000));
+    const out = game.onStream!(s, "p1", snapAt(TRACK.checkpoints[0]!.position, { distance: 999, checkpointHint: 1, surface: "gravel" }), ctx(GO + 9_100))!;
+    const ghost = out.relays!.find((r) => (r.data as { t: string }).t === "ghost")!;
+    expect(ghost.to).toEqual(["p3"]);
+    expect(Object.keys(ghost.data as object).sort()).toEqual(GHOST_KEYS);
+  });
+
+  it("Drivers get nothing new on a shared stage: the same DTO as solo, in every phase", () => {
+    const solo = everyPhase("solo");
+    const shared = everyPhase("shared");
+    for (const [i, s] of shared.entries()) {
+      for (const id of ["p0", "p2"]) expect(game.getPrivateState(s, id), `${s.phase} ${id}`).toEqual(game.getPrivateState(solo[i]!, id));
+    }
+  });
+
+  it("the Navigator's session says ghosts only on a shared stage, and never names a rival", () => {
+    const solo = game.getPrivateState(racing([["p0", "p1"], ["p2", "p3"]]), "p1");
+    const shared = game.getPrivateState(racing([["p0", "p1"], ["p2", "p3"]], 4, { stageMode: "shared" }), "p1");
+    expect(solo.role === "navigator" && solo.session.ghosts).toBe(false);
+    expect(shared.role === "navigator" && shared.session.ghosts).toBe(true);
+    // Other teams' run state (checkpoints, pins, snapshots) isn't in it at all.
+    expect(JSON.stringify(shared)).not.toMatch(/"teamId":2|p2|p3/);
+  });
+
+  /** A Rally race walked through: grid, ready, start, snaps, a reset, a gate, a drop, the end. Three cars and a watcher. */
+  function rallyPhases(): BlindRallyState[] {
+    const out: BlindRallyState[] = [];
+    let s = newRally(5);
+    out.push(s);
+    s = act(s, "p0", { type: "player.ready", ready: true });
+    out.push(s);
+    s = rallying(5);
+    out.push(s);
+    s = rallyGame.onStream!(s, "p0", snap, ctx(GO))!.state;
+    s = rallyGame.onStream!(s, "p1", snap, ctx(GO + 100))!.state;
+    s = act(s, "p1", { type: "race.reset" }, ctx(GO + 200));
+    out.push(s);
+    let now: number;
+    ({ state: s, now } = passCheckpoints(s, "p0", 1, GO + 300));
+    out.push(s);
+    s = rallyGame.onPlayerDisconnected!(s, "p2", ctx(now)).state;
+    out.push(s);
+    ({ state: s, now } = finishRun(s, "p0", now));
+    s = rallyGame.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
+    out.push(s);
+    return out;
+  }
+
+  it("Rally: public state, results and the watcher's DTO are clean in every phase", () => {
+    const states = rallyPhases();
+    for (const s of states) {
+      expect(leaks(rallyGame.getPublicState(s)), s.phase).toEqual([]);
+      expect(leaks(rallyGame.getPrivateState(s, "p4")), s.phase).toEqual([]);
+      expect(rallyGame.getPrivateState(s, "p4").role).toBeNull();
+    }
+    expect(leaks(rallyGame.getResult(states.at(-1)!))).toEqual([]);
+  });
+
+  it("Rally: every car gets its own course and nobody else's run", () => {
+    for (const s of rallyPhases()) {
+      for (const [i, id] of ["p0", "p1", "p2", "p3"].entries()) {
+        const p = rallyGame.getPrivateState(s, id);
+        expect(p.role, `${s.phase} ${id}`).toBe("navigator");
+        if (p.role !== "navigator") continue;
+        expect(p.teamId).toBe(i + 1);
+        // Its own checkpoints only: the run block is about this car.
+        expect(p.run.checkpoints).toBe(s.teams[i]!.run?.cp ?? 0);
+        expect(p.run.pins).toEqual({ pin: null, trail: [] });
+      }
+    }
+  });
+
+  it("Rally: what a car's snapshot sends out is ghosts, to the other cars still running, and nothing else", () => {
+    let s = game.onTimer!(rallying(5), "go", ctx(GO)).state;
+    s.teams[2]!.run!.status = "dnf";
+    const out = rallyGame.onStream!(s, "p0", snap, ctx(GO))!;
+    expect(out.relays!.map((r) => [(r.data as { t: string }).t, r.to])).toEqual([["ghost", ["p1", "p3"]]]);
+    expect(Object.keys(out.relays![0]!.data as object).sort()).toEqual(GHOST_KEYS);
   });
 });

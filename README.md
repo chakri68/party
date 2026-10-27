@@ -53,10 +53,10 @@ Games live in `games/<name>` (rules, server logic and client view in one package
 
 ### Blind Rally and its flag
 
-Blind Rally's Navigator runs a Godot export that isn't in git: a ~38 MiB `.wasm` has no business in a repo. So the game only exists in builds that ship one:
+Blind Rally's Navigator runs a Godot export that isn't in git: a ~38 MiB `.wasm` has no business in a repo. So the game only exists in builds that ship one. Rally (`rally-spec.md`) is the same package and the same export with the blindfold off, so it rides the same flag:
 
-- `VITE_BLIND_RALLY=1` at build time puts it in the lobby's game list. Without it, Vite drops the entry and all its chunks.
-- `BLIND_RALLY=1` on the worker lets a room pick it. Without it, `select-game` says "Unknown game."
+- `VITE_BLIND_RALLY=1` at build time puts both in the lobby's game list. Without it, Vite drops the entries and all their chunks.
+- `BLIND_RALLY=1` on the worker lets a room pick either. Without it, `select-game` says "Unknown game."
 
 `pnpm dev` sets both (`apps/web/.env.development`, `--var BLIND_RALLY:1`). `pnpm run deploy` sets both too (`scripts/deploy.mjs`). `pnpm host` sets neither, so self-hosted copies never list a game they can't load; its worker 404s the engine files as well, even if they're sitting in `dist`.
 

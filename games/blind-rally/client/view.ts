@@ -1,7 +1,30 @@
+import type { RoomPublicState } from "@games/protocol";
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import type { BlindRallyEvent, BlindRallyPrivateState, BlindRallyPublicState } from "../shared/types.ts";
+import type { BlindRallyEvent, BlindRallyPrivateState, BlindRallyPublicState, Role } from "../shared/types.ts";
 import type { RoleProps, RoleView, RoleViewFactory } from "./role.ts";
 import { TeamsScreen } from "./teams.ts";
+
+/** The screen under the seat: Blind Rally's teams, or Rally's grid. */
+export interface Lobby {
+  readonly el: HTMLElement;
+  update(room: RoomPublicState, game: BlindRallyPublicState, me: string): void;
+  rejected(message: string): void;
+  destroy(): void;
+}
+
+/** What tells the two games apart on the client: the lobby, and which chunk a seat loads. */
+export interface Variant {
+  lobby(api: GameClientApi): Lobby;
+  seat(role: Role): Promise<RoleViewFactory>;
+}
+
+export const BLIND_RALLY: Variant = {
+  lobby: (api) => new TeamsScreen(api),
+  seat: (role) =>
+    role === "driver"
+      ? import("./driver/driver.ts").then((m) => m.createDriverView)
+      : import("./navigator/host.ts").then((m) => m.createNavigatorView),
+};
 
 /**
  * Phase screens and role dispatch. Before your seat is set, and for spares
@@ -17,16 +40,18 @@ export class BlindRallyView implements GameView {
   private api: GameClientApi;
   private root = h("div", { class: "blind-rally" });
   private seatLayer = h("div", { class: "br-layer br-seat-layer" });
-  private teams: TeamsScreen;
+  private teams: Lobby;
+  private variant: Variant;
 
   private role: RoleView | null = null;
   /** "driver:2" or "navigator:2:pine_panic": which seat `role` is for, loaded or loading. */
   private roleKey: string | null = null;
   private last: RoleProps | null = null;
 
-  constructor(api: GameClientApi) {
+  constructor(api: GameClientApi, variant: Variant = BLIND_RALLY) {
     this.api = api;
-    this.teams = new TeamsScreen(api);
+    this.variant = variant;
+    this.teams = variant.lobby(api);
     this.root.append(this.seatLayer, this.teams.el);
   }
 
@@ -91,12 +116,9 @@ export class BlindRallyView implements GameView {
     this.teams.el.inert = seat && !!this.role;
   }
 
-  private loadRole(key: string, role: "driver" | "navigator") {
+  private loadRole(key: string, role: Role) {
     this.roleKey = key;
-    const load: Promise<RoleViewFactory> = role === "driver"
-      ? import("./driver/driver.ts").then((m) => m.createDriverView)
-      : import("./navigator/host.ts").then((m) => m.createNavigatorView);
-    void load.then((create) => {
+    void this.variant.seat(role).then((create) => {
       if (this.roleKey !== key) return; // reseated mid-load
       this.role = create(this.api);
       this.role.mount(this.seatLayer);

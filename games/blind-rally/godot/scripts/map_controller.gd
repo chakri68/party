@@ -102,6 +102,9 @@ var expandable := true:
 ## The guess pin, world XZ, or null; and the ones it replaced, oldest first.
 var pin: Variant = null
 var trail: Array[Vector2] = []
+## Rally (initSession selfDrive): the map shows where you are, so there's
+## nothing to guess, and a tap on the big map just closes it.
+var pins_enabled := true
 ## Team colour for the pins (main sets it from the session's livery).
 var pin_color := Color("e69f00"):
 	set(v):
@@ -256,7 +259,7 @@ func css_px() -> float:
 
 ## Pins go down on the big map once it's open, and on the map-only map.
 func pinnable() -> bool:
-	return track != null and ((big and detail) or not expandable)
+	return pins_enabled and track != null and ((big and detail) or not expandable)
 
 
 func _gui_input(e: InputEvent) -> void:

@@ -4,8 +4,8 @@ import { formatClock, parseDash, parseHit } from "../../shared/wire.ts";
 import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { teamColor } from "../../shared/types.ts";
 import { Dashboard } from "./dashboard.ts";
-import { Controls, Sender, type Control } from "./input.ts";
-import "./driver.css";
+import { Controls, Sender } from "./input.ts";
+import { bindPads, coarse, fullscreenButton, pedalZone, steerZone } from "./pads.ts";
 
 // The Driver's phone (spec §4.1): steering under the left thumb, pedals under
 // the right, instruments in between. No Godot, no track data, nothing that
@@ -16,17 +16,6 @@ const SIGNAL_LOST_MS = 1_500;
 /** The second tap has to come this soon, or the Reset button forgets. */
 const CONFIRM_MS = 3_000;
 const GO_SHOWN_MS = 800;
-
-const arrow = (dir: "left" | "right") => {
-  const el = h("span", { class: "br-glyph", "aria-hidden": "true" });
-  el.innerHTML = `<svg viewBox="0 0 24 24"><path d="${dir === "left" ? "M15 4 7 12l8 8" : "M9 4l8 8-8 8"}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  return el;
-};
-
-const pad = (control: Control, label: string, glyph: Node | string) =>
-  h("div", { class: `br-pad br-pad-${control}`, "data-control": control }, glyph, h("span", { class: "br-pad-label" }, label));
-
-const coarse = () => matchMedia("(pointer: coarse)").matches;
 
 export function createDriverView(api: GameClientApi): RoleView {
   return new DriverView(api);
@@ -39,8 +28,8 @@ class DriverView implements RoleView {
   private sender: Sender;
   private dash = new Dashboard();
 
-  private steer = h("div", { class: "br-zone br-steer", role: "group", "aria-label": "Steering: A and D, or the arrow keys" }, pad("left", "Left", arrow("left")), pad("right", "Right", arrow("right")));
-  private pedals = h("div", { class: "br-zone br-pedals", role: "group", "aria-label": "Pedals: W for gas, S for brake and reverse" }, pad("brake", "Brake", h("span", { class: "br-glyph br-glyph-brake", "aria-hidden": "true" })), pad("gas", "Gas", h("span", { class: "br-glyph br-glyph-gas", "aria-hidden": "true" })));
+  private steer = steerZone();
+  private pedals = pedalZone();
   private team = h("span", { class: "br-teamtag" });
   private link = h("span", { class: "br-link", role: "status" });
   private clock = h("span", { class: "br-clock-main" }, "0:00.0");
@@ -79,16 +68,7 @@ class DriverView implements RoleView {
     this.api = api;
     this.sender = new Sender((data) => api.stream(data));
     this.controls.onChange = (s) => this.sender.update(s);
-    this.controls.onHeld = (held) => {
-      for (const p of this.root.querySelectorAll<HTMLElement>(".br-pad")) p.classList.toggle("down", held.has(p.dataset.control as Control));
-    };
-    // Each zone is split down the middle: the whole half is the pad, gaps and all.
-    const halves = (zone: HTMLElement, a: Control, b: Control) => (x: number) => {
-      const r = zone.getBoundingClientRect();
-      return x < r.left + r.width / 2 ? a : b;
-    };
-    this.controls.zone(this.steer, halves(this.steer, "left", "right"));
-    this.controls.zone(this.pedals, halves(this.pedals, "brake", "gas"));
+    bindPads(this.controls, this.root, this.steer, this.pedals);
     this.controls.keyboard();
 
     // Pointers act on pointerup: a quick second tap is a double-tap to the browser and never
@@ -98,11 +78,8 @@ class DriverView implements RoleView {
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
     this.end.addEventListener("click", () => confirm("End the race now? Anyone still out is DNF.") && api.act({ type: "race.end" }));
-    if (coarse() && document.fullscreenEnabled) {
-      const fs = h("button", { type: "button", class: "br-fs", "aria-label": "Full screen", onclick: () => void toggleFullscreen() });
-      fs.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-      this.top.append(fs);
-    }
+    const fs = fullscreenButton();
+    if (fs) this.top.append(fs);
     if (!coarse()) this.msg.textContent = "WASD or arrow keys.";
 
     // Nothing on this screen scrolls or zooms: a stray pinch mid-hairpin is a crash.
@@ -266,16 +243,5 @@ class DriverView implements RoleView {
 
   private say(text: string) {
     this.msg.textContent = text;
-  }
-}
-
-/** Android only, in practice: iPhones have no element full screen. Landscape lock where allowed. */
-async function toggleFullscreen(): Promise<void> {
-  try {
-    if (document.fullscreenElement) return void (await document.exitFullscreen());
-    await document.documentElement.requestFullscreen({ navigationUI: "hide" });
-    await (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.("landscape");
-  } catch {
-    /* refused: rotating by hand works too */
   }
 }

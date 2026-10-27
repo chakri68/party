@@ -2,6 +2,9 @@ import { MAX_TEAMS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, typ
 
 // Seats in cars. Helpers mutate the state they're given; game.ts hands them a
 // clone. Invariant: a player is in at most one seat, in at most one team.
+// Rally (state.variant) bends it on purpose: a car of one, the same player in
+// both seats. seatOf calls that seat "driver"; anything that cares which job
+// someone does asks holds() instead.
 
 export interface Seat {
   team: TeamState;
@@ -35,7 +38,12 @@ export function seatOf(state: BlindRallyState, playerId: string): Seat | null {
 
 export const isFull = (t: TeamState) => t.driverId !== null && t.navigatorId !== null;
 export const isEmpty = (t: TeamState) => t.driverId === null && t.navigatorId === null;
-export const members = (t: TeamState) => [t.driverId, t.navigatorId].filter((id): id is string => id !== null);
+/** Rally's car of one: the same player drives and navigates. */
+export const isSolo = (t: TeamState) => t.driverId !== null && t.driverId === t.navigatorId;
+/** Whether this player does this job in this car. A solo player does both. */
+export const holds = (t: TeamState, playerId: string, role: Role) => t[slot(role)] === playerId;
+/** Everyone in the car, once each: a solo car has one member, not two. */
+export const members = (t: TeamState) => [...new Set([t.driverId, t.navigatorId])].filter((id): id is string => id !== null);
 /** The captain's seat, or whoever's in the car if that one's empty. */
 export const captainOf = (t: TeamState) => t[slot(t.captain)] ?? t[slot(other(t.captain))];
 
@@ -51,6 +59,7 @@ export function unseat(state: BlindRallyState, playerId: string): void {
   const s = seatOf(state, playerId);
   if (!s) return;
   unready(state, s.team);
+  if (isSolo(s.team)) s.team.navigatorId = null;
   s.team[slot(s.role)] = null;
   const p = state.players.find((q) => q.id === playerId);
   if (p) p.ready = false;
@@ -81,9 +90,28 @@ export function pickRole(state: BlindRallyState, seat: Seat, role: Role): void {
  * join; only trailing empty cars are taken away, so nobody's team number moves.
  */
 export function fitTeams(state: BlindRallyState): void {
+  if (state.variant === "rally") return fitCars(state);
   const want = state.settings.mode === "practice" ? 1 : Math.min(MAX_TEAMS, Math.max(1, Math.ceil(state.players.length / 2)));
   while (state.teams.length < want) state.teams.push(newTeam(state.teams.length + 1, state.teams));
   while (state.teams.length > want && isEmpty(state.teams.at(-1)!)) state.teams.pop();
+}
+
+/**
+ * Rally: everyone gets a car of their own, up to MAX_TEAMS; past that they
+ * watch until one frees up. An emptied car is reused before a new one is
+ * made, and trailing empties go, so nobody's number moves.
+ */
+function fitCars(state: BlindRallyState): void {
+  for (const p of state.players) {
+    if (seatOf(state, p.id)) continue;
+    let car = state.teams.find(isEmpty);
+    if (!car && state.teams.length < MAX_TEAMS) state.teams.push((car = newTeam(state.teams.length + 1, state.teams)));
+    if (!car) break;
+    car.driverId = car.navigatorId = p.id;
+    p.ready = false;
+  }
+  while (state.teams.length > 1 && isEmpty(state.teams.at(-1)!)) state.teams.pop();
+  if (!state.teams.length) state.teams.push(newTeam(1, state.teams));
 }
 
 /** Last game's cars and colours, minus anyone who's left the room. */
@@ -113,7 +141,7 @@ export function carryOf(state: BlindRallyState): BlindRallyCarry {
 /** Why the host can't start, in words for the screen; null when they can. */
 export function startBlocker(state: BlindRallyState): string | null {
   const full = state.teams.filter(isFull);
-  if (!full.length) return "A car needs a Driver and a Navigator.";
+  if (!full.length) return state.variant === "rally" ? "Nobody's in a car yet." : "A car needs a Driver and a Navigator.";
   const half = state.teams.find((t) => !isFull(t) && !isEmpty(t));
   if (half) return `Team ${half.id} needs a ${half.driverId ? "Navigator" : "Driver"}.`;
   const waiting = full.flatMap(members).filter((id) => !state.players.find((p) => p.id === id)?.ready).length;

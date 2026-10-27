@@ -1,0 +1,101 @@
+/* Rally. The grid is Blind Rally's teams screen with one seat per car; the
+   seat is the Navigator's screen with the Driver's pads laid over the
+   course (touch only), a speedo and the co-driver's next call. Same Ink &
+   Lime tokens; the team colour is still the car's plate. */
+
+/* ---- the grid ------------------------------------------------------------- */
+
+.br-cars { display: grid; gap: 6px; }
+.br-cars > h3 { margin: 0; font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.br-car-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.br-car { gap: 6px; padding: 10px 12px; }
+.br-car .br-person { min-height: 36px; }
+
+/* ---- the seat: chrome over the course ------------------------------------- */
+
+.rl-seat .br-strip .rl-reset { flex: none; }
+/* The second press costs 5 s: it looks like the shell's danger button. */
+.blind-rally .rl-reset.confirm { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.blind-rally .br-strip .br-fs { flex: none; min-height: 36px; width: 36px; padding: 0; border-radius: 10px; color: var(--muted); }
+
+/* Bottom centre, out of both thumbs' way. Tabular, so it doesn't jitter. */
+.rl-speed {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgb(14 14 12 / 0.72);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.rl-speed-digits { min-width: 2.2ch; text-align: right; font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.rl-unit { font-size: 0.8rem; color: var(--muted); }
+.rl-gear { margin-left: 2px; font-size: 0.8rem; font-weight: 700; color: var(--muted); border: 1.5px solid var(--line); border-radius: 6px; padding: 0 6px; }
+.rl-gear.rev { color: var(--danger); border-color: var(--danger); }
+
+/* The co-driver: top centre, between Godot's compass (left) and corner map (right). */
+.rl-codriver {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  max-width: min(360px, calc(100% - 2 * 150px));
+  padding: 5px 14px 6px;
+  border-radius: 12px;
+  background: rgb(14 14 12 / 0.72);
+  pointer-events: none;
+  text-align: center;
+}
+.rl-call-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
+.rl-call { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.01em; }
+.rl-call.landmark { font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.rl-call-in { flex: none; font-size: 0.85rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rl-call-next { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
+.rl-call-next:empty { display: none; }
+
+/* ---- touch: the Driver's pads over the course ----------------------------- */
+
+/* The layer passes taps through to Godot (the corner map, the big map); only the pads catch them. */
+.rl-pads { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.rl-pads .br-zone {
+  position: absolute;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(30%, 250px);
+  height: min(58%, 230px);
+  pointer-events: auto;
+}
+.rl-pads .br-steer { left: max(10px, env(safe-area-inset-left)); }
+.rl-pads .br-pedals { right: max(10px, env(safe-area-inset-right)); }
+/* See-through enough to keep the road under your thumbs readable. */
+.rl-pads .br-pad { background: rgb(23 23 20 / 0.5); border-color: rgb(243 241 234 / 0.18); color: rgb(243 241 234 / 0.75); }
+.rl-pads .br-pad.down { background: color-mix(in srgb, var(--accent) 26%, transparent); border-color: var(--accent); color: var(--accent); }
+.rl-pads .br-glyph svg { width: 36px; height: 36px; }
+/* Messages and the speedo move up out of the thumbs' way. */
+.rl-touch .br-nmsg { bottom: auto; top: 64px; }
+
+/* A phone held upright: the pads shrink to a strip along the bottom, and the speedo sits above them. */
+@media (orientation: portrait) {
+  .rl-pads .br-zone { width: calc(50% - 15px); height: min(26%, 150px); }
+  .rl-touch .rl-speed { bottom: calc(min(26%, 150px) + 18px); }
+}
+
+/* Too narrow to sit between the compass and the corner map: it drops under them, full width. */
+@media (orientation: portrait) and (max-width: 600px) {
+  .rl-codriver { top: 112px; max-width: calc(100% - 24px); }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .rl-speed-digits { font-size: 1.5rem; }
+  .rl-codriver { top: 6px; padding: 3px 12px 4px; }
+  .rl-call { font-size: 1rem; }
+}

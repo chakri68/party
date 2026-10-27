@@ -1,4 +1,4 @@
-import { blindRallyGame } from "@games/blind-rally/server";
+import { blindRallyGame, rallyGame } from "@games/blind-rally/server";
 import { cheatGame } from "@games/cheat/server";
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { dominionGame } from "@games/dominion/server";
@@ -28,11 +28,12 @@ export interface GameFlags {
    * Blind Rally needs a Godot export that isn't in git (map D1), so only
    * builds that ship one list it: the deploy sets BLIND_RALLY=1, `pnpm dev`
    * does too, self-hosted copies don't. Without it, `select-game` says
-   * "Unknown game." like for any other id.
+   * "Unknown game." like for any other id. Rally runs on the same export,
+   * so the one flag lists both.
    */
   blindRally: boolean;
 }
 
 export function gamesFor(flags: GameFlags): Record<string, AnyGameDefinition> {
-  return flags.blindRally ? { ...GAMES, "blind-rally": blindRallyGame } : GAMES;
+  return flags.blindRally ? { ...GAMES, "blind-rally": blindRallyGame, rally: rallyGame } : GAMES;
 }

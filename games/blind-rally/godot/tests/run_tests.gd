@@ -76,6 +76,7 @@ func _run() -> void:
 	await test_big_map_map_only()
 	await preload("res://tests/pin_tests.gd").new(self).run()
 	await preload("res://tests/compass_tests.gd").new(self).run()
+	await preload("res://tests/rally_tests.gd").new(self).run()
 	# Second stage: everything above was Pine Panic. Swap the main scene for
 	# one that loads Dust Devil and check what's new there.
 	await test_track_by_id()

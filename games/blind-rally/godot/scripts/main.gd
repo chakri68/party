@@ -39,6 +39,11 @@ extends Node3D
 ## event replaces them too). Placing or clearing one emits {kind: "pin", x, z}
 ## or {kind: "pin", clear: true} on the bridge.
 ##
+## selfDrive (Rally, rally-spec.md): the player drives this car from this
+## device, keyboard on (session `keyboard`) and the page's pads on
+## receiveControl. No guess pins, and R in the room asks for the server's
+## reset ({kind: "reset"} on the bridge) instead of doing nothing.
+##
 ## The compass (NavCompass, top-left) is the heading indicator of spec §4.2:
 ## own car, 3D view only, hidden with it in map-only mode.
 ##
@@ -92,6 +97,8 @@ var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
 ## In the room (initSession `room`): the server decides where the car goes.
 var room := false
+## Rally: this device drives (see the header).
+var self_drive := false
 ## assists.tripMeter. Godot draws no trip meter of its own (the room's TS
 ## chrome does); the debug HUD says when the assist is off.
 var trip_meter := true
@@ -440,6 +447,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_R:
 			if not room:
 				recover()
+			elif self_drive:
+				bridge.emit_physics_event({"kind": "reset"})
 		KEY_M: toggle_map()
 		KEY_ESCAPE: set_map_expanded(false)
 		KEY_C: cam.rotate_with_car = not cam.rotate_with_car
@@ -513,6 +522,10 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 		get_tree().reload_current_scene.call_deferred()
 		return
 	room = bool(cfg.get("room", false))
+	self_drive = bool(cfg.get("selfDrive", false))
+	map.pins_enabled = not self_drive
+	if self_drive:
+		map.restore_pins({"pin": null, "trail": []})
 	var assists: Dictionary = cfg["assists"] if cfg.get("assists") is Dictionary else {}
 	_apply_assists(assists, true)
 	if cfg.get("teamColor") is String:

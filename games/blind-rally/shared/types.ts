@@ -193,6 +193,12 @@ export interface RunState {
   movedAt: number | null;
   /** Driver input is dropped, and Godot holds the car, until then. */
   holdUntil: number;
+  /**
+   * Shared stage: when this car's last ghost went out to the others. Never
+   * persisted on its own (the stream path's state), so an eviction just
+   * lets the next one through.
+   */
+  ghostAt?: number;
   /** Server time the finish was accepted. */
   finishedAt: number | null;
   /** Clock stopped for a dropped teammate, total so far (spec §8.3). */
@@ -240,7 +246,15 @@ export interface TrackBallot {
   tied: string[];
 }
 
+/**
+ * Which game this state is. Absent: Blind Rally, pairs. "rally": Rally,
+ * where each player is a car of one, sat in both seats (rally-spec §2).
+ */
+export type Variant = "rally";
+
 export interface BlindRallyState {
+  /** Absent in every Blind Rally room, old or new. */
+  variant?: Variant;
   phase: Phase;
   settings: BlindRallySettings;
   /**

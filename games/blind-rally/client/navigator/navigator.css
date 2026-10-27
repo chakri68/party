@@ -74,7 +74,9 @@
   display: flex;
 }
 .br-notes[hidden] { display: none; }
-.br-pad {
+/* .br-notepad, not .br-pad: that's the Driver's control pad (driver.css), and
+   both sheets are on the page once someone's sat in both seats, or in Rally. */
+.br-notepad {
   position: relative;
   flex: 1;
   min-width: 0;

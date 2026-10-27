@@ -52,19 +52,25 @@ const NB = "\u00a0";
  * Two lines, who-and-where then how it went, so the shell's narrow standings
  * column breaks where we say instead of mid-time:
  * "1st · Team 2 · Pine Panic\n1:42.3 (+5 s reset, 12.0 s paused off)", or
- * "=3rd · Team 1 · Pine Panic\nDNF, 3/5 checkpoints".
+ * "=3rd · Team 1 · Pine Panic\nDNF, 3/5 checkpoints". Rally says "Car" and
+ * always counts resets: "2nd · Car 1 · Pine Panic\n1:51.0 (no resets)".
  */
 export function placingLabel(state: BlindRallyState, p: Placing): string {
   const run = p.team.run!;
   const track = trackData(state.trackId);
   const n = track.checkpoints.length;
+  // Rally counts resets out loud, clean runs too: it's the one stat you did all by yourself.
+  const rally = state.variant === "rally";
+  const resets = rally
+    ? run.resets ? `${run.resets} reset${run.resets === 1 ? "" : "s"}, +${run.penaltyMs / 1000}${NB}s` : "no resets"
+    : run.penaltyMs ? `+${run.penaltyMs / 1000}${NB}s reset${run.resets === 1 ? "" : "s"}` : "";
   const extras = [
-    run.penaltyMs ? `+${run.penaltyMs / 1000}${NB}s reset${run.resets === 1 ? "" : "s"}` : "",
+    resets,
     run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)}${NB}s paused off` : "",
   ].filter(Boolean);
   const place = `${p.tied ? "=" : ""}${ordinal(p.rank)}`;
   const result = p.timeMs !== null ? formatClock(p.timeMs) : `DNF, ${run.cp}/${n} checkpoints`;
-  return `${place} · Team ${p.team.id} · ${track.name}\n${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
+  return `${place} · ${rally ? "Car" : "Team"} ${p.team.id} · ${track.name}\n${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }
 
 /**

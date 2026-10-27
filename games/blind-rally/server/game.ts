@@ -1,4 +1,4 @@
-import type { GameContext, GameDefinition, GameResult } from "@games/game-core";
+import type { GameContext, GameDefinition, GameManifest, GameResult, MatchContext } from "@games/game-core";
 import { blindRallyManifest } from "../shared/manifest.ts";
 import { parseSettings } from "../shared/rules-text.ts";
 import {
@@ -11,6 +11,7 @@ import {
   type BlindRallyPublicState,
   type BlindRallySettings,
   type BlindRallyState,
+  type Variant,
 } from "../shared/types.ts";
 import { fairBallot, settleTrack, setTrack } from "./ballot.ts";
 import { defaultTrack, hasTrack } from "./geometry.ts";
@@ -34,7 +35,7 @@ import {
   type Out,
 } from "./race.ts";
 import { result } from "./scoring.ts";
-import { captainOf, carryOf, fitTeams, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
+import { captainOf, carryOf, fitTeams, holds, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
 import { upgrade } from "./upgrade.ts";
 
 type State = BlindRallyState;
@@ -53,6 +54,12 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
   const me = prev.players.find((p) => p.id === playerId);
   if (!me) return reject("not-in-game", "You're not in this game.");
   const inTeams = prev.phase === "teams";
+  const rally = prev.variant === "rally";
+  // Rally seats itself (a car each) and has nobody to guess for: you can see where you are.
+  if (rally && (action.type === "team.join" || action.type === "team.leave" || action.type === "role.pick" || action.type === "team.assign")) {
+    return reject("own-car", "In Rally everyone drives their own car.");
+  }
+  if (rally && action.type === "map.guess") return reject("no-pins", "No guess pins in Rally: the map shows where you are.");
 
   switch (action.type) {
     case "team.join": {
@@ -168,8 +175,8 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const seat = seatOf(prev, playerId);
       // The Driver's button, or the Navigator's Godot reporting the car fell out of the world
       // (it parks the car and waits for this, rather than teleporting on its own).
-      const fell = action.reason === "fell" && seat?.role === "navigator";
-      if (!seat || (seat.role !== "driver" && !fell)) return reject("not-driver", "Only the Driver can reset the car.");
+      const fell = action.reason === "fell" && !!seat && holds(seat.team, playerId, "navigator");
+      if (!seat || (!holds(seat.team, playerId, "driver") && !fell)) return reject("not-driver", "Only the Driver can reset the car.");
       if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Not while the car's parked.");
       if (seat.team.run!.away.length) return reject("paused", "Your team's paused until everyone's back.");
       const state = clone(prev);
@@ -180,7 +187,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
 
     case "race.event": {
       const seat = seatOf(prev, playerId);
-      if (!seat || seat.role !== "navigator") return reject("not-navigator", "Only the Navigator's course reports gates.");
+      if (!seat || !holds(seat.team, playerId, "navigator")) return reject("not-navigator", "Only the Navigator's course reports gates.");
       if (!liveRun(prev, playerId, ctx.now)) return reject("wrong-phase", "Not while the car's parked.");
       const run = seat.team.run!;
       if (run.away.length) return reject("paused", "Your team's paused until everyone's back.");
@@ -207,6 +214,44 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
   }
 }
 
+/**
+ * A fresh TEAMS phase. Shared with Rally (server/rally.ts), which passes its
+ * own manifest and `variant`; everything after this reads the variant off
+ * the state.
+ */
+export function newGame(
+  manifest: GameManifest,
+  players: { id: string }[],
+  settings: BlindRallySettings,
+  match: MatchContext,
+  ctx: GameContext,
+  variant?: Variant,
+): { state: State; events: [] } {
+  const { minPlayers, maxPlayers } = manifest;
+  if (players.length < minPlayers || players.length > maxPlayers) {
+    throw new Error(`${manifest.id}: needs ${minPlayers}–${maxPlayers} players, got ${players.length}`);
+  }
+  const carried = (match.carry as BlindRallyCarry | undefined)?.trackId;
+  const state: State = {
+    ...(variant && { variant }),
+    phase: "teams",
+    settings,
+    // A rematch stays on last race's track until someone picks or votes otherwise.
+    trackId: hasTrack(carried) ? carried : defaultTrack(),
+    ballots: [{ target: "all", votes: [], tied: [] }],
+    seed: ctx.randomInt(2 ** 31),
+    players: players.map((p) => ({ id: p.id, ready: false })),
+    teams: [],
+    startsAt: null,
+    endsAt: null,
+    endedAt: null,
+  };
+  // A rematch puts everyone back where they sat; swapping is one tap from there.
+  restoreTeams(state, match.carry);
+  fitTeams(state);
+  return { state, events: [] };
+}
+
 export const blindRallyGame: GameDefinition<
   BlindRallyState,
   BlindRallyAction,
@@ -220,30 +265,7 @@ export const blindRallyGame: GameDefinition<
   parseSettings,
   parseAction,
 
-  createGame(players, settings, match, ctx) {
-    const { minPlayers, maxPlayers } = blindRallyManifest;
-    if (players.length < minPlayers || players.length > maxPlayers) {
-      throw new Error(`blind-rally: needs ${minPlayers}–${maxPlayers} players, got ${players.length}`);
-    }
-    const carried = (match.carry as BlindRallyCarry | undefined)?.trackId;
-    const state: State = {
-      phase: "teams",
-      settings,
-      // A rematch stays on last race's track until someone picks or votes otherwise.
-      trackId: hasTrack(carried) ? carried : defaultTrack(),
-      ballots: [{ target: "all", votes: [], tied: [] }],
-      seed: ctx.randomInt(2 ** 31),
-      players: players.map((p) => ({ id: p.id, ready: false })),
-      teams: [],
-      startsAt: null,
-      endsAt: null,
-      endedAt: null,
-    };
-    // A rematch puts everyone back where they sat; swapping is one tap from there.
-    restoreTeams(state, match.carry);
-    fitTeams(state);
-    return { state, events: [] };
-  },
+  createGame: (players, settings, match, ctx) => newGame(blindRallyManifest, players, settings, match, ctx),
 
   // Every way in goes through upgrade(): a room saved by an older Worker gets its new fields first.
   handleAction: (prev, playerId, action, ctx) => handle(upgrade(prev), playerId, action, ctx),

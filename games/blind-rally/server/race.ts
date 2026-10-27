@@ -20,7 +20,7 @@ import {
 } from "../shared/types.ts";
 import { trackData } from "./geometry.ts";
 import { GO, isLive, moveTo, TIME_UP } from "./phases.ts";
-import { isFull, seatOf } from "./teams.ts";
+import { holds, isFull, isSolo, seatOf } from "./teams.ts";
 
 // The race itself: start, clock, the two high-rate streams, and the rules the
 // server holds the Navigator's Godot to (spec §5, §8.3). Godot runs the
@@ -58,6 +58,13 @@ const GATE_SLACK_M = 6;
 const BOUNDS_MARGIN = 50;
 /** The stream path writes the last snapshot to storage at most this often. */
 const SAVE_EVERY_MS = 1_000;
+/**
+ * Shared stage: one ghost per car per this long, at most. Godot snapshots at
+ * 10 Hz and ghosts.gd draws 120 ms behind, so this passes every real one
+ * (with jitter to spare) and caps what a chatty client can fan out to the
+ * other N-1 Navigators at ~12 a second instead of the 40 the runtime allows.
+ */
+export const GHOST_EVERY_MS = 80;
 
 /** One drop-out grace timer per team: `grace:2`. */
 export const GRACE_TIMER = "grace:";
@@ -293,13 +300,14 @@ export function playerAway(state: BlindRallyState, playerId: string, now: number
   if (!seat || seat.team.run!.away.includes(seat.role)) return false;
   const { team, role } = seat;
   const run = team.run!;
-  run.away.push(role);
+  // A car of one has lost both its seats at once.
+  run.away.push(...(isSolo(team) ? (["driver", "navigator"] as Role[]) : [role]));
   run.pausedSince ??= now;
   if (run.graceEndsAt === null) {
     run.graceEndsAt = now + RACE_GRACE_MS;
     out.timers.push({ kind: "set", timerId: graceTimer(team.id), delayMs: RACE_GRACE_MS });
   }
-  if (role === "driver" && team.navigatorId) out.events.push(only(team.navigatorId, { type: "park", teamId: team.id }));
+  if (role === "driver" && team.navigatorId && !isSolo(team)) out.events.push(only(team.navigatorId, { type: "park", teamId: team.id }));
   return true;
 }
 
@@ -313,8 +321,8 @@ export function playerBack(state: BlindRallyState, playerId: string, now: number
   if (!seat || !seat.team.run!.away.includes(seat.role)) return false;
   const { team, role } = seat;
   const run = team.run!;
-  run.away = run.away.filter((r: Role) => r !== role);
-  if (role === "navigator") run.movedAt = now;
+  run.away = isSolo(team) ? [] : run.away.filter((r: Role) => r !== role);
+  if (holds(team, playerId, "navigator")) run.movedAt = now;
   if (!run.away.length) {
     closePause(state, run, now);
     run.graceEndsAt = null;
@@ -364,7 +372,8 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
  *   storage at most once a second. The Driver gets the speed and a
  *   compass bearing and nothing else, riding every snapshot (one small
  *   int, no state to diff against); on a shared stage the other Navigators
- *   get a ghost (spec §8.2).
+ *   get a ghost (spec §8.2), at most one per GHOST_EVERY_MS. A Rally car
+ *   (solo) has no Driver elsewhere to tell: ghosts only.
  * - `ev` impacts: a hit flash on the Driver's dash.
  *
  * A paused team (someone's dropped) sends nothing that counts.
@@ -373,12 +382,14 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
   const t = typeof data === "object" && data !== null ? (data as { t?: unknown }).t : undefined;
   const seat = liveRun(state, playerId, now);
   if (!seat) return null;
-  const { team, role } = seat;
+  const { team } = seat;
   const run = team.run!;
   if (run.away.length) return null;
+  // Rally: the car's on the same device as its controls. Nothing to relay to yourself.
+  const solo = isSolo(team);
 
   if (t === "in") {
-    if (role !== "driver" || !team.navigatorId || now < run.holdUntil) return null;
+    if (solo || !holds(team, playerId, "driver") || !team.navigatorId || now < run.holdUntil) return null;
     const input = parseControl(data);
     if (!input || input.seq <= run.lastSeq) return null;
     return {
@@ -388,7 +399,7 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
     };
   }
 
-  if (role !== "navigator" || !team.driverId) return null;
+  if (!holds(team, playerId, "navigator") || !team.driverId) return null;
 
   if (t === "snap") {
     const s = parseSnapshot(data);
@@ -396,22 +407,27 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
     const verdict = plausible(run, trackData(state.trackId), s, now);
     if (!verdict) return null;
     const save = now - run.savedAt >= SAVE_EVERY_MS;
+    const relays: StreamRelay[] = solo ? [] : [{ to: [team.driverId], data: { t: "dash", speed: s.speed, heading: bearing(s.heading) } }];
+    let ghostAt = run.ghostAt;
+    if (state.settings.stageMode === "shared" && now - (run.ghostAt ?? -Infinity) >= GHOST_EVERY_MS) {
+      // The other cars' Navigators, and only them: a Driver must never learn where anything is.
+      const to = state.teams.filter((r) => r.id !== team.id && r.run?.status === "running" && r.navigatorId).map((r) => r.navigatorId!);
+      if (to.length) {
+        relays.push({ to, data: ghostOf(team, s) });
+        ghostAt = now;
+      }
+    }
     const next = withRun(state, team.id, {
       snap: { at: now, tick: s.tick, position: s.position, speed: s.speed, distance: s.distance },
       ...(verdict === "anchor" && { movedAt: null }),
       ...(save && { savedAt: now }),
+      ...(ghostAt !== run.ghostAt && { ghostAt }),
     });
-    const relays: StreamRelay[] = [{ to: [team.driverId], data: { t: "dash", speed: s.speed, heading: bearing(s.heading) } }];
-    if (state.settings.stageMode === "shared") {
-      // The other cars' Navigators, and only them: a Driver must never learn where anything is.
-      const to = state.teams.filter((r) => r.id !== team.id && r.run?.status === "running" && r.navigatorId).map((r) => r.navigatorId!);
-      if (to.length) relays.push({ to, data: ghostOf(team, s) });
-    }
     return { state: next, relays, persist: save };
   }
 
   const o = data as Record<string, unknown>;
-  if (t === "ev" && o.kind === "impact" && finite(o.strength)) {
+  if (t === "ev" && o.kind === "impact" && finite(o.strength) && !solo) {
     const strength = Math.round(Math.min(10, Math.max(0, o.strength)) * 10) / 10;
     return { state, relays: [{ to: [team.driverId], data: { t: "hit", strength } }], persist: false };
   }

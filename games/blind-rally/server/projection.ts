@@ -11,7 +11,7 @@ import {
 } from "../shared/types.ts";
 import { trackCatalog, trackData } from "./geometry.ts";
 import { effectiveTime, pinView } from "./race.ts";
-import { captainOf, seatOf, startBlocker } from "./teams.ts";
+import { captainOf, isSolo, seatOf, startBlocker } from "./teams.ts";
 
 // Three audiences (spec §8.2, map §2). Public and Driver DTOs are built from
 // an allow-list of fields, never by spreading state, so nothing new on the
@@ -63,17 +63,20 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
   if (!seat) return { role: null };
   const { team, role } = seat;
   // lastSeq lets a reloaded Driver page carry on counting where the server is.
-  if (role === "driver") return { role, teamId: team.id, lastSeq: team.run?.lastSeq ?? 0 };
+  // A Rally car of one has the Navigator's screen: it's the one with the road in it.
+  if (role === "driver" && !isSolo(team)) return { role, teamId: team.id, lastSeq: team.run?.lastSeq ?? 0 };
   const policy = state.settings.camera;
   const allowedCameras: CameraMode[] = policy === "free" ? [...CAMERA_MODES] : [policy];
+  // Rally starts behind the car, like a racing game; Blind Rally from above, like a map.
+  const camera = state.variant === "rally" && allowedCameras.includes("chase") ? "chase" : allowedCameras[0]!;
   return {
-    role,
+    role: "navigator",
     teamId: team.id,
     session: {
       trackId: state.trackId,
       seed: state.seed,
       clouds: CLOUDS[state.settings.weather],
-      camera: allowedCameras[0]!,
+      camera,
       allowedCameras,
       teamNumber: team.id,
       teamColor: teamColor(team.color).hex,
