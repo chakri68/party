@@ -64,8 +64,6 @@ const find = (state: State, id: string): NightfallPlayer | undefined => state.pl
 /** Alive and still here: may act, may be picked or voted for. */
 const canAct = (p: NightfallPlayer | undefined): boolean => !!p && !p.dead && !p.left;
 const actingIds = (state: State) => state.players.filter(canAct).map((p) => p.id);
-/** On a side's count: not dead, not abandoned. A leaver counts until the boundary settles them. */
-const livingIds = (state: State) => state.players.filter((p) => !p.dead && !p.abandoned).map((p) => p.id);
 const holderOf = (state: State, role: RoleId) => state.players.find((p) => state.cards[p.id] === role)?.id ?? null;
 const isWolf = (state: State, id: string) => state.cards[id] === "wolf";
 const voting = (state: State) => state.phase === "vote" || state.phase === "runoff";
@@ -99,35 +97,40 @@ function finish(state: State, reason: EndReason, out: Out): void {
   out.events.push(pub({ type: "game-over", winner: state.winner, reason }));
 }
 
-/** Who's ahead, if anyone's won: no Wolves alive, or Wolves at parity. */
-function winnerNow(state: State): Team | null {
-  const living = livingIds(state);
+/** Who's won, if anyone: no Wolves alive, or Wolves at parity. `abandoned` counts leavers as still alive. */
+function winnerOf(state: State, abandoned: boolean): Team | null {
+  const living = state.players.filter((p) => !p.dead && (abandoned || !p.abandoned)).map((p) => p.id);
   const wolves = living.filter((id) => isWolf(state, id)).length;
   if (wolves === 0) return "village";
   if (wolves >= living.length - wolves) return "wolves";
   return null;
 }
 
-/** After a dawn or an execution. True if it's over. */
+/**
+ * The win check, run twice (ruling 11): counting the abandoned as still alive,
+ * and without them. Decided the first way is a real win. Decided only the
+ * second way means leavers settled it, so nobody wins. True if it's over.
+ */
 function decided(state: State, out: Out): boolean {
-  const w = winnerNow(state);
-  if (!w) return false;
-  state.winner = w;
-  finish(state, "done", out);
+  const real = winnerOf(state, true);
+  if (real) {
+    state.winner = real;
+    finish(state, "done", out);
+    return true;
+  }
+  if (!winnerOf(state, false)) return false;
+  finish(state, "abandoned", out);
   return true;
 }
 
 /**
  * Every phase boundary starts here (ruling 12): living leavers become abandoned,
- * and a side with nobody left on it ends the game with no winner. True if it's over.
+ * then the win check. No one has died since the last one, so only leavers can
+ * decide it here, and that ends it with no winner. True if it's over.
  */
 function boundary(state: State, out: Out): boolean {
   for (const p of state.players) if (p.left && !p.dead) p.abandoned = true;
-  const living = livingIds(state);
-  const wolves = living.filter((id) => isWolf(state, id)).length;
-  if (wolves > 0 && living.length > wolves) return false;
-  finish(state, "abandoned", out);
-  return true;
+  return decided(state, out);
 }
 
 // ---- the night -------------------------------------------------------------
@@ -276,6 +279,8 @@ function check(state: State, ctx: GameContext, out: Out): void {
 /** Drops whatever a leaver had in, or had coming to them, in this phase. */
 function forget(state: State, id: string): void {
   delete state.picks[id];
+  // Picks aimed at them go too, so every picker can pick again.
+  for (const [picker, target] of Object.entries(state.picks)) if (target === id) delete state.picks[picker];
   for (const b of [state.pack, ballotOf(state)]) {
     if (!b) continue;
     dropVoter(b, id);

@@ -205,6 +205,13 @@ export class NightfallView implements GameView {
       this.lastTick = -1;
       this.note.textContent = "";
     }
+    // The player picked left. The server dropped every pick aimed at them, so
+    // every phone that picked them asks again, whatever the card: public state only.
+    if (game.phase === "night" && this.chosen && !this.living(game).includes(this.chosen)) {
+      this.chosen = null;
+      this.confirmed = false;
+      this.note.textContent = "Your pick left the game. Pick again.";
+    }
     // A reload mid-night: the server still has an acting card's pick.
     if (game.phase === "night" && me?.pick && !this.confirmed) {
       this.chosen = me.pick;

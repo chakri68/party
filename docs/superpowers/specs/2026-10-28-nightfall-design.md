@@ -62,8 +62,8 @@ Wolves 1 at 5–6, 2 at 7–9, 3 at 10–12. Beginner: Wolves and Villagers. Sta
 8. **The Watcher's reading** is "Wolf" or "not a Wolf", true, and shows from the dawn after the night it was taken, even if the Watcher died that night (they're dead, but the card still shows it at the end).
 9. **Skip is a vote for nobody,** counted for no one. It exists so a player who wants to abstain doesn't hold the early close.
 10. **Votes are secret until the ballot closes,** then public by name in the day log, as the genre does it. Public state carries only counts while it's open; the awaited list is empty outside the reveal.
-11. **Leaving** (the runtime's `onPlayerRemoved`, after grace or on purpose): the seat shows "left" at once and can't act. Their open votes and night picks are dropped, votes and Wolf picks *for* them are dropped too (so a leave can't be voted out or taken: spec §10, no one is "eliminated by the opposing team" for leaving), and if a runoff loses all but one candidate to leaves, it closes at once and nobody goes. At the next phase boundary every living leaver becomes **abandoned**: not dead, off both sides' counts. If that leaves no living Wolves or no living non-Wolves, the game ends **interrupted**, no winner, everything revealed. A side reduced only to parity by a leave is a real Wolf win at the next win check: spec §10 only interrupts when a faction disappears.
-12. **Phase boundaries settle leavers first,** then resolve the phase, then check for a win. So the last Wolf leaving mid-vote interrupts the game rather than handing the village a win.
+11. **Leaving** (the runtime's `onPlayerRemoved`, after grace or on purpose): the seat shows "left" at once and can't act. Their open votes and night picks are dropped, and so is every vote and night pick *for* them (so a leaver can't be voted out or taken: spec §10, nobody is "eliminated by the opposing team" for leaving; the picker's phone sees the target gone from the living list and asks again, whatever the card). If a runoff loses all but one candidate to leaves, it closes at once and nobody goes. At the next phase boundary every living leaver becomes **abandoned**: not dead, and off the count. **A result reached by abandonment never hands a side the win** (controller, spec §10): every win check runs twice, once counting the abandoned as still alive on their team and once without them. Decided the first way (by deaths and executions), that win stands, even if someone also left. Decided only the second way (an empty side or parity caused by leavers, alone or together with deaths), the game ends **interrupted**: no winner, `endReason: "abandoned"`, everything revealed. This replaces the first build's "parity by a leave is a Wolf win".
+12. **Phase boundaries settle leavers first** and run that same check, then resolve the phase, then check again. No one dies between boundaries, so at a boundary only leavers can decide it, and that's always an interruption: the last Wolf leaving mid-vote interrupts rather than handing the village a win, a villager leaving to parity by day interrupts when the vote opens.
 13. **Disconnects never stall.** A disconnected player doesn't hold up the reveal or a ballot; the night and the day run on the clock. Their night pick simply doesn't come.
 14. **Dead players** keep their card face down, can't pick or vote, and see the public screen with "You're out. Keep what you know to yourself." Room chat is untouched.
 15. **Results:** headline "Village wins" / "Wolves win" / "Interrupted: a side left the game"; every card; each night (Wolves' votes, target, shelter, reading, death) and each day (votes, runoff, who went). Winners are the winning team's seats that didn't leave, dead ones included.
@@ -75,10 +75,10 @@ Wolves 1 at 5–6, 2 at 7–9, 3 at 10–12. Beginner: Wolves and Villagers. Sta
 | Phase | Disconnect | Leave |
 | --- | --- | --- |
 | reveal | doesn't hold the early close | left now, abandoned at the night's start |
-| night | no pick | picks for and by them dropped; abandoned at dawn, before the attack resolves |
+| night | no pick | picks for and by them dropped (pickers asked again); abandoned at dawn, before the attack resolves |
 | day | nothing | abandoned at the vote's start |
 | vote / runoff | doesn't hold the early close | votes for and by them dropped; abandoned at the close, before the tally |
-| any boundary | | a side with nobody living left: interrupted |
+| any boundary or win check | | decided only once leavers are left out (empty side or parity): interrupted |
 
 ## Files
 

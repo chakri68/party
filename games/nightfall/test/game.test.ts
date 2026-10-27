@@ -504,16 +504,58 @@ describe("leaving", () => {
     expect(ring(s).state).toMatchObject({ phase: "finished", endReason: "abandoned" });
   });
 
-  it("a leave that brings the Wolves to parity is their win at the next check", () => {
-    // 1 wolf v 4. Night: take one (1 v 3). Two villagers leave by day: 1 v 1 at the vote's close.
+  it("a leave that brings the Wolves to parity interrupts the game at the next boundary", () => {
+    // 1 wolf v 4. Night: take one (1 v 3). Two villagers leave by day: 1 v 1 without them.
     const FIVE: RoleId[] = ["villager", "wolf", "villager", "villager", "villager"];
     let s = night(toNight(start(FIVE).state), { p1: "p0" }).state;
     s = leave(leave(s, "p2").state, "p3").state;
-    s = toVote(s);
-    expect(s.phase).toBe("vote");
+    const t = ok(act(s, HOST, { type: "next" }));
+    expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "abandoned" });
+    expect(g.getResult(t.state)!.winnerIds).toEqual([]);
+  });
+
+  it("an execution and a leave in the same vote, parity only without the leaver: interrupted", () => {
+    const FIVE: RoleId[] = ["villager", "wolf", "villager", "villager", "villager"];
+    let s = toVote(night(toNight(start(FIVE).state), { p1: "p0" }).state); // 1 v 3
+    s = leave(s, "p2").state;
+    const t = vote(s, { p1: "p3", p4: "p3", p3: "p4" });
+    expect(t.state.days[0]!.out).toBe("p3");
+    // With p2: 1 v 2, undecided. Without: 1 v 1.
+    expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "abandoned" });
+  });
+
+  it("a night kill and a leave the same night, parity only with the leave: interrupted", () => {
+    const FIVE: RoleId[] = ["villager", "wolf", "villager", "villager", "villager"];
+    let s = night(toNight(start(FIVE).state), { p1: "p0" }).state; // 1 v 3
+    s = ring(toVote(s)).state; // nobody goes
+    s = ok(act(s, "p1", { type: "pick", target: "p3" })).state;
+    s = leave(s, "p2").state;
     const t = ring(s);
+    expect(t.state.nights[1]).toMatchObject({ died: "p3" });
+    expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "abandoned" });
+  });
+
+  it("a night kill alone reaching parity is the Wolves' win, even if someone also left", () => {
+    let s = night(nightOne(), { p1: "p4" }).state; // 2 v 4
+    s = vote(toVote(s), { p0: "p6", p1: "p6", p2: "p6", p3: "p6", p5: "p6", p6: "p0" }).state; // 2 v 3
+    expect(s).toMatchObject({ phase: "night", round: 2 });
+    s = ok(act(s, "p1", { type: "pick", target: "p0" })).state;
+    s = leave(s, "p5").state; // a Wolf walks out
+    const t = ring(s);
+    expect(t.state.nights[1]!.died).toBe("p0");
+    // Counting p5 as still in: 2 v 2. A real win.
     expect(t.state).toMatchObject({ phase: "finished", winner: "wolves", endReason: "done" });
     expect(g.getResult(t.state)!.winnerIds).toEqual(["p1"]);
+  });
+
+  it("any pick aimed at a leaver is dropped, so its picker can pick again", () => {
+    let s = nightOne();
+    s = ok(act(s, "p3", { type: "pick", target: "p6" })).state;
+    s = ok(act(s, "p2", { type: "pick", target: "p6" })).state;
+    s = leave(s, "p6").state;
+    expect(s.picks).toEqual({});
+    expect(g.getPrivateState(s, "p3").pick).toBeNull();
+    ok(act(s, "p3", { type: "pick", target: "p0" }));
   });
 
   it("the dead leaving changes nothing", () => {
