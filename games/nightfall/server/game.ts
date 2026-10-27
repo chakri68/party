@@ -515,7 +515,8 @@ export const nightfallGame: GameDefinition<
         abandoned: p.abandoned,
         team: p.dead ? teamOf(state.cards[p.id]!) : null,
       })),
-      acked: state.acks.length,
+      // Leavers' acks don't count: "still looking" is of the living who're still in (as Heist).
+      acked: state.players.filter((p) => !p.left && !p.dead && state.acks.includes(p.id)).length,
       voted: b ? Object.keys(b.votes).length : 0,
       voters: b ? b.eligible.length : 0,
       tied: state.phase === "runoff" ? [...state.tied] : [],

@@ -61,6 +61,15 @@ describe("the reveal", () => {
     expect(t.events.map((e) => e.event)).toEqual([{ type: "night", round: 1 }]);
   });
 
+  it("doesn't count an ack from someone who then left", () => {
+    let s = ok(act(seven(), "p0", { type: "ack" })).state;
+    s = ok(act(s, "p2", { type: "ack" })).state;
+    expect(g.getPublicState(s).acked).toBe(2);
+    s = leave(s, "p0").state;
+    expect(s.phase).toBe("reveal");
+    expect(g.getPublicState(s).acked).toBe(1);
+  });
+
   it("or when the clock runs out", () => {
     expect(ring(seven()).state).toMatchObject({ phase: "night", round: 1 });
   });
