@@ -228,7 +228,16 @@ describe("the night", () => {
   });
 
   describe("Wanderer", () => {
-    it("learns a role from this deck the target doesn't hold", () => {
+    it("always has something to say, even in the smallest deck", () => {
+      for (const target of ["p0", "p2", "p3"]) {
+        let s = toNight(start(["wolf", "wanderer", "villager", "villager"]).state);
+        while (s.steps[s.step] !== "wanderer") s = ring(s).state;
+        const r = ok(act(s, "p1", { type: "pick", targets: [target] })).state.results.p1;
+        expect(r).toMatchObject({ kind: "wander", notRole: s.cards[target] === "wolf" ? "villager" : "wolf" });
+      }
+    });
+
+    it("learns a role from this deck the target doesn't hold, never its own", () => {
       const cards = ["wolf", "wanderer", "stray", "villager", "lamplighter"] as const;
       const seen = new Set<string>();
       for (let seed = 1; seed <= 30; seed++) {
@@ -239,6 +248,7 @@ describe("the night", () => {
           expect(r).toMatchObject({ kind: "wander", target });
           const not = (r as { notRole: string }).notRole;
           expect(not).not.toBe(s.cards[target]);
+          expect(not).not.toBe("wanderer");
           expect(Object.keys(s.deck)).toContain(not);
           seen.add(`${target}:${not}`);
         }

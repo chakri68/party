@@ -140,7 +140,9 @@ function resolvePick(state: State, role: RoleId, targets: string[], ctx: GameCon
       return { kind: "match", targets: [targets[0]!, targets[1]!], same: reads(targets[0]!) === reads(targets[1]!) };
     case "wanderer": {
       const theirs = card(targets[0]!);
-      const others = (Object.keys(state.deck) as RoleId[]).filter((r) => r !== theirs);
+      // Never its own card: "not the Wanderer" is something it already knew.
+      // Never empty either: two non-wolves are dealt, so a third role is always in the deck.
+      const others = (Object.keys(state.deck) as RoleId[]).filter((r) => r !== theirs && r !== "wanderer");
       return { kind: "wander", target: targets[0]!, notRole: pick(others, ctx) };
     }
     default:

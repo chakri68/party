@@ -19,7 +19,7 @@ Listed in night order. "Reads as a wolf" means a Wolf or the Stray (ruling 4).
 | Matchmaker | village | 1 | Step 3, picks two other players | Whether the two read as the same side or different sides. |
 | Bellringer | village | 1 | Step 4, passive | How many of their two seat neighbours read as wolves: 0, 1 or 2. |
 | Gossip | village | 1 | Step 5, passive | Two other players, at least one of whom reads as a wolf. The partial truth. |
-| Wanderer | village | 1 | Step 6, picks one other player | One role that player's card is *not*, drawn from the roles in this deck. |
+| Wanderer | village | 1 | Step 6, picks one other player | One role that player's card is *not*, drawn from the roles in this deck other than the Wanderer itself. |
 | Stray | village | 1 | none | Reads as a wolf to every check above. Knows it. |
 | Villager | village | 10 | none | Nothing. |
 
