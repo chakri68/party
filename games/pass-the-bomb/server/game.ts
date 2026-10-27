@@ -194,10 +194,13 @@ function closeVote(state: State, ctx: GameContext, out: Out): void {
   lightFuse(state, state.fuseLeft, ctx, out);
   out.events.push(pub({ type: "vote-closed", ...closed }));
   if (allowed) accept(state, v.by, v.word, ctx, out, true);
-  else state.rejected.push(v.word);
+  else state.rejected.push(rejectionKey(state.category, v.word));
   // After the pass, which clears the last one: it's news until the next.
   state.lastVote = closed;
 }
+
+/** A no is a no for that word under that category (or none): "arm" isn't an animal, but it's still a body part. */
+const rejectionKey = (category: string | null, word: string) => (category ? `${category}:${word}` : word);
 
 /** Someone on the ballot left or dropped: they stop counting, and that may settle it. */
 function loseVoter(state: State, playerId: string, ctx: GameContext, out: Out): void {
@@ -332,12 +335,13 @@ export const passTheBombGame: GameDefinition<
     const problem = shapeProblem(word, prev.cluster, modesOf(prev.settings));
     if (problem) return reject("bad-word", problem);
     if (prev.used.includes(word)) return reject("used", "Already played this game.");
-    if (prev.rejected.includes(word)) return reject("not-a-word", "The room already said no to that one.");
 
     const state = clone(prev);
     const out = newOut();
     const known = state.category ? inCategory(state.category, word) : isWord(word);
     if (!known) {
+      // Only an unknown word can have been voted down, and only for the category it was up for.
+      if (state.rejected.includes(rejectionKey(state.category, word))) return reject("not-a-word", "The room already said no to that one.");
       const unknown = state.category ? `Not on the ${CATEGORY_LABELS[state.category].toLowerCase()} list.` : "Not in the dictionary.";
       const mode = state.settings.unknown;
       if (mode === "strict") return reject("not-a-word", unknown);
@@ -368,6 +372,8 @@ export const passTheBombGame: GameDefinition<
     }
     // A fuse alarm that slipped past the cancel while the room votes: the fuse is frozen.
     if (timerId !== FUSE || prev.phase === "vote") return { state: prev, events: [] };
+    const early = prev.fuseEndsAt - ctx.now;
+    if (prev.phase === "live" && early > EARLY_MS) return { state: prev, events: [], timers: [{ kind: "set", timerId: FUSE, delayMs: early }] };
     const state = clone(prev);
     const out = newOut();
     if (state.phase === "live") explode(state, out);

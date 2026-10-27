@@ -75,8 +75,8 @@ export function passTheBombSettingFields(raw: unknown): SettingField[] {
       options: FUSE_OPTIONS.map((f) => ({ label: FUSE_LABELS[f], patch: { fuse: f } })),
       hint: `Anywhere from ${lo / 1000} to ${hi / 1000} s a round`,
     },
-    modeField(settings, "ending", "Letters go", "Anywhere", "At the end", modes.ending ? "ING: RUNNING, not SINGER" : "ING: SINGER or RUNNING"),
-    modeField(settings, "reverse", "Bomb shows", "Letters as they are", "Letters backwards", modes.reverse ? "GNI means ING" : "ING means ING"),
+    modeField(settings, "ending", "Letters go", "Anywhere", "At the end", modes.ending ? "ING at the end: RUNNING, not SINGER" : "ING: SINGER or RUNNING"),
+    modeField(settings, "reverse", "Bomb shows", "Letters as they are", "Letters backwards", modes.reverse ? "The bomb shows GNI, you type ING" : "The bomb shows ING, you type ING"),
     modeField(settings, "length", "Word length", "3 or more", `${LENGTH_MIN} to ${LENGTH_MAX}`, modes.length ? `${LENGTH_MIN} to ${LENGTH_MAX} letters, no more, no less` : "Three letters at least"),
     modeField(
       settings,

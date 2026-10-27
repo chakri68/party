@@ -280,6 +280,29 @@ describe("modes in play", () => {
     expect(err(play(strict, "p1", offList))).toBe("not-a-word");
   });
 
+  it("a no is only a no for its category: ARM voted down as an animal still counts as body", () => {
+    let s = start(3, { category: true }, undefined).state;
+    s = { ...s, category: "animals", cluster: "ar" };
+    s = ok(play(s, "p1", "arm")).state;
+    s = ok(cast(s, "p0", "reject")).state;
+    s = ok(cast(s, "p2", "reject")).state;
+    expect(s).toMatchObject({ phase: "live", holderId: "p1" });
+    // Still an animals prompt: no second vote.
+    expect(err(play(s, "p1", "arm"))).toBe("not-a-word");
+    // A body prompt: it's on the list, so it just counts.
+    s = { ...s, category: "body", cluster: "ar" };
+    expect(types(ok(play(s, "p1", "arm")))).toEqual(["passed"]);
+  });
+
+  it("an early fuse alarm re-arms instead of going off", () => {
+    const s = start().state;
+    const early = pb.onTimer!(s, "fuse", ctx(s.fuseEndsAt - 2000));
+    expect(early.state).toBe(s);
+    expect(early.timers).toEqual([{ kind: "set", timerId: "fuse", delayMs: 2000 }]);
+    // Within the slack, it goes.
+    expect(types(pb.onTimer!(s, "fuse", ctx(s.fuseEndsAt - 400)) as T)).toEqual(["boom"]);
+  });
+
   it("parseSettings takes the modes and unknown, and turns away junk", () => {
     expect(pb.parseSettings({ ending: true, unknown: "strict" })).toEqual({ ...DEFAULT_SETTINGS, ending: true, unknown: "strict" });
     expect(pb.parseSettings({ ending: "yes" })).toBeNull();

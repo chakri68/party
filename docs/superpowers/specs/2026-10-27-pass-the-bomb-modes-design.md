@@ -60,7 +60,7 @@ Phase `vote`, between `live` and `live`:
 - Someone eligible disconnecting or leaving is `dropVoter`ed, and the close conditions are checked again. A ballot with nobody left allows.
 - The submitter leaving: the vote is called off, the bomb passes, fuse resumed. The submitter disconnecting changes nothing.
 - The game ending (everyone else left) cancels both timers.
-- `onTimer` ignores a `vote` alarm more than 500 ms early and re-arms it, and ignores a stale `fuse` during a vote.
+- `onTimer` re-arms a `vote` or live `fuse` alarm that lands more than 500 ms early, and ignores a stale `fuse` during a vote.
 
 ## State
 
@@ -77,7 +77,7 @@ Private, added: `canVote`, `myVote`.
 ## Client
 
 - Lobby: seven fields via `passTheBombSettingFields`.
-- Bomb: mode badges above it, the displayed letters on it, the category under them. The holder's status line says what's wanted ("an animal ending in ING"), with the displayed letters.
+- Bomb: mode badges above it, the displayed letters on it, the category under them. The holder's status line says what's wanted, in the letters to type ("a word from ANIMALS with ER at the end (the bomb's backwards)").
 - Typing highlights the effective cluster.
 - Vote: a card over the table with the word, who played it, a 4 s bar off `serverNow()`, and "n of m voted". Voters get two big buttons, Allow and Reject; their pick stays highlighted. Everyone else gets "The room is deciding". The form hides while it's up. The tick stops: the fuse is frozen.
 - After: a line under the table, "The room allowed GLORP, 2–1", with who voted what.
@@ -92,12 +92,13 @@ Private, added: `canVote`, `myVote`.
 6. **Category mode draws clusters from the category's own 2–3 letter runs**, not from `CLUSTERS`. Eighty-odd animals can't put 8 words under TR, so the shared list would leave category mode near empty. Single letters are not used: the category is the hard part, but "has an A" is no part at all.
 7. **In category mode, "known" means on the list**, and a dictionary word that isn't (a platypus in "food") is unknown: the vote handles it, per spec §4.3's "category unknown membership".
 8. **Running dry mid-game**: if no prompt has 8 unused answers, deal the one with the most; if none has any, deal any viable prompt. The game doesn't stall: fuses still blow, and unknown words can still be voted in. Only thin combinations in long games get there.
-9. **A word the room rejected stays rejected for the game.** Otherwise the next holder can force the same vote again. It isn't in `used`, per spec, so it doesn't count as played.
+9. **A word the room rejected stays rejected for the game, for that category.** Otherwise the next holder can force the same vote again. It's keyed `category:word` in category mode and only checked for words that are unknown under the current prompt: ARM voted down as an animal still counts in a body round (review fix). It isn't in `used`, per spec, so it doesn't count as played.
 10. **The vote closes early** when everyone has voted or the outcome is settled. Four seconds of waiting for a foregone result is just waiting.
 11. **Late words lose**: a word with `ctx.now >= fuseEndsAt` is `time-up`, even if the alarm hasn't fired (spec §4.4). Votes past their deadline likewise.
 12. **A resumed fuse keeps its remainder, floored at 1 ms**: a vote opened in the last moment resumes into a bang, as it would have without the vote.
 13. **The vote is in public state as a phase, `vote`**, not a flag on `live`. The tick, the typing stream and the host's skip all key off `live`, and all three should stop while the room decides. `getAwaitedPlayerIds` is empty during it: the 4 s timer carries it, so there's nobody to skip.
 14. **Displayed letters are public, effective letters are the client's to work out** with the shared `effectiveCluster`. Reversing three letters is a puzzle, not a secret.
+16. **All copy names the letters to type**, never the bomb's (QA fix): "It needs IVE at the end (the bomb's backwards)." In QA, "ending in EVI backwards" read both ways. `wanted()` and `REVERSED_NOTE` in shared/rules.ts are the convention; the bomb itself still shows the reversed letters, so the puzzle moves from the copy to the bomb. Placeholders drop the note to fit ~300 px.
 15. **Three existing tests change their setup, not their assertions.** Two pass a two-field settings literal to `createGame` and now spread `DEFAULT_SETTINGS` so they typecheck. The non-word test asks for `unknown: "strict"`: with the default now `vote`, "singz" opens a vote instead of bouncing, and strict is the shipped behaviour that test pins.
 
 ## Deferred

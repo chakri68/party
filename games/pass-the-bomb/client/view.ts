@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { effectiveCluster, normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
+import { effectiveCluster, normalizeWord, parseTyping, REVERSED_NOTE, shapeProblem, wanted } from "../shared/rules.ts";
 import {
   CATEGORY_LABELS,
   LENGTH_MAX,
@@ -24,13 +24,11 @@ const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** What the word needs, worked out from what the bomb shows. */
 const needs = (game: Pub) => effectiveCluster(game.cluster, game.modes);
 
-/** "an animal ending in GNI, backwards": what the holder's after, as the bomb puts it. */
+/** "a word from ANIMALS with ER at the end (the bomb's backwards)": always the letters to type. */
 function ask(game: Pub): string {
   const what = game.category ? `a word from ${CATEGORY_LABELS[game.category].toUpperCase()}` : "a word";
-  const where = game.modes.ending ? "ending in" : "with";
-  const backwards = game.modes.reverse ? " backwards" : "";
   const size = game.modes.length ? `, ${LENGTH_MIN}–${LENGTH_MAX} letters` : "";
-  return `${what} ${where} ${game.cluster.toUpperCase()}${backwards}${size}`;
+  return `${what} with ${wanted(needs(game), game.modes)}${size}${game.modes.reverse ? REVERSED_NOTE : ""}`;
 }
 
 /** "Allow: Sam, You · Reject: Kit" */
@@ -230,6 +228,7 @@ export class PassTheBombView implements GameView {
     if (!word) return;
     const problem = shapeProblem(word, needs(game), game.modes);
     if (problem) return this.bounce(problem);
+    this.note.textContent = "";
     this.pending = this.api.act({ type: "word", text: word });
   }
 
@@ -311,6 +310,8 @@ export class PassTheBombView implements GameView {
     const holder = game.holderId === me ? "You" : seatName(props.room, game.holderId);
     if (game.phase === "vote") {
       this.status.textContent = "The room's deciding";
+      // Whatever bounced before, this one's with the room now.
+      this.note.textContent = "";
     } else if (game.phase === "live") {
       this.status.textContent = holding ? `Your go: ${ask(game)}` : `${holder} has it`;
     } else if (game.blownId) {
@@ -345,7 +346,7 @@ export class PassTheBombView implements GameView {
     const typing = document.activeElement === this.input;
     this.form.hidden = !inGame || game.phase === "finished" || game.phase === "vote";
     this.input.placeholder = holding
-      ? `Something ${game.modes.ending ? "ending in" : "with"} ${game.cluster.toUpperCase()}${game.modes.reverse ? " backwards" : ""}`
+      ? `Something with ${wanted(needs(game), game.modes)}`
       : game.phase === "live" ? "Wait for the bomb" : "Next round's coming";
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);

@@ -36,10 +36,19 @@ export function shapeProblem(word: string, cluster: string, modes: BombModes = N
   if (modes.length && (word.length < LENGTH_MIN || word.length > LENGTH_MAX)) return `${LENGTH_MIN} to ${LENGTH_MAX} letters.`;
   const fits = modes.ending ? word.endsWith(cluster) : word.includes(cluster);
   if (fits) return null;
-  // Said the way the bomb shows it: the error shouldn't do the reversing for you.
-  const shown = displayCluster(cluster, modes).toUpperCase() + (modes.reverse ? " backwards" : "");
-  return modes.ending ? `It has to end in ${shown}.` : `It needs ${shown} in it.`;
+  return `It needs ${wanted(cluster, modes)}${modes.ending ? "" : " in it"}${modes.reverse ? REVERSED_NOTE : ""}.`;
 }
+
+/**
+ * Every line of copy names the letters to TYPE (the effective cluster), never
+ * the bomb's: "IVE at the end", not "EVI backwards", which players misread.
+ */
+export function wanted(cluster: string, modes: BombModes): string {
+  return `${cluster.toUpperCase()}${modes.ending ? " at the end" : ""}`;
+}
+
+/** Tacked on wherever reverse mode might make the bomb and the copy look like they disagree. */
+export const REVERSED_NOTE = " (the bomb's backwards)";
 
 /** Untrusted typing off the stream → clean, or null. */
 export function parseTyping(input: unknown): TypingData | null {

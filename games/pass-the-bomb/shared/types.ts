@@ -109,7 +109,7 @@ export interface PassTheBombServerState {
   lastWord: PlayedWord | null;
   /** Every word played this game, so none gets played twice. */
   used: string[];
-  /** Words the room voted down this game. They don't come back for another vote. */
+  /** Words the room voted down this game, as `category:word` in category mode. They don't come back for another vote. */
   rejected: string[];
   /** When the fuse goes, by ctx.now. Meaningless outside `live`. */
   fuseEndsAt: number;

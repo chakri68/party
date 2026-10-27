@@ -262,7 +262,7 @@
 .pb-verdict.no b { color: var(--danger); text-decoration: line-through; }
 /* Frozen fuse: the spark holds still while the room decides. */
 .pass-the-bomb.voting .pb-spark, .pass-the-bomb.voting .pb-stage.mine .pb-bomb { animation-play-state: paused; }
-.pass-the-bomb.voting .pb-stage { opacity: 0.5; }
+.pass-the-bomb.voting .pb-stage, .pass-the-bomb.voting .pb-modes { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .pb-spark, .pb-stage.mine .pb-bomb, .pb-burst:not([hidden]), .pb-burst:not([hidden]) svg { animation: none; }

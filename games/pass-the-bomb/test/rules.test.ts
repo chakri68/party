@@ -92,14 +92,14 @@ describe("modes", () => {
   it("shapeProblem: ending wants the end, length wants 5 to 10", () => {
     const end = { ...NO_MODES, ending: true };
     expect(shapeProblem("running", "ing", end)).toBeNull();
-    expect(shapeProblem("singer", "ing", end)).toMatch(/end in ING/);
+    expect(shapeProblem("singer", "ing", end)).toBe("It needs ING at the end.");
     const len = { ...NO_MODES, length: true };
     expect(shapeProblem("sing", "ing", len)).toMatch(/5 to 10/);
     expect(shapeProblem("singing", "ing", len)).toBeNull();
     expect(shapeProblem("overthinking", "ing", len)).toMatch(/5 to 10/);
-    // Said as shown, so the error doesn't do the reversing for you.
-    expect(shapeProblem("train", "ing", { ...NO_MODES, reverse: true })).toMatch(/GNI backwards/);
-    expect(shapeProblem("train", "ing", { ...NO_MODES, reverse: true })).not.toMatch(/ING/);
+    // Always the letters to type, with a note that the bomb's the other way round.
+    expect(shapeProblem("train", "ing", { ...NO_MODES, reverse: true })).toBe("It needs ING in it (the bomb's backwards).");
+    expect(shapeProblem("singer", "ive", { ...NO_MODES, reverse: true, ending: true })).toBe("It needs IVE at the end (the bomb's backwards).");
     // Off, it's the shipped rule.
     expect(shapeProblem("singer", "ing")).toBe(shapeProblem("singer", "ing", NO_MODES));
   });

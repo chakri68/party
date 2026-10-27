@@ -40,7 +40,8 @@ function err(result: ReturnType<typeof play>) {
 
 const types = (t: { events: { event: { type: string } }[] }) => t.events.map((e) => e.event.type);
 const lives = (s: S, id: string) => s.players.find((p) => p.id === id)!.lives;
-const fuse = (s: S) => pb.onTimer!(s, "fuse", ctx());
+/** The alarm, on time: a live fuse at its deadline, the boom's whenever. */
+const fuse = (s: S) => pb.onTimer!(s, "fuse", ctx(s.phase === "live" ? s.fuseEndsAt : 0));
 
 describe("createGame", () => {
   it("lights the bomb in the hands of the dealer's left, on a hidden fuse", () => {
