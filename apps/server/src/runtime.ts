@@ -408,7 +408,11 @@ export class RoomRuntime {
 
       case "update-settings": {
         if (!hostOnly() || !inPhase("lobby", "results")) return;
-        const settings = this.games[data.gameId]!.parseSettings(msg.settings);
+        // A patch, merged over what's stored: two changes sent before the first
+        // update lands would otherwise each carry the other's stale value.
+        const patch = msg.settings;
+        const ok = typeof patch === "object" && patch !== null && !Array.isArray(patch);
+        const settings = ok ? this.games[data.gameId]!.parseSettings({ ...(data.settings as object), ...patch }) : null;
         if (settings === null) return this.error(conn, "invalid-settings", "Those settings aren't valid.");
         data.settings = settings;
         return this.commit([]);

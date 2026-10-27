@@ -25,7 +25,8 @@ export interface GameManifest {
 
 /**
  * One host-configurable setting, described as data so the lobby can render it
- * without knowing the game. `patch` is what goes to `update-settings`.
+ * without knowing the game. `patch` is what goes to `update-settings`; the
+ * room merges it over the current settings before `parseSettings` sees it.
  */
 export interface SettingField {
   key: string;

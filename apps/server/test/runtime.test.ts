@@ -339,6 +339,19 @@ describe("room runtime", () => {
       expect(roomOf(b).seats).toHaveLength(1);
     });
 
+    it("composes settings patches sent back to back", async () => {
+      const a = await join(world, room, "Ana");
+      const b = await join(world, room, "Ben");
+      // Two lobby changes before the first update lands: each carries only its own key.
+      await send(room, a, { type: "update-settings", settings: { acePosition: "low" } });
+      await send(room, a, { type: "update-settings", settings: { scoring: "remaining-cards" } });
+      expect(roomOf(b).settings).toMatchObject({ acePosition: "low", scoring: "remaining-cards", forcedPlay: true });
+
+      await send(room, a, { type: "update-settings", settings: { acePosition: "sideways" } });
+      expect(a.last("error")?.code).toBe("invalid-settings");
+      expect(roomOf(b).settings).toMatchObject({ acePosition: "low", scoring: "remaining-cards" });
+    });
+
     it("drops lobby seats that wandered off when the game starts", async () => {
       const ps = [];
       for (const n of ["A", "B", "C", "D"]) ps.push(await join(world, room, n));

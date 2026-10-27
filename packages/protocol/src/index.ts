@@ -119,6 +119,7 @@ export type ClientMessage =
   | { type: "join"; name: string; avatarSeed: string; resumeToken?: string; ownerKey?: string }
   | { type: "ready"; ready: boolean }
   | { type: "select-game"; gameId: string }
+  /** A partial patch; the room merges it over the current settings. */
   | { type: "update-settings"; settings: unknown }
   | { type: "start-game" }
   | { type: "game-action"; clientActionId: string; action: unknown }

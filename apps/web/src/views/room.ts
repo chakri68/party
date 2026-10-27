@@ -658,7 +658,7 @@ export class RoomView implements View {
               );
               select.addEventListener("change", () => {
                 const patch = f.options[Number(select.value)]?.patch;
-                if (patch) this.client?.send({ type: "update-settings", settings: { ...(room.settings as object), ...patch } });
+                if (patch) this.client?.send({ type: "update-settings", settings: patch });
               });
               return select;
             })()
