@@ -6,6 +6,7 @@ import { passTheBombGame as pb } from "../server/game.ts";
 import { effectiveCluster } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
+  FUSE_MS,
   VOTE_MS,
   type PassTheBombEvent,
   type PassTheBombPublicState,
@@ -365,5 +366,35 @@ describe("random games, every combination", () => {
         expect(pb.getResult(s)!.winnerIds).toHaveLength(1);
       }
     }
+  });
+});
+
+describe("a game saved before the modes and the vote", () => {
+  /** What Durable Object storage holds for a game started on 1966614: none of the vote's fields, two settings. */
+  function preUpgrade(): S {
+    const s: Partial<S> = structuredClone(start().state);
+    for (const k of ["category", "rejected", "fuseEndsAt", "fuseLeft", "holdVotes", "voteSeq", "vote", "lastVote"] as const) delete s[k];
+    s.settings = { lives: DEFAULT_SETTINGS.lives, fuse: DEFAULT_SETTINGS.fuse } as PassTheBombSettings;
+    return s as S;
+  }
+
+  it("takes an unknown word to the vote, and remembers the no", () => {
+    const t = ok(play(preUpgrade(), "p1", UNKNOWN, 3000));
+    expect(t.state).toMatchObject({ phase: "vote", holdVotes: 1, voteSeq: 1, category: null });
+    expect(t.state.vote).toMatchObject({ id: 1, by: "p1", word: UNKNOWN });
+    // Its fuse end was never stored: the vote freezes it at the shortest the setting allows.
+    expect(t.state.fuseLeft).toBe(FUSE_MS.normal[0]);
+    const r = ok(cast(ok(cast(t.state, "p0", "reject", 3500)).state, "p2", "reject", 3600));
+    expect(r.state.rejected).toEqual([UNKNOWN]);
+    expect(fuseSet(r)).toMatchObject({ delayMs: t.state.fuseLeft });
+    expect(err(play(r.state, "p1", UNKNOWN, 4000))).toBe("not-a-word");
+  });
+
+  it("reads out a public state with the new fields filled in", () => {
+    expect(pub(preUpgrade())).toMatchObject({ category: null, unknown: "vote", vote: null, lastVote: null });
+  });
+
+  it("goes off when its old alarm lands", () => {
+    expect(types(pb.onTimer!(preUpgrade(), "fuse", ctx(20_000)) as T)).toEqual(["boom"]);
   });
 });

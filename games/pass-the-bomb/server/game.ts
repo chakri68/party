@@ -80,6 +80,31 @@ const done = (state: State, out: Out) => ({ state, events: out.events, timers: o
 const alive = (p: Player) => !p.removed && p.lives > 0;
 const seatOf = (state: State, id: string) => state.players.findIndex((p) => p.id === id);
 
+/**
+ * A game saved before the modes and the vote (1966614's shape) is missing
+ * their fields, and rooms sit in Durable Object storage across a deploy. Fill
+ * them in on the way in; a complete state comes back as is. That game never
+ * stored when its fuse goes, so `fuseEndsAt` is 0, "unknown": its alarm is
+ * still set, and it's the only clock until the next round lights a new one.
+ */
+function restore(s: State): State {
+  const old = s as Partial<State>;
+  const complete = old.rejected && old.voteSeq !== undefined && old.vote !== undefined && old.settings?.unknown && old.fuseEndsAt !== undefined;
+  if (complete) return s;
+  return {
+    ...s,
+    settings: { ...DEFAULT_SETTINGS, ...s.settings },
+    category: old.category ?? null,
+    rejected: old.rejected ?? [],
+    fuseEndsAt: old.fuseEndsAt ?? 0,
+    fuseLeft: old.fuseLeft ?? 0,
+    holdVotes: old.holdVotes ?? 0,
+    voteSeq: old.voteSeq ?? 0,
+    vote: old.vote ?? null,
+    lastVote: old.lastVote ?? null,
+  };
+}
+
 /** A fresh prompt under the game's modes: not the one just played, and not one that's played out. */
 function deal(state: State, ctx: GameContext): void {
   const pool = promptsFor(modesOf(state.settings), state.clusters);
@@ -177,7 +202,8 @@ function openVote(state: State, by: string, word: string, eligible: string[], ct
   state.phase = "vote";
   state.voteSeq++;
   state.holdVotes++;
-  state.fuseLeft = Math.max(1, state.fuseEndsAt - ctx.now);
+  // An unknown end (a restored game) freezes at the shortest fuse the setting allows.
+  state.fuseLeft = state.fuseEndsAt ? Math.max(1, state.fuseEndsAt - ctx.now) : FUSE_MS[state.settings.fuse][0];
   state.vote = { id: state.voteSeq, by, word, ballot: openBallot<VoteChoice>(eligible), deadline: ctx.now + VOTE_MS };
   out.timers.push({ kind: "cancel", timerId: FUSE }, { kind: "set", timerId: VOTE, delayMs: VOTE_MS });
   out.events.push(pub({ type: "vote-opened", ballot: state.vote.id, by, word }));
@@ -320,7 +346,8 @@ export const passTheBombGame: GameDefinition<
     return done(state, out);
   },
 
-  handleAction(prev, playerId, action, ctx) {
+  handleAction(saved, playerId, action, ctx) {
+    const prev = restore(saved);
     if (prev.phase === "finished") return reject("game-finished", "The game is over.");
     const me = prev.players.find((p) => p.id === playerId);
     if (!me || !alive(me)) return reject("not-in-game", "You're out. Heckle freely.");
@@ -329,7 +356,7 @@ export const passTheBombGame: GameDefinition<
     if (prev.phase !== "live") return reject("not-live", "Hang on, the next round's coming.");
     if (prev.holderId !== playerId) return reject("not-holding", "You're not holding the bomb.");
     // The fuse is out; the alarm just hasn't landed yet (source §4.4: late loses).
-    if (ctx.now >= prev.fuseEndsAt) return reject("time-up", "Too late.");
+    if (prev.fuseEndsAt && ctx.now >= prev.fuseEndsAt) return reject("time-up", "Too late.");
 
     const word = action.text;
     const problem = shapeProblem(word, prev.cluster, modesOf(prev.settings));
@@ -359,7 +386,8 @@ export const passTheBombGame: GameDefinition<
     return { ok: true, transition: done(state, out) };
   },
 
-  onTimer(prev, timerId, ctx) {
+  onTimer(saved, timerId, ctx) {
+    const prev = restore(saved);
     if (prev.phase === "finished") return { state: prev, events: [] };
     if (timerId === VOTE) {
       if (prev.phase !== "vote" || !prev.vote) return { state: prev, events: [] };
@@ -381,7 +409,8 @@ export const passTheBombGame: GameDefinition<
     return done(state, out);
   },
 
-  onPlayerDisconnected(prev, playerId, ctx) {
+  onPlayerDisconnected(saved, playerId, ctx) {
+    const prev = restore(saved);
     const idx = seatOf(prev, playerId);
     if (prev.phase === "finished" || idx < 0) return { state: prev, events: [] };
     // Holding it doesn't get you out of it: the fuse keeps burning, and the
@@ -402,7 +431,8 @@ export const passTheBombGame: GameDefinition<
     return { state, events: [] };
   },
 
-  onPlayerRemoved(prev, playerId, ctx) {
+  onPlayerRemoved(saved, playerId, ctx) {
+    const prev = restore(saved);
     const idx = seatOf(prev, playerId);
     if (prev.phase === "finished" || idx < 0 || prev.players[idx]!.removed) return { state: prev, events: [] };
     const state = clone(prev);
@@ -442,7 +472,8 @@ export const passTheBombGame: GameDefinition<
     return { turn: state.turn, text: state.typing };
   },
 
-  getPublicState(state) {
+  getPublicState(saved) {
+    const state = restore(saved);
     return {
       phase: state.phase,
       round: state.round,
