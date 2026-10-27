@@ -52,6 +52,7 @@ export const DECK_RULES: DeckRules = {
   requireTeams: ["wolves", "village"],
   // The village's first role is the Lamplighter; "Lamplighter team card" misleads.
   teamLabels: { wolves: "Wolf", village: "Village" },
+  minPlayers: MIN_PLAYERS,
 };
 
 export const wolvesFor = (n: number): number => (n >= 6 ? 2 : 1);

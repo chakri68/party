@@ -36,6 +36,12 @@ export interface DeckRules {
    * when that role isn't the team's plain card.
    */
   teamLabels?: Record<string, string>;
+  /**
+   * The smallest table the game seats. Below it the lobby hint lists the deck
+   * rather than a problem: a host alone shouldn't be told their deck is wrong
+   * when the real problem is that nobody's arrived.
+   */
+  minPlayers?: number;
 }
 
 /** `preset: "custom"` reads the counts; any preset id ignores them. */
@@ -132,7 +138,7 @@ export function deckSettingFields(
       ...presets.map((p) => ({ label: p.label, patch: { preset: p.id } })),
       { label: "Custom", patch: customPatch },
     ],
-    hint: deckProblem(deck, roles, rules, players) ?? deckList(deck, roles),
+    hint: (players >= (rules.minPlayers ?? 0) && deckProblem(deck, roles, rules, players)) || deckList(deck, roles),
   };
   if (!isCustom) return [presetRow];
 
