@@ -115,9 +115,9 @@ export interface BluffPublicState {
   deadline: number;
   phaseMs: number;
   players: { id: string; score: number; removed: boolean; done: boolean }[];
-  /** Fake Word: always. Bluff Definitions: from the reveal on. */
+  /** Bluff Definitions: always. Fake Word: from the reveal on (it's the answer). */
   word: string | null;
-  /** Bluff Definitions: always (display form). Fake Word: from the reveal on. */
+  /** Fake Word: always. Bluff Definitions: from the reveal on (it's the answer). */
   definition: string | null;
   notes: string | null;
   /** From the vote on, in display order. */
