@@ -27,7 +27,6 @@ function sealed(t: { state: S; events: GameEventEnvelope<unknown>[] }, label: st
   for (const [id, target] of Object.entries(s.picks)) check(`"pick":"${target}"`, [id, ...(Object.values(s.pack?.votes ?? {}).includes(target) ? WOLVES : [])]);
   check('"lastShelter":"', ["p3"]);
   check('"readings":[{', ["p2"]);
-  check('"blocked":["', ["p1", "p2", "p3", "p5"]);
   check('"cards":{', []);
   check('"wolfVotes":', []);
   check('"sheltered":', []);

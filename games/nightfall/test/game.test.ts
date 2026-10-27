@@ -155,8 +155,13 @@ describe("the night", () => {
     s = vote(toVote(s), {}).state; // nobody votes: nobody goes
     s = ring(s).state;
     expect(s).toMatchObject({ phase: "night", round: 2 });
-    expect(g.getPrivateState(s, "p3")).toMatchObject({ lastShelter: "p3", blocked: ["p3"] });
-    expect(err(act(s, "p3", { type: "pick", target: "p3" }))).toBe("bad-pick");
+    expect(g.getPrivateState(s, "p3")).toMatchObject({ lastShelter: "p3" });
+    // Taken, silently, as no shelter at all: p0 is the Wolves' target and dies.
+    const repeat = ok(act(s, "p3", { type: "pick", target: "p3" })).state;
+    expect(g.getPrivateState(repeat, "p3").pick).toBe(SKIP);
+    const t = night(repeat, { p1: "p0" });
+    expect(t.state.nights[1]).toMatchObject({ sheltered: null, died: "p0" });
+    expect(t.state.lastShelter).toBeNull();
     ok(act(s, "p3", { type: "pick", target: "p0" }));
   });
 
@@ -189,13 +194,21 @@ describe("the night", () => {
     expect(g.getPrivateState(s, "p2").readings).toEqual([{ night: 1, target: "p1", wolf: true }]);
   });
 
-  it("refuses picks a card can't make, with one line for all", () => {
+  it("takes a pick the card can't make as no pick, silently, like Heist's crew Sabotage", () => {
     const s = nightOne();
+    // A Wolf on a packmate or themselves abstains; the Watcher on themselves learns nothing.
     for (const [id, target] of [["p1", "p5"], ["p1", "p1"], ["p2", "p2"]] as const) {
-      const r = act(s, id, { type: "pick", target });
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.error).toEqual({ code: "bad-pick", message: "That pick doesn't work for your card." });
+      const t = ok(act(s, id, { type: "pick", target }));
+      expect(t.events).toEqual([]);
+      expect(g.getPrivateState(t.state, id).pick).toBe(SKIP);
+      expect(err(act(t.state, id, { type: "pick", target: "p0" }))).toBe("already");
     }
+    let t = ok(act(s, "p1", { type: "pick", target: "p5" })).state;
+    t = ok(act(t, "p5", { type: "pick", target: "p1" })).state;
+    t = ok(act(t, "p2", { type: "pick", target: "p2" })).state;
+    const dawn = ring(t).state;
+    expect(dawn.nights[0]).toMatchObject({ target: null, died: null, read: null });
+    expect(g.getPrivateState(dawn, "p2").readings).toEqual([]);
     expect(err(act(s, "p0", { type: "pick", target: "p1" }))).toBe("no-pick");
     expect(err(act(s, "p1", { type: "pick", target: "nobody-here" }))).toBe("bad-pick");
   });
@@ -208,8 +221,8 @@ describe("the night", () => {
   it("shows the pack each other's picks; nobody else", () => {
     const s = ok(act(nightOne(), "p1", { type: "pick", target: "p4" })).state;
     expect(g.getPrivateState(s, "p5")).toMatchObject({ pack: ["p1", "p5"], packPicks: { p1: "p4" }, pick: null });
-    expect(g.getPrivateState(s, "p1")).toMatchObject({ pick: "p4", blocked: ["p1", "p5"] });
-    expect(g.getPrivateState(s, "p0")).toMatchObject({ pack: null, packPicks: null, pick: null, blocked: [] });
+    expect(g.getPrivateState(s, "p1")).toMatchObject({ pick: "p4" });
+    expect(g.getPrivateState(s, "p0")).toMatchObject({ pack: null, packPicks: null, pick: null });
   });
 
   it("every living player is picking; the dead aren't and can't", () => {

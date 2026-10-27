@@ -168,8 +168,10 @@ function endNight(state: State, ctx: GameContext, out: Out): void {
   const { winner: target } = tally(pack, state.players.map((p) => p.id), `${state.seed}:night${state.round}`);
   const keeper = holderOf(state, "keeper");
   const watcher = holderOf(state, "watcher");
-  const sheltered = (keeper && state.picks[keeper]) || null;
-  const read = (watcher && state.picks[watcher]) || null;
+  // SKIP: a pick the card couldn't make. No shelter, no reading.
+  const real = (id: string | null) => (id && state.picks[id] !== SKIP && state.picks[id]) || null;
+  const sheltered = real(keeper);
+  const read = real(watcher);
   const died = target && target !== sheltered ? target : null;
   if (died) find(state, died)!.dead = true;
   state.lastShelter = sheltered;
@@ -411,10 +413,12 @@ export const nightfallGame: GameDefinition<
         if (!allowed) return reject("no-pick", "Your card has no night pick.");
         const had = isWolf(prev, playerId) ? prev.pack!.votes[playerId] : prev.picks[playerId];
         if (had) return reject("already", "You've already picked.");
-        // One line for every card (ruling 4).
-        if (!allowed.includes(action.target)) return reject("bad-pick", "That pick doesn't work for your card.");
-        if (isWolf(prev, playerId)) castVote(state.pack!, playerId, action.target, allowed);
-        else state.picks[playerId] = action.target;
+        if (!actingIds(prev).includes(action.target)) return reject("bad-pick", "That pick doesn't work for your card.");
+        // A pick the card can't make is taken, silently, as no pick: a refusal
+        // only an acting card could ever see would mark it (ruling 4).
+        const target = allowed.includes(action.target) ? action.target : SKIP;
+        if (isWolf(prev, playerId)) state.pack!.votes[playerId] = target;
+        else state.picks[playerId] = target;
         // The night runs on regardless: ending it early would say who's acting.
         break;
       }
@@ -527,12 +531,11 @@ export const nightfallGame: GameDefinition<
   getPrivateState(state, playerId) {
     const p = find(state, playerId);
     if (!p) {
-      return { role: null, pack: null, packPicks: null, pick: null, picking: false, blocked: [], lastShelter: null, readings: null, acked: false, vote: null, choices: [] };
+      return { role: null, pack: null, packPicks: null, pick: null, picking: false, lastShelter: null, readings: null, acked: false, vote: null, choices: [] };
     }
     const role = state.cards[playerId]!;
     const wolf = role === "wolf";
     const night = state.phase === "night" && canAct(p);
-    const targets = night ? targetsFor(state, playerId) : null;
     const b = ballotOf(state);
     return {
       role,
@@ -540,8 +543,6 @@ export const nightfallGame: GameDefinition<
       packPicks: wolf && night ? { ...state.pack!.votes } : null,
       pick: night ? ((wolf ? state.pack!.votes[playerId] : state.picks[playerId]) ?? null) : null,
       picking: night,
-      // Everyone living but the card's legal targets. A Villager's picks don't count, so nothing's blocked.
-      blocked: targets ? actingIds(state).filter((id) => !targets.includes(id)) : [],
       lastShelter: role === "keeper" ? state.lastShelter : null,
       readings: role === "watcher" ? state.readings : null,
       acked: state.acks.includes(playerId),

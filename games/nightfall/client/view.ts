@@ -139,14 +139,12 @@ export class NightfallView implements GameView {
     if (game.phase === "reveal" && !me.acked) {
       this.api.act({ type: "ack" });
     } else if (game.phase === "night" && me.picking && !this.confirmed && this.chosen) {
-      // Same line for every card, caught here so nothing goes out (ruling 4).
-      if (me.blocked.includes(this.chosen)) {
-        this.note.textContent = "That pick doesn't work for your card. Pick again.";
-        return;
-      }
-      // Everyone confirms; only an acting card sends it (ruling 6).
+      // Everyone confirms; only an acting card sends it (ruling 6). A pick the
+      // card can't make goes too: the server takes it as no pick, and this
+      // phone says nothing different (ruling 4).
       if (me.role && roleById(me.role).acts) this.api.act({ type: "pick", target: this.chosen });
       this.confirmed = true;
+      this.saveLock(this.props!, game, this.chosen);
       audio.play("card-place");
       if (this.props) this.settle(this.props);
     } else if (game.phase === "day" && this.isHost()) {
@@ -168,6 +166,31 @@ export class NightfallView implements GameView {
     this.api.act({ type: "vote", choice });
     audio.play("card-place");
     audio.buzz(15);
+  }
+
+  // ---- tonight's lock, kept across a reload -------------------------------
+
+  /** Room, match and night: a rematch's night 1 isn't this one's. */
+  private lockKey(props: GameViewProps, game: Pub): string {
+    return `nightfall:lock:${props.room.code}:${props.room.roundNumber}:${game.round}`;
+  }
+
+  /** Storage can be off (private mode, blocked site data); then a reload just unlocks. */
+  private saveLock(props: GameViewProps, game: Pub, target: string | null) {
+    try {
+      if (target) sessionStorage.setItem(this.lockKey(props, game), target);
+      else sessionStorage.removeItem(this.lockKey(props, game));
+    } catch {
+      // Nothing kept.
+    }
+  }
+
+  private loadLock(props: GameViewProps, game: Pub): string | null {
+    try {
+      return sessionStorage.getItem(this.lockKey(props, game));
+    } catch {
+      return null;
+    }
   }
 
   // ---- the clock ----------------------------------------------------------
@@ -210,12 +233,18 @@ export class NightfallView implements GameView {
     if (game.phase === "night" && this.chosen && !this.living(game).includes(this.chosen)) {
       this.chosen = null;
       this.confirmed = false;
+      this.saveLock(props, game, null);
       this.note.textContent = "Your pick left the game. Pick again.";
     }
-    // A reload mid-night: the server still has an acting card's pick.
-    if (game.phase === "night" && me?.pick && !this.confirmed) {
-      this.chosen = me.pick;
-      this.confirmed = true;
+    // A reload mid-night comes back locked in on every phone that confirmed.
+    // The server keeps an acting card's pick; every phone, decoys included,
+    // keeps its own in this tab, so nothing new goes anywhere public.
+    if (game.phase === "night" && !this.confirmed) {
+      const kept = me?.pick ?? this.loadLock(props, game);
+      if (kept && (kept === SKIP || this.living(game).includes(kept))) {
+        this.chosen = kept;
+        this.confirmed = true;
+      }
     }
     this.root.dataset.phase = game.phase;
     this.phaseLabel.textContent = PHASE_LABEL[game.phase];
@@ -274,7 +303,7 @@ export class NightfallView implements GameView {
     }
     if (me.role === "keeper" && me.lastShelter) lines.push(`Last night you sheltered ${this.name(me.lastShelter, props)}: not them tonight.`);
     for (const r of me.readings ?? []) lines.push(`Night ${r.night}: ${this.Name(r.target, props)} ${r.wolf ? "is a Wolf" : "is not a Wolf"}.`);
-    if (me.pick) lines.push(`Your pick tonight: ${this.name(me.pick, props)}.`);
+    if (me.pick) lines.push(me.pick === SKIP ? "Your pick tonight didn't work for your card: it counts for nobody." : `Your pick tonight: ${this.name(me.pick, props)}.`);
     return lines;
   }
 

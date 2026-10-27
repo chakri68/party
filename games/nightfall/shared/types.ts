@@ -158,8 +158,6 @@ export interface NightfallPrivateState {
   pick: string | null;
   /** True for every living player at night, whatever the card. */
   picking: boolean;
-  /** Who your card can't pick tonight. */
-  blocked: string[];
   /** Keeper only. */
   lastShelter: string | null;
   /** Watcher only. */
