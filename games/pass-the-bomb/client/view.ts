@@ -119,6 +119,9 @@ export class PassTheBombView implements GameView {
   private pending: string | null = null;
   /** The ballot the bar is running for. */
   private voteId = -1;
+  /** What the last settle saw, so a vote ending (however we found out) frees the input. */
+  private lastPhase: Pub["phase"] | null = null;
+  private lastVoteId: number | null = null;
   private clock: ReturnType<typeof setInterval>;
 
   constructor(api: GameClientApi) {
@@ -281,6 +284,13 @@ export class PassTheBombView implements GameView {
       this.note.textContent = "";
       this.showTyping("", needs(game));
     }
+    // A vote open or just closed means the word in flight landed: it went to
+    // the room, so nothing's pending any more. Keyed off state, not an event,
+    // so a snapshot after a reconnect mid-vote frees it too.
+    const backFromVote = this.lastPhase === "vote" && game.phase === "live";
+    if (game.phase === "vote" || backFromVote || (game.lastVote && game.lastVote.id !== this.lastVoteId)) this.pending = null;
+    this.lastPhase = game.phase;
+    this.lastVoteId = game.lastVote?.id ?? null;
     // Once it's gone off, whatever they were typing went with it.
     if (game.phase === "boom" || game.phase === "finished") this.showTyping("", needs(game));
 
@@ -351,6 +361,11 @@ export class PassTheBombView implements GameView {
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);
     if (typing && !this.form.hidden) this.input.focus({ preventScroll: true });
+    // Voted down and still holding it: straight back to typing.
+    if (backFromVote && holding && !this.form.hidden) {
+      this.input.focus({ preventScroll: true });
+      this.input.select();
+    }
 
     this.renderPlayers(props, game);
   }
