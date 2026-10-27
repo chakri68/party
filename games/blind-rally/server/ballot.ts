@@ -1,3 +1,4 @@
+import { stableHash } from "@games/game-core";
 import { effectiveTrackPick, type BlindRallyState, type TrackBallot } from "../shared/types.ts";
 import { trackCatalog } from "./geometry.ts";
 import { isEmpty } from "./teams.ts";
@@ -17,13 +18,6 @@ export function fairBallot(state: BlindRallyState): TrackBallot {
   return b;
 }
 
-/** FNV-1a: a stable 32-bit hash, so a tie between the same tracks in the same room always lands the same way. */
-function hash(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
-  return h >>> 0;
-}
-
 /**
  * The count: most votes wins. A tie is settled by the room seed (spec §7.2.5)
  * and reported as one, never broken in secret. No votes at all: null, and the
@@ -37,7 +31,7 @@ export function tally(state: BlindRallyState, ballot: TrackBallot): { trackId: s
   // In the file's order, so the coin sees the same list whoever voted first.
   const leaders = trackCatalog().map((t) => t.id).filter((id) => counts.get(id) === top);
   if (leaders.length === 1) return { trackId: leaders[0]!, tied: [] };
-  const pick = leaders[hash(`${state.seed}:${ballot.target}:${leaders.join(",")}`) % leaders.length]!;
+  const pick = leaders[stableHash(`${state.seed}:${ballot.target}:${leaders.join(",")}`) % leaders.length]!;
   return { trackId: pick, tied: leaders };
 }
 

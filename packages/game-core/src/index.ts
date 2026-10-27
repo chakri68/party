@@ -240,3 +240,73 @@ export function seededRandomInt(seed: number): (maxExclusive: number) => number 
     return Math.floor(r * maxExclusive);
   };
 }
+
+// ---------------------------------------------------------------------------
+// Ballots
+// ---------------------------------------------------------------------------
+
+/** JSON-safe, so it lives in game state as-is. Eligibility is fixed when it opens (source §11). */
+export interface Ballot<C extends string = string> {
+  eligible: string[];
+  votes: Record<string, C>;
+}
+
+export function openBallot<C extends string>(eligible: readonly string[]): Ballot<C> {
+  return { eligible: [...eligible], votes: {} };
+}
+
+/**
+ * Null on success. Re-voting overwrites: still one vote each. Self-votes are the
+ * caller's to rule out, by leaving them off `allowed`.
+ */
+export function castVote<C extends string>(b: Ballot<C>, voterId: string, choice: C, allowed: readonly C[]): GameError | null {
+  if (!b.eligible.includes(voterId)) return { code: "not-eligible", message: "You're not part of this vote." };
+  if (!allowed.includes(choice)) return { code: "bad-choice", message: "That isn't one of the choices." };
+  b.votes[voterId] = choice;
+  return null;
+}
+
+/** Someone left mid-vote: they stop counting, either way. */
+export function dropVoter(b: Ballot, voterId: string): void {
+  b.eligible = b.eligible.filter((id) => id !== voterId);
+  delete b.votes[voterId];
+}
+
+export function allVoted(b: Ballot): boolean {
+  return b.eligible.every((id) => id in b.votes);
+}
+
+/** More than half of everyone eligible, not of those who bothered (the Bomb veto rule). */
+export function strictMajority<C extends string>(b: Ballot<C>, choice: C): boolean {
+  const n = b.eligible.filter((id) => b.votes[id] === choice).length;
+  return n * 2 > b.eligible.length;
+}
+
+/**
+ * Most votes wins. A tie is settled by stableHash(seedKey + leaders) and reported in `tied`,
+ * so a game can run a runoff instead (Imposter does). `order` fixes iteration so the hash
+ * sees the same list whoever voted first. No votes: winner null.
+ */
+export function tally<C extends string>(
+  b: Ballot<C>,
+  order: readonly C[],
+  seedKey: string,
+): { winner: C | null; tied: C[]; counts: Record<C, number> } {
+  const counts = Object.fromEntries(order.map((c) => [c, 0])) as Record<C, number>;
+  for (const id of b.eligible) {
+    const v = b.votes[id];
+    if (v !== undefined && v in counts) counts[v]++;
+  }
+  const top = Math.max(0, ...order.map((c) => counts[c]));
+  if (top === 0) return { winner: null, tied: [], counts };
+  const leaders = order.filter((c) => counts[c] === top);
+  if (leaders.length === 1) return { winner: leaders[0]!, tied: [], counts };
+  return { winner: leaders[stableHash(`${seedKey}:${leaders.join(",")}`) % leaders.length]!, tied: leaders, counts };
+}
+
+/** FNV-1a, 32-bit. Moved from Blind Rally's ballot.ts. */
+export function stableHash(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
