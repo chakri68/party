@@ -102,6 +102,12 @@ export interface GameOutcome {
    */
   standings: { playerId: string; value: number; label?: string }[];
   /**
+   * The results screen's headline, for games where naming the winners reads
+   * wrong (a team's win isn't its players tying). Without it, the shell names
+   * the winners or the loser itself.
+   */
+  headline?: string;
+  /**
    * Names for participants without a room seat, e.g. computer players. The
    * results screen uses these before falling back to seat names.
    */

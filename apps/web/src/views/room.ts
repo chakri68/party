@@ -15,6 +15,7 @@ import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToke
 import { APP_TITLE, navigate } from "../router.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
+import { resultHeadline } from "./headline.ts";
 import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
 
@@ -686,12 +687,7 @@ export class RoomView implements View {
     const featured = room.seats.find((s) => s.id === (loser ?? winner));
     const won = loser ? loser !== me && !!result?.winnerIds.includes(me) : !!result?.winnerIds.includes(me);
     // A shared win names everyone in it, you first if you're one.
-    const tied = loser ? [] : [...(result?.winnerIds ?? [])].sort((a, b) => Number(b === me) - Number(a === me));
-    const names = (ids: string[]) => ids.map((id) => (id === me ? "You" : nameOf(id))).join(ids.length > 2 ? ", " : " and ").replace(/, ([^,]*)$/, " and $1");
-    const headline = loser
-      ? loser === me ? "You lose" : `${nameOf(loser)} loses`
-      : tied.length > 1 ? `${names(tied)} tie`
-      : winner ? (winner === me ? "You win!" : `${nameOf(winner)} wins`) : "Game over";
+    const headline = resultHeadline(result, me, nameOf);
 
     return h(
       "section",
