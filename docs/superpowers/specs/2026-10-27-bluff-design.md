@@ -73,7 +73,7 @@ Bluff Definitions shows every option the same way: `displayDefinition` lowercase
 3. **Rejections can hint.** Fake Word's "real word, or too close to one" shares one message for dictionary words, the real word and near misses, so it doesn't single out the answer; a near-miss can still tell a player they're within two letters of a real word. Bluff Definitions saying "that's the real meaning" only tells someone what they already knew. Both are within the brief's rules, and the writing timer limits probing.
 4. **Near-identical definitions**: equal after `normalizeGuess`, or `editDistance` ≤ max(2, 15% of the shorter). Catches retyped definitions and copied ones with a word changed; anything further apart is a different bluff.
 5. **Reveal is 12 s** and the host can skip it, like Imposter's result. The last round's reveal still plays before the game finishes.
-6. **Rematches avoid repeats.** `carryOver` hands on the words used; the next game of the same kind skips them until the list runs out, then starts over. Within one game a word never repeats (5 rounds against 90 words).
+6. **Rematches avoid repeats.** `carryOver` hands on the words used; the next game of the same kind skips them until the list runs out, then starts over. Within one game a word never repeats (5 rounds against 107 words).
 7. **Points for a leaver's fake still count** on their (struck-through) row. It's the honest record; they're not in the winner pool anyway.
 8. **Removed players can't vote**, and the ballot's eligible list is fixed when voting opens (§11). Someone who never submitted still votes.
 9. **The real answer is server-only**: `server/words.ts`, never imported by `client/` or `shared/` (a guard test checks, alongside the dictionary's).
@@ -82,7 +82,7 @@ Bluff Definitions shows every option the same way: `displayDefinition` lowercase
 
 ## Content
 
-`server/words.ts`: 90 real, uncommon words, each with a meaning and a note written for this project (no dictionary text copied). Every word is in the dictionary (`isWord`), a–z, 3–18 letters; meanings are 15–180 characters, already in display form, and never contain their word. A test checks all of it, and that nothing appears twice.
+`server/words.ts`: 107 real, uncommon words, each with a meaning and a note written for this project (no dictionary text copied). Every word is in the dictionary (`isWord`), a–z, 3–18 letters; meanings are 15–180 characters, already in display form, and never contain their word. A test checks all of it, and that nothing appears twice.
 
 ## Deferred
 
