@@ -39,6 +39,9 @@ importers:
       '@games/dominion':
         specifier: workspace:*
         version: link:../../games/dominion
+      '@games/dont-say-it':
+        specifier: workspace:*
+        version: link:../../games/dont-say-it
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -100,6 +103,9 @@ importers:
       '@games/dominion':
         specifier: workspace:*
         version: link:../../games/dominion
+      '@games/dont-say-it':
+        specifier: workspace:*
+        version: link:../../games/dont-say-it
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core

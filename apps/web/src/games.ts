@@ -7,6 +7,7 @@ import { chainWordsManifest, chainWordsRules, chainWordsSettingFields } from "@g
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
+import { dontSayItManifest, dontSayItRules, dontSayItSettingFields } from "@games/dont-say-it/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
@@ -101,6 +102,12 @@ export const games: Record<string, GameEntry> = {
     rules: bluffDefinitionsRules,
     settingFields: bluffDefinitionsSettingFields,
     loadClient: () => import("@games/bluff/client").then((m) => m.bluffDefinitions),
+  },
+  "dont-say-it": {
+    manifest: dontSayItManifest,
+    rules: dontSayItRules,
+    settingFields: dontSayItSettingFields,
+    loadClient: () => import("@games/dont-say-it/client").then((m) => m.default),
   },
   cheat: {
     manifest: cheatManifest,

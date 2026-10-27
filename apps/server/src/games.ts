@@ -4,6 +4,7 @@ import { chainWordsGame } from "@games/chain-words/server";
 import { cheatGame } from "@games/cheat/server";
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { dominionGame } from "@games/dominion/server";
+import { dontSayItGame } from "@games/dont-say-it/server";
 import type { AnyGameDefinition } from "@games/game-core";
 import { imposterGame } from "@games/imposter/server";
 import { goFishGame } from "@games/go-fish/server";
@@ -26,6 +27,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   imposter: imposterGame,
   "fake-word": fakeWordGame,
   "bluff-definitions": bluffDefinitionsGame,
+  "dont-say-it": dontSayItGame,
   cheat: cheatGame,
   dominion: dominionGame,
 };
