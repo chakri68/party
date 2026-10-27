@@ -46,6 +46,13 @@ describe("deckProblem", () => {
     expect(deckProblem({ seer: 1, villager: 7 }, ROLES, RULES, 6)).toBe("Needs at least one Werewolf team card");
   });
 
+  it("names a missing team by its label when the rules give one, falling back per team", () => {
+    const labelled: DeckRules = { ...RULES, teamLabels: { village: "Village" } };
+    expect(deckProblem({ wolf: 3 }, ROLES, labelled, 1)).toBe("Needs at least one Village card");
+    // No label for wolves: still named after its first role.
+    expect(deckProblem({ seer: 1, villager: 7 }, ROLES, labelled, 6)).toBe("Needs at least one Werewolf team card");
+  });
+
   it("is null for a deck that fits", () => {
     expect(deckProblem({ wolf: 2, seer: 1, villager: 5 }, ROLES, RULES, 6)).toBeNull();
   });

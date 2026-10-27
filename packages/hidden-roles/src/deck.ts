@@ -29,6 +29,13 @@ export interface DeckRules {
   size(players: number): number;
   /** Teams that need at least one card in every deck. */
   requireTeams: string[];
+  /**
+   * What players call each team, for the missing-team message: { village: "Village" }
+   * gives "Needs at least one Village card". A team left out is named after its
+   * first role instead ("Needs at least one Seer team card"), which reads oddly
+   * when that role isn't the team's plain card.
+   */
+  teamLabels?: Record<string, string>;
 }
 
 /** `preset: "custom"` reads the counts; any preset id ignores them. */
@@ -85,7 +92,8 @@ export function deckProblem(deck: Deck, roles: RoleSpec[], rules: DeckRules, pla
   for (const team of rules.requireTeams) {
     const members = roles.filter((r) => r.team === team);
     if (members.some((r) => (deck[r.id] ?? 0) > 0)) continue;
-    return `Needs at least one ${members[0]?.label ?? team} team card`;
+    const label = rules.teamLabels?.[team];
+    return label ? `Needs at least one ${label} card` : `Needs at least one ${members[0]?.label ?? team} team card`;
   }
   return null;
 }
