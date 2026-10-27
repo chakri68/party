@@ -47,7 +47,12 @@ export const readsAsWolf = (role: RoleId): boolean => role === "wolf" || role ==
 export const MIN_PLAYERS = 4;
 export const MAX_PLAYERS = 10;
 
-export const DECK_RULES: DeckRules = { size: (n) => n, requireTeams: ["wolves", "village"] };
+export const DECK_RULES: DeckRules = {
+  size: (n) => n,
+  requireTeams: ["wolves", "village"],
+  // The village's first role is the Lamplighter; "Lamplighter team card" misleads.
+  teamLabels: { wolves: "Wolf", village: "Village" },
+};
 
 export const wolvesFor = (n: number): number => (n >= 6 ? 2 : 1);
 

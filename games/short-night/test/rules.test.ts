@@ -76,7 +76,12 @@ describe("setupProblem", () => {
   });
 
   it("wants a wolf", () => {
-    expect(setupProblem(custom({ lamplighter: 1, villager: 4 }), 5)).toBe("Needs at least one Wolf team card");
+    expect(setupProblem(custom({ lamplighter: 1, villager: 4 }), 5)).toBe("Needs at least one Wolf card");
+  });
+
+  it("wants a village card, and says so in those words", () => {
+    // Two non-wolves would also be short; the team check comes first.
+    expect(setupProblem(custom({ wolf: 3 }), 3)).toBe("Needs at least one Village card");
   });
 
   it("wants two non-wolves", () => {

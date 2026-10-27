@@ -1,7 +1,7 @@
 import { audio } from "@games/audio";
 import { roleReveal } from "@games/hidden-roles/reveal";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { describeResult, list } from "../shared/describe.ts";
+import { describeNightEntry, describeResult, list, nextPicks, wakingLine } from "../shared/describe.ts";
 import { type RoleId, roleById } from "../shared/roles.ts";
 import {
   type NightResult,
@@ -150,9 +150,7 @@ export class ShortNightView implements GameView {
   private toggle(id: string) {
     const game = this.props?.game as Pub | undefined;
     if (!game || game.phase !== "night" || this.confirmed) return;
-    const count = this.pickCount(game);
-    if (this.chosen.includes(id)) this.chosen = this.chosen.filter((x) => x !== id);
-    else this.chosen = count === 1 ? [id] : [...this.chosen, id].slice(-2);
+    this.chosen = nextPicks(this.chosen, id, this.pickCount(game));
     this.note.textContent = "";
     if (this.props) this.settle(this.props);
   }
@@ -261,7 +259,7 @@ export class ShortNightView implements GameView {
         // Word for word the same on every phone, picker or not.
         const step = roleById(game.steps[game.step]!);
         const count = this.pickCount(game);
-        headline = `The ${step.label}${step.id === "wolf" ? "s are" : " is"} awake. Everyone picks ${count === 1 ? "a player" : "two players"}.`;
+        headline = `${wakingLine(step)}. Everyone picks ${count === 1 ? "a player" : "two players"}.`;
         sub = this.confirmed
           ? "Locked in. Anything you learned is on your card."
           : "Only the picks of the card that's awake count. Pick anyway, so nobody can tell whose turn it is.";
@@ -336,14 +334,14 @@ export class ShortNightView implements GameView {
     replaceChildren(this.panel, h("ul", { class: "sn-list" }, game.players.map((p) => this.row(props, p.id, {}))));
   }
 
-  private row(props: GameViewProps, id: string, opts: { pressed?: boolean; disabled?: boolean; onclick?: () => void; extra?: Node | null }): HTMLElement {
+  private row(props: GameViewProps, id: string, opts: { pressed?: boolean; disabled?: boolean; onclick?: () => void; extra?: (Node | null)[] }): HTMLElement {
     const game = props.game as Pub;
     const seat = props.room.seats.find((s) => s.id === id);
     const left = game.players.find((p) => p.id === id)?.left;
     const inner = [
       seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
       h("span", { class: "sn-name" }, id === props.playerId ? "You" : seatName(props.room, id)),
-      opts.extra ?? null,
+      ...(opts.extra ?? []),
       left ? h("span", { class: "sn-tag" }, "left") : null,
     ];
     const cls = ["sn-row", left && "gone", id === props.playerId && "me"].filter(Boolean).join(" ");
@@ -363,7 +361,12 @@ export class ShortNightView implements GameView {
             { class: "sn-dawn-part" },
             h("h3", {}, title),
             Object.keys(votes).length
-              ? h("ul", { class: "sn-votes" }, Object.entries(votes).map(([voter, choice]) => h("li", {}, `${this.Name(voter, props)} → ${this.name(choice, props)}`)))
+              ? h(
+                  "ul",
+                  { class: "sn-votes" },
+                  // Seat order, not the order the votes came in.
+                  game.players.filter((p) => p.id in votes).map((p) => h("li", {}, `${this.Name(p.id, props)} → ${this.name(votes[p.id], props)}`)),
+                )
               : h("p", { class: "sn-muted" }, "Nobody voted."),
           )
         : null;
@@ -380,12 +383,11 @@ export class ShortNightView implements GameView {
             const role = roleById(cards[p.id] as RoleId);
             const n = votesFor(game.votes, p.id);
             return this.row(props, p.id, {
-              extra: h(
-                "span",
-                { class: `sn-role team-${role.team}${game.out === p.id ? " out" : ""}` },
-                role.label,
-                n ? h("span", { class: "sn-count", "aria-label": `${n} ${n === 1 ? "vote" : "votes"}` }, ` ${n}×`) : null,
-              ),
+              extra: [
+                h("span", { class: `sn-role team-${role.team}${game.out === p.id ? " out" : ""}` }, role.label, game.out === p.id ? " (out)" : null),
+                // First-ballot votes, in words: "2×" next to a card read as two cards.
+                n ? h("span", { class: "sn-count" }, `${n} ${n === 1 ? "vote" : "votes"}`) : null,
+              ],
             });
           }),
         ),
@@ -400,7 +402,7 @@ export class ShortNightView implements GameView {
           (game.night ?? []).map((e) => {
             const label = roleById(e.role).label;
             const who = e.holders.length ? list(e.holders.map((id) => this.Name(id, props))) : "Nobody";
-            const what = e.result ? this.resultText(e.result, e.holders[0] ?? "", props) : "Never got their turn.";
+            const what = describeNightEntry(e, props.playerId, (id) => this.name(id, props));
             return h("li", {}, h("b", {}, `${label} (${who}): `), what);
           }),
         ),
