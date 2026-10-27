@@ -1,0 +1,12 @@
+{
+  "name": "@games/words",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dictionary": "./src/dictionary.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  }
+}

@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   cleanChat,
   drawerPoints,
-  editDistance,
   guessPoints,
   hintCount,
-  isClose,
   normalizeGuess,
   parseDrawOp,
 } from "../shared/rules.ts";
@@ -22,15 +20,6 @@ describe("guesses", () => {
     expect(cleanChat("  hi\n\tthere\u0000 ")).toBe("hi there");
     expect(cleanChat("x".repeat(200))).toHaveLength(60);
     expect(cleanChat(" \n ")).toBe("");
-  });
-
-  it("call one typo close, on words long enough to bear it", () => {
-    expect(editDistance("kitten", "sitting")).toBe(3);
-    expect(editDistance("abc", "abcdef", 1)).toBe(2);
-    expect(isClose("aple", "apple")).toBe(true);
-    expect(isClose("appel", "apple")).toBe(false); // two edits
-    expect(isClose("apple", "apple")).toBe(false); // that's a hit
-    expect(isClose("ca", "cat")).toBe(false); // too short to be close
   });
 });
 

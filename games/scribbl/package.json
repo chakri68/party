@@ -15,6 +15,7 @@
     "@games/ui": "workspace:*",
     "@games/protocol": "workspace:*",
     "@games/animation": "workspace:*",
-    "@games/audio": "workspace:*"
+    "@games/audio": "workspace:*",
+    "@games/words": "workspace:*"
   }
 }

@@ -286,6 +286,9 @@ importers:
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@games/words':
+        specifier: workspace:*
+        version: link:../../packages/words
 
   games/sevens:
     dependencies:
@@ -333,6 +336,8 @@ importers:
         version: link:../protocol
 
   packages/webrtc: {}
+
+  packages/words: {}
 
 packages:
 

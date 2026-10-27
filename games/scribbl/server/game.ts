@@ -5,6 +5,7 @@ import {
   type GameResult,
   type TimerRequest,
 } from "@games/game-core";
+import { isClose } from "@games/words";
 import { scribblManifest } from "../shared/manifest.ts";
 import {
   cleanChat,
@@ -12,7 +13,6 @@ import {
   guessPoints,
   hintAt,
   hintCount,
-  isClose,
   isLetter,
   normalizeGuess,
   parseDrawOp,
