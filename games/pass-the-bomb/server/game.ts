@@ -1,13 +1,33 @@
-import { type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
+import {
+  allVoted,
+  castVote,
+  dropVoter,
+  openBallot,
+  strictMajority,
+  type Ballot,
+  type GameContext,
+  type GameDefinition,
+  type GameEventEnvelope,
+  type GameResult,
+  type TimerRequest,
+} from "@games/game-core";
 import { passTheBombManifest } from "../shared/manifest.ts";
-import { normalizeWord, ordinal, parseTyping, shapeProblem } from "../shared/rules.ts";
+import { displayCluster, modesOf, normalizeWord, ordinal, parseTyping, shapeProblem } from "../shared/rules.ts";
+import { modesProblem } from "../shared/viable.ts";
 import {
   BOOM_MS,
+  CATEGORY_LABELS,
   DEFAULT_SETTINGS,
   FUSE_MS,
   FUSE_OPTIONS,
   LIVES_OPTIONS,
+  MAX_HOLD_VOTES,
   MAX_WORD,
+  MODE_KEYS,
+  UNKNOWN_OPTIONS,
+  VOTE_CHOICES,
+  VOTE_MS,
+  type VoteChoice,
   type PassTheBombAction,
   type PassTheBombEvent,
   type PassTheBombPlayerState,
@@ -18,6 +38,8 @@ import {
   type TypingData,
 } from "../shared/types.ts";
 import { isWord } from "@games/words/dictionary";
+import { inCategory } from "./categories.ts";
+import { dealPrompt, promptsFor } from "./prompts.ts";
 import { CLUSTERS } from "./words.ts";
 
 type State = PassTheBombServerState;
@@ -36,6 +58,10 @@ const reject = (code: string, message: string): GameResult<State, PassTheBombEve
  * round. Setting it again replaces it, so a pass never has to touch it.
  */
 const FUSE = "fuse";
+/** The room's 4 s on an unknown word. The fuse is cancelled while it runs, and set again after. */
+const VOTE = "vote";
+/** An alarm this early is a clock hiccup, not the deadline: re-arm it (Dominion's guard). */
+const EARLY_MS = 500;
 
 // ---------------------------------------------------------------------------
 // Internals. Helpers mutate the state they're given; the public API always
@@ -54,10 +80,12 @@ const done = (state: State, out: Out) => ({ state, events: out.events, timers: o
 const alive = (p: Player) => !p.removed && p.lives > 0;
 const seatOf = (state: State, id: string) => state.players.findIndex((p) => p.id === id);
 
-/** A cluster that isn't the one just played, when there's a choice. */
-function pickCluster(state: State, ctx: GameContext): string {
-  const pool = state.clusters.length > 1 ? state.clusters.filter((c) => c !== state.cluster) : state.clusters;
-  return pool[ctx.randomInt(pool.length)]!;
+/** A fresh prompt under the game's modes: not the one just played, and not one that's played out. */
+function deal(state: State, ctx: GameContext): void {
+  const pool = promptsFor(modesOf(state.settings), state.clusters);
+  const p = dealPrompt(pool, state.used, { cluster: state.cluster, category: state.category }, ctx.randomInt);
+  state.cluster = p.cluster;
+  state.category = p.category;
 }
 
 /**
@@ -72,8 +100,10 @@ function nextAlive(state: State, from: number, self = false): Player | null {
 }
 
 function finish(state: State, out: Out): void {
+  if (state.vote) out.timers.push({ kind: "cancel", timerId: VOTE });
   state.phase = "finished";
   state.typing = "";
+  state.vote = null;
   out.timers.push({ kind: "cancel", timerId: FUSE });
   out.events.push(pub({ type: "game-over", winnerId: state.players.find(alive)?.id ?? null }));
 }
@@ -88,8 +118,16 @@ function settled(state: State, out: Out): boolean {
 function giveBomb(state: State, to: Player, ctx: GameContext): void {
   state.holderId = to.id;
   state.turn++;
-  state.cluster = pickCluster(state, ctx);
+  deal(state, ctx);
   state.typing = "";
+  state.holdVotes = 0;
+  state.lastVote = null;
+}
+
+/** Lights (or relights) the fuse with `ms` left. */
+function lightFuse(state: State, ms: number, ctx: GameContext, out: Out): void {
+  state.fuseEndsAt = ctx.now + ms;
+  out.timers.push({ kind: "set", timerId: FUSE, delayMs: ms });
 }
 
 /** A fresh fuse, lit in the hands of whoever it last went off on (or the next one along). */
@@ -103,7 +141,7 @@ function startRound(state: State, ctx: GameContext, out: Out): void {
   state.round++;
   state.blownId = null;
   giveBomb(state, holder, ctx);
-  out.timers.push({ kind: "set", timerId: FUSE, delayMs: fuse });
+  lightFuse(state, fuse, ctx, out);
   out.events.push(pub({ type: "round-started", round: state.round, holderId: holder.id }));
 }
 
@@ -112,6 +150,60 @@ function pass(state: State, ctx: GameContext): Player | null {
   const next = nextAlive(state, seatOf(state, state.holderId));
   if (next) giveBomb(state, next, ctx);
   return next;
+}
+
+/** A word that counts: it's played, and the bomb moves on, fuse untouched. */
+function accept(state: State, playerId: string, word: string, ctx: GameContext, out: Out, voted = false): void {
+  state.used.push(word);
+  state.lastWord = { playerId, word };
+  const to = pass(state, ctx);
+  // Only one alive means the game ended already; pass always finds someone.
+  out.events.push(pub({ type: "passed", from: playerId, to: to!.id, word, ...(voted && { voted: true as const }) }));
+}
+
+// ---------------------------------------------------------------------------
+// The room vote (source §4.3)
+// ---------------------------------------------------------------------------
+
+/** Everyone's in, or the rest can't change it: a strict majority already rejects, or can't any more. */
+function decided(b: Ballot<VoteChoice>): boolean {
+  const rejects = b.eligible.filter((id) => b.votes[id] === "reject").length;
+  const open = b.eligible.filter((id) => !(id in b.votes)).length;
+  return allVoted(b) || rejects * 2 > b.eligible.length || (rejects + open) * 2 <= b.eligible.length;
+}
+
+/** Freezes the fuse and asks everyone alive and here, bar the one who played it. */
+function openVote(state: State, by: string, word: string, eligible: string[], ctx: GameContext, out: Out): void {
+  state.phase = "vote";
+  state.voteSeq++;
+  state.holdVotes++;
+  state.fuseLeft = Math.max(1, state.fuseEndsAt - ctx.now);
+  state.vote = { id: state.voteSeq, by, word, ballot: openBallot<VoteChoice>(eligible), deadline: ctx.now + VOTE_MS };
+  out.timers.push({ kind: "cancel", timerId: FUSE }, { kind: "set", timerId: VOTE, delayMs: VOTE_MS });
+  out.events.push(pub({ type: "vote-opened", ballot: state.vote.id, by, word }));
+}
+
+/** Out only on a strict majority to reject; anything less lets it through. The fuse picks up where it stopped. */
+function closeVote(state: State, ctx: GameContext, out: Out): void {
+  const v = state.vote!;
+  const allowed = !strictMajority(v.ballot, "reject");
+  const closed = { id: v.id, by: v.by, word: v.word, allowed, votes: { ...v.ballot.votes } };
+  state.vote = null;
+  state.phase = "live";
+  out.timers.push({ kind: "cancel", timerId: VOTE });
+  lightFuse(state, state.fuseLeft, ctx, out);
+  out.events.push(pub({ type: "vote-closed", ...closed }));
+  if (allowed) accept(state, v.by, v.word, ctx, out, true);
+  else state.rejected.push(v.word);
+  // After the pass, which clears the last one: it's news until the next.
+  state.lastVote = closed;
+}
+
+/** Someone on the ballot left or dropped: they stop counting, and that may settle it. */
+function loseVoter(state: State, playerId: string, ctx: GameContext, out: Out): void {
+  if (!state.vote?.ballot.eligible.includes(playerId)) return;
+  dropVoter(state.vote.ballot, playerId);
+  if (decided(state.vote.ballot)) closeVote(state, ctx, out);
 }
 
 function explode(state: State, out: Out): void {
@@ -133,8 +225,12 @@ function parseSettings(input: unknown): PassTheBombSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...DEFAULT_SETTINGS, ...(input as Partial<PassTheBombSettings>) };
-  if (!LIVES_OPTIONS.includes(s.lives) || !FUSE_OPTIONS.includes(s.fuse)) return null;
-  return { lives: s.lives, fuse: s.fuse };
+  if (!LIVES_OPTIONS.includes(s.lives) || !FUSE_OPTIONS.includes(s.fuse) || !UNKNOWN_OPTIONS.includes(s.unknown)) return null;
+  if (MODE_KEYS.some((k) => typeof s[k] !== "boolean")) return null;
+  const modes = modesOf(s);
+  // A combination with nothing to deal never reaches a game.
+  if (modesProblem(modes)) return null;
+  return { lives: s.lives, fuse: s.fuse, ...modes, unknown: s.unknown };
 }
 
 function parseAction(input: unknown): PassTheBombAction | null {
@@ -144,6 +240,9 @@ function parseAction(input: unknown): PassTheBombAction | null {
     const text = normalizeWord(a.text);
     return text ? { type: "word", text } : null;
   }
+  if (a.type === "vote" && Number.isInteger(a.ballot) && VOTE_CHOICES.includes(a.choice as VoteChoice)) {
+    return { type: "vote", ballot: a.ballot as number, choice: a.choice as VoteChoice };
+  }
   return null;
 }
 
@@ -152,6 +251,17 @@ function normalizeClusters(input: unknown[]): string[] {
   const ok = input.every((c) => typeof c === "string" && /^[a-z]{1,4}$/.test(c));
   if (!input.length || !ok) throw new Error("A cluster list must be short lowercase letter runs, e.g. [\"ing\", \"tr\"].");
   return [...new Set(input as string[])];
+}
+
+function vote(prev: State, playerId: string, ballot: number, choice: VoteChoice, ctx: GameContext): GameResult<State, PassTheBombEvent> {
+  if (prev.phase !== "vote" || !prev.vote || prev.vote.id !== ballot) return reject("no-vote", "That vote's over.");
+  if (ctx.now >= prev.vote.deadline) return reject("time-up", "Too late, it's counted.");
+  const state = clone(prev);
+  const out = newOut();
+  const error = castVote(state.vote!.ballot, playerId, choice, VOTE_CHOICES);
+  if (error) return { ok: false, error };
+  if (decided(state.vote!.ballot)) closeVote(state, ctx, out);
+  return { ok: true, transition: done(state, out) };
 }
 
 // ---------------------------------------------------------------------------
@@ -187,9 +297,17 @@ export const passTheBombGame: GameDefinition<
       // The dealer's left lights the first one.
       holderId: players[(dealer + 1) % n]!.id,
       cluster: "",
+      category: null,
       blownId: null,
       lastWord: null,
       used: [],
+      rejected: [],
+      fuseEndsAt: 0,
+      fuseLeft: 0,
+      holdVotes: 0,
+      voteSeq: 0,
+      vote: null,
+      lastVote: null,
       outOrder: [],
       clusters: options?.deck ? normalizeClusters(options.deck) : [...CLUSTERS],
       typing: "",
@@ -203,27 +321,53 @@ export const passTheBombGame: GameDefinition<
     if (prev.phase === "finished") return reject("game-finished", "The game is over.");
     const me = prev.players.find((p) => p.id === playerId);
     if (!me || !alive(me)) return reject("not-in-game", "You're out. Heckle freely.");
+    if (action.type === "vote") return vote(prev, playerId, action.ballot, action.choice, ctx);
+    if (prev.phase === "vote") return reject("voting", "Hang on, the room's deciding.");
     if (prev.phase !== "live") return reject("not-live", "Hang on, the next round's coming.");
     if (prev.holderId !== playerId) return reject("not-holding", "You're not holding the bomb.");
+    // The fuse is out; the alarm just hasn't landed yet (source §4.4: late loses).
+    if (ctx.now >= prev.fuseEndsAt) return reject("time-up", "Too late.");
 
     const word = action.text;
-    const problem = shapeProblem(word, prev.cluster);
+    const problem = shapeProblem(word, prev.cluster, modesOf(prev.settings));
     if (problem) return reject("bad-word", problem);
     if (prev.used.includes(word)) return reject("used", "Already played this game.");
-    if (!isWord(word)) return reject("not-a-word", "Not in the dictionary.");
+    if (prev.rejected.includes(word)) return reject("not-a-word", "The room already said no to that one.");
 
     const state = clone(prev);
     const out = newOut();
-    state.used.push(word);
-    state.lastWord = { playerId, word };
-    const to = pass(state, ctx);
-    // Only one alive means the game ended already; pass always finds someone.
-    out.events.push(pub({ type: "passed", from: playerId, to: to!.id, word }));
+    const known = state.category ? inCategory(state.category, word) : isWord(word);
+    if (!known) {
+      const unknown = state.category ? `Not on the ${CATEGORY_LABELS[state.category].toLowerCase()} list.` : "Not in the dictionary.";
+      const mode = state.settings.unknown;
+      if (mode === "strict") return reject("not-a-word", unknown);
+      if (mode === "vote") {
+        if (state.holdVotes >= MAX_HOLD_VOTES) return reject("not-a-word", `${unknown} No more votes this turn.`);
+        const eligible = state.players.filter((p) => alive(p) && !p.away && p.id !== playerId).map((p) => p.id);
+        // Nobody to ask (two of you, one away): it goes through.
+        if (eligible.length) {
+          openVote(state, playerId, word, eligible, ctx, out);
+          return { ok: true, transition: done(state, out) };
+        }
+      }
+    }
+    accept(state, playerId, word, ctx, out);
     return { ok: true, transition: done(state, out) };
   },
 
   onTimer(prev, timerId, ctx) {
-    if (prev.phase === "finished" || timerId !== FUSE) return { state: prev, events: [] };
+    if (prev.phase === "finished") return { state: prev, events: [] };
+    if (timerId === VOTE) {
+      if (prev.phase !== "vote" || !prev.vote) return { state: prev, events: [] };
+      const early = prev.vote.deadline - ctx.now;
+      if (early > EARLY_MS) return { state: prev, events: [], timers: [{ kind: "set", timerId: VOTE, delayMs: early }] };
+      const state = clone(prev);
+      const out = newOut();
+      closeVote(state, ctx, out);
+      return done(state, out);
+    }
+    // A fuse alarm that slipped past the cancel while the room votes: the fuse is frozen.
+    if (timerId !== FUSE || prev.phase === "vote") return { state: prev, events: [] };
     const state = clone(prev);
     const out = newOut();
     if (state.phase === "live") explode(state, out);
@@ -231,14 +375,17 @@ export const passTheBombGame: GameDefinition<
     return done(state, out);
   },
 
-  onPlayerDisconnected(prev, playerId) {
+  onPlayerDisconnected(prev, playerId, ctx) {
     const idx = seatOf(prev, playerId);
     if (prev.phase === "finished" || idx < 0) return { state: prev, events: [] };
     // Holding it doesn't get you out of it: the fuse keeps burning, and the
-    // host can skip a dropped holder straight away (§12.2).
+    // host can skip a dropped holder straight away (§12.2). Voting, though,
+    // is for who's here.
     const state = clone(prev);
+    const out = newOut();
     state.players[idx]!.away = true;
-    return { state, events: [] };
+    loseVoter(state, playerId, ctx, out);
+    return done(state, out);
   },
 
   onPlayerReconnected(prev, playerId) {
@@ -256,6 +403,16 @@ export const passTheBombGame: GameDefinition<
     const out = newOut();
     state.players[idx]!.removed = true;
     if (settled(state, out)) return done(state, out);
+    if (state.vote?.by === playerId) {
+      // Their word goes with them; the fuse picks up again, in the next hands.
+      out.timers.push({ kind: "cancel", timerId: VOTE });
+      out.events.push(pub({ type: "vote-called-off", ballot: state.vote.id }));
+      state.vote = null;
+      state.phase = "live";
+      lightFuse(state, state.fuseLeft, ctx, out);
+    } else {
+      loseVoter(state, playerId, ctx, out);
+    }
     // Walking out with it lit passes it on, fuse and all.
     const to = state.phase === "live" && state.holderId === playerId ? pass(state, ctx) : null;
     out.events.push(pub({ type: "left", playerId, to: to?.id ?? null }));
@@ -285,7 +442,21 @@ export const passTheBombGame: GameDefinition<
       round: state.round,
       turn: state.turn,
       holderId: state.holderId,
-      cluster: state.cluster,
+      cluster: displayCluster(state.cluster, modesOf(state.settings)),
+      modes: modesOf(state.settings),
+      category: state.category,
+      unknown: state.settings.unknown,
+      // Who's voted, never how, until it closes.
+      vote: state.vote && {
+        id: state.vote.id,
+        by: state.vote.by,
+        word: state.vote.word,
+        voters: state.vote.ballot.eligible,
+        voted: state.vote.ballot.eligible.filter((id) => id in state.vote!.ballot.votes),
+        deadline: state.vote.deadline,
+        ms: VOTE_MS,
+      },
+      lastVote: state.lastVote,
       blownId: state.blownId,
       lastWord: state.lastWord,
       usedCount: state.used.length,
@@ -296,11 +467,16 @@ export const passTheBombGame: GameDefinition<
   },
 
   getPrivateState(state, playerId) {
-    return { holding: state.phase === "live" && state.holderId === playerId };
+    const ballot = state.phase === "vote" ? state.vote?.ballot : undefined;
+    return {
+      holding: state.phase === "live" && state.holderId === playerId,
+      canVote: !!ballot?.eligible.includes(playerId),
+      myVote: ballot?.votes[playerId] ?? null,
+    };
   },
 
   // The holder's who everyone's waiting on. Mostly the fuse sorts them out;
-  // a dropped one can be skipped by the host.
+  // a dropped one can be skipped by the host. A vote waits on its own timer.
   getAwaitedPlayerIds(state) {
     return state.phase === "live" ? [state.holderId] : [];
   },

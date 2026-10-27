@@ -59,7 +59,7 @@ describe("createGame", () => {
   it("draws a different fuse each time, inside the chosen range", () => {
     const seen = new Set<number>();
     for (let seed = 0; seed < 40; seed++) {
-      const t = pb.createGame(players(2), { lives: 1, fuse: "short" }, { roundNumber: 1, dealerSeat: 0 }, ctx(0, seed));
+      const t = pb.createGame(players(2), { ...DEFAULT_SETTINGS, lives: 1, fuse: "short" }, { roundNumber: 1, dealerSeat: 0 }, ctx(0, seed));
       const timer = t.timers!.find((x) => x.kind === "set")!;
       if (timer.kind !== "set") throw new Error();
       expect(timer.delayMs).toBeGreaterThanOrEqual(FUSE_MS.short[0]);
@@ -88,7 +88,7 @@ describe("words", () => {
   });
 
   it("turns away non-words, missing clusters and repeats, and the bomb stays put", () => {
-    let s = start(3).state;
+    let s = start(3, { settings: { unknown: "strict" } }).state;
     expect(err(play(s, "p1", "singz"))).toBe("not-a-word");
     expect(err(play(s, "p1", "train"))).toBe("bad-word");
     expect(err(play(s, "p1", "sing er"))).toBe("bad-word");
@@ -237,7 +237,7 @@ describe("random games", () => {
     for (let seed = 0; seed < 60; seed++) {
       const rng = seededRandomInt(seed * 7 + 3);
       const n = 2 + rng(11);
-      let s = pb.createGame(players(n), { lives: 1 + rng(3), fuse: "normal" }, { roundNumber: 1, dealerSeat: rng(n) }, ctx(0, seed)).state;
+      let s = pb.createGame(players(n), { ...DEFAULT_SETTINGS, lives: 1 + rng(3), fuse: "normal" }, { roundNumber: 1, dealerSeat: rng(n) }, ctx(0, seed)).state;
       let steps = 0;
       while (s.phase !== "finished") {
         if (++steps > 5000) throw new Error(`seed ${seed}: no end in sight`);

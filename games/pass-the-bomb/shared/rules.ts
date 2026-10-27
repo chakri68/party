@@ -1,20 +1,44 @@
-import { MAX_WORD, MIN_WORD, type TypingData } from "./types.ts";
+import { LENGTH_MAX, LENGTH_MIN, MAX_WORD, MIN_WORD, MODE_KEYS, NO_MODES, type BombModes, type TypingData } from "./types.ts";
 
 /** What a typed word is compared as: trimmed, lowercase. Anything but a–z left in makes it not a word. */
 export function normalizeWord(text: string): string {
   return text.trim().toLowerCase();
 }
 
+/** The modes out of a settings object (or anything shaped like one). */
+export function modesOf(settings: Partial<BombModes> | null | undefined): BombModes {
+  return Object.fromEntries(MODE_KEYS.map((k) => [k, settings?.[k] === true])) as unknown as BombModes;
+}
+
+/**
+ * What the bomb shows → what the word needs. The one place REVERSE means
+ * anything: today it's the letters backwards (source §4.2's reading). To make
+ * it mean something else, change this and displayCluster, and nothing else.
+ */
+export function effectiveCluster(display: string, modes: BombModes): string {
+  return modes.reverse ? [...display].reverse().join("") : display;
+}
+
+/** What effectiveCluster's inverse puts on the bomb. Backwards is its own inverse. */
+export function displayCluster(cluster: string, modes: BombModes): string {
+  return effectiveCluster(cluster, modes);
+}
+
 /**
  * Why a word can't count before anyone opens the dictionary, or null if it
- * might. Shared so the holder's screen can shake without a round trip.
+ * might. `cluster` is the effective one. Shared so the holder's screen can
+ * shake without a round trip. Everything here is objective: no vote overrides it.
  */
-export function shapeProblem(word: string, cluster: string): string | null {
+export function shapeProblem(word: string, cluster: string, modes: BombModes = NO_MODES): string | null {
   if (!/^[a-z]+$/.test(word)) return "Letters only.";
   if (word.length < MIN_WORD) return `${MIN_WORD} letters at least.`;
   if (word.length > MAX_WORD) return "That's not a word.";
-  if (!word.includes(cluster)) return `It needs ${cluster.toUpperCase()} in it.`;
-  return null;
+  if (modes.length && (word.length < LENGTH_MIN || word.length > LENGTH_MAX)) return `${LENGTH_MIN} to ${LENGTH_MAX} letters.`;
+  const fits = modes.ending ? word.endsWith(cluster) : word.includes(cluster);
+  if (fits) return null;
+  // Said the way the bomb shows it: the error shouldn't do the reversing for you.
+  const shown = displayCluster(cluster, modes).toUpperCase() + (modes.reverse ? " backwards" : "");
+  return modes.ending ? `It has to end in ${shown}.` : `It needs ${shown} in it.`;
 }
 
 /** Untrusted typing off the stream → clean, or null. */
