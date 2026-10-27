@@ -43,7 +43,7 @@ The real word (Fake Word) or meaning (Bluff Definitions) is in nobody's state be
 
 When voting opens, the submissions and the real answer are shuffled with `shuffle(ctx.randomInt)`, and each gets a fresh random six-character base-36 id, unique in the round. The id carries nothing (not the author, not the slot, not realness), and the order is the shuffle. A test runs many seeds and checks the real one lands in different slots and its id never repeats a pattern.
 
-Bluff Definitions shows every option the same way: `displayDefinition` lowercases the first letter and strips trailing periods and spaces, on the real meaning too. The dataset's meanings are stored that way already.
+Bluff Definitions shows every option the same way: `displayDefinition` straightens curly quotes, lowercases the first letter and strips trailing `.`, `!`, `?`, `…` and spaces, on the real meaning too. The dataset's meanings are stored that way already.
 
 ## Actions
 
@@ -71,18 +71,20 @@ Bluff Definitions shows every option the same way: `displayDefinition` lowercase
 1. **No fakes, no vote.** If nobody submitted anything, a ballot with one option is pointless: straight to `reveal`, nobody scores, a `no-fakes` event says so.
 2. **One submission, no edits.** Same as Imposter's clue. Simpler state, and an edit after others have seen "done" ticks buys nothing.
 3. **Rejections can hint.** Fake Word's "real word, or too close to one" shares one message for dictionary words, the real word and near misses, so it doesn't single out the answer; a near-miss can still tell a player they're within two letters of a real word. Bluff Definitions saying "that's the real meaning" only tells someone what they already knew. Both are within the brief's rules, and the writing timer limits probing.
-4. **Near-identical definitions**: equal after `normalizeGuess`, or `editDistance` ≤ max(2, 15% of the shorter). Catches retyped definitions and copied ones with a word changed; anything further apart is a different bluff.
+4. **Near-identical definitions** (tightened in fix round 1): equal after `normalizeGuess`; or `editDistance` ≤ max(2, 15% of the shorter); or one normalised text inside the other (shorter ≥ 12 letters), which catches the real meaning with a clause cut off; or a Jaccard overlap ≥ 0.7 over words of 3+ letters, which catches reordering and swaps.
 5. **Reveal is 12 s** and the host can skip it, like Imposter's result. The last round's reveal still plays before the game finishes.
-6. **Rematches avoid repeats.** `carryOver` hands on the words used; the next game of the same kind skips them until the list runs out, then starts over. Within one game a word never repeats (5 rounds against 107 words).
+6. **Rematches avoid repeats.** `carryOver` hands on the words used; the next game of the same kind skips them until the list runs out, then starts over. Within one game a word never repeats (5 rounds against 112 words).
 7. **Points for a leaver's fake still count** on their (struck-through) row. It's the honest record; they're not in the winner pool anyway.
 8. **Removed players can't vote**, and the ballot's eligible list is fixed when voting opens (§11). Someone who never submitted still votes.
 9. **The real answer is server-only**: `server/words.ts`, never imported by `client/` or `shared/` (a guard test checks, alongside the dictionary's).
 10. **No profanity filter** (as Imposter ruling 13). Fake Word's a–z rule already rules out URLs and formatting; definitions go through `cleanChatText`.
 11. **Fake Word entries are 3–18 letters, and so are the real words.** A 20-letter real word among 18-letter fakes would give itself away; the dataset test checks.
+12. **Clashes are rationed** (fix round 1). A shape problem (length, letters) is an ordinary rejection: the phone checks it too, and it knows no secrets. A clash (real word, near the answer, a duplicate) knows secrets, so each player gets three explained clashes per round, then "Try something else." for the rest. The count has to live in state, so a clash is a transition with a private `refused` event rather than an error.
+13. **One sense per real meaning.** "; also …" second senses only ever appeared on real options, so they moved into the notes. The real list carries no `;`, `!`, `?` or curly quotes; a test checks.
 
 ## Content
 
-`server/words.ts`: 107 real, uncommon words, each with a meaning and a note written for this project (no dictionary text copied). Every word is in the dictionary (`isWord`), a–z, 3–18 letters; meanings are 15–180 characters, already in display form, and never contain their word. A test checks all of it, and that nothing appears twice.
+`server/words.ts`: 112 real, uncommon words (fix round 1 dropped the six most familiar and added eleven), each with a meaning and a note written for this project (no dictionary text copied). Every word is in the dictionary (`isWord`), a–z, 3–18 letters; meanings are 15–180 characters, already in display form, and never contain their word. A test checks all of it, and that nothing appears twice.
 
 ## Deferred
 

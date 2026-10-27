@@ -386,15 +386,25 @@ describe.each(["fake-word", "bluff-definitions"] as const)("%s", (variant) => {
   });
 });
 
+/** A clash: accepted as a transition, with a private "refused" event and no entry. */
+function refused(result: ReturnType<typeof act>, playerId = "p0"): string {
+  const t = ok(result);
+  expect(t.state.round.entries[playerId]).toBeUndefined();
+  const e = t.events.find((x) => x.event.type === "refused");
+  if (!e) throw new Error("expected a refusal");
+  expect(e.visibility).toEqual({ kind: "private", playerId });
+  return (e.event as { message: string }).message;
+}
+
 describe("fake word checks", () => {
   const s = () => start("fake-word").state;
 
   it("turn away real words, the real word and near misses, all with one message", () => {
-    const msg = err(act(s(), "p0", { type: "submit", text: "Jalousie" }));
+    const msg = refused(act(s(), "p0", { type: "submit", text: "Jalousie" }));
     expect(msg).toMatch(/real word/);
-    expect(err(act(s(), "p0", { type: "submit", text: "kettle" }))).toBe(msg);
-    expect(err(act(s(), "p0", { type: "submit", text: "jalousee" }))).toBe(msg);
-    expect(err(act(s(), "p0", { type: "submit", text: "jaloosie" }))).toBe(msg);
+    expect(refused(act(s(), "p0", { type: "submit", text: "kettle" }))).toBe(msg);
+    expect(refused(act(s(), "p0", { type: "submit", text: "jalousee" }))).toBe(msg);
+    expect(refused(act(s(), "p0", { type: "submit", text: "jaloosie" }))).toBe(msg);
     expect(ok(act(s(), "p0", { type: "submit", text: "jelvoskin" })).state.round.entries.p0).toBe("jelvoskin");
   });
 
@@ -405,9 +415,28 @@ describe("fake word checks", () => {
     expect(err(act(st, "p0", { type: "submit", text: "https://x.io" }))).toMatch(/Letters/);
     st = ok(act(st, "p1", { type: "submit", text: " Glorpish " })).state;
     expect(st.round.entries.p1).toBe("glorpish");
-    expect(err(act(st, "p0", { type: "submit", text: "GLORPISH" }))).toMatch(/already/);
-    st = ok(act(st, "p0", { type: "submit", text: "glorpash" })).state;
+    const t = act(st, "p0", { type: "submit", text: "GLORPISH" });
+    expect(refused(t)).toMatch(/already/);
+    st = ok(act(ok(t).state, "p0", { type: "submit", text: "glorpash" })).state;
     expect(st.round.entries.p0).toBe("glorpash");
+  });
+
+  it("explain three clashes a round, then go vague; shape mistakes don't count", () => {
+    let st = s();
+    for (let i = 0; i < 5; i++) expect(err(act(st, "p0", { type: "submit", text: "x" }))).toMatch(/3/);
+    const msgs: string[] = [];
+    for (const text of ["kettle", "jalousee", "table", "jaloosie", "chair"]) {
+      const t = act(st, "p0", { type: "submit", text });
+      msgs.push(refused(t));
+      st = ok(t).state;
+    }
+    expect(msgs.slice(0, 3).every((m) => /real word/.test(m))).toBe(true);
+    expect(msgs.slice(3)).toEqual(["Try something else.", "Try something else."]);
+    // Someone else's count is their own, and a new round starts afresh.
+    expect(refused(act(st, "p1", { type: "submit", text: "kettle" }), "p1")).toMatch(/real word/);
+    st = ring(ring(st).state).state;
+    expect(st.round.phase).toBe("write");
+    expect(refused(act(st, "p0", { type: "submit", text: "kettle" }))).toMatch(/real word/);
   });
 });
 
@@ -417,20 +446,30 @@ describe("bluff definition checks", () => {
   it("turn away short ones, the real meaning, and near copies of someone else's", () => {
     let st = s();
     expect(err(act(st, "p0", { type: "submit", text: "a dog" }))).toMatch(/15/);
-    expect(err(act(st, "p0", { type: "submit", text: "A blind or shutter made of angled slats." }))).toMatch(/real meaning/);
-    expect(err(act(st, "p0", { type: "submit", text: "a blind or shutter made of angled planks" }))).toMatch(/real meaning/);
+    expect(refused(act(st, "p0", { type: "submit", text: "A blind or shutter made of angled slats." }))).toMatch(/real meaning/);
+    expect(refused(act(st, "p0", { type: "submit", text: "a blind or shutter made of angled planks" }))).toMatch(/real meaning/);
     st = ok(act(st, "p1", { type: "submit", text: "A small jealous dog from France." })).state;
-    expect(err(act(st, "p0", { type: "submit", text: "a small jealous dog from france" }))).toMatch(/nearly the same/);
+    expect(refused(act(st, "p0", { type: "submit", text: "a small jealous dog from france" }))).toMatch(/nearly the same/);
     st = ok(act(st, "p0", { type: "submit", text: "a large jealous cat from Spain" })).state;
     expect(st.round.entries.p0).toBe("a large jealous cat from Spain");
+  });
+
+  it("turn away the real meaning with a bit cut off (QA: dibble minus 'or bulbs')", () => {
+    const dibble = WORDS.find((e) => e.word === "dibble")!;
+    const st = start("bluff-definitions", 4, { deck: [`dibble|${dibble.definition}`] }).state;
+    expect(refused(act(st, "p0", { type: "submit", text: "a pointed stick for poking holes in soil to plant seeds" }))).toMatch(/real meaning/);
+    expect(refused(act(st, "p0", { type: "submit", text: "A pointed stick for poking holes in the soil, to plant seeds or bulbs!" }))).toMatch(/real meaning/);
+    expect(ok(act(st, "p0", { type: "submit", text: "a small trowel for weeding between paving stones" })).state.round.entries.p0).toBeTruthy();
   });
 
   it("puts every option on the board the same way", () => {
     let st = s();
     st = ok(act(st, "p0", { type: "submit", text: "A small jealous dog from France." })).state;
+    st = ok(act(st, "p1", { type: "submit", text: "Someone\u2019s small window box\u2026" })).state;
+    st = ok(act(st, "p2", { type: "submit", text: "The act of sulking in a doorway?!" })).state;
     st = ring(st).state;
     const texts = pubOf(st).options!.map((o) => o.text).sort();
-    expect(texts).toEqual(["a blind or shutter made of angled slats", "a small jealous dog from France"]);
+    expect(texts).toEqual(["a blind or shutter made of angled slats", "a small jealous dog from France", "someone's small window box", "the act of sulking in a doorway"]);
   });
 
   it("cleans what's typed: one line, 180 at most", () => {

@@ -58,6 +58,9 @@ const SLACK_MS = 500;
 /** Fake words this close to the real one are turned away. */
 const NEAR_REAL = 2;
 const ID_CHARS = 6;
+/** Clashes a player is told the reason for, per round. After that, one vague line. */
+export const HELPFUL_CLASHES = 3;
+const VAGUE = "Try something else.";
 
 // ---------------------------------------------------------------------------
 // What differs between the two games: what's written, how it's checked, and
@@ -68,8 +71,13 @@ interface Rules {
   manifest: GameManifest;
   /** Server-side cleaning of a submission. */
   clean(text: string): string;
-  /** Why it can't go in, or null. `others` is everyone else's, cleaned. */
-  problem(text: string, entry: Entry, others: string[]): string | null;
+  /** What's wrong with its shape alone, or null. The phone runs the same check. */
+  shape(text: string): string | null;
+  /**
+   * Why it clashes with the answer or someone else's, or null. `others` is
+   * everyone else's, cleaned. These answers know secrets, so they're rationed.
+   */
+  clash(text: string, entry: Entry, others: string[]): string | null;
   /** How a submission (or the real answer) shows on the board. */
   show(text: string): string;
   /** The real answer, as written in the list. */
@@ -80,9 +88,8 @@ const RULES: Record<Variant, Rules> = {
   "fake-word": {
     manifest: fakeWordManifest,
     clean: cleanFake,
-    problem(word, entry, others) {
-      const shape = fakeShapeProblem(word);
-      if (shape) return shape;
+    shape: fakeShapeProblem,
+    clash(word, entry, others) {
       // One message for all three, so it doesn't single out the answer.
       if (word === entry.word || isWord(word) || editDistance(word, entry.word, NEAR_REAL) <= NEAR_REAL) {
         return "That's a real word, or too close to one. Make one up.";
@@ -96,9 +103,8 @@ const RULES: Record<Variant, Rules> = {
   "bluff-definitions": {
     manifest: bluffDefinitionsManifest,
     clean: cleanDefinition,
-    problem(text, entry, others) {
-      const shape = definitionShapeProblem(text);
-      if (shape) return shape;
+    shape: definitionShapeProblem,
+    clash(text, entry, others) {
       if (nearSame(text, entry.definition)) return "That's the real meaning. Bluff.";
       if (others.some((o) => nearSame(text, o))) return "Someone wrote nearly the same. Try another.";
       return null;
@@ -178,7 +184,7 @@ function pickEntry(state: State, ctx: GameContext): Entry {
 }
 
 function blankRound(entry: Entry): RoundState {
-  return { phase: "write", deadline: 0, phaseMs: 0, entry, entries: {}, options: [], ballot: null, gained: {} };
+  return { phase: "write", deadline: 0, phaseMs: 0, entry, entries: {}, clashes: {}, options: [], ballot: null, gained: {} };
 }
 
 function startRound(state: State, ctx: GameContext, out: Out): void {
@@ -368,8 +374,18 @@ export function makeBluffGame(variant: Variant): Definition {
           const others = written(r)
             .filter(([id]) => id !== playerId)
             .map(([, t]) => t);
-          const problem = rules.problem(text, r.entry, others);
-          if (problem) return reject("bad-entry", problem);
+          const shape = rules.shape(text);
+          if (shape) return reject("bad-entry", shape);
+          const clash = rules.clash(text, r.entry, others);
+          if (clash) {
+            // A rejection that knows the answer is an oracle if it can be
+            // asked forever. The count has to live in state, so this is a
+            // transition with a private "refused" event, not an error.
+            const n = (s.clashes[playerId] ?? 0) + 1;
+            s.clashes[playerId] = n;
+            out.events.push({ visibility: { kind: "private", playerId }, event: { type: "refused", message: n > HELPFUL_CLASHES ? VAGUE : clash } });
+            return { ok: true, transition: done(state, out) };
+          }
           s.entries[playerId] = text;
           break;
         }

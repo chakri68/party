@@ -77,6 +77,8 @@ export interface RoundState {
   entry: Entry;
   /** By player, cleaned. Null: done without one (skipped). Absent: not yet. */
   entries: Record<string, string | null>;
+  /** Submissions turned away for clashing with the answer or another's, by player. */
+  clashes: Record<string, number>;
   /** Built, shuffled, when voting opens. */
   options: ServerOption[];
   ballot: Ballot | null;
@@ -153,4 +155,6 @@ export type BluffEvent =
   | { type: "no-fakes" }
   | { type: "revealed"; realId: string | null }
   | { type: "skipped"; playerId: string }
+  /** Private: your submission clashed (with the answer or someone's). Try again. */
+  | { type: "refused"; message: string }
   | { type: "game-over"; reason: EndReason };

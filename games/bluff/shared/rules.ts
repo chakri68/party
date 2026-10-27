@@ -28,23 +28,55 @@ export function definitionShapeProblem(text: string): string | null {
 }
 
 /**
- * How every option looks on the board, the real one too: lowercase first
- * letter, no trailing full stop. Capitals and full stops are a tell.
+ * How every option looks on the board, the real one too: straight quotes,
+ * lowercase first letter, no trailing full stop, "!", "?" or ellipsis.
+ * Capitals, curly quotes and end punctuation are a tell: phones type them,
+ * the real list doesn't.
  */
 export function displayDefinition(text: string): string {
-  const t = text.trim().replace(/[.\s]+$/u, "");
+  const t = text
+    .replace(/[\u2018\u2019]/gu, "'")
+    .replace(/[\u201C\u201D]/gu, '"')
+    .trim()
+    .replace(/[.!?\u2026\s]+$/u, "");
   return t.charAt(0).toLowerCase() + t.slice(1);
 }
 
+/** Words of three letters or more, lowercased, for the overlap check. */
+function wordSet(text: string): Set<string> {
+  return new Set(
+    displayDefinition(text)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3),
+  );
+}
+
+/** Below this many letters, one text sitting inside another means nothing. */
+const MIN_CONTAINED = 12;
+/** Shared words over all words (3+ letters) at which two meanings are one. */
+const MAX_OVERLAP = 0.7;
+
 /**
- * Two definitions that are really one: equal once normalised, or a few
- * letters apart for their length (15%, at least 2). Catches a retyped
- * meaning, or one with a word swapped; a different bluff gets through.
+ * Two definitions that are really one. Any of:
+ * - equal once normalised, or a few letters apart for their length (15%, at
+ *   least 2): a retyped meaning, or a word misspelt;
+ * - one inside the other, once normalised: a meaning with a bit cut off or
+ *   tacked on;
+ * - 70% or more of their words (3+ letters) shared: a word or two swapped.
+ * A different bluff gets through.
  */
 export function nearSame(a: string, b: string): boolean {
   const x = normalizeGuess(displayDefinition(a));
   const y = normalizeGuess(displayDefinition(b));
   if (x === y) return true;
   const limit = Math.max(2, Math.floor(Math.min(x.length, y.length) * 0.15));
-  return editDistance(x, y, limit) <= limit;
+  if (editDistance(x, y, limit) <= limit) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  if (short.length >= MIN_CONTAINED && long.includes(short)) return true;
+  const wa = wordSet(a);
+  const wb = wordSet(b);
+  const shared = [...wa].filter((w) => wb.has(w)).length;
+  const union = wa.size + wb.size - shared;
+  return union > 0 && shared / union >= MAX_OVERLAP;
 }

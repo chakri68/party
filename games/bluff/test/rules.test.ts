@@ -6,8 +6,8 @@ import { cleanDefinition, cleanFake, definitionShapeProblem, displayDefinition, 
 import { bluffDefinitionsSettingFields, fakeWordSettingFields } from "../shared/rules-text.ts";
 
 describe("words", () => {
-  it("has 60+, none twice, every one in the dictionary, a–z, 3–18 letters", () => {
-    expect(WORDS.length).toBeGreaterThanOrEqual(60);
+  it("has 100+, none twice, every one in the dictionary, a–z, 3–18 letters", () => {
+    expect(WORDS.length).toBeGreaterThanOrEqual(100);
     expect(new Set(WORDS.map((e) => e.word)).size).toBe(WORDS.length);
     for (const { word } of WORDS) {
       expect(word, word).toMatch(/^[a-z]{3,18}$/);
@@ -23,6 +23,9 @@ describe("words", () => {
       expect(cleanDefinition(definition), word).toBe(definition);
       expect(normalizeGuess(definition).includes(word), word).toBe(false);
       expect(notes.length, word).toBeGreaterThan(10);
+      // One sense each: a "; also …" second meaning only ever showed up on real ones.
+      expect(definition, word).not.toMatch(/;|\balso\b/);
+      expect(definition, word).not.toMatch(/[\u2018\u2019\u201C\u201D!?]/);
     }
   });
 
@@ -59,10 +62,14 @@ describe("definitions", () => {
     expect(definitionShapeProblem("a small, angry dog")).toBeNull();
   });
 
-  it("all look the same on the board: lowercase start, no full stop", () => {
+  it("all look the same on the board: straight quotes, lowercase start, no end punctuation", () => {
     expect(displayDefinition("A small dog.")).toBe("a small dog");
     expect(displayDefinition("a small dog...  ")).toBe("a small dog");
-    expect(displayDefinition("A small dog!")).toBe("a small dog!");
+    expect(displayDefinition("A small dog!")).toBe("a small dog");
+    expect(displayDefinition("a small dog?!…")).toBe("a small dog");
+    expect(displayDefinition("A small dog . ! ")).toBe("a small dog");
+    expect(displayDefinition("the dog\u2019s \u2018bark\u2019 and \u201Cbite\u201D")).toBe("the dog's 'bark' and \"bite\"");
+    expect(displayDefinition("is it? no")).toBe("is it? no");
     expect(displayDefinition("NASA's dog")).toBe("nASA's dog");
   });
 
@@ -72,6 +79,13 @@ describe("definitions", () => {
     expect(nearSame("a blind or shuter made of angled slats", real)).toBe(true);
     expect(nearSame("a blind or shutter made of angled planks", real)).toBe(true);
     expect(nearSame("a blind made of angled wooden slats", real)).toBe(false);
+    // One inside the other: a meaning with a clause cut off or tacked on.
+    const dibble = "a pointed stick for poking holes in soil to plant seeds or bulbs";
+    expect(nearSame("a pointed stick for poking holes in soil to plant seeds", dibble)).toBe(true);
+    expect(nearSame(`${dibble}, used by gardeners`, dibble)).toBe(true);
+    // Most of the words the same, in a different order.
+    expect(nearSame("to plant seeds or bulbs, a pointed stick poking holes in soil", dibble)).toBe(true);
+    expect(nearSame("a stick with a point, for planting tulips", dibble)).toBe(false);
     expect(nearSame("a small, jealous dog from southern France", real)).toBe(false);
   });
 });

@@ -124,6 +124,12 @@ export class BluffView implements GameView {
 
   update(props: GameViewProps) {
     const events = props.events as BluffEvent[];
+    // Turned away for clashing: the server keeps count, so it's an event, not a rejection.
+    const refused = events.find((e) => e.type === "refused");
+    if (refused && !props.snapshot) {
+      this.pending = null;
+      this.bounce(refused.message);
+    }
     if (props.snapshot || !this.props) {
       this.queue.clear();
       this.settle(props);
