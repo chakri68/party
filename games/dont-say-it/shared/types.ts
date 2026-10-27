@@ -37,8 +37,8 @@ export const other = (t: TeamId): TeamId => (t === 0 ? 1 : 0);
 
 export type Phase = "teams" | "ready" | "turn" | "buzzed" | "appeal" | "turn-result" | "finished";
 
-/** What happened to a card. "time": in hand when the clock ran out; "left": the describer left. */
-export type Outcome = "got" | "skip" | "oops" | "fair" | "upheld" | "time" | "left";
+/** What happened to a card. "time": in hand when the clock ran out; "ended": the turn ended early (the describer left, or was skipped). */
+export type Outcome = "got" | "skip" | "oops" | "fair" | "upheld" | "time" | "ended";
 
 export const OUTCOME_POINTS: Record<Outcome, number> = {
   got: 1,
@@ -47,7 +47,7 @@ export const OUTCOME_POINTS: Record<Outcome, number> = {
   fair: -1,
   upheld: -1,
   time: 0,
-  left: 0,
+  ended: 0,
 };
 
 export interface Card {
