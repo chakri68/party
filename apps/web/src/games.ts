@@ -2,6 +2,7 @@
 // predictable; each game's client code loads only when a game starts.
 
 import { blindRallyManifest, blindRallyRules, blindRallySettingFields, rallyManifest, rallyRules, rallySettingFields } from "@games/blind-rally/shared";
+import { chainWordsManifest, chainWordsRules, chainWordsSettingFields } from "@games/chain-words/shared";
 import { cheatManifest, cheatRules, cheatSettingFields } from "@games/cheat/shared";
 import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from "@games/crazy-eights/shared";
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
@@ -74,6 +75,12 @@ export const games: Record<string, GameEntry> = {
     rules: passTheBombRules,
     settingFields: passTheBombSettingFields,
     loadClient: () => import("@games/pass-the-bomb/client").then((m) => m.default),
+  },
+  "chain-words": {
+    manifest: chainWordsManifest,
+    rules: chainWordsRules,
+    settingFields: chainWordsSettingFields,
+    loadClient: () => import("@games/chain-words/client").then((m) => m.default),
   },
   cheat: {
     manifest: cheatManifest,

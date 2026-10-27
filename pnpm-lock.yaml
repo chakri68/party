@@ -24,6 +24,9 @@ importers:
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
+      '@games/chain-words':
+        specifier: workspace:*
+        version: link:../../games/chain-words
       '@games/cheat':
         specifier: workspace:*
         version: link:../../games/cheat
@@ -76,6 +79,9 @@ importers:
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
+      '@games/chain-words':
+        specifier: workspace:*
+        version: link:../../games/chain-words
       '@games/cheat':
         specifier: workspace:*
         version: link:../../games/cheat

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@games/blind-rally": "workspace:*",
+    "@games/chain-words": "workspace:*",
     "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",

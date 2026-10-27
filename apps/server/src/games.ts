@@ -1,4 +1,5 @@
 import { blindRallyGame, rallyGame } from "@games/blind-rally/server";
+import { chainWordsGame } from "@games/chain-words/server";
 import { cheatGame } from "@games/cheat/server";
 import { crazyEightsGame } from "@games/crazy-eights/server";
 import { dominionGame } from "@games/dominion/server";
@@ -19,6 +20,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   president: presidentGame,
   scribbl: scribblGame,
   "pass-the-bomb": passTheBombGame,
+  "chain-words": chainWordsGame,
   cheat: cheatGame,
   dominion: dominionGame,
 };

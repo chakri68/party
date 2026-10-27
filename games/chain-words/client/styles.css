@@ -1,0 +1,183 @@
+/* Chain Words. Uses the shell's tokens (--surface, --line, --ink, --muted, --accent, --danger).
+   Everything is cw- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.chain-words {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto;
+  justify-items: center;
+  text-align: center;
+}
+
+.cw-top {
+  justify-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The chain ----------------------------------------------------------- */
+
+/* Newest on the right; older links fall off the left edge, fading. */
+.cw-strip {
+  justify-self: stretch;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  min-height: 1.6em;
+  mask-image: linear-gradient(to right, transparent, #000 22%);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.cw-link { flex: none; }
+.cw-link + .cw-link::before { content: "›"; margin-right: 4px; color: var(--line); }
+.cw-link.newest { color: var(--ink); font-size: 1.1rem; }
+.cw-link mark { background: none; color: var(--accent); }
+
+/* ---- The letter and its clock -------------------------------------------- */
+
+/* Sized off the viewport height too, so the input stays above a phone's keyboard. */
+.cw-stage {
+  position: relative;
+  width: min(170px, 26dvh, 46vw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+.cw-ring { position: absolute; inset: 0; width: 100%; height: 100%; rotate: -90deg; }
+.cw-ring circle { fill: none; stroke-width: 6; }
+.cw-ring-track { stroke: var(--line); }
+.cw-ring-arc {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 100ms linear, stroke 150ms;
+}
+.cw-stage.low .cw-ring-arc { stroke: var(--danger); }
+.cw-stage.over .cw-ring { opacity: 0.3; }
+
+.cw-letter {
+  font-size: clamp(3rem, 16vw, 4.6rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+}
+.cw-stage.low .cw-letter { color: var(--danger); }
+.cw-secs {
+  position: absolute;
+  bottom: 18%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cw-stage.low .cw-secs { color: var(--danger); }
+
+/* A word landed: the letter changes hands. */
+.cw-stage.hop .cw-letter { animation: cw-hop 360ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes cw-hop {
+  35% { transform: translateY(-12%) scale(0.9); }
+}
+/* The first letter, or a rescue's new one. */
+.cw-stage.lit .cw-letter, .cw-stage.swap .cw-letter { animation: cw-lit 420ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes cw-lit {
+  from { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+}
+
+.chain-words.quake { animation: cw-quake 420ms cubic-bezier(.3, .6, .3, 1); }
+@keyframes cw-quake {
+  15% { transform: translateX(-7px); }
+  35% { transform: translateX(6px); }
+  55% { transform: translateX(-4px); }
+  75% { transform: translateX(2px); }
+}
+
+/* ---- Words --------------------------------------------------------------- */
+
+.cw-status { margin: 0; font-weight: 700; font-size: 1.05rem; min-height: 1.5em; }
+.chain-words.holding .cw-status { color: var(--accent); }
+.cw-flash { margin: 0; min-height: 1.2em; font-size: 0.9rem; color: var(--muted); }
+
+.cw-typing {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.cw-typing mark { background: none; color: var(--accent); }
+/* Your own typing's in the box already. */
+.chain-words.holding .cw-typing { display: none; }
+
+.cw-form { justify-self: stretch; display: flex; gap: 6px; }
+.cw-input {
+  min-height: 50px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cw-input::placeholder { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.chain-words.holding .cw-input { border-color: var(--accent); }
+.cw-send { min-height: 50px; padding: 0 18px; }
+.cw-note { margin: 0; min-height: 1.3em; font-size: 0.9rem; color: var(--danger); }
+
+.chain-words .shake { animation: cw-shake 300ms ease; }
+@keyframes cw-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+.cw-bubble { font-weight: 700; letter-spacing: 0.04em; }
+
+/* ---- Players ------------------------------------------------------------- */
+
+.cw-players {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.cw-player {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.cw-player .name { font-weight: 600; }
+.cw-player .pips { display: flex; gap: 3px; }
+.cw-player .pip { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.cw-player .pip.on { background: var(--accent); border-color: var(--accent); }
+.cw-player .tag { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.cw-player.has { border-color: var(--accent); background: var(--accent-soft); }
+.cw-player.out { opacity: 0.45; }
+.cw-player.away { opacity: 0.6; border-style: dashed; }
+.cw-player.hit { border-color: var(--danger); animation: cw-shake 360ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cw-ring-arc { transition: none; }
+  .cw-stage.hop .cw-letter, .cw-stage.lit .cw-letter, .cw-stage.swap .cw-letter, .chain-words.quake { animation: none; }
+  .chain-words .shake { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+  .cw-player.hit { animation: none; }
+}
