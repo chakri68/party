@@ -26,6 +26,17 @@ describe("decks", () => {
     expect(deckOf({ ...DEFAULT_SETTINGS, preset: "full" }, 12)).toEqual({ wolf: 3, watcher: 1, keeper: 1, villager: 7 });
   });
 
+  it("no preset count goes negative below the table size, so Custom always parses", () => {
+    for (const p of PRESETS) {
+      for (let n = 1; n <= MAX_PLAYERS; n++) {
+        const deck = deckOf({ ...DEFAULT_SETTINGS, preset: p.id }, n);
+        for (const [id, k] of Object.entries(deck)) expect(k, `${p.id} ${id} at ${n}`).toBeGreaterThan(0);
+        const customOpt = nightfallSettingFields({ ...DEFAULT_SETTINGS, preset: p.id }, n)[0]!.options.find((o) => o.label === "Custom")!;
+        expect(parseNightfallSettings({ ...DEFAULT_SETTINGS, preset: p.id, ...customOpt.patch }), `${p.id} at ${n}`).not.toBeNull();
+      }
+    }
+  });
+
   it("checks a custom deck: size, a wolf, uniques, two non-wolves, wolves outnumbered", () => {
     expect(setupProblem(custom({ wolf: 1, villager: 3 }), 5)).toBe("Need exactly 5 role cards (have 4)");
     expect(setupProblem(custom({ villager: 5 }), 5)).toBe("Needs at least one Wolf card");

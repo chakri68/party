@@ -45,6 +45,17 @@ describe("presets", () => {
     }
   });
 
+  it("no preset count goes negative below the table size, so Custom always parses", () => {
+    for (const p of PRESETS) {
+      for (let n = 1; n <= MAX_PLAYERS; n++) {
+        const deck = deckOf({ ...DEFAULT_SETTINGS, preset: p.id }, n);
+        for (const [id, k] of Object.entries(deck)) expect(k, `${p.id} ${id} at ${n}`).toBeGreaterThan(0);
+        const customOpt = shortNightSettingFields({ ...DEFAULT_SETTINGS, preset: p.id }, n)[0]!.options.find((o) => o.label === "Custom")!;
+        expect(parseShortNightSettings({ ...DEFAULT_SETTINGS, preset: p.id, ...customOpt.patch }), `${p.id} at ${n}`).not.toBeNull();
+      }
+    }
+  });
+
   it("one wolf at 4–5, two from 6", () => {
     for (const p of PRESETS) {
       expect(deckOf({ ...DEFAULT_SETTINGS, preset: p.id }, 5).wolf).toBe(1);

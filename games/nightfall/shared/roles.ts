@@ -39,12 +39,18 @@ export const DECK_RULES: DeckRules = { size: (n) => n, requireTeams: ["wolves", 
 
 export const wolvesFor = (n: number): number => (n >= 10 ? 3 : n >= 7 ? 2 : 1);
 
-/** Wolves, then `extras`, then Villagers. Every preset fits from five up. */
+/**
+ * Wolves, then as many of `extras` as fit, then Villagers. Every preset fits
+ * from five up; below that the lobby still builds a deck (the Custom option
+ * copies it), so no count may go negative.
+ */
 function fill(n: number, extras: RoleId[]): Deck {
   const wolves = wolvesFor(n);
+  const room = Math.max(0, n - wolves);
   const deck: Deck = { wolf: wolves };
-  for (const id of extras) deck[id] = 1;
-  deck.villager = n - wolves - extras.length;
+  const used = extras.slice(0, room);
+  for (const id of used) deck[id] = 1;
+  if (room > used.length) deck.villager = room - used.length;
   return deck;
 }
 
