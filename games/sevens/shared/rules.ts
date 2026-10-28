@@ -68,6 +68,14 @@ export function compareCards(a: Card, b: Card): number {
 }
 
 /**
+ * What a card left in hand costs under "remaining-cards" scoring: face value,
+ * courts 10, aces 1 whether they sit high or low.
+ */
+export function penaltyPoints(hand: readonly Pick<Card, "rank">[]): number {
+  return hand.reduce((sum, c) => sum + (c.rank === 1 || c.rank === 14 ? 1 : Math.min(c.rank, 10)), 0);
+}
+
+/**
  * "auto" keeps hands a sensible size: one deck up to 6 players (≥8 cards
  * each), two up to 12, three beyond.
  */

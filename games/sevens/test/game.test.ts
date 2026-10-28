@@ -183,6 +183,90 @@ describe("handleAction", () => {
   });
 });
 
+describe("settings", () => {
+  it("parses every setting and rejects junk", () => {
+    const all = { startingRule: "seven-of-diamonds", acePosition: "low", forcedPlay: false, scoring: "remaining-cards", decks: 2 };
+    expect(sevens.parseSettings(all)).toEqual(all);
+    expect(sevens.parseSettings({ scoring: "money" })).toBeNull();
+    expect(sevens.parseSettings({ forcedPlay: "yes" })).toBeNull();
+  });
+
+  it("aces low: the ace goes before the two, never after the king", () => {
+    const settings = { acePosition: "low" as const };
+    const s = stateWith([["hearts-A", "spades-A"], ["clubs-7"]], { settings, board: { hearts: { low: 2, high: 7 }, spades: { low: 7, high: 13 } } });
+    expect(sevens.getPrivateState(s, "p0").playableCardIds).toEqual(["hearts-A"]);
+    expect(ok(play(s, "p0", "hearts-A")).state.board.hearts).toEqual([{ low: 1, high: 7 }]);
+
+    const t = sevens.createGame(players(2), { ...DEFAULT_SETTINGS, acePosition: "low" }, { roundNumber: 1, dealerSeat: 0 }, ctx());
+    const aces = t.state.players.flatMap((p) => p.hand).filter((c) => c.id.startsWith("hearts-A"));
+    expect(aces.map((c) => c.rank)).toEqual([1]);
+    expect(sevens.getPublicState(t.state).acePosition).toBe("low");
+  });
+
+  it("forced play on: Pass is offered only when nothing fits", () => {
+    const s = stateWith([["clubs-7", "hearts-2"], ["hearts-3"]]);
+    expect(sevens.getPrivateState(s, "p0").canPass).toBe(false);
+    const stuck = stateWith([["hearts-2"], ["clubs-7"]]);
+    expect(sevens.getPrivateState(stuck, "p0").canPass).toBe(true);
+    expect(sevens.getPrivateState(stuck, "p1").canPass).toBe(false);
+  });
+
+  it("forced play off: nobody is passed automatically, they pass themselves", () => {
+    const s = stateWith([["clubs-7", "hearts-2"], ["diamonds-2", "spades-9"], ["clubs-8", "hearts-3"]], {
+      settings: { forcedPlay: false },
+    });
+    const t = ok(play(s, "p0", "clubs-7"));
+    expect(eventTypes(t)).toEqual(["card-played"]);
+    expect(t.state.turnIndex).toBe(1);
+    expect(sevens.getPrivateState(t.state, "p1").canPass).toBe(true);
+    const passed = ok(sevens.handleAction(t.state, "p1", { type: "pass" }, ctx()));
+    expect(passed.events[0]!.event).toEqual({ type: "passed", playerId: "p1", auto: false });
+    expect(passed.state.turnIndex).toBe(2);
+  });
+
+  it("forced play off: the deal doesn't skip anyone either", () => {
+    const settings = { ...DEFAULT_SETTINGS, forcedPlay: false };
+    // Suit-ordered deck, three seats: seat 1 (left of dealer 0) goes first whatever they hold.
+    const t = sevens.createGame(players(3), settings, { roundNumber: 1, dealerSeat: 0 }, ctx(), { deck: makeDeck("high") });
+    expect(t.state.turnIndex).toBe(1);
+    expect(eventTypes(t)).toEqual(["dealt"]);
+  });
+
+  /** p0 goes out; p1 holds 2+3 of spades (2 cards, 5 points), p2 a king (1 card, 10 points). */
+  const ending = (scoring: SevensSettings["scoring"]) =>
+    ok(play(stateWith([["clubs-7"], ["spades-2", "spades-3"], ["hearts-K"]], { settings: { scoring } }), "p0", "clubs-7")).state;
+
+  it("winner only: everyone else ranks by cards left", () => {
+    expect(sevens.getResult(ending("winner-only"))!.standings).toEqual([
+      { playerId: "p0", value: 0 },
+      { playerId: "p2", value: 1 },
+      { playerId: "p1", value: 2 },
+    ]);
+  });
+
+  it("remaining cards: everyone else ranks by penalty points, shown as the label", () => {
+    expect(sevens.getResult(ending("remaining-cards"))).toEqual({
+      winnerIds: ["p0"],
+      standings: [
+        { playerId: "p0", value: 0, label: "0 penalty points" },
+        { playerId: "p1", value: 5, label: "5 penalty points" },
+        { playerId: "p2", value: 10, label: "10 penalty points" },
+      ],
+    });
+  });
+
+  it("remaining cards: leavers still rank last, and one point reads singular", () => {
+    let s = stateWith([["clubs-7"], ["hearts-A"], ["spades-K", "spades-Q"]], { settings: { scoring: "remaining-cards" } });
+    s = sevens.onPlayerRemoved!(s, "p2", ctx()).state;
+    const r = sevens.getResult(ok(play(s, "p0", "clubs-7")).state)!;
+    expect(r.standings.map((x) => [x.playerId, x.label])).toEqual([
+      ["p0", "0 penalty points"],
+      ["p1", "1 penalty point"],
+      ["p2", "20 penalty points"],
+    ]);
+  });
+});
+
 describe("skipTurn", () => {
   it("advances even when the skipped player has legal moves", () => {
     const s = stateWith([["clubs-7"], ["hearts-7"], ["spades-7"]]);

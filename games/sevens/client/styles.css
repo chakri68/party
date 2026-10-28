@@ -212,6 +212,7 @@
 }
 .sv-me { display: flex; align-items: baseline; gap: 8px; }
 .sv-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.sv-action { display: flex; align-items: center; gap: 10px; }
 .sv-action .hint { color: var(--muted); font-size: 0.9rem; }
 .sv-action button { min-width: 110px; }
 

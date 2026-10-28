@@ -32,7 +32,8 @@ function describe(e: SevensEvent, props: GameViewProps): string | null {
     case "ghost-card-placed":
       return `${cardShort(e.card)} went down on its own.`;
     case "passed":
-      return e.playerId === props.playerId ? "You had nothing to play, so you passed." : `${who(e.playerId)} passed.`;
+      if (e.playerId !== props.playerId) return `${who(e.playerId)} passed.`;
+      return e.auto ? "You had nothing to play, so you passed." : "You passed.";
     case "turn-skipped":
       return `${who(e.playerId)} got skipped by the host.`;
     case "player-removed":
@@ -198,7 +199,7 @@ export class SevensView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "Nothing to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId && e.auto ? "Nothing to play" : "Pass");
           break;
         case "turn-skipped":
           audio.play("pass");
@@ -417,18 +418,32 @@ export class SevensView implements GameView {
       mine && game.dealerId === props.playerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null,
     );
 
-    let action: Node | null = null;
+    // Forced play: the server only lets you pass when nothing fits, and usually
+    // passes for you first. Without it, Pass sits beside the play the whole turn.
+    const hasPlay = (priv?.playableCardIds.length ?? 0) > 0;
+    const pass = priv?.canPass
+      ? h("button", { type: "button", class: hasPlay ? "" : "primary", onclick: () => this.api.act({ type: "pass" }) }, "Pass")
+      : null;
+
+    // replaceChildren drops the nulls, so a missing Pass just isn't there.
+    let action: Node | (Node | null)[] | null = null;
     if (game.currentPlayerId === null) {
       action = null;
     } else if (!myTurn) {
       action = h("span", { class: "hint" }, "Not your turn yet");
-    } else if (priv?.canPass) {
-      action = h("button", { type: "button", class: "primary", onclick: () => this.api.act({ type: "pass" }) }, "Pass");
     } else if (this.selected) {
       const card = priv?.hand.find((c) => c.id === this.selected);
-      action = h("button", { type: "button", class: "primary", onclick: () => this.playSelected() }, `Play ${card ? cardShort(card) : ""}`);
+      action = [
+        h("button", { type: "button", class: "primary", onclick: () => this.playSelected() }, `Play ${card ? cardShort(card) : ""}`),
+        pass,
+      ];
+    } else if (!hasPlay) {
+      action = pass;
     } else {
-      action = h("span", { class: "hint" }, directPlay() ? "Click a highlighted card" : "Tap a highlighted card");
+      action = [
+        h("span", { class: "hint" }, directPlay() ? "Click a highlighted card" : "Tap a highlighted card"),
+        pass,
+      ];
     }
     replaceChildren(this.action, action);
   }

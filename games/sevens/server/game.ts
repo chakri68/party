@@ -14,6 +14,7 @@ import {
   isSevenOfDiamonds,
   makeDeck,
   parseCardId,
+  penaltyPoints,
   placeCard,
   resolveDecks,
 } from "../shared/rules.ts";
@@ -351,12 +352,21 @@ export const sevensGame: GameDefinition<
     if (state.phase !== "finished") return null;
     // Winner first, then whoever's left by cards remaining, then leavers — whose
     // ghost cards shrink their hands without them earning it.
+    // "remaining-cards" swaps the card count for what those cards are worth, so
+    // a fistful of twos beats one stranded king.
     const rank = (p: (typeof state.players)[number]) => (p.id === state.winnerId ? 0 : p.removed ? 2 : 1);
+    const points = state.settings.scoring === "remaining-cards";
+    const value = (p: (typeof state.players)[number]) => (points ? penaltyPoints(p.hand) : p.hand.length);
     return {
       winnerIds: state.winnerId ? [state.winnerId] : [],
       standings: [...state.players]
-        .sort((a, b) => rank(a) - rank(b) || a.hand.length - b.hand.length)
-        .map((p) => ({ playerId: p.id, value: p.hand.length })),
+        .sort((a, b) => rank(a) - rank(b) || value(a) - value(b))
+        .map((p) => {
+          const v = value(p);
+          return points
+            ? { playerId: p.id, value: v, label: `${v} penalty ${v === 1 ? "point" : "points"}` }
+            : { playerId: p.id, value: v };
+        }),
     };
   },
 };

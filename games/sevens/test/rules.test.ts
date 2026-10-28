@@ -6,10 +6,12 @@ import {
   makeCard,
   makeDeck,
   parseCardId,
+  penaltyPoints,
   placeCard,
   resolveDecks,
 } from "../shared/rules.ts";
-import { SUITS, type RowRange, type SevensBoardState, type Suit } from "../shared/types.ts";
+import { sevensSettingFields } from "../shared/rules-text.ts";
+import { DEFAULT_SETTINGS, SUITS, type RowRange, type SevensBoardState, type Suit } from "../shared/types.ts";
 
 /** One-deck shorthand: a single range per suit. */
 const board = (rows: Partial<Record<Suit, RowRange | null>>): SevensBoardState =>
@@ -121,5 +123,36 @@ describe("several decks", () => {
     expect(placeCard(b, makeCard("hearts", 4)).row).toBe(1);
     expect(placeCard(b, makeCard("hearts", 8, 1)).row).toBe(1);
     expect(isPlayable(makeCard("hearts", 2), b)).toBe(false);
+  });
+});
+
+describe("penaltyPoints", () => {
+  it("counts face value, courts 10, aces 1 wherever they sit", () => {
+    const hand = ["hearts-2", "spades-10", "clubs-J", "diamonds-K"].map((id) => parseCardId(id, "high")!);
+    expect(penaltyPoints(hand)).toBe(32);
+    expect(penaltyPoints([parseCardId("hearts-A", "high")!])).toBe(1);
+    expect(penaltyPoints([parseCardId("hearts-A", "low")!])).toBe(1);
+    expect(penaltyPoints([])).toBe(0);
+  });
+});
+
+describe("sevensSettingFields", () => {
+  const byKey = (raw: unknown) => Object.fromEntries(sevensSettingFields(raw, 4).map((f) => [f.key, f]));
+
+  it("puts every setting in the lobby, defaults selected", () => {
+    const fields = sevensSettingFields(null, 4);
+    expect(fields.map((f) => f.key)).toEqual(["decks", "startingRule", "acePosition", "forcedPlay", "scoring"]);
+    for (const f of fields) {
+      const picked = f.options[f.selected]!.patch;
+      expect(picked[f.key], f.key).toEqual(DEFAULT_SETTINGS[f.key as keyof typeof DEFAULT_SETTINGS]);
+      expect(f.hint, f.key).toBeTruthy();
+    }
+  });
+
+  it("selects and explains the non-default choices", () => {
+    const f = byKey({ startingRule: "seven-of-diamonds", acePosition: "low", forcedPlay: false, scoring: "remaining-cards" });
+    for (const key of ["startingRule", "acePosition", "forcedPlay", "scoring"]) expect(f[key]!.selected, key).toBe(1);
+    const d = byKey(null);
+    for (const key of ["startingRule", "acePosition", "forcedPlay", "scoring"]) expect(f[key]!.hint, key).not.toBe(d[key]!.hint);
   });
 });
