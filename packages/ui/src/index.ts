@@ -132,9 +132,23 @@ export function openDialog(title: string, ...body: (Child | Child[])[]): HTMLDia
     h("form", { method: "dialog" }, h("button", { class: "primary" }, "Got it")),
   );
   dlg.addEventListener("close", () => dlg.remove());
-  // Click on the backdrop closes it too.
-  dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+  closeOnBackdrop(dlg);
   document.body.append(dlg);
   dlg.showModal();
   return dlg;
+}
+
+/**
+ * A click on the backdrop closes a modal dialog. The dialog's own padding targets
+ * the dialog too, so "clicked the dialog" isn't "clicked the backdrop": only a
+ * point outside its box is. Keyboard clicks land on a button, never the dialog,
+ * so the 0,0 they report can't get here.
+ */
+export function closeOnBackdrop(dlg: HTMLDialogElement): void {
+  dlg.addEventListener("click", (e) => {
+    if (e.target !== dlg) return;
+    const r = dlg.getBoundingClientRect();
+    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if (!inside) dlg.close();
+  });
 }

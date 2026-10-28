@@ -8,9 +8,9 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { avatar, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { avatar, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
-import { games } from "../games.ts";
+import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { APP_TITLE, navigate } from "../router.ts";
 import { canTransition, transition } from "../transition.ts";
@@ -581,9 +581,10 @@ export class RoomView implements View {
   }
 
   /**
-   * Host-only: pick the room's game from a list. Built to grow: a search box
-   * shows up once there are enough games to need one, and games that can't
-   * seat everyone here say so instead of failing at "Start game".
+   * Host-only: pick the room's game from a list. Built to grow: games sit under
+   * section headings, a search box shows up once there are enough games to need
+   * one, and games that can't seat everyone here say so instead of failing at
+   * "Start game".
    */
   private openGameList(current: string, players: number) {
     const all = Object.entries(games);
@@ -621,17 +622,27 @@ export class RoomView implements View {
           ),
         ),
       );
-      return { row, text: `${name} ${description}`.toLowerCase() };
+      return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
+
+    // Sections with no games in this build (Racing without its flag) don't show.
+    const sections = GAME_SECTIONS.map(({ id, label }) => {
+      const mine = rows.filter((r) => r.section === id);
+      const el = h(
+        "section",
+        { class: "game-section", "aria-labelledby": `game-section-${id}` },
+        h("h3", { id: `game-section-${id}` }, label),
+        h("ul", { class: "game-options" }, mine.map((r) => r.row)),
+      );
+      return { el, rows: mine };
+    }).filter((s) => s.rows.length);
 
     search?.addEventListener("input", () => {
       const q = search.value.trim().toLowerCase();
-      let shown = 0;
-      for (const r of rows) {
-        r.row.hidden = !!q && !r.text.includes(q);
-        if (!r.row.hidden) shown++;
-      }
-      empty.hidden = shown > 0;
+      for (const r of rows) r.row.hidden = !!q && !r.text.includes(q);
+      // A heading with nothing under it goes too.
+      for (const s of sections) s.el.hidden = s.rows.every((r) => r.row.hidden);
+      empty.hidden = sections.some((s) => !s.el.hidden);
     });
 
     const dlg = h(
@@ -639,12 +650,12 @@ export class RoomView implements View {
       { class: "dialog game-list", "aria-label": "Pick a game" },
       h("h2", {}, "Pick a game"),
       search,
-      h("ul", { class: "game-options" }, rows.map((r) => r.row)),
+      sections.map((s) => s.el),
       empty,
       h("form", { method: "dialog" }, h("button", {}, "Close")),
     );
     dlg.addEventListener("close", () => dlg.remove());
-    dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+    closeOnBackdrop(dlg);
     document.body.append(dlg);
     dlg.showModal();
     // Start on the current game, not the search box: on phones that'd pop the keyboard.
