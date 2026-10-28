@@ -1,8 +1,16 @@
 # party games.
 
-Card games and doodles for a group chat, played on phones. No accounts, no app: a name, a room code, and you're in.
+Party games for a group chat, played on phones. No accounts, no app: a name, a room code, and you're in.
 
-Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Scribbl and Pass the Bomb.
+Twenty of them, roughly:
+
+- **Cards**: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat
+- **Words and drawing**: Scribbl, Pass the Bomb, Chain Words, Fake Word, Bluff Definitions, Don't Say It, Face-Off
+- **Hidden roles**: Imposter, Short Night, Heist, Nightfall
+- **Racing**: Blind Rally, Rally (hosted site only, see [below](#blind-rally-and-its-flag))
+- **Strategy**: Dominion
+
+How to play each one, and how rooms work: **[docs/games](docs/games/README.md)**.
 
 The copy at [party-games.chakri.me](https://party-games.chakri.me) is invite-only (only I can open rooms there, so it doesn't turn into a free-for-all). Run your own instead. It takes one command.
 
