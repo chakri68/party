@@ -21,11 +21,11 @@ const PRESETS: { id: PresetId; label: string }[] = [
 ];
 
 /**
- * In lobby order. "more" never fits (design ruling 2) and "fewer" only from 7,
- * so each shows only where it fits or is already set.
+ * In lobby order. "fewer" only fits from 7, so it shows only there or when it's
+ * already set. No "one more": with at least two moles and fewer moles than
+ * crew, usual + 1 never fits any table (design ruling 2).
  */
-const SHIFTS: MoleShift[] = ["usual", "fewer", "more"];
-const SHIFT_PARSE: readonly MoleShift[] = ["fewer", "usual", "more"];
+const SHIFTS: MoleShift[] = ["usual", "fewer"];
 
 /** Settings from whatever the room holds. Null: something's off. */
 export function parseHeistSettings(input: unknown): HeistSettings | null {
@@ -33,7 +33,7 @@ export function parseHeistSettings(input: unknown): HeistSettings | null {
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const raw = { ...DEFAULT_SETTINGS, ...(input as Record<string, unknown>) };
   if (!PRESETS.some((p) => p.id === raw.preset)) return null;
-  if (!SHIFT_PARSE.includes(raw.moles as MoleShift)) return null;
+  if (!SHIFTS.includes(raw.moles as MoleShift)) return null;
   return { preset: raw.preset as PresetId, moles: raw.moles as MoleShift };
 }
 
@@ -51,7 +51,7 @@ export function heistSettingFields(raw: unknown, players: number): SettingField[
   // "One fewer" only where it fits, unless it's what's set: the row must show it.
   const shifts = SHIFTS.filter((s) => s === "usual" || s === settings.moles || fits(s));
   const label = (s: MoleShift) => {
-    const name = s === "usual" ? "Usual" : s === "fewer" ? "One fewer" : "One more";
+    const name = s === "usual" ? "Usual" : "One fewer";
     return sized ? `${name} (${count(s)})` : name;
   };
   const [lo, hi] = moleRange(n);

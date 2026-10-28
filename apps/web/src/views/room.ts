@@ -572,7 +572,9 @@ export class RoomView implements View {
           ? h(
               "button",
               { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
-              connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Waiting for players…",
+              // canStart is vague on purpose (the owner gate), so the label is too, but
+              // it mustn't claim players are missing when they aren't.
+              connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Can't start yet",
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
@@ -740,7 +742,7 @@ export class RoomView implements View {
               h(
                 "button",
                 { type: "button", class: "primary", disabled: !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
-                room.canStart ? `Rematch${readyCount ? ` (${readyCount} ready)` : ""}` : "Waiting for players…",
+                room.canStart ? `Rematch${readyCount ? ` (${readyCount} ready)` : ""}` : "Can't start yet",
               ),
               h("button", { type: "button", onclick: () => this.client?.send({ type: "return-to-lobby" }) }, "Back to lobby"),
             ]

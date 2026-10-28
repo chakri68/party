@@ -6,14 +6,14 @@ Pair off your cards, take blind from your neighbour. Whoever's left holding the 
 
 - One card in the deck can never be paired: the Old Maid.
 - Pairs (same rank, any suit) go down on their own, right after the deal and whenever you make one.
-- On your turn, take one card, face down, from the player on your right.
+- On your turn, take one card, face down, from the player before you.
 - Run out of cards and you're out, safe. The last player holding cards loses.
 
 ## How it plays
 
 1. The whole deck is dealt, one at a time, clockwise from the dealer's left. Some players get one more card than others.
 2. Everyone's pairs go down face up, automatically. Three of a kind is a pair plus a spare; four is two pairs.
-3. The player left of the dealer goes first. You take one card from the player on your right, picking from their face-down fan. When it's your turn the status says "Your turn: take one from <name>".
+3. The player left of the dealer goes first. You take one card from the player before you, picking from their face-down fan. When it's your turn the status says "Your turn: take one from <name>".
 4. Pick a card in the fan. On a mouse, clicking takes it straight away; on touch, tap once to select, then tap again or press **Take it**. If the new card matches something in your hand, the pair goes down.
 5. Your fan is shuffled whenever you receive a card, so the next taker can't tell where anything came from.
 6. If you have no cards, you're out and safe. That includes having your last card taken. You see "You're out · 1st" (or 2nd, 3rd...), and you watch the rest.

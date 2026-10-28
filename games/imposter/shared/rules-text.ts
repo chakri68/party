@@ -18,7 +18,7 @@ export const imposterRules: string[] = [
   "Spoken: everyone else gets a secret place; the Imposter gets nothing. Every screen shows the full list of places.",
   "Nobody types. Ask each other questions out loud, for the host's few minutes. Someone's suggested to ask first; after that, anyone. Answer so the others know you've been there, without telling the Imposter where.",
   "Once a round, the Imposter can tap \"I know where we are\" to stop the clock and pick a place. Right takes the round; wrong hands it to everyone else. The button's on every screen, so having it proves nothing.",
-  "Then vote for who you think the Imposter is. Not yourself. A tie goes to a runoff between the leaders.",
+  "Then vote for who you think the Imposter is. Not yourself. A tie goes to a runoff between the leaders. A runoff that's still tied, or that nobody votes in, picks one of them at random.",
   "Catch the Imposter and they get one guess at the word (or the place, off the list). Right, and they steal the round.",
   "A catch that sticks: 2 points to every innocent. Anything else: 2 to the Imposter.",
   "Most points after the last round wins.",

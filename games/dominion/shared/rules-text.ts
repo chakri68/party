@@ -24,7 +24,7 @@ const BASE_RULES: string[] = [
   "With Sailing, build a port on your shore. A unit that walks onto it boards a transport; landing again ends its turn. Ships can be refitted into scouts, rammers and bombers. Two ports on the same water link their cities like a road.",
   "Lose every city and you're out. Last empire standing wins; at the round limit, the highest score does.",
   "Hold the capitals: own every original capital at the end of your turn and still at the start of your next, and you win.",
-  "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won) each earn a monument to place on your land.",
+  "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won, peace with 3 empires for 5 rounds) each earn a monument to place on your land.",
   "With teams, allies can't attack each other and win together. Treasuries and research stay separate.",
 ];
 

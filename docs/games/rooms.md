@@ -29,7 +29,7 @@ Room creation is gated by an owner key, so who can do it depends on where you ar
 
 Either way, rooms are only ever created from the **Create room** button. After that you land in the lobby and share the invite from there.
 
-Heads up: on both setups the game can't start unless the owner is connected to the room. If they aren't, the host's start button reads "Waiting for players…" even when there are enough players.
+Heads up: on both setups the game can't start unless the owner is connected to the room. If they aren't, the host's start button reads "Can't start yet".
 
 ## Joining
 
@@ -80,7 +80,7 @@ The host's button changes with the room:
 | Button | Meaning |
 |---|---|
 | Need N more | Fewer connected players than the game's minimum. Disabled. |
-| Waiting for players… | The room can't start yet, usually because the owner isn't connected. Disabled. |
+| Can't start yet | Enough players, but the room can't start, usually because the owner isn't connected. Disabled. |
 | Start game | Go. |
 
 A game can also refuse to start because of its setup, such as a role deck that doesn't add up for the number of players. The reason appears as a line under the settings, and the button stays disabled until you change the settings or the head count. Players who aren't connected when you start don't get dealt in and are dropped from the room.
@@ -167,7 +167,7 @@ When a game ends the board stays on screen and a results panel comes in on top:
 What you tap depends on your role:
 
 - **Everyone else:** **Play again** marks you as ready for another round. It then reads "Waiting for host…". Tap it again to take it back.
-- **Host:** **Rematch** starts another round with the same game and settings. It shows how many people are ready, like "Rematch (3 ready)". It's disabled and reads "Waiting for players…" if the room can't start. **Back to lobby** goes to the lobby instead, where you can change the game or settings.
+- **Host:** **Rematch** starts another round with the same game and settings. It shows how many people are ready, like "Rematch (3 ready)". It's disabled and reads "Can't start yet" if the room can't start. **Back to lobby** goes to the lobby instead, where you can change the game or settings.
 - **Leave room** for anyone.
 
 Rematch doesn't wait for everyone to be ready. The count is information, not a gate. The dealer rotates between rounds.

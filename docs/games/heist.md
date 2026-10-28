@@ -81,7 +81,7 @@ Host picks these in the lobby.
 | Setting | Options | What it changes |
 | --- | --- | --- |
 | Pace | **Beginner** (default), Standard, Fast | Timers. |
-| Moles | **Usual** (default), One fewer, One more | How many Moles. |
+| Moles | **Usual** (default), One fewer | How many Moles. |
 
 Pace timers:
 
@@ -91,7 +91,7 @@ Pace timers:
 | Standard | 45 s | 20 s | 20 s |
 | Fast | 30 s | 15 s | 10 s |
 
-Moles: usual is 2 at 5–6 players, 3 at 7–8, 4 at 9–10. There are always at least 2 Moles and always fewer Moles than crew. In practice that means **One fewer** only appears from 7 players, and **One more** never fits any table size (it's only listed if already set, and then the lobby says why it can't start). With fewer than 5 players the options show no numbers.
+Moles: usual is 2 at 5–6 players, 3 at 7–8, 4 at 9–10. There are always at least 2 Moles and always fewer Moles than crew. So **One fewer** only appears from 7 players, and there's no "one more": it wouldn't fit any table. With fewer than 5 players the options show no numbers.
 
 ## On your screen
 

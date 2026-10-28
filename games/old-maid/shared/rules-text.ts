@@ -7,7 +7,7 @@ export const oldMaidRules: string[] = [
   "One queen comes out of the deck (or a joker goes in, if the host picks that). Now exactly one card can never be paired: that's the Old Maid.",
   "The whole deck gets dealt. Some players get one more card than others.",
   "Pairs (two cards of the same rank, any suit) go down face up. That happens by itself, right after the deal and whenever you make one.",
-  "On your turn, take one card blind from the player on your right. It pairs with something or it doesn't.",
+  "On your turn, take one card blind from the player before you (the screen says who). It pairs with something or it doesn't.",
   "Run out of cards and you're out, safe. That includes having your last card taken.",
   "Play goes round until one player's left, holding the Old Maid. They lose; everyone else is fine.",
 ];

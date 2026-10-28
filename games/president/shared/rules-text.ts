@@ -8,7 +8,7 @@ export const presidentRules: string[] = [
   "Going round, each player either beats it with the same number of cards of a higher rank, or passes. If nothing in your hand beats it, you pass automatically.",
   "Once you pass, you're out of that trick until it clears, even if you could beat what comes next.",
   "When everyone else has passed, the pile clears and whoever played last leads anything. If they've just gone out, the lead goes to the next player on.",
-  "First out of cards is the President, then the Vice-President. Last is the Asshole (Scum, if there are kids about), and second-last the Vice-Asshole. Vice titles need four players.",
+  "First out of cards is the President, then the Vice-President. Last is the Asshole, and second-last the Vice-Asshole. Vice titles need four players.",
   "From round 2: the Asshole hands the President their two best cards, and the President gives back any two. The Vices swap one the same way. Then the Asshole leads.",
   "Each round you score a point for every player you finished ahead of. Most points after the last round wins; a tie goes to whoever finished higher in the last round.",
 ];

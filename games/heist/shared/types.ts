@@ -6,7 +6,7 @@ import type { Ballot } from "@games/game-core";
 
 export type PresetId = "beginner" | "standard" | "fast";
 /** Relative to the usual count, so it keeps meaning as the table grows. */
-export type MoleShift = "fewer" | "usual" | "more";
+export type MoleShift = "fewer" | "usual";
 
 export interface HeistSettings {
   preset: PresetId;

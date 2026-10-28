@@ -62,12 +62,13 @@ describe("moles", () => {
     }
   });
 
-  it("one fewer fits from 7; one more never does", () => {
+  it("one fewer fits from 7", () => {
     for (const n of ALL_N) {
       const fewer = setupProblem({ ...DEFAULT_SETTINGS, moles: "fewer" }, n);
       if (n >= 7) expect(fewer, `N=${n}`).toBeNull();
       else expect(fewer).toBe(`${n} players need at least 2 moles`);
-      expect(setupProblem({ ...DEFAULT_SETTINGS, moles: "more" }, n)).toBe(`${n} players can have at most ${moleRange(n)[1]} moles`);
+      // Usual + 1 would be over the cap everywhere, which is why there's no "one more".
+      expect(usualMoles(n) + 1).toBeGreaterThan(moleRange(n)[1]);
       expect(setupProblem(DEFAULT_SETTINGS, n)).toBeNull();
     }
     expect(molesFor({ ...DEFAULT_SETTINGS, moles: "fewer" }, 9)).toBe(3);
@@ -82,7 +83,8 @@ describe("settings", () => {
   it("parses partial, refuses junk", () => {
     expect(parseHeistSettings(undefined)).toEqual(DEFAULT_SETTINGS);
     expect(parseHeistSettings({ preset: "fast" })).toEqual({ preset: "fast", moles: "usual" });
-    expect(parseHeistSettings({ moles: "more" })).toEqual({ preset: "beginner", moles: "more" });
+    expect(parseHeistSettings({ moles: "fewer" })).toEqual({ preset: "beginner", moles: "fewer" });
+    expect(parseHeistSettings({ moles: "more" })).toBeNull();
     expect(parseHeistSettings({ preset: "chaos" })).toBeNull();
     expect(parseHeistSettings({ moles: 3 })).toBeNull();
     expect(parseHeistSettings([])).toBeNull();

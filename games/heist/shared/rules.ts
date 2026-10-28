@@ -27,7 +27,7 @@ export const usualMoles = (n: number): number => 2 + Math.floor((n - 5) / 2);
 /** At least two moles, and always fewer moles than crew. */
 export const moleRange = (n: number): [number, number] => [2, Math.floor((n - 1) / 2)];
 
-const SHIFT: Record<MoleShift, number> = { fewer: -1, usual: 0, more: 1 };
+const SHIFT: Record<MoleShift, number> = { fewer: -1, usual: 0 };
 
 export const molesFor = (settings: HeistSettings, n: number): number => usualMoles(n) + SHIFT[settings.moles];
 
