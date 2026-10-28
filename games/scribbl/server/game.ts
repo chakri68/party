@@ -22,6 +22,7 @@ import {
   CHOOSE_MS,
   DEFAULT_SETTINGS,
   DRAW_SECONDS_OPTIONS,
+  DRAWER_HOLD_MS,
   MAX_POINTS,
   MAX_STROKES,
   REVEAL_MS,
@@ -57,9 +58,10 @@ const reject = (code: string, message: string): GameResult<State, ScribblEvent> 
   error: { code, message },
 });
 
-/** Two timers, reused: the phase's deadline, and the next hint. */
+/** Three timers, reused: the phase's deadline, the next hint, and a dropped drawer's hold. */
 const PHASE = "phase";
 const HINT = "hint";
+const DRAWER_AWAY = "drawer-away";
 
 // ---------------------------------------------------------------------------
 // Internals. Helpers mutate the state they're given; the public API always
@@ -188,6 +190,21 @@ function endTurn(state: State, by: TurnEnd, ctx: GameContext, out: Out): void {
   out.events.push(pub({ type: "turn-ended", word: t.word!, by }));
 }
 
+/**
+ * A dropped drawer's hold ran out. Still gone: mid-pick they miss the turn,
+ * mid-drawing it ends and the word's shown, points so far kept. Back by now,
+ * or the turn's moved on: a stale alarm, nothing to do.
+ */
+function drawerHoldUp(state: State, ctx: GameContext, out: Out): void {
+  const t = state.turn;
+  if (!state.players.find((p) => p.id === t.drawerId)?.away) return;
+  if (t.phase === "drawing") return endTurn(state, "away", ctx, out);
+  if (t.phase !== "choosing") return;
+  say(state, { kind: "missed", playerId: t.drawerId, text: "", to: null });
+  out.events.push(pub({ type: "missed", playerId: t.drawerId }));
+  nextTurn(state, ctx, out);
+}
+
 /** Everyone who's here and could guess, has. Someone has to have, though. */
 function everyoneGotIt(state: State): boolean {
   const t = state.turn;
@@ -211,7 +228,8 @@ function guess(state: State, player: Player, text: string, ctx: GameContext, out
   const word = normalizeGuess(t.word!);
   if (g === word) {
     const points = guessPoints(t.endsAt - ctx.now, t.phaseMs);
-    const guessers = state.players.filter((p) => inGame(p) && p.id !== t.drawerId).length;
+    // Same crowd as everyoneGotIt: whoever's away can't guess, so isn't owed a share.
+    const guessers = state.players.filter((p) => inGame(p) && !p.away && p.id !== t.drawerId).length;
     const cut = drawerPoints(guessers);
     player.score += points;
     t.guessed.push({ playerId: player.id, points });
@@ -353,6 +371,7 @@ export const scribblGame: GameDefinition<
     const out = newOut();
     const t = state.turn;
     if (timerId === HINT) revealLetter(state, ctx, out);
+    else if (timerId === DRAWER_AWAY) drawerHoldUp(state, ctx, out);
     else if (timerId === PHASE) {
       if (t.phase === "choosing") startDrawing(state, t.choices[ctx.randomInt(t.choices.length)]!, ctx, out);
       else if (t.phase === "drawing") endTurn(state, "time", ctx, out);
@@ -367,6 +386,12 @@ export const scribblGame: GameDefinition<
     const state = clone(prev);
     const out = newOut();
     state.players[idx]!.away = true;
+    const t = state.turn;
+    // The drawer: not on the instant, since phones blink. Still gone when
+    // the hold's up and the turn's called (or skipped, mid-pick).
+    if (t.drawerId === playerId && (t.phase === "choosing" || t.phase === "drawing")) {
+      out.timers.push({ kind: "set", timerId: DRAWER_AWAY, delayMs: DRAWER_HOLD_MS });
+    }
     // They were the last one holding things up.
     if (everyoneGotIt(state)) endTurn(state, "all", ctx, out);
     return done(state, out);
@@ -377,7 +402,8 @@ export const scribblGame: GameDefinition<
     if (idx < 0 || !prev.players[idx]!.away) return { state: prev, events: [] };
     const state = clone(prev);
     state.players[idx]!.away = false;
-    return { state, events: [] };
+    const timers: TimerRequest[] = state.turn.drawerId === playerId ? [{ kind: "cancel", timerId: DRAWER_AWAY }] : [];
+    return { state, events: [], timers };
   },
 
   onPlayerRemoved(prev, playerId, ctx) {

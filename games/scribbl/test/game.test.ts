@@ -4,6 +4,7 @@ import { scribblGame as sb } from "../server/game.ts";
 import {
   CHOOSE_MS,
   DEFAULT_SETTINGS,
+  DRAWER_HOLD_MS,
   MAX_POINTS,
   REVEAL_MS,
   type DrawingSnapshot,
@@ -209,6 +210,62 @@ describe("turn order and the end", () => {
     s = ok(act(s, "p2", { type: "guess", text: "watermelon" })).state;
     const t = sb.onPlayerDisconnected!(s, "p0", ctx());
     expect(t.state.turn.endedBy).toBe("all");
+  });
+
+  it("a drawer still away after the hold ends their turn: word shown, nobody docked", () => {
+    let s = drawing(3);
+    s = ok(act(s, "p2", { type: "guess", text: "watermelon" }, 20_000)).state;
+    const before = s.players.map((p) => p.score);
+    let t = sb.onPlayerDisconnected!(s, "p1", ctx(30_000));
+    // Not on the instant: phones blink.
+    expect(t.state.turn.phase).toBe("drawing");
+    expect(t.timers).toContainEqual({ kind: "set", timerId: "drawer-away", delayMs: DRAWER_HOLD_MS });
+    t = sb.onTimer!(t.state, "drawer-away", ctx(30_000 + DRAWER_HOLD_MS));
+    expect(types(t)).toEqual(["turn-ended"]);
+    expect(t.state.turn).toMatchObject({ phase: "reveal", endedBy: "away" });
+    expect(t.timers).toContainEqual({ kind: "set", timerId: "phase", delayMs: REVEAL_MS });
+    expect(t.timers).toContainEqual({ kind: "cancel", timerId: "hint" });
+    expect(sb.getPublicState(t.state).word).toBe("watermelon");
+    expect(t.state.players.map((p) => p.score)).toEqual(before);
+  });
+
+  it("a drawer back within the hold carries on", () => {
+    let s = sb.onPlayerDisconnected!(drawing(3), "p1", ctx(30_000)).state;
+    const t = sb.onPlayerReconnected!(s, "p1", ctx(35_000));
+    expect(t.timers).toContainEqual({ kind: "cancel", timerId: "drawer-away" });
+    s = t.state;
+    // An alarm that slipped past the cancel finds them here.
+    const late = sb.onTimer!(s, "drawer-away", ctx(30_000 + DRAWER_HOLD_MS));
+    expect(late.state.turn.phase).toBe("drawing");
+    expect(late.events).toEqual([]);
+    // A guesser coming back doesn't touch the drawer's hold.
+    s = sb.onPlayerDisconnected!(s, "p1", ctx(40_000)).state;
+    s = sb.onPlayerDisconnected!(s, "p2", ctx(41_000)).state;
+    expect(sb.onPlayerReconnected!(s, "p2", ctx(42_000)).timers ?? []).toEqual([]);
+  });
+
+  it("a drawer gone while picking misses their turn once the hold's up", () => {
+    const s = sb.onPlayerDisconnected!(start(3).state, "p1", ctx(1000)).state;
+    const t = sb.onTimer!(s, "drawer-away", ctx(1000 + DRAWER_HOLD_MS));
+    expect(types(t)).toEqual(["missed", "turn-started"]);
+    expect(drawer(t.state)).toBe("p2");
+  });
+
+  it("a hold from last turn's drawer doesn't end this one", () => {
+    let s = sb.onPlayerDisconnected!(drawing(3), "p1", ctx(75_000)).state;
+    s = sb.onTimer!(s, "phase", ctx(80_000)).state; // reveal
+    s = sb.onTimer!(s, "phase", ctx(85_000)).state; // p2 picking
+    expect(drawer(s)).toBe("p2");
+    const t = sb.onTimer!(s, "drawer-away", ctx(85_000));
+    expect(t.state.turn.phase).toBe("choosing");
+    expect(t.events).toEqual([]);
+  });
+
+  it("the drawer's cut is split among the guessers who are here", () => {
+    let s = drawing(4);
+    s = sb.onPlayerDisconnected!(s, "p3", ctx()).state;
+    s = ok(act(s, "p2", { type: "guess", text: "watermelon" })).state;
+    expect(score(s, "p1")).toBe(100); // 200 over p0 and p2, not over three
   });
 
   it("the drawer leaving ends their turn; too few left ends the game", () => {

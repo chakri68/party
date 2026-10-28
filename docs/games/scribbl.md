@@ -47,8 +47,9 @@ Host picks these in the lobby.
 - **Drawer doesn't pick:** after 15 seconds a random word from their three is chosen.
 - **Drawer removed by the host mid-drawing:** the turn ends right away ("<name> left.") and the word is shown.
 - **Drawer removed while picking:** their turn is skipped.
-- **Drawer disconnects mid-drawing:** nothing special happens. The clock keeps running until time's up or everyone's guessed.
-- **A guesser drops:** they're ignored when checking if everyone has guessed. If they were the last one holding things up, the turn ends.
+- **Drawer disconnects mid-drawing:** they get 10 seconds to come back; the clock keeps running meanwhile. Still gone after that, the turn ends ("<name> dropped out.") and the word is shown. Points already scored stand, and nobody loses any.
+- **Drawer disconnects while picking:** same 10 seconds. Still gone, their turn is skipped.
+- **A guesser drops:** they're ignored when checking if everyone has guessed, and the drawer's cut is split among the guessers who are still here. If they were the last one holding things up, the turn ends.
 - **You're away on your turn:** your turn is skipped ("is away and misses their turn"), not made up later.
 - **Fewer than two players left:** the game ends.
 - **Nobody guesses:** the turn ends at time's up with no points.

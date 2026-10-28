@@ -229,6 +229,8 @@ export class ScribblView implements GameView {
         ? "Everyone got it!"
         : game.endedBy === "left"
           ? `${seatName(props.room, game.drawerId)} left.`
+          : game.endedBy === "away"
+            ? `${seatName(props.room, game.drawerId)} dropped out.`
           : game.players.some((p) => p.guessed) ? "Time's up." : "Time's up. Nobody got it.";
       const scored = game.players
         .filter((p) => p.turnPoints)

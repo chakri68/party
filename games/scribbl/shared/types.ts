@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS: ScribblSettings = { rounds: 3, drawSeconds: 80 };
 export const CHOOSE_MS = 15_000;
 /** The word on screen between turns. */
 export const REVEAL_MS = 5_000;
+/** A drawer who drops gets this long to come back before their turn's called. */
+export const DRAWER_HOLD_MS = 10_000;
 export const WORD_CHOICES = 3;
 
 // ---------------------------------------------------------------------------
@@ -104,8 +106,11 @@ export const CHAT_KEEP = 60;
 
 export type TurnPhase = "choosing" | "drawing" | "reveal";
 
-/** time: the clock ran out. all: everyone got it. left: the drawer walked out. */
-export type TurnEnd = "time" | "all" | "left";
+/**
+ * time: the clock ran out. all: everyone got it. left: the drawer walked out.
+ * away: the drawer dropped and didn't come back in time.
+ */
+export type TurnEnd = "time" | "all" | "left" | "away";
 
 export interface Guessed {
   playerId: string;
