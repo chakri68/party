@@ -337,6 +337,28 @@ describe("leaving", () => {
     }
   });
 
+  it("a duelist dropping mid-duel calls it off at once; nobody scores or draws", () => {
+    let s = toDuel(start(4).state);
+    const { a, b } = s.duel!;
+    const cards = s.players.map((p) => p.card);
+    const t = g.onPlayerDisconnected!(s, a, ctx(s.deadline - DUEL_MS + 1000));
+    s = t.state;
+    expect(types(t)).toEqual(["outcome"]);
+    expect(s.phase).toBe("lull");
+    expect(s.last).toMatchObject({ kind: "dropped", a, b, winnerId: null, drew: [] });
+    expect(s.players.map((p) => p.card)).toEqual(cards);
+    expect(s.players.every((p) => p.score === 0)).toBe(true);
+  });
+
+  it("a duelist dropping after the buzz leaves it to the table", () => {
+    let s = toConfirm(start(4).state);
+    const { a, b } = s.duel!;
+    s = g.onPlayerDisconnected!(s, b, ctx()).state;
+    expect(s.phase).toBe("confirm");
+    for (const v of voters(s)) s = ok(act(s, v, { type: "vote", choice: "confirm" })).state;
+    expect(s.last).toMatchObject({ kind: "point", winnerId: a, loserId: b });
+  });
+
   it("a voter leaving drops their vote, and the rest can close it", () => {
     let s = toConfirm(start(5).state);
     const [v1, v2, v3] = voters(s);

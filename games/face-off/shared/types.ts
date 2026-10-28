@@ -62,9 +62,10 @@ export interface DuelState {
 /**
  * How the last duel ended. "point": the claim stood. "overturned": the point
  * went to the other duelist. "void": nobody buzzed in time, or the host
- * skipped it. "left": a duelist left.
+ * skipped it. "left": a duelist left. "dropped": a duelist's connection
+ * went before anyone buzzed.
  */
-export type OutcomeKind = "point" | "overturned" | "void" | "left";
+export type OutcomeKind = "point" | "overturned" | "void" | "left" | "dropped";
 
 export interface Outcome {
   kind: OutcomeKind;

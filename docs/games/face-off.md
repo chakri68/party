@@ -46,7 +46,9 @@ Host picks these in the lobby.
 ## When things go sideways
 - **Nobody buzzes in 8 seconds:** nobody scores and both duelists draw new cards.
 - **A duelist leaves:** the duel is called off with no score, and nobody draws.
-- **A duelist drops while still in the game:** duels only pick players who are connected, so they're skipped until they're back. The host can skip a duelist who's holding things up (the duel is voided, both draw).
+- **A duelist drops mid-duel, before anyone buzzes:** the duel is called off on the spot ("Duel off"), with no score, and nobody draws. There's no grace period: whoever's offline can't buzz, so any time it ran on would be a one-sided race.
+- **A duelist drops after the buzz:** the vote carries on. The table's call stands either way.
+- **Offline players:** duels only pick players who are connected, so they're skipped until they're back. The host can skip a duelist who's holding things up (the duel is voided, both draw).
 - **A voter drops:** they stop holding the call open. If nobody is left to vote, the claim stands.
 - **Fewer than 3 players left:** the game ends. Highest score wins.
 - **The deck runs out:** it reshuffles, and the screen says so. Cards currently in hands aren't dealt twice.

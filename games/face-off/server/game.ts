@@ -424,8 +424,13 @@ export const faceOffGame: GameDefinition<
     const state = clone(prev);
     const out = newOut();
     find(state, playerId)!.away = true;
-    // A dropped voter stops holding the vote open.
-    closeIfDone(state, ctx, out);
+    // A duelist mid-race: called off now, no hold. Gone, they can't buzz,
+    // so every second it runs is the other's alone; and calling it off
+    // costs a blip nothing, as nobody scores or draws.
+    if (state.phase === "duel" && isDuelist(state, playerId)) settle(state, "dropped", null, [], ctx, out);
+    // A dropped voter stops holding the vote open. After the buzz, a duelist's
+    // part is done: the table's call stands either way.
+    else closeIfDone(state, ctx, out);
     return done(state, out);
   },
 

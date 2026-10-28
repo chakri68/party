@@ -220,6 +220,8 @@ export class FaceOffView implements GameView {
         return ["Nobody buzzed", `${this.name(o.a, props)} and ${this.lower(o.b, props)} draw new cards.`];
       case "left":
         return ["Duel off", "Someone in it left. No score."];
+      case "dropped":
+        return ["Duel off", "Someone in it dropped. No score."];
     }
   }
 
@@ -374,7 +376,7 @@ export class FaceOffView implements GameView {
           break;
         case "outcome":
           if (e.outcome.kind === "void") audio.play("pass");
-          else if (e.outcome.kind === "left") audio.play("nudge");
+          else if (e.outcome.kind === "left" || e.outcome.kind === "dropped") audio.play("nudge");
           else audio.play(e.outcome.winnerId === props.playerId ? "correct" : "card-place");
           break;
         case "game-over": {
