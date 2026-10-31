@@ -5,7 +5,8 @@ extends RefCounted
 ## exactly as it always has.
 ## "controller" overrides CarController exports by name; "surfaces" scales the
 ## SURFACES table per surface and key. "model" is the car you see (dress()),
-## "audio" the engine note. Keep IDS in step with shared/vehicles.ts (a test
+## "audio" the engine note (CarAudio: period, pitch, harmonics, grit; missing
+## keys keep the hatch's). Keep IDS in step with shared/vehicles.ts (a test
 ## reads it).
 ##
 ## model: body, wheel (and wheel_rear, if the back pair differ) are baked
@@ -37,7 +38,7 @@ const PRESETS := {
 			"snow": {"grip": 1.3},
 			"ice": {"grip": 1.3},
 		},
-		"audio": {},
+		"audio": {"period": 520, "pitch": Vector2(0.6, 2.0), "harmonics": [0.6, 0.38, 0.2, 0.1, 0.05], "grit": 0.07},
 		"model": {"body": MESHES + "car_body_4x4.res", "wheel": MESHES + "car_wheel_4x4.res",
 			"wheels": [Vector3(-0.677, 0, -1.21), Vector3(0.677, 0, -1.21), Vector3(-0.677, 0, 0.892), Vector3(0.677, 0, 0.892)],
 			"box": Vector3(2.4, 1.3, 4.3), "box_y": 0.7,
@@ -48,7 +49,7 @@ const PRESETS := {
 		"controller": {"engine_accel": 14.5, "max_speed": 33.0, "max_yaw_rate": 2.1, "yaw_response": 10.0,
 			"grip": 4.8, "power_oversteer": 1.6, "max_slip_deg": 46.0},
 		"surfaces": {"tarmac": {"grip": 1.1}},
-		"audio": {},
+		"audio": {"period": 360, "pitch": Vector2(0.85, 2.9), "harmonics": [0.45, 0.32, 0.26, 0.2, 0.12], "grit": 0.05},
 		"model": {"body": MESHES + "car_body_rwd.res", "wheel": MESHES + "car_wheel_rwd.res",
 			"wheels": [Vector3(-0.763, 0, -1.185), Vector3(0.763, 0, -1.185), Vector3(-0.763, 0, 1.185), Vector3(0.763, 0, 1.185)],
 			"box": Vector3(2.34, 1.15, 4.4), "box_y": 0.625,
@@ -60,7 +61,7 @@ const PRESETS := {
 			"yaw_response": 6.0, "grip": 5.5, "power_oversteer": 0.6, "max_slip_deg": 34.0,
 			"drag": 0.10, "impact_keep": 0.7},
 		"surfaces": {},
-		"audio": {},
+		"audio": {"period": 620, "pitch": Vector2(0.55, 1.8), "harmonics": [0.6, 0.4, 0.24, 0.12, 0.06], "grit": 0.1},
 		# Plate on the cab roof, pod on its front edge; the bed is lower.
 		"model": {"body": MESHES + "car_body_truck.res", "wheel": MESHES + "car_wheel_truck.res",
 			"wheels": [Vector3(-0.895, 0, -1.81), Vector3(0.895, 0, -1.81), Vector3(-0.895, 0, 1.6), Vector3(0.895, 0, 1.6)],
@@ -75,7 +76,7 @@ const PRESETS := {
 			"offroad": {"drag": 0.2, "top": 1.9},
 			"sand": {"drag": 0.25, "top": 1.9},
 		},
-		"audio": {},
+		"audio": {"period": 900, "pitch": Vector2(0.5, 1.3), "harmonics": [0.75, 0.55, 0.1, 0.05, 0.02], "grit": 0.07},
 		# The box runs nose to rear tyre: those stick out past the body.
 		"model": {"body": MESHES + "car_body_tractor.res", "wheel": MESHES + "car_wheel_tractor.res",
 			"wheel_rear": MESHES + "car_wheel_tractor_rear.res",

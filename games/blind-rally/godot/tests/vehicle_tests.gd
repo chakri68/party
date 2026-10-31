@@ -7,6 +7,13 @@ extends RefCounted
 ## alone (Kenney's only orange) was 12% and read grey from the chase camera;
 ## the two-tone 4x4, lowest of the rest, is 18%.
 const PAINT_SHARE := 0.15
+## test_speed_cap's slack over a class's flat top speed: slope_pull adds speed
+## downhill, so a car can briefly run past max_speed × surface top.
+const SLOPE_MARGIN := 1.15
+## Autopilot stage time against the hatch's: the three fast classes within
+## ±8%, the tractor up to 35% slower (it's meant to be slow, not hopeless).
+const CLOSE := 0.08
+const TRACTOR_SLOWER := 0.35
 
 var t ## the runner (run_tests.gd)
 var car: CarController
@@ -28,6 +35,8 @@ func run() -> void:
 	test_hatch_dressed_as_today()
 	await test_models()
 	test_preset_keeps_livery()
+	test_audio_per_class()
+	await test_close_times()
 	# Drop the test livery, so later tests get the baked paint back.
 	car.remove_meta("livery")
 	car.apply_preset("hatch")
@@ -64,7 +73,7 @@ func test_speed_cap() -> void:
 		var best := 0.0
 		for s in CarController.SURFACES:
 			best = maxf(best, float(car._surface_row(s)["top"]))
-		var worst := car.max_speed * best * 1.15 # slope margin
+		var worst := car.max_speed * best * SLOPE_MARGIN
 		check(worst < 45.0, "%s stays under MAX_SPEED (%.1f m/s)" % [id, worst])
 	car.apply_preset("hatch")
 
@@ -199,3 +208,53 @@ func test_preset_keeps_livery() -> void:
 	var body := car.get_node("Visual/Body") as MeshInstance3D
 	check(body.mesh != body.get_meta("baked_mesh"), "truck repainted after the swap")
 	check((body.get_node("Roundel") as MeshInstance3D).mesh == CarPaint.plate_mesh("diamond"), "and keeps its diamond plate")
+
+
+## Each class builds its own engine loop: `period` samples a cycle, 24 cycles.
+## The hatch's is today's 400.
+func test_audio_per_class() -> void:
+	var audio: CarAudio = t.main.audio
+	for id in Vehicles.IDS:
+		car.apply_preset(id)
+		audio.start()
+		var a: Dictionary = Vehicles.get_preset(id)["audio"]
+		var want := int(a.get("period", CarAudio.PERIOD)) * CarAudio.CYCLES
+		var got := audio.engine_samples()
+		check(got == want, "%s engine loop is %d samples (%d)" % [id, want, got])
+	car.apply_preset("hatch")
+	audio.start()
+	check(audio.engine_samples() == 9600, "hatch engine loop is today's 9600 samples")
+
+
+## The autopilot drives Pine Panic in every class. Fair picks finish close to
+## the hatch; the tractor is allowed to be slow. Each run stops at twice the
+## hatch's time, so a stuck car fails instead of hanging the suite.
+func test_close_times() -> void:
+	var times := {}
+	var cap := 240.0
+	for id in Vehicles.IDS:
+		car.apply_preset(id)
+		await t.place(t.track.get_spawn().global_transform)
+		t.main.checkpoints_passed = 0
+		t.main.finished = false
+		t.main.recoveries = 0
+		t.main.set_autopilot(true)
+		var frames := 0
+		while frames < cap * 60.0 and not t.main.finished:
+			await t.physics_frame
+			frames += 1
+		t.main.set_autopilot(false)
+		var secs := frames / 60.0
+		check(t.main.finished, "%s finishes Pine Panic on autopilot (%.1f s, CP %d)" % [id, secs, t.main.checkpoints_passed])
+		times[id] = secs
+		if id == "hatch":
+			cap = secs * 2.0
+	var hatch: float = times["hatch"]
+	for id in ["4x4", "rwd", "truck"]:
+		var d: float = times[id] / hatch - 1.0
+		check(absf(d) <= CLOSE, "%s within %d%% of the hatch (%+.1f%%)" % [id, roundi(CLOSE * 100.0), d * 100.0])
+	var dt: float = times["tractor"] / hatch - 1.0
+	check(dt <= TRACTOR_SLOWER, "tractor no more than %d%% slower than the hatch (%+.1f%%)" % [roundi(TRACTOR_SLOWER * 100.0), dt * 100.0])
+	t.main.finished = false
+	t.main.checkpoints_passed = 0
+	car.apply_preset("hatch")

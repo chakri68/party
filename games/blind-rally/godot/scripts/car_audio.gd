@@ -13,6 +13,15 @@ extends Node
 
 const RATE := 22050
 const MAX_DB := -8.0
+## The engine note when a class's preset says nothing (the hatch's, today's).
+## period: samples per cycle, 22050 / 400 = 55.1 Hz. pitch: pitch_scale at idle
+## and at the limiter. harmonics: weights of the 1st, 2nd, 3rd, 4th and 6th.
+## grit: hiss level.
+const PERIOD := 400
+const CYCLES := 24
+const PITCH := Vector2(0.75, 2.6)
+const HARMONICS: Array[float] = [0.55, 0.35, 0.22, 0.14, 0.07]
+const GRIT := 0.06
 
 ## 0..1 master level, on top of the per-sound mix.
 @export var volume := 0.8
@@ -31,6 +40,8 @@ var _rng := RandomNumberGenerator.new()
 var _rpm := 0.0
 var _gear := 1
 var _bus := 0
+var _built_for := "" # the vehicle the engine loop was made for
+var _pitch := PITCH
 
 
 func _ready() -> void:
@@ -40,12 +51,15 @@ func _ready() -> void:
 		_car.impact.connect(_on_impact)
 
 
-## Builds the sounds and starts the loops. Safe to call more than once.
+## Builds the sounds and starts the loops. Safe to call more than once; a
+## later call picks up a class change.
 func start() -> void:
 	if started:
+		rebuild()
 		return
 	started = true
-	_engine = _player("Engine", _make_engine(), true)
+	_engine = _player("Engine", _make_engine(_audio()), true)
+	_built_for = _vehicle()
 	_gravel = _player("Gravel", _make_noise(1.2, 0.9, 0.0), true)
 	_skid = _player("Skid", _make_noise(0.8, 0.35, 900.0), true)
 	_thump = _player("Thump", _make_thump(), false)
@@ -54,6 +68,31 @@ func start() -> void:
 		p.volume_db = -60.0
 		p.play()
 	_apply_master()
+
+
+## Re-makes the engine loop if the car changed class since it was built. The
+## probe's class key can do that mid-drive, so _process checks too.
+func rebuild() -> void:
+	if not started or _built_for == _vehicle():
+		return
+	_built_for = _vehicle()
+	var playing := _engine.playing
+	_engine.stream = _make_engine(_audio())
+	if playing:
+		_engine.play()
+
+
+func engine_samples() -> int:
+	var w := _engine.stream as AudioStreamWAV if _engine else null
+	return w.data.size() / 2 if w else 0
+
+
+func _vehicle() -> String:
+	return _car.vehicle if _car else "hatch"
+
+
+func _audio() -> Dictionary:
+	return Vehicles.get_preset(_vehicle())["audio"]
 
 
 func _player(n: String, stream: AudioStream, loop: bool) -> AudioStreamPlayer:
@@ -73,6 +112,8 @@ func _apply_master() -> void:
 func _process(dt: float) -> void:
 	if not started or not _car:
 		return
+	if _car.vehicle != _built_for:
+		rebuild()
 	var speed := Vector2(_car.velocity.x, _car.velocity.z).length()
 	var top := _car.max_speed
 	# Fake gearbox: five gears over the speed range, rpm sweeps within each.
@@ -85,7 +126,7 @@ func _process(dt: float) -> void:
 	# Wheelspin in a slide revs it up a touch.
 	target_rpm = minf(1.0, target_rpm + clampf(absf(_car.lateral_speed) / 20.0, 0.0, 0.15) * _car.throttle_input)
 	_rpm = lerpf(_rpm, target_rpm, 1.0 - exp(-(10.0 if target_rpm > _rpm else 5.0) * dt))
-	_engine.pitch_scale = lerpf(0.75, 2.6, _rpm)
+	_engine.pitch_scale = lerpf(_pitch.x, _pitch.y, _rpm)
 	_engine.volume_db = MAX_DB - 8.0 + 6.0 * _car.throttle_input + 3.0 * _rpm
 
 	var loose := _car.surface in ["road", "offroad", "sand", "snow"]
@@ -125,22 +166,26 @@ func _wav(samples: PackedFloat32Array, loop: bool) -> AudioStreamWAV:
 	return w
 
 
-## Four-cylinder-ish buzz at ~55 Hz; pitch_scale does the revving. The loop
-## holds a whole number of cycles, so it repeats without a click.
-func _make_engine() -> AudioStreamWAV:
-	const PERIOD := 400 # samples per cycle: 22050 / 400 = 55.1 Hz
-	const CYCLES := 24
+## Four-cylinder-ish buzz, ~55 Hz for the hatch; pitch_scale does the
+## revving. `a` is the class's preset audio (keys missing = the hatch's). The
+## loop holds a whole number of cycles, so it repeats without a click. Also
+## sets the rev range _process sweeps.
+func _make_engine(a: Dictionary) -> AudioStreamWAV:
+	var period: int = a.get("period", PERIOD)
+	var h: Array = a.get("harmonics", HARMONICS)
+	var grit: float = a.get("grit", GRIT)
+	_pitch = a.get("pitch", PITCH)
 	var s := PackedFloat32Array()
-	s.resize(PERIOD * CYCLES)
+	s.resize(period * CYCLES)
 	var lp := 0.0
 	for i in s.size():
-		var ph := TAU * float(i % PERIOD) / PERIOD
-		var cyc := i / PERIOD
+		var ph := TAU * float(i % period) / period
+		var cyc := i / period
 		# Two firing pulses per cycle, slightly uneven, plus harmonics.
 		var lumpy := 1.0 + 0.12 * sin(TAU * cyc / CYCLES * 3.0)
-		var x := 0.55 * sin(ph) + 0.35 * sin(2.0 * ph + 0.4) * lumpy + 0.22 * sin(3.0 * ph + 1.1) + 0.14 * sin(4.0 * ph) + 0.07 * sin(6.0 * ph + 0.5)
+		var x: float = h[0] * sin(ph) + h[1] * sin(2.0 * ph + 0.4) * lumpy + h[2] * sin(3.0 * ph + 1.1) + h[3] * sin(4.0 * ph) + h[4] * sin(6.0 * ph + 0.5)
 		var pulse := pow(maxf(0.0, sin(2.0 * ph)), 6.0) * 0.35
-		var hiss := _rng.randf_range(-1.0, 1.0) * 0.06
+		var hiss := _rng.randf_range(-1.0, 1.0) * grit
 		lp += 0.35 * ((x + pulse + hiss) - lp)
 		s[i] = lp * 0.55
 	return _wav(s, true)
