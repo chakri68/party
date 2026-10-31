@@ -27,6 +27,20 @@ const TICK_FROM = 5;
 
 const fine = () => matchMedia("(pointer: fine)").matches;
 
+/** Seconds left in a drawing that a screen reader hears about. */
+const SAY_AT = [30, 10];
+/** How long Clear waits for the second tap. */
+const CLEAR_CONFIRM_MS = 3000;
+
+const SIZE_NAMES = ["Small", "Medium", "Large", "Huge"];
+
+/** Black or white, whichever reads on this swatch (for its check mark). */
+function onColour(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#000" : "#fff";
+}
+
 /** For screen readers; lines up with PALETTE. */
 const COLOUR_NAMES = ["white", "silver", "grey", "black", "red", "orange", "yellow", "green", "teal", "blue", "navy", "purple", "pink", "brown", "tan"];
 
@@ -52,8 +66,11 @@ export class ScribblView implements GameView {
   private round = h("span", { class: "sb-round" });
   private word = h("div", { class: "sb-word", "aria-live": "polite" });
   private timer = h("span", { class: "sb-timer", role: "timer" });
+  /** Time warnings for screen readers; the ticking number itself stays quiet. */
+  private said = h("span", { class: "sb-sr", "aria-live": "polite" });
   private bar = h("div", { class: "sb-bar" });
   private overlay = h("div", { class: "sb-overlay" });
+  private stage = h("div", { class: "sb-stage" });
   private tools = h("div", { class: "sb-tools", role: "toolbar", "aria-label": "Drawing tools" });
   private players = h("ul", { class: "sb-players", "aria-label": "Scores" });
   private log = h("ol", { class: "sb-log", "aria-live": "polite", "aria-label": "Chat" });
@@ -65,6 +82,8 @@ export class ScribblView implements GameView {
   private chips = new Map<string, HTMLElement>();
   private clock: ReturnType<typeof setInterval>;
   private lastTick = -1;
+  private lastSaid = -1;
+  private clearArmed: ReturnType<typeof setTimeout> | undefined;
 
   // Drawing tools and the stroke in progress.
   private color = 3;
@@ -88,18 +107,21 @@ export class ScribblView implements GameView {
     });
 
     this.root.append(
-      h("div", { class: "sb-top" }, this.round, this.word, this.timer),
-      h("div", { class: "sb-stage" }, this.board.el, this.bar, this.overlay),
+      h("div", { class: "sb-top" }, this.round, this.word, this.timer, this.bar, this.said),
+      this.stage,
       this.tools,
       h("div", { class: "sb-side" }, this.players, h("div", { class: "sb-chat" }, this.log, form)),
     );
 
+    this.stage.append(this.board.el, this.overlay);
     const c = this.board.el;
     c.addEventListener("pointerdown", this.onDown);
     c.addEventListener("pointermove", this.onMove);
     c.addEventListener("pointerup", this.onUp);
     c.addEventListener("pointercancel", this.onUp);
     this.clock = setInterval(() => this.renderClock(), 250);
+    document.addEventListener("keydown", this.onKey);
+    window.addEventListener("resize", this.fit);
   }
 
   mount(container: HTMLElement) {
@@ -109,6 +131,9 @@ export class ScribblView implements GameView {
   destroy() {
     clearInterval(this.clock);
     clearInterval(this.flusher);
+    clearTimeout(this.clearArmed);
+    document.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("resize", this.fit);
     this.board.destroy();
     this.root.remove();
   }
@@ -134,7 +159,10 @@ export class ScribblView implements GameView {
     } else if (game.turn !== this.board.turn) {
       this.board.reset(game.turn);
     }
-    if (this.board.turn !== prevTurn) this.endStroke();
+    if (this.board.turn !== prevTurn) {
+      this.endStroke();
+      if (this.clearArmed) this.disarmClear();
+    }
     this.props = props;
     this.render(props);
     if (!props.snapshot) this.react(props.events as ScribblEvent[], props);
@@ -148,6 +176,10 @@ export class ScribblView implements GameView {
     const canDraw = !!priv?.canDraw;
     this.root.classList.toggle("can-draw", canDraw);
     if (!canDraw && this.pointer !== null) this.endStroke();
+    this.api.setTurn(
+      game.phase === "choosing" && priv?.choices ? "Pick a word" : game.phase === "drawing" && canDraw ? "Your turn to draw" : null,
+    );
+    this.labelBoard(props, game, priv);
 
     this.round.textContent = `Round ${game.round}/${game.rounds}`;
     this.renderWord(props, game, priv);
@@ -156,6 +188,7 @@ export class ScribblView implements GameView {
     this.renderPlayers(props, game);
     this.renderChat(props, priv);
     this.renderClock();
+    this.fit();
 
     const typing = document.activeElement === this.input;
     this.input.disabled = !priv?.canChat;
@@ -168,6 +201,16 @@ export class ScribblView implements GameView {
     // Losing the input to `disabled` drops the keyboard; get it back when it's usable again.
     if (typing && !this.input.disabled) this.input.focus();
   }
+
+  /**
+   * How much of the screen is taken above the page (header, host controls, top
+   * bar), so the CSS can keep the page short enough to see whole. Measured, not
+   * guessed: the host gets an extra row the others don't.
+   */
+  private fit = () => {
+    const top = this.stage.getBoundingClientRect().top + window.scrollY;
+    if (top > 0) this.root.style.setProperty("--sb-chrome", `${Math.round(top + 16)}px`);
+  };
 
   private renderWord(props: GameViewProps, game: ScribblPublicState, priv: ScribblPrivateState | null) {
     const drawerName = props.playerId === game.drawerId ? "You" : seatName(props.room, game.drawerId);
@@ -191,6 +234,19 @@ export class ScribblView implements GameView {
     } else {
       replaceChildren(this.word);
     }
+  }
+
+  /** The canvas is a picture to a screen reader: say whose, and of what if you know. */
+  private labelBoard(props: GameViewProps, game: ScribblPublicState, priv: ScribblPrivateState | null) {
+    const c = this.board.el;
+    c.setAttribute("role", "img");
+    const mine = game.drawerId === props.playerId;
+    const label = game.phase === "choosing"
+      ? "Blank page"
+      : mine
+        ? `Your drawing${priv?.word ? ` of ${priv.word}` : ""}`
+        : `${seatName(props.room, game.drawerId)}'s drawing${game.word ? ` of ${game.word}` : ""}`;
+    c.setAttribute("aria-label", label);
   }
 
   private renderOverlay(props: GameViewProps, game: ScribblPublicState, priv: ScribblPrivateState | null) {
@@ -264,7 +320,7 @@ export class ScribblView implements GameView {
         : h("button", {
             type: "button",
             class: "sb-swatch",
-            style: `--c: ${hex}`,
+            style: `--c: ${hex}; --on: ${onColour(hex)}`,
             "aria-label": COLOUR_NAMES[i],
             "aria-pressed": String(!this.eraser && this.color === i),
             onclick: () => {
@@ -278,13 +334,14 @@ export class ScribblView implements GameView {
       h("button", {
         type: "button",
         class: "sb-size",
-        "aria-label": `Brush size ${i + 1}`,
+        "aria-label": `${SIZE_NAMES[i] ?? `Size ${i + 1}`} brush`,
+        "aria-keyshortcuts": "[ ]",
         "aria-pressed": String(this.size === i),
         onclick: () => {
           this.size = i;
           this.renderTools(true);
         },
-      }, h("span", { style: `--d: ${Math.max(4, Math.round(px * 0.55))}px; --c: ${this.eraser ? "#fff" : PALETTE[this.color]}` })),
+      }, h("span", { style: `--d: ${Math.max(4, Math.round(px * 0.55))}px` })),
     );
     replaceChildren(
       this.tools,
@@ -293,12 +350,59 @@ export class ScribblView implements GameView {
         "div",
         { class: "sb-tool-row" },
         sizes,
-        h("button", { type: "button", class: "sb-tool", "aria-pressed": String(this.eraser), onclick: () => ((this.eraser = !this.eraser), this.renderTools(true)) }, "Eraser"),
-        h("button", { type: "button", class: "sb-tool", onclick: () => this.command("undo") }, "Undo"),
-        h("button", { type: "button", class: "sb-tool danger", onclick: () => this.command("clear") }, "Clear"),
+        h("button", { type: "button", class: "sb-tool", "aria-pressed": String(this.eraser), "aria-keyshortcuts": "E", onclick: () => this.toggleEraser() }, "Eraser"),
+        h("button", { type: "button", class: "sb-tool", "aria-keyshortcuts": "Control+Z Meta+Z", onclick: () => this.command("undo") }, "Undo"),
+        h("button", {
+          type: "button",
+          class: `sb-tool danger${this.clearArmed ? " armed" : ""}`,
+          // One tap arms it, a second clears: a stray thumb shouldn't wipe the page for everyone.
+          onclick: () => this.tapClear(),
+        }, this.clearArmed ? "Sure?" : "Clear"),
       ),
     );
   }
+
+  private toggleEraser() {
+    this.eraser = !this.eraser;
+    this.renderTools(true);
+  }
+
+  private tapClear() {
+    if (this.clearArmed) {
+      this.disarmClear();
+      this.command("clear");
+      return;
+    }
+    if (!this.board.strokes.length) return;
+    this.clearArmed = setTimeout(() => this.disarmClear(), CLEAR_CONFIRM_MS);
+    this.renderTools(this.canDraw());
+    this.tools.querySelector<HTMLButtonElement>(".sb-tool.armed")?.focus({ preventScroll: true });
+  }
+
+  private disarmClear() {
+    clearTimeout(this.clearArmed);
+    this.clearArmed = undefined;
+    this.renderTools(this.canDraw());
+  }
+
+  /** Drawing shortcuts, for whoever's at a keyboard: E, [ ], Ctrl/Cmd+Z. */
+  private onKey = (e: KeyboardEvent) => {
+    if (!this.canDraw() || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest("input, textarea, select, [contenteditable]")) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      e.preventDefault();
+      this.command("undo");
+    } else if (mod) {
+      return;
+    } else if (e.key === "e" || e.key === "E") {
+      this.toggleEraser();
+    } else if (e.key === "[" || e.key === "]") {
+      this.size = Math.min(SIZES.length - 1, Math.max(0, this.size + (e.key === "]" ? 1 : -1)));
+      this.renderTools(true);
+    }
+  };
 
   private renderPlayers(props: GameViewProps, game: ScribblPublicState) {
     const me = props.playerId;
@@ -378,6 +482,10 @@ export class ScribblView implements GameView {
     this.timer.classList.toggle("low", game.phase === "drawing" && secs <= 10);
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     this.bar.classList.toggle("low", game.phase === "drawing" && secs <= 10);
+    if (game.phase === "drawing" && SAY_AT.includes(secs) && secs !== this.lastSaid) {
+      this.lastSaid = secs;
+      this.said.textContent = `${secs} seconds left`;
+    }
     if (game.phase === "drawing" && secs > 0 && secs <= TICK_FROM && secs !== this.lastTick) {
       this.lastTick = secs;
       audio.play("tick");
@@ -392,6 +500,8 @@ export class ScribblView implements GameView {
       switch (e.type) {
         case "turn-started":
           this.lastTick = -1;
+          this.lastSaid = -1;
+          this.said.textContent = "";
           if (e.drawerId === me) {
             audio.play("your-turn");
             audio.buzz(25);

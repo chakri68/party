@@ -22,6 +22,8 @@
 
 .sb-top {
   grid-area: top;
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -54,9 +56,14 @@
 
 /* ---- The page ----------------------------------------------------------- */
 
+/* As wide as the column, but never taller than the screen can show next to the
+   header and top bar: a phone held sideways otherwise gets a page it can't see
+   the bottom of, and a canvas that won't scroll (it's eating the touches). */
 .sb-stage {
   grid-area: stage;
   position: relative;
+  justify-self: center;
+  width: min(100%, calc((100dvh - var(--sb-chrome, 160px)) * 4 / 3));
   aspect-ratio: 4 / 3;
   border-radius: 14px;
   overflow: hidden;
@@ -66,10 +73,11 @@
 .sb-canvas { display: block; width: 100%; height: 100%; }
 /* Only the drawer's canvas swallows touches; everyone else can scroll past it. */
 .scribbl.can-draw .sb-canvas { touch-action: none; cursor: crosshair; }
+/* Along the bottom of the top bar, not over the page: ink up there shouldn't hide. */
 .sb-bar {
   position: absolute;
-  inset: 0 0 auto;
-  height: 4px;
+  inset: auto 0 0;
+  height: 3px;
   background: var(--accent);
   transform-origin: left;
   transform: scaleX(0);
@@ -121,14 +129,18 @@
 .sb-palette { display: flex; flex-wrap: wrap; gap: 6px; }
 .sb-swatch {
   min-height: 0;
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   padding: 0;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
   border: 2px solid var(--line);
   background: var(--c);
 }
 .sb-swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+/* The ring alone leans on telling navy from blue; a tick doesn't. */
+.sb-swatch[aria-pressed="true"]::after { content: "✓"; color: var(--on); font-weight: 800; font-size: 1rem; line-height: 1; }
 .sb-tool-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sb-size {
   min-height: 40px;
@@ -137,17 +149,22 @@
   display: grid;
   place-items: center;
 }
-.sb-size span { width: var(--d); height: var(--d); border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px var(--line); }
+/* Ink, not the brush colour: a black dot on a near-black button is no dot at all. */
+.sb-size span { width: var(--d); height: var(--d); border-radius: 50%; background: var(--ink); }
 .sb-size[aria-pressed="true"], .sb-tool[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .sb-tool { min-height: 40px; padding: 0 14px; font-size: 0.9rem; }
 .sb-tool.danger { color: var(--danger); }
+.sb-tool.danger.armed { background: var(--danger); border-color: var(--danger); color: var(--bg); font-weight: 700; }
 
 /* Phones: sizes and actions share one row. */
+/* Phones: sizes and actions share one row; colours fit eight to a row at 375px.
+   Nothing under 36px: these get hit mid-round, with a thumb, in a hurry. */
 @media (max-width: 480px) {
+  .sb-palette { gap: 5px; }
   .sb-tool-row { gap: 5px; flex-wrap: nowrap; }
-  .sb-size { width: 34px; min-height: 36px; flex: 0 0 auto; }
-  .sb-tool { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 6px; font-size: 0.82rem; }
-  .sb-swatch { width: 28px; height: 28px; }
+  .sb-size { width: 40px; min-height: 40px; flex: 0 0 auto; }
+  .sb-tool { flex: 1 1 0; min-width: 0; min-height: 40px; padding: 0 4px; font-size: 0.82rem; }
+  .sb-swatch { width: 36px; height: 36px; }
 }
 
 /* ---- Scores and chat ---------------------------------------------------- */
@@ -210,7 +227,7 @@
 .sb-line { padding: 2px 6px; border-radius: 6px; line-height: 1.35; }
 .sb-line.info { color: var(--muted); }
 .sb-line.good { color: var(--accent); font-weight: 600; }
-.sb-line.close { color: #ffc56b; font-weight: 600; }
+.sb-line.close { color: var(--warn, #ffc56b); font-weight: 600; }
 .sb-line.secret { background: var(--accent-soft); }
 .sb-line.err { color: var(--danger); }
 .sb-form { display: flex; gap: 6px; padding: 6px; border-top: 1.5px solid var(--line); }
@@ -230,6 +247,60 @@
   .sb-players { flex-direction: column; overflow: visible; }
   .sb-player { padding: 3px 12px 3px 3px; }
   .sb-log { max-height: none; flex: 1; }
+}
+
+/* ---- Phones on their side ------------------------------------------------
+   Short and wide: the page on the left at whatever height there is, tools and
+   chat stacked on the right where a thumb can reach them without scrolling. */
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .scribbl {
+    grid-template-columns: auto minmax(220px, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "top top" "stage tools" "stage side";
+  }
+  .sb-side { contain: size; min-height: 120px; }
+  .sb-players { flex-wrap: wrap; overflow: visible; }
+  .sb-log { max-height: none; flex: 1; min-height: 0; }
+  .sb-palette { gap: 5px; }
+  .sb-swatch { width: 34px; height: 34px; }
+  .sb-tool-row { flex-wrap: wrap; }
+}
+
+/* ---- Phones, keyboard up -------------------------------------------------
+   The keyboard eats half the screen, and the page scrolls to keep the guess box
+   in view, which shoves the drawing off the top. So while typing, the game pins
+   itself to the visible strip: word and clock, the drawing as big as fits, the
+   last few chat lines, the box. Scores come back when the keyboard goes.
+   (--vvh/--vv-top/html.kb-open come from the shell, apps/web/src/keyboard.ts.) */
+
+@media (max-width: 759px) {
+  html.kb-open .scribbl {
+    position: fixed;
+    z-index: 15;
+    inset: var(--vv-top) 0 auto;
+    height: var(--vvh);
+    padding: 6px 8px;
+    gap: 6px;
+    background: var(--bg);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "top" "stage" "side";
+  }
+  html.kb-open .sb-top { min-height: 0; padding: 4px 10px; }
+  html.kb-open .sb-stage {
+    /* As tall as the row allows, width from the 4:3 page. */
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    justify-self: center;
+  }
+  /* The round number can wait; the word needs the width. */
+  html.kb-open .sb-top { grid-template-columns: 1fr auto; }
+  html.kb-open .sb-round,
+  html.kb-open .sb-tools,
+  html.kb-open .sb-players { display: none; }
+  html.kb-open .sb-log { min-height: 0; max-height: 4.6em; padding: 4px 8px; }
+  html.kb-open .sb-form { padding: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
