@@ -213,7 +213,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
   function renderDetail() {
     detail.replaceChildren();
     if (!selected) {
-      detail.append(h("p", {}, "You've researched everything there is. For now."));
+      detail.append(h("p", {}, "You've researched everything."));
       return;
     }
     const tech = selected;
@@ -225,7 +225,7 @@ export function techScreen({ view, kind, color, confirmTwice, onResearch, onClos
       s === "owned" ? null
       : s === "locked" ? `Research ${TECHS[parentFor(kind, tech)!].name} first`
       : !view.myTurn ? "You can research on your turn"
-      : view.credits < cost ? `${cost - view.credits} more credits needed`
+      : view.credits < cost ? `You need ${cost - view.credits} more credits`
       : null;
     detail.append(
       h(

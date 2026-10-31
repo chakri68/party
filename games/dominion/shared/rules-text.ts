@@ -15,29 +15,29 @@ import {
 
 /** Plain-language rules for the lobby's Rules button. */
 const BASE_RULES: string[] = [
-  "Everyone starts with one city and one infantry on a hidden map. You see around your units and inside your borders.",
-  "Each turn your cities pay credits. Spend them on research, units, and developing tiles in your territory.",
-  "Harvesting and building on tiles grows the city that owns them. Bigger cities pay more, hold more units, and each new level offers a choice of reward.",
-  "Move a unit onto a village or an enemy city, survive until your next turn, then capture it. An enemy standing in your city stops its income.",
-  "Combat is predictable: you'll see the damage before you commit. A defender that survives hits back if the attacker is in its range.",
-  "Stepping next to an enemy fighter stops your move. Forests and mountains cost double, roads cost half.",
-  "With Sailing, build a port on your shore. A unit that walks onto it boards a transport; landing again ends its turn. Ships can be refitted into scouts, rammers and bombers. Two ports on the same water link their cities like a road.",
-  "Lose every city and you're out. Last empire standing wins; at the round limit, the highest score does.",
-  "Hold the capitals: own every original capital at the end of your turn and still at the start of your next, and you win.",
-  "Milestones (10 techs, 5 connected cities, 80% of the map explored, 10 battles won, peace with 3 empires for 5 rounds) each earn a monument to place on your land.",
-  "With teams, allies can't attack each other and win together. Treasuries and research stay separate.",
+  "Each player starts with 1 city and 1 soldier. The map is hidden. You can see the land near your units. You can also see the land inside your borders.",
+  "Your cities give you credits every turn. Credits are the money in this game. You spend credits on research, new units and your land.",
+  "Your cities grow when you work their land. You can harvest a tile. You can also build on a tile. Each time, the city grows. A bigger city gives more credits. A bigger city can also hold more units. Each new city level gives you a choice of 2 rewards.",
+  "You take a city by standing in it. Move a unit onto a village or an enemy city. Wait for your next turn. If your unit is still alive, you take the city. An enemy unit in your city stops the city's credits.",
+  "Fights have no luck. You see the damage before you attack. The defender may live. Then the defender hits back, if your unit is in its range.",
+  "Enemy soldiers block your path. Your unit stops when it moves next to an enemy soldier. Forests and mountains cost 2 times the moves. Roads cost half.",
+  "Ports let you cross water. First, research Sailing. Then build a port on your coast. Walk a unit onto the port. The unit gets on a boat. Landing again ends the unit's turn. You can change a boat into a scout, a rammer or a bomber. 2 ports on the same water join their cities, like a road.",
+  "You lose when you have no cities left. The last player with cities wins. Some games have a round limit. In those games, the top score wins at the end.",
+  "Hold the capitals: this is another way to win. A capital is a player's first city. Own every first city at the end of your turn. Own them all again at the start of your next turn. Then you win.",
+  "Milestones give you monuments. There are 5 milestones. Learn 10 techs. Join 5 cities by road. See 80% of the map. Win 10 fights. Stay at peace with 3 players for 5 rounds. Each milestone gives you 1 monument. You put the monument on your land.",
+  "In a team game, team-mates cannot attack each other. Team-mates win together. Each player keeps their own credits and research.",
 ];
 
 /** Each special faction's one-paragraph rules; shown once it's released. */
 export const SPECIAL_RULES: Partial<Record<(typeof SPECIAL_FACTIONS)[number], string>> = {
   bloom:
-    "The Bloom's territory is mycelium, and they can spread it to touching land for 1 credit (never into a treaty partner's). Their own units cross it at half a point a step and pay half again off it. They absorb fruit and crops for +1 population instead of harvesting, and build no roads. Larvae cost 1 and grow into drones in 2 turns, or evolve early on the mycelium into stingers (whose hits poison) or brood mothers (who lay larvae). Healing draws poison out. Enemies standing on spread mycelium can burn it.",
+    "The Bloom's land is called mycelium. The Bloom can spread mycelium to the next tile for 1 credit. The Bloom cannot spread it into a treaty partner's land. Bloom units move on mycelium for half a move per step. Off mycelium, each step costs 1.5 times as much. The Bloom do not harvest fruit or crops. The Bloom take them in for +1 population. The Bloom build no roads. A larva costs 1 credit. After 2 turns, a larva grows into a drone. On mycelium, a larva can change early. It can become a stinger or a brood mother. A stinger's hits poison the target. A brood mother lays larvae. Healing removes poison. Enemies on mycelium can burn the mycelium.",
   rimeborn:
-    "Rimeborn never board a ship. A unit that hasn't acted can freeze a neighbouring shallow tile into ice for 1 credit, ending its turn (open ocean too, with Deep freeze). Ice is land for everyone and takes roads with Ice roads. It lasts 6 rounds, longer while Rimeborn units, cities or land are beside it, and never thaws under a unit. Ice archers' hits chill: the target can't move on its next turn.",
+    "Rimeborn never get on a boat. A Rimeborn unit can freeze a nearby shallow tile into ice. The unit must not have acted this turn. Freezing costs 1 credit and ends the unit's turn. With Deep freeze, Rimeborn can freeze open ocean too. Everyone can walk on ice. With Ice roads, Rimeborn can build roads on ice. Ice lasts 6 rounds. Rimeborn units, cities or land next to the ice make it last longer. Ice never melts under a unit. An ice archer's hit freezes the target. The target cannot move on its next turn.",
   tidefolk:
-    "Tidefolk walk the shallows: shell guards and reef runners need no ship and defend better on water. They settle reef villages (villages on the water; only a ship or an amphibious unit can take one), build reef nests instead of ports, and reach the open ocean with Deep calling and its leviathans. No warships.",
+    "Tidefolk walk in shallow water. Shell guards and reef runners need no boat. Shell guards and reef runners defend better on water. Tidefolk can build reef villages on the water. To take a reef village, you need a boat or a unit that walks in water. Tidefolk build reef nests in place of ports. Deep calling lets Tidefolk reach the open ocean. Deep calling also gives them leviathans. Tidefolk have no warships.",
   wildwood:
-    "Wildwood tend resources instead of harvesting them: 3 credits for +1 population, and the resource stays. They can't build lumber camps or mines; each city earns +1 income per 5 untouched forest tiles (groves count), up to +2. Owl eggs hatch into great owls after 3 turns, which fly over water, peaks and enemy lines but can't capture.",
+    "Wildwood look after resources. Wildwood do not harvest them. Looking after a resource costs 3 credits. It gives +1 population. The resource stays on the tile. Wildwood cannot build lumber camps or mines. Each city gets +1 credit for every 5 untouched forest tiles. Groves also count as untouched forest. Each city can get up to +2 credits this way. An owl egg hatches into a great owl after 3 turns. Great owls fly over water, mountain tops and enemy lines. Great owls cannot take cities.",
 };
 
 /** What the lobby shows: the base rules, then each released special faction's entry. */
@@ -115,7 +115,7 @@ function estimate(settings: DominionSettings, players: number, size: number): st
   const rounds = settings.roundLimit || Math.round(size * 1.5);
   const minutes = Math.round((rounds * players * perTurn) / 60 / 10) * 10;
   if (!settings.roundLimit) return `no fixed end; often ${minutes}+ min`;
-  return `about ${Math.max(20, minutes)} min, give or take a war`;
+  return `about ${Math.max(20, minutes)} min or more`;
 }
 
 export function dominionSettingFields(raw: unknown, players: number): SettingField[] {
@@ -147,7 +147,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
       options: botCounts.map((k) => ({ label: k ? String(k) : "None", patch: { bots: k } })),
       hint:
         bots !== settings.bots
-          ? bots > settings.bots ? "Playing alone: one computer joins" : `Room for ${bots} with ${humans} people`
+          ? bots > settings.bots ? "You are alone, so 1 computer joins" : `Only ${bots} fit with ${humans} people`
           : undefined,
     },
     {
@@ -169,7 +169,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
         label: s === "auto" ? `Auto (${resolveMapSize("auto", n)}×${resolveMapSize("auto", n)})` : `${s}×${s}`,
         patch: { mapSize: s },
       })),
-      hint: settings.mapSize !== "auto" && size !== settings.mapSize ? `Too small for ${n}; using ${size}×${size}` : undefined,
+      hint: settings.mapSize !== "auto" && size !== settings.mapSize ? `Too small for ${n}. Using ${size}×${size}` : undefined,
     },
     {
       key: "mapType",
@@ -181,7 +181,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
         { label: "Lakes", patch: { mapType: "lakes" } },
         { label: "Archipelago", patch: { mapType: "archipelago" } },
       ],
-      hint: settings.mapType === "continents" || settings.mapType === "archipelago" ? "Rivals may be across the water: Sailing builds ports" : undefined,
+      hint: settings.mapType === "continents" || settings.mapType === "archipelago" ? "Others may be across the sea. Sailing lets you build ports" : undefined,
     },
     {
       key: "turnClock",
@@ -220,7 +220,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
       label: "Factions",
       selected: pickIndex(factions, settings.factions),
       options: factions.map((f) => ({ label: f === "mixed" ? "Mixed" : FACTIONS[f].name, patch: { factions: f } })),
-      hint: settings.factions === "mixed" ? "Dealt out at random" : FACTIONS[settings.factions].blurb,
+      hint: settings.factions === "mixed" ? "Each player gets a random one" : FACTIONS[settings.factions].blurb,
     },
   ];
   fields.push({
@@ -228,7 +228,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
     label: "Teams",
     selected: pickIndex(teamCounts, settings.teams),
     options: teamCounts.map((t) => ({ label: t ? `${t} teams` : "Off", patch: { teams: t } })),
-    hint: settings.teams && !teams ? `Needs at least ${settings.teams} empires` : teams ? "Seats are dealt into teams in turn order" : undefined,
+    hint: settings.teams && !teams ? `Needs at least ${settings.teams} players` : teams ? "Players join teams in turn order" : undefined,
   });
   if (teams) {
     fields.push({

@@ -349,16 +349,16 @@ export const scribblGame: GameDefinition<
     const t = prev.turn;
 
     if (action.type === "choose") {
-      if (t.phase !== "choosing" || t.drawerId !== playerId) return reject("not-choosing", "It's not your pick.");
+      if (t.phase !== "choosing" || t.drawerId !== playerId) return reject("not-choosing", "It's not your turn to choose.");
       const word = t.choices[action.index];
-      if (!word) return reject("bad-choice", "That word isn't on offer.");
+      if (!word) return reject("bad-choice", "Choose one of your words.");
       const state = clone(prev);
       const out = newOut();
       startDrawing(state, word, ctx, out);
       return { ok: true, transition: done(state, out) };
     }
 
-    if (t.phase === "drawing" && t.drawerId === playerId) return reject("drawing", "No typing while you draw. Nice try.");
+    if (t.phase === "drawing" && t.drawerId === playerId) return reject("drawing", "You can't type while you draw.");
     const state = clone(prev);
     const out = newOut();
     guess(state, state.players.find((p) => p.id === playerId)!, action.text, ctx, out);

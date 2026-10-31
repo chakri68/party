@@ -9,7 +9,7 @@ import { raceElapsed, teamBadge } from "../role.ts";
 import { coinFlipped, trackPicker } from "../stages.ts";
 import type { Lobby } from "../view.ts";
 
-const STATUS_LABEL = { running: "On stage", finished: "Finished", dnf: "DNF" } as const;
+const STATUS_LABEL = { running: "Driving", finished: "Finished", dnf: "DNF" } as const;
 
 /**
  * Rally's lobby: the grid. Nobody picks a seat (everyone has a car of their
@@ -18,7 +18,7 @@ const STATUS_LABEL = { running: "On stage", finished: "Finished", dnf: "DNF" } a
  * the results.
  */
 export class RallyGrid implements Lobby {
-  readonly el = h("section", { class: "br-layer br-teams br-grid-screen", "aria-label": "Starting grid" });
+  readonly el = h("section", { class: "br-layer br-teams br-grid-screen", "aria-label": "Cars at the start" });
   private api: GameClientApi;
   private note = h("p", { class: "br-note", role: "status", "aria-live": "polite" });
   private clock = h("span", { class: "br-tclock" });
@@ -98,13 +98,13 @@ export class RallyGrid implements Lobby {
     if (editable && mine && !brief) {
       // Ready, but the course hasn't loaded yet: a way back out.
       bar.push(
-        h("p", { class: "br-me" }, `You're in Car ${mine.id}.`),
+        h("p", { class: "br-me" }, `You are in Car ${mine.id}.`),
         h("button", { type: "button", class: "primary br-ready-btn on", "aria-pressed": "true", onclick: () => this.api.act({ type: "player.ready", ready: false }) }, "Ready"),
       );
     } else if (editable && !mine) {
-      bar.push(h("p", { class: "br-me" }, "Every car's taken. You're watching; the next free one is yours."));
+      bar.push(h("p", { class: "br-me" }, "All cars are taken. You are watching. You get the next free car."));
     } else if (!editable && game.phase !== "finished") {
-      bar.push(h("p", { class: "br-me" }, mine ? "Your car's out." : "You're watching this one."));
+      bar.push(h("p", { class: "br-me" }, mine ? "Your car is racing." : "You are watching this race."));
     }
 
     const host: (Node | null)[] = [];
@@ -114,9 +114,9 @@ export class RallyGrid implements Lobby {
         game.startBlocker ? h("p", { class: "br-blocker" }, game.startBlocker) : null,
       );
     } else if (editable) {
-      host.push(h("p", { class: "br-blocker" }, game.startBlocker ?? "Everyone's ready. Over to the host."));
+      host.push(h("p", { class: "br-blocker" }, game.startBlocker ?? "Everyone is ready. Waiting for the host."));
     } else if (isHost && game.phase !== "finished") {
-      host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Anyone still out is DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
+      host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Cars still driving get a DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
     }
 
     replaceChildren(
@@ -125,10 +125,10 @@ export class RallyGrid implements Lobby {
         "header",
         { class: "br-head" },
         h("h2", { class: "br-title" }, "Rally"),
-        h("p", { class: "br-sub" }, `${trackName(game.tracks, game.trackId)}, shared stage, ${game.timeLimitMs / 60_000} min`, this.clock),
+        h("p", { class: "br-sub" }, `${trackName(game.tracks, game.trackId)}, shared road, ${game.timeLimitMs / 60_000} min`, this.clock),
       ),
       editable ? trackPicker(this.api, game, me, isHost, name, true) : null,
-      h("section", { class: "br-cars", "aria-label": "Cars" }, h("h3", {}, editable ? "On the grid" : "Cars"), h("div", { class: "br-grid br-car-grid" }, cars.map(card))),
+      h("section", { class: "br-cars", "aria-label": "Cars" }, h("h3", {}, editable ? "At the start" : "Cars"), h("div", { class: "br-grid br-car-grid" }, cars.map(card))),
       brief,
       h(
         "section",

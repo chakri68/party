@@ -47,7 +47,7 @@ export function roleReveal(opts: { title: string; body: Node | string; warning?:
     } else {
       card.replaceChildren(
         el("span", "role-reveal-prompt", "Tap to reveal"),
-        el("span", "role-reveal-warning", opts.warning ?? "Check nobody's looking"),
+        el("span", "role-reveal-warning", opts.warning ?? "Make sure nobody is looking"),
       );
     }
   };

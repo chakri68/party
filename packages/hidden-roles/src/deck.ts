@@ -93,7 +93,7 @@ export function deckProblem(deck: Deck, roles: RoleSpec[], rules: DeckRules, pla
   if (have !== want) return `Need exactly ${want} role card${want === 1 ? "" : "s"} (have ${have})`;
   for (const r of roles) {
     if ((deck[r.id] ?? 0) <= r.max) continue;
-    return r.max === 1 ? `${r.label} is unique` : `At most ${r.max} ${r.label}`;
+    return r.max === 1 ? `${r.label} is unique` : `You can have at most ${r.max} ${r.label}`;
   }
   for (const team of rules.requireTeams) {
     const members = roles.filter((r) => r.team === team);

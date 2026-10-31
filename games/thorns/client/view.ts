@@ -31,7 +31,7 @@ function describe(e: ThornsEvent, props: GameViewProps): string | null {
   const whose = (id: string | null) => (id === me ? "your own" : `${seatName(props.room, id)}'s`);
   switch (e.type) {
     case "round-start":
-      return `Round ${e.round}. Everyone puts a disc down; ${e.startId === me ? "you start" : `${who(e.startId)} starts`}.`;
+      return `Round ${e.round}. Everyone puts down a disc. ${e.startId === me ? "You start" : `${who(e.startId)} starts`}.`;
     case "placed":
       return e.playerId === me ? null : `${who(e.playerId)} put a disc down.`;
     case "you-placed":
@@ -41,29 +41,29 @@ function describe(e: ThornsEvent, props: GameViewProps): string | null {
     case "passed":
       return `${who(e.playerId)} passed.`;
     case "challenge":
-      return `${who(e.challengerId)} ${e.challengerId === me ? "go" : "goes"} for ${e.amount}.`;
+      return `${who(e.challengerId)} ${e.challengerId === me ? "turn" : "turns"} over ${e.amount} discs.`;
     case "flipped":
       return null;
     case "success":
-      return `${who(e.challengerId)} made it: ${pointsText(e.points)}.`;
+      return `${who(e.challengerId)} found only roses. Score: ${pointsText(e.points)}.`;
     case "failure": {
       const thorn = e.thornOwnerId === e.challengerId ? "their own thorn" : `${whose(e.thornOwnerId)} thorn`;
       const hit = e.challengerId === me ? `You hit ${e.thornOwnerId === me ? "your own thorn" : thorn}` : `${who(e.challengerId)} hit ${thorn}`;
-      return e.eliminated ? `${hit} and ${e.challengerId === me ? "you're" : "they're"} out of discs.` : `${hit} and lost a disc.`;
+      return e.eliminated ? `${hit} and ${e.challengerId === me ? "you're" : "they're"} out of discs.` : `${hit} and lost 1 disc.`;
     }
     case "you-lost":
-      return `It cost you ${discName(e.lostDisc, true)}. Nobody else knows which.`;
+      return `You lost ${discName(e.lostDisc, true)}. Only you know this.`;
     case "ready":
       return null;
     case "round-void":
-      return `${who(e.playerId)} left mid-round, so it doesn't count. Discs back.`;
+      return `${who(e.playerId)} left the game. This round does not count. Everyone gets their discs back.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return e.playerId === me ? "The host skipped your turn." : `The host skipped ${who(e.playerId)}'s turn.`;
     case "player-removed":
       return `${who(e.playerId)} left the table.`;
     case "game-over":
       if (e.reason === "abandoned") return "Everyone else left.";
-      if (e.reason === "last-standing") return e.winnerId === me ? "Last one with discs. You win!" : `${who(e.winnerId)} is the last one with discs.`;
+      if (e.reason === "last-standing") return e.winnerId === me ? "Only you have discs left. You win!" : `Only ${who(e.winnerId)} has discs left.`;
       return e.winnerId === me ? "You win!" : `${who(e.winnerId)} wins.`;
   }
 }
@@ -178,8 +178,8 @@ export class ThornsView implements GameView {
     this.api.setTurn(
       this.show || !priv ? null
       : priv.canFlip.length ? "Flip a disc"
-      : game.phase === "placing-first" && priv.canPlace ? "Put a disc down"
-      : game.phase === "turns" && myTurn ? "Place or bid"
+      : game.phase === "placing-first" && priv.canPlace ? "Put down a disc"
+      : game.phase === "turns" && myTurn ? "Put down or bid"
       : game.phase === "bidding" && myTurn ? "Raise or pass"
       : null,
     );
@@ -243,7 +243,7 @@ export class ThornsView implements GameView {
           case "challenge":
             audio.play("nudge");
             audio.buzz(20);
-            await bubble(this.anchorFor(e.challengerId), `Flipping ${e.amount}`, "anim-bubble th-bubble", 1000);
+            await bubble(this.anchorFor(e.challengerId), `Turning ${e.amount}`, "anim-bubble th-bubble", 1000);
             this.show = { flips: 0, fresh: -1 };
             this.render(props, "none");
             break;
@@ -329,19 +329,19 @@ export class ThornsView implements GameView {
 
     if (this.show && c) {
       const left = c.amount - this.show.flips;
-      body = mine ? h("span", {}, left ? `Flipping… ${left} to go` : "Flipping…") : them(`is flipping: ${this.show.flips} of ${c.amount}`);
+      body = mine ? h("span", {}, left ? `Turning over… ${left} left` : "Turning over…") : them(`is turning over discs: ${this.show.flips} of ${c.amount}`);
     } else if (game.phase === "placing-first") {
       const waiting = game.players.filter((p) => !p.removed && !p.out && !p.height);
       body = priv?.canPlace
-        ? h("span", {}, "Put your first disc down")
-        : h("span", {}, waiting.length === 1 ? `Waiting on ${this.name(props, waiting[0]!.id)}` : `Waiting on ${waiting.length} to put a disc down`);
+        ? h("span", {}, "Put down your first disc")
+        : h("span", {}, waiting.length === 1 ? `Waiting for ${this.name(props, waiting[0]!.id)}` : `Waiting for ${waiting.length} players`);
     } else if (game.phase === "turns") {
-      body = mine ? h("span", {}, priv?.hand.length ? "Your turn: place a disc or bid" : "Your hand's empty: time to bid") : them("is up: place or bid");
+      body = mine ? h("span", {}, priv?.hand.length ? "Your turn. Put down a disc or bid." : "No discs in your hand. You must bid.") : them("must put down a disc or bid");
     } else if (game.phase === "bidding" && game.bid) {
-      body = mine ? h("span", {}, `Raise past ${game.bid.amount}, or pass`) : them(`is up: raise past ${game.bid.amount} or pass`);
+      body = mine ? h("span", {}, `Say more than ${game.bid.amount}, or pass`) : them(`must say more than ${game.bid.amount} or pass`);
     } else if (game.phase === "flipping" && c) {
       const left = c.amount - c.flips.length;
-      body = mine ? h("span", {}, `Flip ${left} more: tap a mat`) : them(`is flipping: ${c.flips.length} of ${c.amount}`);
+      body = mine ? h("span", {}, `Turn over ${left} more. Tap a mat.`) : them(`is turning over discs: ${c.flips.length} of ${c.amount}`);
     } else if (game.phase === "result" && game.result) {
       const r = game.result;
       body = h("span", {}, r.outcome === "success" ? `${this.name(props, r.challengerId)} made ${r.amount}` : `Thorn! ${this.name(props, r.challengerId)} lost a disc`);
@@ -415,13 +415,13 @@ export class ThornsView implements GameView {
     }
     const flippedHere = mine.map((f) => discLabel(f.disc).toLowerCase());
     const stackLabel = p.height
-      ? `${p.height} face down${flippedHere.length ? `, flipped: ${flippedHere.join(", ")}` : ""}${isMe && priv?.stack.length ? `. Yours, bottom to top: ${priv.stack.map((d) => discLabel(d).toLowerCase()).join(", ")}` : ""}`
+      ? `${p.height} face down${flippedHere.length ? `, turned over: ${flippedHere.join(", ")}` : ""}${isMe && priv?.stack.length ? `. Yours, bottom to top: ${priv.stack.map((d) => discLabel(d).toLowerCase()).join(", ")}` : ""}`
       : "Empty mat";
     const stackKids = discs.length ? discs : h("span", { class: "th-slot", "aria-hidden": "true" });
     const stack = flippable
       ? h(
           "button",
-          { type: "button", class: "th-stack flippable", "aria-label": `Flip ${name}'s top disc. ${stackLabel}`, onclick: () => this.send({ type: "flip", owner: p.id }) },
+          { type: "button", class: "th-stack flippable", "aria-label": `Turn over the top disc of ${name}. ${stackLabel}`, onclick: () => this.send({ type: "flip", owner: p.id }) },
           stackKids,
           h("span", { class: "th-flip-tag", "aria-hidden": "true" }, "Flip"),
         )
@@ -435,7 +435,7 @@ export class ThornsView implements GameView {
       : away ? PRESENCE_LABEL[seat!.presence]
       : game.phase === "result" && p.ready ? "ready"
       : bidder && game.phase === "bidding" ? `bid ${game.bid!.amount}`
-      : game.challenge?.challengerId === p.id ? `going for ${game.challenge.amount}`
+      : game.challenge?.challengerId === p.id ? `trying ${game.challenge.amount}`
       : p.passed && game.phase !== "placing-first" ? "passed"
       : p.id === game.startId && game.phase === "placing-first" ? "starts"
       : "";
@@ -516,7 +516,7 @@ export class ThornsView implements GameView {
             btn.addEventListener("click", () => this.send({ type: "place", disc: d }));
             return btn;
           })
-        : h("span", { class: "th-empty" }, me?.out ? "No discs left. Watching from here." : priv && game.phase !== "result" && game.phase !== "over" ? "All your discs are down." : ""),
+        : h("span", { class: "th-empty" }, me?.out ? "You have no discs left. You can watch." : priv && game.phase !== "result" && game.phase !== "over" ? "All your discs are down." : ""),
     );
     this.hand.hidden = !priv;
 
@@ -527,7 +527,7 @@ export class ThornsView implements GameView {
       lost && (game.phase === "result" || game.phase === "over")
         ? h("span", { class: "th-lost" }, discEl(lost), lost === "rose" ? "You lost a rose" : "You lost your thorn")
         : placeable
-          ? hint(game.phase === "placing-first" ? "Tap a disc to put it down" : "Tap a disc, or bid", true)
+          ? hint(game.phase === "placing-first" ? "Tap a disc to put it down" : "Tap a disc or bid", true)
           : null,
     );
 
@@ -553,15 +553,15 @@ export class ThornsView implements GameView {
         h("button", { type: "button", class: "primary th-bid", onclick: () => this.send({ type: "bid", amount: this.bidValue }) }, this.bidValue === max ? `Bid all ${max}` : `Bid ${this.bidValue}`),
         priv.canPass ? h("button", { type: "button", class: "th-pass", onclick: () => this.send({ type: "pass" }) }, "Pass") : null,
       ];
-    } else if (priv?.canFlip.length) controls = hint("Tap a mat marked Flip to turn its top disc", true);
+    } else if (priv?.canFlip.length) controls = hint("Tap a mat marked Flip. Its top disc turns over.", true);
     else if (game.phase === "result") {
       controls = [
         this.bar,
         priv?.canReady
           ? h("button", { type: "button", class: "primary th-ready", onclick: () => this.send({ type: "ready" }) }, "Ready")
-          : hint(priv ? "Waiting on the others…" : "Next round soon"),
+          : hint(priv ? "Waiting for the others…" : "The next round starts soon"),
       ];
-    } else if (game.phase === "placing-first") controls = hint(priv?.canPlace ? "Everyone's choosing at once" : "Down. Waiting on the rest…");
+    } else if (game.phase === "placing-first") controls = hint(priv?.canPlace ? "Everyone chooses at the same time" : "Done. Waiting for the others…");
     else if (game.currentPlayerId) controls = hint(`${this.name(props, game.currentPlayerId)} ${game.currentPlayerId === props.playerId ? "are" : "is"} up`);
     replaceChildren(this.controls, controls);
     this.controls.classList.toggle("bidding", !!priv?.canBid && !this.pending.size && !this.show);

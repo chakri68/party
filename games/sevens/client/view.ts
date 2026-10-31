@@ -30,14 +30,14 @@ function describe(e: SevensEvent, props: GameViewProps): string | null {
     case "card-played":
       return `${who(e.playerId)} played ${cardShort(e.card)}.`;
     case "ghost-card-placed":
-      return `${cardShort(e.card)} went down on its own.`;
+      return `The game played ${cardShort(e.card)}.`;
     case "passed":
       if (e.playerId !== props.playerId) return `${who(e.playerId)} passed.`;
-      return e.auto ? "You had nothing to play, so you passed." : "You passed.";
+      return e.auto ? "You had no card to play. You passed." : "You passed.";
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return e.playerId === props.playerId ? "The host skipped your turn." : `The host skipped ${who(e.playerId)}'s turn.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their cards will go down on their own.`;
+      return `${who(e.playerId)} left. The game will play their cards.`;
     case "game-over":
       return null;
   }
@@ -199,7 +199,7 @@ export class SevensView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId && e.auto ? "Nothing to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId && e.auto ? "No card to play" : "Pass");
           break;
         case "turn-skipped":
           audio.play("pass");
@@ -441,7 +441,7 @@ export class SevensView implements GameView {
       action = pass;
     } else {
       action = [
-        h("span", { class: "hint" }, directPlay() ? "Click a highlighted card" : "Tap a highlighted card"),
+        h("span", { class: "hint" }, directPlay() ? "Click a bright card" : "Tap a bright card"),
         pass,
       ];
     }

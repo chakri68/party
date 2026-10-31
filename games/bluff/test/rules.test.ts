@@ -45,9 +45,9 @@ describe("fake words", () => {
     expect(fakeShapeProblem("")).toMatch(/Type/);
     expect(fakeShapeProblem("ab")).toMatch(/3/);
     expect(fakeShapeProblem("a".repeat(19))).toMatch(/18/);
-    expect(fakeShapeProblem("glorp blat")).toMatch(/Letters/);
-    expect(fakeShapeProblem("glörp")).toMatch(/Letters/);
-    expect(fakeShapeProblem("www.x.com")).toMatch(/Letters/);
+    expect(fakeShapeProblem("glorp blat")).toMatch(/letters a to z/);
+    expect(fakeShapeProblem("glörp")).toMatch(/letters a to z/);
+    expect(fakeShapeProblem("www.x.com")).toMatch(/letters a to z/);
     expect(fakeShapeProblem("glorp")).toBeNull();
     expect(fakeShapeProblem("a".repeat(18))).toBeNull();
   });

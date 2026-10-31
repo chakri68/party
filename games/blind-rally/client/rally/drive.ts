@@ -50,7 +50,7 @@ export class LocalDrive implements SeatAddon {
   private callIn = h("span", { class: "rl-call-in" });
   private callNext = h("span", { class: "rl-call-next" });
   /** The co-driver: the next call, how far, and the one after. Pace notes, read out in order. */
-  private codriver = h("div", { class: "rl-codriver", "aria-label": "Co-driver", hidden: true }, h("span", { class: "rl-call-main" }, this.callNow, this.callIn), this.callNext);
+  private codriver = h("div", { class: "rl-codriver", "aria-label": "Pace notes", hidden: true }, h("span", { class: "rl-call-main" }, this.callNow, this.callIn), this.callNext);
 
   private track: TrackData | null = null;
   /** Godot's own checkpoint count and the trip meter when it last changed: the co-driver's dead reckoning. */
@@ -156,7 +156,7 @@ export class LocalDrive implements SeatAddon {
   private onReset() {
     if (!this.live || this.reset.disabled) return;
     if (!this.confirming) {
-      this.reset.textContent = "Again: +5 s";
+      this.reset.textContent = "Tap again: +5 s";
       this.reset.classList.add("confirm");
       this.confirming = setTimeout(() => this.unconfirm(), CONFIRM_MS);
       return;

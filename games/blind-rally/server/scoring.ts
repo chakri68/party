@@ -66,7 +66,7 @@ export function placingLabel(state: BlindRallyState, p: Placing): string {
     : run.penaltyMs ? `+${run.penaltyMs / 1000}${NB}s reset${run.resets === 1 ? "" : "s"}` : "";
   const extras = [
     resets,
-    run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)}${NB}s paused off` : "",
+    run.pausedMs >= 100 ? `${(Math.floor(run.pausedMs / 100) / 10).toFixed(1)}${NB}s paused` : "",
   ].filter(Boolean);
   const place = `${p.tied ? "=" : ""}${ordinal(p.rank)}`;
   const result = p.timeMs !== null ? formatClock(p.timeMs) : `DNF, ${run.cp}/${n} checkpoints`;
@@ -82,7 +82,7 @@ export function guessLine(team: TeamState): string | null {
   const g = team.run ? closestGuess(team.run) : null;
   if (!g) return null;
   const m = Math.round(g.offM);
-  return `Closest guess: ${m < 1 ? "spot on" : `${m}${NB}m off`} ${g.cp ? `after CP${g.cp}` : "before CP1"}`;
+  return `Closest guess: ${m < 1 ? "exact" : `${m}${NB}m off`} ${g.cp ? `after CP${g.cp}` : "before CP1"}`;
 }
 
 export function result(state: BlindRallyState): GameOutcome {

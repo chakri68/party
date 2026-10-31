@@ -229,7 +229,7 @@ describe("leaving and presence", () => {
     expect(t.state.phase).toBe("finished");
     const result = cw.getResult(t.state)!;
     expect(result.winnerIds).toEqual(["p1"]);
-    expect(result.standings.at(-1)).toMatchObject({ playerId: "p0", label: "left, 0 words" });
+    expect(result.standings.at(-1)).toMatchObject({ playerId: "p0", label: "left the game, 0 words" });
   });
 
   it("the turn goes past someone who's dropped, unless there's nobody else", () => {

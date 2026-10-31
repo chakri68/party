@@ -22,7 +22,7 @@ const PARTS: Record<FactionKind, [string[], string[]]> = {
     ["peak", "hold", "forge", "delve", "spire", "crest", "pike", "vault", "scar", "deep"],
   ],
   coastal: [
-    ["Gull", "Salt", "Tide", "Kelp", "Coral", "Harbor", "Pearl", "Driftwood", "Shell", "Brine", "Anchor", "Sand"],
+    ["Gull", "Salt", "Tide", "Kelp", "Coral", "Harbour", "Pearl", "Driftwood", "Shell", "Brine", "Anchor", "Sand"],
     ["haven", "port", "cove", "quay", "strand", "mouth", "bay", "mere", "sound", "point"],
   ],
   citadel: [

@@ -4,7 +4,7 @@ import { MAX_PLAYERS, MIN_PLAYERS } from "./rules.ts";
 export const heistManifest: GameManifest = {
   id: "heist",
   name: "Heist",
-  description: "Five jobs, a crew you don't quite trust, and a mole or three who'd love to see it all go wrong.",
+  description: "The crew plans 5 jobs. Some players are secret moles. The moles want the jobs to fail.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
   icon: "key",

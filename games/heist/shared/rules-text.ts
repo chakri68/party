@@ -4,14 +4,25 @@ import { DEFAULT_SETTINGS, type HeistSettings, type MoleShift, type PresetId, TI
 
 /** Plain-language rules for the lobby's Rules button. */
 export const heistRules: string[] = [
-  "Everyone gets a secret card: crew or mole. Moles see who the other moles are; crew know only themselves.",
-  `Five jobs. For each, the leader picks a crew of the job's size (themselves allowed), and everyone votes Go or No-go. More than half the table must say Go; a tie fails. When the vote closes, everyone's vote is shown.`,
-  "On a job, each crew member plays one card, face down. Everyone gets both cards, Clean and Sabotage, so no screen looks different. A mole's Sabotage counts; anyone else's does nothing and plays as Clean. One Sabotage and the job fails. The table sees how many Sabotage cards went in, never whose.",
-  `Each mole gets ${BUDGET} Sabotage cards for the whole game. Spend them wisely.`,
-  `Every failed vote adds heat. At ${MAX_HEAT} heat the job is lost to the moles. Heat cools after every job.`,
-  "The leader moves one seat on after every proposal, whether it passed or not.",
-  `First side to ${TO_WIN} jobs wins.`,
-  "Run out of time and the game decides for you: a leader who doesn't propose is a failed vote, a missing vote is No-go, a missing card is Clean.",
+  "Each player gets a secret card: crew or mole.",
+  "Moles know the other moles. Crew players know only their own card.",
+  "The game has 5 jobs.",
+  "For each job, the leader chooses a team. The job shows the team size. The leader can choose themselves.",
+  "Then every player votes Go or No-go.",
+  "More than half the players must vote Go. A tie counts as No-go.",
+  "When the vote ends, every player sees all the votes.",
+  "On a job, each team member plays 1 card face down: Clean or Sabotage.",
+  "Every player has both cards. So all screens look the same.",
+  "Only a mole's Sabotage card counts. A crew player's Sabotage card counts as Clean.",
+  "If the team plays 1 Sabotage card, the job fails.",
+  "Every player sees the number of Sabotage cards. Nobody sees who played them.",
+  `Each mole has ${BUDGET} Sabotage cards for the whole game. Use them carefully.`,
+  "Each failed vote adds 1 heat.",
+  `At ${MAX_HEAT} heat, the moles win the job. Heat goes back to 0 after each job.`,
+  "After each vote, the next player becomes the leader.",
+  `The first side to win ${TO_WIN} jobs wins the game.`,
+  "If time runs out, the game chooses for you.",
+  "A leader with no team counts as a failed vote. A missing vote counts as No-go. A missing card counts as Clean.",
 ];
 
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -64,7 +75,7 @@ export function heistSettingFields(raw: unknown, players: number): SettingField[
   return [
     {
       key: "preset",
-      label: "Pace",
+      label: "Speed",
       selected: Math.max(0, PRESETS.findIndex((p) => p.id === settings.preset)),
       options: PRESETS.map((p) => ({ label: p.label, patch: { preset: p.id } })),
       hint: `Leader ${secs(t.leaderMs)}, vote ${secs(t.voteMs)}, card ${secs(t.cardMs)}`,

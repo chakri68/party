@@ -235,7 +235,7 @@ describe("drop-outs (spec §8.3)", () => {
     let now: number;
     ({ state: s, now } = finishRun(s, "p1", GO + 22_000));
     expect(team(s, 1).timeMs).toBe(now - GO - 12_000);
-    expect(game.getResult(s)!.standings[0]!.label).toMatch(/\(12\.0\u00a0s paused off\)$/);
+    expect(game.getResult(s)!.standings[0]!.label).toMatch(/\(12\.0\u00a0s paused\)$/);
   });
 
   it("a Navigator's fresh Godot may put the car back on the last accepted checkpoint's anchor", () => {
@@ -264,7 +264,7 @@ describe("drop-outs (spec §8.3)", () => {
     // Coming back after that changes nothing.
     expect(game.onPlayerReconnected!(s, "p2", ctx(GO + 40_000)).state).toBe(s);
     s = game.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
-    expect(game.getResult(s)!.standings.find((x) => x.playerId === "p2")!.label).toMatch(/30\.0\u00a0s paused off/);
+    expect(game.getResult(s)!.standings.find((x) => x.playerId === "p2")!.label).toMatch(/30\.0\u00a0s paused/);
   });
 
   it("both gone: one grace from the first drop, not two; resumes only when both are back", () => {

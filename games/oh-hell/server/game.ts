@@ -293,8 +293,8 @@ export const ohHellGame: GameDefinition<OhHellServerState, OhHellAction, OhHellP
 
     switch (action.type) {
       case "bid": {
-        if (prev.phase !== "bidding") return reject("not-bidding", "Bidding's over for this round.");
-        if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your bid yet.");
+        if (prev.phase !== "bidding") return reject("not-bidding", "Bids are finished for this round.");
+        if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn to bid.");
         const size = handSize(prev);
         if (action.tricks > size) return reject("bad-bid", `Bid 0 to ${size}.`);
         if (action.tricks === currentForbidden(prev)) return reject("forbidden-bid", forbiddenBidMessage(action.tricks, size));
@@ -304,15 +304,15 @@ export const ohHellGame: GameDefinition<OhHellServerState, OhHellAction, OhHellP
         return { ok: true, transition: done(state, out) };
       }
       case "play": {
-        if (prev.phase !== "playing") return reject("not-playing", prev.phase === "bidding" ? "Bids first." : "Not now.");
-        if (prev.held) return reject("trick-held", "Hang on: that trick's still on the table.");
+        if (prev.phase !== "playing") return reject("not-playing", prev.phase === "bidding" ? "Wait. Players are still bidding." : "You can't play now.");
+        if (prev.held) return reject("trick-held", "Wait. The last trick is still on the table.");
         if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
         const hand = prev.players[seat]!.hand;
         const card = hand.find((c) => c.id === action.card);
         if (!card) return reject("card-not-owned", "You don't have that card.");
         const led = ledSuit(prev);
         if (!legalPlays(hand, led).includes(card)) {
-          return reject("must-follow", `You have to follow suit: play a ${SUIT_PLURAL[led!]}.`);
+          return reject("must-follow", `You must follow suit. Play a ${SUIT_PLURAL[led!]}.`);
         }
         const state = clone(prev);
         const out = newOut();
@@ -320,8 +320,8 @@ export const ohHellGame: GameDefinition<OhHellServerState, OhHellAction, OhHellP
         return { ok: true, transition: done(state, out) };
       }
       case "ready": {
-        if (prev.phase !== "round-summary") return reject("not-summary", "Nothing to be ready for.");
-        if (prev.ready.includes(playerId)) return reject("already-ready", "You're ready. Waiting on the others.");
+        if (prev.phase !== "round-summary") return reject("not-summary", "There is nothing to wait for.");
+        if (prev.ready.includes(playerId)) return reject("already-ready", "You're ready. Waiting for the other players.");
         const state = clone(prev);
         const out = newOut([pub({ type: "ready", playerId })]);
         state.ready.push(playerId);

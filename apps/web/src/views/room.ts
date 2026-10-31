@@ -23,11 +23,11 @@ import { identityField, nameInput } from "./home.ts";
 const STUCK_AFTER_MS = 15_000;
 
 const FATAL_COPY: Record<string, string> = {
-  "room-not-found": "That room doesn't exist (or everyone left and it closed).",
+  "room-not-found": "This room does not exist. Maybe everyone left, so the room closed.",
   "room-full": "This room is full.",
-  "game-in-progress": "A game is already underway. You can join once this round ends.",
+  "game-in-progress": "A game is already going on. You can join after this round.",
   "replaced-by-new-connection": "This room is open in another tab.",
-  "protocol-mismatch": "A new version is out. Refresh to keep playing.",
+  "protocol-mismatch": "There is a new version. Refresh the page to keep playing.",
   removed: "The host removed you from this room.",
 };
 
@@ -227,7 +227,7 @@ export class RoomView implements View {
     client.on("error", ({ message }) => this.showToast(message));
     client.on("nudged", ({ byPlayerId }) => {
       const room = this.last?.room;
-      this.showToast(`${room ? seatName(room, byPlayerId) : "Someone"} nudged you: it's your turn!`);
+      this.showToast(`${room ? seatName(room, byPlayerId) : "Someone"} reminded you. It's your turn!`);
       audio.play("nudge");
       navigator.vibrate?.([80, 60, 80]);
     });
@@ -255,8 +255,8 @@ export class RoomView implements View {
     const screen = h(
       "section",
       { class: "message" },
-      h("p", {}, "Couldn't reconnect to the room."),
-      h("p", { class: "muted" }, "Still trying in the background. Your seat is kept for a minute."),
+      h("p", {}, "Could not connect to the room again."),
+      h("p", { class: "muted" }, "Still trying. Your seat is saved for one minute."),
       h("button", { type: "button", class: "primary", onclick: () => this.client?.reconnect() }, "Try again"),
       h("button", {
         type: "button",
@@ -276,7 +276,7 @@ export class RoomView implements View {
   }
 
   private leave() {
-    if (this.last?.room.phase === "playing" && !confirm("Leave the game? You'll be out for the rest of this round.")) {
+    if (this.last?.room.phase === "playing" && !confirm("Leave the game? You will be out for the rest of this round.")) {
       return;
     }
     this.client?.send({ type: "leave" });
@@ -311,7 +311,7 @@ export class RoomView implements View {
     this.renderTurn();
 
     const ownChat = room.phase === "playing" && !!games[room.gameId]?.manifest.ownChat;
-    this.chat?.lock(ownChat ? "Paused for this game" : null);
+    this.chat?.lock(ownChat ? "Chat is off for this game" : null);
 
     if (room.phase === "playing") {
       this.ticker ??= setInterval(() => this.renderControls(), 1000);
@@ -447,8 +447,8 @@ export class RoomView implements View {
     if (target && dropped) {
       items.push(
         h("p", { class: "muted" }, target.presence === "disconnected"
-          ? `${target.name} is disconnected. The game waits for them.`
-          : `${target.name} dropped out. Waiting for them to come back…`),
+          ? `${target.name} is disconnected. The game will wait for them.`
+          : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
     if (target && target.id !== me && !dropped && elapsed >= NUDGE_AFTER_MS) {
@@ -457,9 +457,9 @@ export class RoomView implements View {
           type: "button",
           onclick: () => {
             client.send({ type: "nudge" });
-            this.showToast(`Nudged ${target.name}.`);
+            this.showToast(`Reminded ${target.name}.`);
           },
-        }, `Nudge ${target.name}`),
+        }, `Remind ${target.name}`),
       );
     }
     if (isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
@@ -474,7 +474,7 @@ export class RoomView implements View {
             type: "button",
             class: "danger",
             onclick: () => {
-              if (confirm(`Remove ${s.name}? They'll be out for the rest of this round.`)) {
+              if (confirm(`Remove ${s.name}? They will be out for the rest of this round.`)) {
                 client.send({ type: "remove-player", playerId: s.id });
               }
             },
@@ -486,7 +486,7 @@ export class RoomView implements View {
         h("button", {
           type: "button",
           class: "link end-game",
-          onclick: () => confirm("End this game for everyone and head back to the lobby?") && client.send({ type: "return-to-lobby" }),
+          onclick: () => confirm("End this game for everyone? Everyone goes back to the lobby.") && client.send({ type: "return-to-lobby" }),
         }, "End game"),
       );
     }
@@ -651,7 +651,7 @@ export class RoomView implements View {
             { class: "game-option-text" },
             h("span", { class: "game-option-name" }, name, id === current ? h("span", { class: "tag" }, "current") : null),
             h("span", { class: "muted" }, description),
-            h("span", { class: `game-option-meta${tooMany ? " warn" : ""}` }, tooMany ? `Up to ${maxPlayers} players, you're ${players}` : range),
+            h("span", { class: `game-option-meta${tooMany ? " warn" : ""}` }, tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range),
           ),
         ),
       );
@@ -680,8 +680,8 @@ export class RoomView implements View {
 
     const dlg = h(
       "dialog",
-      { class: "dialog game-list", "aria-label": "Pick a game" },
-      h("h2", {}, "Pick a game"),
+      { class: "dialog game-list", "aria-label": "Choose a game" },
+      h("h2", {}, "Choose a game"),
       search,
       sections.map((s) => s.el),
       empty,
@@ -773,14 +773,14 @@ export class RoomView implements View {
               h(
                 "button",
                 { type: "button", class: "primary", disabled: !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
-                room.canStart ? `Rematch${readyCount ? ` (${readyCount} ready)` : ""}` : "Can't start yet",
+                room.canStart ? `Play again${readyCount ? ` (${readyCount} ready)` : ""}` : "Can't start yet",
               ),
               h("button", { type: "button", onclick: () => this.client?.send({ type: "return-to-lobby" }) }, "Back to lobby"),
             ]
           : h(
               "button",
               { type: "button", class: mySeat?.ready ? "" : "primary", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
-              mySeat?.ready ? "Waiting for host…" : "Play again",
+              mySeat?.ready ? "Waiting for the host…" : "Play again",
             ),
         h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
       ),

@@ -140,7 +140,7 @@ describe("results: closest guess", () => {
     t.run!.pins = [[0, 5, 5, null, null, 0], [1]];
     expect(guessLine(t)).toBeNull();
     t.run!.pins = [[0, 5, 5, 5.3, 5, 3]];
-    expect(guessLine(t)).toBe("Closest guess: spot on after CP3");
+    expect(guessLine(t)).toBe("Closest guess: exact after CP3");
   });
 
   it("a DNF Navigator gets the line too", () => {

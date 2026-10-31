@@ -288,7 +288,7 @@ function play(state: State, cards: Card[], ctx: GameContext, events: Events): Tr
 
 /** Owned, distinct cards for these ids, or a rejection. */
 function ownCards(p: Player, cardIds: string[]): Card[] | GameResult<State, PresidentEvent> {
-  if (new Set(cardIds).size !== cardIds.length) return reject("bad-card", "Each card only once.");
+  if (new Set(cardIds).size !== cardIds.length) return reject("bad-card", "You can use each card only once.");
   const cards: Card[] = [];
   for (const id of cardIds) {
     const card = p.hand.find((c) => c.id === id);
@@ -405,13 +405,13 @@ export const presidentGame: GameDefinition<
       return { ok: true, transition: { state, events } };
     }
 
-    if (prev.phase === "exchange") return reject("exchanging", "Hang on, cards are still being swapped.");
+    if (prev.phase === "exchange") return reject("exchanging", "Wait. Players are still swapping cards.");
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
 
     const state = clone(prev);
     const events: Events = [];
     if (action.type === "pass") {
-      if (!top(state)) return reject("leading", "You're leading: play something.");
+      if (!top(state)) return reject("leading", "You lead. You must play some cards.");
       state.players[seat]!.passed = true;
       events.push(pub({ type: "passed", playerId, auto: false }));
       advance(state, events);

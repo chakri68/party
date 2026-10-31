@@ -5,15 +5,20 @@ import { DEFAULT_SETTINGS, DISCUSS_OPTIONS, type ShortNightSettings, STEP_OPTION
 
 /** Plain-language rules for the lobby's Rules button. */
 export const shortNightRules: string[] = [
-  "Everyone gets one secret card. Most of you are village; one to three are Wolves, depending on the deck.",
-  "Then one night. Every role that acts gets its own short step, in this order: Wolf, Lamplighter, Matchmaker, Bellringer, Eavesdropper, Wanderer. Only the roles in the deck get a step, and every step runs its full time, so the clock gives nothing away.",
-  "Everyone picks on every step, whatever their card: only the picks of the card that's awake count. That way nobody can tell whose turn it really is.",
+  "Each player gets 1 secret card. Most players are in the Village team. The deck has 1 to 3 Wolves.",
+  "Then there is 1 night. The night has a short step for each card with a night power.",
+  "The steps go in this order: Wolf, Lamplighter, Matchmaker, Bellringer, Eavesdropper, Wanderer. Only the cards in the deck get a step.",
+  "Every step lasts its full time. So nobody learns anything from the timer.",
+  "In every step, every player chooses on their phone. Only the choices of the card in that step count. So nobody can tell whose turn it is.",
   ...ROLES.map((r) => `${r.label}: ${r.blurb}`),
-  "\"Reads as a wolf\" means a Wolf or the Stray: the Lamplighter, Matchmaker, Bellringer and Eavesdropper can't tell them apart. The Wanderer and a lone Wolf see the real card.",
-  "Whatever you learn at night is true, and stays true: nobody's card ever changes.",
-  "Then talk, out loud, for a few minutes. Claim what you like. Wolves lie.",
-  "Then everyone votes for one other player, or for nobody. Nobody goes if nobody gets a vote, or if \"nobody\" gets more votes than any player. A tie between players goes to a 10-second runoff; still tied, nobody goes.",
-  "Vote out a Wolf and the village wins. Anything else, the Wolves win.",
+  "\"Reads as a wolf\" means a Wolf or the Stray. The Lamplighter, Matchmaker, Bellringer and Eavesdropper see Wolves and the Stray the same way.",
+  "The Wanderer sees the real card. A Wolf with no other Wolves also sees the real card.",
+  "Everything you learn at night is true. The cards never change.",
+  "Then everyone talks out loud for a few minutes. You can say anything. Wolves will lie.",
+  "Then everyone votes for 1 other player, or for nobody.",
+  "If nobody gets a vote, nobody is out. If \"nobody\" gets more votes than every player, nobody is out.",
+  "If 2 or more players tie, everyone votes again for 10 seconds. If they still tie, nobody is out.",
+  "If the vote puts a Wolf out, the Village team wins. If not, the Wolves win.",
 ];
 
 /** Settings from whatever the room holds. Null: something's off. */
@@ -40,7 +45,7 @@ export function shortNightSettingFields(raw: unknown, players: number): SettingF
       label: "Talking time",
       selected: Math.max(0, DISCUSS_OPTIONS.indexOf(settings.discussMinutes)),
       options: DISCUSS_OPTIONS.map((n) => ({ label: `${n} min`, patch: { discussMinutes: n } })),
-      hint: "The host can call the vote early",
+      hint: "The host can start the vote early",
     },
     {
       key: "stepSeconds",

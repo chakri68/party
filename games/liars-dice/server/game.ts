@@ -243,7 +243,7 @@ export const liarsDiceGame: GameDefinition<
     if (seat < 0 || prev.players[seat]!.removed) return reject("not-in-game", "You're not in this game.");
 
     if (action.type === "ready") {
-      if (prev.phase !== "reveal") return reject("not-now", "The round's already on.");
+      if (prev.phase !== "reveal") return reject("not-now", "The round has already started.");
       if (prev.ready.includes(playerId)) return { ok: true, transition: { state: prev, events: [] } };
       const state = clone(prev);
       const out = newOut([pub({ type: "ready", playerId })]);
@@ -252,7 +252,7 @@ export const liarsDiceGame: GameDefinition<
       return { ok: true, transition: done(state, out) };
     }
 
-    if (prev.phase !== "bidding") return reject("not-now", "Hang on: the next round hasn't rolled yet.");
+    if (prev.phase !== "bidding") return reject("not-now", "Wait. The next round has not started yet.");
     if (prev.players[seat]!.count === 0) return reject("out", "You're out of dice.");
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
 
@@ -260,7 +260,7 @@ export const liarsDiceGame: GameDefinition<
       case "bid": {
         const total = totalDice(prev);
         if (action.quantity > total) return reject("bad-bid", `There are only ${total} dice on the table.`);
-        if (!isLegalBid(prev.bid, action, prev.settings.wildOnes, total)) return reject("bad-bid", "That doesn't beat the last bid.");
+        if (!isLegalBid(prev.bid, action, prev.settings.wildOnes, total)) return reject("bad-bid", "Your bid must be higher than the last bid.");
         const state = clone(prev);
         const out = newOut();
         placeBid(state, action.quantity, action.face, out);
@@ -268,8 +268,8 @@ export const liarsDiceGame: GameDefinition<
       }
       case "liar":
       case "spot-on": {
-        if (!prev.bid) return reject("no-bid", "Nobody's bid yet. Open with one.");
-        if (action.type === "spot-on" && !prev.settings.spotOn) return reject("no-spot-on", "Spot on is off in this game.");
+        if (!prev.bid) return reject("no-bid", "Nobody has made a bid yet. You make the first bid.");
+        if (action.type === "spot-on" && !prev.settings.spotOn) return reject("no-spot-on", "The host turned off Spot on for this game.");
         const state = clone(prev);
         const out = newOut();
         call(state, action.type, ctx, out);

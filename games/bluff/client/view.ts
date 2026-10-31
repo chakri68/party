@@ -67,9 +67,9 @@ export class BluffView implements GameView {
     this.root = h("div", { class: `bluff ${variant}` });
     const common = { autocomplete: "off", autocorrect: "off", spellcheck: "false", enterkeyhint: "send" } as const;
     if (variant === "fake-word") {
-      this.input = h("input", { ...common, class: "bl-input", autocapitalize: "off", maxlength: String(MAX_FAKE), placeholder: "Your made-up word", "aria-label": "Your made-up word" });
+      this.input = h("input", { ...common, class: "bl-input", autocapitalize: "off", maxlength: String(MAX_FAKE), placeholder: "Your fake word", "aria-label": "Your fake word" });
     } else {
-      this.input = h("textarea", { ...common, class: "bl-input", rows: "3", maxlength: String(MAX_DEFINITION), placeholder: "What it means…", "aria-label": "Your made-up meaning" });
+      this.input = h("textarea", { ...common, class: "bl-input", rows: "3", maxlength: String(MAX_DEFINITION), placeholder: "What it means…", "aria-label": "Your fake meaning" });
     }
     this.form = h("form", { class: "bl-form" }, h("div", { class: "bl-field" }, this.input, this.count), this.send);
     this.root.append(
@@ -248,7 +248,7 @@ export class BluffView implements GameView {
       this.lastTick = -1;
       this.pending = null;
       if (game.phase === "write") this.input.value = "";
-      this.note.textContent = game.phase === "reveal" && game.noFakes ? "Nobody wrote anything, so no vote." : "";
+      this.note.textContent = game.phase === "reveal" && game.noFakes ? "Nobody wrote anything. There is no vote." : "";
       this.renderCount();
     }
     this.roundLabel.textContent = `Round ${game.round} of ${game.rounds}`;
@@ -296,29 +296,29 @@ export class BluffView implements GameView {
     switch (game.phase) {
       case "write":
         if (me?.sent) {
-          headline = me.mine ? `Yours: ${me.mine}` : "Sat this one out";
+          headline = me.mine ? `Yours: ${me.mine}` : "You did not send anything";
           sub = `Waiting for ${waiting}`;
         } else if (playing) {
-          headline = fake ? "Make up a word that could mean that" : "Make up what it means";
-          sub = fake ? "3 to 18 letters. Real words don't count." : "Sound like a dictionary. 15 characters at least.";
+          headline = fake ? "Make up a word for this meaning" : "Write a fake meaning";
+          sub = fake ? "Use 3 to 18 letters. Do not use a real word." : "Write it like a dictionary. Use at least 15 characters.";
           form = true;
         } else {
-          headline = "They're writing";
+          headline = "The others are writing";
         }
         break;
       case "vote":
         headline = fake ? "Which word is real?" : "Which meaning is real?";
-        sub = !playing ? "" : me?.vote ? "Voted. You can change it." : me?.choices.length ? "Tap one. Not your own." : `Waiting for ${waiting}`;
+        sub = !playing ? "" : me?.vote ? "You voted. You can change your vote." : me?.choices.length ? "Tap one. You cannot choose your own." : `Waiting for ${waiting}`;
         break;
       case "reveal": {
         const got = me && game.gained ? (game.gained[props.playerId] ?? 0) : 0;
-        headline = game.noFakes ? "No fakes this round" : me?.vote && me.vote === game.realId ? "You found it" : me?.vote ? "Fooled" : "The answer";
+        headline = game.noFakes ? "No fakes this round" : me?.vote && me.vote === game.realId ? "You found it" : me?.vote ? "You chose a fake" : "The real answer";
         sub = got ? `+${got} for you` : "";
         if (this.isHost()) button = game.round >= game.rounds ? "Finish" : "Next round";
         break;
       }
       case "finished":
-        headline = game.endReason === "abandoned" ? "Not enough players left." : "That's the game.";
+        headline = game.endReason === "abandoned" ? "Too few players are left." : "Game over.";
         break;
     }
 
@@ -355,7 +355,7 @@ export class BluffView implements GameView {
                 "span",
                 { class: "bl-verdict" },
                 real ? h("span", { class: "tag real" }, "Real") : h("span", { class: "tag" }, `Fake by ${this.name(author, props)}`),
-                by.length ? h("span", { class: "bl-by" }, `${real ? "Found by" : "Fooled"} ${by.map((id) => this.name(id, props)).join(", ")}`) : null,
+                by.length ? h("span", { class: "bl-by" }, `${real ? "Found by" : "Chosen by"} ${by.map((id) => this.name(id, props)).join(", ")}`) : null,
               )
             : null,
         ];

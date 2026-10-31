@@ -10,10 +10,10 @@ export { MAX_WORD, MIN_WORD };
  * might. Shared so the holder's screen can shake without a round trip.
  */
 export function shapeProblem(word: string, letter: string): string | null {
-  if (!/^[a-z]+$/.test(word)) return "Letters only.";
-  if (word.length < MIN_WORD) return `${MIN_WORD} letters at least.`;
+  if (!/^[a-z]+$/.test(word)) return "Use letters only.";
+  if (word.length < MIN_WORD) return `The word needs ${MIN_WORD} letters or more.`;
   if (word.length > MAX_WORD) return "That's not a word.";
-  if (!word.startsWith(letter)) return `It has to start with ${letter.toUpperCase()}.`;
+  if (!word.startsWith(letter)) return `The word must start with ${letter.toUpperCase()}.`;
   return null;
 }
 

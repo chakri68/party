@@ -111,7 +111,7 @@ describe("setupProblem", () => {
   });
 
   it("wants two non-wolves", () => {
-    expect(setupProblem(custom({ wolf: 3, villager: 1 }), 4)).toBe("Needs at least two non-wolf cards");
+    expect(setupProblem(custom({ wolf: 3, villager: 1 }), 4)).toBe("You need at least 2 cards that are not Wolf");
     expect(setupProblem(custom({ wolf: 3, villager: 2 }), 5)).toBeNull();
   });
 

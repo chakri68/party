@@ -3,13 +3,23 @@ import { DEFAULT_SETTINGS, STARTING_DICE_OPTIONS, type LiarsDiceSettings } from 
 
 /** Plain-language rules for the lobby's Rules button (§25). Also known as Perudo, or Dudo. */
 export const liarsDiceRules: string[] = [
-  "Everyone starts with five dice under a cup (fewer if the host says so). Each round, everyone rolls in secret and sees only their own.",
-  "Take turns bidding on what's under all the cups together: \"four 3s\" means at least four dice show a 3.",
-  "On your turn, raise (more dice, or the same number of a higher face) or call the last bid a lie.",
-  "Call \"Liar!\" and everyone's dice come up. If the bid was there, you lose a die. If it wasn't, the bidder does.",
-  "Call \"Spot on\" if you think the bid is exactly right. Right, and you get a die back. Wrong, and you lose one.",
-  "Wild ones: 1s count as every face. Bidding on 1s takes half as many (rounded up); coming off them takes double plus one. A bid on 1s counts only 1s.",
-  "Whoever lost a die starts the next round. Run out of dice and you're out. Last one with dice wins.",
+  "Each player starts with 5 dice under a cup. The host can choose fewer dice.",
+  "Each round, all players roll their dice at the same time. You can see only your own dice.",
+  "Players take turns to bid. A bid is a guess about all the dice on the table.",
+  "For example, \"four 3s\" means at least 4 dice on the table show a 3.",
+  "On your turn, you can raise the bid. Say more dice, or say the same number of dice with a higher face.",
+  "You can also call \"Liar!\" Call \"Liar!\" if you think the last bid is wrong.",
+  "After a call, all players show their dice.",
+  "If the bid is true, the caller loses 1 die. If the bid is false, the bidder loses 1 die.",
+  "Call \"Spot on\" if you think the bid is exactly right.",
+  "If you are right, you get 1 die back. If you are wrong, you lose 1 die.",
+  "Wild ones: a 1 counts as any face.",
+  "A bid on 1s needs half as many dice. Round the number up.",
+  "To move from 1s to another face, double the count and add 1.",
+  "A bid on 1s counts only the 1s.",
+  "The player who lost a die starts the next round.",
+  "If you lose all your dice, you are out.",
+  "The last player with dice wins.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */
@@ -25,7 +35,7 @@ export function liarsDiceSettingFields(raw: unknown, players: number): SettingFi
         { label: "On", patch: { wildOnes: true } },
         { label: "Off", patch: { wildOnes: false } },
       ],
-      hint: s.wildOnes ? "1s count as any face" : "1 is just the lowest face",
+      hint: s.wildOnes ? "1s count as any face" : "1 is the lowest face",
     },
     {
       key: "spotOn",
@@ -35,7 +45,7 @@ export function liarsDiceSettingFields(raw: unknown, players: number): SettingFi
         { label: "On", patch: { spotOn: true } },
         { label: "Off", patch: { spotOn: false } },
       ],
-      hint: s.spotOn ? "Call the bid exact to win a die back" : "Raise or call liar, nothing else",
+      hint: s.spotOn ? "Say the bid is exact. Get 1 die back." : "You can only raise or call Liar",
     },
     {
       key: "startingDice",

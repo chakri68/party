@@ -35,5 +35,5 @@ export const viabilityKey = (m: BombModes): string => `${+m.ending}${+m.length}$
  */
 export function modesProblem(modes: BombModes, table: Record<string, Viability> = VIABLE): string | null {
   const v = table[viabilityKey(modes)];
-  return v && v.prompts > 0 ? null : "Too few words fit all of those modes at once.";
+  return v && v.prompts > 0 ? null : "Too few words fit all these extra rules.";
 }

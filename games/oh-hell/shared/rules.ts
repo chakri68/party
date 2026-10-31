@@ -114,7 +114,7 @@ export function forbiddenBid(handSize: number, othersTotal: number, isDealer: bo
 
 /** "Can't bid 2: the bids would add up to 3 tricks". */
 export function forbiddenBidMessage(bid: number, handSize: number): string {
-  return `Can't bid ${bid}: the bids would add up to ${handSize} ${handSize === 1 ? "trick" : "tricks"}`;
+  return `You can't bid ${bid}. The total bid would be ${handSize} ${handSize === 1 ? "trick" : "tricks"}`;
 }
 
 /** Made it exactly: 10 + bid. Missed: 0, or minus the difference. */

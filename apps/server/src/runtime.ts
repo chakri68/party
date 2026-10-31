@@ -224,7 +224,7 @@ export class RoomRuntime {
   onMessage(conn: Conn, raw: string): Promise<void> {
     return this.run(async () => {
       const msg = parseClientMessage(raw);
-      if (!msg) return this.error(conn, "bad-message", "Malformed message.");
+      if (!msg) return this.error(conn, "bad-message", "That message is not valid.");
       if (msg.type === "ping") {
         return conn.send({ type: "pong", timestamp: msg.timestamp, serverTime: this.host.now() });
       }
@@ -239,7 +239,7 @@ export class RoomRuntime {
         await this.onSeatedMessage(conn, seat, msg);
       } catch (err) {
         await this.recover(err);
-        this.error(conn, "server-error", "Something went wrong on our end. Try that again.");
+        this.error(conn, "server-error", "Something went wrong. Please try again.");
       }
     });
   }
@@ -322,7 +322,7 @@ export class RoomRuntime {
   private async onJoin(conn: Conn, msg: Extract<ClientMessage, { type: "join" }>): Promise<void> {
     const data = this.data!;
     const name = normalizeName(msg.name);
-    if (!name) return this.error(conn, "invalid-name", "Pick a name first.");
+    if (!name) return this.error(conn, "invalid-name", "Enter your name first.");
 
     let seat = msg.resumeToken
       ? data.seats.find((s) => s.presence !== "left" && s.resumeToken === msg.resumeToken)
@@ -352,7 +352,7 @@ export class RoomRuntime {
       const def = this.games[data.gameId]!;
       const late = data.phase === "playing";
       if (late && !def.manifest.lateJoin) {
-        return this.fatal(conn, "game-in-progress", "A game is already underway. Try again after this round.");
+        return this.fatal(conn, "game-in-progress", "A game is already going on. Try again after this round.");
       }
       if (this.activeSeats().length >= def.manifest.maxPlayers) {
         return this.fatal(conn, "room-full", "This room is full.");
@@ -400,7 +400,7 @@ export class RoomRuntime {
       case "select-game": {
         if (!hostOnly() || !inPhase("lobby", "results")) return;
         const def = this.games[msg.gameId];
-        if (!def) return this.error(conn, "unknown-game", "Unknown game.");
+        if (!def) return this.error(conn, "unknown-game", "That game does not exist.");
         data.gameId = msg.gameId;
         data.settings = def.defaultSettings;
         return this.commit([]);
@@ -470,9 +470,9 @@ export class RoomRuntime {
         if (!text) return;
         // Otherwise the room's chat is a way to hand out the game's answers.
         if (data.phase === "playing" && data.game && this.games[data.game.gameId]!.manifest.ownChat) {
-          return this.error(conn, "wrong-phase", "Chat's in the game for this one.");
+          return this.error(conn, "wrong-phase", "This game has its own chat.");
         }
-        if (!this.allow("chat", seat.id, CHAT_LIMIT)) return this.error(conn, "rate-limited", "Easy there. Give it a second.");
+        if (!this.allow("chat", seat.id, CHAT_LIMIT)) return this.error(conn, "rate-limited", "You are sending too fast. Wait a second.");
         const now = this.host.now();
         const chat = (data.chat ??= { nextId: 0, messages: [] });
         const line: ChatMessage = {
@@ -534,10 +534,10 @@ export class RoomRuntime {
         const now = this.host.now();
         const targets = data.awaiting.filter((id) => id !== seat.id);
         if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
-          return this.error(conn, "too-early", "Give them a moment.");
+          return this.error(conn, "too-early", "Wait a little before you remind them.");
         }
         if (now - (data.lastNudgeAt ?? 0) < NUDGE_COOLDOWN_MS) {
-          return this.error(conn, "rate-limited", "They've just been nudged.");
+          return this.error(conn, "rate-limited", "Someone just reminded them. Wait a little.");
         }
         data.lastNudgeAt = now;
         for (const c of this.liveConns()) {
@@ -556,7 +556,7 @@ export class RoomRuntime {
         // Idle players get a minute; a dropped connection can be skipped straight away.
         const idleFor = this.host.now() - (data.awaitingSince ?? this.host.now());
         if (target.presence === "connected" && idleFor < SKIP_AFTER_MS) {
-          return this.error(conn, "too-early", "Give them a moment.");
+          return this.error(conn, "too-early", "Wait a little before you skip this player.");
         }
         const events = this.applyGameHook((def, st) => def.skipTurn?.(st, target.id, this.ctx()), true);
         if (!events.length) return this.error(conn, "not-available", "This game can't skip turns.");
@@ -569,7 +569,7 @@ export class RoomRuntime {
         if (!target || target.id === seat.id) return this.error(conn, "not-available", "You can't remove them.");
         // Mid-game, only once the grace period has run out (§12.1).
         if (data.phase === "playing" && target.presence !== "disconnected") {
-          return this.error(conn, "too-early", "They might still come back — wait until they show as disconnected.");
+          return this.error(conn, "too-early", "This player may come back. Wait until the player shows as disconnected.");
         }
         for (const c of this.liveConns()) {
           if (c.state?.playerId === target.id) {
@@ -603,7 +603,7 @@ export class RoomRuntime {
     // The whole point of the owner key: no owner at the table, no game. The copy
     // stays vague on purpose; nobody needs to know why.
     if (!this.ownerHere()) {
-      this.error(conn, "cannot-start", "Can't start just yet.");
+      this.error(conn, "cannot-start", "Can't start yet.");
       return this.commit([]);
     }
 

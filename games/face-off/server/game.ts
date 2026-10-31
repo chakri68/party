@@ -369,21 +369,21 @@ export const faceOffGame: GameDefinition<
     switch (action.type) {
       case "buzz": {
         if (prev.phase === "confirm") return reject("too-late", `${prev.duel!.claimId === playerId ? "You" : "They"} buzzed first.`);
-        if (prev.phase !== "duel") return reject("wrong-phase", "No duel on.");
+        if (prev.phase !== "duel") return reject("wrong-phase", "There is no duel now.");
         if (!duelist) return reject("not-dueling", "You're not in this duel.");
         claim(state, playerId, ctx, out);
         break;
       }
       case "redo": {
-        if (prev.phase !== "duel" && prev.phase !== "confirm") return reject("wrong-phase", "No duel on.");
-        if (!duelist) return reject("not-dueling", "Only the two in the duel can call a redo.");
-        if (prev.duel!.redone) return reject("redone", "This one's already a redo.");
+        if (prev.phase !== "duel" && prev.phase !== "confirm") return reject("wrong-phase", "There is no duel now.");
+        if (!duelist) return reject("not-dueling", "Only the 2 players in the duel can ask for a redo.");
+        if (prev.duel!.redone) return reject("redone", "This is already a redo.");
         redo(state, playerId, ctx, out);
         break;
       }
       case "vote": {
-        if (prev.phase !== "confirm") return reject("wrong-phase", "Nothing to vote on.");
-        if (duelist) return reject("not-eligible", "The table decides, not the duelists.");
+        if (prev.phase !== "confirm") return reject("wrong-phase", "There is nothing to vote on now.");
+        if (duelist) return reject("not-eligible", "The other players vote. The 2 players in the duel can't vote.");
         const error = castVote(state.duel!.ballot!, playerId, action.choice, CHOICES);
         if (error) return { ok: false, error };
         closeIfDone(state, ctx, out);

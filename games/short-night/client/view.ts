@@ -23,7 +23,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   night: "Night",
   day: "Morning",
   vote: "Vote",
-  runoff: "Runoff",
+  runoff: "Vote again",
   finished: "Dawn",
 };
 
@@ -251,7 +251,7 @@ export class ShortNightView implements GameView {
       case "reveal": {
         const left = game.players.filter((p) => !p.left).length - game.acked;
         headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${left} still looking` : "Tap it, read it, keep it to yourself.";
+        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Keep it secret.";
         if (me?.role && !me.acked) button = "Got it";
         break;
       }
@@ -259,10 +259,10 @@ export class ShortNightView implements GameView {
         // Word for word the same on every phone, picker or not.
         const step = roleById(game.steps[game.step]!);
         const count = this.pickCount(game);
-        headline = `${wakingLine(step)}. Everyone picks ${count === 1 ? "a player" : "two players"}.`;
+        headline = `${wakingLine(step)}. Everyone chooses ${count === 1 ? "1 player" : "2 players"}.`;
         sub = this.confirmed
-          ? "Locked in. Anything you learned is on your card."
-          : "Only the picks of the card that's awake count. Pick anyway, so nobody can tell whose turn it is.";
+          ? "Done. Your card shows what you learned."
+          : "Only the card that is awake counts. Choose anyway, so nobody can tell whose turn it is.";
         if (me?.role && !this.confirmed) {
           button = "Confirm";
           disabled = this.chosen.length !== count;
@@ -270,17 +270,17 @@ export class ShortNightView implements GameView {
         break;
       }
       case "day":
-        headline = "Talk it out";
-        sub = "Out loud. Claim what you like; Wolves lie. Then everyone votes.";
+        headline = "Talk now";
+        sub = "Talk out loud. Wolves will lie. Then everyone votes.";
         if (this.isHost()) button = "Vote now";
         break;
       case "vote":
       case "runoff":
-        headline = game.phase === "runoff" ? `Tied. Runoff: ${list(game.tied.map((id) => this.name(id, props)))}` : "Who's a Wolf?";
+        headline = game.phase === "runoff" ? `Tie. Vote again: ${list(game.tied.map((id) => this.name(id, props)))}` : "Who's a Wolf?";
         sub = me?.vote
-          ? `You voted ${me.vote === NOBODY ? "for nobody" : `for ${this.name(me.vote, props)}`}. You can change it. ${game.voted} of ${game.voters} in.`
+          ? `You voted ${me.vote === NOBODY ? "for nobody" : `for ${this.name(me.vote, props)}`}. You can change it. ${game.voted} of ${game.voters} have voted.`
           : me?.choices.length
-            ? `${game.phase === "runoff" ? "One of them, " : "Anyone but you, or nobody. "}${game.voted} of ${game.voters} in.`
+            ? `${game.phase === "runoff" ? "Choose one of them. " : "Choose another player, or nobody. "}${game.voted} of ${game.voters} have voted.`
             : `${game.voted} of ${game.voters} in.`;
         break;
       case "finished":
@@ -296,14 +296,14 @@ export class ShortNightView implements GameView {
   }
 
   private outcome(props: GameViewProps, game: Pub): string {
-    if (game.endReason === "last-wolf-left") return "The last Wolf left. No winner.";
-    if (game.endReason === "too-few") return "Too few players left. No winner.";
-    if (game.endReason === "runoff-left") return "A runoff candidate left. No winner.";
+    if (game.endReason === "last-wolf-left") return "The last Wolf left the game. Nobody wins.";
+    if (game.endReason === "too-few") return "Too many players left the game. Nobody wins.";
+    if (game.endReason === "runoff-left") return "A tied player left the game. Nobody wins.";
     const team = game.winner === "village" ? "The village wins" : "The Wolves win";
-    if (!game.out) return `Nobody was voted out. ${team}.`;
+    if (!game.out) return `Nobody is out. ${team}.`;
     const role = roleById(game.cards![game.out]!).label;
-    const was = game.out === props.playerId ? "You were" : `${this.Name(game.out, props)} was`;
-    return `${was} voted out: ${role === "Wolf" ? "a Wolf" : `the ${role}`}. ${team}.`;
+    const was = game.out === props.playerId ? "You are" : `${this.Name(game.out, props)} is`;
+    return `${was} out. Card: ${role === "Wolf" ? "a Wolf" : `the ${role}`}. ${team}.`;
   }
 
   /** The picker, the ballot, or the dawn reveal. Nothing for anyone else. */
@@ -325,7 +325,7 @@ export class ShortNightView implements GameView {
         this.panel,
         h("ul", { class: "sn-list" }, named.map((id) => this.row(props, id, { pressed: me.vote === id, onclick: () => this.vote(id) }))),
         me.choices.includes(NOBODY)
-          ? h("button", { type: "button", class: "sn-nobody", "aria-pressed": String(me.vote === NOBODY), onclick: () => this.vote(NOBODY) }, "Nobody goes")
+          ? h("button", { type: "button", class: "sn-nobody", "aria-pressed": String(me.vote === NOBODY), onclick: () => this.vote(NOBODY) }, "Nobody")
           : null,
       );
     }
@@ -408,7 +408,7 @@ export class ShortNightView implements GameView {
         ),
       ),
       ballot("The vote", game.votes),
-      ballot("The runoff", game.runoffVotes),
+      ballot("The second vote", game.runoffVotes),
     );
   }
 

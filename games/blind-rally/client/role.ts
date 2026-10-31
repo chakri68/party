@@ -48,7 +48,7 @@ export function awayBanner(team: PublicTeam | undefined, nameOf: (role: "driver"
   // A Rally car of one is away from both seats: that's one person, said once.
   const who = [...new Set(team.away.map(nameOf))].join(" and ");
   const left = team.graceEndsAt === null ? 0 : Math.max(0, Math.ceil((team.graceEndsAt - now) / 1000));
-  return `${who} dropped out: ${left} s to get back. Clock stopped.`;
+  return `${who} lost connection. The clock is stopped. ${left} s left to connect again.`;
 }
 
 const SHAPES = {

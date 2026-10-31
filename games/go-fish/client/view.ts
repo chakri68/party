@@ -45,24 +45,24 @@ function describe(e: GoFishEvent, props: GameViewProps): string | null {
     case "asked":
       return `${who(e.playerId)} asked ${whom(e.targetId)} for ${plural(e.rank)}.`;
     case "handed":
-      return `${who(e.fromId)} handed ${whom(e.toId)} ${howMany(e.cards.length, e.cards[0]!.rank)}.`;
+      return `${who(e.fromId)} gave ${whom(e.toId)} ${howMany(e.cards.length, e.cards[0]!.rank)}.`;
     case "go-fish":
       return `${who(e.playerId)}: "Go fish."`;
     case "drew":
-      if (e.shown) return `${who(e.playerId)} fished up ${cardShort(e.shown)}. Go again.`;
+      if (e.shown) return `${who(e.playerId)} took ${cardShort(e.shown)} from the pond. ${e.playerId === me ? "You play" : "They play"} again.`;
       // You get the private version instead.
       if (e.playerId === me) return null;
-      return e.refill ? `${who(e.playerId)} ran out and drew ${e.count}.` : `${who(e.playerId)} drew one.`;
+      return e.refill ? `${who(e.playerId)} had no cards. They took ${e.count} from the pond.` : `${who(e.playerId)} took 1 card.`;
     case "you-drew":
-      return `You drew ${e.cards.map(cardShort).join(" ")}.`;
+      return `You took ${e.cards.map(cardShort).join(" ")}.`;
     case "booked":
       return `${who(e.playerId)} made a book of ${plural(e.rank)}.`;
     case "went-out":
-      return e.playerId === me ? "You're out of cards, and the pond's empty. You're done." : `${who(e.playerId)}'s out of cards.`;
+      return e.playerId === me ? "You have no cards. The pond is empty. Your game is over." : `${who(e.playerId)} has no cards left.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return e.playerId === me ? "The host skipped your turn." : `The host skipped ${who(e.playerId)}'s turn.`;
     case "player-removed":
-      return e.returned ? `${who(e.playerId)} left. Their ${e.returned} cards went back in the pond.` : `${who(e.playerId)} left.`;
+      return e.returned ? `${who(e.playerId)} left. The game put their ${e.returned} cards back in the pond.` : `${who(e.playerId)} left.`;
     case "game-over":
       return e.reason === "abandoned" ? "Everyone else left." : null;
   }
@@ -74,8 +74,8 @@ function heard(a: AskRecord, props: GameViewProps): HTMLElement {
   const name = (id: string) => (id === me ? "You" : seatName(props.room, id));
   const answer =
     a.outcome === "given" ? `got ${a.got}`
-    : a.outcome === "caught" ? "go fish · caught one"
-    : a.outcome === "dry" ? "go fish · pond's dry"
+    : a.outcome === "caught" ? "go fish · found it"
+    : a.outcome === "dry" ? "go fish · pond empty"
     : "go fish";
   return h(
     "li",
@@ -111,7 +111,7 @@ export class GoFishView implements GameView {
   private pond = h("div", { class: "gf-pond", role: "img" });
   private book = h("div", { class: "gf-book", role: "img" });
   private bookCount = h("span", { class: "gf-book-count" });
-  private heard = h("ol", { class: "gf-heard", "aria-label": "Recent asks" });
+  private heard = h("ol", { class: "gf-heard", "aria-label": "Recent questions" });
   private log = h("p", { class: "gf-log", "aria-live": "polite" });
   private me = h("div", { class: "gf-me" });
   private action = h("div", { class: "gf-action" });
@@ -484,7 +484,7 @@ export class GoFishView implements GameView {
     replaceChildren(
       this.status,
       myTurn
-        ? h("span", {}, "Your turn: ask someone")
+        ? h("span", {}, "Your turn. Ask a player.")
         : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"} is asking${away}`)],
     );
   }
@@ -512,7 +512,7 @@ export class GoFishView implements GameView {
             "data-player": p.id,
             disabled: !canPick,
             "aria-pressed": String(picked),
-            "aria-label": `${name}: ${holding}, ${bookText}${current ? ", asking now" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}${canPick ? ". Ask them" : ""}`,
+            "aria-label": `${name}: ${holding}, ${bookText}${current ? ", asking now" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}${canPick ? ". Ask this player" : ""}`,
             title: books ? `Books: ${p.books.map(formatRank).join(" ")}` : undefined,
             onclick: () => this.onTargetTap(p.id),
           },
@@ -546,7 +546,7 @@ export class GoFishView implements GameView {
     replaceChildren(
       this.pond,
       game.pondCount ? cardBackFull() : h("span", { class: "gf-card slot", "aria-hidden": "true" }),
-      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond · ${game.pondCount}` : "Pond's empty"),
+      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond · ${game.pondCount}` : "Pond empty"),
     );
 
     // Already showing (it just landed): leave it be, landing and all.
@@ -561,7 +561,7 @@ export class GoFishView implements GameView {
     this.setBooksDown(game.booksDown);
     this.book.setAttribute(
       "aria-label",
-      game.lastBook === null ? "No books down yet" : `${game.booksDown} of 13 books down. Latest: ${plural(game.lastBook)}`,
+      game.lastBook === null ? "No books on the table yet" : `${game.booksDown} of 13 books on the table. Last book: ${plural(game.lastBook)}`,
     );
   }
 
@@ -640,8 +640,8 @@ export class GoFishView implements GameView {
         { type: "button", class: "primary", onclick: () => this.sendAsk() },
         `Ask ${seatName(props.room, this.target)} for ${plural(this.rank)}`,
       );
-    } else if (this.rank !== null) action = h("span", { class: "hint strong" }, "Now pick who to ask");
-    else action = h("span", { class: "hint strong" }, directPlay() ? "Click a rank to ask for" : "Tap a rank to ask for");
+    } else if (this.rank !== null) action = h("span", { class: "hint strong" }, "Now choose a player");
+    else action = h("span", { class: "hint strong" }, directPlay() ? "Click a card to ask for" : "Tap a card to ask for");
     replaceChildren(this.action, action);
   }
 

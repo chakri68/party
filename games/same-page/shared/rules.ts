@@ -128,8 +128,8 @@ function membersOf(id: string, groups: readonly AutoGroup[], merges: readonly Me
 /** Null when the merge is fine, or why not. */
 export function mergeProblem(groups: readonly AutoGroup[], merges: readonly Merge[], from: string, into: string): string | null {
   const top = topLevel(groups, merges).map((g) => g.id);
-  if (from === into) return "Pick two different groups.";
-  if (!top.includes(from) || !top.includes(into)) return "That group isn't there any more.";
+  if (from === into) return "Choose 2 different groups.";
+  if (!top.includes(from) || !top.includes(into)) return "That group is gone.";
   return null;
 }
 

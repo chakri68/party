@@ -12,10 +12,10 @@ const TICK_FROM = 5;
 
 const PHASE_LABEL: Record<Phase, string> = {
   reveal: "Your card",
-  propose: "Proposal",
+  propose: "Choose team",
   vote: "Vote",
   job: "On the job",
-  finished: "Debrief",
+  finished: "Results",
 };
 
 /** "A and B", "A, B and C". */
@@ -134,7 +134,7 @@ export class HeistView implements GameView {
     else if (this.chosen.length < want) this.chosen = [...this.chosen, id];
     else if (want === 1) this.chosen = [id];
     else {
-      this.note.textContent = `That's ${want}. Tap someone to take them off.`;
+      this.note.textContent = `You have ${want}. Tap a player to remove that player.`;
       return;
     }
     this.note.textContent = "";
@@ -215,8 +215,8 @@ export class HeistView implements GameView {
       const now = game.phase !== "finished" && k === game.job;
       const cls = ["hz-pip", done ? `won-${done.winner}` : "", now ? "now" : ""].filter(Boolean).join(" ");
       const label = done
-        ? `Job ${k + 1}: ${done.winner === "crew" ? "came off" : done.heat ? "lost to heat" : "sabotaged"}`
-        : `Job ${k + 1}: crew of ${game.sizes[k]}`;
+        ? `Job ${k + 1}: ${done.winner === "crew" ? "done" : done.heat ? "lost to heat" : "failed"}`
+        : `Job ${k + 1}: team of ${game.sizes[k]}`;
       return h("li", { class: cls, "aria-label": label, "aria-current": now ? "step" : null }, done ? (done.winner === "crew" ? "✓" : done.heat ? "♨" : "✗") : String(game.sizes[k]));
     });
     const heat = Array.from({ length: MAX_HEAT }, (_, i) => h("span", { class: i < game.heat ? "hz-heat-dot on" : "hz-heat-dot" }));
@@ -255,7 +255,7 @@ export class HeistView implements GameView {
       h("strong", { class: "hz-card-role" }, mole ? "A mole" : "Crew"),
       mole
         ? h("span", { class: "hz-card-blurb" }, others.length ? `The other moles: ${this.names(others, props)}.` : "The other moles have left.")
-        : h("span", { class: "hz-card-blurb" }, "Pull off three jobs. Some of your crew are lying."),
+        : h("span", { class: "hz-card-blurb" }, "Finish three jobs. Some of your crew are lying."),
       mole ? h("span", { class: "hz-card-result" }, `Sabotage cards left: ${me!.budget}`) : null,
     );
     if (this.card) this.card.update(body);
@@ -273,35 +273,35 @@ export class HeistView implements GameView {
     switch (game.phase) {
       case "reveal": {
         const left = game.players.filter((p) => !p.left).length - game.acked;
-        headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${left} still looking` : "Tap it, read it, keep it to yourself.";
+        headline = me?.acked ? "Waiting for the others" : "Look at your card";
+        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Do not show anyone.";
         if (me?.alignment && !me.acked) button = "Got it";
         break;
       }
       case "propose":
         if (this.leading()) {
-          headline = `You lead. Pick a crew of ${want}.`;
-          sub = `${this.chosen.length} of ${want} picked. You can pick yourself.`;
+          headline = `You are the leader. Choose a team of ${want}.`;
+          sub = `${this.chosen.length} of ${want} chosen. You can choose yourself.`;
           if (this.chosen.length === want) button = "Propose";
         } else {
-          headline = `${this.Name(game.leader, props)} is picking a crew of ${want}`;
-          sub = "Make your case out loud.";
+          headline = `${this.Name(game.leader, props)} is choosing a team of ${want}`;
+          sub = "Talk about it out loud.";
         }
         break;
       case "vote":
         headline = `Send ${this.names(game.crew, props)}?`;
         sub = me?.vote
-          ? `You said ${me.vote === "go" ? "Go" : "No-go"}. You can change it. ${game.voted} of ${game.voters} in.`
-          : `More than half must say Go. ${game.voted} of ${game.voters} in.`;
+          ? `You said ${me.vote === "go" ? "Go" : "No-go"}. You can change your vote. ${game.voted} of ${game.voters} voted.`
+          : `More than half must vote Go. ${game.voted} of ${game.voters} voted.`;
         break;
       case "job":
         if (me?.onJob) {
           // Same words for every card and every player: the screen never says which.
-          headline = me.card ? "Card in" : "Play a card";
-          sub = me.card ? "You can change it till the clock runs out." : "Face down. Missing cards play as Clean.";
+          headline = me.card ? "Card played" : "Play a card";
+          sub = me.card ? "You can change your card until time runs out." : "Play face down. If you play nothing, the game plays Clean.";
         } else {
-          headline = `${this.Name(game.crew[0], props)}${game.crew.length > 1 ? ` and ${game.crew.length - 1} more` : ""} on the job`;
-          sub = "Cards are counted when the clock runs out.";
+          headline = `On the job: ${this.Name(game.crew[0], props)}${game.crew.length > 1 ? ` and ${game.crew.length - 1} more` : ""}`;
+          sub = "The game counts the cards when time runs out.";
         }
         break;
       case "finished":
@@ -315,10 +315,10 @@ export class HeistView implements GameView {
   }
 
   private outcome(game: Pub): string {
-    if (game.endReason === "too-few") return "Too few players left. No winner.";
-    if (game.endReason === "no-moles") return "The last mole left. No winner.";
-    if (game.endReason === "no-crew") return "No crew left. No winner.";
-    return game.winner === "crew" ? "The crew pulls it off." : "The moles win.";
+    if (game.endReason === "too-few") return "Too few players are left. Nobody wins.";
+    if (game.endReason === "no-moles") return "The last mole left the game. Nobody wins.";
+    if (game.endReason === "no-crew") return "No crew players are left. Nobody wins.";
+    return game.winner === "crew" ? "The crew wins." : "The moles win.";
   }
 
   private renderPanel(props: GameViewProps, game: Pub, me: Priv | null) {
@@ -351,7 +351,7 @@ export class HeistView implements GameView {
       // Every crew member sees the same two cards, enabled the same way, and the
       // same status line under them (ruling 4). A mole's count is on their card,
       // behind the tap.
-      const status = "Cards stay face down. Nobody sees yours.";
+      const status = "Cards stay face down. Nobody sees your card.";
       return replaceChildren(
         this.panel,
         this.crewList(props, game.crew),
@@ -384,7 +384,7 @@ export class HeistView implements GameView {
   }
 
   private crewList(props: GameViewProps, crew: string[]): HTMLElement {
-    return h("ul", { class: "hz-list hz-crew", "aria-label": "The crew" }, crew.map((id) => this.row(props, id, {})));
+    return h("ul", { class: "hz-list hz-crew", "aria-label": "The team" }, crew.map((id) => this.row(props, id, {})));
   }
 
   private row(props: GameViewProps, id: string, opts: { pressed?: boolean; onclick?: () => void; extra?: Node | null }): HTMLElement {
@@ -421,23 +421,23 @@ export class HeistView implements GameView {
   private jobLine(j: JobRecord, props: GameViewProps): string {
     const name = `Job ${j.job + 1}, ${JOB_NAMES[j.job]}`;
     if (j.heat) return `${name}: lost to heat.`;
-    const auto = j.auto ? ` ${plural(j.auto, "card")} auto-played as Clean.` : "";
+    const auto = j.auto ? ` The game played ${plural(j.auto, "card")} as Clean.` : "";
     const crew = this.names(j.crew, props);
     return j.winner === "crew"
-      ? `${name}: came off clean (${crew}).${auto}`
-      : `${name}: sabotaged, ${plural(j.sabotaged, "Sabotage card")} (${crew}).${auto}`;
+      ? `${name}: done, no Sabotage (${crew}).${auto}`
+      : `${name}: failed, ${plural(j.sabotaged, "Sabotage card")} (${crew}).${auto}`;
   }
 
   private proposalLine(p: ProposalRecord, props: GameViewProps): HTMLElement {
     const lead = this.Name(p.leader, props);
-    if (p.timedOut) return h("p", { class: "hz-muted" }, `${lead} didn't propose in time. Heat +1.`);
+    if (p.timedOut) return h("p", { class: "hz-muted" }, `${lead} did not choose a team in time. Heat +1.`);
     const voters = Object.entries(p.votes);
     const go = voters.filter(([, v]) => v === "go").length;
-    const verdict = p.voided ? "passed, then called off when someone left" : p.passed ? "passed" : "voted down";
+    const verdict = p.voided ? "passed, then cancelled because a player left" : p.passed ? "passed" : "rejected";
     return h(
       "div",
       { class: "hz-proposal" },
-      h("p", {}, `${lead} proposed ${this.names(p.crew, props)}: ${verdict}, ${go}–${voters.length - go}.`),
+      h("p", {}, `${lead} chose ${this.names(p.crew, props)}: ${verdict}, ${go}–${voters.length - go}.`),
       h(
         "ul",
         { class: "hz-votes" },
@@ -454,7 +454,7 @@ export class HeistView implements GameView {
       h(
         "section",
         { class: "hz-dawn-part" },
-        h("h3", {}, "Who was who"),
+        h("h3", {}, "Every player's card"),
         h(
           "ul",
           { class: "hz-list" },
@@ -467,15 +467,15 @@ export class HeistView implements GameView {
         "section",
         { class: "hz-dawn-part" },
         h("h3", {}, "The jobs"),
-        game.jobs.length ? h("ol", { class: "hz-log" }, game.jobs.map((j) => h("li", {}, this.jobLine(j, props)))) : h("p", { class: "hz-muted" }, "None played."),
+        game.jobs.length ? h("ol", { class: "hz-log" }, game.jobs.map((j) => h("li", {}, this.jobLine(j, props)))) : h("p", { class: "hz-muted" }, "No jobs played."),
       ),
       h(
         "section",
         { class: "hz-dawn-part" },
-        h("h3", {}, "Every proposal"),
+        h("h3", {}, "Every team vote"),
         game.proposals.length
           ? h("ol", { class: "hz-log" }, game.proposals.map((p) => h("li", {}, h("b", {}, `Job ${p.job + 1}. `), this.proposalLine(p, props))))
-          : h("p", { class: "hz-muted" }, "None made."),
+          : h("p", { class: "hz-muted" }, "No votes yet."),
       ),
     );
   }

@@ -278,12 +278,12 @@ export const goFishGame: GameDefinition<
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
 
     const target = prev.players.find((p) => p.id === action.targetId);
-    if (!target) return reject("no-such-player", "There's nobody by that name here.");
+    if (!target) return reject("no-such-player", "That player is not here.");
     if (target.id === playerId) return reject("ask-yourself", "You can't ask yourself.");
-    if (target.removed) return reject("player-left", "They've left the game.");
-    if (!target.hand.length) return reject("nothing-to-ask", "They've got no cards to ask for.");
+    if (target.removed) return reject("player-left", "That player has left the game.");
+    if (!target.hand.length) return reject("nothing-to-ask", "That player has no cards.");
     if (!prev.players[seat]!.hand.some((c) => c.rank === action.rank)) {
-      return reject("rank-not-held", `You can only ask for a rank you hold, and you've got no ${rankPlural(action.rank).toLowerCase()}.`);
+      return reject("rank-not-held", `You have no ${rankPlural(action.rank).toLowerCase()}. Ask for a number you have.`);
     }
 
     const state = clone(prev);

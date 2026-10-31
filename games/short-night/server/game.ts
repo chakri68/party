@@ -373,34 +373,34 @@ export const shortNightGame: GameDefinition<
 
     switch (action.type) {
       case "ack": {
-        if (prev.phase !== "reveal") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "reveal") return reject("wrong-phase", "You can't do that now.");
         if (!state.acks.includes(playerId)) state.acks.push(playerId);
         break;
       }
       case "pick": {
         const role = stepRole(prev);
-        if (!role || prev.cards[playerId] !== role || !roleById(role).picks) return reject("wrong-phase", "Not your step.");
-        if (prev.results[playerId]) return reject("already", "You've already picked.");
+        if (!role || prev.cards[playerId] !== role || !roleById(role).picks) return reject("wrong-phase", "It's not your step.");
+        if (prev.results[playerId]) return reject("already", "You have already chosen.");
         const targets = action.targets;
         const want = roleById(role).picks!;
-        if (targets.length !== want) return reject("bad-pick", want === 1 ? "Pick one player." : "Pick two players.");
-        if (new Set(targets).size !== targets.length) return reject("bad-pick", "Pick two different players.");
-        if (targets.some((t) => t === playerId || !find(prev, t))) return reject("bad-pick", "Pick other players.");
+        if (targets.length !== want) return reject("bad-pick", want === 1 ? "Choose 1 player." : "Choose 2 players.");
+        if (new Set(targets).size !== targets.length) return reject("bad-pick", "Choose 2 different players.");
+        if (targets.some((t) => t === playerId || !find(prev, t))) return reject("bad-pick", "Choose other players, not yourself.");
         state.targets[playerId] = [...targets];
         state.results[playerId] = resolvePick(state, role, targets, ctx);
         // The step runs on regardless: ending it early would say someone's acting.
         break;
       }
       case "vote": {
-        if (!voting(prev)) return reject("wrong-phase", "Not voting now.");
-        if (action.choice === playerId) return reject("self-vote", "Not yourself.");
+        if (!voting(prev)) return reject("wrong-phase", "There's no vote right now.");
+        if (action.choice === playerId) return reject("self-vote", "You can't vote for yourself.");
         const error = castVote(ballotOf(state)!, playerId, action.choice, choicesFor(state, playerId));
         if (error) return { ok: false, error };
         break;
       }
       case "next": {
         if (ctx.hostId !== playerId) return reject("host-only", "Only the host can do that.");
-        if (prev.phase !== "day") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "day") return reject("wrong-phase", "You can't do that now.");
         openVote(state, ctx, out);
         break;
       }
@@ -541,9 +541,9 @@ export const shortNightGame: GameDefinition<
     if (state.phase !== "finished") return null;
     const winners = state.winner ? activeIds(state).filter((id) => roleById(state.cards[id]!).team === state.winner) : [];
     const interrupted: Partial<Record<EndReason, string>> = {
-      "last-wolf-left": "Interrupted: the last Wolf left",
-      "runoff-left": "Interrupted: a runoff candidate left",
-      "too-few": "Interrupted: too few players left",
+      "last-wolf-left": "Stopped: the last Wolf left",
+      "runoff-left": "Stopped: a tied player left",
+      "too-few": "Stopped: too few players left",
     };
     const headline = interrupted[state.endReason!] ?? (state.winner === "village" ? "Village wins" : "Wolves win");
     return {

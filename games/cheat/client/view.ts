@@ -34,27 +34,27 @@ function describe(e: CheatEvent, props: GameViewProps): string | null {
   const whom = (id: string | null) => (id === me ? "you" : seatName(props.room, id));
   switch (e.type) {
     case "dealt":
-      return `${who(e.dealerId)} dealt ${e.decks === 2 ? "two decks" : "the deck"}. Aces first.`;
+      return `${who(e.dealerId)} dealt ${e.decks === 2 ? "2 decks" : "the deck"}. The first rank is Aces.`;
     case "played":
       return `${who(e.playerId)} said ${claimText(e.count, e.claim)}.`;
     case "you-played":
-      return `(Really: ${e.cards.map(cardShort).join(" ")}.)`;
+      return `(Your real cards: ${e.cards.map(cardShort).join(" ")}.)`;
     case "passed":
-      return e.playerId === me ? "You let it go." : null;
+      return e.playerId === me ? "You did not call." : null;
     case "accepted":
-      return "Nobody called it.";
+      return "Nobody called Cheat.";
     case "called": {
-      const verdict = e.lied ? "caught lying" : "it was true";
+      const verdict = e.lied ? "it was a lie" : "it was true";
       const takes = e.takerId === me ? `You take ${e.taken}.` : `${who(e.takerId)} takes ${e.taken}.`;
       return `${who(e.callerId)} called Cheat on ${whom(e.playerId)}: ${verdict}. ${takes}`;
     }
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host, so a card went down for them.`;
+      return `The host skipped ${whom(e.playerId)}. The game played a card for ${whom(e.playerId)}.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their cards went under the pile.`;
+      return `${who(e.playerId)} left. The game put their cards under the pile.`;
     case "game-over":
       if (e.reason === "abandoned") return "Everyone else left.";
-      return e.winnerId === me ? "Out of cards, and it stood. You win!" : `${who(e.winnerId)} is out of cards.`;
+      return e.winnerId === me ? "You have no cards left. You win!" : `${who(e.winnerId)} has no cards left.`;
   }
 }
 
@@ -405,7 +405,7 @@ export class CheatView implements GameView {
       this.status,
       myTurn
         ? h("span", {}, `Your turn: ${claimList(game.claims)}`)
-        : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away} is up: ${claimList(game.claims)}`)],
+        : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away} must play: ${claimList(game.claims)}`)],
     );
   }
 
@@ -426,7 +426,7 @@ export class CheatView implements GameView {
             class: `ch-opp${current ? " current" : ""}${p.passed ? " passed" : ""}${winner ? " winner" : ""}${away || p.removed ? " away" : ""}`,
             role: "listitem",
             "data-player": p.id,
-            "aria-label": `${name}: ${holding}${current ? (game.window ? ", just played" : ", playing now") : ""}${p.passed ? ", let it go" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
+            "aria-label": `${name}: ${holding}${current ? (game.window ? ", just played" : ", playing now") : ""}${p.passed ? ", did not call" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
           },
           seat ? avatar(name, seat.avatarSeed) : null,
           h(
@@ -490,7 +490,7 @@ export class CheatView implements GameView {
       }
       this.play.dataset.key = key;
       this.playLabel.textContent = `${name(last.playerId)}: “${claimText(last.count, last.claim)}”`;
-      this.play.setAttribute("aria-label", `${name(last.playerId)} put down ${last.count} face down, claiming ${claimText(last.count, last.claim)}${mine ? `. You know they're ${mine.map(cardLabel).join(", ")}` : ""}`);
+      this.play.setAttribute("aria-label", `${name(last.playerId)} put down ${last.count} face down and said ${claimText(last.count, last.claim)}${mine ? `. Your real cards: ${mine.map(cardLabel).join(", ")}` : ""}`);
     } else if (r) {
       const key = `reveal:${r.callerId}:${r.playerId}:${r.cards.map((c) => c.id).join()}`;
       if (this.play.dataset.key !== key) {
@@ -506,12 +506,12 @@ export class CheatView implements GameView {
       }
       this.play.dataset.key = key;
       this.playLabel.textContent = `${name(r.callerId)} called ${r.playerId === props.playerId ? "you" : seatName(room, r.playerId)} · ${name(r.takerId)} took ${r.taken}`;
-      this.play.setAttribute("aria-label", `Called: ${r.cards.map(cardLabel).join(", ")} for ${claimText(r.cards.length, r.claim)}. ${r.lied ? "A lie" : "True"}.`);
+      this.play.setAttribute("aria-label", `Turned over: ${r.cards.map(cardLabel).join(", ")}. The claim was ${claimText(r.cards.length, r.claim)}. ${r.lied ? "It was a lie" : "It was true"}.`);
     } else {
       if (this.play.dataset.key !== "empty") replaceChildren(this.play, h("span", { class: "ch-card slot", "aria-hidden": "true" }, "A"));
       this.play.dataset.key = "empty";
-      this.playLabel.textContent = game.step === "finished" ? "" : "Aces first";
-      this.play.setAttribute("aria-label", "Nothing played yet");
+      this.playLabel.textContent = game.step === "finished" ? "" : "First: Aces";
+      this.play.setAttribute("aria-label", "No cards played yet");
     }
     this.play.setAttribute("role", "img");
   }
@@ -590,13 +590,13 @@ export class CheatView implements GameView {
     else if (game.window) {
       if (priv?.canCall) {
         action = [
-          h("button", { type: "button", class: "link", onclick: () => this.send({ type: "pass" }) }, "Let it go"),
+          h("button", { type: "button", class: "link", onclick: () => this.send({ type: "pass" }) }, "Don't call"),
           h("button", { type: "button", class: "ch-call", onclick: () => this.send({ type: "call" }) }, "Cheat!"),
         ];
-      } else if (game.window.playerId === props.playerId) action = hint("Straight face…");
-      else action = hint(mine?.passed ? "You let it go" : "Waiting…");
+      } else if (game.window.playerId === props.playerId) action = hint("Waiting for calls…");
+      else action = hint(mine?.passed ? "You did not call" : "Waiting…");
     } else if (!myTurn) action = hint("Not your turn yet");
-    else if (!this.selected.length) action = hint(`Pick up to ${MAX_PLAY}`, true);
+    else if (!this.selected.length) action = hint(`Choose up to ${MAX_PLAY} cards`, true);
     else {
       const n = this.selected.length;
       action = game.claims.map((rank, i) =>
@@ -623,7 +623,7 @@ export class CheatView implements GameView {
     const i = this.selected.indexOf(cardId);
     if (i >= 0) this.selected.splice(i, 1);
     else if (this.selected.length >= MAX_PLAY) {
-      this.log.textContent = `${MAX_PLAY} at most.`;
+      this.log.textContent = `You can play ${MAX_PLAY} cards at most.`;
       const btn = this.cards.get(cardId);
       btn?.classList.remove("shake");
       void btn?.offsetWidth;

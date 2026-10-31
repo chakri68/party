@@ -176,7 +176,7 @@ describe("the vote", () => {
     expect(s.holdVotes).toBe(2);
     const third = play(s, "p1", "zingz");
     expect(err(third)).toBe("not-a-word");
-    expect(third.ok || third.error.message).toMatch(/No more votes/);
+    expect(third.ok || third.error.message).toMatch(/no votes left/);
     s = ok(play(s, "p1", "singer")).state;
     expect(s.phase).toBe("live");
     expect(types(ok(play(s, "p2", "zingz")))).toEqual(["vote-opened"]);

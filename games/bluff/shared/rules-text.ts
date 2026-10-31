@@ -3,21 +3,25 @@ import { type BluffSettings, DEFAULT_SETTINGS, REVEAL_MS, ROUND_OPTIONS, type Va
 
 /** Plain-language rules for the lobby's Rules button (§25). */
 export const fakeWordRules: string[] = [
-  "Every round, you get the meaning of a real, uncommon English word. Not the word.",
-  "Make up a word that could mean it: 3 to 18 letters. Real words and near misses are turned away.",
-  "Your fakes go up with the real word, shuffled, no names.",
-  "Vote for the one you think is real. Not your own.",
-  "Find the real one: 2 points. Each player your fake fools: 1 point to you.",
-  "Most points after the last round wins.",
+  "Each round, you see the meaning of a real English word. You do not see the word.",
+  "Make up a word for this meaning. Use 3 to 18 letters.",
+  "You cannot use a real word. You cannot use a word very close to a real word.",
+  "The game shows all the fake words and the real word together. The words are mixed up. No names are shown.",
+  "Vote for the word you think is real. You cannot vote for your own word.",
+  "If you choose the real word, you get 2 points.",
+  "You also get 1 point for each player who chooses your fake word.",
+  "The player with the most points after the last round wins.",
 ];
 
 export const bluffDefinitionsRules: string[] = [
-  "Every round, you get a real, uncommon English word. Not its meaning.",
-  "Write a meaning that could pass for the real one: 15 to 180 characters.",
-  "Your fakes go up with the real meaning, shuffled, no names, all in the same style.",
-  "Vote for the one you think is real. Not your own.",
-  "Find the real one: 2 points. Each player your fake fools: 1 point to you.",
-  "Most points after the last round wins.",
+  "Each round, you see a real English word. Few people know this word. You do not see its meaning.",
+  "Write a fake meaning for the word. Use 15 to 180 characters.",
+  "The game shows all the fake meanings and the real meaning together. The meanings are mixed up. No names are shown.",
+  "The game writes all the meanings in the same style.",
+  "Vote for the meaning you think is real. You cannot vote for your own meaning.",
+  "If you choose the real meaning, you get 2 points.",
+  "You also get 1 point for each player who chooses your fake meaning.",
+  "The player with the most points after the last round wins.",
 ];
 
 function settingFields(variant: Variant, raw: unknown): SettingField[] {

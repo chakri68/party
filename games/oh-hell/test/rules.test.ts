@@ -73,8 +73,8 @@ describe("schedule", () => {
     const at = (biggest: unknown, n: number) => ohHellSettingFields({ ...DEFAULT_SETTINGS, biggest }, n).find((f) => f.key === "biggest")!;
     expect(at(7, 4).hint).toBe("13 rounds");
     expect(at("max", 3).hint).toBe("33 rounds");
-    expect(at(10, 7).hint).toBe("13 rounds · capped at 7 for 7 players");
-    expect(at("max", 4).options[2]!.label).toBe("Most the deck allows (12)");
+    expect(at(10, 7).hint).toBe("13 rounds · max 7 for 7 players");
+    expect(at("max", 4).options[2]!.label).toBe("Max (12)");
   });
 });
 
@@ -88,8 +88,8 @@ describe("bids and scores", () => {
     // The one-card round.
     expect(forbiddenBid(1, 0, true, true)).toBe(1);
     expect(forbiddenBid(1, 1, true, true)).toBe(0);
-    expect(forbiddenBidMessage(2, 3)).toBe("Can't bid 2: the bids would add up to 3 tricks");
-    expect(forbiddenBidMessage(1, 1)).toBe("Can't bid 1: the bids would add up to 1 trick");
+    expect(forbiddenBidMessage(2, 3)).toBe("You can't bid 2. The total bid would be 3 tricks");
+    expect(forbiddenBidMessage(1, 1)).toBe("You can't bid 1. The total bid would be 1 trick");
   });
 
   it("10 + bid when it's exact; a miss scores 0 or costs the difference", () => {

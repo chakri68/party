@@ -4,13 +4,20 @@ import { DEFAULT_SETTINGS, HAND_SIZE, type CrazyEightsSettings } from "./types.t
 
 /** Plain-language rules for the lobby's Rules button (§25). */
 export const crazyEightsRules: string[] = [
-  `Everyone gets ${HAND_SIZE} cards. The rest is the stock, and its top card is turned up to start the pile. (If that's an eight, it gets buried and the next one's turned.)`,
-  "On your turn, play a card that matches the top card's suit or rank.",
-  "Eights are wild: play one any time and call a suit. The next player has to follow that suit, or play an eight of their own.",
-  "Can't play? Draw from the stock until you can. You're allowed to draw even when you could play.",
-  "When the stock runs out and you can't play, you pass. (Or, if the host turns it on, the pile gets reshuffled into a new stock.)",
-  "First to empty their hand wins, and scores what's left in everyone else's: eights 50, tens and faces 10, aces 1, the rest face value.",
-  "If the stock's gone and nobody can play, the lowest hand wins.",
+  `Each player gets ${HAND_SIZE} cards. The other cards go face down in a pile. This pile is the stock.`,
+  "The game turns over the top card of the stock. This card starts the pile in the middle.",
+  "If the first card is an 8, the game puts it back in the stock. Then the game turns over the next card.",
+  "On your turn, play 1 card on the pile. Your card must match the top card. It can match the suit or the number.",
+  "An 8 is a special card. You can play an 8 at any time. Then you call a suit: you choose the next suit.",
+  "The next player must play a card of that suit, or another 8.",
+  "If you can't play, take cards from the stock. Keep taking cards until you can play.",
+  "You can also take a card when you are able to play.",
+  "Sometimes the stock is empty and you can't play. Then you pass.",
+  "The host can change this rule. Then the game shuffles the pile. The pile becomes the new stock.",
+  "The first player with no cards left wins.",
+  "The winner gets points for the cards in the other players' hands.",
+  "An 8 gives 50 points. A 10 or a picture card gives 10. An ace gives 1. Other cards give their number.",
+  "Sometimes the stock is empty and nobody can play. Then the player with the lowest card total wins.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */
@@ -38,9 +45,9 @@ export function crazyEightsSettingFields(raw: unknown, players: number): Setting
       selected: Math.max(0, stockChoices.indexOf(settings.emptyStock)),
       options: [
         { label: "Pass", patch: { emptyStock: "pass" } },
-        { label: "Reshuffle the pile", patch: { emptyStock: "reshuffle" } },
+        { label: "Shuffle the pile", patch: { emptyStock: "reshuffle" } },
       ],
-      hint: settings.emptyStock === "pass" ? "No more draws once it's gone (Bicycle rules)" : "The pile, minus its top card, becomes the new stock",
+      hint: settings.emptyStock === "pass" ? "Players pass when the stock is empty" : "The game shuffles the pile. The pile becomes the new stock. The top card stays.",
     },
   ];
 }

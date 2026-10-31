@@ -68,14 +68,14 @@ export function trackPicker(api: GameClientApi, game: BlindRallyPublicState, me:
 
   const hint = ballot
     ? captain
-      ? rally ? "Your vote. Tap again to take it back." : `You vote for Team ${mine!.id}. Tap again to take it back.`
+      ? rally ? "You voted for this. Tap again to remove your vote." : `You vote for Team ${mine!.id}. Tap again to remove your vote.`
       : mine
-        ? mine.captainId ? `${name(mine.captainId)} votes for your car, as captain.` : "Your car's captain votes."
-        : rally ? "Every car gets a vote. You'll get one with the next free car." : "Each car's captain votes. Sit down to have a say."
+        ? mine.captainId ? `${name(mine.captainId)} is your captain. The captain votes for your car.` : "Your team captain votes."
+        : rally ? "Every car gets 1 vote. You get a vote when you get a car." : "Each team captain votes. Choose a seat to vote."
     : isHost
-      ? single ? "One track so far. More on the way." : "Tap a track to race it."
-      : "The host picks the track.";
-  const tail = ballot && !ballot.votes.length ? ` No votes yet: it's ${trackName(game.tracks, game.trackId)} until someone votes.` : "";
+      ? single ? "There is only 1 track now. More tracks are coming." : "Tap a track to choose it."
+      : "The host chooses the track.";
+  const tail = ballot && !ballot.votes.length ? ` No votes yet. ${trackName(game.tracks, game.trackId)} is chosen for now.` : "";
   const unready = game.tracks.length > 1 ? (rally ? " Changing the track un-readies everyone." : " Changing the track un-readies the Navigators.") : "";
 
   const card = (t: PublicTrack) => {
@@ -83,8 +83,8 @@ export function trackPicker(api: GameClientApi, game: BlindRallyPublicState, me:
     const votes = ballot ? ballot.votes.filter((v) => v.trackId === t.id) : [];
     const tag = chosen
       ? coinFlipped(game)
-        ? "Tie: picked by coin flip"
-        : ballot ? (ballot.votes.length ? "Leading" : "Racing this, for now") : "Racing this"
+        ? "Tie: a coin toss chose this"
+        : ballot ? (ballot.votes.length ? "Most votes" : "Chosen for now") : "Chosen"
       : "";
     const actionable = canPick || captain;
     const body = [
@@ -132,7 +132,7 @@ export function trackPicker(api: GameClientApi, game: BlindRallyPublicState, me:
   return h(
     "section",
     { class: "br-stages", "aria-label": "Track" },
-    h("h3", {}, ballot ? (rally ? "Track: everyone votes" : "Track: team vote") : "Track"),
+    h("h3", {}, ballot ? (rally ? "Track: everyone votes" : "Track: teams vote") : "Track"),
     h("ul", { class: "br-track-list" }, game.tracks.map(card)),
     h("p", { class: "br-stage-hint" }, hint, tail, unready),
   );

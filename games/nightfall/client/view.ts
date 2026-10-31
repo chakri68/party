@@ -23,7 +23,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   night: "Night",
   day: "Day",
   vote: "Vote",
-  runoff: "Runoff",
+  runoff: "Vote again",
   finished: "The end",
 };
 
@@ -47,7 +47,7 @@ export class NightfallView implements GameView {
   private cardKey = "";
   private cardSlot = h("div", { class: "nf-card-slot" });
 
-  private outNote = h("p", { class: "nf-out" }, "You're out. Keep what you know to yourself.");
+  private outNote = h("p", { class: "nf-out" }, "You're out. Don't tell anyone what you know.");
   private news = h("p", { class: "nf-news", "aria-live": "polite" });
   private headline = h("p", { class: "nf-headline", role: "status", "aria-live": "polite" });
   private sub = h("p", { class: "nf-sub" });
@@ -234,7 +234,7 @@ export class NightfallView implements GameView {
       this.chosen = null;
       this.confirmed = false;
       this.saveLock(props, game, null);
-      this.note.textContent = "Your pick left the game. Pick again.";
+      this.note.textContent = "The player you chose left. Choose again.";
     }
     // A reload mid-night comes back locked in on every phone that confirmed.
     // The server keeps an acting card's pick; every phone, decoys included,
@@ -298,12 +298,12 @@ export class NightfallView implements GameView {
     const lines: string[] = [];
     if (me.pack) {
       const others = me.pack.filter((id) => id !== props.playerId);
-      lines.push(others.length ? `The pack: you and ${list(others.map((id) => this.name(id, props)))}.` : "You're the only Wolf.");
+      lines.push(others.length ? `Wolves: you and ${list(others.map((id) => this.name(id, props)))}.` : "You're the only Wolf.");
       for (const [w, t] of Object.entries(me.packPicks ?? {})) if (w !== props.playerId) lines.push(`Tonight ${this.name(w, props)} picked ${this.name(t, props)}.`);
     }
-    if (me.role === "keeper" && me.lastShelter) lines.push(`Last night you sheltered ${this.name(me.lastShelter, props)}: not them tonight.`);
+    if (me.role === "keeper" && me.lastShelter) lines.push(`Last night you protected ${this.name(me.lastShelter, props)}. You can't protect them tonight.`);
     for (const r of me.readings ?? []) lines.push(`Night ${r.night}: ${this.Name(r.target, props)} ${r.wolf ? "is a Wolf" : "is not a Wolf"}.`);
-    if (me.pick) lines.push(me.pick === SKIP ? "Your pick tonight didn't work for your card: it counts for nobody." : `Your pick tonight: ${this.name(me.pick, props)}.`);
+    if (me.pick) lines.push(me.pick === SKIP ? "Your choice tonight does not count for your card." : `Your choice tonight: ${this.name(me.pick, props)}.`);
     return lines;
   }
 
@@ -314,8 +314,8 @@ export class NightfallView implements GameView {
     const day = game.days.at(-1);
     if ((game.phase === "day" || game.phase === "vote" || game.phase === "runoff") && dawn && dawn.night === game.round) {
       text = dawn.died
-        ? `Dawn: ${this.Name(dawn.died, props)} ${dawn.died === props.playerId ? "were" : "was"} taken in the night. ${TEAM_LABEL[dawn.team!]} team.`
-        : "Dawn: nobody was taken in the night.";
+        ? `Dawn: the Wolves attacked ${this.name(dawn.died, props)} in the night. ${TEAM_LABEL[dawn.team!]} team.`
+        : "Dawn: everyone was safe in the night.";
     } else if (game.phase === "night" && day && day.day === game.round - 1) {
       text = this.verdictText(day, props);
     }
@@ -324,9 +324,9 @@ export class NightfallView implements GameView {
   }
 
   private verdictText(day: DayRecord, props: GameViewProps): string {
-    if (!day.out) return day.tied.length ? `Day ${day.day}: still tied. Nobody went.` : `Day ${day.day}: nobody was voted out.`;
-    const was = day.out === props.playerId ? "were" : "was";
-    return `Day ${day.day}: ${this.Name(day.out, props)} ${was} voted out. ${TEAM_LABEL[day.team!]} team.`;
+    if (!day.out) return day.tied.length ? `Day ${day.day}: still a tie. Nobody is out.` : `Day ${day.day}: nobody is out.`;
+    const was = day.out === props.playerId ? "are" : "is";
+    return `Day ${day.day}: ${this.Name(day.out, props)} ${was} out. ${TEAM_LABEL[day.team!]} team.`;
   }
 
   private renderPrompt(props: GameViewProps, game: Pub, me: Priv | null) {
@@ -339,17 +339,17 @@ export class NightfallView implements GameView {
       case "reveal": {
         const left = this.living(game).length - game.acked;
         headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${left} still looking` : "Tap it, read it, keep it to yourself.";
+        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Keep it secret.";
         if (me?.role && !me.acked) button = "Got it";
         break;
       }
       case "night":
         // Word for word the same on every living phone, whatever the card (ruling 3).
-        headline = alive ? "Night. Everyone picks one player." : "Night. The living are picking.";
+        headline = alive ? "Night. Everyone chooses 1 player." : "Night. The other players are choosing.";
         if (alive) {
           sub = this.confirmed
-            ? "Locked in. Night runs its full time."
-            : "Only the Wolves', the Watcher's and the Keeper's picks count. Pick anyway, so nobody can tell.";
+            ? "Done. Wait for the night to end."
+            : "Only Wolves, the Watcher and the Keeper count. Choose anyway, so nobody can tell.";
           if (!this.confirmed) {
             button = "Confirm";
             disabled = !this.chosen;
@@ -357,17 +357,17 @@ export class NightfallView implements GameView {
         }
         break;
       case "day":
-        headline = "Talk it out";
-        sub = alive ? "Out loud. Claim what you like; Wolves lie. Then everyone alive votes." : "The living are talking. Then they vote.";
+        headline = "Talk now";
+        sub = alive ? "Talk out loud. Wolves will lie. Then everyone votes." : "The other players are talking. Then they vote.";
         if (this.isHost()) button = "Vote now";
         break;
       case "vote":
       case "runoff":
-        headline = game.phase === "runoff" ? `Tied. Runoff: ${list(game.tied.map((id) => this.name(id, props)))}` : "Who goes?";
+        headline = game.phase === "runoff" ? `Tie. Vote again: ${list(game.tied.map((id) => this.name(id, props)))}` : "Who is out?";
         sub = me?.vote
-          ? `You voted ${me.vote === SKIP ? "to skip" : `for ${this.name(me.vote, props)}`}. You can change it. ${game.voted} of ${game.voters} in.`
+          ? `You voted ${me.vote === SKIP ? "to skip" : `for ${this.name(me.vote, props)}`}. You can change it. ${game.voted} of ${game.voters} have voted.`
           : me?.choices.length
-            ? `${game.phase === "runoff" ? "One of them, " : "Anyone but you, "}or skip. ${game.voted} of ${game.voters} in.`
+            ? `${game.phase === "runoff" ? "Choose one of them, " : "Choose another player, "}or skip. ${game.voted} of ${game.voters} have voted.`
             : `${game.voted} of ${game.voters} in.`;
         break;
       case "finished":
@@ -382,8 +382,8 @@ export class NightfallView implements GameView {
   }
 
   private outcome(game: Pub): string {
-    if (game.endReason === "abandoned") return "A side left the game. No winner.";
-    return game.winner === "village" ? "No Wolves left. The village wins." : "The Wolves hold the village. Wolves win.";
+    if (game.endReason === "abandoned") return "A team left the game. Nobody wins.";
+    return game.winner === "village" ? "No Wolves left. The village wins." : "The Wolves equal the other players. Wolves win.";
   }
 
   /** The night picker, the ballot, the end, or just the table. */
@@ -439,7 +439,7 @@ export class NightfallView implements GameView {
     if (!show) return replaceChildren(this.history);
     const items: HTMLElement[] = [];
     for (const dawn of game.dawns) {
-      items.push(h("li", {}, dawn.died ? `Night ${dawn.night}: ${this.Name(dawn.died, props)} taken. ${TEAM_LABEL[dawn.team!]}.` : `Night ${dawn.night}: nobody taken.`));
+      items.push(h("li", {}, dawn.died ? `Night ${dawn.night}: ${this.Name(dawn.died, props)} attacked. ${TEAM_LABEL[dawn.team!]}.` : `Night ${dawn.night}: nobody attacked.`));
       const day = game.days.find((d) => d.day === dawn.night);
       if (day) {
         items.push(
@@ -501,7 +501,7 @@ export class NightfallView implements GameView {
           }),
         ),
       ),
-      h("section", { class: "nf-end-part" }, h("h3", {}, "What happened"), log.length ? h("ol", { class: "nf-log" }, log) : h("p", { class: "nf-muted" }, "It ended before the first dawn.")),
+      h("section", { class: "nf-end-part" }, h("h3", {}, "What happened"), log.length ? h("ol", { class: "nf-log" }, log) : h("p", { class: "nf-muted" }, "The game ended before the first dawn.")),
     );
   }
 
@@ -510,12 +510,12 @@ export class NightfallView implements GameView {
     const votes = Object.entries(n.wolfVotes);
     parts.push(
       votes.length
-        ? `Wolves picked ${votes.map(([w, t]) => `${this.name(w, props)} → ${this.name(t, props)}`).join(", ")}${n.target ? `, going for ${this.name(n.target, props)}` : ""}.`
-        : "The Wolves didn't pick.",
+        ? `Wolves chose ${votes.map(([w, t]) => `${this.name(w, props)} → ${this.name(t, props)}`).join(", ")}${n.target ? `. The Wolves attacked ${this.name(n.target, props)}` : ""}.`
+        : "The Wolves did not choose anyone.",
     );
-    if (n.sheltered) parts.push(`The Keeper sheltered ${this.name(n.sheltered, props)}.`);
-    if (n.read) parts.push(`The Watcher read ${this.name(n.read, props)}: ${n.readWolf ? "a Wolf" : "not a Wolf"}.`);
-    parts.push(n.died ? `${this.Name(n.died, props)} ${n.died === props.playerId ? "were" : "was"} taken.` : "Nobody was taken.");
+    if (n.sheltered) parts.push(`The Keeper protected ${this.name(n.sheltered, props)}.`);
+    if (n.read) parts.push(`The Watcher checked ${this.name(n.read, props)}: ${n.readWolf ? "a Wolf" : "not a Wolf"}.`);
+    parts.push(n.died ? `The Wolves attacked ${this.name(n.died, props)}.` : "Everyone was safe.");
     return parts.join(" ");
   }
 

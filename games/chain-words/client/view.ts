@@ -184,7 +184,7 @@ export class ChainWordsView implements GameView {
     const game = this.props?.game as Pub | undefined;
     if (!game || this.pending) return;
     if (!this.holding()) {
-      this.note.textContent = game.phase === "live" ? "Not your turn." : "";
+      this.note.textContent = game.phase === "live" ? "It is not your turn." : "";
       return;
     }
     const word = normalizeWord(this.input.value);
@@ -262,7 +262,7 @@ export class ChainWordsView implements GameView {
     if (game.phase !== "live") this.showTyping("", game.letter);
 
     this.count.textContent = `${game.chainLength} ${game.chainLength === 1 ? "word" : "words"} in the chain`;
-    this.clockLabel.textContent = `${game.turnMs / 1000} s a turn`;
+    this.clockLabel.textContent = `${game.turnMs / 1000} s each turn`;
     this.renderStrip(game.chain, props);
 
     this.letter.textContent = game.letter.toUpperCase();
@@ -270,7 +270,7 @@ export class ChainWordsView implements GameView {
     this.stage.classList.toggle("over", game.phase === "finished");
 
     if (game.phase === "live") {
-      this.status.textContent = holding ? `Your go: a word starting with ${game.letter.toUpperCase()}` : `${name(game.holderId)}'s go`;
+      this.status.textContent = holding ? `Your turn. The word must start with ${game.letter.toUpperCase()}` : `${name(game.holderId)}'s turn`;
     } else {
       this.status.textContent = "";
     }
@@ -280,7 +280,7 @@ export class ChainWordsView implements GameView {
     // turns, so the phone's keyboard doesn't bounce every time the turn moves.
     const typing = document.activeElement === this.input;
     this.form.hidden = !inGame || game.phase === "finished";
-    this.input.placeholder = holding ? `Starts with ${game.letter.toUpperCase()}` : "Wait for your go";
+    this.input.placeholder = holding ? `Start with ${game.letter.toUpperCase()}` : "Wait for your turn";
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);
     if (typing && !this.form.hidden) this.input.focus({ preventScroll: true });
@@ -299,7 +299,7 @@ export class ChainWordsView implements GameView {
           "li",
           {
             class: i === tail.length - 1 ? "cw-link newest" : "cw-link",
-            title: l.playerId ? (l.playerId === props.playerId ? "You" : seatName(props.room, l.playerId)) : "Opener",
+            title: l.playerId ? (l.playerId === props.playerId ? "You" : seatName(props.room, l.playerId)) : "First word",
           },
           linked(l.word, i > 0, true),
         ),
@@ -323,7 +323,7 @@ export class ChainWordsView implements GameView {
           "li",
           {
             class: `cw-player${has ? " has" : ""}${out ? " out" : ""}${away ? " away" : ""}${p.id === me ? " me" : ""}`,
-            "aria-label": `${who}: ${out ? (p.removed ? "left" : "out") : `${p.lives} ${p.lives === 1 ? "life" : "lives"}`}${has ? ", on the clock" : ""}`,
+            "aria-label": `${who}: ${out ? (p.removed ? "left" : "out") : `${p.lives} ${p.lives === 1 ? "life" : "lives"}`}${has ? ", playing now" : ""}`,
           },
           seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
           h("span", { class: "name", "aria-hidden": "true" }, who),
@@ -349,14 +349,14 @@ export class ChainWordsView implements GameView {
       switch (e.type) {
         case "timeout":
           text = e.lives > 0
-            ? `Time. ${name(e.playerId)} ${e.playerId === me ? "lose" : "loses"} a life`
-            : `Time. ${name(e.playerId)} ${e.playerId === me ? "are" : "is"} out`;
+            ? `Time is up. ${name(e.playerId)} ${e.playerId === me ? "lose" : "loses"} a life`
+            : `Time is up. ${name(e.playerId)} ${e.playerId === me ? "are" : "is"} out`;
           break;
         case "rescued":
-          text = `Nothing left on ${e.from.toUpperCase()}. ${e.to.toUpperCase()} instead`;
+          text = `No words are left for ${e.from.toUpperCase()}. The new letter is ${e.to.toUpperCase()}`;
           break;
         case "skipped":
-          text = `${name(e.from)} got skipped`;
+          text = `${name(e.from)} was skipped`;
           break;
         case "left":
           if (e.to) text = `${name(e.playerId)} left`;

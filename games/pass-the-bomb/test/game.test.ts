@@ -179,7 +179,7 @@ describe("leaving and presence", () => {
     expect(t.state.phase).toBe("finished");
     const result = pb.getResult(t.state)!;
     expect(result.winnerIds).toEqual(["p1"]);
-    expect(result.standings.at(-1)).toMatchObject({ playerId: "p0", label: "left" });
+    expect(result.standings.at(-1)).toMatchObject({ playerId: "p0", label: "left the game" });
   });
 
   it("someone who's out and then leaves keeps their place", () => {

@@ -275,7 +275,7 @@ export function openBallot<C extends string>(eligible: readonly string[]): Ballo
  * caller's to rule out, by leaving them off `allowed`.
  */
 export function castVote<C extends string>(b: Ballot<C>, voterId: string, choice: C, allowed: readonly C[]): GameError | null {
-  if (!b.eligible.includes(voterId)) return { code: "not-eligible", message: "You're not part of this vote." };
+  if (!b.eligible.includes(voterId)) return { code: "not-eligible", message: "You are not in this vote." };
   if (!allowed.includes(choice)) return { code: "bad-choice", message: "That isn't one of the choices." };
   b.votes[voterId] = choice;
   return null;

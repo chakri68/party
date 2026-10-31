@@ -470,12 +470,12 @@ export const imposterGame: GameDefinition<
     const me = find(prev, playerId);
     if (!me || !active(me)) return reject("not-in-game", "You're not in this game.");
     const r = prev.round;
-    if (TIMED.includes(r.phase) && ctx.now >= r.deadline) return reject("time-up", "Time's up.");
+    if (TIMED.includes(r.phase) && ctx.now >= r.deadline) return reject("time-up", "Time is up.");
 
     // Each mode's own actions; the other mode's are refused before anything else.
     const spokenOnly = action.type === "call" || action.type === "guess-place";
     const cluesOnly = action.type === "clue" || action.type === "guess";
-    if ((spoken(prev) && cluesOnly) || (!spoken(prev) && spokenOnly)) return reject("wrong-mode", "Not in this mode.");
+    if ((spoken(prev) && cluesOnly) || (!spoken(prev) && spokenOnly)) return reject("wrong-mode", "You cannot do that in this mode.");
 
     const state = clone(prev);
     const s = state.round;
@@ -483,13 +483,13 @@ export const imposterGame: GameDefinition<
 
     switch (action.type) {
       case "ack": {
-        if (r.phase !== "reveal") return reject("wrong-phase", "Not now.");
+        if (r.phase !== "reveal") return reject("wrong-phase", "You cannot do that now.");
         if (!s.acks.includes(playerId)) s.acks.push(playerId);
         break;
       }
       case "clue": {
-        if (r.phase !== "clues") return reject("wrong-phase", "Not clue time.");
-        if (playerId in r.clues) return reject("already", "You've sent your clue.");
+        if (r.phase !== "clues") return reject("wrong-phase", "It is not time for clues.");
+        if (playerId in r.clues) return reject("already", "You already sent your clue.");
         const clue = cleanClue(action.text);
         // The Imposter's clue is never checked against the word: a rejection
         // would tell them what it is.
@@ -499,15 +499,15 @@ export const imposterGame: GameDefinition<
         break;
       }
       case "vote": {
-        if (!voting(r.phase)) return reject("wrong-phase", "Not voting yet.");
+        if (!voting(r.phase)) return reject("wrong-phase", "Voting has not started yet.");
         const allowed = s.candidates.filter((id) => id !== playerId);
-        if (action.playerId === playerId) return reject("self-vote", "Not yourself.");
+        if (action.playerId === playerId) return reject("self-vote", "You cannot vote for yourself.");
         const error = castVote(s.ballot!, playerId, action.playerId, allowed);
         if (error) return { ok: false, error };
         break;
       }
       case "guess": {
-        if (r.phase !== "guess") return reject("wrong-phase", "Not now.");
+        if (r.phase !== "guess") return reject("wrong-phase", "You cannot do that now.");
         if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter guesses.");
         const text = cleanGuess(action.text);
         if (!text) return reject("bad-guess", "Type a guess.");
@@ -515,18 +515,18 @@ export const imposterGame: GameDefinition<
         break;
       }
       case "call": {
-        if (r.phase !== "talk") return reject("wrong-phase", "Not now.");
-        if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter can call it.");
+        if (r.phase !== "talk") return reject("wrong-phase", "You cannot do that now.");
+        if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter can use this button.");
         s.early = true;
         out.events.push(pub({ type: "early-guess" }));
         setPhase(state, "guess", PLACE_GUESS_MS, ctx, out);
         break;
       }
       case "guess-place": {
-        if (r.phase !== "guess") return reject("wrong-phase", "Not now.");
+        if (r.phase !== "guess") return reject("wrong-phase", "You cannot do that now.");
         if (playerId !== r.imposterId) return reject("not-yours", "Only the Imposter guesses.");
         const place = placeById(action.placeId);
-        if (!place) return reject("bad-guess", "Pick a place from the list.");
+        if (!place) return reject("bad-guess", "Choose a place from the list.");
         guessPlace(state, place, ctx, out);
         break;
       }
@@ -534,7 +534,7 @@ export const imposterGame: GameDefinition<
         if (ctx.hostId !== playerId) return reject("host-only", "Only the host can do that.");
         if (r.phase === "discuss" || r.phase === "talk") openVote(state, activeIds(state), false, ctx, out);
         else if (r.phase === "round-result") nextRound(state, ctx, out);
-        else return reject("wrong-phase", "Not now.");
+        else return reject("wrong-phase", "You cannot do that now.");
         break;
       }
     }

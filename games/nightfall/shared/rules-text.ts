@@ -5,15 +5,20 @@ import { DEFAULT_SETTINGS, DISCUSS_OPTIONS, NIGHT_OPTIONS, type NightfallSetting
 
 /** Plain-language rules for the lobby's Rules button. */
 export const nightfallRules: string[] = [
-  "Everyone gets one secret card. Most of you are village; a few are Wolves, and the Wolves know each other.",
+  "Each player gets 1 secret card. Most players are in the Village team. A few players are Wolves. The Wolves know each other.",
   ...ROLES.map((r) => `${r.label}: ${r.blurb}`),
-  "Night: every living player picks someone on their phone, whatever their card, so nobody can tell who's really acting. Only the Wolves', the Watcher's and the Keeper's picks count. The night always runs its full time.",
-  "The Wolves' most-picked player is taken, unless the Keeper sheltered them. A tie between picks is settled by a coin the server flips. If no Wolf picks, nobody's taken.",
-  "Dawn: the village hears who was taken (or that nobody was) and which team they were on. Never their card.",
-  "Day: talk it out, then vote. Everyone alive votes for someone else, or skips. Most votes is out, and their team is announced. A tie goes to a 20-second runoff between the tied; still tied, nobody goes.",
-  "The village wins when no Wolves are left alive. The Wolves win once they're at least as many as everyone else alive.",
-  "Out of the game? Watch, and keep what you know to yourself.",
-  "Someone who leaves mid-game is out of both sides' counts from the next phase. If that leaves a side with nobody, the game ends with no winner.",
+  "Night: every player in the game chooses 1 player on their phone. Everyone chooses, so nobody can tell who has a power.",
+  "At night, only the choices of the Wolves, the Watcher and the Keeper count. The night always lasts its full time.",
+  "The Wolves attack the player most Wolves chose. That player is out of the game.",
+  "The Keeper can save that player. If the Keeper protected the same player, the player stays in.",
+  "If the Wolves' choices are tied, the game picks 1 of those players at random. If no Wolf chooses, the Wolves attack nobody.",
+  "Dawn means morning. At dawn, everyone hears who the Wolves attacked. Everyone also hears that player's team. The game keeps that player's card secret.",
+  "Day: first, everyone talks. Then every player in the game votes for another player, or skips.",
+  "The player with the most votes is out. Everyone sees that player's team.",
+  "If 2 or more players tie, everyone votes again for 20 seconds. You can vote only for the tied players. If they still tie, nobody is out.",
+  "The Village team wins when no Wolves are left. The Wolves win when there are as many Wolves as other players, or more.",
+  "If you are out, you can still watch. Do not tell anyone what you know.",
+  "A player can leave during the game. From the next part of the game, that player does not count. If a team has no players left, the game ends. Nobody wins.",
 ];
 
 /** Settings from whatever the room holds. Null: something's off. */
@@ -39,14 +44,14 @@ export function nightfallSettingFields(raw: unknown, players: number): SettingFi
       label: "Talking time",
       selected: Math.max(0, DISCUSS_OPTIONS.indexOf(settings.discussMinutes)),
       options: DISCUSS_OPTIONS.map((n) => ({ label: `${n} min`, patch: { discussMinutes: n } })),
-      hint: "Each day. The host can call the vote early",
+      hint: "Time to talk each day. The host can start the vote early",
     },
     {
       key: "nightSeconds",
       label: "Night",
       selected: Math.max(0, NIGHT_OPTIONS.indexOf(settings.nightSeconds)),
       options: NIGHT_OPTIONS.map((n) => ({ label: `${n} s`, patch: { nightSeconds: n } })),
-      hint: "Each night runs its full time, whoever acts",
+      hint: "Each night always lasts this long",
     },
   ];
 }

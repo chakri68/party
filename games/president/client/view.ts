@@ -33,8 +33,8 @@ function describe(e: PresidentEvent, props: GameViewProps): string | null {
       // The two people involved get the version with the cards in it.
       if (e.fromId === me || e.toId === me) return null;
       return e.kind === "tribute"
-        ? `${who(e.fromId)} handed ${whom(e.toId)} their best ${e.count === 1 ? "card" : e.count}.`
-        : `${who(e.fromId)} gave ${whom(e.toId)} ${e.count} back.`;
+        ? `${who(e.fromId)} gave ${whom(e.toId)} the best ${e.count === 1 ? "card" : `${e.count} cards`}.`
+        : `${who(e.fromId)} gave ${e.count === 1 ? "1 card" : `${e.count} cards`} back to ${whom(e.toId)}.`;
     case "swap-cards": {
       const list = e.cards.map(cardShort).join(" ");
       if (!e.cards.length) return null;
@@ -44,21 +44,21 @@ function describe(e: PresidentEvent, props: GameViewProps): string | null {
       return `${who(e.playerId)} played ${e.cards.map(cardShort).join(" ")}.`;
     case "passed":
       if (!e.auto) return `${who(e.playerId)} passed.`;
-      return e.playerId === me ? "Nothing of yours beats it, so you passed." : `${who(e.playerId)} can't beat it.`;
+      return e.playerId === me ? "You can't beat the pile. You passed." : `${who(e.playerId)} can't beat the pile.`;
     case "skipped":
-      return e.playerId === me ? "Matched: you're skipped." : `Matched: ${who(e.playerId)} is skipped.`;
+      return e.playerId === me ? "Same rank played. You miss this turn." : `Same rank played. ${who(e.playerId)} misses this turn.`;
     case "cleared":
-      return `Pile cleared. ${who(e.leaderId)} ${e.leaderId === me ? "lead" : "leads"}.`;
+      return `The pile is empty. ${who(e.leaderId)} ${e.leaderId === me ? "lead" : "leads"}.`;
     case "went-out":
-      return e.playerId === me ? `You're out, ${ordinal(e.place)}: ${the(e.title)}.` : `${who(e.playerId)}'s out, ${ordinal(e.place)}: ${the(e.title)}.`;
+      return e.playerId === me ? `You finished ${ordinal(e.place)}. You are ${the(e.title)}.` : `${who(e.playerId)} finished ${ordinal(e.place)}: ${the(e.title)}.`;
     case "round-over":
-      return `Round ${e.round} over.`;
+      return `Round ${e.round} is over.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return `The host skipped ${whom(e.playerId)}.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their cards are out of play.`;
+      return `${who(e.playerId)} left. The game removed their cards.`;
     case "game-over":
-      return e.reason === "abandoned" ? "Called off: too many people left." : null;
+      return e.reason === "abandoned" ? "The game stopped. Too many players left." : null;
   }
 }
 
@@ -385,7 +385,7 @@ export class PresidentView implements GameView {
         return;
       }
       const waiting = game.exchange.filter((s) => s.kind === "return" && !s.done).map((s) => seatName(room, s.fromId));
-      replaceChildren(this.status, h("span", {}, `Swapping cards: waiting on ${waiting.join(" and ")}`));
+      replaceChildren(this.status, h("span", {}, `Swapping cards. Waiting for ${waiting.join(" and ")}`));
       return;
     }
     const seat = room.seats.find((s) => s.id === game.currentPlayerId);
@@ -394,10 +394,10 @@ export class PresidentView implements GameView {
     replaceChildren(
       this.status,
       myTurn
-        ? h("span", {}, leading ? "Your lead" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
+        ? h("span", {}, leading ? "You lead" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
         : [
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "leads" : "to play"}`),
+            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "leads" : "must play"}`),
           ],
     );
   }
@@ -453,7 +453,7 @@ export class PresidentView implements GameView {
 
   private renderTable(props: GameViewProps, game: PresidentPublicState) {
     const room = props.room;
-    this.roundLabel.textContent = `Round ${game.round} of ${game.rounds}${game.matchSkips ? " · match to skip" : ""}`;
+    this.roundLabel.textContent = `Round ${game.round} of ${game.rounds}${game.matchSkips ? " · same rank skips" : ""}`;
 
     // Between rounds (and at the end), the pile makes way for who came where and who owes what.
     const recap = game.phase !== "playing" && game.lastRound;
@@ -471,10 +471,10 @@ export class PresidentView implements GameView {
     this.pileCaption.textContent = top
       ? `${seatName(room, top.playerId)}: ${setName(top.cards.length, top.cards[0]!.rank)}`
       : game.phase === "playing"
-        ? `${game.currentPlayerId === props.playerId ? "You lead" : `${seatName(room, game.currentPlayerId)} leads`}: anything goes`
+        ? `${game.currentPlayerId === props.playerId ? "You lead" : `${seatName(room, game.currentPlayerId)} leads`}: any cards`
         : "";
     this.pile.setAttribute("role", "img");
-    this.pile.setAttribute("aria-label", top ? `To beat: ${top.cards.map(cardLabel).join(", ")}` : "Pile empty");
+    this.pile.setAttribute("aria-label", top ? `To beat: ${top.cards.map(cardLabel).join(", ")}` : "The pile is empty");
   }
 
   /** Last round's order with titles, plus this exchange's swaps. */
@@ -570,7 +570,7 @@ export class PresidentView implements GameView {
     replaceChildren(
       this.me,
       mine?.place
-        ? h("span", { class: "you" }, `You're out · ${titleFor(mine.place, n)}`)
+        ? h("span", { class: "you" }, `You finished · ${titleFor(mine.place, n)}`)
         : h("span", { class: "you" }, "Your hand"),
       mine?.title && TITLE_TAG[mine.title]
         ? h("span", { class: `pr-title${mine.title.includes("President") ? " up" : " down"}`, title: mine.title }, TITLE_TAG[mine.title])
@@ -587,7 +587,7 @@ export class PresidentView implements GameView {
       action = h(
         "button",
         { type: "button", class: "primary", disabled: picked.length !== k, onclick: () => this.give() },
-        picked.length === k ? `Give ${picked.map(cardShort).join(" ")}` : `Pick ${k - picked.length} to give`,
+        picked.length === k ? `Give ${picked.map(cardShort).join(" ")}` : `Choose ${k - picked.length} to give`,
       );
     } else if (!myTurn) {
       action = h("span", { class: "hint" }, mine?.place ? "Watching" : game.phase === "exchange" ? "Swapping…" : "Not your turn yet");
@@ -601,7 +601,7 @@ export class PresidentView implements GameView {
               { type: "button", class: "primary", disabled: !!why, title: why ?? undefined, onclick: () => this.playSelected() },
               `Play ${setName(picked.length, picked[0]!.rank).replace(/^a /, "")}`,
             )
-          : h("span", { class: "hint strong" }, game.top ? "Pick cards to beat it" : "Pick a set to lead"),
+          : h("span", { class: "hint strong" }, game.top ? "Choose cards to beat the pile" : "Choose cards to lead"),
       ].filter((x): x is HTMLElement => !!x);
     }
     replaceChildren(this.action, action);
@@ -644,7 +644,7 @@ export class PresidentView implements GameView {
       return;
     }
     if (game.currentPlayerId !== props.playerId) {
-      this.log.textContent = game.phase === "exchange" ? "Hang on, cards are still being swapped." : "Not your turn yet.";
+      this.log.textContent = game.phase === "exchange" ? "Wait. Players are still swapping cards." : "Not your turn yet.";
       return;
     }
 

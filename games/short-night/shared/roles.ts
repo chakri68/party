@@ -21,14 +21,14 @@ export interface Role extends RoleSpec {
 
 /** Deck order, which is also the lobby's row order. Acting roles in night order. */
 export const ROLES: readonly Role[] = [
-  { id: "wolf", label: "Wolf", team: "wolves", max: 3, picks: 0, blurb: "Wake first and meet the other Wolves. Alone, you learn one Villager." },
-  { id: "lamplighter", label: "Lamplighter", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn whether they read as village or as a wolf." },
-  { id: "matchmaker", label: "Matchmaker", team: "village", max: 1, picks: 2, blurb: "Pick two players. Learn whether they read as the same side." },
-  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Your bell counts the players on either side of you who read as wolves: none, one or both." },
-  { id: "eavesdropper", label: "Eavesdropper", team: "village", max: 1, picks: 0, blurb: "Hear two names. At least one of them reads as a wolf." },
-  { id: "wanderer", label: "Wanderer", team: "village", max: 1, picks: 1, blurb: "Pick a player. Learn one card they don't hold." },
-  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You're village, but you read as a wolf to the Lamplighter, Matchmaker, Bellringer and Eavesdropper." },
-  { id: "villager", label: "Villager", team: "village", max: 10, picks: null, blurb: "No night. Just your wits." },
+  { id: "wolf", label: "Wolf", team: "wolves", max: 3, picks: 0, blurb: "You wake first and meet the other Wolves. If you are the only Wolf, you learn 1 Villager." },
+  { id: "lamplighter", label: "Lamplighter", team: "village", max: 1, picks: 1, blurb: "Choose 1 player. You learn if that player reads as village or as a wolf." },
+  { id: "matchmaker", label: "Matchmaker", team: "village", max: 1, picks: 2, blurb: "Choose 2 players. You learn if those 2 players read as the same team." },
+  { id: "bellringer", label: "Bellringer", team: "village", max: 1, picks: 0, blurb: "Your bell checks the 2 players next to you. It tells you how many read as wolves: 0, 1 or 2." },
+  { id: "eavesdropper", label: "Eavesdropper", team: "village", max: 1, picks: 0, blurb: "You hear 2 names. At least 1 of those players reads as a wolf." },
+  { id: "wanderer", label: "Wanderer", team: "village", max: 1, picks: 1, blurb: "Choose 1 player. You learn 1 card that player does not have." },
+  { id: "stray", label: "Stray", team: "village", max: 1, picks: null, blurb: "You are in the Village team. But you read as a wolf to the Lamplighter, Matchmaker, Bellringer and Eavesdropper." },
+  { id: "villager", label: "Villager", team: "village", max: 10, picks: null, blurb: "You have no power at night. Listen and think." },
 ];
 
 export const roleById = (id: RoleId): Role => ROLES.find((r) => r.id === id)!;
@@ -84,7 +84,7 @@ export function setupProblem(settings: ShortNightSettings, players: number): str
   const problem = deckProblem(deck, [...ROLES], DECK_RULES, players);
   if (problem) return problem;
   // One non-wolf is a lone villager the wolves can just outvote.
-  if (players - (deck.wolf ?? 0) < 2) return "Needs at least two non-wolf cards";
+  if (players - (deck.wolf ?? 0) < 2) return "You need at least 2 cards that are not Wolf";
   return null;
 }
 

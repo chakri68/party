@@ -25,30 +25,30 @@ function describe(e: OhHellEvent, props: GameViewProps): string | null {
   const who = (id: string | null) => (id === me ? "You" : seatName(props.room, id));
   switch (e.type) {
     case "dealt":
-      return `${e.redeal ? "Redealt" : `Round ${e.round}`}: ${plural(e.handSize, "card")} each. ${SUIT_NAME[e.trump.suit]} are trump.`;
+      return `${e.redeal ? "New deal" : `Round ${e.round}`}: ${plural(e.handSize, "card")} each. ${SUIT_NAME[e.trump.suit]} are trump.`;
     case "bid":
       return `${who(e.playerId)} bid ${e.tricks}.`;
     case "played":
       return null;
     case "trick-won":
-      return `${who(e.winnerId)} ${e.winnerId === me ? "take" : "takes"} the trick.`;
+      return `${who(e.winnerId)} ${e.winnerId === me ? "win" : "wins"} the trick.`;
     case "trick-collected":
       return null;
     case "round-scored": {
       const mine = e.results.find((r) => r.playerId === me);
-      if (!mine) return `Round ${e.round} scored.`;
+      if (!mine) return `Round ${e.round} is over.`;
       return mine.bid === mine.tricks
-        ? `You made it: ${mine.points} points.`
-        : `You bid ${mine.bid} and took ${mine.tricks}. ${mine.points ? `${mine.points} points.` : "Nothing for that."}`;
+        ? `Your bid was exact. You get ${mine.points} points.`
+        : `You bid ${mine.bid} and won ${mine.tricks}. ${mine.points ? `You get ${mine.points} points.` : "You get 0 points."}`;
     }
     case "ready":
       return null;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return `The host skipped ${who(e.playerId) === "You" ? "you" : who(e.playerId)}.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their score stays on the board.`;
+      return `${who(e.playerId)} left. Their score stays on the scoreboard.`;
     case "game-over":
-      return e.reason === "abandoned" ? "Too few players left to carry on." : "That's the last round.";
+      return e.reason === "abandoned" ? "Too few players are left. The game stopped." : "That was the last round.";
   }
 }
 
@@ -319,7 +319,7 @@ export class OhHellView implements GameView {
       audio.play("correct");
       audio.buzz(30);
     }
-    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "Yours" : "Takes it", "anim-bubble", 900);
+    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "You win" : "Wins it", "anim-bubble", 900);
   }
 
   /** The trick sweeps over to whoever took it. */
@@ -376,13 +376,13 @@ export class OhHellView implements GameView {
     if (game.phase === "round-summary") content = h("span", {}, `Round ${game.round} scored`);
     else if (game.trickWinnerId) {
       const mine = game.trickWinnerId === props.playerId;
-      content = h("span", {}, mine ? "You take the trick" : `${seatName(props.room, game.trickWinnerId)} takes the trick`);
+      content = h("span", {}, mine ? "You win the trick" : `${seatName(props.room, game.trickWinnerId)} wins the trick`);
     } else if (game.phase === "bidding") content = priv?.canBid ? h("span", {}, `Your bid: 0 to ${game.handSize}`) : them("is bidding");
     else if (priv?.legal.length) {
       const led = game.trick[0]?.card.suit;
       const following = led && priv.legal.every((id) => id.startsWith(`${led}-`));
-      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play anything" : "Your lead");
-    } else content = them(game.trick.length ? "to play" : "leads");
+      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You lead");
+    } else content = them(game.trick.length ? "must play" : "leads");
     replaceChildren(this.status, content);
   }
 
@@ -390,7 +390,7 @@ export class OhHellView implements GameView {
   private renderRound(game: OhHellPublicState) {
     const big = Math.max(...game.schedule);
     const trump = cardFace(game.trump, "sm");
-    trump.setAttribute("aria-label", `Trump: ${SUIT_NAME[game.trump.suit]} (turned up the ${cardLabel(game.trump)})`);
+    trump.setAttribute("aria-label", `Trump: ${SUIT_NAME[game.trump.suit]}. The face-up card is the ${cardLabel(game.trump)}.`);
     replaceChildren(
       this.round,
       h("div", { class: "oh-trump" }, trump, h("span", { class: "oh-trump-label" }, "Trump", h("b", {}, SUIT_SYMBOL[game.trump.suit]))),
@@ -476,12 +476,12 @@ export class OhHellView implements GameView {
             "p",
             { class: "oh-bid-note" },
             game.forbiddenBid !== null
-              ? `${dealer === "You" ? "You're" : `${dealer}'s`} the dealer: ${game.forbiddenBid} would make it add up, so it's out.`
+              ? `${dealer === "You" ? "You're" : `${dealer} is`} the dealer. ${dealer === "You" ? "You" : "The dealer"} can't bid ${game.forbiddenBid}.`
               : !game.dealerRule
-                ? "No dealer's restriction this game."
+                ? "The dealer rule is off this game."
                 : left < 0
-                  ? "Already over. Someone's going to be disappointed."
-                  : `The dealer, ${dealer === "You" ? "you" : dealer}, can't make it add up to ${game.handSize}.`,
+                  ? "The bids are already more than the cards. A player will be wrong."
+                  : `The dealer is ${dealer === "You" ? "you" : dealer}. The total bid can't be ${game.handSize}.`,
           ),
         ),
       );
@@ -513,7 +513,7 @@ export class OhHellView implements GameView {
             class: `oh-slot${id === winnerId ? " won" : ""}${i === 0 && card ? " lead" : ""}`,
             role: "listitem",
             "data-slot": id,
-            "aria-label": card ? `${nm}: ${cardLabel(card)}${i === 0 ? ", led" : ""}${id === winnerId ? ", takes it" : ""}` : `${nm}: not played yet`,
+            "aria-label": card ? `${nm}: ${cardLabel(card)}${i === 0 ? ", led" : ""}${id === winnerId ? ", wins it" : ""}` : `${nm}: not played yet`,
           },
           card ? cardFace(card) : h("span", { class: "oh-card empty", "aria-hidden": "true" }),
           h("span", { class: "oh-slot-name", "aria-hidden": "true" }, nm),
@@ -585,7 +585,7 @@ export class OhHellView implements GameView {
           ),
         ),
       ),
-      h("p", {}, `${this.name(last.winnerId, props)} took it.`),
+      h("p", {}, `${this.name(last.winnerId, props)} won it.`),
     );
   }
 
@@ -644,11 +644,11 @@ export class OhHellView implements GameView {
       const waiting = game.players.filter((p) => !p.removed && !p.ready).length;
       action = priv?.canReady
         ? h("button", { type: "button", class: "primary", onclick: () => this.send({ type: "ready" }) }, "Ready")
-        : hint(`Waiting on ${waiting}…`);
+        : hint(`Waiting for ${waiting}…`);
     } else if (priv?.canBid) {
       action =
         this.bidPick === null
-          ? hint("Pick your bid", true)
+          ? hint("Choose your bid", true)
           : h("button", { type: "button", class: "primary", onclick: () => this.sendBid() }, `Bid ${this.bidPick}`);
     } else if (priv?.legal.length) {
       const card = this.lifted ? priv.hand.find((c) => c.id === this.lifted) : undefined;
@@ -674,8 +674,8 @@ export class OhHellView implements GameView {
               class: `oh-bid${this.bidPick === n ? " picked" : ""}${banned ? " banned" : ""}`,
               disabled: banned,
               "aria-pressed": String(this.bidPick === n),
-              "aria-label": banned ? `${n}: not allowed, the bids would add up to ${game.handSize}` : String(n),
-              title: banned ? `Would make the bids add up to ${game.handSize}` : undefined,
+              "aria-label": banned ? `${n}: not allowed. The total bid would be ${game.handSize}` : String(n),
+              title: banned ? `The total bid would be ${game.handSize}` : undefined,
               onclick: () => this.onBidTap(n),
             },
             String(n),
@@ -712,12 +712,12 @@ export class OhHellView implements GameView {
     const game = props?.game as OhHellPublicState | undefined;
     if (!props || !priv || !game || this.pending.size) return;
     if (!priv.legal.length) {
-      this.log.textContent = priv.canBid ? "Bid first: pick a number above your hand." : "Not your turn yet.";
+      this.log.textContent = priv.canBid ? "Bid first. Choose a number above your cards." : "Not your turn yet.";
       return;
     }
     if (!priv.legal.includes(cardId)) {
       const led = game.trick[0]?.card.suit;
-      this.log.textContent = led ? `Follow suit: play a ${suitOne(led)}.` : "You can't play that.";
+      this.log.textContent = led ? `You must follow suit. Play a ${suitOne(led)}.` : "You can't play that.";
       const btn = this.cards.get(cardId);
       btn?.classList.remove("shake");
       void btn?.offsetWidth;

@@ -73,7 +73,7 @@ export class DominionView implements GameView {
     tabindex: "0",
     role: "application",
     "aria-label":
-      "Map. Arrow keys move the cursor and read out the tile, Enter selects or acts, N jumps to the next unit, R opens research, D diplomacy, question mark the guide, plus and minus zoom.",
+      "Map. Arrow keys move the cursor and read the tile. Enter chooses or acts. N goes to the next unit. R opens research. D opens diplomacy. Question mark opens the guide. Plus and minus zoom.",
   });
   /** The inspector, docked over the bottom of the map. */
   private panel = h("aside", { class: "dm-panel dm-plate", "aria-live": "polite", "aria-label": "Inspector" });
@@ -155,7 +155,7 @@ export class DominionView implements GameView {
         { class: "dm-rotate", role: "dialog", "aria-label": "Turn your phone sideways" },
         h("div", { class: "dm-rotate-phone", "aria-hidden": "true" }),
         h("p", { class: "dm-rotate-title" }, "Turn your phone sideways"),
-        h("p", { class: "dm-rotate-text" }, "The map needs the width."),
+        h("p", { class: "dm-rotate-text" }, "The map needs a wide screen."),
         canFullscreen()
           ? h("button", { type: "button", class: "dm-btn primary", onclick: () => void toggleFullscreen(true) }, "Full screen, sideways")
           : null,
@@ -169,7 +169,7 @@ export class DominionView implements GameView {
               writePref(UPRIGHT_KEY, "1");
             },
           },
-          "Play upright anyway",
+          "Play upright",
         ),
       ),
     );
@@ -287,8 +287,8 @@ export class DominionView implements GameView {
             this.board.effect(e.from, "effect.hit");
             this.board.floatText(e.from, `−${e.retaliation}`, "#ffb74d");
           }
-          if (e.defenderKilled) lines.push("A unit fell.");
-          if (e.attackerKilled) lines.push("The attacker fell.");
+          if (e.defenderKilled) lines.push("A unit died.");
+          if (e.attackerKilled) lines.push("The attacking unit died.");
           break;
         case "spawn":
           this.board.effect(e.at, "effect.spawn");
@@ -314,7 +314,7 @@ export class DominionView implements GameView {
         }
         case "city-level": {
           const city = p?.cities.find((c) => c.mine?.id === e.city);
-          lines.push(`${city?.name ?? "A city"} grew to level ${e.level}. Pick a reward.`);
+          lines.push(`${city?.name ?? "A city"} grew to level ${e.level}. Choose a reward.`);
           if (city) this.board.effect(city.at, "effect.city_upgrade", "effect.spawn");
           break;
         }
@@ -327,24 +327,24 @@ export class DominionView implements GameView {
           break;
         case "sabotage":
           this.board.effect(e.at, "effect.sabotage", "effect.hit");
-          lines.push(e.by === p?.me ? "Sabotage: their city pays nothing next turn." : `Sabotage in ${p?.cities.find((c) => c.at === e.at)?.name ?? "a city"}!`);
+          lines.push(e.by === p?.me ? "Sabotage done. Their city gives no credits next turn." : `Sabotage in ${p?.cities.find((c) => c.at === e.at)?.name ?? "a city"}!`);
           break;
         case "contact":
           lines.push(`You've met ${this.player(e.with).name}.`);
           break;
         case "peace-offered":
-          lines.push(e.from === p?.me ? `Peace offered to ${this.player(e.to).name}.` : `${this.player(e.from).name} offers peace. Open Diplomacy to answer.`);
+          lines.push(e.from === p?.me ? `You offered peace to ${this.player(e.to).name}.` : `${this.player(e.from).name} offers peace. Open Diplomacy to reply.`);
           break;
         case "peace-answered": {
           const other = e.from === p?.me ? e.to : e.from;
-          lines.push(e.accepted ? `Peace with ${this.player(other).name}.` : `${this.player(other).name} ${e.from === p?.me ? "declined" : "was declined"}.`);
+          lines.push(e.accepted ? `Peace with ${this.player(other).name}.` : `${e.from === p?.me ? `${this.player(other).name} said no.` : `You said no to ${this.player(other).name}.`}`);
           break;
         }
         case "peace-broken":
-          lines.push(e.by === p?.me ? `You broke peace with ${this.player(e.with).name}.` : `${this.player(e.by).name} broke the peace. War at the start of their next turn.`);
+          lines.push(e.by === p?.me ? `You broke peace with ${this.player(e.with).name}.` : `${this.player(e.by).name} broke the peace. War starts on their next turn.`);
           break;
         case "embassy":
-          lines.push(e.from === p?.me ? `Embassy opened with ${this.player(e.to).name}.` : `${this.player(e.from).name} opened an embassy with you.`);
+          lines.push(e.from === p?.me ? `You opened an embassy with ${this.player(e.to).name}.` : `${this.player(e.from).name} opened an embassy with you.`);
           break;
         case "splash":
           this.board.effect(e.at, "effect.splash", "effect.hit");
@@ -352,11 +352,11 @@ export class DominionView implements GameView {
           break;
         case "beacon":
           this.board.effect(e.at, "effect.discovery");
-          lines.push("Found a beacon: +1 population for your capital.");
+          lines.push("You found a beacon. Your capital gets +1 population.");
           break;
         case "convert":
           this.board.effect(e.at, "effect.conversion", "effect.capture");
-          lines.push(e.by === p?.me ? "Converted. They fight for you now." : `${this.player(e.by).name} converted a unit.`);
+          lines.push(e.by === p?.me ? "The unit joined your side. It fights for you now." : `${this.player(e.by).name} took a unit to their side.`);
           break;
         case "monument":
           this.board.effect(e.at, "effect.spawn");
@@ -375,7 +375,7 @@ export class DominionView implements GameView {
           this.board.floatText(e.at, "−1", "#9be15d");
           break;
         case "achievement":
-          lines.push(`Milestone: ${MONUMENTS[e.kind as keyof typeof MONUMENTS]?.name ?? "a monument"}. Place it on your land.`);
+          lines.push(`Milestone: ${MONUMENTS[e.kind as keyof typeof MONUMENTS]?.name ?? "a monument"}. Put the monument on your land.`);
           break;
         case "eliminated":
           lines.push(`${this.player(e.playerId).name} ${e.playerId === p?.me ? "are" : "is"} out.`);
@@ -434,7 +434,7 @@ export class DominionView implements GameView {
         this.act({ type: "freeze", unit: sel.id, target: tile }, "freeze");
       } else {
         this.armedAttack = tile;
-        this.say(`Freeze this water into ice for ${ICE.cost}¢? It ends the unit's turn. Tap again.`);
+        this.say(`Freeze this water into ice for ${ICE.cost}¢? The unit's turn ends. Tap again to freeze.`);
       }
       this.render();
       return;
@@ -446,7 +446,7 @@ export class DominionView implements GameView {
         this.act({ type: "convert", unit: sel.id, target: tile }, "convert");
       } else {
         this.armedAttack = tile;
-        this.say("Tap again to convert this unit to your side.");
+        this.say("Tap again. This unit will join your side.");
       }
       this.render();
       return;
@@ -459,7 +459,7 @@ export class DominionView implements GameView {
           this.act({ type: "attack", unit: sel.id, target: tile }, "attack");
         } else {
           this.armedAttack = tile;
-          this.say(`Deals ${attack.damage}${attack.retaliation ? `, takes ${attack.retaliation} back` : ", no return fire"}. Tap again to attack.`);
+          this.say(`You deal ${attack.damage}${attack.retaliation ? `. You take ${attack.retaliation}` : ". You take 0"}. Tap again to attack.`);
         }
         this.render();
         return;
@@ -687,16 +687,16 @@ export class DominionView implements GameView {
       t.road ? "road" : null,
       !city && t.owner ? `${this.player(t.owner).name === "You" ? "your" : `${this.player(t.owner).name}'s`} land` : null,
       unit ? `${this.player(unit.owner).name === "You" ? "your" : `${this.player(unit.owner).name}'s`} ${UNITS[unit.type].name}, ${unit.hp} of ${unit.maxHp} HP` : null,
-      t.vis ? null : t.seen >= 0 ? `last seen round ${t.seen}` : "mapped, never seen",
+      t.vis ? null : t.seen >= 0 ? `last seen round ${t.seen}` : "on the map, never seen",
     ].filter(Boolean);
     const sel = this.selectedUnit();
     const attack = sel ? p.attacks[sel.id]?.find((a) => a.target === i) : undefined;
     const hint = attack
-      ? `Enter to attack: deals ${attack.damage}, takes ${attack.retaliation}.`
+      ? `Press Enter to attack. You deal ${attack.damage}. You take ${attack.retaliation}.`
       : sel && p.moves[sel.id]?.includes(i)
-        ? "Enter to move here."
+        ? "Press Enter to move here."
         : sel && p.freezes[sel.id]?.includes(i)
-          ? "Enter to freeze."
+          ? "Press Enter to freeze."
           : "";
     return `${where}: ${bits.join(", ")}. ${hint}`.trim();
   }
@@ -776,7 +776,7 @@ export class DominionView implements GameView {
     // Unused units or open rewards: ask once, then honour a deliberate save.
     if ((idle || rewards) && !this.endArmed) {
       this.endArmed = true;
-      this.say(rewards ? "A city reward is waiting. Ending now picks the first option." : `${plural(idle, "unit")} can still act.`);
+      this.say(rewards ? "You have a city reward to choose. If you end now, you get the first one." : `${plural(idle, "unit")} can still act.`);
       this.renderHud();
       return;
     }
@@ -796,7 +796,7 @@ export class DominionView implements GameView {
       this.res,
       h(
         "div",
-        { class: "dm-purse", title: "Credits, and what your cities pay each turn" },
+        { class: "dm-purse", title: "Your credits, and what your cities give each turn" },
         h("span", { class: "dm-coin", "aria-hidden": "true" }),
         h("strong", { class: "dm-credits" }, p ? String(p.credits) : "–"),
         p ? h("span", { class: "dm-income" }, `+${p.income} a turn`) : null,
@@ -813,7 +813,7 @@ export class DominionView implements GameView {
     const headline =
       this.replay ? `Replay: ${current ? `${current.name === "You" ? "your" : `${current.name}'s`} turn` : "the end"}`
       : pub.phase === "finished" ? "Game over"
-      : p?.eliminated ? "Your empire has fallen"
+      : p?.eliminated ? "You lost all your cities"
       : myTurn ? "Your turn"
       : current ? `${current.name} is ${pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing"}`
       : "";
@@ -839,7 +839,7 @@ export class DominionView implements GameView {
     if (pub.phase === "finished" && p?.replay) {
       this.endBtn.disabled = false;
       this.endBtn.classList.remove("armed");
-      replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Watch replay"), h("span", { class: "dm-end-sub" }, "Turn by turn, fog lifted"));
+      replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Watch replay"), h("span", { class: "dm-end-sub" }, "Turn by turn, no fog"));
       return this.renderClock();
     }
     this.endBtn.disabled = !myTurn;
@@ -947,7 +947,7 @@ export class DominionView implements GameView {
           },
           h("span", { class: "dm-glyph", "aria-hidden": "true" }, look.glyph),
           look.name,
-          pl.bot ? h("span", { class: "dm-cpu", title: pl.caretaker ? "Removed; the computer keeps their empire going" : `Computer, ${pl.bot}` }, pl.caretaker ? "CPU for them" : "CPU") : null,
+          pl.bot ? h("span", { class: "dm-cpu", title: pl.caretaker ? "This player left. The computer plays for them" : `Computer, ${pl.bot}` }, pl.caretaker ? "CPU for them" : "CPU") : null,
           pl.team !== undefined && pl.team !== null ? h("span", { class: "dm-cpu", title: "Team" }, `T${pl.team + 1}`) : null,
         );
       }),
@@ -991,7 +991,7 @@ export class DominionView implements GameView {
   }
 
   private tileSection(i: number, tile: KnownTile | null, city: KnownCity | undefined): HTMLElement {
-    if (!tile) return h("section", {}, h("h3", {}, "Unexplored"), h("p", { class: "dm-muted" }, "Send a unit to find out."));
+    if (!tile) return h("section", {}, h("h3", {}, "Unexplored"), h("p", { class: "dm-muted" }, "Send a unit to see this tile."));
     const owner = tile.owner ? this.player(tile.owner) : null;
     const title = city ? city.name : tile.feat === "village" ? "Village" : tile.feat === "ruins" ? "Ruins" : tile.feat === "beacon" ? "Beacon" : TERRAIN[tile.t].name;
     const bits = [
@@ -1008,12 +1008,12 @@ export class DominionView implements GameView {
       {},
       h("h3", {}, title),
       bits.length ? h("p", { class: "dm-muted" }, bits.join(", ")) : null,
-      !tile.vis ? h("p", { class: "dm-stale" }, tile.seen >= 0 ? `Last seen in round ${tile.seen}. It may have changed.` : "Mapped, never visited.") : null,
-      tile.feat === "village" ? h("p", {}, "A neutral village. Move a unit in, then capture it next turn.") : null,
-      tile.feat === "ruins" ? h("p", {}, "Old ruins. The first unit to step in finds something.") : null,
-      tile.feat === "beacon" ? h("p", {}, "A beacon. Each empire that first sights it gains a population in its capital.") : null,
-      tile.t === "ocean" && !this.priv!.techs.includes("navigation") ? h("p", { class: "dm-muted" }, "Ships need Navigation for open ocean.") : null,
-      tile.t === "mountain" && !this.priv!.techs.includes("climbing") ? h("p", { class: "dm-muted" }, "Needs Climbing to cross.") : null,
+      !tile.vis ? h("p", { class: "dm-stale" }, tile.seen >= 0 ? `Last seen in round ${tile.seen}. The tile may have changed.` : "On the map, but never visited.") : null,
+      tile.feat === "village" ? h("p", {}, "A village with no owner. Move a unit in. Capture the village next turn.") : null,
+      tile.feat === "ruins" ? h("p", {}, "Old ruins. The first unit to step in gets a prize.") : null,
+      tile.feat === "beacon" ? h("p", {}, "A beacon. The first player to see it gets +1 population in their capital.") : null,
+      tile.t === "ocean" && !this.priv!.techs.includes("navigation") ? h("p", { class: "dm-muted" }, "Ships need Navigation to go on the open ocean.") : null,
+      tile.t === "mountain" && !this.priv!.techs.includes("climbing") ? h("p", { class: "dm-muted" }, "You need Climbing to cross this.") : null,
       h("p", { class: "dm-sr" }, `Row ${rowOf(i, this.pub!.size) + 1}, column ${colOf(i, this.pub!.size) + 1}`),
     );
   }
@@ -1036,13 +1036,13 @@ export class DominionView implements GameView {
             type: "button",
             class: "primary dm-btn",
             disabled: !mine.settled,
-            title: mine.settled ? "" : "Units capture the turn after they arrive",
+            title: mine.settled ? "" : "A unit can capture on the turn after it arrives",
             onclick: () => this.act({ type: "capture", unit: unit.id }, "capture"),
           }, mine.settled ? "Capture" : "Capture next turn"),
         );
       }
       if (fresh && (unit.hp < unit.maxHp || unit.poisoned)) {
-        const label = unit.poisoned ? "Cleanse poison" : "Heal";
+        const label = unit.poisoned ? "Remove poison" : "Heal";
         actions.push(h("button", { type: "button", class: "dm-btn", onclick: () => this.act({ type: "heal", unit: unit.id }, label.toLowerCase()) }, label));
       }
       if (fresh && def.evolvesInto) {
@@ -1079,11 +1079,11 @@ export class DominionView implements GameView {
         const hurt = p.units.some(
           (u) => u.id !== unit.id && this.alliedWith(u.owner) && (u.hp < u.maxHp || u.poisoned) && chebyshev(u.at, unit.at, this.pub!.size) === 1,
         );
-        actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "Nobody beside it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Mend neighbours"));
-        if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap a purple-ringed enemy to convert it."));
+        actions.push(h("button", { type: "button", class: "dm-btn", disabled: !hurt, title: hurt ? "" : "No unit next to it is hurt", onclick: () => this.act({ type: "mend", unit: unit.id }, "mend") }, "Heal nearby"));
+        if (p.converts[unit.id]?.length) actions.push(h("p", { class: "dm-muted" }, "Tap an enemy with a purple ring. That enemy joins your side."));
       }
       if (p.freezes[unit.id]?.length) {
-        actions.push(h("p", { class: "dm-muted" }, `Tap a blue-ringed water tile to freeze it (${ICE.cost}¢, ends the turn). Ice lasts ${ICE.rounds} rounds unless your people stay near it.`));
+        actions.push(h("p", { class: "dm-muted" }, `Tap a blue-ringed water tile to freeze it (${ICE.cost}¢, ends the turn). Ice lasts ${ICE.rounds} rounds, longer if your people stay near it.`));
       }
       if (def.stealth && !mine.done && !unit.vessel && city && city.owner !== p.me && !this.alliedWith(city.owner)) {
         const atPeace = p.diplomacy.some((d) => d.id === city.owner && d.relation !== "war");
@@ -1094,7 +1094,7 @@ export class DominionView implements GameView {
               type: "button",
               class: "dm-btn primary",
               disabled: atPeace,
-              title: atPeace ? "Not while you're at peace with them" : "",
+              title: atPeace ? "You are at peace with them" : "",
               onclick: () => this.act({ type: "sabotage", unit: unit.id }, "sabotage"),
             },
             "Sabotage",
@@ -1169,12 +1169,12 @@ export class DominionView implements GameView {
       mine?.maturesIn !== undefined && def.matures
         ? h("p", { class: "dm-muted" }, `Becomes a ${UNITS[def.matures.into].name.toLowerCase()} in ${mine.maturesIn} turn${mine.maturesIn === 1 ? "" : "s"}.`)
         : null,
-      def.flying ? h("p", { class: "dm-muted" }, "Flies over water, peaks and enemy lines; lands on solid ground. Can't capture.") : null,
-      unit.chilled ? h("p", { class: "dm-warn" }, "Chilled: can't move next turn.") : null,
-      unit.poisoned ? h("p", { class: "dm-warn" }, "Poisoned: loses 1 HP a turn and can't heal. Healing draws it out.") : null,
-      def.networkMove ? h("p", { class: "dm-muted" }, "Quick on your mycelium, slow off it.") : null,
-      def.habitat === "amphibious" ? h("p", { class: "dm-muted" }, "Walks land and shallows alike, no ship needed.") : null,
-      def.habitat === "water" ? h("p", { class: "dm-muted" }, "Lives in the water, open ocean included. Can't capture.") : null,
+      def.flying ? h("p", { class: "dm-muted" }, "It flies over water, mountains and enemy lines. It must stop on land. It can't take cities.") : null,
+      unit.chilled ? h("p", { class: "dm-warn" }, "Frozen. It can't move next turn.") : null,
+      unit.poisoned ? h("p", { class: "dm-warn" }, "Poisoned. It loses 1 HP each turn. It can't heal. Use Remove poison to fix this.") : null,
+      def.networkMove ? h("p", { class: "dm-muted" }, "Fast on your mycelium. Slow off it.") : null,
+      def.habitat === "amphibious" ? h("p", { class: "dm-muted" }, "It walks on land and in shallow water. It needs no ship.") : null,
+      def.habitat === "water" ? h("p", { class: "dm-muted" }, "It lives in the water, and in the open ocean. It can't take cities.") : null,
       actions.length ? h("div", { class: "dm-actions" }, actions) : null,
     );
   }
@@ -1188,7 +1188,7 @@ export class DominionView implements GameView {
         "section",
         {},
         h("h4", {}, h("span", { class: "dm-swatch", style: `--c:${owner.color}` }), `Level ${city.level}${city.capital ? " capital" : ""}`, h("span", { class: "dm-muted" }, ` · ${city.owner ? owner.name : "unclaimed"}`)),
-        city.owner === null ? h("p", {}, "Abandoned. Move a unit in and capture it.") : null,
+        city.owner === null ? h("p", {}, "Nobody owns this city. Move a unit in. Then capture the city.") : null,
       );
     }
     const inc = m.income;
@@ -1200,7 +1200,7 @@ export class DominionView implements GameView {
         def.needs && !p.techs.includes(def.needs) ? `Needs ${TECHS[def.needs].name}`
         : m.occupied ? "Enemy in the city"
         : p.units.some((u) => u.at === city.at) ? "City tile is taken"
-        : m.units >= m.capacity ? "No room: grow the city"
+        : m.units >= m.capacity ? "No room. Grow the city"
         : credits < def.cost ? "Not enough credits"
         : null;
       if (def.needs && !p.techs.includes(def.needs)) return null;
@@ -1294,17 +1294,17 @@ export class DominionView implements GameView {
         case "absorb":
           return { name: `Absorb ${res}`, cost: NETWORK.absorbCost, pop: NETWORK.absorbPop };
         case "spread":
-          return { name: "Spread mycelium", cost: NETWORK.spreadCost, pop: 0, extra: "your swarm moves fast on it" };
+          return { name: "Spread mycelium", cost: NETWORK.spreadCost, pop: 0, extra: "your units move fast on it" };
         case "demolish":
           return { name: `Demolish ${IMPROVEMENT_NAMES[tile.imp!].toLowerCase()}`, cost: DEMOLISH_COST, pop: 0 };
         default: {
           const d = DEVELOP[kind];
           const extra: Partial<Record<DevelopKind, string>> = {
-            mill: "+1 pop per farm beside it",
-            forge: "+1 pop per mine beside it",
-            market: "+1¢ per workshop beside it",
-            grove: "still counts as wild forest",
-            reef_nest: "+1¢ beside 2 fish or reefs; boards ships",
+            mill: "+1 pop for each farm next to it",
+            forge: "+1 pop for each mine next to it",
+            market: "+1¢ for each workshop next to it",
+            grove: "still counts as forest",
+            reef_nest: "+1¢ next to 2 fish or reefs. Units get on ships here",
           };
           return { name: d.name, cost: d.cost, pop: d.pop, extra: extra[kind] };
         }
@@ -1461,7 +1461,7 @@ export class DominionView implements GameView {
     try {
       modules = await Promise.all([import("../server/replay.ts"), import("../server/projection.ts"), import("../server/game.ts")]);
     } catch {
-      this.say("The replay didn't load. Check your connection and try again.");
+      this.say("The replay did not load. Check your internet and try again.");
       this.endBtn.disabled = false;
       this.renderHud();
       return;
@@ -1700,10 +1700,10 @@ function ruinText(r: Extract<DominionEvent, { type: "ruins" }>["reward"]): strin
     case "population":
       return `+${r.amount} population for a nearby city.`;
     case "tech":
-      return `the secret of ${TECHS[r.tech].name}.`;
+      return `you learn ${TECHS[r.tech].name}.`;
     case "unit":
-      return "a band of fighters joins you.";
+      return "some fighters join you.";
     case "explore":
-      return "a map of the surrounding land.";
+      return "you see a map of the land nearby.";
   }
 }

@@ -101,10 +101,10 @@ export function diplomacyScreen({ view, round, who, act, onClose }: DiplomacyOpt
         ? `Since round ${d.peaceSince} (${round - d.peaceSince} rounds)`
         : d.relation === "notice"
           ? d.brokenBy === view.me
-            ? "You broke it. Hostilities open at the start of your next turn."
-            : "They broke it. Hostilities open at the start of their next turn."
+            ? "You broke the peace. War starts on your next turn."
+            : "They broke the peace. War starts on their next turn."
           : d.offerFromThem
-            ? "They're offering peace."
+            ? "They offer peace."
             : "";
     return h(
       "li",

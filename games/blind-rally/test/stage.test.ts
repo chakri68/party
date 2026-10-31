@@ -18,8 +18,8 @@ describe("stage mode selection", () => {
   });
 
   it("is in the rules everyone sees before ready-up", () => {
-    expect(rulesPreview({ stageMode: "shared" }).find((r) => r.label === "Stage")!.value).toBe("Shared: one road, rivals as ghosts");
-    expect(rulesPreview({ stageMode: "solo" }).find((r) => r.label === "Stage")!.value).toBe("Solo: a road each");
+    expect(rulesPreview({ stageMode: "shared" }).find((r) => r.label === "Stage")!.value).toBe("Shared: 1 road, other cars are ghosts");
+    expect(rulesPreview({ stageMode: "solo" }).find((r) => r.label === "Stage")!.value).toBe("Solo: each car has its own road");
   });
 
   it("shared with a team vote: one ballot, and its winner is every car's course", () => {

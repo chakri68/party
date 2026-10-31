@@ -30,13 +30,13 @@ export function displayCluster(cluster: string, modes: BombModes): string {
  * shake without a round trip. Everything here is objective: no vote overrides it.
  */
 export function shapeProblem(word: string, cluster: string, modes: BombModes = NO_MODES): string | null {
-  if (!/^[a-z]+$/.test(word)) return "Letters only.";
-  if (word.length < MIN_WORD) return `${MIN_WORD} letters at least.`;
+  if (!/^[a-z]+$/.test(word)) return "Use letters only.";
+  if (word.length < MIN_WORD) return `The word needs ${MIN_WORD} letters or more.`;
   if (word.length > MAX_WORD) return "That's not a word.";
   if (modes.length && (word.length < LENGTH_MIN || word.length > LENGTH_MAX)) return `${LENGTH_MIN} to ${LENGTH_MAX} letters.`;
   const fits = modes.ending ? word.endsWith(cluster) : word.includes(cluster);
   if (fits) return null;
-  return `It needs ${wanted(cluster, modes)}${modes.ending ? "" : " in it"}${modes.reverse ? REVERSED_NOTE : ""}.`;
+  return `The word needs ${wanted(cluster, modes)}${modes.ending ? "" : " in it"}${modes.reverse ? REVERSED_NOTE : ""}.`;
 }
 
 /**
@@ -48,7 +48,7 @@ export function wanted(cluster: string, modes: BombModes): string {
 }
 
 /** Tacked on wherever reverse mode might make the bomb and the copy look like they disagree. */
-export const REVERSED_NOTE = " (the bomb's backwards)";
+export const REVERSED_NOTE = " (the bomb shows it backwards)";
 
 /** Untrusted typing off the stream → clean, or null. */
 export function parseTyping(input: unknown): TypingData | null {

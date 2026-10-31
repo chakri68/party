@@ -77,10 +77,10 @@ class DriverView implements RoleView {
     this.reset.addEventListener("click", (e) => e.detail === 0 && this.onReset());
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
-    this.end.addEventListener("click", () => confirm("End the race now? Anyone still out is DNF.") && api.act({ type: "race.end" }));
+    this.end.addEventListener("click", () => confirm("End the race now? Cars still driving get a DNF.") && api.act({ type: "race.end" }));
     const fs = fullscreenButton();
     if (fs) this.top.append(fs);
-    if (!coarse()) this.msg.textContent = "WASD or arrow keys.";
+    if (!coarse()) this.msg.textContent = "Use WASD or the arrow keys.";
 
     // Nothing on this screen scrolls or zooms: a stray pinch mid-hairpin is a crash.
     const stop = (e: Event) => e.preventDefault();
@@ -125,7 +125,7 @@ class DriverView implements RoleView {
     for (const ev of props.events) {
       if (this.seenEvents.has(ev)) continue;
       this.seenEvents.add(ev);
-      if (ev.type === "reset" && ev.teamId === team?.id) this.say(`Reset. ${ev.penaltyMs / 1000} s of penalties so far.`);
+      if (ev.type === "reset" && ev.teamId === team?.id) this.say(`Reset done. You have ${ev.penaltyMs / 1000} s added so far.`);
     }
     this.tick();
   }
@@ -211,8 +211,8 @@ class DriverView implements RoleView {
     const navName = navId ? seatName(p.room, navId) : "your Navigator";
     let text: string;
     let tone: "ok" | "warn" | "bad";
-    if (!navigator.onLine) [text, tone] = ["You're offline", "bad"];
-    else if (!navSeat || navSeat.presence !== "connected") [text, tone] = [`${navName} dropped out`, "bad"];
+    if (!navigator.onLine) [text, tone] = ["You are offline", "bad"];
+    else if (!navSeat || navSeat.presence !== "connected") [text, tone] = [`${navName} disconnected`, "bad"];
     else if (waiting) [text, tone] = [p.game.startBlocker ?? "Waiting for the host", "warn"];
     else if (p.game.phase === "finished") [text, tone] = ["Race over", "warn"];
     else if (this.liveSince && performance.now() - Math.max(this.lastDash, this.liveSince) > SIGNAL_LOST_MS) [text, tone] = [`No signal from ${navName}`, "warn"];

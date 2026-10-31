@@ -22,18 +22,18 @@ function steps(kind: FactionKind): Step[] {
   const harvest = f.tends ? "Tend" : f.absorbs ? "Absorb or harvest" : "Harvest";
   const sail =
     f.noShips
-      ? { title: "Cross the water", how: "Select a unit beside the shallows and tap a blue-ringed tile to freeze it. Then walk across the ice." }
+      ? { title: "Cross the water", how: "Tap a unit next to shallow water. Tap a tile with a blue ring. The water freezes. Then walk on the ice." }
       : kind === "tidefolk"
-        ? { title: "Take to the water", how: "Your shell guards walk straight into the shallows. Move one onto the water." }
-        : { title: "Go to sea", how: "Research Sailing, build a port on your shore, and walk a unit onto it to board a ship." };
+        ? { title: "Go into the water", how: "Your shell guards can walk in shallow water. Move a shell guard onto the water." }
+        : { title: "Go to sea", how: "Research Sailing. Build a port on your coast. Walk a unit onto the port. The unit gets on a boat." };
   return [
-    { id: "explore", title: "Explore", how: "Tap one of your units, then a highlighted tile to move there. The fog lifts as you go." },
-    { id: "harvest", title: `${harvest} a resource`, how: `Tap fruit, game or fish inside your borders and choose ${harvest.toLowerCase()} in the inspector. It grows the city.` },
-    { id: "grow", title: "Grow a city", how: "Keep developing a city's tiles until it reaches level 2, then pick a reward." },
-    { id: "research", title: "Research a technology", how: "Open Research, bottom left. Each tech unlocks units or buildings." },
-    { id: "recruit", title: "Train a unit", how: "Tap one of your cities with its tile empty and train a unit." },
-    { id: "fight", title: "Win a fight", how: "Select a unit next to an enemy and tap the red-ringed target. You see the damage before you commit." },
-    { id: "capture", title: "Take a village", how: "Move a unit onto a village, wait a turn, then press Capture. Villages become cities." },
+    { id: "explore", title: "Explore", how: "Tap one of your units. Then tap a lit-up tile. Your unit moves there. You see more of the map as you move." },
+    { id: "harvest", title: `${harvest} a resource`, how: `Tap fruit, wild game or fish inside your borders. Choose ${harvest.toLowerCase()} in the side panel. Your city grows.` },
+    { id: "grow", title: "Grow a city", how: "Build on a city's tiles. Do this until the city reaches level 2. Then choose a reward." },
+    { id: "research", title: "Research a technology", how: "Open Research at the bottom left. Each tech gives you new units or buildings." },
+    { id: "recruit", title: "Train a unit", how: "Tap one of your cities. The city tile must be empty. Train a unit." },
+    { id: "fight", title: "Win a fight", how: "Tap a unit next to an enemy. Tap the enemy with the red ring. You see the damage before you attack." },
+    { id: "capture", title: "Take a village", how: "Move a unit onto a village. Wait 1 turn. Then press Capture. The village becomes your city." },
     { id: "sail", ...sail },
   ];
 }
@@ -136,7 +136,7 @@ export class Tutorial {
             type: "button",
             class: "dm-coach-hide",
             "aria-label": "Hide first steps",
-            title: "Hide. The guide (?) brings them back.",
+            title: "Hide. Open the guide (?) to see them again.",
             onclick: () => {
               this.progress.hidden = true;
               save(this.progress);

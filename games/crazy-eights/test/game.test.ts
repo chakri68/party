@@ -210,7 +210,7 @@ describe("seating", () => {
     const s = stateWith([["hearts-K", "spades-2"], ["clubs-9"]]);
     const t = ce.onPlayerRemoved!(s, "p1", ctx());
     expect(t.state).toMatchObject({ phase: "finished", winnerIds: ["p0"], endReason: "abandoned" });
-    expect(ce.getResult(t.state)!.standings[0]).toMatchObject({ playerId: "p0", label: "last one standing" });
+    expect(ce.getResult(t.state)!.standings[0]).toMatchObject({ playerId: "p0", label: "last player left" });
   });
 
   it("lets the host skip the current player", () => {

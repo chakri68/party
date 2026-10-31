@@ -20,7 +20,7 @@ describe("openers", () => {
 describe("word shape", () => {
   it("wants letters, three or more, starting with the letter", () => {
     expect(shapeProblem("tiger", "t")).toBeNull();
-    expect(shapeProblem("ti ger", "t")).toMatch(/Letters only/);
+    expect(shapeProblem("ti ger", "t")).toMatch(/letters only/);
     expect(shapeProblem("to", "t")).toMatch(/3 letters/);
     expect(shapeProblem("river", "t")).toMatch(/start with T/);
     expect(shapeProblem("t".repeat(31), "t")).toMatch(/not a word/);

@@ -26,7 +26,7 @@ describe("clusters", () => {
 describe("word shape", () => {
   it("wants letters, three or more, with the cluster in one piece", () => {
     expect(shapeProblem("singer", "ing")).toBeNull();
-    expect(shapeProblem("sin ger", "ing")).toMatch(/Letters only/);
+    expect(shapeProblem("sin ger", "ing")).toMatch(/letters only/);
     expect(shapeProblem("ing", "ing")).toBeNull(); // the dictionary gets the final say
     expect(shapeProblem("in", "in")).toMatch(/3 letters/);
     expect(shapeProblem("signing", "tr")).toMatch(/TR/);
@@ -92,14 +92,14 @@ describe("modes", () => {
   it("shapeProblem: ending wants the end, length wants 5 to 10", () => {
     const end = { ...NO_MODES, ending: true };
     expect(shapeProblem("running", "ing", end)).toBeNull();
-    expect(shapeProblem("singer", "ing", end)).toBe("It needs ING at the end.");
+    expect(shapeProblem("singer", "ing", end)).toBe("The word needs ING at the end.");
     const len = { ...NO_MODES, length: true };
     expect(shapeProblem("sing", "ing", len)).toMatch(/5 to 10/);
     expect(shapeProblem("singing", "ing", len)).toBeNull();
     expect(shapeProblem("overthinking", "ing", len)).toMatch(/5 to 10/);
     // Always the letters to type, with a note that the bomb's the other way round.
-    expect(shapeProblem("train", "ing", { ...NO_MODES, reverse: true })).toBe("It needs ING in it (the bomb's backwards).");
-    expect(shapeProblem("singer", "ive", { ...NO_MODES, reverse: true, ending: true })).toBe("It needs IVE at the end (the bomb's backwards).");
+    expect(shapeProblem("train", "ing", { ...NO_MODES, reverse: true })).toBe("The word needs ING in it (the bomb shows it backwards).");
+    expect(shapeProblem("singer", "ive", { ...NO_MODES, reverse: true, ending: true })).toBe("The word needs IVE at the end (the bomb shows it backwards).");
     // Off, it's the shipped rule.
     expect(shapeProblem("singer", "ing")).toBe(shapeProblem("singer", "ing", NO_MODES));
   });
@@ -176,14 +176,14 @@ describe("settings fields", () => {
   it("lives, fuse, four modes and unknown words, defaults selected", () => {
     const fields = passTheBombSettingFields(DEFAULT_SETTINGS);
     expect(fields.map((f) => f.key)).toEqual(["lives", "fuse", "ending", "reverse", "length", "category", "unknown"]);
-    expect(fields.find((f) => f.key === "unknown")!.options[fields.find((f) => f.key === "unknown")!.selected]!.label).toBe("Room votes");
+    expect(fields.find((f) => f.key === "unknown")!.options[fields.find((f) => f.key === "unknown")!.selected]!.label).toBe("Players vote");
     expect(fields.find((f) => f.key === "ending")!.selected).toBe(0);
     expect(fields.every((f) => f.options.every((o) => !o.label.includes("too few")))).toBe(true);
   });
 
   it("warns when a combination is thin", () => {
     const fields = passTheBombSettingFields({ ...DEFAULT_SETTINGS, ending: true, length: true, category: true });
-    expect(fields.find((f) => f.key === "category")!.hint).toMatch(/Thin/);
+    expect(fields.find((f) => f.key === "category")!.hint).toMatch(/Only about/);
     expect(fields.find((f) => f.key === "reverse")!.hint).toMatch(/ING/);
   });
 });

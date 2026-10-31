@@ -3,13 +3,24 @@ import { DEFAULT_SETTINGS, type DontSayItSettings, TURN_SECONDS_OPTIONS, TURNS_O
 
 /** Plain-language rules for the lobby's Rules button (§25). */
 export const dontSayItRules: string[] = [
-  "Two teams, Amber and Teal. Switch sides before the start if you like; the host can shuffle.",
-  "Teams take turns. One of you describes, out loud, and the rest of your team guesses.",
-  "The card has the word and five more you can't say either. No rhymes, no spelling, no pointing at things.",
-  "Got it: +1. Skip: 0. Oops (you said one): −1. Then the next card.",
-  "The other team sees the card too. If they hear a slip, they buzz and the clock stops.",
-  "Fair: −1. Contest it and the other team's captain decides: uphold it (−1) or drop it and carry on.",
-  "A team's total never goes below 0. Most points after the last turn wins. A tie gets one more turn each; still tied after that, it's a draw and both teams win.",
+  "The game has 2 teams: Amber and Teal.",
+  "You can change your team before the game starts. The host can mix up the teams.",
+  "The teams take turns.",
+  "On your team's turn, 1 player describes a word out loud. This player is the describer.",
+  "The other players on the team guess the word.",
+  "Each card shows the word and 5 more words. These 6 words are banned. You can't say them.",
+  "You can't spell the word. You can't say a word that sounds like it. You can't point at things.",
+  "Your team guesses the word: your team gets +1.",
+  "You skip the card: your team gets 0.",
+  "You say a banned word: your team gets −1.",
+  "After each card, you get the next card.",
+  "The other team can see the card too. If they hear a banned word, they press Buzz. The clock stops.",
+  "You can agree with the buzz. Then your team gets −1.",
+  "You can say the buzz is not fair. Then the other team's captain decides. The captain accepts the buzz (−1) or rejects it.",
+  "A team's score never goes below 0.",
+  "After the last turn, the team with more points wins.",
+  "If the scores are equal, each team plays 1 more turn.",
+  "If the scores are still equal, both teams win.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */

@@ -18,10 +18,10 @@ export interface Role extends RoleSpec {
 
 /** Deck order, which is also the lobby's row order. */
 export const ROLES: readonly Role[] = [
-  { id: "wolf", label: "Wolf", team: "wolves", max: 5, acts: true, blurb: "Each night, vote with the other Wolves on someone to take." },
-  { id: "watcher", label: "Watcher", team: "village", max: 1, acts: true, blurb: "Each night, pick a player. At dawn, learn whether they're a Wolf." },
-  { id: "keeper", label: "Keeper", team: "village", max: 1, acts: true, blurb: "Each night, shelter one player, yourself included. Never the same one two nights running." },
-  { id: "villager", label: "Villager", team: "village", max: 11, acts: false, blurb: "No night power. Talk, listen, vote." },
+  { id: "wolf", label: "Wolf", team: "wolves", max: 5, acts: true, blurb: "Each night, choose 1 player to attack, with the other Wolves." },
+  { id: "watcher", label: "Watcher", team: "village", max: 1, acts: true, blurb: "Each night, choose 1 player. At dawn, you learn if they are a Wolf." },
+  { id: "keeper", label: "Keeper", team: "village", max: 1, acts: true, blurb: "Each night, protect 1 player. It can be you. You can't protect the same player 2 nights in a row." },
+  { id: "villager", label: "Villager", team: "village", max: 11, acts: false, blurb: "You have no power at night. Talk, listen and vote." },
 ];
 
 export const roleById = (id: RoleId): Role => ROLES.find((r) => r.id === id)!;
@@ -70,8 +70,8 @@ export function setupProblem(settings: NightfallSettings, players: number): stri
   const problem = deckProblem(deck, [...ROLES], DECK_RULES, players);
   if (problem) return problem;
   const wolves = deck.wolf ?? 0;
-  if (players - wolves < 2) return "Needs at least two non-wolf cards";
+  if (players - wolves < 2) return "You need at least 2 cards that are not Wolf";
   // At parity the Wolves have already won.
-  if (wolves >= players - wolves) return "Wolves must be fewer than everyone else";
+  if (wolves >= players - wolves) return "There must be fewer Wolves than other players";
   return null;
 }

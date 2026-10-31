@@ -287,9 +287,9 @@ function headline(state: State): string {
   const lo = Math.min(a, b);
   if (state.endReason === "abandoned") {
     const short = sizes(state.players)[0] < MIN_TEAM ? TEAM_NAMES[0] : TEAM_NAMES[1];
-    return a === b ? `${short} ran short of players` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}. ${short} ran short of players`;
+    return a === b ? `${short} didn't have enough players` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}. ${short} didn't have enough players`;
   }
-  return a === b ? `A draw, ${a} all. Both teams win` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}`;
+  return a === b ? `The scores are equal, ${a} each. Both teams win` : `${TEAM_NAMES[lead]} win, ${hi} to ${lo}`;
 }
 
 /** Last match's ids plus this one's. Once that's the whole deck, just this one's. */
@@ -387,8 +387,8 @@ export const dontSayItGame: GameDefinition<
 
     switch (action.type) {
       case "switch": {
-        if (prev.phase !== "teams") return reject("wrong-phase", "Teams are set.");
-        if (!canSwitch(sizes(prev.players), me.team)) return reject("uneven", "That would make the teams uneven.");
+        if (prev.phase !== "teams") return reject("wrong-phase", "You can't change teams now.");
+        if (!canSwitch(sizes(prev.players), me.team)) return reject("uneven", "The teams must stay equal in size.");
         const p = find(state, playerId)!;
         p.team = other(p.team);
         out.events.push(pub({ type: "teams-changed" }));
@@ -396,7 +396,7 @@ export const dontSayItGame: GameDefinition<
       }
       case "shuffle": {
         if (!host) return reject("host-only", "Only the host can do that.");
-        if (prev.phase !== "teams") return reject("wrong-phase", "Teams are set.");
+        if (prev.phase !== "teams") return reject("wrong-phase", "You can't change teams now.");
         const split = balancedSplit(activeIds(state), ctx.randomInt);
         for (const p of state.players) if (active(p)) p.team = split.get(p.id)!;
         out.events.push(pub({ type: "teams-changed" }));
@@ -404,36 +404,36 @@ export const dontSayItGame: GameDefinition<
       }
       case "start": {
         if (!host) return reject("host-only", "Only the host can do that.");
-        if (prev.phase !== "teams") return reject("wrong-phase", "Already started.");
+        if (prev.phase !== "teams") return reject("wrong-phase", "The game has already started.");
         const [a, b] = sizes(prev.players);
-        if (a < MIN_TEAM || b < MIN_TEAM) return reject("short-team", `Each team needs at least ${MIN_TEAM}.`);
+        if (a < MIN_TEAM || b < MIN_TEAM) return reject("short-team", `Each team needs ${MIN_TEAM} players or more.`);
         prepareTurn(state, out);
         break;
       }
       case "go": {
-        if (prev.phase !== "ready") return reject("wrong-phase", "Not now.");
-        if (!describer) return reject("not-yours", "It's not your turn to describe.");
+        if (prev.phase !== "ready") return reject("wrong-phase", "You can't do that now.");
+        if (!describer) return reject("not-yours", "It is not your turn to describe.");
         startClock(state, ctx, out);
         break;
       }
       case "got":
       case "skip":
       case "oops": {
-        if (prev.phase !== "turn") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "turn") return reject("wrong-phase", "You can't do that now.");
         if (!describer) return reject("not-yours", "Only the describer can do that.");
         resolve(state, action.type, ctx, out);
         break;
       }
       case "buzz": {
-        if (prev.phase !== "turn") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "turn") return reject("wrong-phase", "You can't do that now.");
         if (me.team === t!.team) return reject("own-team", "Only the other team can buzz.");
         buzz(state, playerId, ctx, out);
         break;
       }
       case "fair":
       case "nope": {
-        if (prev.phase !== "buzzed") return reject("wrong-phase", "Not now.");
-        if (!describer) return reject("not-yours", "The describer answers this.");
+        if (prev.phase !== "buzzed") return reject("wrong-phase", "You can't do that now.");
+        if (!describer) return reject("not-yours", "The describer decides this.");
         if (action.type === "fair") {
           resume(state, ctx, out);
           resolve(state, "fair", ctx, out);
@@ -444,7 +444,7 @@ export const dontSayItGame: GameDefinition<
       }
       case "uphold":
       case "drop": {
-        if (prev.phase !== "appeal") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "appeal") return reject("wrong-phase", "You can't do that now.");
         if (t!.captainId !== playerId) return reject("not-yours", "The captain decides this.");
         if (action.type === "uphold") {
           resume(state, ctx, out);
@@ -456,7 +456,7 @@ export const dontSayItGame: GameDefinition<
       }
       case "next": {
         if (!host) return reject("host-only", "Only the host can do that.");
-        if (prev.phase !== "turn-result") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "turn-result") return reject("wrong-phase", "You can't do that now.");
         afterResult(state, out);
         break;
       }

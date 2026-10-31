@@ -336,19 +336,19 @@ export const thornsGame: GameDefinition<
     const seat = prev.players.findIndex((p) => p.id === playerId);
     if (seat < 0 || prev.players[seat]!.removed) return reject("not-in-game", "You're not in this game.");
     const p = prev.players[seat]!;
-    if (!active(p)) return reject("out", "You're out of discs. Enjoy the show.");
+    if (!active(p)) return reject("out", "You have no discs left. You can watch the game.");
     const isTurn = seat === prev.turnIndex;
 
     switch (action.type) {
       case "place": {
         if (prev.phase === "placing-first") {
-          if (p.stack.length) return reject("already-placed", "You've put your first disc down. Waiting on the others.");
+          if (p.stack.length) return reject("already-placed", "You put your first disc down. Wait for the others.");
         } else if (prev.phase === "turns") {
           if (!isTurn) return reject("not-your-turn", "It's not your turn.");
-        } else if (prev.phase === "result") return reject("between-rounds", "Hang on: the next round's about to start.");
-        else return reject("no-placing", "Someone's bid: no more placing this round.");
+        } else if (prev.phase === "result") return reject("between-rounds", "Please wait. The next round starts soon.");
+        else return reject("no-placing", "A player has made a bid. Nobody can put down discs now.");
         const hand = handOf(p);
-        if (!hand.length) return reject("empty-hand", "Your hand's empty: you have to bid.");
+        if (!hand.length) return reject("empty-hand", "You have no discs in your hand. You must bid.");
         if (!hand.includes(action.disc)) return reject("disc-not-in-hand", `You don't have ${action.disc === "rose" ? "a rose" : "your thorn"} in hand.`);
         const state = clone(prev);
         const out = newOut();
@@ -361,7 +361,7 @@ export const thornsGame: GameDefinition<
         const min = prev.bid ? prev.bid.amount + 1 : 1;
         const max = tableTotal(prev);
         if (action.amount < min || action.amount > max) {
-          return reject("bad-bid", min === max ? `The bid has to be ${min}.` : `Bid between ${min} and ${max}.`);
+          return reject("bad-bid", min === max ? `The bid has to be ${min}.` : `Choose a bid from ${min} to ${max}.`);
         }
         const state = clone(prev);
         const out = newOut();
@@ -369,7 +369,7 @@ export const thornsGame: GameDefinition<
         return { ok: true, transition: done(state, out) };
       }
       case "pass": {
-        if (prev.phase !== "bidding") return reject("no-passing", prev.phase === "turns" ? "Place a disc or bid." : "Nothing to pass on.");
+        if (prev.phase !== "bidding") return reject("no-passing", prev.phase === "turns" ? "Put down a disc or bid." : "You can't pass now.");
         if (!isTurn) return reject("not-your-turn", "It's not your turn.");
         const state = clone(prev);
         const out = newOut();
@@ -377,17 +377,17 @@ export const thornsGame: GameDefinition<
         return { ok: true, transition: done(state, out) };
       }
       case "flip": {
-        if (prev.phase !== "flipping") return reject("not-flipping", "Nothing to flip right now.");
-        if (prev.challenge?.challengerId !== playerId) return reject("not-challenger", "Only the top bidder flips.");
-        if (action.owner === playerId) return reject("own-stack", "Your own stack's already turned over.");
-        if (!flippable(prev).includes(action.owner)) return reject("cant-flip", "Nothing left to flip on that mat.");
+        if (prev.phase !== "flipping") return reject("not-flipping", "You can't turn over discs now.");
+        if (prev.challenge?.challengerId !== playerId) return reject("not-challenger", "Only the player with the biggest bid turns over discs.");
+        if (action.owner === playerId) return reject("own-stack", "You already turned over your own stack.");
+        if (!flippable(prev).includes(action.owner)) return reject("cant-flip", "That mat has no discs left to turn over.");
         const state = clone(prev);
         const out = newOut();
         flip(state, state.players.find((x) => x.id === action.owner)!, ctx, out);
         return { ok: true, transition: done(state, out) };
       }
       case "ready": {
-        if (prev.phase !== "result") return reject("not-result", "Nothing to wait for.");
+        if (prev.phase !== "result") return reject("not-result", "You don't need to wait now.");
         if (p.ready) return { ok: true, transition: { state: prev, events: [] } };
         const state = clone(prev);
         const out = newOut([pub({ type: "ready", playerId })]);
@@ -578,7 +578,7 @@ export const thornsGame: GameDefinition<
           const label = p.removed
             ? "left"
             : p.id === state.winnerId && state.endReason !== "points"
-              ? "last one standing"
+              ? "last player left"
               : n === 0
                 ? "out of discs"
                 : `${pts} · ${n} ${n === 1 ? "disc" : "discs"}`;

@@ -268,7 +268,7 @@ export const crazyEightsGame: GameDefinition<
     const events: Events = [];
 
     if (action.type === "draw") {
-      if (drawable(state) === 0) return reject("stock-empty", "The stock's empty.");
+      if (drawable(state) === 0) return reject("stock-empty", "The stock is empty.");
       if (state.stock.length === 0) reshuffle(state, ctx.randomInt, events);
       const card = state.stock.pop()!;
       me.hand = [...me.hand, card].sort(compareCards);
@@ -288,9 +288,9 @@ export const crazyEightsGame: GameDefinition<
       const t = top(state);
       const suit = `a ${(state.calledSuit ?? t.suit).slice(0, -1)}`;
       const rank = state.calledSuit ? "" : ` or ${t.rank === 1 || t.rank === EIGHT ? "an" : "a"} ${formatRank(t.rank)}`;
-      return reject("illegal-play", `That doesn't follow. It needs ${suit}${rank}, or an eight.`);
+      return reject("illegal-play", `You can't play that card. Play ${suit}${rank}, or an 8.`);
     }
-    if (card.rank === EIGHT && !action.suit) return reject("call-a-suit", "Call a suit for your eight.");
+    if (card.rank === EIGHT && !action.suit) return reject("call-a-suit", "Choose a suit for your 8.");
 
     me.hand = me.hand.filter((c) => c.id !== card.id);
     state.discard.push(card);
@@ -378,7 +378,7 @@ export const crazyEightsGame: GameDefinition<
           const mine = points(p);
           const won = losers.reduce((sum, l) => sum + points(l) - mine, 0);
           const label = winners.has(p.id)
-            ? state.endReason === "abandoned" ? "last one standing" : `+${won} pts`
+            ? state.endReason === "abandoned" ? "last player left" : `+${won} pts`
             : p.removed ? "left" : `${mine} ${mine === 1 ? "pt" : "pts"} in hand`;
           return { playerId: p.id, value: p.hand.length, label };
         }),

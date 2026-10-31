@@ -294,7 +294,7 @@ describe("losing a disc", () => {
     t = ok(act(t.state, "p0", { type: "flip", owner: "p1" }));
     expect(t.state.phase).toBe("over");
     expect(th.getResult(t.state)!.winnerIds).toEqual(["p1"]);
-    expect(th.getResult(t.state)!.standings[0]).toMatchObject({ playerId: "p1", label: "last one standing" });
+    expect(th.getResult(t.state)!.standings[0]).toMatchObject({ playerId: "p1", label: "last player left" });
   });
 });
 

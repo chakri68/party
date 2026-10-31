@@ -31,7 +31,7 @@ describe("the deal", () => {
 
   it("asks setupProblem the same thing the lobby does", () => {
     expect(g.setupProblem!(DEFAULT_SETTINGS, 6)).toBeNull();
-    expect(g.setupProblem!({ ...DEFAULT_SETTINGS, preset: "custom", "n:wolf": 3, "n:villager": 1 }, 4)).toBe("Needs at least two non-wolf cards");
+    expect(g.setupProblem!({ ...DEFAULT_SETTINGS, preset: "custom", "n:wolf": 3, "n:villager": 1 }, 4)).toBe("You need at least 2 cards that are not Wolf");
   });
 
   it("opens on the reveal with its 30 s clock", () => {
@@ -457,7 +457,7 @@ describe("leaving", () => {
       expect(types(t)).toEqual(["game-over"]);
       const result = g.getResult(t.state)!;
       expect(result.winnerIds).toEqual([]);
-      expect(result.headline).toBe("Interrupted: the last Wolf left");
+      expect(result.headline).toBe("Stopped: the last Wolf left");
     });
   }
 
@@ -467,7 +467,7 @@ describe("leaving", () => {
     expect(s.phase).toBe("reveal");
     const t = g.onPlayerRemoved!(s, "p2", ctx(1000));
     expect(t.state).toMatchObject({ phase: "finished", endReason: "too-few" });
-    expect(g.getResult(t.state)!.headline).toBe("Interrupted: too few players left");
+    expect(g.getResult(t.state)!.headline).toBe("Stopped: too few players left");
   });
 
   it("mid-vote: their ballot drops, votes for them go back", () => {
@@ -497,7 +497,7 @@ describe("leaving", () => {
     expect(types(t)).toEqual(["game-over"]);
     const r = g.getResult(t.state)!;
     expect(r.winnerIds).toEqual([]);
-    expect(r.headline).toBe("Interrupted: a runoff candidate left");
+    expect(r.headline).toBe("Stopped: a tied player left");
   });
 
   it("a three-way runoff that loses one goes on between the other two", () => {

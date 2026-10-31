@@ -39,7 +39,7 @@ describe("deckProblem", () => {
 
   it("says a one-of role is unique, and caps the rest by count", () => {
     expect(deckProblem({ wolf: 2, seer: 2, villager: 4 }, ROLES, RULES, 6)).toBe("Seer is unique");
-    expect(deckProblem({ wolf: 4, seer: 1, villager: 3 }, ROLES, RULES, 6)).toBe("At most 3 Werewolf");
+    expect(deckProblem({ wolf: 4, seer: 1, villager: 3 }, ROLES, RULES, 6)).toBe("You can have at most 3 Werewolf");
   });
 
   it("wants a card from every required team, named after its first role", () => {

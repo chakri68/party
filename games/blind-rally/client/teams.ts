@@ -10,10 +10,10 @@ import { coinFlipped, trackPicker } from "./stages.ts";
 
 const ROLE_NAME: Record<Role, string> = { driver: "Driver", navigator: "Navigator" };
 const ROLE_JOB: Record<Role, string> = {
-  driver: "Pedals and wheel. No road.",
-  navigator: "Sees the course. No pedals.",
+  driver: "Drives the car. Cannot see the road.",
+  navigator: "Sees the road. Cannot drive.",
 };
-const STATUS_LABEL = { running: "On stage", finished: "Finished", dnf: "DNF" } as const;
+const STATUS_LABEL = { running: "Driving", finished: "Finished", dnf: "DNF" } as const;
 
 /**
  * The TEAMS phase: cars, seats, ready-up and the host's Start. Also what
@@ -95,7 +95,7 @@ export class TeamsScreen {
           id && editable ? h("span", { class: `br-ready${ready(id) ? " on" : ""}` }, ready(id) ? "Ready" : "Not ready") : null,
         ),
         id
-          ? person(id, captain ? h("span", { class: "br-captain", title: "Captain: votes for the team" }, "captain") : null)
+          ? person(id, captain ? h("span", { class: "br-captain", title: "Captain: gives the team's vote" }, "captain") : null)
           : editable
             ? h("button", { type: "button", class: "br-sit", onclick: () => this.api.act({ type: "team.join", teamId: team.id, role }) }, "Sit here")
             : h("p", { class: "br-empty" }, "Empty"),
@@ -140,17 +140,17 @@ export class TeamsScreen {
       const otherRole: Role = myRole === "driver" ? "navigator" : "driver";
       // Ready, but the seat's screen hasn't loaded yet: the old row, to back out of it.
       if (!brief) bar.push(
-        h("p", { class: "br-me" }, `You're the ${ROLE_NAME[myRole]} in Team ${mine.id}.`),
+        h("p", { class: "br-me" }, `You are the ${ROLE_NAME[myRole]} in Team ${mine.id}.`),
         h("button", { type: "button", onclick: () => this.api.act({ type: "role.pick", role: otherRole }) }, `Be ${ROLE_NAME[otherRole]}`),
         h("button", { type: "button", class: "link", onclick: () => this.api.act({ type: "team.leave" }) }, "Leave seat"),
-        h("button", { type: "button", class: `primary br-ready-btn${amReady ? " on" : ""}`, "aria-pressed": String(amReady), onclick: () => this.api.act({ type: "player.ready", ready: !amReady }) }, amReady ? "Ready" : "Ready up"),
+        h("button", { type: "button", class: `primary br-ready-btn${amReady ? " on" : ""}`, "aria-pressed": String(amReady), onclick: () => this.api.act({ type: "player.ready", ready: !amReady }) }, amReady ? "Ready" : "I'm ready"),
       );
     } else if (editable) {
-      bar.push(h("p", { class: "br-me" }, "Pick an empty seat, or watch from here."));
+      bar.push(h("p", { class: "br-me" }, "Choose an empty seat, or watch."));
     } else if (game.phase === "finished") {
-      bar.push(h("p", { class: "br-me" }, "Swapping seats? The rematch starts you in these cars; swap there."));
+      bar.push(h("p", { class: "br-me" }, "To change seats, wait for the rematch. The rematch starts with these teams."));
     } else {
-      bar.push(h("p", { class: "br-me" }, mine ? "Your car's out." : "You're watching this one."));
+      bar.push(h("p", { class: "br-me" }, mine ? "Your car is racing." : "You are watching this race."));
     }
 
     const host: (Node | null)[] = [];
@@ -160,9 +160,9 @@ export class TeamsScreen {
         game.startBlocker ? h("p", { class: "br-blocker" }, game.startBlocker) : null,
       );
     } else if (editable) {
-      host.push(h("p", { class: "br-blocker" }, game.startBlocker ?? "Everyone's ready. Over to the host."));
+      host.push(h("p", { class: "br-blocker" }, game.startBlocker ?? "Everyone is ready. Waiting for the host."));
     } else if (isHost && game.phase !== "finished") {
-      host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Anyone still out is DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
+      host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Cars still driving get a DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
     }
 
     replaceChildren(

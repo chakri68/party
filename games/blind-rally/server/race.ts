@@ -184,18 +184,18 @@ export function checkGate(state: BlindRallyState, run: RunState, claim: GateClai
   const n = track.checkpoints.length;
   let gate: { position: [number, number, number]; radius: number };
   if (claim.kind === "cp") {
-    if (claim.checkpointId <= run.cp) return { code: "already-passed", message: `Checkpoint ${claim.checkpointId} already counted.` };
-    if (claim.checkpointId !== run.cp + 1) return { code: "out-of-order", message: `Checkpoint ${run.cp + 1} first.` };
+    if (claim.checkpointId <= run.cp) return { code: "already-passed", message: `Checkpoint ${claim.checkpointId} is already counted.` };
+    if (claim.checkpointId !== run.cp + 1) return { code: "out-of-order", message: `Pass checkpoint ${run.cp + 1} first.` };
     gate = track.checkpoints[run.cp]!;
   } else {
-    if (run.cp < n) return { code: "checkpoints-missing", message: `${n - run.cp} checkpoint${n - run.cp === 1 ? "" : "s"} still to go: the finish doesn't count yet.` };
+    if (run.cp < n) return { code: "checkpoints-missing", message: `${n - run.cp} checkpoint${n - run.cp === 1 ? "" : "s"} left. The finish does not count yet.` };
     gate = track.finish;
   }
   const snap = run.snap;
   const age = snap ? now - snap.at : Infinity;
-  if (!snap || age > GATE_SNAP_AGE_MS) return { code: "no-position", message: "The server hasn't seen the car lately." };
+  if (!snap || age > GATE_SNAP_AGE_MS) return { code: "no-position", message: "The game has not seen the car for a while." };
   const reach = gate.radius + GATE_SLACK_M + MAX_SPEED * (age / 1000);
-  if (flatDistance(snap.position, gate.position) > reach) return { code: "too-far", message: "The car's nowhere near that gate." };
+  if (flatDistance(snap.position, gate.position) > reach) return { code: "too-far", message: "The car is not near that checkpoint." };
   return null;
 }
 
@@ -223,9 +223,9 @@ export type PinClaim = { x: number; z: number } | { clear: true };
 
 /** Why this pin can't be stored, or null. The caller has checked it's the Navigator, mid-run. */
 export function checkPin(state: BlindRallyState, run: RunState, claim: PinClaim, now: number): GameError | null {
-  if (!("clear" in claim) && !insideBounds(trackData(state.trackId), [claim.x, 0, claim.z])) return { code: "off-map", message: "That's off the map." };
+  if (!("clear" in claim) && !insideBounds(trackData(state.trackId), [claim.x, 0, claim.z])) return { code: "off-map", message: "That place is outside the map." };
   const last = run.pins?.at(-1);
-  if (last && now - (state.startsAt ?? 0) - last[0] < PIN_GAP_MS) return { code: "too-soon", message: "One pin every half second." };
+  if (last && now - (state.startsAt ?? 0) - last[0] < PIN_GAP_MS) return { code: "too-soon", message: "You can place 1 pin every half second." };
   return null;
 }
 

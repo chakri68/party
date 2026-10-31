@@ -184,14 +184,14 @@ export const chainWordsGame: GameDefinition<
   handleAction(prev, playerId, action, ctx) {
     if (prev.phase === "finished") return reject("game-finished", "The game is over.");
     const me = prev.players.find((p) => p.id === playerId);
-    if (!me || !alive(me)) return reject("not-in-game", "You're out. Heckle freely.");
-    if (prev.holderId !== playerId) return reject("not-your-turn", "Not your turn.");
+    if (!me || !alive(me)) return reject("not-in-game", "You're out. You can still watch.");
+    if (prev.holderId !== playerId) return reject("not-your-turn", "It is not your turn.");
 
     const word = action.text;
     const problem = shapeProblem(word, prev.letter);
     if (problem) return reject("bad-word", problem);
-    if (prev.chain.some((l) => l.word === word)) return reject("used", "Already played this game.");
-    if (!isWord(word)) return reject("not-a-word", "Not in the dictionary.");
+    if (prev.chain.some((l) => l.word === word)) return reject("used", "Someone already used this word.");
+    if (!isWord(word)) return reject("not-a-word", "This word is not in the dictionary.");
 
     const state = clone(prev);
     const out = newOut();
@@ -320,7 +320,7 @@ export const chainWordsGame: GameDefinition<
           const how = alive(p)
             ? `${p.lives} ${p.lives === 1 ? "life" : "lives"} left`
             : out < 0
-              ? "left"
+              ? "left the game"
               : out === 0
                 ? "first out"
                 : `out ${ordinal(out + 1)}`;

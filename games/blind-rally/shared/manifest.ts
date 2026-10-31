@@ -3,7 +3,7 @@ import type { GameManifest } from "@games/game-core";
 export const blindRallyManifest: GameManifest = {
   id: "blind-rally",
   name: "Blind Rally",
-  description: "One of you drives without seeing the road. The other sees it all and has to talk them through.",
+  description: "One player drives but cannot see the road. The other player sees the road. That player tells the driver where to go.",
   // One pair is a practice run; four pairs race. Seats past 8 watch.
   minPlayers: 2,
   maxPlayers: 12,

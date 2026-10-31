@@ -222,7 +222,7 @@ describe.each(["fake-word", "bluff-definitions"] as const)("%s", (variant) => {
   describe("voting", () => {
     it("not your own, nothing off the list; re-votes overwrite; all in reveals early", () => {
       let s = toVote(start(variant, 3).state);
-      expect(err(act(s, "p0", { type: "vote", optionId: optionOf(s, "p0") }))).toMatch(/yours/);
+      expect(err(act(s, "p0", { type: "vote", optionId: optionOf(s, "p0") }))).toMatch(/your own/);
       expect(err(act(s, "p0", { type: "vote", optionId: "zzzzzz" }))).toMatch(/choices/);
       s = ok(act(s, "p0", { type: "vote", optionId: optionOf(s, "p1") })).state;
       s = ok(act(s, "p0", { type: "vote", optionId: realId(s) })).state;
@@ -411,8 +411,8 @@ describe("fake word checks", () => {
   it("turn away bad shapes and someone else's fake, and let you try again", () => {
     let st = s();
     expect(err(act(st, "p0", { type: "submit", text: "gl" }))).toMatch(/3/);
-    expect(err(act(st, "p0", { type: "submit", text: "glorp blat" }))).toMatch(/Letters/);
-    expect(err(act(st, "p0", { type: "submit", text: "https://x.io" }))).toMatch(/Letters/);
+    expect(err(act(st, "p0", { type: "submit", text: "glorp blat" }))).toMatch(/letters a to z/);
+    expect(err(act(st, "p0", { type: "submit", text: "https://x.io" }))).toMatch(/letters a to z/);
     st = ok(act(st, "p1", { type: "submit", text: " Glorpish " })).state;
     expect(st.round.entries.p1).toBe("glorpish");
     const t = act(st, "p0", { type: "submit", text: "GLORPISH" });
@@ -457,7 +457,7 @@ describe("bluff definition checks", () => {
     expect(refused(act(st, "p0", { type: "submit", text: "A blind or shutter made of angled slats." }))).toMatch(/real meaning/);
     expect(refused(act(st, "p0", { type: "submit", text: "a blind or shutter made of angled planks" }))).toMatch(/real meaning/);
     st = ok(act(st, "p1", { type: "submit", text: "A small jealous dog from France." })).state;
-    expect(refused(act(st, "p0", { type: "submit", text: "a small jealous dog from france" }))).toMatch(/nearly the same/);
+    expect(refused(act(st, "p0", { type: "submit", text: "a small jealous dog from france" }))).toMatch(/almost the same/);
     st = ok(act(st, "p0", { type: "submit", text: "a large jealous cat from Spain" })).state;
     expect(st.round.entries.p0).toBe("a large jealous cat from Spain");
   });

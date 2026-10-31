@@ -126,7 +126,7 @@ const reject = (code: string, message: string): GameResult<State, DominionEvent>
 });
 
 /** Generic on purpose: a precise error about an unseen tile would be a free scout (§10). */
-const ILLEGAL = "That isn't possible right now.";
+const ILLEGAL = "You can't do that right now.";
 
 // ---------------------------------------------------------------------------
 // Transaction: collects events, then redacts them per recipient at the end.
@@ -773,7 +773,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const options = reachable(s, unit, visibleUnits(s, me));
       const left = options.get(action.to);
       // Someone hidden on the destination: same answer as any other bad move.
-      if (left === undefined || truth.has(action.to)) return "Can't move there.";
+      if (left === undefined || truth.has(action.to)) return "You can't move there.";
       const from = unit.at;
       unit.at = action.to;
       unit.mp = left;
@@ -806,7 +806,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         !canSeeUnit(s, me, target, vis) ||
         chebyshev(unit.at, target.at, s.size) > statsOf(unit).range
       ) {
-        return "Can't attack that.";
+        return "You can't attack that.";
       }
       const { damage, retaliation } = resolveCombat(s, unit, target);
       const splash = unit.vessel ? VESSELS[unit.vessel].splash : false;
@@ -880,8 +880,8 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     case "capture": {
       const unit = ownUnit(s, me, action.unit);
       if (!unit || unit.done || unit.moved || unit.attacked) return "That unit has already acted.";
-      if (!unit.settled) return "Units capture the turn after they arrive.";
-      if (!canCaptureWith(unit)) return "This unit can't capture.";
+      if (!unit.settled) return "A unit can capture on the turn after it arrives.";
+      if (!canCaptureWith(unit)) return "This unit can't take cities.";
       const tile = s.tiles[unit.at]!;
       const city = tile.city ? s.cities[tile.city]! : null;
       if (tile.feat === "village") {
@@ -913,7 +913,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         tx.seen([unit.at], { type: "heal", at: unit.at, amount: 0 });
         return null;
       }
-      if (unit.hp >= unit.maxHp) return "That unit is already healthy.";
+      if (unit.hp >= unit.maxHp) return "That unit has full health.";
       const amount = Math.min(unit.maxHp - unit.hp, tileOwner(s, unit.at) === me ? HEAL_HOME : HEAL);
       unit.hp += amount;
       unit.done = true;
@@ -924,7 +924,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
 
     case "promote": {
       const unit = ownUnit(s, me, action.unit);
-      if (!unit || unit.veteran || unit.kills < VETERAN_KILLS) return "Not ready for promotion.";
+      if (!unit || unit.veteran || unit.kills < VETERAN_KILLS) return "This unit needs more kills first.";
       unit.veteran = true;
       unit.maxHp += VETERAN_HP;
       unit.hp += VETERAN_HP;
@@ -936,7 +936,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const tile = unit ? s.tiles[unit.at]! : null;
       const city = tile?.city ? s.cities[tile.city] : undefined;
       if (!unit || !UNITS[unit.type].stealth || unit.done || unit.vessel) return ILLEGAL;
-      if (!city || !hostile(s, city.owner, me)) return "Infiltrators sabotage from inside a rival's city.";
+      if (!city || !hostile(s, city.owner, me)) return "An infiltrator must be inside an enemy city to damage it.";
       delete s.units[unit.id];
       city.sabotaged = true;
       // Up to two raiders on empty ground next to the city. Truly empty: a
@@ -958,7 +958,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (allied(s, me, them.id) || atPeace(s, me, them.id)) return "You're already at peace.";
       const offers = (s.offers ??= []);
       // One offer at a time between any two empires.
-      if (offers.some((o) => (o.from === me && o.to === them.id) || (o.from === them.id && o.to === me))) return "There's already an offer between you.";
+      if (offers.some((o) => (o.from === me && o.to === them.id) || (o.from === them.id && o.to === me))) return "You already have an offer with this player.";
       offers.push({ from: me, to: them.id, round: s.round });
       tx.only(me, { type: "peace-offered", from: me, to: them.id });
       tx.only(them.id, { type: "peace-offered", from: me, to: them.id });
@@ -967,7 +967,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
 
     case "break-peace": {
       const t = treatyOf(s, me, action.with);
-      if (!t || t.brokenBy) return "There's no peace to break.";
+      if (!t || t.brokenBy) return "You are not at peace with them.";
       t.brokenBy = me;
       tx.only(me, { type: "peace-broken", by: me, with: action.with });
       tx.only(action.with, { type: "peace-broken", by: me, with: action.with });
@@ -994,7 +994,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     case "upgrade": {
       const unit = ownUnit(s, me, action.unit);
       const def = VESSELS[action.vessel];
-      if (!unit || unit.vessel !== "transport" || unit.done || unit.attacked) return "Only a transport that hasn't acted can be refitted.";
+      if (!unit || unit.vessel !== "transport" || unit.done || unit.attacked) return "You can only change a transport. It must not have acted.";
       if (!f.techs.includes(def.needs)) return `Research ${TECHS[def.needs].name} first.`;
       if (f.credits < def.cost) return "Not enough credits.";
       f.credits -= def.cost;
@@ -1023,7 +1023,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const hurt = neighbors(unit.at, s.size)
         .map((i) => truth.get(i))
         .filter((u): u is Unit => !!u && allied(s, u.owner, me) && (u.hp < u.maxHp || !!u.poison));
-      if (!hurt.length) return "Nobody nearby needs healing.";
+      if (!hurt.length) return "No unit nearby needs healing.";
       for (const u of hurt) {
         // Poison comes out first; health only for the clean.
         if (u.poison) {
@@ -1051,7 +1051,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
         chebyshev(unit.at, target.at, s.size) > 1 ||
         UNITS[target.type].steadfast
       ) {
-        return "Can't convert that.";
+        return "You can't take that unit.";
       }
       target.owner = me;
       target.home = null; // finds room in one of your cities at your next turn start
@@ -1070,7 +1070,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const from = UNITS[unit.type];
       const into = UNITS[action.into];
       if (!from.evolvesInto?.includes(action.into)) return ILLEGAL;
-      if (!onNetwork(s, me, unit.at)) return "Larvae evolve on your mycelium.";
+      if (!onNetwork(s, me, unit.at)) return "A larva can change only on your mycelium.";
       if (!hasTech(s, me, into.needs)) return `Research ${TECHS[into.needs!].name} first.`;
       const price = into.cost - from.cost;
       if (f.credits < price) return "Not enough credits.";
@@ -1102,7 +1102,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const unit = ownUnit(s, me, action.unit);
       if (!unit || unit.done || unit.moved || unit.attacked || unit.vessel) return "That unit has already acted.";
       // Listed from what the player sees; a hidden unit on the water still blocks it.
-      if (!freezeTargets(s, me, unit.at, visibleUnits(s, me)).includes(action.target) || truth.has(action.target)) return "Can't freeze that.";
+      if (!freezeTargets(s, me, unit.at, visibleUnits(s, me)).includes(action.target) || truth.has(action.target)) return "You can't freeze that.";
       if (f.credits < ICE.cost) return "Not enough credits.";
       const tile = s.tiles[action.target]!;
       f.credits -= ICE.cost;
@@ -1119,7 +1119,7 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       const city = tile?.claim ? s.cities[tile.claim] : undefined;
       if (!f.monuments?.unplaced) return "You have no monument to place.";
       if (!tile || !city || city.owner !== me || tile.city || tile.imp || tile.feat || tile.res || !TERRAIN[tile.t].land || tile.t === "ice") {
-        return "Place it on open land of yours.";
+        return "Put the monument on empty land you own.";
       }
       tile.imp = "monument";
       f.monuments.unplaced--;
@@ -1134,13 +1134,13 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
       if (!city || !trainableFor(f.kind).includes(action.unitType)) return ILLEGAL;
       if (!hasTech(s, me, def.needs)) return `Research ${TECHS[def.needs!].name} first.`;
       if (isOccupied(city, truth)) return "An enemy is in the city.";
-      if (homedUnits(s, city.id) >= capacity(city)) return "The city can't support more units. Grow it first.";
+      if (homedUnits(s, city.id) >= capacity(city)) return "The city has no room for more units. Grow the city first.";
       // Sea creatures need water: the city's own tile if it's a reef city, else
       // an empty stretch of its shallows.
       const at = def.habitat === "water" && !canSail(s, me, city.at)
         ? neighbors(city.at, s.size).find((i) => s.tiles[i]!.claim === city.id && !truth.has(i) && canOccupy(s, { owner: me, type: action.unitType }, i))
         : city.at;
-      if (at === undefined) return "Sea creatures need open water in the city's territory.";
+      if (at === undefined) return "Sea animals need open water in the city's land.";
       if (truth.has(at)) return "Move the unit out of the city first.";
       if (f.credits < def.cost) return "Not enough credits.";
       f.credits -= def.cost;
@@ -1150,8 +1150,8 @@ function apply(tx: Tx, me: string, action: Exclude<DominionAction, { type: "surr
     }
 
     case "research": {
-      if (!techsFor(f.kind).includes(action.tech)) return "Your people have their own way of doing that.";
-      if (f.techs.includes(action.tech)) return "Already researched.";
+      if (!techsFor(f.kind).includes(action.tech)) return "Your people can't research that.";
+      if (f.techs.includes(action.tech)) return "You already have this tech.";
       const parent = parentFor(f.kind, action.tech);
       if (parent && !f.techs.includes(parent)) return `Needs ${TECHS[parent].name}.`;
       const cost = techCost(action.tech, ownedCities(s, me).length, f.techs);
@@ -1197,7 +1197,7 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
     techs: f.techs,
     credits: f.credits,
   });
-  if (block === undefined) return "Can't do that there.";
+  if (block === undefined) return "You can't do that there.";
   if (block) return `${block}.`;
 
   if (kind === "harvest") {
@@ -1229,7 +1229,7 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
     tile.road = true;
   } else {
     const def = DEVELOP[kind];
-    if (def.unique && s.tiles.some((t) => t.claim === city!.id && t.imp === def.builds)) return `One ${def.name.toLowerCase()} per city.`;
+    if (def.unique && s.tiles.some((t) => t.claim === city!.id && t.imp === def.builds)) return `Only 1 ${def.name.toLowerCase()} per city.`;
     f.credits -= def.cost;
     tile.imp = def.builds!;
     tile.res = null;
@@ -1250,7 +1250,7 @@ function develop(tx: Tx, me: string, at: number, kind: DevelopKind): string | nu
 function answerPeace(tx: Tx, me: string, from: string, accept: boolean): string | null {
   const s = tx.state;
   const offer = s.offers?.find((o) => o.from === from && o.to === me);
-  if (!offer) return "That offer has lapsed.";
+  if (!offer) return "That offer has expired.";
   s.offers = s.offers!.filter((o) => o !== offer);
   if (accept) (s.treaties ??= []).push({ a: from, b: me, since: s.round });
   tx.only(from, { type: "peace-answered", from, to: me, accepted: accept });

@@ -22,7 +22,7 @@ export function nameInput(value: string) {
  * anything typed would.
  */
 export function identityField(input: HTMLInputElement): HTMLElement {
-  const face = h("button", { type: "button", class: "face-btn", "aria-label": "New face" });
+  const face = h("button", { type: "button", class: "face-btn", "aria-label": "Change face" });
   const showFace = (spin: boolean) => {
     const me = getIdentity();
     replaceChildren(face, avatar(me.displayName, me.avatarSeed, "lg"));
@@ -74,13 +74,13 @@ function hostYourOwn(): HTMLElement {
   return h(
     "section",
     { class: "host-own" },
-    h("h2", {}, "Host your own"),
-    h("p", {}, "Rooms here are invite-only. Run this in a terminal on your laptop and you'll get your own link to share. Free, no account."),
+    h("h2", {}, "Host your own room"),
+    h("p", {}, "You need an invite to make a room here. To get your own link, run this command on your laptop. It is free. You don't need an account."),
     h("div", { class: "command" }, command, copy),
     h(
       "p",
       { class: "fine" },
-      "Needs ",
+      "You need ",
       h("a", { href: "https://nodejs.org", target: "_blank", rel: "noopener" }, "Node.js 22+"),
       ". Keep the window open while you play.",
     ),
@@ -124,7 +124,7 @@ export class HomeView implements View {
   private takeName(): boolean {
     const n = normalizeName(this.name.value);
     if (!n) {
-      this.error.textContent = "Pick a name first.";
+      this.error.textContent = "Enter your name first.";
       this.name.focus();
       return false;
     }
@@ -164,7 +164,7 @@ export class HomeView implements View {
       e.preventDefault();
       const c = normalizeRoomCode(this.code.value);
       if (!isValidRoomCode(c)) {
-        this.error.textContent = "Room codes are four letters/numbers.";
+        this.error.textContent = "A room code has 4 letters or numbers.";
         this.code.focus();
         return;
       }
@@ -177,7 +177,7 @@ export class HomeView implements View {
     const recent = recentRooms();
     replaceChildren(
       this.root,
-      hero(isOwner ? "No accounts. Just a name and a room code." : pitch ? "Card games and doodles with friends, on any phone." : "Got a room code? Pop it in."),
+      hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
       pitch ? [hostYourOwn(), h("div", { class: "or" }, "got a room code?")] : null,
       this.identity,
       isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
@@ -187,7 +187,7 @@ export class HomeView implements View {
         ? h(
             "div",
             { class: "recent" },
-            h("span", { class: "muted" }, "Pick up where you left off"),
+            h("span", { class: "muted" }, "Go back to your last room"),
             recent.map((c) =>
               h("a", { href: `/room/${c}`, class: "recent-room", "aria-label": `Rejoin room ${c}` }, h("span", {}, "Rejoin ", h("b", {}, c)), icon("arrow-right")),
             ),

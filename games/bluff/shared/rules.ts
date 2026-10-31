@@ -12,9 +12,9 @@ export const cleanFake = (text: string): string => text.trim().toLowerCase();
 /** Why a fake word can't go in, judging by its shape alone, or null. */
 export function fakeShapeProblem(word: string): string | null {
   if (!word) return "Type a word.";
-  if (!/^[a-z]+$/.test(word)) return "Letters only, a to z.";
-  if (word.length < MIN_FAKE) return `At least ${MIN_FAKE} letters.`;
-  if (word.length > MAX_FAKE) return `${MAX_FAKE} letters at most.`;
+  if (!/^[a-z]+$/.test(word)) return "Use only the letters a to z.";
+  if (word.length < MIN_FAKE) return `Use at least ${MIN_FAKE} letters.`;
+  if (word.length > MAX_FAKE) return `Use ${MAX_FAKE} letters or fewer.`;
   return null;
 }
 
@@ -23,7 +23,7 @@ export const cleanDefinition = (text: string): string => cleanChatText(text, MAX
 
 export function definitionShapeProblem(text: string): string | null {
   if (!text) return "Type a meaning.";
-  if ([...text].length < MIN_DEFINITION) return `At least ${MIN_DEFINITION} characters.`;
+  if ([...text].length < MIN_DEFINITION) return `Use at least ${MIN_DEFINITION} characters.`;
   return null;
 }
 

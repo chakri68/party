@@ -120,8 +120,8 @@ describe("grouping", () => {
       ["g-a", ["a", "b", "c"], true],
       ["g-d", ["d"], false],
     ]);
-    expect(mergeProblem(groups, merges, "g-b", "g-d")).toMatch(/isn't there/);
-    expect(mergeProblem(groups, merges, "g-a", "g-a")).toMatch(/two different/);
+    expect(mergeProblem(groups, merges, "g-b", "g-d")).toMatch(/is gone/);
+    expect(mergeProblem(groups, merges, "g-a", "g-a")).toMatch(/2 different/);
     expect(mergeProblem(groups, merges, "g-d", "g-a")).toBeNull();
     merges = splitGroup(merges, "g-a");
     view = viewGroups(groups, merges, answers);

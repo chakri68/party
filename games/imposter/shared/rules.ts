@@ -16,7 +16,7 @@ export const cleanGuess = (text: string): string => cleanChatText(text, MAX_GUES
 export function clueProblem(clue: string, word: string): string | null {
   if (!clue) return "Type a clue.";
   const w = normalizeGuess(word);
-  if (w && normalizeGuess(clue).includes(w)) return "That's the word. Something else.";
+  if (w && normalizeGuess(clue).includes(w)) return "That is the word. Write a different clue.";
   return null;
 }
 

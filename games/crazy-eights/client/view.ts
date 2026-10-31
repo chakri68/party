@@ -35,7 +35,7 @@ function describe(e: CrazyEightsEvent, props: GameViewProps): string | null {
   const who = (id: string) => (id === props.playerId ? "You" : seatName(props.room, id));
   switch (e.type) {
     case "dealt":
-      return `${who(e.dealerId)} dealt${e.buried.length ? ". An eight came up and got buried" : ""}. Starting on ${cardShort(e.starter)}.`;
+      return `${who(e.dealerId)} dealt${e.buried.length ? ". The first card was an 8. The game put it back in the stock" : ""}. The first card is ${cardShort(e.starter)}.`;
     case "card-played":
       return e.calledSuit
         ? `${who(e.playerId)} played ${cardShort(e.card)} and called ${SUIT_NAME[e.calledSuit]}.`
@@ -43,17 +43,17 @@ function describe(e: CrazyEightsEvent, props: GameViewProps): string | null {
     case "drew":
       return e.playerId === props.playerId ? null : `${who(e.playerId)} drew a card.`;
     case "you-drew":
-      return `You drew ${cardShort(e.card)}.`;
+      return `You took ${cardShort(e.card)}.`;
     case "reshuffled":
-      return "The pile got shuffled into a new stock.";
+      return "The game shuffled the pile. It is the new stock.";
     case "passed":
-      return e.playerId === props.playerId ? "Nothing to play and nothing to draw, so you passed." : `${who(e.playerId)} passed.`;
+      return e.playerId === props.playerId ? "You had no card to play. The stock was empty. You passed." : `${who(e.playerId)} passed.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host.`;
+      return e.playerId === props.playerId ? "The host skipped your turn." : `The host skipped ${who(e.playerId)}'s turn.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their cards went under the stock.`;
+      return `${who(e.playerId)} left. The game put their cards under the stock.`;
     case "game-over":
-      return e.reason === "blocked" ? "Nobody can play and the stock's gone. Lowest hand wins." : null;
+      return e.reason === "blocked" ? "Nobody can play. The stock is empty. The lowest card total wins." : null;
   }
 }
 
@@ -233,7 +233,7 @@ export class CrazyEightsView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "Nothing to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "No card to play" : "Pass");
           break;
         case "turn-skipped":
           audio.play("pass");
@@ -414,7 +414,7 @@ export class CrazyEightsView implements GameView {
     replaceChildren(
       this.suitBadge,
       h("span", { class: "sym", "aria-hidden": "true" }, SUIT_SYMBOL[suit]),
-      h("span", { class: "what" }, game.calledSuit ? `${SUIT_NAME[suit]} called` : `${SUIT_NAME[suit]} to follow`),
+      h("span", { class: "what" }, game.calledSuit ? `${SUIT_NAME[suit]} called` : `Play ${SUIT_NAME[suit]}`),
     );
   }
 

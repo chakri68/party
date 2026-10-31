@@ -4,7 +4,7 @@ import { MAX_PLAYERS, MIN_PLAYERS } from "./roles.ts";
 export const nightfallManifest: GameManifest = {
   id: "nightfall",
   name: "Nightfall",
-  description: "Wolves in the village. Every night someone's taken, every day someone's voted out, until one side's gone.",
+  description: "Some players are secret Wolves. Each night, the Wolves attack 1 player. Each day, everyone votes 1 player out. Find the Wolves before they win.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
   icon: "moon",

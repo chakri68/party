@@ -27,13 +27,13 @@ function replay(el: Element, cls: string) {
 const PHASE_LABEL: Record<Pub["phase"], string> = {
   reveal: "Your card",
   clues: "Clues",
-  discuss: "Talk it over",
+  discuss: "Talk",
   talk: "Talk",
   vote: "Vote",
-  runoff: "Runoff",
+  runoff: "Revote",
   "reveal-role": "The reveal",
   guess: "Last guess",
-  "round-result": "Round over",
+  "round-result": "Round result",
   finished: "Game over",
 };
 
@@ -246,7 +246,7 @@ export class ImposterView implements GameView {
 
   /** Private, and gone again as the button settles back, so it can't linger over someone's shoulder. */
   private notImposter() {
-    const text = "You're not the Imposter. Keep asking.";
+    const text = "You are not the Imposter. Keep asking questions.";
     this.note.textContent = text;
     if (this.noteTimer) clearTimeout(this.noteTimer);
     this.noteTimer = setTimeout(() => {
@@ -325,8 +325,8 @@ export class ImposterView implements GameView {
       // Open for the guess (everyone's, so it says nothing), shut for a new round.
       if (game.phase === "guess") this.places.open = true;
       if (game.phase === "reveal") this.places.open = false;
-      const fresh = game.mode === "spoken" ? "New place, new Imposter." : "New word, new Imposter.";
-      this.note.textContent = game.phase === "reveal" && this.dropped === game.round ? `Someone left mid-round. ${fresh}` : "";
+      const fresh = game.mode === "spoken" ? "New place and new Imposter." : "New word and new Imposter.";
+      this.note.textContent = game.phase === "reveal" && this.dropped === game.round ? `A player left during the round. ${fresh}` : "";
     }
     this.roundLabel.textContent = `Round ${game.round} of ${game.rounds}`;
     this.phaseLabel.textContent = PHASE_LABEL[game.phase];
@@ -346,7 +346,7 @@ export class ImposterView implements GameView {
     if (!show) return;
     const guessing = game.phase === "guess" && !!me?.guessing;
     this.places.classList.toggle("choosing", guessing);
-    this.placeCount.textContent = guessing ? "Where are we? Tap one." : `All places (${PLACES.length})`;
+    this.placeCount.textContent = guessing ? "Where are we? Tap a place." : `All places (${PLACES.length})`;
     replaceChildren(
       this.placeList,
       SORTED_PLACES.map((p) =>
@@ -397,7 +397,7 @@ export class ImposterView implements GameView {
         { class: cls },
         h("span", { class: "im-card-kicker" }, "You're the"),
         h("strong", { class: "im-card-word" }, "Imposter"),
-        h("span", { class: "im-card-cat" }, spoken ? "No place for you. Listen, and work out where." : `Category: ${game.category}. Blend in.`),
+        h("span", { class: "im-card-cat" }, spoken ? "No place for you. Listen, and work out where." : `Category: ${game.category}. Try to fit in.`),
       );
     }
     return h(
@@ -405,7 +405,7 @@ export class ImposterView implements GameView {
       { class: cls },
       h("span", { class: "im-card-kicker" }, spoken ? "You're at the" : "The word"),
       h("strong", { class: "im-card-word" }, me.word ?? ""),
-      h("span", { class: "im-card-cat" }, spoken ? "Prove it without naming it." : `Category: ${game.category}`),
+      h("span", { class: "im-card-cat" }, spoken ? "Show you know it. Don't name it." : `Category: ${game.category}`),
     );
   }
 
@@ -423,8 +423,8 @@ export class ImposterView implements GameView {
 
     switch (game.phase) {
       case "reveal":
-        headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${waiting} still looking` : "Keep it to yourself.";
+        headline = me?.acked ? "Waiting for the others" : "Look at your card";
+        sub = me?.acked ? `${waiting} still reading` : "Do not show your card to anyone.";
         if (inGame && !me!.acked) button = "Got it";
         break;
       case "clues":
@@ -432,44 +432,44 @@ export class ImposterView implements GameView {
           headline = `Your clue: ${me.clue ?? "none"}`;
           sub = `Waiting for ${waiting}`;
         } else if (inGame) {
-          headline = "One clue. Don't give it away.";
-          sub = me!.role === "imposter" ? "You don't know the word. Say something that fits the category." : "Show you know it, without handing it to the Imposter.";
+          headline = "Write 1 clue. Do not say the word.";
+          sub = me!.role === "imposter" ? "You do not know the word. Write a clue for the category." : "Show that you know the word. Do not make it easy for the Imposter.";
           form = { placeholder: "Your clue", label: "Send", max: MAX_CLUE };
         }
         break;
       case "talk":
         headline = "Ask each other questions";
-        sub = `${game.firstAsker ? `${this.name(game.firstAsker, props)} ${game.firstAsker === props.playerId ? "go" : "goes"} first. ` : ""}Out loud. Don't name the place.`;
+        sub = `${game.firstAsker ? `${this.name(game.firstAsker, props)} ${game.firstAsker === props.playerId ? "go" : "goes"} first. ` : ""}Ask out loud. Do not say the place.`;
         if (host) button = "Vote now";
         call = inGame;
         break;
       case "discuss":
-        headline = "Who's bluffing?";
-        sub = "Talk it out. Room chat's open.";
+        headline = "Who is the Imposter?";
+        sub = "Talk about it. Room chat is open.";
         if (host) button = "Vote now";
         break;
       case "vote":
       case "runoff":
-        headline = game.phase === "runoff" ? `Tie. Runoff: ${game.tied.map((id) => this.name(id, props)).join(" or ")}` : "Vote for the Imposter";
-        sub = me?.vote ? `You voted for ${this.name(me.vote, props)}. You can change it.` : me?.choices.length ? "Tap a player. Not yourself." : `Waiting for ${waiting}`;
+        headline = game.phase === "runoff" ? `Tie. Vote again: ${game.tied.map((id) => this.name(id, props)).join(" or ")}` : "Vote for the Imposter";
+        sub = me?.vote ? `You voted for ${this.name(me.vote, props)}. You can change your vote.` : me?.choices.length ? "Tap a player. You cannot choose yourself." : `Waiting for ${waiting}`;
         break;
       case "reveal-role":
         headline = game.accusedId
           ? `${this.name(game.accusedId, props)} ${game.accusedId === props.playerId ? "were" : "was"} ${game.accusedRole === "imposter" ? "the Imposter" : "not the Imposter"}`
           : "";
-        sub = game.accusedRole === "imposter" ? `One guess at the ${thing} to steal it.` : "";
+        sub = game.accusedRole === "imposter" ? `The Imposter gets 1 guess at the ${thing}. A right guess wins the round.` : "";
         break;
       case "guess":
         if (spoken && me?.guessing) {
-          headline = game.early ? "You called it. Where are we?" : "Caught. Where are we?";
-          sub = this.picked ? "Sure? One shot." : "Tap a place on the list. Right, and you take the round.";
+          headline = game.early ? "You stopped the clock. Where are we?" : "You were caught. Where are we?";
+          sub = this.picked ? "Are you sure? You get 1 try." : "Tap a place on the list. If you are right, you win the round.";
           if (this.picked) button = `It's the ${placeById(this.picked)?.name ?? ""}`;
         } else if (spoken && game.early) {
           headline = "The Imposter stopped the clock";
-          sub = "They're picking the place. One shot.";
+          sub = "The Imposter is choosing a place. The Imposter gets 1 try.";
         } else if (me?.guessing) {
-          headline = "Caught. Guess the word.";
-          sub = `Category: ${game.category}. Right, and you take the round.`;
+          headline = "You were caught. Guess the word.";
+          sub = `Category: ${game.category}. If you are right, you win the round.`;
           form = { placeholder: "The word is…", label: "Guess", max: MAX_GUESS };
         } else {
           headline = `${this.name(game.accusedId, props)} ${game.accusedId === props.playerId ? "are" : "is"} guessing the ${thing}`;
@@ -477,11 +477,11 @@ export class ImposterView implements GameView {
         break;
       case "round-result":
         headline = this.resultLine(props, game);
-        sub = `The ${thing} was ${(game.word ?? "").toUpperCase()}.${game.guess ? ` Guess: ${game.guess}.` : ""}${game.guessClose ? " So close." : ""}`;
+        sub = `The ${thing} was ${(game.word ?? "").toUpperCase()}.${game.guess ? ` Guess: ${game.guess}.` : ""}${game.guessClose ? " The guess was very close." : ""}`;
         if (host) button = game.round >= game.rounds ? "Finish" : "Next round";
         break;
       case "finished":
-        headline = game.endReason === "abandoned" ? "Not enough players left." : "That's the game.";
+        headline = game.endReason === "abandoned" ? "Too few players are left." : "Game over.";
         // Cut short mid-round: the round never got its result line, so give the secret here.
         if (game.endReason === "abandoned" && game.imposterId && game.word) {
           const youImp = game.imposterId === props.playerId;
@@ -512,10 +512,10 @@ export class ImposterView implements GameView {
     const imp = this.name(game.imposterId, props);
     const youImp = game.imposterId === props.playerId;
     const was = `${imp} ${youImp ? "were" : "was"} the Imposter`;
-    if (game.early) return game.guessRight ? `${was}, called it, and got it. Imposter +2` : `${was}, called it, and missed. Innocents +2`;
-    if (game.winner === "innocents") return `Caught. ${imp} ${youImp ? "were" : "was"} the Imposter. Innocents +2`;
-    if (game.guessRight) return `${imp} ${youImp ? "were" : "was"} caught, and guessed it. Imposter +2`;
-    return `${imp} ${youImp ? "were" : "was"} the Imposter, and got away. Imposter +2`;
+    if (game.early) return game.guessRight ? `${was}. The Imposter stopped the clock and guessed right. Imposter +2` : `${was}. The Imposter stopped the clock and guessed wrong. Innocents +2`;
+    if (game.winner === "innocents") return `${imp} ${youImp ? "were" : "was"} the Imposter and got caught. Innocents +2`;
+    if (game.guessRight) return `${imp} ${youImp ? "were" : "was"} caught but guessed right. Imposter +2`;
+    return `${imp} ${youImp ? "were" : "was"} the Imposter and did not get caught. Imposter +2`;
   }
 
   private renderTable(props: GameViewProps, game: Pub, me: Priv | null) {

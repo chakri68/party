@@ -92,9 +92,9 @@ const RULES: Record<Variant, Rules> = {
     clash(word, entry, others) {
       // One message for all three, so it doesn't single out the answer.
       if (word === entry.word || isWord(word) || editDistance(word, entry.word, NEAR_REAL) <= NEAR_REAL) {
-        return "That's a real word, or too close to one. Make one up.";
+        return "That is a real word, or too close to one. Make up a new word.";
       }
-      if (others.includes(word)) return "Someone's already made that one up.";
+      if (others.includes(word)) return "Another player already wrote that word.";
       return null;
     },
     show: (word) => word,
@@ -105,8 +105,8 @@ const RULES: Record<Variant, Rules> = {
     clean: cleanDefinition,
     shape: definitionShapeProblem,
     clash(text, entry, others) {
-      if (nearSame(text, entry.definition)) return "That's the real meaning. Bluff.";
-      if (others.some((o) => nearSame(text, o))) return "Someone wrote nearly the same. Try another.";
+      if (nearSame(text, entry.definition)) return "That is the real meaning. Write a fake meaning.";
+      if (others.some((o) => nearSame(text, o))) return "Another player wrote almost the same thing. Write something else.";
       return null;
     },
     show: displayDefinition,
@@ -360,7 +360,7 @@ export function makeBluffGame(variant: Variant): Definition {
       const me = find(prev, playerId);
       if (!me || !active(me)) return reject("not-in-game", "You're not in this game.");
       const r = prev.round;
-      if (r.phase !== "reveal" && ctx.now >= r.deadline) return reject("time-up", "Time's up.");
+      if (r.phase !== "reveal" && ctx.now >= r.deadline) return reject("time-up", "Time is up.");
 
       const state = clone(prev);
       const s = state.round;
@@ -368,8 +368,8 @@ export function makeBluffGame(variant: Variant): Definition {
 
       switch (action.type) {
         case "submit": {
-          if (r.phase !== "write") return reject("wrong-phase", "Writing's over.");
-          if (playerId in r.entries) return reject("already", "You've sent yours.");
+          if (r.phase !== "write") return reject("wrong-phase", "Writing time is over.");
+          if (playerId in r.entries) return reject("already", "You already sent your answer.");
           const text = rules.clean(action.text);
           const others = written(r)
             .filter(([id]) => id !== playerId)
@@ -392,9 +392,9 @@ export function makeBluffGame(variant: Variant): Definition {
           break;
         }
         case "vote": {
-          if (r.phase !== "vote") return reject("wrong-phase", "Not voting now.");
+          if (r.phase !== "vote") return reject("wrong-phase", "It's not time to vote.");
           const mine = s.options.find((o) => o.author === playerId);
-          if (mine && action.optionId === mine.id) return reject("own-entry", "That one's yours.");
+          if (mine && action.optionId === mine.id) return reject("own-entry", "You cannot vote for your own answer.");
           const allowed = s.options.filter((o) => o.author !== playerId).map((o) => o.id);
           const error = castVote(s.ballot!, playerId, action.optionId, allowed);
           if (error) return { ok: false, error };
@@ -402,7 +402,7 @@ export function makeBluffGame(variant: Variant): Definition {
         }
         case "next": {
           if (ctx.hostId !== playerId) return reject("host-only", "Only the host can do that.");
-          if (r.phase !== "reveal") return reject("wrong-phase", "Not now.");
+          if (r.phase !== "reveal") return reject("wrong-phase", "You cannot do that now.");
           nextRound(state, ctx, out);
           break;
         }

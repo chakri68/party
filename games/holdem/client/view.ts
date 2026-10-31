@@ -58,7 +58,7 @@ function summaryText(summary: HandSummary, props: GameViewProps): string {
     .map((pot, i) => {
       const winners = names(pot.winners.map(who));
       const single = pot.winners.length === 1;
-      const verb = single ? (pot.winners[0] === me ? "win" : "wins") : "split";
+      const verb = single ? (pot.winners[0] === me ? "win" : "wins") : "share";
       const which = pots.length > 1 ? `${i === 0 ? "Main pot" : `Side pot${pots.length > 2 ? ` ${i}` : ""}`}: ` : "";
       return `${which}${winners} ${verb} ${formatChips(pot.amount)}${pot.label ? ` · ${pot.label}` : ""}`;
     })
@@ -71,11 +71,11 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
   const verb = (id: string, you: string, they: string) => (id === me ? you : they);
   switch (e.type) {
     case "hand-start":
-      return `Hand ${e.handNumber}. Blinds ${formatChips(e.sb)}/${formatChips(e.bb)}; ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
+      return `Hand ${e.handNumber}. Blinds ${formatChips(e.sb)}/${formatChips(e.bb)}. ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
     case "level-up":
-      return `Blinds up: ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
+      return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":
-      return `You're dealt the ${cardLabel(e.cards[0]!)} and the ${cardLabel(e.cards[1]!)}.`;
+      return `Your cards are the ${cardLabel(e.cards[0]!)} and the ${cardLabel(e.cards[1]!)}.`;
     case "bet": {
       const name = who(e.playerId);
       const why = e.auto === "timer" ? " (out of time)" : e.auto === "skip" ? " (skipped)" : e.auto === "sitting-out" ? " (sitting out)" : "";
@@ -92,7 +92,7 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
     case "board":
       return `The ${e.street}: ${e.cards.map(cardShort).join(" ")}.`;
     case "returned":
-      return `${formatChips(e.amount)} uncalled back to ${e.playerId === me ? "you" : seatName(props.room, e.playerId)}.`;
+      return `Nobody called ${formatChips(e.amount)}. The chips go back to ${e.playerId === me ? "you" : seatName(props.room, e.playerId)}.`;
     case "reveal":
       return null;
     case "awarded":
@@ -109,13 +109,13 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
       return parts.join(" ");
     }
     case "rebuy":
-      return `${who(e.playerId)} bought back in for ${formatChips(e.chips)}.`;
+      return `${who(e.playerId)} ${verb(e.playerId, "rebuy", "rebuys")} for ${formatChips(e.chips)}.`;
     case "player-removed":
-      return `${who(e.playerId)} left. Their cards are folded.`;
+      return `${who(e.playerId)} left. The game folded their cards.`;
     case "game-over":
       if (e.reason === "abandoned") return "Everyone else left.";
-      if (e.reason === "time") return "Time's up. Biggest stack wins.";
-      return e.winnerIds.includes(me) ? "Every chip is yours." : `${names(e.winnerIds.map(who))} has every chip.`;
+      if (e.reason === "time") return "Time is up. The player with the most chips wins.";
+      return e.winnerIds.includes(me) ? "You have all the chips." : `${names(e.winnerIds.map(who))} has all the chips.`;
   }
 }
 
@@ -554,13 +554,13 @@ export class HoldemView implements GameView {
     if (game.currentPlayerId) {
       const seat = room.seats.find((s) => s.id === game.currentPlayerId);
       const away = seat && seat.presence !== "connected" ? ` (${PRESENCE_LABEL[seat.presence]})` : "";
-      replaceChildren(this.status, seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away} to act`));
+      replaceChildren(this.status, seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away} is playing`));
       return;
     }
     let text = "";
-    if (game.runout) text = "All in. Running out the board";
+    if (game.runout) text = "No more bets. Dealing the rest of the cards";
     else if ((game.step === "showdown" || game.step === "awarded") && game.lastHand) text = summaryText(game.lastHand, props);
-    else if (game.step === "between-hands") text = priv?.canRebuy ? "You're bust. Rebuy?" : "Next hand coming";
+    else if (game.step === "between-hands") text = priv?.canRebuy ? "No chips left. Rebuy?" : "The next hand starts soon";
     replaceChildren(this.status, h("span", {}, text));
   }
 
@@ -595,7 +595,7 @@ export class HoldemView implements GameView {
       : p.out
         ? "Out"
         : p.pendingRebuy
-          ? "Bust"
+          ? "No chips"
           : !p.inHand
             ? ""
             : p.folded
@@ -627,7 +627,7 @@ export class HoldemView implements GameView {
       ...extras,
       p.cards ? `showing ${p.cards.map(cardLabel).join(" and ")}` : "",
       gain ? `won ${formatChips(gain)}` : "",
-      current ? "to act" : "",
+      current ? "their turn" : "",
     ]
       .filter(Boolean)
       .join(", ");
@@ -758,7 +758,7 @@ export class HoldemView implements GameView {
       : me.out
         ? "You're out"
         : me.pendingRebuy
-          ? "Bust"
+          ? "No chips"
           : me.folded
             ? "Folded"
             : me.allIn
@@ -819,23 +819,23 @@ export class HoldemView implements GameView {
       ];
     } else if (priv?.canRebuy) {
       nodes = [
-        hint("Bust. Buy back in once?"),
+        hint("You have no chips. Rebuy once?"),
         h("button", { type: "button", class: "primary", disabled: busy, onclick: () => this.send({ type: "rebuy" }) }, `Rebuy ${formatChips(game.startingChips)}`),
       ];
     } else if (priv?.canBack) {
       nodes = [
-        hint("Sitting out: your hands fold"),
+        hint("You are sitting out. The game folds your hands."),
         h("button", { type: "button", class: "primary", disabled: busy, onclick: () => this.send({ type: "back" }) }, "I'm back"),
       ];
     } else if (priv?.canShow) {
       nodes = [
-        hint(game.step === "awarded" ? "Nobody called. Show them?" : "Show your cards?"),
+        hint(game.step === "awarded" ? "Nobody called. Show your cards?" : "Show your cards?"),
         h("button", { type: "button", disabled: busy, onclick: () => this.send({ type: "show" }) }, "Show"),
       ];
     } else if (busy) nodes = [hint("…")];
-    else if (game.currentPlayerId && me?.inHand && !me.folded && !me.allIn) nodes = [hint(`Waiting on ${seatName(props.room, game.currentPlayerId)}`)];
+    else if (game.currentPlayerId && me?.inHand && !me.folded && !me.allIn) nodes = [hint(`Waiting for ${seatName(props.room, game.currentPlayerId)}`)];
     else if (me?.inHand && !me.folded && me.allIn && isStreet(game.step)) nodes = [hint("You're all-in")];
-    else if (game.currentPlayerId) nodes = [hint(`${seatName(props.room, game.currentPlayerId)} to act`)];
+    else if (game.currentPlayerId) nodes = [hint(`Waiting for ${seatName(props.room, game.currentPlayerId)}`)];
 
     this.actions.classList.toggle("bet-row", !!legal && !this.raiseOpen);
     this.actions.classList.toggle("raise-row", !!legal && this.raiseOpen);
@@ -950,8 +950,8 @@ export class HoldemView implements GameView {
     let note = "";
     if (game.step === "between-hands") {
       const rebuying = game.players.some((p) => p.pendingRebuy);
-      note = pause ? `${rebuying ? "Rebuy window · next hand" : "Next hand"} in ${pause}s` : "Dealing…";
-    } else if (game.step === "showdown" && priv?.canShow) note = pause ? `Show within ${pause}s` : "";
+      note = pause ? `${rebuying ? "Time to rebuy · next hand" : "Next hand"} in ${pause}s` : "Dealing…";
+    } else if (game.step === "showdown" && priv?.canShow) note = pause ? `Show in the next ${pause}s` : "";
     this.stepNote.textContent = note;
     this.stepNote.hidden = !note;
 

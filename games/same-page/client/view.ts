@@ -61,7 +61,7 @@ export class SamePageView implements GameView {
     placeholder: "Your answer",
     "aria-describedby": "sp-prompt",
   });
-  private send = h("button", { type: "submit", class: "primary sp-send" }, "Lock in");
+  private send = h("button", { type: "submit", class: "primary sp-send" }, "Send");
   private form = h(
     "form",
     { class: "sp-form" },
@@ -296,16 +296,16 @@ export class SamePageView implements GameView {
     this.form.hidden = !showBox;
     this.input.disabled = !answering;
     this.send.disabled = !answering;
-    this.send.textContent = mine ? "Change" : "Lock in";
+    this.send.textContent = mine ? "Change" : "Send";
     this.locked.hidden = showBox || !mine;
     if (mine) {
       replaceChildren(
         this.locked,
-        h("span", { class: "sp-locked-k" }, "Locked in"),
+        h("span", { class: "sp-locked-k" }, "Your answer"),
         h("strong", { class: "sp-locked-v" }, mine),
         h("span", { class: "sp-locked-k" }, answering ? "tap to change" : ""),
       );
-      this.locked.setAttribute("aria-label", `Locked in: ${mine}. Tap to change.`);
+      this.locked.setAttribute("aria-label", `Your answer: ${mine}. Tap to change.`);
       this.locked.disabled = !answering;
     }
     const live = game.players.filter((p) => !p.removed);
@@ -374,7 +374,7 @@ export class SamePageView implements GameView {
           },
           body,
           members,
-          this.pick && !picked ? h("span", { class: "sp-into" }, "Merge here") : null,
+          this.pick && !picked ? h("span", { class: "sp-into" }, "Join here") : null,
         )
       : h("div", { class: "sp-group-main" }, body, members);
 
@@ -420,7 +420,7 @@ export class SamePageView implements GameView {
     const parts: HTMLElement[] = [];
     if (game.phase === "tidying" && this.isHost(props)) {
       if (this.pick) parts.push(h("button", { type: "button", class: "sp-cancel", onclick: () => this.tapGroup(this.pick!) }, "Cancel"));
-      parts.push(h("button", { type: "button", class: "primary sp-done", onclick: () => this.perform({ type: "done" }) }, "Done, reveal"));
+      parts.push(h("button", { type: "button", class: "primary sp-done", onclick: () => this.perform({ type: "done" }) }, "Done. Show"));
     }
     if (game.phase === "reveal" && game.players.some((p) => p.id === props.playerId && !p.removed)) {
       const tapped = this.readyRound === game.round;
@@ -438,7 +438,7 @@ export class SamePageView implements GameView {
               this.settle(this.props!);
             },
           },
-          tapped ? "Waiting for the rest" : game.round >= game.rounds ? "Final scores" : "Next prompt",
+          tapped ? "Waiting for the others" : game.round >= game.rounds ? "Final scores" : "Next prompt",
         ),
       );
     }
@@ -475,18 +475,18 @@ export class SamePageView implements GameView {
       case "answering": {
         const left = game.deadline - this.api.serverNow();
         const hurried = game.players.filter((p) => !p.removed).every((p) => p.answered) && left <= 5_500;
-        if (!me?.canAnswer) text = "Everyone's answering.";
-        else if (hurried) text = "Everyone's in. Last few seconds to change your mind.";
-        else if (this.mine()) text = "Locked in. You can change it until time's up.";
-        else text = "Answer what you think everyone else will.";
+        if (!me?.canAnswer) text = "Everyone is answering.";
+        else if (hurried) text = "Everyone has answered. You have a few seconds to change your answer.";
+        else if (this.mine()) text = "Answer sent. You can change your answer until time is up.";
+        else text = "Guess what most players will answer. Give that answer.";
         break;
       }
       case "tidying":
-        if (!this.isHost(props)) text = `${host} is tidying up: merging answers that mean the same.`;
+        if (!this.isHost(props)) text = `${host} is joining answers with the same meaning.`;
         else if (this.pick) {
           const label = game.groups?.find((g) => g.id === this.pick)?.label ?? "";
-          text = `Now tap the group “${label}” belongs with.`;
-        } else text = "Same thing, different words? Tap one group, then the group it belongs with.";
+          text = `Now tap the group to join with “${label}”.`;
+        } else text = "Do 2 groups mean the same thing? Tap 1 group. Then tap the other group.";
         break;
       case "reveal":
       case "over": {
@@ -501,7 +501,7 @@ export class SamePageView implements GameView {
         else {
           const labels = list(winners.map((g) => `“${g.label}”`));
           const mineWon = winners.some((g) => g.members.some((m) => m.id === props.playerId));
-          text = mineWon ? `Same page: ${labels}. +1 for you.` : `The room said ${labels}.`;
+          text = mineWon ? `You matched: ${labels}. +1 for you.` : `Most people said ${labels}.`;
         }
         if (res.loneId) text += ` ${res.loneId === props.playerId ? "You were" : `${seatName(props.room, res.loneId)} was`} the lone answer${res.points[res.loneId] ? ": −1" : ""}.`;
         break;
@@ -511,10 +511,10 @@ export class SamePageView implements GameView {
   }
 
   private finalLine(props: GameViewProps, game: Pub): string {
-    if (game.endReason === "abandoned") return "Too few players left.";
+    if (game.endReason === "abandoned") return "Too many players left the game.";
     const live = game.players.filter((p) => !p.removed);
     const top = Math.max(0, ...live.map((p) => p.score));
-    if (top === 0) return "Nobody scored. Impressively independent.";
+    if (top === 0) return "Nobody scored. Every answer was different.";
     const winners = live.filter((p) => p.score === top).map((p) => this.name(p.id, props));
     const verb = winners.length === 1 && winners[0] !== "You" ? "wins" : "win";
     return `${list(winners)} ${verb} with ${top}.`;

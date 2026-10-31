@@ -3,7 +3,7 @@ import type { GameManifest } from "@games/game-core";
 export const oldMaidManifest: GameManifest = {
   id: "old-maid",
   name: "Old Maid",
-  description: "Pair off your cards, take blind from your neighbour. Whoever's left holding the odd one loses.",
+  description: "Put down pairs of cards. Take cards from your neighbour without looking. The last player with a card loses.",
   minPlayers: 2,
   maxPlayers: 10,
   icon: "cards",

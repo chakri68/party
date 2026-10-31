@@ -80,16 +80,16 @@ export function setName(count: number, rank: Rank): string {
  * or (with the house rule) equal.
  */
 export function checkPlay(cards: readonly Card[], top: Play | null, matchSkips: boolean): string | null {
-  if (cards.length < 1 || cards.length > 4) return "Play one to four cards.";
+  if (cards.length < 1 || cards.length > 4) return "Play 1 to 4 cards.";
   const rank = cards[0]!.rank;
-  if (cards.some((c) => c.rank !== rank)) return "A set has to be all one rank.";
+  if (cards.some((c) => c.rank !== rank)) return "All cards in a set must have the same rank.";
   if (!top) return null;
   const need = top.cards.length;
   const their = top.cards[0]!.rank;
-  if (cards.length !== need) return `It's ${SET_WORDS[need]}s this trick: play ${need} of a kind, or pass.`;
+  if (cards.length !== need) return `This trick needs ${SET_WORDS[need]}s. Play ${need} of a kind, or pass.`;
   const diff = power(rank) - power(their);
   if (diff > 0 || (diff === 0 && matchSkips)) return null;
-  return `That doesn't beat ${setName(need, their)}.`;
+  return `That can't beat ${setName(need, their)}.`;
 }
 
 /** Ranks in `hand` that could go down on `top` right now. */

@@ -283,8 +283,8 @@ function normalizeClusters(input: unknown[]): string[] {
 }
 
 function vote(prev: State, playerId: string, ballot: number, choice: VoteChoice, ctx: GameContext): GameResult<State, PassTheBombEvent> {
-  if (prev.phase !== "vote" || !prev.vote || prev.vote.id !== ballot) return reject("no-vote", "That vote's over.");
-  if (ctx.now >= prev.vote.deadline) return reject("time-up", "Too late, it's counted.");
+  if (prev.phase !== "vote" || !prev.vote || prev.vote.id !== ballot) return reject("no-vote", "That vote has ended.");
+  if (ctx.now >= prev.vote.deadline) return reject("time-up", "Too late. The vote has ended.");
   const state = clone(prev);
   const out = newOut();
   const error = castVote(state.vote!.ballot, playerId, choice, VOTE_CHOICES);
@@ -350,30 +350,30 @@ export const passTheBombGame: GameDefinition<
     const prev = restore(saved);
     if (prev.phase === "finished") return reject("game-finished", "The game is over.");
     const me = prev.players.find((p) => p.id === playerId);
-    if (!me || !alive(me)) return reject("not-in-game", "You're out. Heckle freely.");
+    if (!me || !alive(me)) return reject("not-in-game", "You're out. You can still watch.");
     if (action.type === "vote") return vote(prev, playerId, action.ballot, action.choice, ctx);
-    if (prev.phase === "vote") return reject("voting", "Hang on, the room's deciding.");
-    if (prev.phase !== "live") return reject("not-live", "Hang on, the next round's coming.");
+    if (prev.phase === "vote") return reject("voting", "Wait. The other players are voting.");
+    if (prev.phase !== "live") return reject("not-live", "Wait. The next round is starting.");
     if (prev.holderId !== playerId) return reject("not-holding", "You're not holding the bomb.");
     // The fuse is out; the alarm just hasn't landed yet (source §4.4: late loses).
-    if (prev.fuseEndsAt && ctx.now >= prev.fuseEndsAt) return reject("time-up", "Too late.");
+    if (prev.fuseEndsAt && ctx.now >= prev.fuseEndsAt) return reject("time-up", "Too late. The bomb blew up.");
 
     const word = action.text;
     const problem = shapeProblem(word, prev.cluster, modesOf(prev.settings));
     if (problem) return reject("bad-word", problem);
-    if (prev.used.includes(word)) return reject("used", "Already played this game.");
+    if (prev.used.includes(word)) return reject("used", "Someone already used this word.");
 
     const state = clone(prev);
     const out = newOut();
     const known = state.category ? inCategory(state.category, word) : isWord(word);
     if (!known) {
       // Only an unknown word can have been voted down, and only for the category it was up for.
-      if (state.rejected.includes(rejectionKey(state.category, word))) return reject("not-a-word", "The room already said no to that one.");
-      const unknown = state.category ? `Not on the ${CATEGORY_LABELS[state.category].toLowerCase()} list.` : "Not in the dictionary.";
+      if (state.rejected.includes(rejectionKey(state.category, word))) return reject("not-a-word", "The players already said no to this word.");
+      const unknown = state.category ? `This word is not on the ${CATEGORY_LABELS[state.category].toLowerCase()} list.` : "This word is not in the dictionary.";
       const mode = state.settings.unknown;
       if (mode === "strict") return reject("not-a-word", unknown);
       if (mode === "vote") {
-        if (state.holdVotes >= MAX_HOLD_VOTES) return reject("not-a-word", `${unknown} No more votes this turn.`);
+        if (state.holdVotes >= MAX_HOLD_VOTES) return reject("not-a-word", `${unknown} You have no votes left this turn.`);
         const eligible = state.players.filter((p) => alive(p) && !p.away && p.id !== playerId).map((p) => p.id);
         // Nobody to ask (two of you, one away): it goes through.
         if (eligible.length) {
@@ -535,7 +535,7 @@ export const passTheBombGame: GameDefinition<
           const label = alive(p)
             ? `${p.lives} ${p.lives === 1 ? "life" : "lives"} left`
             : out < 0
-              ? "left"
+              ? "left the game"
               : out === 0
                 ? "first out"
                 : `out ${ordinal(out + 1)}`;

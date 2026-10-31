@@ -4,13 +4,20 @@ import { DEFAULT_SETTINGS, WINDOW_SECONDS_OPTIONS, type CheatSettings } from "./
 
 /** Plain-language rules for the lobby's Rules button (§25). Also known as BS, or I Doubt It. */
 export const cheatRules: string[] = [
-  "The whole deck gets dealt. Some players get one more card than others.",
-  "On your turn, put one to four cards face down on the pile and say what they are. The first play is Aces, then Twos, Threes, up to Kings and round to Aces again.",
-  "You have to claim the rank that's up, whatever you're holding. Haven't got it? Lie.",
-  "After each play, anyone else can call \"Cheat!\" before the timer runs out. First call counts.",
-  "The cards get turned over. If any of them isn't what was claimed, the player who put them down takes the whole pile. If they were all true, the caller takes it.",
-  "Nobody calls (or everyone lets it go)? The next player carries on.",
-  "First to get rid of every card wins, as long as their last play survives a call.",
+  "The game deals all the cards. Some players may get 1 more card than others.",
+  "On your turn, put 1 to 4 cards face down on the pile.",
+  "Then say what the cards are. You must say the next rank.",
+  "Rank means the number or letter on a card, like 7 or K.",
+  "The first rank is Aces. Next come Twos and Threes, up to Kings. Then Aces come again.",
+  "You must say the next rank, even if you don't have it. If you don't have it, lie.",
+  "After each play, any other player can call \"Cheat!\" before the timer ends.",
+  "Only the first call counts.",
+  "The game then turns the cards over.",
+  "If any card is wrong, the player who played the cards takes the whole pile.",
+  "If all the cards are right, the player who called takes the whole pile.",
+  "If nobody calls, the next player plays.",
+  "The first player with no cards left wins.",
+  "Your last play must be true. If someone catches a lie on your last play, you take the pile.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */
@@ -39,16 +46,16 @@ export function cheatSettingFields(raw: unknown, players: number): SettingField[
       selected: Math.max(0, claimChoices.indexOf(settings.claims)),
       options: [
         { label: "Next rank up", patch: { claims: "strict" } },
-        { label: "Same, up or down one", patch: { claims: "near" } },
+        { label: "Same, or 1 up or down", patch: { claims: "near" } },
       ],
-      hint: settings.claims === "strict" ? "A, 2, 3 … K, A: no choice in the matter" : "After Sevens: Sixes, Sevens or Eights",
+      hint: settings.claims === "strict" ? "A, 2, 3 … K, A. You can't choose." : "After Sevens, you can say Sixes, Sevens or Eights",
     },
     {
       key: "windowSeconds",
       label: "Time to call",
       selected: Math.max(0, (WINDOW_SECONDS_OPTIONS as readonly number[]).indexOf(settings.windowSeconds)),
       options: WINDOW_SECONDS_OPTIONS.map((s) => ({ label: `${s} seconds`, patch: { windowSeconds: s } })),
-      hint: "Closes early once everyone's let it go",
+      hint: "The timer ends early if no player wants to call",
     },
   ];
 }

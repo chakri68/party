@@ -36,7 +36,7 @@ describe("the deal", () => {
 
   it("asks setupProblem the same thing the lobby does", () => {
     expect(g.setupProblem!(DEFAULT_SETTINGS, 6)).toBeNull();
-    expect(g.setupProblem!({ ...DEFAULT_SETTINGS, preset: "custom", "n:wolf": 3, "n:villager": 3 }, 6)).toBe("Wolves must be fewer than everyone else");
+    expect(g.setupProblem!({ ...DEFAULT_SETTINGS, preset: "custom", "n:wolf": 3, "n:villager": 3 }, 6)).toBe("There must be fewer Wolves than other players");
   });
 
   it("opens on the reveal with its 30 s clock, round 0", () => {
@@ -449,7 +449,7 @@ describe("leaving", () => {
     expect(s.phase).toBe("reveal");
     const t = ring(s);
     expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "abandoned" });
-    expect(g.getResult(t.state)).toMatchObject({ headline: "Interrupted: a side left the game", winnerIds: [] });
+    expect(g.getResult(t.state)).toMatchObject({ headline: "Stopped: a team left the game", winnerIds: [] });
     expect(g.getPublicState(t.state).cards).not.toBeNull();
   });
 

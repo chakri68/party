@@ -77,7 +77,7 @@ class NavigatorView implements RoleView {
   private driver = h("span", { class: "br-link", role: "status" });
   private clock = h("span", { class: "br-nclock" });
   /** Metres driven, from Godot's snapshots: detours count (spec §4.3). */
-  private trip = h("span", { class: "br-trip", title: "Distance actually driven, wrong turns included" });
+  private trip = h("span", { class: "br-trip", title: "Metres driven. Wrong turns count too." });
   private notesBtn = h("button", { type: "button", class: "br-chip", "aria-expanded": "false" }, "Notes");
   /**
    * Static and hand-scrolled: never advanced or highlighted by the game, which
@@ -151,7 +151,7 @@ class NavigatorView implements RoleView {
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
-    this.end.addEventListener("click", () => confirm("End the race now? Anyone still out is DNF.") && api.act({ type: "race.end" }));
+    this.end.addEventListener("click", () => confirm("End the race now? Cars still driving get a DNF.") && api.act({ type: "race.end" }));
     this.notesBtn.addEventListener("click", () => {
       this.notes.hidden = !this.notes.hidden;
       this.notesBtn.setAttribute("aria-expanded", String(!this.notes.hidden));
@@ -197,7 +197,7 @@ class NavigatorView implements RoleView {
     for (const ev of props.events) {
       if (this.seenEvents.has(ev)) continue;
       this.seenEvents.add(ev);
-      if (ev.type === "reset" && ev.teamId === props.private.teamId) this.msg.textContent = `Reset: +${ev.penaltyMs / 1000} s so far.`;
+      if (ev.type === "reset" && ev.teamId === props.private.teamId) this.msg.textContent = `Reset done. You have ${ev.penaltyMs / 1000} s added so far.`;
       // The server's said yes to the Driver's reset: back to the anchor after the checkpoint
       // *it* counted, held for holdMs (tick() freezes until private.run.holdUntil too).
       if (ev.type === "recover" && ev.teamId === props.private.teamId) {
@@ -299,10 +299,10 @@ class NavigatorView implements RoleView {
     const g = p.game;
     const team = this.myTeam();
     this.msg.textContent = g.phase === "teams" || (g.phase === "countdown" && team?.status === "running")
-      ? "Pins count from the green light."
+      ? "Pins count from the start of the race."
       : team?.status === "running" && team.away.length
-        ? "Paused: pins wait till everyone's back."
-        : "Race over: your pins are in.";
+        ? "Paused. You can place pins when everyone is back."
+        : "The race is over. Your pins are saved.";
   }
 
   private myTeam(): PublicTeam | undefined {
@@ -359,7 +359,7 @@ class NavigatorView implements RoleView {
           "div",
           { class: "br-pad-scroll" },
           h("p", { class: "br-pad-head" }, h("span", {}, "Pace notes"), h("span", { class: "br-pad-track" }, track?.name ?? session!.trackId)),
-          h("p", { class: "br-pad-sub" }, "Metres along the clean line. Tap a line to mark your place."),
+          h("p", { class: "br-pad-sub" }, "Each number is metres from the start. Tap a line to mark your place."),
           h("ol", { class: "br-pad-lines" }, lines),
         ),
       ),
@@ -418,10 +418,10 @@ class NavigatorView implements RoleView {
     const name = driverId ? seatName(p.room, driverId) : "your Driver";
     let text: string;
     let tone: "ok" | "warn" | "bad";
-    if (!seat || seat.presence !== "connected") [text, tone] = [`${name} dropped out`, "bad"];
+    if (!seat || seat.presence !== "connected") [text, tone] = [`${name} disconnected`, "bad"];
     else if (g.phase === "teams") [text, tone] = [g.startBlocker ?? "Waiting for the host", "warn"];
     else if (g.phase === "finished") [text, tone] = ["Race over", "warn"];
-    else if (live && performance.now() - Math.max(this.lastInput, this.liveSince) > DRIVER_QUIET_MS) [text, tone] = [`${name} isn't touching anything`, "warn"];
+    else if (live && performance.now() - Math.max(this.lastInput, this.liveSince) > DRIVER_QUIET_MS) [text, tone] = [`${name} isn't pressing anything`, "warn"];
     else [text, tone] = [`${name} driving`, "ok"];
     text = text[0]!.toUpperCase() + text.slice(1); // "your Driver dropped out" opens a sentence
     if (this.driver.textContent !== text) this.driver.textContent = text;

@@ -292,10 +292,10 @@ export const samePageGame: GameDefinition<
 
     switch (action.type) {
       case "answer": {
-        if (prev.phase !== "answering") return reject("wrong-phase", "Answers are closed.");
+        if (prev.phase !== "answering") return reject("wrong-phase", "Answer time is over.");
         if (ctx.now >= prev.deadline) return reject("time-up", "Time's up.");
         const text = tidyText(action.text);
-        if (text.length > MAX_ANSWER) return reject("too-long", `Keep it under ${MAX_ANSWER} characters.`);
+        if (text.length > MAX_ANSWER) return reject("too-long", `Use fewer than ${MAX_ANSWER} characters.`);
         const was = !!r.answers[playerId];
         if (text) r.answers[playerId] = text;
         else delete r.answers[playerId];
@@ -305,7 +305,7 @@ export const samePageGame: GameDefinition<
         break;
       }
       case "merge": {
-        if (!host) return reject("host-only", "Only the host can merge groups.");
+        if (!host) return reject("host-only", "Only the host can join groups.");
         if (prev.phase !== "tidying") return reject("wrong-phase", "Nothing to tidy right now.");
         const problem = mergeProblem(r.groups, r.merges, action.from, action.into);
         if (problem) return reject("bad-merge", problem);
@@ -317,19 +317,19 @@ export const samePageGame: GameDefinition<
         if (!host) return reject("host-only", "Only the host can split groups.");
         if (prev.phase !== "tidying") return reject("wrong-phase", "Nothing to tidy right now.");
         const top = topLevel(r.groups, r.merges).some((g) => g.id === action.group);
-        if (!top || !r.merges.some((m) => m.into === action.group)) return reject("bad-split", "Nothing was merged into that group.");
+        if (!top || !r.merges.some((m) => m.into === action.group)) return reject("bad-split", "That group has nothing to split.");
         r.merges = splitGroup(r.merges, action.group);
         out.events.push(pub({ type: "split", group: action.group }));
         break;
       }
       case "done": {
-        if (!host) return reject("host-only", "Only the host can finish tidying.");
+        if (!host) return reject("host-only", "Only the host can finish this step.");
         if (prev.phase !== "tidying") return reject("wrong-phase", "Nothing to tidy right now.");
         reveal(state, ctx, out);
         break;
       }
       case "ready": {
-        if (prev.phase !== "reveal") return reject("wrong-phase", "Nothing to be ready for.");
+        if (prev.phase !== "reveal") return reject("wrong-phase", "You can't do that now.");
         if (!r.ready.includes(playerId)) r.ready.push(playerId);
         checkAllReady(state, ctx, out);
         break;

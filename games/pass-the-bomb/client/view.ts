@@ -72,7 +72,7 @@ export class PassTheBombView implements GameView {
   private burst = burstEl();
   private cluster = h("span", { class: "pb-cluster" });
   private category = h("span", { class: "pb-category" });
-  private modes = h("p", { class: "pb-modes", "aria-label": "Modes" });
+  private modes = h("p", { class: "pb-modes", "aria-label": "Extra rules" });
   private voteWord = h("p", { class: "pb-vote-word" });
   private voteBy = h("p", { class: "pb-vote-by" });
   private voteBar = h("div", { class: "pb-vote-bar", "aria-hidden": "true" }, h("span"));
@@ -80,7 +80,7 @@ export class PassTheBombView implements GameView {
   private allowBtn = h("button", { type: "button", class: "pb-vote-allow" }, "Allow");
   private rejectBtn = h("button", { type: "button", class: "pb-vote-reject" }, "Reject");
   private voteButtons = h("div", { class: "pb-vote-buttons" }, this.allowBtn, this.rejectBtn);
-  private voteWait = h("p", { class: "pb-vote-wait" }, "The room is deciding");
+  private voteWait = h("p", { class: "pb-vote-wait" }, "The players are voting");
   private voteCard = h(
     "section",
     { class: "pb-vote", role: "dialog", "aria-label": "Room vote" },
@@ -224,7 +224,7 @@ export class PassTheBombView implements GameView {
     const game = this.props?.game as Pub | undefined;
     if (!game || this.pending) return;
     if (!this.holding()) {
-      this.note.textContent = game.phase === "live" ? "Not yours. Yet." : "";
+      this.note.textContent = game.phase === "live" ? "It is not your turn yet." : "";
       return;
     }
     const word = normalizeWord(this.input.value);
@@ -312,24 +312,24 @@ export class PassTheBombView implements GameView {
         game.modes.ending ? "End" : null,
         game.modes.reverse ? "Backwards" : null,
         game.modes.length ? `${LENGTH_MIN}–${LENGTH_MAX} letters` : null,
-        game.modes.category ? "Category" : null,
+        game.modes.category ? "Topic" : null,
       ].filter((m): m is string => !!m).map((m) => h("span", { class: "pb-mode" }, m)),
     );
     this.modes.hidden = !this.modes.childElementCount;
 
     const holder = game.holderId === me ? "You" : seatName(props.room, game.holderId);
     if (game.phase === "vote") {
-      this.status.textContent = "The room's deciding";
+      this.status.textContent = "The players are voting";
       // Whatever bounced before, this one's with the room now.
       this.note.textContent = "";
     } else if (game.phase === "live") {
-      this.status.textContent = holding ? `Your go: ${ask(game)}` : `${holder} has it`;
+      this.status.textContent = holding ? `Your turn: ${ask(game)}` : `${holder} has the bomb`;
     } else if (game.blownId) {
       const who = game.blownId === me ? "You" : seatName(props.room, game.blownId);
       const left = game.players.find((p) => p.id === game.blownId)?.lives ?? 0;
       this.status.textContent = left > 0
-        ? `Boom. ${who} ${who === "You" ? "lose" : "loses"} a life`
-        : `Boom. ${who} ${who === "You" ? "are" : "is"} out`;
+        ? `The bomb blew up. ${who} ${who === "You" ? "lose" : "loses"} a life`
+        : `The bomb blew up. ${who} ${who === "You" ? "are" : "is"} out`;
     } else {
       this.status.textContent = "";
     }
@@ -340,7 +340,7 @@ export class PassTheBombView implements GameView {
     replaceChildren(
       this.verdict,
       lv && game.phase !== "finished"
-        ? [`The room ${lv.allowed ? "allowed" : "rejected"} `, h("b", {}, lv.word.toUpperCase()), `. ${voteLine(lv.votes, name)}`]
+        ? [`The players ${lv.allowed ? "allowed" : "rejected"} `, h("b", {}, lv.word.toUpperCase()), `. ${voteLine(lv.votes, name)}`]
         : null,
     );
     this.verdict.classList.toggle("no", !!lv && !lv.allowed);
@@ -356,8 +356,8 @@ export class PassTheBombView implements GameView {
     const typing = document.activeElement === this.input;
     this.form.hidden = !inGame || game.phase === "finished" || game.phase === "vote";
     this.input.placeholder = holding
-      ? `Something with ${wanted(needs(game), game.modes)}`
-      : game.phase === "live" ? "Wait for the bomb" : "Next round's coming";
+      ? `A word with ${wanted(needs(game), game.modes)}`
+      : game.phase === "live" ? "Wait for the bomb" : "The next round is starting";
     this.send.disabled = !holding;
     this.root.classList.toggle("holding", holding);
     if (typing && !this.form.hidden) this.input.focus({ preventScroll: true });
@@ -384,12 +384,12 @@ export class PassTheBombView implements GameView {
     }
     const me = props.playerId;
     this.voteWord.textContent = v.word.toUpperCase();
-    this.voteBy.textContent = `${v.by === me ? "You" : seatName(props.room, v.by)} played it. Not in the ${game.category ? `${CATEGORY_LABELS[game.category].toLowerCase()} list` : "dictionary"}.`;
+    this.voteBy.textContent = `${v.by === me ? "You" : seatName(props.room, v.by)} played this word. The word is not in the ${game.category ? `${CATEGORY_LABELS[game.category].toLowerCase()} list` : "dictionary"}.`;
     this.voteCount.textContent = `${v.voted.length} of ${v.voters.length} voted`;
     const canVote = !!priv?.canVote;
     this.voteButtons.hidden = !canVote;
     this.voteWait.hidden = canVote;
-    this.voteWait.textContent = v.by === me ? "The room is deciding on yours" : "The room is deciding";
+    this.voteWait.textContent = v.by === me ? "The players are voting on your word" : "The players are voting";
     this.allowBtn.setAttribute("aria-pressed", String(priv?.myVote === "allow"));
     this.rejectBtn.setAttribute("aria-pressed", String(priv?.myVote === "reject"));
     if (v.id !== this.voteId) {
@@ -510,7 +510,7 @@ export class PassTheBombView implements GameView {
     this.cluster.hidden = true;
     this.burst.hidden = false;
     this.stage.classList.add("boom");
-    this.status.textContent = "Boom.";
+    this.status.textContent = "The bomb blew up.";
     this.chips.get(holderId)?.classList.add("hit");
     replay(this.root, "quake");
     const flash = h("div", { class: "pb-flash", "aria-hidden": "true" });

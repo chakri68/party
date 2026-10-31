@@ -122,7 +122,7 @@ export class GodotBridge {
         // Streaming compile wants application/wasm; anything else is slower, not fatal.
         if (file === "index.wasm" && !type.includes(want)) console.warn(`blind-rally: ${file} served as ${type}`);
       } catch {
-        return this.fail("Couldn't reach the Navigator build.");
+        return this.fail("Could not load the Navigator screen.");
       }
       if (this.disposed) return;
     }
@@ -137,7 +137,7 @@ export class GodotBridge {
     };
     const iframe = document.createElement("iframe");
     iframe.className = "br-godot";
-    iframe.title = "Course view";
+    iframe.title = "Track view";
     iframe.allow = "fullscreen; autoplay";
     iframe.src = `${b.base}index.html`;
     this.iframe = iframe;
@@ -163,7 +163,7 @@ export class GodotBridge {
 
   private watch() {
     clearTimeout(this.stall);
-    this.stall = setTimeout(() => this.fail("The download stalled."), STALL_MS);
+    this.stall = setTimeout(() => this.fail("The download stopped."), STALL_MS);
   }
 
   private fail(why: string) {

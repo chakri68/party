@@ -403,17 +403,17 @@ export const nightfallGame: GameDefinition<
 
     switch (action.type) {
       case "ack": {
-        if (prev.phase !== "reveal") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "reveal") return reject("wrong-phase", "You can't do that now.");
         if (!state.acks.includes(playerId)) state.acks.push(playerId);
         break;
       }
       case "pick": {
-        if (prev.phase !== "night") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "night") return reject("wrong-phase", "You can't do that now.");
         const allowed = targetsFor(prev, playerId);
-        if (!allowed) return reject("no-pick", "Your card has no night pick.");
+        if (!allowed) return reject("no-pick", "Your card has no power at night.");
         const had = isWolf(prev, playerId) ? prev.pack!.votes[playerId] : prev.picks[playerId];
-        if (had) return reject("already", "You've already picked.");
-        if (!actingIds(prev).includes(action.target)) return reject("bad-pick", "That pick doesn't work for your card.");
+        if (had) return reject("already", "You have already chosen.");
+        if (!actingIds(prev).includes(action.target)) return reject("bad-pick", "You can't choose that player.");
         // A pick the card can't make is taken, silently, as no pick: a refusal
         // only an acting card could ever see would mark it (ruling 4).
         const target = allowed.includes(action.target) ? action.target : SKIP;
@@ -423,15 +423,15 @@ export const nightfallGame: GameDefinition<
         break;
       }
       case "vote": {
-        if (!voting(prev)) return reject("wrong-phase", "Not voting now.");
-        if (action.choice === playerId) return reject("self-vote", "Not yourself.");
+        if (!voting(prev)) return reject("wrong-phase", "There's no vote right now.");
+        if (action.choice === playerId) return reject("self-vote", "You can't vote for yourself.");
         const error = castVote(ballotOf(state)!, playerId, action.choice, choicesFor(state, playerId));
         if (error) return { ok: false, error };
         break;
       }
       case "next": {
         if (ctx.hostId !== playerId) return reject("host-only", "Only the host can do that.");
-        if (prev.phase !== "day") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "day") return reject("wrong-phase", "You can't do that now.");
         openVote(state, ctx, out);
         break;
       }
@@ -562,7 +562,7 @@ export const nightfallGame: GameDefinition<
     if (state.phase !== "finished") return null;
     const winners = state.winner ? state.players.filter((p) => !p.left && teamOf(state.cards[p.id]!) === state.winner).map((p) => p.id) : [];
     const headline =
-      state.endReason === "abandoned" ? "Interrupted: a side left the game" : state.winner === "village" ? "Village wins" : "Wolves win";
+      state.endReason === "abandoned" ? "Stopped: a team left the game" : state.winner === "village" ? "Village wins" : "Wolves win";
     return {
       winnerIds: winners,
       headline,

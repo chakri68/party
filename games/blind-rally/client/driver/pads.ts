@@ -16,14 +16,14 @@ const pad = (control: Control, label: string, glyph: Node | string) =>
   h("div", { class: `br-pad br-pad-${control}`, "data-control": control }, glyph, h("span", { class: "br-pad-label" }, label));
 
 export const steerZone = () =>
-  h("div", { class: "br-zone br-steer", role: "group", "aria-label": "Steering: A and D, or the arrow keys" }, pad("left", "Left", arrow("left")), pad("right", "Right", arrow("right")));
+  h("div", { class: "br-zone br-steer", role: "group", "aria-label": "Steer with A and D, or the arrow keys" }, pad("left", "Left", arrow("left")), pad("right", "Right", arrow("right")));
 
 export const pedalZone = () =>
   h(
     "div",
-    { class: "br-zone br-pedals", role: "group", "aria-label": "Pedals: W for gas, S for brake and reverse" },
+    { class: "br-zone br-pedals", role: "group", "aria-label": "Pedals: W to go, S to brake or go backwards" },
     pad("brake", "Brake", h("span", { class: "br-glyph br-glyph-brake", "aria-hidden": "true" })),
-    pad("gas", "Gas", h("span", { class: "br-glyph br-glyph-gas", "aria-hidden": "true" })),
+    pad("gas", "Go", h("span", { class: "br-glyph br-glyph-gas", "aria-hidden": "true" })),
   );
 
 /**

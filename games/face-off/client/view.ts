@@ -213,15 +213,15 @@ export class FaceOffView implements GameView {
   private outcomeText(o: Outcome, props: GameViewProps): [string, string] {
     switch (o.kind) {
       case "point":
-        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "draw", props)} a new card.${o.confirm ? ` Confirmed ${o.confirm} to ${o.overturn}.` : ""}`];
+        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${o.confirm ? ` Votes: ${o.confirm} yes, ${o.overturn} no.` : ""}`];
       case "overturned":
-        return [`Overturned. ${this.name(o.winnerId, props)} +1`, `${o.overturn} to ${o.confirm}. ${this.does(o.loserId!, "draw", props)} a new card.`];
+        return [`Rejected. ${this.name(o.winnerId, props)} +1`, `Votes: ${o.overturn} no, ${o.confirm} yes. ${this.does(o.loserId!, "get", props)} a new card.`];
       case "void":
-        return ["Nobody buzzed", `${this.name(o.a, props)} and ${this.lower(o.b, props)} draw new cards.`];
+        return ["Nobody buzzed", `${this.name(o.a, props)} and ${this.lower(o.b, props)} get new cards.`];
       case "left":
-        return ["Duel off", "Someone in it left. No score."];
+        return ["Duel cancelled", "A player in the duel left. Nobody scores."];
       case "dropped":
-        return ["Duel off", "Someone in it dropped. No score."];
+        return ["Duel cancelled", "A player in the duel lost connection. Nobody scores."];
     }
   }
 
@@ -235,18 +235,18 @@ export class FaceOffView implements GameView {
       const names = winners.length > 1 ? `${winners.slice(0, -1).join(", ")} and ${winners.at(-1)}` : (winners[0] ?? "");
       const win = winners.length === 1 && winners[0] !== "You" ? "wins" : "win";
       if (game.endReason === "target") headline = `${names} ${win}, first to ${game.target}`;
-      else if (!winners.length) headline = game.endReason === "time" ? "Time. Nobody scored." : "Too few players left.";
-      else headline = `${game.endReason === "time" ? "Time." : "Too few players left."} ${names} ${win} with ${top}.`;
+      else if (!winners.length) headline = game.endReason === "time" ? "Time is up. Nobody scored." : "Not enough players are left.";
+      else headline = `${game.endReason === "time" ? "Time is up." : "Not enough players are left."} ${names} ${win} with ${top}.`;
     } else if (game.queued) {
       headline = `Redo: ${this.name(game.queued[0], props)} and ${this.lower(game.queued[1], props)} again`;
       sub = "Get ready.";
     } else if (game.last && game.phase === "lull") {
       [headline, sub] = this.outcomeText(game.last, props);
     } else {
-      headline = "Wait for the spark";
-      sub = "Any two of you, any second now. Know your card.";
+      headline = "Wait for the next duel";
+      sub = "The game can choose any 2 players at any time. Read your card.";
     }
-    if (game.reshuffled && game.phase === "lull" && !sub) sub = "The deck ran out and was reshuffled.";
+    if (game.reshuffled && game.phase === "lull" && !sub) sub = "The game used all the cards. Now old cards can come again.";
     this.headline.textContent = headline;
     this.sub.textContent = sub;
   }
@@ -295,7 +295,7 @@ export class FaceOffView implements GameView {
         h("p", { class: "fo-say-kicker" }, "Say out loud"),
         h("strong", { class: "fo-say" }, this.category(game, opp)),
         h("p", { class: "fo-say-from" }, "From ", h("strong", {}, `${seatName(props.room, opp)}'s card`)),
-        h("p", { class: "fo-say-back" }, `${seatName(props.room, opp)} names `, h("strong", {}, this.category(game, props.playerId)), " (your card)"),
+        h("p", { class: "fo-say-back" }, `${seatName(props.room, opp)} says one for `, h("strong", {}, this.category(game, props.playerId)), " (your card)"),
       );
     } else {
       parts.push(
@@ -309,7 +309,7 @@ export class FaceOffView implements GameView {
             h(
               "div",
               { class: ["fo-pair", d.claimId === who && "claimed"].filter(Boolean).join(" ") },
-              h("span", { class: "fo-pair-who" }, `${this.name(who, props)} names one from `, h("strong", {}, `${seatName(props.room, whose)}'s card`)),
+              h("span", { class: "fo-pair-who" }, `${this.name(who, props)} says one for `, h("strong", {}, `${seatName(props.room, whose)}'s card`)),
               h("strong", { class: "fo-pair-cat" }, this.category(game, whose!)),
             ),
           ),
@@ -320,7 +320,7 @@ export class FaceOffView implements GameView {
     const canBuzz = !confirm && !!me?.canBuzz;
     this.buzzer.hidden = !canBuzz;
     if (!confirm) {
-      tail.push(h("p", { class: "fo-note" }, canBuzz ? "Said one? Buzz. Enter or Space works too." : "Listen. First to say one and buzz takes it."));
+      tail.push(h("p", { class: "fo-note" }, canBuzz ? "Said it? Press Buzz, Enter or Space." : "Listen. The first player to answer and buzz gets the point."));
     } else {
       const claim = d.claimId!;
       const other = claim === d.a ? d.b : d.a;
@@ -333,11 +333,11 @@ export class FaceOffView implements GameView {
             label,
           );
         tail.push(
-          h("div", { class: "fo-votes" }, choice("confirm", `Confirm: ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Overturn: ${seatName(props.room, other)}`, "danger")),
-          h("p", { class: "fo-note" }, `Did ${seatName(props.room, claim)} really say one first? ${d.voted} of ${d.voters} voted.`),
+          h("div", { class: "fo-votes" }, choice("confirm", `Accept: ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Reject: ${seatName(props.room, other)}`, "danger")),
+          h("p", { class: "fo-note" }, `Did ${seatName(props.room, claim)} say a right answer first? ${d.voted} of ${d.voters} voted.`),
         );
       } else {
-        tail.push(h("p", { class: "fo-note" }, d.voters ? `The table's deciding: ${d.voted} of ${d.voters} voted.` : "The table's deciding."));
+        tail.push(h("p", { class: "fo-note" }, d.voters ? `The others are voting: ${d.voted} of ${d.voters} voted.` : "The others are voting."));
       }
     }
     if (me?.canRedo) tail.push(h("button", { type: "button", class: "fo-redo", onclick: () => this.send({ type: "redo" }) }, "Redo (no score)"));

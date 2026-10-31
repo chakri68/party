@@ -59,7 +59,7 @@ describe("one-person teams", () => {
     let s = newRally(5);
     expect(s.teams.length).toBe(4);
     for (const id of ["p0", "p1", "p2"]) s = act(s, id, { type: "player.ready", ready: true });
-    expect(game.getPublicState(s).startBlocker).toBe("Waiting for 1 player to ready up.");
+    expect(game.getPublicState(s).startBlocker).toBe("Waiting for 1 player to get ready.");
     s = act(s, "p3", { type: "player.ready", ready: true });
     expect(game.getPublicState(s).startBlocker).toBeNull();
   });
@@ -110,10 +110,10 @@ describe("Rally settings", () => {
 
   it("brief a driver who can see: keys for both jobs, no pins", () => {
     const b = rallyBriefing({});
-    expect(b.lines.map((l) => l.label)).toEqual(["Steer", "Gas", "Brake", "Reset car", "Co-driver", "Camera", "Map", "Sound"]);
+    expect(b.lines.map((l) => l.label)).toEqual(["Steer", "Go", "Brake", "Reset car", "Pace notes", "Camera", "Map", "Sound"]);
     expect(JSON.stringify(b)).not.toMatch(/guess pin|\bpins?\b/i);
-    expect(rallyBriefing({ camera: "bonnet" }).lines.find((l) => l.label === "Camera")!.text).toBe("Bonnet only, this race.");
-    expect(rallyPreview({}).find((r) => r.label === "Stage")!.value).toBe("Shared: one road, rivals as ghosts");
+    expect(rallyBriefing({ camera: "bonnet" }).lines.find((l) => l.label === "Camera")!.text).toBe("Bonnet only in this race.");
+    expect(rallyPreview({}).find((r) => r.label === "Stage")!.value).toBe("Shared: 1 road, other cars are ghosts");
   });
 });
 

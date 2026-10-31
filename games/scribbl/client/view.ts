@@ -282,12 +282,12 @@ export class ScribblView implements GameView {
 
     if ((game.phase === "reveal" || game.phase === "finished") && game.word) {
       const why = game.endedBy === "all"
-        ? "Everyone got it!"
+        ? "Everyone guessed the word!"
         : game.endedBy === "left"
           ? `${seatName(props.room, game.drawerId)} left.`
           : game.endedBy === "away"
-            ? `${seatName(props.room, game.drawerId)} dropped out.`
-          : game.players.some((p) => p.guessed) ? "Time's up." : "Time's up. Nobody got it.";
+            ? `${seatName(props.room, game.drawerId)} left the game.`
+          : game.players.some((p) => p.guessed) ? "Time's up." : "Time's up. Nobody guessed the word.";
       const scored = game.players
         .filter((p) => p.turnPoints)
         .sort((a, b) => b.turnPoints! - a.turnPoints!)
@@ -357,7 +357,7 @@ export class ScribblView implements GameView {
           class: `sb-tool danger${this.clearArmed ? " armed" : ""}`,
           // One tap arms it, a second clears: a stray thumb shouldn't wipe the page for everyone.
           onclick: () => this.tapClear(),
-        }, this.clearArmed ? "Sure?" : "Clear"),
+        }, this.clearArmed ? "Clear all?" : "Clear"),
       ),
     );
   }
@@ -420,7 +420,7 @@ export class ScribblView implements GameView {
             { class: `sb-player${drawing ? " drawer" : ""}${p.guessed ? " guessed" : ""}${away ? " away" : ""}${p.id === me ? " me" : ""}` },
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "name" }, p.id === me ? "You" : seatName(props.room, p.id)),
-            drawing ? h("span", { class: "tag" }, "drawing") : p.guessed ? h("span", { class: "tag" }, "got it") : null,
+            drawing ? h("span", { class: "tag" }, "drawing") : p.guessed ? h("span", { class: "tag" }, "guessed") : null,
             h("span", { class: "score" }, String(p.score)),
           );
           this.chips.set(p.id, li);
@@ -449,7 +449,7 @@ export class ScribblView implements GameView {
       case "secret":
         return h("li", { class: "sb-line secret" }, b(who), " ", l.text);
       case "guessed":
-        return h("li", { class: "sb-line good" }, b(who), l.playerId === props.playerId ? " got it!" : " guessed the word!");
+        return h("li", { class: "sb-line good" }, b(who), l.playerId === props.playerId ? " guessed the word!" : " guessed the word!");
       case "close":
         return h("li", { class: "sb-line close" }, `“${l.text}” is close!`);
       case "drawing":
@@ -457,7 +457,7 @@ export class ScribblView implements GameView {
       case "word":
         return h("li", { class: "sb-line info" }, "The word was ", b(l.text), ".");
       case "missed":
-        return h("li", { class: "sb-line info" }, b(who), " is away and misses their turn.");
+        return h("li", { class: "sb-line info" }, b(who), " is away. The game skips this turn.");
     }
   }
 

@@ -76,7 +76,7 @@ describe("host picks (the default)", () => {
     expect(act(s, "p0", { type: "track.pick", trackId: PINE }).players.every((p) => p.ready)).toBe(true);
     s = act(s, "p0", { type: "track.pick", trackId: ICE });
     expect(readiness(s)).toEqual({ p0: true, p1: false });
-    expect(pub(s).startBlocker).toBe("Waiting for 1 player to ready up.");
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to get ready.");
     // Ready again, the Navigator's session names the new course.
     s = act(s, "p1", { type: "player.ready", ready: true });
     const nav = game.getPrivateState(s, "p1");
@@ -167,9 +167,9 @@ describe("team ballot", () => {
   });
 
   it("the tie shows in the rules preview", () => {
-    expect(rulesPreview({ trackPick: "ballot" }, { name: "Test Ice", tie: true })[0]).toEqual({ label: "Track", value: "Test Ice, team vote (tie: picked by coin flip)" });
-    expect(rulesPreview({}, { name: "Pine Panic", tie: false })[0]).toEqual({ label: "Track", value: "Pine Panic, host's pick" });
-    expect(rulesPreview({ trackPick: "ballot" })[0]!.value).toBe("Team vote, one per car");
+    expect(rulesPreview({ trackPick: "ballot" }, { name: "Test Ice", tie: true })[0]).toEqual({ label: "Track", value: "Test Ice, chosen by vote (tie, so coin toss)" });
+    expect(rulesPreview({}, { name: "Pine Panic", tie: false })[0]).toEqual({ label: "Track", value: "Pine Panic, chosen by host" });
+    expect(rulesPreview({ trackPick: "ballot" })[0]!.value).toBe("Teams vote, 1 vote per car");
   });
 
   it("a car that empties takes its vote with it", () => {

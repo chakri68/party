@@ -425,7 +425,7 @@ describe("leaving", () => {
     const t = leave(five(), "p4");
     expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "too-few" });
     expect(types(t)).toEqual(["game-over"]);
-    expect(g.getResult(t.state)).toMatchObject({ winnerIds: [], headline: "Interrupted: too few players left" });
+    expect(g.getResult(t.state)).toMatchObject({ winnerIds: [], headline: "Stopped: too few players left" });
     expect(g.getPublicState(t.state).alignments).not.toBeNull();
   });
 
@@ -435,7 +435,7 @@ describe("leaving", () => {
     expect(s.phase).toBe("propose");
     const t = leave(s, "p3");
     expect(t.state).toMatchObject({ phase: "finished", winner: null, endReason: "no-moles" });
-    expect(g.getResult(t.state)!.headline).toBe("Interrupted: no moles left");
+    expect(g.getResult(t.state)!.headline).toBe("Stopped: no moles left");
   });
 
   it("disconnects hold nothing; reconnecting changes nothing", () => {

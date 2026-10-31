@@ -60,8 +60,8 @@ describe("assists", () => {
     expect(line({ assists: "nightmare" })).toBe("Nightmare: no live car marker, no trip meter, no pace notes, no 3D camera");
     expect(line({ assists: "custom", liveMarker: true, tripMeter: false, paceNotes: true })).toBe("Custom: live car marker, no trip meter, pace notes, 3D camera");
     const cam = (raw: unknown) => rulesPreview(raw).find((r) => r.label === "Navigator camera")!.value;
-    expect(cam({ assists: "nightmare", camera: "chase" })).toBe("None: map only");
+    expect(cam({ assists: "nightmare", camera: "chase" })).toBe("None, only the map");
     expect(cam({ camera: "chase" })).toBe("Chase only");
-    expect(rulesPreview({}).map((r) => r.label)).toEqual(["Track", "Stage", "Time limit", "Assists", "Navigator camera", "Weather", "Reset", "Drop-outs"]);
+    expect(rulesPreview({}).map((r) => r.label)).toEqual(["Track", "Stage", "Time limit", "Assists", "Navigator camera", "Weather", "Reset", "Lost connection"]);
   });
 });

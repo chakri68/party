@@ -232,7 +232,7 @@ export const oldMaidGame: GameDefinition<
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
 
     const src = prev.players[sourceIndex(prev)]!;
-    if (action.slot >= src.hand.length) return reject("bad-slot", "That card isn't there any more.");
+    if (action.slot >= src.hand.length) return reject("bad-slot", "That card is gone. Choose another card.");
     return { ok: true, transition: take(clone(prev), action.slot, ctx, []) };
   },
 
@@ -318,7 +318,7 @@ export const oldMaidGame: GameDefinition<
           const label = p.removed
             ? "left"
             : p.id === state.loserId
-              ? `stuck with ${cardName(p.hand[0]!)}`
+              ? `left with ${cardName(p.hand[0]!)}`
               : out >= 0
                 ? `out ${ordinal(out + 1)}`
                 : `holding ${p.hand.length}`;

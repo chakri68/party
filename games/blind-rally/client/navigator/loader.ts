@@ -9,12 +9,12 @@ const mb = (n: number) => (n / MB).toFixed(1);
 
 export class StageLoader {
   readonly el: HTMLElement;
-  private title = h("p", { class: "br-load-title" }, "Loading the stage");
+  private title = h("p", { class: "br-load-title" }, "Loading the track");
   private stage = h("p", { class: "br-load-stage" });
   private fill = h("span", { class: "br-load-fill" });
-  private bar = h("span", { class: "br-load-bar", role: "progressbar", "aria-label": "Stage download" }, this.fill);
+  private bar = h("span", { class: "br-load-bar", role: "progressbar", "aria-label": "Track download" }, this.fill);
   private count = h("p", { class: "br-load-count" });
-  private hint = h("p", { class: "br-load-hint" }, "The Driver can't move until this is in.");
+  private hint = h("p", { class: "br-load-hint" }, "The Driver must wait for this to load.");
   private retryBtn = h("button", { type: "button", class: "primary br-load-retry", hidden: true }, "Try again");
 
   constructor(onRetry: () => void) {
@@ -46,8 +46,8 @@ export class StageLoader {
       // Godot only knows the total when every file's size does: say what's in, not how far.
       this.el.dataset.state = "unknown";
       for (const a of ["aria-valuemin", "aria-valuemax", "aria-valuenow"]) this.bar.removeAttribute(a);
-      this.bar.setAttribute("aria-valuetext", `${mb(loaded)} MB so far`);
-      this.count.textContent = loaded > 0 ? `${mb(loaded)} MB so far` : "Asking for the files";
+      this.bar.setAttribute("aria-valuetext", `${mb(loaded)} MB loaded`);
+      this.count.textContent = loaded > 0 ? `${mb(loaded)} MB loaded` : "Getting the files";
     }
   }
 
@@ -55,14 +55,14 @@ export class StageLoader {
   started() {
     this.el.dataset.state = "starting";
     this.fill.style.transform = "scaleX(1)";
-    this.title.textContent = "Starting the engine";
+    this.title.textContent = "Almost ready";
   }
 
   failed(why: string) {
     this.el.dataset.state = "failed";
-    this.title.textContent = "The stage didn't load";
+    this.title.textContent = "The track did not load";
     this.count.textContent = why;
-    this.hint.textContent = "Your Driver waits while you try again.";
+    this.hint.textContent = "Try again. Your Driver will wait.";
     this.retryBtn.hidden = false;
     this.el.setAttribute("role", "alert");
   }
@@ -70,10 +70,10 @@ export class StageLoader {
   private reset() {
     this.el.dataset.state = "unknown";
     this.el.setAttribute("role", "status");
-    this.title.textContent = "Loading the stage";
+    this.title.textContent = "Loading the track";
     this.fill.style.transform = "scaleX(0)";
-    this.count.textContent = "Asking for the files";
-    this.hint.textContent = "The Driver can't move until this is in.";
+    this.count.textContent = "Getting the files";
+    this.hint.textContent = "The Driver must wait for this to load.";
     this.retryBtn.hidden = true;
   }
 }

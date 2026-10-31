@@ -38,16 +38,16 @@ describe("checkPlay", () => {
   it("leads any single, pair, triple or quad of one rank", () => {
     expect(checkPlay(cards(["hearts-7"]), null, false)).toBeNull();
     expect(checkPlay(cards(["hearts-7", "clubs-7", "spades-7", "diamonds-7"]), null, false)).toBeNull();
-    expect(checkPlay(cards(["hearts-7", "clubs-8"]), null, false)).toMatch(/one rank/);
-    expect(checkPlay([], null, false)).toMatch(/one to four/);
+    expect(checkPlay(cards(["hearts-7", "clubs-8"]), null, false)).toMatch(/same rank/);
+    expect(checkPlay([], null, false)).toMatch(/1 to 4/);
   });
 
   it("follows with the same count, strictly higher", () => {
     const pair9 = onTop(["hearts-9", "clubs-9"]);
     expect(checkPlay(cards(["hearts-10", "clubs-10"]), pair9, false)).toBeNull();
     expect(checkPlay(cards(["hearts-2", "clubs-2"]), pair9, false)).toBeNull();
-    expect(checkPlay(cards(["hearts-8", "clubs-8"]), pair9, false)).toMatch(/doesn't beat a pair of Nines/);
-    expect(checkPlay(cards(["hearts-K"]), pair9, false)).toMatch(/pairs this trick/);
+    expect(checkPlay(cards(["hearts-8", "clubs-8"]), pair9, false)).toMatch(/can.t beat a pair of Nines/);
+    expect(checkPlay(cards(["hearts-K"]), pair9, false)).toMatch(/needs pairs/);
     expect(checkPlay(cards(["hearts-K", "clubs-K", "spades-K"]), pair9, false)).toMatch(/pairs/);
   });
 

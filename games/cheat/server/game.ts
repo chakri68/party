@@ -264,7 +264,7 @@ export const cheatGame: GameDefinition<
 
     switch (action.type) {
       case "play": {
-        if (prev.step !== "play") return reject("window-open", "Hang on: the last play can still be called.");
+        if (prev.step !== "play") return reject("window-open", "Wait. A player can still call the last play.");
         if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
         const hand = prev.players[seat]!.hand;
         const cards = action.cardIds.map((id) => hand.find((c) => c.id === id));
@@ -273,7 +273,7 @@ export const cheatGame: GameDefinition<
         }
         const allowed = allowedClaims(prev.lastClaim, prev.settings.claims);
         const claim = action.claim ?? (allowed.length === 1 ? allowed[0] : undefined);
-        if (claim === undefined || !allowed.includes(claim)) return reject("bad-claim", "You can't claim that rank now.");
+        if (claim === undefined || !allowed.includes(claim)) return reject("bad-claim", "You can't say that rank now.");
         const state = clone(prev);
         const out = newOut();
         play(state, cards as Card[], claim, ctx, out);
@@ -282,9 +282,9 @@ export const cheatGame: GameDefinition<
       case "call":
       case "pass": {
         // After a call the step's back to "play": whoever called second was too slow.
-        if (prev.step !== "window") return reject("too-late", "Too late: that play's already settled.");
-        if (playerId === owner) return reject("own-play", "That's your own play.");
-        if (prev.passed.includes(playerId)) return reject("passed", "You already let that one go.");
+        if (prev.step !== "window") return reject("too-late", "Too late. That play is finished.");
+        if (playerId === owner) return reject("own-play", "You can't call your own play.");
+        if (prev.passed.includes(playerId)) return reject("passed", "You already chose not to call.");
         const state = clone(prev);
         const out = newOut();
         if (action.type === "call") call(state, state.players[seat]!, out);

@@ -153,7 +153,7 @@ describe("bidding", () => {
     expect(oh.getPrivateState(s, "p0").canBid).toBe(true);
     expect(err(act(s, "p0", { type: "bid", tricks: 1 }))).toEqual({
       code: "forbidden-bid",
-      message: "Can't bid 1: the bids would add up to 3 tricks",
+      message: "You can't bid 1. The total bid would be 3 tricks",
     });
     const t = ok(act(s, "p0", { type: "bid", tricks: 2 }));
     expect(t.events.map((e) => e.event)).toEqual([{ type: "bid", playerId: "p0", tricks: 2 }]);
@@ -165,7 +165,7 @@ describe("bidding", () => {
   it("forbids the dealer's bid in the one-card round, both ways", () => {
     let s = bidding(1);
     for (const id of ["p1", "p2", "p3"]) s = ok(act(s, id, { type: "bid", tricks: 0 })).state;
-    expect(err(act(s, "p0", { type: "bid", tricks: 1 })).message).toBe("Can't bid 1: the bids would add up to 1 trick");
+    expect(err(act(s, "p0", { type: "bid", tricks: 1 })).message).toBe("You can't bid 1. The total bid would be 1 trick");
     expect(ok(act(s, "p0", { type: "bid", tricks: 0 })).state.phase).toBe("playing");
 
     s = bidding(1);
@@ -192,7 +192,7 @@ describe("playing", () => {
     expect(oh.getPrivateState(s, "p0").legal).toEqual(["hearts-K"]);
     expect(err(act(s, "p0", { type: "play", card: "spades-2" }))).toEqual({
       code: "must-follow",
-      message: "You have to follow suit: play a Heart.",
+      message: "You must follow suit. Play a Heart.",
     });
     expect(err(act(s, "p0", { type: "play", card: "clubs-A" })).code).toBe("card-not-owned");
     expect(err(act(s, "p1", { type: "play", card: "clubs-A" })).code).toBe("not-your-turn");

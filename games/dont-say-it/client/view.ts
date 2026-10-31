@@ -20,10 +20,10 @@ const TICK_FROM = 5;
 const OUTCOME_LABEL: Record<Outcome, string> = {
   got: "Got it",
   skip: "Skipped",
-  oops: "Oops",
+  oops: "Banned word",
   fair: "Buzzed",
-  upheld: "Buzz upheld",
-  time: "Time",
+  upheld: "Buzz accepted",
+  time: "Time up",
   ended: "Turn ended",
 };
 
@@ -205,7 +205,7 @@ export class DontSayItView implements GameView {
     this.scoreA.textContent = `${game.teams[0].name} ${game.teams[0].score}`;
     this.scoreB.textContent = `${game.teams[1].score} ${game.teams[1].name}`;
     this.turnLabel.textContent =
-      game.phase === "teams" ? "Pick sides" : game.phase === "finished" ? "Game over" : game.suddenDeath && game.turnNumber > game.totalTurns - 2 ? "Sudden death" : `Turn ${game.turnNumber} of ${game.totalTurns}`;
+      game.phase === "teams" ? "Choose teams" : game.phase === "finished" ? "Game over" : game.suddenDeath && game.turnNumber > game.totalTurns - 2 ? "Extra turn" : `Turn ${game.turnNumber} of ${game.totalTurns}`;
 
     this.renderCard(game, me);
     this.renderPrompt(props, game, me);
@@ -233,8 +233,8 @@ export class DontSayItView implements GameView {
       const last = game.cards.at(-1);
       replaceChildren(
         this.card,
-        h("span", { class: "dsi-kicker" }, "You're guessing"),
-        h("strong", { class: "dsi-target" }, "Shout it out"),
+        h("span", { class: "dsi-kicker" }, "You guess"),
+        h("strong", { class: "dsi-target" }, "Guess out loud"),
         last ? h("span", { class: "dsi-last" }, `Last: ${last.target}, ${OUTCOME_LABEL[last.outcome].toLowerCase()}`) : null,
       );
       return;
@@ -253,31 +253,31 @@ export class DontSayItView implements GameView {
 
     switch (game.phase) {
       case "teams": {
-        headline = "Two teams. Even them out, then start.";
-        sub = [host ? "Anyone can switch sides. You start when it's right." : "Anyone can switch sides. The host starts."];
-        if (me?.team !== null && me?.team !== undefined) buttons.push({ label: `Switch to ${game.teams[other(me.team)].name}`, action: "switch" });
-        if (host) buttons.push({ label: "Shuffle", action: "shuffle" }, { label: "Start", action: "start", kind: "primary", wide: true });
+        headline = "Make 2 equal teams. Then start the game.";
+        sub = [host ? "Anyone can change teams. Start when everyone is ready." : "Anyone can change teams. The host starts the game."];
+        if (me?.team !== null && me?.team !== undefined) buttons.push({ label: `Move to ${game.teams[other(me.team)].name}`, action: "switch" });
+        if (host) buttons.push({ label: "Mix teams", action: "shuffle" }, { label: "Start", action: "start", kind: "primary", wide: true });
         break;
       }
       case "ready": {
-        headline = youDescribe ? `You're describing for ${activeName}` : `${describer} describes for ${activeName}`;
+        headline = youDescribe ? `You describe for ${activeName}` : `${describer} describes for ${activeName}`;
         sub = [
           youDescribe
-            ? "Start when your team's listening."
+            ? "Start when your team is ready."
             : me?.team === game.activeTeam
-              ? "You're guessing. Get close to them."
-              : "You'll see the card. Listen for slips.",
+              ? "You guess. Sit close to the describer."
+              : "You can see the card. Listen for banned words.",
         ];
         if (youDescribe) buttons.push({ label: "Start", action: "go", kind: "primary", wide: true });
         break;
       }
       case "turn": {
         if (youDescribe) {
-          headline = "Describe it. Don't say any of it.";
+          headline = "Describe the word. Don't say any word on the card.";
           buttons.push({ label: "Got it", action: "got", kind: "primary", wide: true }, { label: "Skip", action: "skip" }, { label: "Oops", action: "oops", kind: "danger" });
         } else if (me?.role === "watcher") {
           headline = `${describer} is describing`;
-          sub = ["Hear a word from the card? Buzz."];
+          sub = ["If you hear a word from the card, press Buzz."];
           buttons.push({ label: "Buzz", action: "buzz", kind: "danger", wide: true });
         } else if (me?.role === "guesser") {
           headline = `${describer} is describing`;
@@ -290,19 +290,19 @@ export class DontSayItView implements GameView {
         headline = `${this.name(game.buzzerId, props)} buzzed`;
         const clock = h("span", { class: "dsi-dispute-clock" });
         if (me?.deciding) {
-          sub = ["Did you say it? Fair costs a point. Nope goes to their captain. ", clock];
-          buttons.push({ label: "Fair (−1)", action: "fair", kind: "danger" }, { label: "Nope", action: "nope" });
+          sub = ["Did you say a banned word? Fair: you lose 1 point. Not fair: their captain decides. ", clock];
+          buttons.push({ label: "Fair (−1)", action: "fair", kind: "danger" }, { label: "Not fair", action: "nope" });
         } else {
           sub = [`${describer} ${game.describerId === props.playerId ? "decide" : "decides"}: fair or not. `, clock];
         }
         break;
       }
       case "appeal": {
-        headline = `${describer} contests the buzz`;
+        headline = `${describer} says the buzz is wrong`;
         const clock = h("span", { class: "dsi-dispute-clock" });
         if (me?.deciding) {
-          sub = ["You're the captain. Uphold it and they lose a point; drop it and the card carries on. ", clock];
-          buttons.push({ label: "Uphold (−1)", action: "uphold", kind: "danger" }, { label: "Drop", action: "drop" });
+          sub = ["You are the captain. Accept: their team loses 1 point. Reject: the turn goes on. ", clock];
+          buttons.push({ label: "Accept (−1)", action: "uphold", kind: "danger" }, { label: "Reject", action: "drop" });
         } else {
           sub = [`${this.name(game.captainId, props)} (captain) decides. `, clock];
         }
@@ -317,12 +317,12 @@ export class DontSayItView implements GameView {
       }
       case "finished": {
         const [a, b] = [game.teams[0].score, game.teams[1].score];
-        if (game.endReason === "abandoned") headline = "A team ran short of players.";
-        else headline = a === b ? "A draw. Both teams win." : `${game.teams[a > b ? 0 : 1].name} win, ${Math.max(a, b)} to ${Math.min(a, b)}`;
+        if (game.endReason === "abandoned") headline = "A team didn't have enough players.";
+        else headline = a === b ? "The scores are equal. Both teams win." : `${game.teams[a > b ? 0 : 1].name} win, ${Math.max(a, b)} to ${Math.min(a, b)}`;
         break;
       }
     }
-    if (game.reshuffled && game.phase !== "teams" && game.phase !== "finished" && !sub.length) sub = ["The deck ran out and was reshuffled. Cards may repeat."];
+    if (game.reshuffled && game.phase !== "teams" && game.phase !== "finished" && !sub.length) sub = ["The game used all the cards. Now old cards can come again."];
 
     this.headline.textContent = headline;
     replaceChildren(this.sub, sub);

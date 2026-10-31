@@ -139,7 +139,7 @@ describe("taking", () => {
     expect(r.standings.map((s) => [s.playerId, s.label])).toEqual([
       ["p0", "out 1st"],
       ["p1", "out 2nd"],
-      ["p2", "stuck with the Queen of Hearts"],
+      ["p2", "left with the Queen of Hearts"],
     ]);
     expect(om.getPublicState(t.state).loserCard?.id).toBe("hearts-Q");
     expect(err(act(t.state, "p2", { type: "take", slot: 0 }))).toBe("game-finished");

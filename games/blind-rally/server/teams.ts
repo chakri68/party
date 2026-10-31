@@ -141,10 +141,10 @@ export function carryOf(state: BlindRallyState): BlindRallyCarry {
 /** Why the host can't start, in words for the screen; null when they can. */
 export function startBlocker(state: BlindRallyState): string | null {
   const full = state.teams.filter(isFull);
-  if (!full.length) return state.variant === "rally" ? "Nobody's in a car yet." : "A car needs a Driver and a Navigator.";
+  if (!full.length) return state.variant === "rally" ? "Nobody is in a car yet." : "A car needs a Driver and a Navigator.";
   const half = state.teams.find((t) => !isFull(t) && !isEmpty(t));
   if (half) return `Team ${half.id} needs a ${half.driverId ? "Navigator" : "Driver"}.`;
   const waiting = full.flatMap(members).filter((id) => !state.players.find((p) => p.id === id)?.ready).length;
-  if (waiting) return waiting === 1 ? "Waiting for 1 player to ready up." : `Waiting for ${waiting} players to ready up.`;
+  if (waiting) return waiting === 1 ? "Waiting for 1 player to get ready." : `Waiting for ${waiting} players to get ready.`;
   return null;
 }

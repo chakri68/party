@@ -364,7 +364,7 @@ describe("turns", () => {
     s = play(s, 0);
     expect(s.phase).toBe("finished");
     expect(g.getResult(s)!.winnerIds.sort()).toEqual(["p0", "p1", "p2", "p3"]);
-    expect(g.getResult(s)!.headline).toBe("A draw, 2 all. Both teams win");
+    expect(g.getResult(s)!.headline).toBe("The scores are equal, 2 each. Both teams win");
   });
 
   it("sudden death settles it if someone scores", () => {
@@ -452,7 +452,7 @@ describe("leaving and dropping", () => {
     expect(types(t)).toEqual(["game-over"]);
     expect(t.state.endReason).toBe("abandoned");
     expect(g.getResult(t.state)!.winnerIds.sort()).toEqual(lead.sort());
-    expect(g.getResult(t.state)!.headline).toMatch(/^(Amber|Teal) win, 1 to 0\. (Amber|Teal) ran short of players$/);
+    expect(g.getResult(t.state)!.headline).toMatch(/^(Amber|Teal) win, 1 to 0\. (Amber|Teal) didn't have enough players$/);
     expect(t.timers).toContainEqual({ kind: "cancel", timerId: "phase" });
 
     const level = g.onPlayerRemoved!(toTurn(start(4).state), "p1", ctx(1000)).state;

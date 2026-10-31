@@ -140,6 +140,6 @@ class Compass {
     this.face.style.setProperty("--br-turned", `${this.turned}deg`);
     const text = headingText(b);
     this.label.textContent = text;
-    this.el.setAttribute("aria-label", `Heading ${text}`);
+    this.el.setAttribute("aria-label", `Car faces ${text}`);
   }
 }

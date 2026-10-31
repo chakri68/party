@@ -16,7 +16,7 @@ const keys = (line: BriefingLine) =>
 export function briefingCard(b: Briefing, team: PublicTeam, kicker: string, foot: Node[], word: "Team" | "Car" = "Team"): HTMLElement {
   return h(
     "section",
-    { class: "br-brief", "aria-label": "Your briefing", style: `--br-team: ${teamColor(team.color).hex}` },
+    { class: "br-brief", "aria-label": "Your instructions", style: `--br-team: ${teamColor(team.color).hex}` },
     h(
       "header",
       { class: "br-brief-head" },

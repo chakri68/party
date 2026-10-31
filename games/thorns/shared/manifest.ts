@@ -3,7 +3,7 @@ import type { GameManifest } from "@games/game-core";
 export const thornsManifest: GameManifest = {
   id: "thorns",
   name: "Thorns",
-  description: "Everyone hides roses and one thorn face down. Bid how many you can flip without pricking yourself, then prove it.",
+  description: "Everyone puts discs face down. Most are roses. One is a thorn. Say how many discs you can turn over without finding a thorn. Then turn them over.",
   minPlayers: 3,
   maxPlayers: 6,
   icon: "rose",

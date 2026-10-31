@@ -151,7 +151,7 @@ describe("teams and roles", () => {
     s = act(s, "p2", { type: "team.join", teamId: 2, role: "driver" });
     expect(pub(s).startBlocker).toBe("Team 2 needs a Navigator.");
     s = act(s, "p0", { type: "team.assign", playerId: "p2", teamId: null });
-    expect(pub(s).startBlocker).toBe("Waiting for 2 players to ready up.");
+    expect(pub(s).startBlocker).toBe("Waiting for 2 players to get ready.");
     s = act(s, "p0", { type: "player.ready", ready: true });
     s = act(s, "p1", { type: "player.ready", ready: true });
     expect(pub(s).startBlocker).toBeNull();
@@ -313,6 +313,6 @@ describe("parsing", () => {
     expect(parseSettings({ stageMode: "mixed" })).toBeNull();
     expect(parseSettings({ timeLimit: 4 })).toBeNull();
     expect(parseSettings({ camera: "drone" })).toBeNull();
-    expect(blindRallySettingFields({ mode: "practice" }, 4)[0]!.hint).toBe("One pair, no rivals");
+    expect(blindRallySettingFields({ mode: "practice" }, 4)[0]!.hint).toBe("1 team, no other cars");
   });
 });

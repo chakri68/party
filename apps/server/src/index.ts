@@ -106,9 +106,9 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
-      if (!env.OWNER_KEY) return json({ error: "Couldn't create a room." }, 503); // no OWNER_KEY secret set
+      if (!env.OWNER_KEY) return json({ error: "Could not create a room." }, 503); // no OWNER_KEY secret set
       const key = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-      if (!isOwnerKey(env, key)) return json({ error: "Couldn't create a room." }, 403);
+      if (!isOwnerKey(env, key)) return json({ error: "Could not create a room." }, 403);
       const rooms = env.Room as DurableObjectNamespace<Room>;
       // ~1M codes, so a collision is rare and three in a row is someone's bad day.
       for (let attempt = 0; attempt < 8; attempt++) {
@@ -116,7 +116,7 @@ export default {
         const stub = await getServerByName(rooms, code);
         if (await stub.claim()) return json({ code });
       }
-      return json({ error: "Couldn't find a free room code. Try again." }, 503);
+      return json({ error: "We could not find a free room code. Please try again." }, 503);
     }
 
     if (url.pathname.startsWith("/parties/")) {
@@ -154,7 +154,7 @@ async function roomPage(request: Request, env: Env, code: string): Promise<Respo
   const shell = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
   if (!isValidRoomCode(code)) return shell;
   const title = `Join room ${code} · Party Games`;
-  const description = "Tap to join the game. No account needed, just pick a name.";
+  const description = "Tap to join the game. You only need a name.";
   const set = (value: string): HTMLRewriterElementContentHandlers => ({
     element: (el) => void el.setAttribute("content", value),
   });

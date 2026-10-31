@@ -124,10 +124,10 @@ function endTurn(state: State, ctx: GameContext, out: Out): void {
 /** Validated keep: unique indices of the current roll that all score. Returns the points or an error. */
 function checkKeep(state: State, keep: number[]): number | GameResult<State, FarkleEvent> {
   if (new Set(keep).size !== keep.length || keep.some((i) => i >= state.roll.length)) {
-    return reject("bad-dice", "Those dice aren't in this roll.");
+    return reject("bad-dice", "Those dice are not in this roll.");
   }
   const points = scoreDice(keep.map((i) => state.roll[i]!));
-  if (!points) return reject("non-scoring", "Every die you keep has to score.");
+  if (!points) return reject("non-scoring", "Every die you keep must score.");
   return points;
 }
 
@@ -256,7 +256,7 @@ export const farkleGame: GameDefinition<
     const seat = prev.players.findIndex((p) => p.id === playerId);
     if (seat < 0 || prev.players[seat]!.removed) return reject("not-in-game", "You're not in this game.");
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It's not your turn.");
-    if (prev.step !== "rolled") return reject("bust", "That roll's a farkle. Your turn's over.");
+    if (prev.step !== "rolled") return reject("bust", "That roll is a farkle. Your turn is over.");
     if (!action.keep.length) return reject("keep-something", "Keep at least one scoring die.");
 
     const points = checkKeep(prev, action.keep);
@@ -265,7 +265,7 @@ export const farkleGame: GameDefinition<
     const out = newOut();
     if (action.type === "keep-and-bank") {
       if (bankTooLow(state, state.turnTotal + points)) {
-        return reject("below-entry", `Your first bank needs ${formatPoints(state.settings.entry)} or more. Keep rolling.`);
+        return reject("below-entry", `You must bank ${formatPoints(state.settings.entry)} or more first. Keep rolling.`);
       }
       keep(state, action.keep, points, out);
       bank(state, ctx, out);

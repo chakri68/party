@@ -320,25 +320,25 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
     if (prev.phase === "finished") return reject("game-finished", "The game is over.");
     const me = find(prev, playerId);
     if (!me || me.left) return reject("not-in-game", "You're not in this game.");
-    if (ctx.now >= prev.deadline) return reject("time-up", "Time's up.");
+    if (ctx.now >= prev.deadline) return reject("time-up", "Time is up.");
 
     const state = clone(prev);
     const out = newOut();
 
     switch (action.type) {
       case "ack": {
-        if (prev.phase !== "reveal") return reject("wrong-phase", "Not now.");
+        if (prev.phase !== "reveal") return reject("wrong-phase", "You cannot do that now.");
         if (!state.acks.includes(playerId)) state.acks.push(playerId);
         break;
       }
       case "propose": {
-        if (prev.phase !== "propose") return reject("wrong-phase", "Not now.");
-        if (leaderOf(prev) !== playerId) return reject("not-leader", "You're not leading this one.");
+        if (prev.phase !== "propose") return reject("wrong-phase", "You cannot do that now.");
+        if (leaderOf(prev) !== playerId) return reject("not-leader", "You're not the leader.");
         const want = sizesOf(prev)[prev.job]!;
         const crew = action.crew;
-        if (crew.length !== want) return reject("bad-crew", `Pick exactly ${want}.`);
-        if (new Set(crew).size !== crew.length) return reject("bad-crew", "Pick different players.");
-        if (crew.some((id) => !find(prev, id) || find(prev, id)!.left)) return reject("bad-crew", "Pick players still in the game.");
+        if (crew.length !== want) return reject("bad-crew", `Choose exactly ${want} players.`);
+        if (new Set(crew).size !== crew.length) return reject("bad-crew", "Choose different players.");
+        if (crew.some((id) => !find(prev, id) || find(prev, id)!.left)) return reject("bad-crew", "Choose players who are still in the game.");
         // Seat order, so the crew reads the same whichever order it was tapped in.
         state.crew = activeIds(state).filter((id) => crew.includes(id));
         state.proposer = state.leader;
@@ -348,13 +348,13 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
         break;
       }
       case "vote": {
-        if (prev.phase !== "vote") return reject("wrong-phase", "Not voting now.");
+        if (prev.phase !== "vote") return reject("wrong-phase", "It's not time to vote.");
         const error = castVote(state.ballot!, playerId, action.vote, VOTES);
         if (error) return { ok: false, error };
         break;
       }
       case "card": {
-        if (prev.phase !== "job") return reject("wrong-phase", "No job on.");
+        if (prev.phase !== "job") return reject("wrong-phase", "There is no job right now.");
         if (!prev.crew.includes(playerId)) return reject("not-on-job", "You're not on this job.");
         // Taken as tapped from anyone: a refusal would answer crew differently
         // from moles. Crew Sabotage (or a mole's with none left) plays as Clean.
@@ -504,11 +504,11 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
     const winners = state.winner ? activeIds(state).filter((id) => state.alignment[id] === state.winner) : [];
     const headline =
       state.endReason === "too-few"
-        ? "Interrupted: too few players left"
+        ? "Stopped: too few players left"
         : state.endReason === "no-moles"
-          ? "Interrupted: no moles left"
+          ? "Stopped: no moles left"
           : state.endReason === "no-crew"
-            ? "Interrupted: no crew left"
+            ? "Stopped: no crew left"
             : state.winner === "crew"
               ? "The crew wins"
               : "The moles win";

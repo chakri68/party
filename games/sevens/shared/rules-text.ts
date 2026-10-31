@@ -4,13 +4,21 @@ import { DEFAULT_SETTINGS, type SevensSettings } from "./types.ts";
 
 /** Plain-language rules for the lobby's Rules button (§25). */
 export const sevensRules: string[] = [
-  "Every card is dealt, so hands can differ by a card. Bigger groups play with more decks (the host picks, or leave it on auto).",
-  "With more than one deck, each suit gets a row per deck, and each seven can start one.",
-  "The player left of the dealer goes first. (Or, if the host picks it, whoever holds the seven of diamonds, and it has to be the first card down.)",
-  "A Seven starts its suit's row. After that, a card can go down only right next to what's already there: 6 or 8 after the 7, then 5 or 9, and so on outward.",
-  "Aces are high: they go after the King. The host can make them low, so they go before the 2 instead.",
-  "If you can play, you must. If you can't, you pass automatically. The host can turn this off, and then you can pass whenever you like, and have to press Pass yourself when stuck.",
-  "First to empty their hand wins. Everyone else ranks by cards left, or, with penalty scoring, by what those cards are worth: face value, courts 10, aces 1. Lowest is best.",
+  "The dealer gives out all the cards. Some players may get 1 extra card.",
+  "Big groups play with more than 1 deck. The host chooses the number of decks, or leaves it on Auto.",
+  "Each suit has its own row on the table. With 2 decks, each suit has 2 rows.",
+  "The player on the dealer's left goes first.",
+  "The host can change this rule. Then the player with the 7 of diamonds goes first. This player must play the 7 of diamonds first.",
+  "A 7 starts a new row for its suit.",
+  "After the 7, you can add the 6 or the 8 of that suit. Then the 5 or the 9. Each card must sit next to a card in the row.",
+  "Aces are high. An ace goes after the King.",
+  "The host can make aces low. Then an ace goes before the 2.",
+  "You must play a card if you can. If you can't play, the game passes for you.",
+  "The host can turn this rule off. Then you can pass at any time. You must tap Pass yourself.",
+  "The first player with no cards left wins.",
+  "The other players are ranked by the number of cards they have left.",
+  "The host can choose penalty points instead. Then your leftover cards give you points.",
+  "A number card gives its number. A picture card gives 10. An ace gives 1. The lowest score is best.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */
@@ -38,12 +46,12 @@ export function sevensSettingFields(raw: unknown, players: number): SettingField
       selected: settings.startingRule === "seven-of-diamonds" ? 1 : 0,
       options: [
         { label: "Left of dealer", patch: { startingRule: "dealer-left" } },
-        { label: "Seven of diamonds", patch: { startingRule: "seven-of-diamonds" } },
+        { label: "7 of diamonds", patch: { startingRule: "seven-of-diamonds" } },
       ],
       hint:
         settings.startingRule === "seven-of-diamonds"
-          ? "Whoever holds the 7♦ starts, and it's the first card down"
-          : "Left of the dealer starts; any seven can open",
+          ? "The player with the 7♦ starts. The 7♦ is the first card."
+          : "The player on the dealer's left starts. Any 7 can start.",
     },
     {
       key: "acePosition",
@@ -53,7 +61,7 @@ export function sevensSettingFields(raw: unknown, players: number): SettingField
         { label: "High", patch: { acePosition: "high" } },
         { label: "Low", patch: { acePosition: "low" } },
       ],
-      hint: settings.acePosition === "low" ? "Rows run A to K" : "Rows run 2 to A",
+      hint: settings.acePosition === "low" ? "Rows go from A to K" : "Rows go from 2 to A",
     },
     {
       key: "forcedPlay",
@@ -64,8 +72,8 @@ export function sevensSettingFields(raw: unknown, players: number): SettingField
         { label: "Any time", patch: { forcedPlay: false } },
       ],
       hint: settings.forcedPlay
-        ? "If you can play, you must; stuck players pass automatically"
-        : "Hold cards back if you like; nobody passes for you",
+        ? "You must play if you can. If you can't, the game passes for you."
+        : "You can pass at any time. You must tap Pass yourself.",
     },
     {
       key: "scoring",
@@ -77,8 +85,8 @@ export function sevensSettingFields(raw: unknown, players: number): SettingField
       ],
       hint:
         settings.scoring === "remaining-cards"
-          ? "Cards left cost points: face value, courts 10, aces 1"
-          : "The rest rank by cards left",
+          ? "Each card left gives you points. Picture cards give 10. Aces give 1."
+          : "Other players are ranked by cards left",
     },
   ];
 }

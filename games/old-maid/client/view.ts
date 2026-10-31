@@ -41,14 +41,14 @@ function describe(e: OldMaidEvent, props: GameViewProps): string | null {
     case "taken-from-you":
       return `${who(e.byId)} took your ${cardShort(e.card)}.`;
     case "went-out":
-      return e.playerId === me ? `You're out, ${ordinal(e.place)}. Safe.` : `${who(e.playerId)}'s out.`;
+      return e.playerId === me ? `You have no cards left. You are safe. Place: ${ordinal(e.place)}.` : `${who(e.playerId)} is out.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host, so a card was taken for them.`;
+      return e.playerId === me ? "The host skipped your turn. The game took a card for you." : `The host skipped ${who(e.playerId)}'s turn. The game took a card for them.`;
     case "player-removed":
       return e.toId ? `${who(e.playerId)} left. Their cards went to ${whom(e.toId)}.` : `${who(e.playerId)} left.`;
     case "game-over":
-      if (!e.loserId) return "Called off: too many people left.";
-      return e.loserId === me ? "You're left holding the Old Maid." : `${who(e.loserId)}'s left holding the Old Maid.`;
+      if (!e.loserId) return "The game stopped. Too many players left.";
+      return e.loserId === me ? "You have the Old Maid. You lose." : `${who(e.loserId)} has the Old Maid.`;
   }
 }
 
@@ -240,8 +240,8 @@ export class OldMaidView implements GameView {
             // The one moment the joker variant exists for.
             if (mine.type === "you-took") {
               audio.buzz([60, 40, 60]);
-              await bubble(this.me, "Uh oh");
-            } else await bubble(this.me, "Good riddance");
+              await bubble(this.me, "Oh no");
+            } else await bubble(this.me, "Phew!");
           }
           break;
         }
@@ -424,7 +424,7 @@ export class OldMaidView implements GameView {
     replaceChildren(
       this.status,
       myTurn
-        ? h("span", {}, `Your turn: take one from ${seatName(room, game.sourceId)}`)
+        ? h("span", {}, `Your turn. Take a card from ${seatName(room, game.sourceId)}.`)
         : [
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", {}, `${seat?.name ?? "Someone"}${away} is taking ${fromMe ? "from you" : "a card"}`),
@@ -449,7 +449,7 @@ export class OldMaidView implements GameView {
             class: `om-opp${current ? " current" : ""}${source ? " source" : ""}${p.outPlace ? " out" : ""}${loser ? " loser" : ""}${away || p.removed ? " away" : ""}`,
             role: "listitem",
             "data-player": p.id,
-            "aria-label": `${name}: ${holding}${current ? ", taking now" : ""}${source ? ", being taken from" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
+            "aria-label": `${name}: ${holding}${current ? ", taking now" : ""}${source ? ", giving a card" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
           },
           seat ? avatar(name, seat.avatarSeed) : null,
           h(
@@ -476,7 +476,7 @@ export class OldMaidView implements GameView {
     if (!source) {
       // Finished: the loser's card goes face up where the fan was.
       this.fanLabel.textContent = game.loserCard
-        ? `${game.loserId === props.playerId ? "You're" : `${seatName(room, game.loserId)}'s`} stuck with it`
+        ? `${game.loserId === props.playerId ? "You have" : `${seatName(room, game.loserId)} has`} the last card`
         : "";
       this.slots = [];
       replaceChildren(this.fan, game.loserCard ? cardFace(game.loserCard) : null);
@@ -484,7 +484,7 @@ export class OldMaidView implements GameView {
     }
 
     const whose = source.id === props.playerId ? "Your" : `${seatName(room, source.id)}'s`;
-    this.fanLabel.textContent = myTurn ? `${whose} cards. Pick one.` : `${whose} cards`;
+    this.fanLabel.textContent = myTurn ? `${whose} cards. Choose 1.` : `${whose} cards`;
     this.fan.setAttribute("aria-label", myTurn ? `Take a card from ${seatName(room, source.id)}` : `${whose} cards, face down`);
 
     this.slots = Array.from({ length: source.cardCount }, (_, i) => {
@@ -517,7 +517,7 @@ export class OldMaidView implements GameView {
 
   private setPairsDown(pairs: number) {
     this.pairsDown = pairs;
-    this.pileCount.textContent = pairs ? `${pairs} ${pairs === 1 ? "pair" : "pairs"} down` : "No pairs yet";
+    this.pileCount.textContent = pairs ? `${pairs} ${pairs === 1 ? "pair" : "pairs"} on table` : "No pairs yet";
   }
 
   private renderPile(game: OldMaidPublicState) {

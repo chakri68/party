@@ -14,7 +14,7 @@ export const MAX_HEAT = 3;
 export const BUDGET = 2;
 
 export const JOB_NAMES: readonly string[] = [
-  "Lift the Ledger",
+  "Steal the Ledger",
   "Cut the Vault Lights",
   "Swap the Portrait",
   "Crack the Night Safe",
@@ -54,6 +54,6 @@ export function setupProblem(settings: HeistSettings, n: number): string | null 
   const moles = molesFor(settings, n);
   const [lo, hi] = moleRange(n);
   if (moles < lo) return `${n} players need at least ${lo} moles`;
-  if (moles > hi) return `${n} players can have at most ${hi} moles`;
+  if (moles > hi) return `${n} players can have ${hi} moles or fewer`;
   return null;
 }

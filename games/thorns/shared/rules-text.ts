@@ -3,14 +3,21 @@ import { DEFAULT_SETTINGS, POINTS_OPTIONS, type ThornsSettings } from "./types.t
 
 /** Plain-language rules for the lobby's Rules button. */
 export const thornsRules: string[] = [
-  "Everyone holds four discs: three roses and one thorn. Nobody sees anyone else's.",
-  "To start a round, everyone puts one disc face down on their mat, all at once.",
-  "Then, in turn, put another disc on top of your stack, or bid how many discs you can flip without hitting a thorn. Out of discs in hand? You have to bid.",
-  "Once anyone bids, nobody places any more. Each player raises or passes, and a pass is for the rest of the round.",
-  "The top bidder flips: their own stack first, all of it, then the top disc of anyone else's, one at a time, their pick.",
-  "Reach the bid on roses alone and you score a point. Two points wins.",
-  "Hit a thorn and you lose one of your discs at random. Only you find out which. Lose them all and you're out.",
-  "After a win the winner starts the next round. After a thorn, its owner does. Last player with discs also wins.",
+  "Each player has 4 discs: 3 roses and 1 thorn. You can see only your own discs.",
+  "Each player has a mat. The discs on your mat make your stack.",
+  "At the start of a round, everyone puts 1 disc face down on their mat.",
+  "Then players take turns. On your turn, put 1 more disc on your stack. Or make a bid.",
+  "A bid is a number. Say how many discs you can turn over without finding a thorn.",
+  "You must bid if you have no discs left in your hand.",
+  "After the first bid, nobody puts down more discs.",
+  "Each player says a bigger number or passes. If a player passes, that player cannot bid again this round.",
+  "The player with the biggest bid turns over discs. First, this player turns over all the discs in their own stack.",
+  "Next, this player turns over the top disc of other stacks, one at a time. This player chooses the stacks.",
+  "If every disc is a rose, the player gets 1 point. The first player to get 2 points wins. The host can change this to 3.",
+  "If the player finds a thorn, the player loses 1 disc. The game picks the disc. Only that player sees which disc.",
+  "A player with no discs left is out of the game.",
+  "After a point, the same player starts the next round. After a thorn, the thorn's owner starts.",
+  "The last player with discs also wins.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */
@@ -22,7 +29,7 @@ export function thornsSettingFields(raw: unknown, _players: number): SettingFiel
       label: "Points to win",
       selected: Math.max(0, (POINTS_OPTIONS as readonly number[]).indexOf(settings.pointsToWin)),
       options: POINTS_OPTIONS.map((n) => ({ label: `${n} points`, patch: { pointsToWin: n } })),
-      hint: settings.pointsToWin === 3 ? "A longer game" : "Two clean flips and you're done",
+      hint: settings.pointsToWin === 3 ? "A longer game" : "Win 2 rounds to win the game",
     },
   ];
 }

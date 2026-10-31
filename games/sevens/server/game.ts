@@ -274,7 +274,7 @@ export const sevensGame: GameDefinition<
     }
     if (!playable(state, [card]).length) {
       const mustOpen = state.settings.startingRule === "seven-of-diamonds" && isBoardEmpty(state.board);
-      return reject("illegal-play", mustOpen ? "The seven of diamonds goes first." : "That card can't go down yet.");
+      return reject("illegal-play", mustOpen ? "You must play the 7 of diamonds first." : "You can't play that card yet.");
     }
 
     me.hand = me.hand.filter((c) => c.id !== card.id);

@@ -36,26 +36,26 @@ function describe(e: FarkleEvent, props: GameViewProps): string | null {
   const who = (id: string | null) => (id === me ? "You" : seatName(props.room, id));
   switch (e.type) {
     case "rolled":
-      return e.hot ? `Hot dice! ${who(e.playerId)} rolled all six again: ${facesText(e.dice)}.` : null;
+      return e.hot ? `Hot dice! ${who(e.playerId)} rolled all 6 dice again: ${facesText(e.dice)}.` : null;
     case "kept":
       return `${who(e.playerId)} kept ${facesText(e.dice)} for ${pts(e.points)}.`;
     case "banked":
-      return `${who(e.playerId)} banked ${pts(e.points)}. ${e.playerId === me ? "You're" : `${who(e.playerId)}'s`} on ${pts(e.score)}.`;
+      return `${who(e.playerId)} banked ${pts(e.points)}. ${e.playerId === me ? "You have" : `${who(e.playerId)} has`} ${pts(e.score)} now.`;
     case "farkle": {
       const lost = e.lost ? ` ${pts(e.lost)} gone.` : "";
-      const pen = e.penalty ? ` Third in a row: −${pts(e.penalty)}.` : "";
+      const pen = e.penalty ? ` That is 3 in a row: −${pts(e.penalty)}.` : "";
       return `Farkle! ${who(e.playerId)} rolled ${facesText(e.dice)}.${lost}${pen}`;
     }
     case "final-round":
-      return `${who(e.playerId)} hit ${pts(e.score)}. Final round: everyone else gets one more turn.`;
+      return `${who(e.playerId)} reached ${pts(e.score)}. Last round. Every other player gets 1 more turn.`;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host, so the best dice were kept for them.`;
+      return `The host skipped ${who(e.playerId)}. The game kept the best dice.`;
     case "player-removed":
       return `${who(e.playerId)} left the game.`;
     case "game-over":
       if (e.reason === "abandoned") return "Everyone else left.";
-      if (e.winnerIds.includes(me)) return e.winnerIds.length > 1 ? "A tie at the top. You share the win!" : "Highest score. You win!";
-      return e.winnerIds.length > 1 ? "A tie at the top." : `${who(e.winnerIds[0] ?? null)} wins.`;
+      if (e.winnerIds.includes(me)) return e.winnerIds.length > 1 ? "You tied for first. You share the win!" : "You have the highest score. You win!";
+      return e.winnerIds.length > 1 ? "Players tied for first." : `${who(e.winnerIds[0] ?? null)} wins.`;
   }
 }
 
@@ -82,7 +82,7 @@ export class FarkleView implements GameView {
   private scores = h("ul", { class: "fk-scores", "aria-label": "Scores" });
   private total = h("span", { class: "fk-total" });
   private hotTag = h("span", { class: "fk-hot" }, "Hot dice!");
-  private kept = h("div", { class: "fk-kept", role: "list", "aria-label": "Set aside this turn" });
+  private kept = h("div", { class: "fk-kept", role: "list", "aria-label": "Dice kept this turn" });
   private roll = h("div", { class: "fk-roll", role: "group", "aria-label": "This roll" });
   private stamp = h("span", { class: "fk-stamp", "aria-hidden": "true" }, "Farkle!");
   private pick = h("p", { class: "fk-pick", "aria-live": "polite" });
@@ -114,7 +114,7 @@ export class FarkleView implements GameView {
       h(
         "section",
         { class: "fk-table", "aria-label": "Table" },
-        h("div", { class: "fk-turn-line" }, h("span", { class: "fk-label" }, "Turn total"), this.total, this.hotTag),
+        h("div", { class: "fk-turn-line" }, h("span", { class: "fk-label" }, "This turn"), this.total, this.hotTag),
         this.kept,
         h("div", { class: "fk-roll-wrap" }, this.roll, this.stamp),
         this.pick,
@@ -257,7 +257,7 @@ export class FarkleView implements GameView {
         case "final-round":
           audio.play("nudge");
           audio.buzz([30, 50, 30]);
-          await bubble(this.anchorFor(e.playerId), "Final round!", "anim-bubble fk-callout", 1100);
+          await bubble(this.anchorFor(e.playerId), "Last round!", "anim-bubble fk-callout", 1100);
           break;
         case "rolled": {
           // The table repaints for the new roll; the dice tumble in on top of it.
@@ -403,11 +403,11 @@ export class FarkleView implements GameView {
       const lost = game.lastTurn?.kind === "farkle" ? game.lastTurn.points : 0;
       text = myTurn || game.currentPlayerId === props.playerId
         ? `Farkle!${lost ? ` ${pts(lost)} gone` : ""}`
-        : `Farkle! ${name} ${lost ? `loses ${pts(lost)}` : "busts"}`;
+        : `Farkle! ${name} ${lost ? `loses ${pts(lost)}` : "scores nothing"}`;
     } else if (myTurn) {
-      text = game.hot ? "Hot dice! Keep going or bank" : lastTurn ? `Your last turn${beat}` : "Your turn: keep at least one scorer";
+      text = game.hot ? "Hot dice! Roll again or bank" : lastTurn ? `Your last turn${beat}` : "Your turn. Keep at least 1 scoring die.";
     } else {
-      text = `${name}${away} ${lastTurn ? `is taking a last turn${beat}` : "is rolling"}`;
+      text = `${name}${away} ${lastTurn ? `is playing a last turn${beat}` : "is rolling"}`;
     }
     replaceChildren(
       this.status,
@@ -426,7 +426,7 @@ export class FarkleView implements GameView {
     replaceChildren(
       this.boardHead,
       h("span", {}, h("b", {}, `First to ${pts(target)}`)),
-      entry ? h("span", { class: "fk-muted" }, `${pts(entry)} to get on`) : null,
+      entry ? h("span", { class: "fk-muted" }, `${pts(entry)} to start scoring`) : null,
       threeFarkles ? h("span", { class: "fk-muted" }, "3 farkles −500") : null,
     );
 
@@ -439,9 +439,9 @@ export class FarkleView implements GameView {
       const triggerName = fr.triggerId === props.playerId ? "You" : seatName(props.room, fr.triggerId);
       replaceChildren(
         this.final,
-        h("b", {}, "Final round. "),
+        h("b", {}, "Last round. "),
         `${triggerName} hit ${pts(trigger?.score ?? target)}. `,
-        owed.length ? `Still to go: ${owed.join(", ")}.` : "",
+        owed.length ? `Still to play: ${owed.join(", ")}.` : "",
       );
     }
 
@@ -466,7 +466,7 @@ export class FarkleView implements GameView {
         const fill = Math.min(1, p.score / target);
         const label = [
           name,
-          p.removed ? "left" : off ? "not on the board yet" : `${pts(p.score)} points`,
+          p.removed ? "left" : off ? "no score yet" : `${pts(p.score)} points`,
           current && !p.removed ? "rolling now" : "",
           fr?.triggerId === p.id ? "started the final round" : "",
           threeFarkles && p.farkles ? `${p.farkles} farkle${p.farkles > 1 ? "s" : ""} in a row` : "",
@@ -529,7 +529,7 @@ export class FarkleView implements GameView {
     if (this.kept.dataset.key !== key || this.kept.querySelector("[data-fresh]")) {
       replaceChildren(
         this.kept,
-        game.kept.length ? game.kept.map((g) => this.groupEl(g)) : h("span", { class: "fk-empty" }, finished ? "" : "Nothing set aside yet"),
+        game.kept.length ? game.kept.map((g) => this.groupEl(g)) : h("span", { class: "fk-empty" }, finished ? "" : "No dice kept yet"),
       );
       this.kept.dataset.key = key;
     }
@@ -560,7 +560,7 @@ export class FarkleView implements GameView {
       btn.setAttribute("aria-disabled", String(!myTurn || this.pending.size > 0));
       btn.setAttribute("aria-label", `${DIE_NAMES[face]}${dead.has(i) ? ", doesn't score" : ""}`);
     });
-    this.roll.setAttribute("aria-label", finished ? "No roll" : `This roll: ${game.roll.map((f) => DIE_NAMES[f]).join(", ")}${bust ? ". Nothing scores" : ""}`);
+    this.roll.setAttribute("aria-label", finished ? "No roll" : `This roll: ${game.roll.map((f) => DIE_NAMES[f]).join(", ")}${bust ? ". No dice score" : ""}`);
     this.stamp.hidden = !bust;
 
     // What the selection's worth.
@@ -568,12 +568,12 @@ export class FarkleView implements GameView {
     const score = scoreDice(faces);
     let line = "";
     if (finished) line = "";
-    else if (bust) line = `Nothing scores.${lost ? ` ${pts(lost)} gone.` : ""}`;
+    else if (bust) line = `No dice score.${lost ? ` ${pts(lost)} lost.` : ""}`;
     else if (!picks.length) line = myTurn ? "Tap the dice you want to keep" : `${name} is picking dice…`;
     else if (dead.size) line = deadText([...dead].map((i) => game.roll[i]!));
     else {
       const all = picks.length === game.roll.length;
-      const keeping = myTurn ? `Keeping ${pts(score)}` : `${name}'s keeping ${pts(score)}`;
+      const keeping = myTurn ? `Keeping ${pts(score)}` : `${name} is keeping ${pts(score)}`;
       line = `${keeping} · turn ${pts(game.turnTotal + score)}${all ? " · hot dice!" : ""}`;
     }
     this.pick.textContent = line;
@@ -597,7 +597,7 @@ export class FarkleView implements GameView {
       const seated = game.players.some((p) => p.id === props.playerId && !p.removed);
       replaceChildren(
         this.actions,
-        hint(game.step === "bust" ? (mine ? "Unlucky. Passing the dice…" : `${name} farkled`) : seated ? `${name}'s turn` : `Watching ${name}`),
+        hint(game.step === "bust" ? (mine ? "No score. Passing the dice…" : `${name} farkled`) : seated ? `${name}'s turn` : `Watching ${name}`),
       );
       return;
     }
@@ -616,7 +616,7 @@ export class FarkleView implements GameView {
       h("button", { type: "button", class: "fk-roll-btn", disabled: !legal, onclick: () => this.send("keep-and-roll") }, rollLabel),
       h("button", { type: "button", class: "primary fk-bank-btn", disabled: !legal || tooLow, onclick: () => this.send("keep-and-bank") }, bankLabel),
     );
-    if (legal && tooLow) this.note.textContent = `${pts(game.settings.entry)} to get on the board. Keep rolling.`;
+    if (legal && tooLow) this.note.textContent = `You need ${pts(game.settings.entry)} to start scoring. Keep rolling.`;
   }
 
   // ---- interaction --------------------------------------------------------------
@@ -626,7 +626,7 @@ export class FarkleView implements GameView {
     const game = props?.game as FarklePublicState | undefined;
     if (this.busy) return;
     if (!props || !game || !this.myTurn(game, props.playerId) || this.pending.size) {
-      if (game?.step !== "finished") this.log.textContent = game?.step === "bust" ? "That roll's a farkle." : "Not your turn yet.";
+      if (game?.step !== "finished") this.log.textContent = game?.step === "bust" ? "That roll is a farkle." : "Wait for your turn.";
       return;
     }
     const at = this.selected.indexOf(i);

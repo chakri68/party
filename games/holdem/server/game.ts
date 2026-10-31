@@ -212,11 +212,11 @@ function applyBet(s: State, idx: number, action: HoldemAction, out: Out, auto?: 
       ev("fold");
       break;
     case "check":
-      if (p.bet < s.currentBet) return "There's a bet to call.";
+      if (p.bet < s.currentBet) return "There is a bet. You must call, raise or fold.";
       ev("check");
       break;
     case "call": {
-      if (p.bet >= s.currentBet) return "Nothing to call. Check instead.";
+      if (p.bet >= s.currentBet) return "There is no bet to call. You can check.";
       put(p, s.currentBet - p.bet);
       ev(p.allIn ? "all-in" : "call");
       break;
@@ -227,7 +227,7 @@ function applyBet(s: State, idx: number, action: HoldemAction, out: Out, auto?: 
       if (!Number.isInteger(action.to) || action.to > max) return `You can raise to ${formatChips(max)} at most.`;
       const min = s.currentBet + s.minRaise;
       if (action.to <= s.currentBet || (action.to < min && action.to < max)) {
-        return `The smallest ${s.currentBet ? "raise" : "bet"} is to ${formatChips(Math.min(min, max))}.`;
+        return `Your ${s.currentBet ? "raise" : "bet"} must be at least ${formatChips(Math.min(min, max))}.`;
       }
       raiseTo(s, p, action.to, out, auto);
       break;
@@ -244,7 +244,7 @@ function applyBet(s: State, idx: number, action: HoldemAction, out: Out, auto?: 
       break;
     }
     default:
-      return "Not a betting move.";
+      return "That is not a valid move.";
   }
   p.acted = true;
   return null;
@@ -694,7 +694,7 @@ export const holdemGame: GameDefinition<
         const allowed =
           me.inHand && !me.shown && me.hole.length > 0 &&
           ((prev.step === "showdown" && !me.folded) || (prev.step === "awarded" && !!lh?.byFold && lh.won[playerId] !== undefined));
-        if (!allowed) return reject("cant-show", "Nothing to show right now.");
+        if (!allowed) return reject("cant-show", "You have nothing to show now.");
         const state = clone(prev);
         const p = state.players[seat]!;
         p.shown = true;
@@ -704,7 +704,7 @@ export const holdemGame: GameDefinition<
         return { ok: true, transition: { state, events: [pub({ type: "reveal", hands: { [playerId]: p.hole } })] } };
       }
       case "back": {
-        if (!me.sittingOut) return reject("not-sitting-out", "You're already in.");
+        if (!me.sittingOut) return reject("not-sitting-out", "You are already playing.");
         const state = clone(prev);
         const p = state.players[seat]!;
         p.sittingOut = false;
@@ -712,7 +712,7 @@ export const holdemGame: GameDefinition<
         return { ok: true, transition: { state, events: [pub({ type: "back", playerId })] } };
       }
       case "rebuy": {
-        if (prev.step !== "between-hands" || !me.pendingRebuy) return reject("no-rebuy", "No rebuy for you right now.");
+        if (prev.step !== "between-hands" || !me.pendingRebuy) return reject("no-rebuy", "You can't rebuy right now.");
         const state = clone(prev);
         const out = newOut([pub({ type: "rebuy", playerId, chips: state.settings.startingChips })]);
         const p = state.players[seat]!;

@@ -39,7 +39,7 @@ function fromMyLeft<T extends { id: string }>(players: T[], me: string): T[] {
 
 function verdictText(r: Reveal): string {
   if (r.call === "liar") return r.success ? "Liar!" : "It's there";
-  return r.success ? "Spot on!" : "Not quite";
+  return r.success ? "Spot on!" : "Wrong";
 }
 
 /** What the reveal cost, in words: "Ana loses a die", "Bo is out", "Cy gets a die back". */
@@ -48,7 +48,7 @@ function outcomeText(r: Reveal, name: (id: string) => string, me: string): strin
   if (r.eliminatedId) return you(r.eliminatedId) ? "You lose your last die. You're out." : `${name(r.eliminatedId)} loses their last die and is out.`;
   if (r.loserId) return you(r.loserId) ? "You lose a die." : `${name(r.loserId)} loses a die.`;
   if (r.gainerId) return you(r.gainerId) ? "You get a die back." : `${name(r.gainerId)} gets a die back.`;
-  return you(r.callerId) ? "Spot on, but your cup's already full." : `Spot on, but ${name(r.callerId)}'s cup is already full.`;
+  return you(r.callerId) ? "Spot on. Your cup is already full." : `Spot on. ${name(r.callerId)} already has a full cup.`;
 }
 
 function describe(e: LiarsDiceEvent, props: GameViewProps): string | null {
@@ -57,25 +57,25 @@ function describe(e: LiarsDiceEvent, props: GameViewProps): string | null {
   const whose = (id: string) => (id === me ? "your" : `${seatName(props.room, id)}'s`);
   switch (e.type) {
     case "rolled":
-      if (e.reason === "void") return `Round void: everyone re-rolls. ${who(e.starterId)} ${e.starterId === me ? "open" : "opens"}.`;
-      return `Round ${e.round}: cups shaken. ${who(e.starterId)} ${e.starterId === me ? "open" : "opens"}.`;
+      if (e.reason === "void") return `Round cancelled. Everyone rolls again. ${who(e.starterId)} ${e.starterId === me ? "open" : "opens"}.`;
+      return `Round ${e.round}: dice rolled. ${who(e.starterId)} ${e.starterId === me ? "open" : "opens"}.`;
     case "you-rolled":
       return null;
     case "bid":
       return `${who(e.playerId)} ${e.playerId === me ? "bid" : "bids"} ${bidText(e.quantity, e.face)}.`;
     case "called": {
-      const head = `${who(e.callerId)} called ${e.call === "liar" ? "Liar" : "Spot on"} on ${whose(e.bid.playerId)} ${bidText(e.bid.quantity, e.bid.face)}: there ${e.count === 1 ? "was" : "were"} ${e.count}.`;
+      const head = `${who(e.callerId)} called ${e.call === "liar" ? "Liar" : "Spot on"} on ${whose(e.bid.playerId)} ${bidText(e.bid.quantity, e.bid.face)}: the table had ${e.count}.`;
       return `${head} ${outcomeText(e, (id) => seatName(props.room, id), me)}`;
     }
     case "ready":
       return null;
     case "turn-skipped":
-      return `${who(e.playerId)} got skipped by the host, so the smallest bid went in for them.`;
+      return `The host skipped ${who(e.playerId)}. The game made the smallest bid.`;
     case "player-removed":
-      return `${who(e.playerId)} left.${e.voided ? " Their dice are off the table, so the round starts over." : ""}`;
+      return `${who(e.playerId)} left.${e.voided ? " The game removed their dice. The round starts again." : ""}`;
     case "game-over":
       if (!e.winnerId) return "Game over.";
-      return e.winnerId === me ? "Last cup standing. You win!" : `${who(e.winnerId)} is the last with dice.`;
+      return e.winnerId === me ? "Only you have dice left. You win!" : `${who(e.winnerId)} is the only one with dice left.`;
   }
 }
 
@@ -384,7 +384,7 @@ export class LiarsDiceView implements GameView {
       h("div", { class: "ld-rows", role: "list", "aria-label": "Everyone's dice" }, rows),
       h(
         "div",
-        { class: "ld-tally", "aria-label": `Counted ${r.count} against a bid of ${r.bid.quantity}. ${verdictText(r)}` },
+        { class: "ld-tally", "aria-label": `The table had ${r.count}. The bid was ${r.bid.quantity}. ${verdictText(r)}` },
         h("span", { class: "ld-tally-num", "aria-hidden": "true" }, count, h("span", { class: "ld-of" }, ` / ${r.bid.quantity}`)),
         h("span", { class: "ld-tally-sub", "aria-hidden": "true" }, die(r.bid.face, "tiny"), wildNote ? ` ${wildNote}` : ""),
         verdict,
@@ -401,11 +401,11 @@ export class LiarsDiceView implements GameView {
     if (this.status.hidden) return;
     if (game.phase === "reveal") {
       const starter = game.nextStarterId === props.playerId ? "You open" : `${seatName(props.room, game.nextStarterId)} opens`;
-      replaceChildren(this.status, h("span", {}, `Cups up. ${starter} next round.`));
+      replaceChildren(this.status, h("span", {}, `Dice shown. ${starter} next round.`));
       return;
     }
     if (myTurn) {
-      replaceChildren(this.status, h("span", {}, game.bid ? "Your turn: raise, or call it" : "Your turn: open the bidding"));
+      replaceChildren(this.status, h("span", {}, game.bid ? "Your turn. Raise the bid, or call." : "Your turn. Make the first bid."));
       return;
     }
     const seat = props.room.seats.find((s) => s.id === game.currentPlayerId);
@@ -485,7 +485,7 @@ export class LiarsDiceView implements GameView {
       const b = game.bid;
       main = h(
         "div",
-        { class: "ld-bid", role: "img", "aria-label": `Standing bid: ${name(b.playerId)}, ${bidText(b.quantity, b.face)}` },
+        { class: "ld-bid", role: "img", "aria-label": `Last bid: ${name(b.playerId)}, ${bidText(b.quantity, b.face)}` },
         h("span", { class: "ld-bid-who", "aria-hidden": "true" }, `${name(b.playerId)} ${b.playerId === me ? "bid" : "bids"}`),
         h("span", { class: "ld-bid-main", "aria-hidden": "true" }, h("b", {}, String(b.quantity)), h("span", { class: "x" }, "×"), die(b.face, "big")),
       );
@@ -581,10 +581,10 @@ export class LiarsDiceView implements GameView {
     else if (game.phase === "reveal") {
       action = priv?.canReady
         ? h("button", { type: "button", class: "primary ld-next", onclick: () => this.send({ type: "ready" }) }, "Next round")
-        : hint(mine?.out ? "You're out. Watching the table." : "Waiting for the others…");
+        : hint(mine?.out ? "You're out. You can still watch." : "Waiting for the others…");
     } else if (myTurn && priv) action = this.picker(game, priv);
-    else if (mine?.out || mine?.removed) action = hint("You're out. Watching the table.");
-    else action = hint(game.bid ? "Not your turn yet" : "Waiting for the opening bid");
+    else if (mine?.out || mine?.removed) action = hint("You're out. You can still watch.");
+    else action = hint(game.bid ? "Wait for your turn" : "Waiting for the first bid");
     replaceChildren(this.action, action);
     this.action.classList.toggle("picking", myTurn && game.phase === "bidding");
   }
@@ -615,7 +615,7 @@ export class LiarsDiceView implements GameView {
           type: "button",
           class: `ld-face${f === face ? " on" : ""}`,
           "aria-pressed": String(f === face),
-          "aria-label": `${f}s${possible ? "" : ", can't beat the bid"}`,
+          "aria-label": `${f}s${possible ? "" : ", too low"}`,
           disabled: !possible,
           onclick: () => set(Math.max(quantity, fmin), f),
         });
