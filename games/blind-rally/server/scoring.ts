@@ -3,6 +3,8 @@ import { formatClock } from "../shared/wire.ts";
 import type { BlindRallyState, TeamState } from "../shared/types.ts";
 import { trackData } from "./geometry.ts";
 import { closestGuess, effectiveTime } from "./race.ts";
+import { VEHICLES } from "../shared/vehicles.ts";
+import { vehicleOf } from "./vehicles.ts";
 import { members } from "./teams.ts";
 
 // Results (spec §5): finishers by effective time, then DNFs by checkpoints
@@ -70,7 +72,9 @@ export function placingLabel(state: BlindRallyState, p: Placing): string {
   ].filter(Boolean);
   const place = `${p.tied ? "=" : ""}${ordinal(p.rank)}`;
   const result = p.timeMs !== null ? formatClock(p.timeMs) : `DNF, ${run.cp}/${n} checkpoints`;
-  return `${place} · ${rally ? "Car" : "Team"} ${p.team.id} · ${track.name}\n${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
+  // Rally only: every car drives its own class, so the line says which. Blind Rally's is always the hatchback.
+  const who = rally ? `Car ${p.team.id} · ${VEHICLES[vehicleOf(state, p.team)].name}` : `Team ${p.team.id}`;
+  return `${place} · ${who} · ${track.name}\n${result}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }
 
 /**

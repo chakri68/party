@@ -1,4 +1,5 @@
 import type { ControlInput, DashRelay, GhostRelay, HitRelay } from "./types.ts";
+import { DEFAULT_VEHICLE, isVehicleId } from "./vehicles.ts";
 
 // Stream payloads arrive untrusted on both ends. Each parser returns a clean
 // copy or null; numbers come back finite and clamped, never NaN.
@@ -103,6 +104,8 @@ export function parseGhost(input: unknown): GhostRelay | null {
     position: [p[0] as number, p[1] as number, p[2] as number],
     heading: o.heading,
     speed: o.speed,
+    // An older server sends none: draw a hatchback rather than drop the rival.
+    vehicle: isVehicleId(o.vehicle) ? o.vehicle : DEFAULT_VEHICLE,
   };
 }
 

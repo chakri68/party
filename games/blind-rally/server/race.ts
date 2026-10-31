@@ -21,6 +21,7 @@ import {
 import { trackData } from "./geometry.ts";
 import { GO, isLive, moveTo, TIME_UP } from "./phases.ts";
 import { holds, isFull, isSolo, seatOf } from "./teams.ts";
+import { vehicleOf } from "./vehicles.ts";
 
 // The race itself: start, clock, the two high-rate streams, and the rules the
 // server holds the Navigator's Godot to (spec §5, §8.3). Godot runs the
@@ -413,7 +414,7 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
       // The other cars' Navigators, and only them: a Driver must never learn where anything is.
       const to = state.teams.filter((r) => r.id !== team.id && r.run?.status === "running" && r.navigatorId).map((r) => r.navigatorId!);
       if (to.length) {
-        relays.push({ to, data: ghostOf(team, s) });
+        relays.push({ to, data: ghostOf(state, team, s) });
         ghostAt = now;
       }
     }
@@ -436,7 +437,7 @@ export function onRaceStream(state: BlindRallyState, playerId: string, data: unk
 }
 
 /** The shared-stage ghost: just enough to draw a rival (§8.2), rebuilt field by field. */
-function ghostOf(team: TeamState, s: ParsedSnapshot): GhostRelay {
+function ghostOf(state: BlindRallyState, team: TeamState, s: ParsedSnapshot): GhostRelay {
   return {
     t: "ghost",
     teamId: team.id,
@@ -445,5 +446,6 @@ function ghostOf(team: TeamState, s: ParsedSnapshot): GhostRelay {
     position: s.position,
     heading: s.heading,
     speed: s.speed,
+    vehicle: vehicleOf(state, team),
   };
 }

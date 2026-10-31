@@ -127,7 +127,7 @@ describe("shared stage ghosts", () => {
     const out = stream(three("shared"), "p1", snap)!;
     expect(out.relays).toEqual([
       { to: ["p0"], data: { t: "dash", speed: 23.4, heading: 291 } },
-      { to: ["p3", "p5"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 23.4 } },
+      { to: ["p3", "p5"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 23.4, vehicle: "hatch" } },
     ]);
     const drivers = ["p0", "p2", "p4"];
     for (const r of out.relays!) if ((r.data as { t: string }).t === "ghost") expect(r.to.some((id) => drivers.includes(id))).toBe(false);

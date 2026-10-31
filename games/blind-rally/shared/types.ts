@@ -331,6 +331,8 @@ export interface PublicTeam {
   graceEndsAt: number | null;
   /** Effective time (elapsed - pause + penalties), once finished. */
   timeMs: number | null;
+  /** The class this car drives, effective: the ballot's winner when the cars vote. */
+  vehicle: VehicleId;
 }
 
 /**
@@ -360,6 +362,10 @@ export interface BlindRallyPublicState {
   tracks: PublicTrack[];
   /** The lobby-wide ballot, when the teams pick. `tied` non-empty: the leader won a coin flip. */
   ballot: { votes: TrackVote[]; tied: string[] } | null;
+  /** Rally's car rule: each car picks, or the cars vote. Blind Rally is always "free". */
+  vehiclePick: VehiclePick;
+  /** The car vote, in ballot mode only. `tied` non-empty: the leader won a coin flip. */
+  vehicleBallot: { votes: { teamId: number; vehicleId: VehicleId }[]; tied: VehicleId[] } | null;
   timeLimitMs: number;
   teams: PublicTeam[];
   /** Everyone in the game, seated in a car or not. */
@@ -381,6 +387,8 @@ export interface NavigatorSession {
   teamNumber: number;
   teamColor: string;
   teamShape: TeamColor["shape"];
+  /** The class this car drives, effective. Godot builds it in initSession. */
+  vehicle: VehicleId;
   /** Shared stage: other teams' cars arrive as `ghost` relays to draw. */
   ghosts: boolean;
   /** The effective set, server-locked. Godot reads liveMarker; the TS chrome does the other two. */
@@ -515,6 +523,8 @@ export interface GhostRelay {
   position: [number, number, number];
   heading: number;
   speed: number;
+  /** The sender's class, so a rival is drawn as the car it is. */
+  vehicle: VehicleId;
 }
 
 /** Server → Driver: the car hit something. 0..1-ish. */

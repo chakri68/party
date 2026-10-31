@@ -7,7 +7,7 @@ import { COUNTDOWN_MS, MAX_TEAMS, RESET_PENALTY_MS, type BlindRallyState } from 
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
 import { parseAction } from "../server/parse.ts";
 import * as vehicles from "../server/vehicles.ts";
-import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
+import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Rally (rally-spec.md): Blind Rally's race with the blindfold off. Every
 // player is a car of one, the controls are on the car's own device, and the
@@ -141,7 +141,7 @@ describe("Rally's car on the same device as its controls", () => {
   it("snapshots are judged the same, and go out only as ghosts to the other cars", () => {
     const s = rallying(3);
     const out = stream(s, "p0", snapAt(SPAWN, { speed: 12 }))!;
-    expect(out.relays).toEqual([{ to: ["p1", "p2"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 12 } }]);
+    expect(out.relays).toEqual([{ to: ["p1", "p2"], data: { t: "ghost", teamId: 1, color: "#e69f00", tick: 9, position: SPAWN, heading: 1.2, speed: 12, vehicle: "hatch" } }]);
     expect(out.state.teams[0]!.run!.snap!.position).toEqual(SPAWN);
     // The same plausibility: a teleport off the line is refused.
     expect(stream(s, "p0", snapAt(east(200)))).toBeNull();
@@ -435,5 +435,72 @@ describe("vehicle classes: rules", () => {
     // Junk in the carry is the default, not a crash.
     const junk = newRally(2, {}, { teams: [{ driverId: "p0", navigatorId: "p0", vehicle: "bus" }], vehicleId: "bus" });
     expect([junk.vehicleId, junk.teams[0]!.vehicle]).toEqual(["hatch", "hatch"]);
+  });
+});
+
+describe("vehicle classes: over the wire", () => {
+  const pick = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor") => act(s, who, { type: "vehicle.pick", vehicleId });
+  const vote = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor") => act(s, who, { type: "vehicle.vote", vehicleId });
+  const session = (s: BlindRallyState, who: string) => {
+    const p = rallyGame.getPrivateState(s, who);
+    if (p.role !== "navigator") throw new Error(`${who} is not a navigator`);
+    return p.session;
+  };
+  const started = (s: BlindRallyState) => {
+    for (const t of s.teams) if (t.driverId) s = act(s, t.driverId, { type: "player.ready", ready: true });
+    return act(s, "p0", { type: "race.start" });
+  };
+
+  it("free: a car's pick is its session class and its public class; no ballot", () => {
+    const s = pick(newRally(3), "p0", "rwd");
+    expect(session(s, "p0").vehicle).toBe("rwd");
+    expect(session(s, "p1").vehicle).toBe("hatch");
+    const pub = rallyGame.getPublicState(s);
+    expect(pub.teams.map((t) => t.vehicle)).toEqual(["rwd", "hatch", "hatch"]);
+    expect(pub.vehiclePick).toBe("free");
+    expect(pub.vehicleBallot).toBeNull();
+  });
+
+  it("ballot: every car's session and public class is the winner, and the votes are public", () => {
+    let s = newRally(3, { vehiclePick: "ballot" });
+    s = vote(vote(vote(s, "p0", "truck"), "p1", "truck"), "p2", "rwd");
+    for (const id of ["p0", "p1", "p2"]) expect(session(s, id).vehicle, id).toBe("truck");
+    const pub = rallyGame.getPublicState(s);
+    expect(pub.teams.map((t) => t.vehicle)).toEqual(["truck", "truck", "truck"]);
+    expect(pub.vehiclePick).toBe("ballot");
+    expect(pub.vehicleBallot).toEqual({
+      votes: [{ teamId: 1, vehicleId: "truck" }, { teamId: 2, vehicleId: "truck" }, { teamId: 3, vehicleId: "rwd" }],
+      tied: [],
+    });
+  });
+
+  it("Blind Rally reports hatch through the same path, with no ballot", () => {
+    const s = racing([["p0", "p1"], ["p2", "p3"]], 4);
+    const nav = game.getPrivateState(s, "p1");
+    expect(nav.role === "navigator" && nav.session.vehicle).toBe("hatch");
+    const pub = game.getPublicState(s);
+    expect(pub.teams.every((t) => t.vehicle === "hatch")).toBe(true);
+    expect(pub.vehiclePick).toBe("free");
+    expect(pub.vehicleBallot).toBeNull();
+  });
+
+  it("a ghost carries its sender's class, and only that key more than before", () => {
+    const s = started(pick(newRally(3), "p0", "truck"));
+    const out = rallyGame.onStream!(s, "p0", snapAt(SPAWN, { speed: 12 }), ctx(GO))!;
+    const ghost = out.relays![0]!.data as Record<string, unknown>;
+    expect(ghost.vehicle).toBe("truck");
+    expect(Object.keys(ghost).sort()).toEqual(["color", "heading", "position", "speed", "t", "teamId", "tick", "vehicle"]);
+    const other = rallyGame.onStream!(s, "p1", snapAt(SPAWN, { speed: 12 }), ctx(GO))!;
+    expect((other.relays![0]!.data as { vehicle: string }).vehicle).toBe("hatch");
+  });
+
+  it("the results name a Rally car's class; Blind Rally's lines are as before", () => {
+    let s = started(pick(newRally(2), "p0", "truck"));
+    ({ state: s } = finishRun(s, "p0", GO));
+    s = rallyGame.onTimer!(s, "time-up", ctx(s.endsAt!)).state;
+    const [first, second] = rallyGame.getResult(s)!.standings.map((x) => x.label);
+    expect(first!.split("\n")[0]).toBe(`1st · Car 1 · Rally Truck · ${TRACK.name}`);
+    expect(second!.split("\n")[0]).toBe(`2nd · Car 2 · Hatchback · ${TRACK.name}`);
+    expect(game.getResult(game.onTimer!(racing([["p0", "p1"]], 2), "time-up", ctx(Number.MAX_SAFE_INTEGER)).state)!.standings[0]!.label).toMatch(/^1st · Team 1 · [^·]+\nDNF/);
   });
 });

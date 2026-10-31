@@ -11,6 +11,7 @@ import {
 } from "../shared/types.ts";
 import { trackCatalog, trackData } from "./geometry.ts";
 import { effectiveTime, pinView } from "./race.ts";
+import { vehicleOf } from "./vehicles.ts";
 import { captainOf, isSolo, seatOf, startBlocker } from "./teams.ts";
 
 // Three audiences (spec §8.2, map §2). Public and Driver DTOs are built from
@@ -27,6 +28,8 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
     // Names, difficulty, length, par and a landmark count: the lobby's cards. No geometry (spec §4.1).
     tracks: trackCatalog(),
     ballot: effectiveTrackPick(state.settings) === "ballot" ? ballotView(state) : null,
+    vehiclePick: state.settings.vehiclePick,
+    vehicleBallot: state.settings.vehiclePick === "ballot" ? vehicleBallotView(state) : null,
     timeLimitMs: state.settings.timeLimit * 60_000,
     teams: state.teams.map((t) => ({
       id: t.id,
@@ -43,6 +46,7 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
       graceEndsAt: t.run?.graceEndsAt ?? null,
       // Checkpoints stay server-side until the results: a Driver mustn't count gates (spec §4.1).
       timeMs: t.run?.status === "finished" ? effectiveTime(state, t.run, t.run.finishedAt!) : null,
+      vehicle: vehicleOf(state, t),
     })),
     players: state.players.map((p) => ({ id: p.id, ready: p.ready })),
     startsAt: state.startsAt,
@@ -56,6 +60,12 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
 function ballotView(state: BlindRallyState): BlindRallyPublicState["ballot"] {
   const b = state.ballots.find((x) => x.target === "all");
   return { votes: (b?.votes ?? []).map((v) => ({ teamId: v.teamId, trackId: v.trackId })), tied: [...(b?.tied ?? [])] };
+}
+
+/** Who voted for which class, and whether a coin settled it. */
+function vehicleBallotView(state: BlindRallyState): BlindRallyPublicState["vehicleBallot"] {
+  const b = state.vehicleBallot;
+  return { votes: b.votes.map((v) => ({ teamId: v.teamId, vehicleId: v.vehicleId })), tied: [...b.tied] };
 }
 
 export function privateState(state: BlindRallyState, playerId: string): BlindRallyPrivateState {
@@ -81,6 +91,7 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
       teamNumber: team.id,
       teamColor: teamColor(team.color).hex,
       teamShape: teamColor(team.color).shape,
+      vehicle: vehicleOf(state, team),
       ghosts: state.settings.stageMode === "shared",
       assists: effectiveAssists(state.settings),
     },

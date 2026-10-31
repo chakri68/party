@@ -219,7 +219,7 @@ describe("projection deny-list", () => {
 // Shared stage (spec §7.4, §8.2) and Rally (rally-spec.md): the one thing
 // Navigators get about other teams is a ghost, and nobody else gets even that.
 describe("projection: ghosts and Rally", () => {
-  const GHOST_KEYS = ["color", "heading", "position", "speed", "t", "teamId", "tick"];
+  const GHOST_KEYS = ["color", "heading", "position", "speed", "t", "teamId", "tick", "vehicle"];
 
   it("a ghost is an allow-list: where, which way, how fast, whose. No gates, no trip, no pins", () => {
     let s = game.onTimer!(racing([["p0", "p1"], ["p2", "p3"]], 4, { stageMode: "shared" }), "go", ctx(GO)).state;
@@ -280,6 +280,19 @@ describe("projection: ghosts and Rally", () => {
       expect(rallyGame.getPrivateState(s, "p4").role).toBeNull();
     }
     expect(leaks(rallyGame.getResult(states.at(-1)!))).toEqual([]);
+  });
+
+  it("Rally: the car classes and the ballot on the wire are names and counts, never a coordinate", () => {
+    for (const vehiclePick of ["free", "ballot"] as const) {
+      let s = newRally(5, { vehiclePick });
+      s = act(s, "p0", { type: vehiclePick === "ballot" ? "vehicle.vote" : "vehicle.pick", vehicleId: "truck" });
+      s = act(s, "p1", { type: vehiclePick === "ballot" ? "vehicle.vote" : "vehicle.pick", vehicleId: "tractor" });
+      const pub = rallyGame.getPublicState(s);
+      expect(pub.vehiclePick).toBe(vehiclePick);
+      expect(pub.vehicleBallot === null, vehiclePick).toBe(vehiclePick === "free");
+      expect(leaks(pub), vehiclePick).toEqual([]);
+      expect(leaks(rallyGame.getPrivateState(s, "p4")), vehiclePick).toEqual([]);
+    }
   });
 
   it("Rally: every car gets its own course and nobody else's run", () => {
