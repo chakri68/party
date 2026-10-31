@@ -1,0 +1,272 @@
+/* Same Page. Uses the shell's tokens (--bg, --surface, --surface-2, --line, --ink,
+   --muted, --accent, --accent-ink, --accent-soft, --danger, --radius).
+   Everything is sp- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.sp {
+  display: grid;
+  gap: 10px;
+  /* The shell's game host is a flex column: without this the game shrinks to its content. */
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  min-width: 0;
+}
+
+.sp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- Round and clock ------------------------------------------------------ */
+
+.sp-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sp-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.sp-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+.sp-bar.low span { background: var(--danger); }
+.sp[data-phase="tidying"] .sp-bar span,
+.sp[data-phase="reveal"] .sp-bar span { background: var(--muted); }
+
+/* ---- The prompt ----------------------------------------------------------- */
+
+.sp-prompt {
+  margin: 0;
+  padding: 18px 14px;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: clamp(1.4rem, 6.5vw, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.sp-status { margin: 0; min-height: 1.4em; font-weight: 600; overflow-wrap: anywhere; }
+.sp-status.sp-shake { animation: sp-shake 300ms ease; color: var(--danger); }
+
+/* ---- Answering ------------------------------------------------------------ */
+
+.sp-answer { display: grid; gap: 8px; }
+.sp-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.sp-input { min-height: 52px; font-size: 1.1rem; }
+.sp-send { min-height: 52px; padding: 0 18px; }
+.sp-locked {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  min-height: 72px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.sp-locked-k { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.sp-locked-v { font-size: 1.3rem; font-weight: 800; overflow-wrap: anywhere; }
+.sp-count { margin: 0; color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+.sp-ticks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px;
+  text-align: left;
+}
+.sp-tick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sp-tick-name { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-tick-mark { color: var(--muted); font-weight: 800; }
+.sp-tick.in { border-color: var(--accent); }
+.sp-tick.in .sp-tick-mark { color: var(--accent); }
+.sp-tick.me .sp-tick-name { color: var(--accent); }
+.sp-tick.away { opacity: 0.55; }
+
+/* ---- Groups (tidying and reveal) ----------------------------------------- */
+
+.sp-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+.sp-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.sp-group-main {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  min-height: 56px;
+  min-width: 0;
+  text-align: left;
+}
+button.sp-group-main {
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-weight: inherit;
+}
+.sp-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.sp-label { font-size: 1.15rem; font-weight: 800; overflow-wrap: anywhere; min-width: 0; }
+.sp-size {
+  flex: none;
+  min-width: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.sp-members { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.sp-member { display: inline-flex; align-items: baseline; gap: 4px; font-size: 0.9rem; min-width: 0; overflow-wrap: anywhere; }
+.sp-member-name { font-weight: 600; }
+.sp-member.me .sp-member-name { color: var(--accent); }
+.sp-member-text { color: var(--muted); }
+.sp-into { font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.sp-split {
+  min-height: 44px;
+  margin: 6px;
+  padding: 0 14px;
+  align-self: center;
+  font-size: 0.9rem;
+}
+
+.sp-group.tappable { border-style: dashed; }
+.sp-group.picked { border: 2px solid var(--accent); background: var(--accent-soft); }
+.sp-group.win { border-color: var(--accent); background: var(--accent-soft); }
+.sp-group.win .sp-label { color: var(--accent); }
+.sp-group.win .sp-size { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.sp-pts { font-size: 0.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sp-pts.up { color: var(--accent); }
+.sp-pts.down { color: var(--danger); }
+
+.sp-blanks { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+/* The reveal: groups pop in, biggest first. */
+.sp-groups.sp-pop > .sp-group { animation: sp-pop 300ms cubic-bezier(.2, .8, .2, 1.2) both; animation-delay: calc(min(var(--i), 8) * 110ms); }
+@keyframes sp-pop { from { transform: scale(0.85); opacity: 0; } }
+.sp-group.sp-flash { animation: sp-flash 450ms ease-out; }
+@keyframes sp-flash { from { box-shadow: 0 0 0 4px var(--accent); } }
+
+/* ---- Actions and the scoreboard ------------------------------------------ */
+
+.sp-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.sp-actions button { flex: 1 1 140px; max-width: 280px; }
+
+.sp-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  text-align: left;
+}
+.sp-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sp-row-name { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-row-score { font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; min-width: 1.5ch; text-align: right; }
+.sp-row.me { border-color: var(--accent); }
+.sp-row.lead .sp-row-score { color: var(--accent); }
+
+@keyframes sp-shake {
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* ---- Keyboard up (phones) --------------------------------------------------
+   html.kb-open, --vvh and --vv-top come from the shell (apps/web/src/keyboard.ts).
+   While answering, the game pins itself to the visible strip above the keyboard
+   and keeps only the clock, the prompt and the box: the rest can wait. */
+
+html.kb-open .sp[data-phase="answering"] {
+  position: fixed;
+  z-index: 15;
+  inset: var(--vv-top) 0 auto;
+  height: var(--vvh);
+  max-width: none;
+  padding: 8px 12px;
+  gap: 6px;
+  align-content: start;
+  overflow: hidden;
+  background: var(--bg);
+}
+html.kb-open .sp[data-phase="answering"] .sp-status,
+html.kb-open .sp[data-phase="answering"] .sp-ticks,
+html.kb-open .sp[data-phase="answering"] .sp-board { display: none; }
+html.kb-open .sp[data-phase="answering"] .sp-prompt {
+  padding: 8px 10px;
+  font-size: 1.05rem;
+  /* Long prompts get three lines, not the whole strip. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+html.kb-open .sp[data-phase="answering"] .sp-answer { gap: 4px; }
+html.kb-open .sp[data-phase="answering"] .sp-count { font-size: 0.8rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-bar span { transition: none; }
+  .sp-groups.sp-pop > .sp-group, .sp-group.sp-flash { animation: none; }
+  .sp-status.sp-shake { animation: none; }
+}
