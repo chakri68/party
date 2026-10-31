@@ -16,6 +16,7 @@ import { APP_TITLE, navigate } from "../router.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
 import { resultHeadline } from "./headline.ts";
+import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
 
@@ -82,6 +83,9 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
+  private turn = new TurnSignal(() => `${this.code} · ${APP_TITLE}`);
+  /** What the game said about whose turn it is; `undefined` until it says anything. */
+  private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
 
   constructor(params: Record<string, string>) {
@@ -90,6 +94,7 @@ export class RoomView implements View {
 
   mount(container: HTMLElement) {
     this.root.append(this.header, this.body, this.toast);
+    this.turn.mount(this.root);
     container.append(this.root);
 
     if (!isValidRoomCode(this.code)) return this.showMessage("That isn't a room code.");
@@ -114,6 +119,7 @@ export class RoomView implements View {
     this.emotes?.destroy();
     this.client?.close();
     this.gameView?.destroy();
+    this.turn.destroy();
     this.root.remove();
   }
 
@@ -302,6 +308,7 @@ export class RoomView implements View {
     const me = this.client?.playerId;
     if (!u || !me || this.stuck) return;
     const room = u.room;
+    this.renderTurn();
 
     const ownChat = room.phase === "playing" && !!games[room.gameId]?.manifest.ownChat;
     this.chat?.lock(ownChat ? "Paused for this game" : null);
@@ -375,10 +382,17 @@ export class RoomView implements View {
       if (this.gameViewLoading !== loading || !this.client) return null;
       this.gameViewLoading = null;
       const client = this.client;
-      this.gameView = mod.createView({
+      // A view that's been dropped for another game doesn't get a say.
+      let view: GameView | null = null;
+      view = this.gameView = mod.createView({
         act: (action) => client.act(action),
         stream: (data) => client.stream(data),
         serverNow: () => client.serverNow(),
+        setTurn: (label) => {
+          if (view && this.gameView !== view) return;
+          this.gameTurn = label;
+          this.renderTurn();
+        },
       });
       this.gameView.mount(this.gameHost);
       return this.gameView;
@@ -394,6 +408,23 @@ export class RoomView implements View {
     this.gameViewLoading = null;
     this.gameViewFed = false;
     this.streamBacklog = [];
+    this.gameTurn = undefined;
+    this.renderTurn();
+  }
+
+  /**
+   * Is it on me? The game's word if it's given one; otherwise, the room's
+   * waiting on me and not on everyone. A whole table voting at once isn't
+   * anybody's turn, but being the last one they're waiting on is.
+   */
+  private renderTurn() {
+    const room = this.last?.room;
+    const me = this.client?.playerId;
+    if (!room || !me || room.phase !== "playing") return this.turn.set(null);
+    if (this.gameTurn !== undefined) return this.turn.set(this.gameTurn);
+    const waiting = room.awaitingPlayerIds;
+    const mine = waiting.includes(me) && waiting.length < room.seats.length;
+    this.turn.set(mine ? (waiting.length === 1 ? "Your turn" : "Your move") : null);
   }
 
   /**

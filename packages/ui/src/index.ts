@@ -39,6 +39,13 @@ export interface GameClientApi {
   stream(data: unknown): void;
   /** The server's clock, give or take a round trip. For countdowns. */
   serverNow(): number;
+  /**
+   * Says it's this player's turn (`"Pick a word"`), or that it isn't (`null`).
+   * Optional: by default the shell works it out from who the room is waiting
+   * on. Call it when that doesn't tell the whole story; once called, the
+   * game's word wins for the rest of the game.
+   */
+  setTurn(label: string | null): void;
 }
 
 export interface GameView extends View<GameViewProps> {
