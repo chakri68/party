@@ -1,0 +1,412 @@
+/* Oh Hell. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is oh- prefixed: other games' stylesheets may be loaded in the same tab.
+   Card sizes live in --oh-* custom properties with fallbacks, so cards drawn in the
+   Last trick dialog (outside .oh-hell) still come out the right size. */
+
+.oh-hell {
+  --oh-card-w: 58px;
+  --oh-card-h: 84px;
+  --oh-overlap: -18px;
+  --oh-trick-w: 50px;
+  --oh-trick-h: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.oh-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.oh-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.oh-hell.my-turn .oh-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Round: trump, where we are, the schedule ---------------------------- */
+
+.oh-round {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.oh-trump { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.oh-trump-label {
+  display: grid;
+  line-height: 1.1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.oh-trump-label b { font-size: 1.4rem; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.oh-round-info { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.oh-round-text { margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oh-round-text span { color: var(--muted); }
+
+/* One bar per round, as tall as its hand. Squeezes to fit 33 on a phone. */
+.oh-sched {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 26px;
+}
+.oh-sched-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 14px;
+  border-radius: 2px 2px 0 0;
+  background: var(--line);
+}
+.oh-sched-bar.past { background: var(--muted); opacity: 0.45; }
+.oh-sched-bar.now { background: var(--accent); }
+
+/* ---- Other players ------------------------------------------------------- */
+
+.oh-players {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.oh-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms;
+}
+.oh-opp.current { border-color: var(--accent); background: var(--accent-soft); }
+.oh-opp.took { border-color: var(--accent); }
+.oh-opp.winner { border-color: var(--accent); }
+.oh-opp.away { opacity: 0.55; }
+.oh-opp-text { display: grid; line-height: 1.2; }
+.oh-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+.oh-opp .nm { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oh-opp .pts {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.oh-opp .line, .oh-me .line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Made it so far: one more and it's gone. Over: it's gone. */
+.oh-hell .line.on { color: var(--accent); }
+.oh-hell .line.over { color: var(--danger); }
+.oh-dealer {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.oh-back-mini {
+  display: inline-block;
+  width: 9px;
+  height: 13px;
+  margin-right: 2px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ---- Table --------------------------------------------------------------- */
+
+.oh-table {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  min-height: calc(var(--oh-trick-h) + 80px);
+}
+.oh-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+.oh-table-title { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+.oh-last-btn { padding-inline: 8px; }
+
+.oh-trick {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 8px;
+}
+.oh-slot { display: grid; justify-items: center; gap: 4px; width: calc(var(--oh-trick-w, 50px) + 6px); }
+.oh-slot .oh-card { --oh-card-w: var(--oh-trick-w, 50px); --oh-card-h: var(--oh-trick-h, 72px); }
+.oh-slot-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.oh-slot.lead .oh-slot-name::before { content: "▸"; margin-right: 2px; color: var(--accent); }
+/* Decided: everything but the winner steps back. */
+.oh-trick.decided .oh-slot:not(.won) .oh-card { filter: brightness(0.6); }
+.oh-slot.won .oh-card { transform: translateY(-6px); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.5); }
+.oh-slot.won .oh-slot-name { color: var(--ink); font-weight: 700; }
+
+.oh-bidboard { display: grid; justify-items: center; gap: 6px; padding: 10px 0 4px; text-align: center; }
+.oh-bids-so-far { margin: 0; font-size: 1.15rem; }
+.oh-bids-so-far b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.oh-bid-note { margin: 0; font-size: 0.85rem; color: var(--muted); max-width: 36ch; }
+
+/* ---- Round summary ------------------------------------------------------- */
+
+.oh-score {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+.oh-score th, .oh-score td { padding: 7px 4px; text-align: center; border-bottom: 1px solid var(--line); }
+.oh-score thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+.oh-score th[scope="row"], .oh-score thead th:first-child { text-align: left; width: 38%; }
+.oh-score th[scope="row"] { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oh-score tr.me th[scope="row"] { color: var(--accent); }
+.oh-score tr.made .pts { color: var(--accent); font-weight: 700; }
+.oh-score tr.missed .pts { color: var(--muted); }
+.oh-score .total { font-weight: 700; }
+.oh-ready { color: var(--accent); }
+.oh-countdown { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.3em; }
+
+/* ---- Cards --------------------------------------------------------------- */
+
+.oh-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--oh-card-w, 58px);
+  height: var(--oh-card-h, 84px);
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+.oh-card.red { color: var(--red); }
+.oh-card.empty {
+  background: none;
+  border: 1.5px dashed var(--line);
+  box-shadow: none;
+}
+.oh-card.sm { --oh-card-w: 40px; --oh-card-h: 56px; border-radius: 6px; }
+.oh-card.sm .corner { font-size: 0.75rem; }
+.oh-card.sm .pip { font-size: 1.3rem; }
+.oh-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.95rem;
+}
+.oh-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.oh-card .corner i { font-style: normal; font-size: 0.85em; }
+.oh-card .tl { top: 4px; left: 5px; }
+.oh-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
+.oh-card .pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.9rem;
+}
+.oh-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+.oh-slot .oh-card .corner { font-size: 0.85rem; }
+.oh-slot .oh-card .pip { font-size: 1.6rem; }
+.oh-slot .oh-card .br { display: none; }
+
+/* Hand cards. Trump wears a lime stripe so it's findable at a glance. */
+.oh-hand .oh-card { cursor: default; scroll-snap-align: start; }
+.oh-hand .oh-card + .oh-card { margin-left: var(--oh-overlap); }
+.oh-hand .oh-card.trump::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+.oh-hand .oh-card.playable { cursor: pointer; }
+.oh-hand .oh-card.illegal { filter: brightness(0.5) saturate(0.6); }
+.oh-hand .oh-card.lifted { transform: translateY(-18px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+@media (hover: hover) and (pointer: fine) {
+  .oh-hand .oh-card.playable:not(.lifted):hover { transform: translateY(-8px); z-index: 1; }
+}
+.oh-hand .oh-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+
+/* ---- Log + dock ---------------------------------------------------------- */
+
+.oh-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.oh-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 6px;
+}
+.oh-hell.over .oh-dock { position: static; background: none; }
+
+.oh-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+}
+.oh-me { display: flex; align-items: baseline; gap: 8px; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 0; }
+.oh-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.oh-me .pts { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.oh-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex: 0 0 auto; }
+.oh-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; }
+.oh-action .hint.strong { color: var(--ink); font-weight: 700; }
+
+/* Bid picker: 44px squares that wrap, so 0–17 still fits a phone. */
+.oh-bids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+button.oh-bid {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+button.oh-bid.picked { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.oh-bid.banned { text-decoration: line-through; border-style: dashed; color: var(--danger); }
+
+.oh-hand {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  /* Room for the lifted card and focus rings. */
+  padding: 22px 6px 6px;
+  margin: -14px -6px 0;
+}
+
+/* The Last trick dialog. */
+.oh-last { padding: 8px 0 4px; }
+
+/* ---- Bigger screens ------------------------------------------------------ */
+
+@media (min-width: 700px) {
+  .oh-hell {
+    --oh-card-w: 76px;
+    --oh-card-h: 108px;
+    --oh-overlap: -24px;
+    --oh-trick-w: 68px;
+    --oh-trick-h: 96px;
+    gap: 14px;
+  }
+  .oh-table { padding: 10px 20px 20px; }
+  .oh-trick { gap: 14px 16px; }
+  .oh-card .corner { font-size: 1.1rem; }
+  .oh-card .pip { font-size: 2.4rem; }
+  .oh-slot .oh-card .corner { font-size: 1rem; }
+  .oh-slot .oh-card .pip { font-size: 2.1rem; }
+  .oh-card.sm { --oh-card-w: 48px; --oh-card-h: 68px; }
+  .oh-sched { height: 32px; }
+  .oh-hand { justify-content: safe center; }
+}
+
+/* ---- Feedback ------------------------------------------------------------ */
+
+.oh-hell .shake { animation: oh-shake 300ms ease; }
+@keyframes oh-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
+.oh-slot .oh-card.landed { animation: oh-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes oh-land {
+  from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
+}
+.oh-trump .oh-card.flip { animation: oh-flip 480ms cubic-bezier(.2, .8, .2, 1) 200ms backwards; }
+@keyframes oh-flip {
+  from { transform: rotateY(90deg) scale(1.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oh-hell .shake { animation: none; outline: 2px solid var(--red); }
+  .oh-card, .oh-opp { transition: none; }
+  .oh-hand .oh-card.lifted { transform: none; outline: 3px solid var(--accent); outline-offset: 2px; }
+  .oh-slot.won .oh-card { transform: none; }
+  .oh-slot .oh-card.landed, .oh-trump .oh-card.flip { animation: none; }
+}
