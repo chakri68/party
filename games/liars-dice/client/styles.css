@@ -1,0 +1,395 @@
+/* Liar's Dice. Uses the shell's tokens (--surface, --surface-2, --line, --ink, --muted, --accent, --danger, --card).
+   Everything is ld- prefixed: other games' stylesheets may be loaded in the same tab.
+   Dice come from @games/ui's dieSvg and take --die-face / --die-pip / --die-edge. */
+
+.liars-dice {
+  --die-dock: 42px;
+  --die-row: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Dice ------------------------------------------------------------------ */
+
+.ld-die {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  line-height: 0;
+  border-radius: 22%;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.ld-die svg { width: 100%; height: 100%; display: block; }
+.ld-die.mini { width: 13px; height: 13px; }
+.ld-die.tiny { width: 18px; height: 18px; vertical-align: -4px; }
+.ld-die.big { width: 58px; height: 58px; }
+
+/* Counted toward the bid. Wild 1s get the same lime, outlined, so they read as "also counts". */
+.ld-die.hit { --die-face: var(--accent); --die-pip: var(--accent-ink); --die-edge: var(--accent); }
+.ld-die.hit.wild { --die-face: #e6ffa0; box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
+.ld-die.miss { opacity: 0.38; }
+/* The die that goes. */
+.ld-die.lost { position: relative; opacity: 0.3; transform: translateY(4px) rotate(14deg) scale(0.85); }
+.ld-die.lost::after {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: 50%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--danger);
+  transform: rotate(-35deg);
+}
+/* A spot-on's die back, joining the cup. */
+.ld-die.gained { --die-face: var(--accent-soft); --die-edge: var(--accent); --die-pip: var(--accent); }
+.ld-die.gained.pending { visibility: hidden; }
+.ld-die.flip { animation: ld-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes ld-flip {
+  from { transform: rotateY(90deg) scale(1.15); }
+}
+
+/* ---- Turn indicator --------------------------------------------------------- */
+
+.ld-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.liars-dice.my-turn .ld-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Opponents --------------------------------------------------------------- */
+
+/* One scrolling row on phones (seven chips would wrap into a wall); wraps on wider screens. */
+.ld-opponents {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 2px;
+  margin: 0 -2px;
+}
+.ld-opp {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 14px 5px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.ld-opp.current { border-color: var(--accent); background: var(--accent-soft); }
+.ld-opp.winner { border-color: var(--accent); }
+.ld-opp.out, .ld-opp.away { opacity: 0.5; }
+.ld-opp-text { display: grid; gap: 2px; line-height: 1.15; }
+.ld-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; white-space: nowrap; }
+.ld-opp .cup { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.ld-opp .minis { display: flex; gap: 2px; }
+.ld-ready { color: var(--accent); font-weight: 800; }
+
+/* ---- Table ------------------------------------------------------------------- */
+
+.ld-table {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius, 16px);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.ld-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.ld-meta b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ld-wild-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.ld-bid { display: grid; justify-items: center; gap: 4px; }
+.ld-bid-who { font-size: 0.9rem; color: var(--muted); }
+.ld-bid-main { display: flex; align-items: center; gap: 8px; }
+.ld-bid-main b { font-size: 3rem; line-height: 1; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ld-bid-main .x { font-size: 1.6rem; color: var(--muted); font-weight: 700; }
+.ld-bid.empty { padding: 10px 0; }
+.ld-bid-open { font-size: 1.25rem; font-weight: 700; }
+.ld-bid.stamp { animation: ld-stamp 280ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes ld-stamp {
+  from { transform: scale(1.35); opacity: 0; }
+}
+
+/* Earlier bids this round, oldest first. Scrolls rather than wraps. */
+.ld-history {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ld-history li {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  background: var(--surface-2, var(--bg));
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ld-history .q { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ld-history .n { max-width: 7em; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Reveal ------------------------------------------------------------------- */
+
+.ld-reveal { display: grid; gap: 12px; width: 100%; justify-items: center; }
+.ld-reveal-head { margin: 0; text-align: center; font-size: 0.95rem; color: var(--muted); }
+.ld-reveal-head strong { color: var(--ink); }
+
+.ld-rows { display: grid; gap: 6px; width: 100%; max-width: 460px; }
+.ld-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+.ld-row.loser { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.ld-row.gainer { background: var(--accent-soft); }
+.ld-row-name {
+  flex: 0 1 34%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ld-tag {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ld-tag.call { border-color: var(--danger); color: var(--danger); }
+.ld-row-dice { display: flex; flex-wrap: wrap; gap: 4px; }
+.ld-row-dice .ld-die { width: var(--die-row); height: var(--die-row); }
+
+.ld-tally { display: grid; justify-items: center; gap: 2px; }
+.ld-tally-num { font-variant-numeric: tabular-nums; line-height: 1; }
+.ld-count { display: inline-block; font-size: 2.6rem; font-weight: 800; letter-spacing: -0.04em; }
+.ld-count.bump { animation: ld-bump 160ms ease-out; }
+@keyframes ld-bump {
+  50% { transform: scale(1.25); color: var(--accent); }
+}
+.ld-of { font-size: 1.3rem; color: var(--muted); font-weight: 700; }
+.ld-tally-sub { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+
+.ld-verdict {
+  margin-top: 6px;
+  transform: rotate(-5deg);
+  padding: 3px 10px;
+  border: 2.5px solid currentColor;
+  border-radius: 8px;
+  background: var(--bg);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ld-verdict[hidden] { display: none; }
+.ld-verdict.right { color: var(--accent); }
+.ld-verdict.wrong { color: var(--danger); }
+.ld-verdict.stamp { animation: ld-verdict 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes ld-verdict {
+  from { transform: rotate(-5deg) scale(1.8); opacity: 0; }
+}
+
+.ld-outcome { margin: 0; font-weight: 700; text-align: center; }
+.ld-outcome[hidden] { display: none; }
+
+/* Next round rolls when this runs out. */
+.ld-bar {
+  width: min(220px, 100%);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ld-bar[hidden] { display: none; }
+.ld-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+
+/* ---- Log + dock ------------------------------------------------------------------ */
+
+.ld-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.ld-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 88%, transparent);
+  display: grid;
+  gap: 10px;
+}
+.liars-dice.finished .ld-dock { position: static; background: none; }
+
+.ld-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  min-width: 0;
+}
+.ld-me { display: grid; gap: 1px; flex: 0 0 auto; }
+.ld-me .you { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.ld-me .count { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ld-my-dice { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; min-width: 0; }
+.ld-my-dice .ld-die { width: var(--die-dock); height: var(--die-dock); }
+
+.ld-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 48px; min-width: 0; }
+.ld-action .hint { color: var(--muted); font-size: 0.9rem; }
+.ld-action .hint.strong { color: var(--ink); font-weight: 700; }
+.ld-action button.ld-next { flex: 1; max-width: 320px; }
+
+/* The picker: stepper, faces, moves, stacked for a thumb. */
+.ld-action.picking { display: grid; justify-content: stretch; gap: 8px; }
+.ld-stepper { display: flex; align-items: center; justify-content: center; gap: 10px; }
+button.ld-step { width: 52px; min-height: 48px; padding: 0; font-size: 1.5rem; line-height: 1; }
+.ld-qty {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+.ld-qty b { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+.ld-qty span { color: var(--muted); font-weight: 700; font-size: 1.1rem; }
+
+.ld-faces { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+button.ld-face {
+  min-height: 52px;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+button.ld-face .ld-die { width: 34px; height: 34px; }
+button.ld-face.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+button.ld-face.on .ld-die { --die-face: var(--accent); --die-pip: var(--accent-ink); --die-edge: var(--accent); }
+
+.ld-moves { display: flex; gap: 8px; }
+.ld-moves button { flex: 1 1 0; min-width: 0; padding-inline: 10px; }
+.ld-moves button.ld-raise { flex: 1.7 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The big call. Red, and in reach of a thumb. */
+button.ld-liar {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #1b0606;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+button.ld-liar:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a; }
+button.ld-spot { border-color: var(--danger); color: var(--danger); }
+
+/* ---- Bubbles ------------------------------------------------------------------------ */
+
+.anim-bubble.ld-shout { background: var(--danger); color: #1b0606; font-size: 1rem; }
+.anim-bubble.ld-bid-bubble { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- Bigger screens ------------------------------------------------------------------ */
+
+@media (min-width: 700px) {
+  .liars-dice { --die-dock: 54px; --die-row: 30px; gap: 14px; }
+  .ld-opponents { flex-wrap: wrap; justify-content: center; overflow: visible; }
+  .ld-table { padding: 20px; gap: 14px; }
+  .ld-die.big { width: 72px; height: 72px; }
+  .ld-bid-main b { font-size: 3.6rem; }
+  .ld-action.picking { grid-template-columns: auto 1fr; align-items: center; }
+  .ld-action.picking .ld-moves { grid-column: 1 / -1; }
+  button.ld-face .ld-die { width: 38px; height: 38px; }
+  .ld-moves { justify-content: flex-end; }
+  .ld-moves button { flex: 0 1 auto; min-width: 120px; }
+  .ld-moves button.ld-raise { flex: 0 1 auto; min-width: 200px; }
+}
+
+/* ---- Feedback ------------------------------------------------------------------------- */
+
+.liars-dice .shake { animation: ld-shake 300ms ease; }
+@keyframes ld-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liars-dice .shake { animation: none; outline: 2px solid var(--danger); }
+  .ld-die, .ld-opp { transition: none; }
+  .ld-die.lost { transform: none; }
+  .ld-die.flip, .ld-bid.stamp, .ld-verdict.stamp, .ld-count.bump { animation: none; }
+  .ld-bar span { transition: none; }
+}
