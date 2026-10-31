@@ -3,6 +3,11 @@ extends RefCounted
 ## helpers and its pass/fail count. Leaves the car on hatch, so later tests
 ## see today's car.
 
+## Least share of a body's surface in the team colour. The tractor's bonnet
+## alone (Kenney's only orange) was 12% and read grey from the chase camera;
+## the two-tone 4x4, lowest of the rest, is 18%.
+const PAINT_SHARE := 0.15
+
 var t ## the runner (run_tests.gd)
 var car: CarController
 
@@ -23,6 +28,8 @@ func run() -> void:
 	test_hatch_dressed_as_today()
 	await test_models()
 	test_preset_keeps_livery()
+	# Drop the test livery, so later tests get the baked paint back.
+	car.remove_meta("livery")
 	car.apply_preset("hatch")
 	t._probe_session()
 
@@ -141,12 +148,8 @@ func test_models() -> void:
 		CarPaint.apply(car, team, 2, "square")
 		var body := car.get_node("Visual/Body") as MeshInstance3D
 		check(body.get_meta("baked_mesh") == load(m["body"]), "%s wears %s" % [id, String(m["body"]).get_file()])
-		var cols: PackedColorArray = body.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
-		var painted := 0
-		for c in cols:
-			if c.s > CarPaint.MIN_SAT * 0.5 and absf(c.h - team.h) < CarPaint.HUE_TOLERANCE:
-				painted += 1
-		check(painted > 100, "%s: %d vertices in the team colour" % [id, painted])
+		var share := painted_share(body.mesh, team)
+		check(share > PAINT_SHARE, "%s: %d%% of the body's surface in the team colour" % [id, roundi(share * 100.0)])
 		var shape := car.get_node("Shape") as CollisionShape3D
 		check((shape.shape as BoxShape3D).size == m["box"] and is_equal_approx(shape.position.y, m["box_y"]), "%s box is %s" % [id, m["box"]])
 		var grounded := true
@@ -170,6 +173,23 @@ func test_models() -> void:
 		check(absf(g.size.x - box.x) < box.x * 0.1 and absf(g.size.z - box.z) < box.z * 0.1,
 			"%s ghost is the car's size (%.2f x %.2f)" % [id, g.size.x, g.size.z])
 	await t.place(spawn)
+
+
+## Surface area in `color`, as a share of the mesh's (baked meshes are one
+## unindexed surface).
+static func painted_share(mesh: Mesh, color: Color) -> float:
+	var a := mesh.surface_get_arrays(0)
+	var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var cols: PackedColorArray = a[Mesh.ARRAY_COLOR]
+	var total := 0.0
+	var painted := 0.0
+	for i in range(0, v.size(), 3):
+		var area := (v[i + 1] - v[i]).cross(v[i + 2] - v[i]).length()
+		total += area
+		var c := cols[i]
+		if c.s > CarPaint.MIN_SAT * 0.5 and absf(c.h - color.h) < CarPaint.HUE_TOLERANCE:
+			painted += area
+	return painted / maxf(total, 0.0001)
 
 
 ## A class change after the livery is on keeps the team colour.

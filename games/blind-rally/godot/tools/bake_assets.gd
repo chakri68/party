@@ -130,7 +130,11 @@ const JOBS := {
 		[AABB(Vector3(-0.38, 0.30, 2.93), Vector3(0.77, 0.40, 0.15)), 0.06],
 		[AABB(Vector3(-0.38, 0.30, -3.18), Vector3(0.77, 0.40, 0.15)), 0.06]]}],
 	"car_wheel_truck": [CAR + "truck.glb", 2.1052, "car", {"only": ["wheel-front-left"], "centre": true}],
-	"car_body_tractor": [CAR + "tractor.glb", 1.6364, "car", {"only": ["body"], "paint": [0.07, 0.125, 1.0]}],
+	# Kenney's tractor is orange only on the bonnet, so from behind it read
+	# grey. Its cab and rear mudguards (the grey above the chassis, behind
+	# the exhaust) take the paint too.
+	"car_body_tractor": [CAR + "tractor.glb", 1.6364, "car", {"only": ["body"], "paint": [0.07, 0.125, 1.0],
+		"paint_in": [[AABB(Vector3(-1.2, 1.3, -1.5), Vector3(2.4, 1.4, 1.8)), 0.56]]}],
 	"car_wheel_tractor": [CAR + "tractor.glb", 1.6364, "car", {"only": ["wheel-front-left"], "centre": true}],
 	"car_wheel_tractor_rear": [CAR + "tractor.glb", 1.6364, "car", {"only": ["wheel-back-left"], "centre": true}],
 	# Scenery callouts (build_pine_panic.gd _scenery). The wreck sits on its
@@ -250,6 +254,7 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 			var col := _source_colour(mat_src, uvs, idx, t, opts.get("atlas", ""))
 			var key := xf * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
 			col = _remap(col, mat_src.resource_name if mat_src else "", palette, key, opts.get("paint", PAINT_GREEN))
+			col = _paint_in(opts, col, (key + shift) * scale)
 			for k in 3:
 				var i := idx[t + k]
 				var w: Vector3 = (xf * verts[i] + shift) * scale
@@ -268,6 +273,22 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 	mesh.surface_set_material(0, mat)
 	mesh.resource_name = src.get_file().get_basename()
 	return mesh
+
+
+## "paint_in" = [AABB, middle value]: grey bodywork whose centre lands in the
+## box (baked, scaled space) is painted too. For a model whose own paint is
+## too small to carry a team colour (the tractor's is just its bonnet).
+func _paint_in(opts: Dictionary, c: Color, centre: Vector3) -> Color:
+	for p in opts.get("paint_in", []):
+		if (p[0] as AABB).has_point(centre) and c.s < 0.3 and c.v > 0.4 and c.v < 0.7:
+			return _livery(c, p[1])
+	return c
+
+
+## A paint swatch moved to CAR_PAINT, keeping the atlas's light-to-dark ramp
+## around the paint's middle value.
+static func _livery(c: Color, mid: float) -> Color:
+	return CAR_PAINT.lightened(clampf((c.v - mid) * 1.2, 0.0, 0.3)).darkened(clampf((mid - c.v) * 1.5, 0.0, 0.4))
 
 
 func _dropped(opts: Dictionary, tri: Array) -> bool:
@@ -380,9 +401,7 @@ func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO, pai
 		"racing":
 			return RACING_PALETTE.get(mat_name, c)
 		"car":
-			# Paint -> livery, keeping the atlas's light-to-dark ramp.
-			var mid: float = paint[2]
 			if c.s > 0.35 and c.h > paint[0] and c.h < paint[1]:
-				return CAR_PAINT.lightened(clampf((c.v - mid) * 1.2, 0.0, 0.3)).darkened(clampf((mid - c.v) * 1.5, 0.0, 0.4))
+				return _livery(c, paint[2])
 			return c
 	return c
