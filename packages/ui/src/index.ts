@@ -2,6 +2,7 @@ import type { RoomPublicState } from "@games/protocol";
 import { faceSvg } from "./faces.ts";
 
 export { faceSvg };
+export { dieSvg, diePlural, DIE_NAMES, type DieOptions } from "./dice.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)
