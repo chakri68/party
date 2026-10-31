@@ -1,0 +1,362 @@
+/* Farkle. Uses the shell's tokens (--surface, --surface-2, --line, --ink, --muted, --accent, --danger).
+   Everything is fk- prefixed: other games' stylesheets may be loaded in the same tab.
+   Dice come from @games/ui's dieSvg and are recoloured through --die-face / --die-pip / --die-edge. */
+
+.farkle {
+  --die: min(60px, calc((100% - 5 * 6px) / 6));
+  --mini: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.fk-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.farkle.my-turn .fk-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+.farkle.bust .fk-status {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #1b0606;
+}
+
+/* ---- Scoreboard ---------------------------------------------------------- */
+
+.fk-board { display: grid; gap: 6px; }
+.fk-board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 0.85rem;
+}
+.fk-muted { color: var(--muted); }
+.fk-final {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 0.9rem;
+}
+.fk-final b { color: var(--accent); }
+
+.fk-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fk-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 8px 8px 5px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.fk-chip .avatar { flex: 0 0 auto; }
+.fk-chip.current { border-color: var(--accent); background: var(--accent-soft); }
+.fk-chip.winner { border-color: var(--accent); }
+.fk-chip.away { opacity: 0.55; }
+/* Had their last turn already. */
+.fk-chip.done { opacity: 0.7; }
+.fk-chip-text { display: grid; min-width: 0; line-height: 1.15; }
+.fk-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fk-chip.me .fk-name { color: var(--accent); }
+.fk-chip-line { display: flex; align-items: baseline; gap: 4px; }
+.fk-score { font-weight: 700; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.fk-score.off { color: var(--muted); }
+.fk-strikes { color: var(--danger); font-size: 0.7rem; letter-spacing: 1px; }
+.fk-flag { color: var(--accent); font-size: 0.8rem; }
+/* Progress to the target, along the chip's bottom edge. */
+.fk-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--line);
+}
+.fk-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 400ms ease;
+}
+
+/* ---- Table ---------------------------------------------------------------- */
+
+.fk-table {
+  display: grid;
+  gap: 10px;
+  padding: 12px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.fk-turn-line { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.fk-label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+.fk-total {
+  font-weight: 800;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.fk-total.struck {
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-thickness: 3px;
+}
+.fk-hot {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+/* Set aside this turn: one pill per roll they came from. */
+.fk-kept {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  min-height: calc(var(--mini) + 10px);
+}
+.fk-empty { align-self: center; color: var(--muted); font-size: 0.85rem; }
+.fk-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.fk-group-dice { display: flex; gap: 3px; }
+.fk-group-pts { font-size: 0.8rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.fk-mini {
+  --die-face: var(--accent);
+  --die-pip: var(--accent-ink);
+  --die-edge: transparent;
+  display: block;
+  width: var(--mini);
+  height: var(--mini);
+}
+.fk-mini.landed { animation: fk-land 240ms cubic-bezier(.2, .8, .2, 1.4); }
+.die-svg { display: block; width: 100%; height: 100%; }
+.fk-ghost { display: block; }
+
+/* The roll. Six fit in a row on a 360px phone; fewer stay the same size. */
+.fk-roll-wrap { position: relative; }
+.fk-roll {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-height: 60px;
+  padding-top: 8px; /* room for picked dice to lift */
+}
+button.fk-die {
+  flex: 0 0 auto;
+  width: var(--die);
+  height: auto;
+  min-height: 44px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: none;
+  border-radius: 22%;
+  background: none;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
+  cursor: default;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+button.fk-die.live { cursor: pointer; }
+button.fk-die.picked {
+  --die-face: #ecffb8;
+  transform: translateY(-8px);
+  box-shadow: 0 0 0 3px var(--accent), 0 6px 12px rgb(0 0 0 / 0.5);
+}
+button.fk-die.dead {
+  --die-face: #ffdede;
+  box-shadow: 0 0 0 3px var(--danger), 0 6px 12px rgb(0 0 0 / 0.5);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.fk-die.live:not(.picked):hover { transform: translateY(-4px); }
+}
+button.fk-die:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button.fk-die:active:not(:disabled) { transform: none; }
+button.fk-die.picked:active { transform: translateY(-8px); }
+
+/* The rattle: a wobble while faces flick past, then a bounce onto the real one. */
+button.fk-die.tumbling { animation: fk-tumble 180ms linear infinite; }
+@keyframes fk-tumble {
+  0% { transform: translate(0, -6px) rotate(-14deg); }
+  50% { transform: translate(2px, 2px) rotate(12deg); }
+  100% { transform: translate(0, -6px) rotate(-14deg); }
+}
+button.fk-die.landed { animation: fk-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes fk-land {
+  from { transform: scale(1.15); }
+}
+
+/* A dead roll: grey dice under a red stamp. */
+.farkle.bust button.fk-die {
+  --die-face: #7d7a70;
+  --die-pip: #2a2925;
+  box-shadow: 0 0 0 2px var(--danger);
+}
+.fk-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -40%) rotate(-8deg);
+  padding: 3px 14px;
+  border: 3px solid var(--danger);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--danger);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.fk-stamp.stamp { animation: fk-stamp 280ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes fk-stamp {
+  from { transform: translate(-50%, -40%) rotate(-8deg) scale(1.9); opacity: 0; }
+}
+
+.fk-pick {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.fk-pick.bad { color: var(--danger); }
+
+.farkle .pop { animation: fk-pop 320ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes fk-pop {
+  from { transform: scale(1.35); }
+}
+
+/* ---- Log + dock ----------------------------------------------------------- */
+
+.fk-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.fk-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 4px;
+}
+.farkle.finished .fk-dock { position: static; background: none; }
+.fk-note { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.fk-note:empty { display: none; }
+.fk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+}
+.fk-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 10px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.fk-actions .hint { color: var(--muted); font-size: 0.95rem; }
+.fk-actions .hint.strong { color: var(--ink); font-weight: 700; }
+
+/* ---- Bubbles -------------------------------------------------------------- */
+
+.anim-bubble.fk-gain { background: var(--accent); color: var(--accent-ink); }
+.anim-bubble.fk-loss { background: var(--danger); color: #1b0606; }
+.anim-bubble.fk-callout { background: var(--accent); color: var(--accent-ink); font-size: 1rem; }
+
+/* ---- Bigger screens ------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .farkle {
+    --die: 76px;
+    --mini: 28px;
+    gap: 14px;
+  }
+  .fk-table { padding: 18px 20px; gap: 14px; }
+  .fk-roll { gap: 12px; min-height: 84px; }
+  .fk-scores { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .fk-name { font-size: 0.9rem; }
+  .fk-score { font-size: 1.05rem; }
+  .fk-total { font-size: 2rem; }
+  .fk-actions { max-width: 520px; margin: 0 auto; width: 100%; }
+  .fk-stamp { font-size: 2rem; }
+}
+
+/* ---- Feedback ------------------------------------------------------------- */
+
+.farkle .shake { animation: fk-shake 300ms ease; }
+@keyframes fk-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farkle .shake { animation: none; outline: 2px solid var(--danger); }
+  button.fk-die, .fk-chip, .fk-bar span { transition: none; }
+  button.fk-die.picked { transform: none; }
+  button.fk-die.tumbling, button.fk-die.landed, .fk-mini.landed, .fk-stamp.stamp, .farkle .pop { animation: none; }
+}
