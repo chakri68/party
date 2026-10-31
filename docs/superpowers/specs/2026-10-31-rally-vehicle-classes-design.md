@@ -29,7 +29,7 @@ These numbers are starting points. Final tuning comes from the lap-time test (§
 - **New setting `vehiclePick`:** `"free"` (default) | `"ballot"`. Label "Cars". Options: "Each player chooses" / "Everyone votes".
 - **Free:** every car has its own `vehicle`. It defaults to `hatch` when the car is made, and the car's player changes it on the grid until the race starts.
 - **Ballot:** one vote per car, live count, most votes wins, everyone drives the winner. A tie is settled by the room seed and shown as a tie, exactly like the track ballot. No votes means `hatch`.
-- The grid shows a row of class cards: a thumbnail (a pre-rendered PNG per class, kept under `client/rally/`), name, one-line blurb, and four 1–5 bars: Speed, Grip, Offroad, Weight. In ballot mode the cards show vote counts instead of "picked".
+- The grid shows a row of class cards: a side-on silhouette (inline SVG per class, in the Ink & Lime colours; headless Godot can't render thumbnails), name, one-line blurb, and four 1–5 bars: Speed, Grip, Offroad, Weight. In ballot mode the cards show vote counts instead of "picked".
 - The race start locks the choice. Rematches keep each car's class (free) or the last winner (ballot) until someone changes it.
 - Rules text, settings preview and briefing card mention the car choice. The copy follows the site style (short plain sentences, basic words).
 - Results line: `1st · Car 2 · Rally Truck · Pine Panic` / `1:42.3 (no resets)`.
@@ -37,7 +37,7 @@ These numbers are starting points. Final tuning comes from the lap-time test (§
 ## 4. Server
 
 - `shared/vehicles.ts`: `VEHICLE_IDS` (the tuple above), `VehicleId`, and `VEHICLES: Record<VehicleId, {name, blurb, bars: {speed, grip, offroad, weight}}>`. Lobby-safe, no tuning numbers.
-- State: `team.vehicle: VehicleId`. In ballot mode the effective class comes from a ballot with `target: "vehicle"` in `state.ballots`, counted by the same code as the track ballot (`ballot.ts`, generalised over the option type, not duplicated).
+- State: `team.vehicle: VehicleId` (free mode), plus room-level `state.vehicleId` and `state.vehicleBallot {votes, tied}` for ballot mode, built like `trackId` and its ballot: the live leader, carried across rematches. Both ballots count through one shared function pulled out of `tally` in `ballot.ts`, not duplicated.
 - Actions (`parse.ts`, `game.ts`): `vehicle.pick {vehicleId}` (free mode, your own car, before the start) and `vehicle.vote {vehicleId | null}` (ballot mode, one per car, a new vote replaces the old). Rejections follow the existing style ("The cars are voted this time.").
 - `initSession` gets `vehicle: VehicleId`.
 - The ghost DTO (`ghostOf`) gets `vehicle`, rebuilt field by field like the rest.
