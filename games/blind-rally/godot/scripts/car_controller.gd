@@ -82,12 +82,40 @@ var yaw_rate := 0.0 ## rad/s, carried between steps
 var distance_travelled := 0.0 ## trip meter: actual path, detours included
 var last_impact_normal := Vector3.ZERO ## push direction of the last real hit
 var frozen := false
+var vehicle := "hatch" ## read-only: set by apply_preset()
 
 var _remote := Vector3.ZERO # steer, throttle, brake
 var _since_control := INF
 var _impact_cooldown := 0.0
+var _defaults := {} ## every @export as the scene set it, to undo a preset
+var _surf_mul := {} ## the preset's per-surface multipliers on SURFACES
 
 @onready var _ray: RayCast3D = $SurfaceRay
+
+
+## Take a car class. Every export goes back to the scene's value first, so
+## switching on a re-init (or the probe's key) never stacks one class on another.
+func apply_preset(id: String) -> void:
+	if _defaults.is_empty():
+		for p in get_property_list():
+			if p.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and p.usage & PROPERTY_USAGE_EDITOR:
+				_defaults[p.name] = get(p.name)
+	for k in _defaults:
+		set(k, _defaults[k])
+	vehicle = Vehicles.valid(id)
+	var preset := Vehicles.get_preset(vehicle)
+	for k in preset["controller"]:
+		set(k, preset["controller"][k])
+	_surf_mul = preset["surfaces"]
+
+
+## SURFACES row with this car's multipliers folded in.
+func _surface_row(name: String) -> Dictionary:
+	var row: Dictionary = SURFACES.get(name, SURFACES["offroad"]).duplicate()
+	var mul: Dictionary = _surf_mul.get(name, {})
+	for k in mul:
+		row[k] = float(row.get(k, 1.0)) * float(mul[k])
+	return row
 
 
 ## The one external input. Values are clamped; anything else is the bridge's
@@ -120,7 +148,7 @@ func _physics_process(dt: float) -> void:
 	_impact_cooldown = maxf(0.0, _impact_cooldown - dt)
 	_read_input()
 	_read_surface()
-	var s: Dictionary = SURFACES.get(surface, SURFACES["offroad"])
+	var s: Dictionary = _surface_row(surface)
 
 	var fwd := -global_basis.z
 	fwd = Vector3(fwd.x, 0, fwd.z).normalized()

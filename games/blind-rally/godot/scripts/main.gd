@@ -460,6 +460,11 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_P: set_autopilot(not autopilot.enabled)
 		KEY_Y: cycle_camera()
 		KEY_V: weather.configure(weather.seed_value, fposmod(snappedf(weather.clouds, 0.5) + 0.5, 1.5))
+		KEY_B:
+			# V is the weather's; the probe cycles car classes here.
+			if not room:
+				var i := Vehicles.IDS.find(car.vehicle)
+				car.apply_preset(Vehicles.IDS[(i + 1) % Vehicles.IDS.size()])
 		KEY_L:
 			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
 			if sun:
@@ -528,6 +533,7 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 		map.restore_pins({"pin": null, "trail": []})
 	var assists: Dictionary = cfg["assists"] if cfg.get("assists") is Dictionary else {}
 	_apply_assists(assists, true)
+	car.apply_preset(Vehicles.valid(String(cfg.get("vehicle", "hatch"))))
 	if cfg.get("teamColor") is String:
 		team_color = Color.from_string(cfg["teamColor"], team_color)
 		team_number = int(cfg["teamNumber"]) if (cfg.get("teamNumber") is float or cfg.get("teamNumber") is int) else team_number
