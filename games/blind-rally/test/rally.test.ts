@@ -5,6 +5,7 @@ import { DEFAULT_VEHICLE, isVehicleId, VEHICLE_IDS, VEHICLES } from "../shared/v
 import { parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
 import { COUNTDOWN_MS, MAX_TEAMS, RESET_PENALTY_MS, type BlindRallyState } from "../shared/types.ts";
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
+import { vehicleCards } from "../client/rally/vehicle-picker.ts";
 import { parseAction } from "../server/parse.ts";
 import * as vehicles from "../server/vehicles.ts";
 import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
@@ -502,5 +503,43 @@ describe("vehicle classes: over the wire", () => {
     expect(first!.split("\n")[0]).toBe(`1st · Car 1 · Rally Truck · ${TRACK.name}`);
     expect(second!.split("\n")[0]).toBe(`2nd · Car 2 · Hatchback · ${TRACK.name}`);
     expect(game.getResult(game.onTimer!(racing([["p0", "p1"]], 2), "time-up", ctx(Number.MAX_SAFE_INTEGER)).state)!.standings[0]!.label).toMatch(/^1st · Team 1 · [^·]+\nDNF/);
+  });
+});
+
+describe("vehicle classes: the grid's cards", () => {
+  const pick = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor") => act(s, who, { type: "vehicle.pick", vehicleId });
+  const vote = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor") => act(s, who, { type: "vehicle.vote", vehicleId });
+  const cards = (s: BlindRallyState, me: string) => vehicleCards(rallyGame.getPublicState(s), me);
+
+  it("one card per class, in order, with its name, blurb and bars", () => {
+    const c = cards(newRally(2), "p0");
+    expect(c.map((x) => x.id)).toEqual([...VEHICLE_IDS]);
+    expect(c[2]).toMatchObject({ name: "RWD Classic", blurb: VEHICLES.rwd.blurb, bars: VEHICLES.rwd.bars });
+  });
+
+  it("free: only my own car's class is selected, and nobody counts votes", () => {
+    const s = pick(pick(newRally(3), "p1", "rwd"), "p0", "truck");
+    const c = cards(s, "p1");
+    expect(c.filter((x) => x.selected).map((x) => x.id)).toEqual(["rwd"]);
+    expect(c.every((x) => x.votes === 0 && !x.tied)).toBe(true);
+    // A watcher has no car, so nothing is theirs.
+    expect(cards(s, "nobody").some((x) => x.selected)).toBe(false);
+  });
+
+  it("ballot: a card counts its votes, and mine is selected", () => {
+    const s = vote(vote(newRally(3, { vehiclePick: "ballot" }), "p0", "truck"), "p2", "truck");
+    const c = cards(s, "p2");
+    const truck = c.find((x) => x.id === "truck")!;
+    expect(truck.votes).toBe(2);
+    expect(truck.selected).toBe(true);
+    expect(c.filter((x) => x.selected)).toHaveLength(1);
+    // p1 has not voted: nothing is selected for them, even the leader.
+    expect(cards(s, "p1").some((x) => x.selected)).toBe(false);
+  });
+
+  it("ballot tie: both leaders are tied, the rest are not", () => {
+    const s = vote(vote(newRally(2, { vehiclePick: "ballot" }), "p0", "truck"), "p1", "rwd");
+    const c = cards(s, "p0");
+    expect(c.filter((x) => x.tied).map((x) => x.id).sort()).toEqual(["rwd", "truck"]);
   });
 });

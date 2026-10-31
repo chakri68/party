@@ -4,18 +4,21 @@ import { rallyBriefing, rallyPreview } from "../../shared/rally.ts";
 import { trackName } from "../../shared/tracks-public.ts";
 import { formatClock } from "../../shared/wire.ts";
 import { teamColor, type BlindRallyPublicState, type PublicTeam } from "../../shared/types.ts";
+import { VEHICLES } from "../../shared/vehicles.ts";
 import { briefingCard } from "../briefing.ts";
 import { raceElapsed, teamBadge } from "../role.ts";
 import { coinFlipped, trackPicker } from "../stages.ts";
 import type { Lobby } from "../view.ts";
+import { vehicleSvg } from "./vehicle-art.ts";
+import { VehiclePicker } from "./vehicle-picker.ts";
 
 const STATUS_LABEL = { running: "Driving", finished: "Finished", dnf: "DNF" } as const;
 
 /**
  * Rally's lobby: the grid. Nobody picks a seat (everyone has a car of their
- * own the moment they're in), so it's the track, the cars, your briefing
- * and Start. Also what spares watch from mid-race, and the backdrop under
- * the results.
+ * own the moment they're in), so it's the track, the car class, the cars,
+ * your briefing and Start. Also what spares watch from mid-race, and the
+ * backdrop under the results.
  */
 export class RallyGrid implements Lobby {
   readonly el = h("section", { class: "br-layer br-teams br-grid-screen", "aria-label": "Cars at the start" });
@@ -24,9 +27,11 @@ export class RallyGrid implements Lobby {
   private clock = h("span", { class: "br-tclock" });
   private ticker: ReturnType<typeof setInterval> | undefined;
   private game: BlindRallyPublicState | null = null;
+  private picker: VehiclePicker;
 
   constructor(api: GameClientApi) {
     this.api = api;
+    this.picker = new VehiclePicker(api);
   }
 
   destroy() {
@@ -83,6 +88,7 @@ export class RallyGrid implements Lobby {
         },
         h("header", {}, h("h3", {}, teamBadge(team, "Car")), status(team)),
         person(team.driverId!),
+        h("p", { class: "rl-car-class" }, vehicleSvg(team.vehicle), VEHICLES[team.vehicle].name),
       );
 
     const mine = cars.find((t) => t.driverId === me);
@@ -119,6 +125,9 @@ export class RallyGrid implements Lobby {
       host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Cars still driving get a DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
     }
 
+    this.picker.update(game, me, editable);
+    // The picker's buttons outlive this re-render; moving them out and back drops focus, so put it back.
+    const focused = document.activeElement;
     replaceChildren(
       this.el,
       h(
@@ -128,6 +137,7 @@ export class RallyGrid implements Lobby {
         h("p", { class: "br-sub" }, `${trackName(game.tracks, game.trackId)}, shared road, ${game.timeLimitMs / 60_000} min`, this.clock),
       ),
       editable ? trackPicker(this.api, game, me, isHost, name, true) : null,
+      this.picker.el,
       h("section", { class: "br-cars", "aria-label": "Cars" }, h("h3", {}, editable ? "At the start" : "Cars"), h("div", { class: "br-grid br-car-grid" }, cars.map(card))),
       brief,
       h(
@@ -140,6 +150,7 @@ export class RallyGrid implements Lobby {
       bar.length || host.length ? h("div", { class: "br-bar" }, bar, host) : null,
       this.note,
     );
+    if (focused instanceof HTMLElement && focused !== document.activeElement && this.picker.el.contains(focused)) focused.focus({ preventScroll: true });
 
     clearInterval(this.ticker);
     this.ticker = undefined;

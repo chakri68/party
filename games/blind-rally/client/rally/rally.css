@@ -10,6 +10,75 @@
 .br-car-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
 .br-car { gap: 6px; padding: 10px 12px; }
 .br-car .br-person { min-height: 36px; }
+/* The class a car drives, under its driver. */
+.rl-car-class { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+.rl-car-class .rl-car-art { width: 42px; height: auto; flex: none; color: var(--br-team); }
+
+/* ---- the car picker -------------------------------------------------------- */
+
+/* Five cards in a row, the track cards' look. Lime ring: yours (free) or your
+   vote (ballot). On a phone the row scrolls sideways and snaps per card. */
+.rl-cars-pick { display: grid; gap: 6px; }
+.rl-cars-pick h3 { margin: 0; font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.rl-pick-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.blind-rally .rl-pick {
+  position: relative; /* holds the screen-reader text inside the scroll row */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 10px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+.blind-rally .rl-pick:hover:not([aria-disabled]) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.blind-rally .rl-pick[aria-disabled] { cursor: default; }
+.blind-rally .rl-pick.chosen { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/* The ballot's leader, when it isn't your vote: a quieter ring. */
+.blind-rally .rl-pick.leads:not(.chosen) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.rl-pick-name { font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+.rl-car-art { display: block; width: 100%; max-width: 120px; height: auto; fill: currentColor; }
+.rl-car-art .glass, .rl-car-art .tyre { fill: var(--surface); }
+.rl-car-art .tyre { stroke: currentColor; stroke-width: 3; }
+.rl-car-art .guard { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.rl-pick .rl-car-art { align-self: center; color: var(--muted); }
+.rl-pick.chosen .rl-car-art { color: var(--accent); }
+.rl-pick-blurb { flex: 1; font-size: 0.78rem; line-height: 1.3; color: var(--muted); }
+.rl-bars { display: grid; gap: 3px; }
+.rl-bar { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); align-items: center; gap: 6px; font-size: 0.7rem; color: var(--muted); }
+.rl-ticks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+.rl-ticks i { height: 6px; border-radius: 2px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.rl-ticks i.on { background: var(--ink); box-shadow: none; }
+.rl-pick.chosen .rl-ticks i.on { background: var(--accent); }
+/* Votes over the tag, not beside it: a card is too narrow for both, and a
+   wrap on one card would push its bars out of line with the others. */
+.rl-pick .br-track-foot { flex-direction: column; align-items: flex-start; justify-content: flex-start; flex-wrap: nowrap; gap: 4px; }
+.rl-pick-list.ballot .br-track-foot { min-height: calc(1.2em + 26px); }
+.rl-pick .br-track-tag { margin-left: 0; }
+.rl-pick-votes { font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .rl-pick-list {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 42%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 2px;
+    padding: 2px 2px 6px;
+    margin: -2px -2px 0;
+    overscroll-behavior-x: contain;
+  }
+  .blind-rally .rl-pick { scroll-snap-align: start; }
+}
 
 /* ---- the seat: chrome over the course ------------------------------------- */
 
