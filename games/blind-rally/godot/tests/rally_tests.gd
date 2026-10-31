@@ -176,3 +176,36 @@ func test_ghost_feed() -> void:
 	await t.drive(1.0, 0.0, 1.0, 0.0)
 	check(car.global_position.distance_to(from) > 3.0, "and our car still drives under it")
 	g.clear()
+	await _ghost_classes(g, o)
+
+
+## A ghost is the car its team chose, re-meshed on a change, a hatch if the
+## class is missing or unknown, and its number sits on its own roof plate.
+func _ghost_classes(g: GhostCars, o: Vector3) -> void:
+	var feed := func(team: int, extra: Dictionary) -> Node3D:
+		var d := {"t": "ghost", "teamId": team, "color": "#009e73", "tick": 1, "position": [o.x, o.y, o.z], "heading": 0.0, "speed": 10.0}
+		d.merge(extra, true)
+		g.receive(team, d)
+		return g.ghost_node(team)
+	var body := func(n: Node3D) -> MeshInstance3D:
+		return n.get_node("Body")
+	var green := Color.from_string("#009e73", Color.WHITE)
+	var shape := CarPaint.shape_for("#009e73")
+	var tractor := CarPaint.ghost_mesh("tractor", green, shape)
+	var n: Node3D = feed.call(3, {"vehicle": "tractor"})
+	check(body.call(n).mesh == tractor and tractor.get_aabb() != CarPaint.ghost_mesh("hatch", green, shape).get_aabb(), "a tractor ghost is a tractor")
+	n = feed.call(3, {"vehicle": "truck"})
+	check(body.call(n).mesh == CarPaint.ghost_mesh("truck", green, shape), "same team, new class: re-meshed")
+	var hatch := CarPaint.ghost_mesh("hatch", green, shape)
+	n = feed.call(4, {})
+	check(body.call(n).mesh == hatch, "no vehicle: a hatch")
+	n = feed.call(5, {"vehicle": "bus"})
+	check(body.call(n).mesh == hatch, "an unknown vehicle: a hatch")
+	# Our car is a truck; a hatch ghost's number still sits on the hatch's plate.
+	car.apply_preset("truck")
+	n = feed.call(6, {"vehicle": "hatch"})
+	var tag: Label3D = n.get_node("Number")
+	var want := (Vehicles.get_preset("hatch")["model"]["roundel"] as Transform3D).origin.y
+	check(absf(tag.position.y - (want + 0.02)) < 0.01, "a hatch ghost's number sits at the hatch's roof (ours is a truck)")
+	car.apply_preset("hatch")
+	g.clear()

@@ -41,6 +41,8 @@ var enabled := true
 var clock := 0.0
 
 var _ghosts := {} ## team id -> Ghost
+## The Number label's offset on the roof plate (car.tscn), the same for every class.
+var _number_local := Transform3D(Basis.from_euler(Vector3(-PI / 2, PI, 0)), Vector3(0, 0.02, 0))
 
 
 class Ghost:
@@ -49,6 +51,8 @@ class Ghost:
 	var tag: Label3D
 	var mat: ShaderMaterial
 	var color := ""
+	var vehicle := ""
+	var font_size := 96 ## the tag's size before a triangle plate shrinks it
 	var samples: Array = [] ## [arrival time, Vector3, yaw]
 	var last_at := 0.0
 
@@ -69,9 +73,11 @@ func receive(team_id: int, g: Dictionary) -> void:
 		if _ghosts.size() >= MAX_GHOSTS:
 			return
 		gh = _spawn(team_id)
+	# A missing or unknown class (old page, new Godot) is a hatch, quietly.
+	var veh := Vehicles.valid(String(g.get("vehicle", "hatch")))
 	var col := String(g.get("color", ""))
-	if col != gh.color:
-		_paint(gh, col)
+	if col != gh.color or veh != gh.vehicle:
+		_paint(gh, col, veh)
 	gh.samples.append([clock, pos, float(g["heading"])])
 	if gh.samples.size() > KEEP:
 		gh.samples.pop_front()
@@ -163,23 +169,28 @@ func _spawn(team_id: int) -> Ghost:
 	gh.tag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var src := car.get_node_or_null("Visual/Body/Roundel/Number") as Label3D
 	if src:
-		gh.tag.transform = car.global_transform.affine_inverse() * src.global_transform
+		gh.tag.transform = src.transform # re-seated per class in _paint
 		gh.tag.pixel_size = src.pixel_size
 		gh.tag.font_size = src.font_size
 		gh.tag.modulate = src.modulate
 		gh.tag.outline_size = 0
+		gh.font_size = src.font_size
+		_number_local = src.transform
 	gh.node.add_child(gh.tag)
 	_ghosts[team_id] = gh
 	return gh
 
 
-func _paint(gh: Ghost, hex: String) -> void:
+func _paint(gh: Ghost, hex: String, vehicle: String) -> void:
 	gh.color = hex
+	gh.vehicle = vehicle
 	var c := Color.from_string(hex, Color("888888"))
 	var shape := CarPaint.shape_for(hex)
-	gh.body.mesh = CarPaint.ghost_mesh("hatch", c, shape)
-	if shape == "triangle":
-		gh.tag.font_size = 72
+	gh.body.mesh = CarPaint.ghost_mesh(vehicle, c, shape)
+	# The tag sits on this class's own roof plate, not on whatever car we drive.
+	var visual := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
+	gh.tag.transform = visual * (Vehicles.get_preset(vehicle)["model"]["roundel"] as Transform3D) * _number_local
+	gh.tag.font_size = 72 if shape == "triangle" else gh.font_size
 
 
 func _despawn(team_id: int) -> void:
