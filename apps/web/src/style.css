@@ -597,6 +597,15 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
   /* Springing back, or finishing a dismiss. Off while a finger's on it. */
   transition: translate 200ms cubic-bezier(.2, .8, .2, 1);
 }
+/* Typing on a phone: sit on top of the keyboard and take the visible strip,
+   instead of hiding the box behind it (see keyboard.ts). */
+@media (max-width: 759px) {
+  html.kb-open .chat-panel {
+    inset: calc(var(--vv-top) + 8px) 0 var(--kb) 0;
+    height: auto;
+    padding-bottom: 0;
+  }
+}
 .chat-panel.dragging { transition: none; user-select: none; }
 @keyframes chat-up { from { transform: translateY(24px); opacity: 0; } }
 @media (min-width: 760px) {

@@ -24,12 +24,14 @@
 
 /* ---- The bomb ------------------------------------------------------------ */
 
-/* Sized off the viewport height too, so the input stays above a phone's keyboard. */
+/* Sized off the viewport height too, so the input stays above a phone's keyboard.
+   dvh doesn't shrink for the keyboard, though; --vvh does (apps/web/src/keyboard.ts). */
 .pb-stage {
   position: relative;
   width: min(200px, 30dvh, 52vw);
   aspect-ratio: 1;
 }
+html.kb-open .pb-stage { width: min(200px, calc(var(--vvh) * 0.3), 52vw); }
 .pb-bomb, .pb-burst { position: absolute; inset: 0; }
 .pb-bomb svg, .pb-burst svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
