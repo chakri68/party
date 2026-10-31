@@ -15,6 +15,7 @@ import {
 } from "../shared/types.ts";
 import { fairBallot, settleTrack, setTrack } from "./ballot.ts";
 import { defaultTrack, hasTrack } from "./geometry.ts";
+import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
 import { parseAction } from "./parse.ts";
 import { GO, TIME_UP } from "./phases.ts";
 import { privateState, publicState } from "./projection.ts";
@@ -37,6 +38,7 @@ import {
 import { result } from "./scoring.ts";
 import { captainOf, carryOf, fitTeams, holds, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
 import { upgrade } from "./upgrade.ts";
+import { settleVehicle } from "./vehicles.ts";
 
 type State = BlindRallyState;
 
@@ -72,6 +74,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const state = clone(prev);
       sit(state, playerId, state.teams.find((t) => t.id === action.teamId)!, action.role);
       settleTrack(state);
+      settleVehicle(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -82,6 +85,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       unseat(state, playerId);
       // An emptied car's vote goes with it.
       settleTrack(state);
+      settleVehicle(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -103,6 +107,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       if (action.teamId === null) {
         unseat(state, action.playerId);
         settleTrack(state);
+        settleVehicle(state);
         return { ok: true, transition: unchanged(state) };
       }
       const team = state.teams.find((t) => t.id === action.teamId);
@@ -112,6 +117,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       if (!role) return reject("team-full", `Team ${team.id} is full.`);
       sit(state, action.playerId, team, role);
       settleTrack(state);
+      settleVehicle(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -139,6 +145,35 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       ballot.votes = ballot.votes.filter((v) => v.teamId !== seat.team.id);
       if (action.trackId !== null) ballot.votes.push({ teamId: seat.team.id, trackId: action.trackId });
       settleTrack(state);
+      return { ok: true, transition: unchanged(state) };
+    }
+
+    case "vehicle.pick": {
+      if (!inTeams) return reject("wrong-phase", "The race has started. The car cannot change now.");
+      if (!rally) return reject("rally-only", "Cars cannot change in Blind Rally.");
+      if (prev.settings.vehiclePick !== "free") return reject("cars-voted", "Everyone votes for the car this time.");
+      const seat = seatOf(prev, playerId);
+      if (!seat) return reject("not-seated", "You need a car first.");
+      if (seat.team.vehicle === action.vehicleId) return { ok: true, transition: unchanged(prev) };
+      const state = clone(prev);
+      seatOf(state, playerId)!.team.vehicle = action.vehicleId;
+      // Their Godot has built the old car; they look again and ready up.
+      state.players.find((p) => p.id === playerId)!.ready = false;
+      return { ok: true, transition: unchanged(state) };
+    }
+
+    case "vehicle.vote": {
+      if (!inTeams) return reject("wrong-phase", "The race has started. The car cannot change now.");
+      if (!rally) return reject("rally-only", "Cars cannot change in Blind Rally.");
+      if (prev.settings.vehiclePick !== "ballot") return reject("cars-chosen", "Each player chooses a car this time. There is no vote.");
+      const seat = seatOf(prev, playerId);
+      if (!seat) return reject("not-seated", "You need a car first.");
+      const state = clone(prev);
+      const ballot = state.vehicleBallot;
+      // One vote per car: a new one replaces the old.
+      ballot.votes = ballot.votes.filter((v) => v.teamId !== seat.team.id);
+      if (action.vehicleId !== null) ballot.votes.push({ teamId: seat.team.id, vehicleId: action.vehicleId });
+      settleVehicle(state);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -232,6 +267,7 @@ export function newGame(
     throw new Error(`${manifest.id}: needs ${minPlayers}–${maxPlayers} players, got ${players.length}`);
   }
   const carried = (match.carry as BlindRallyCarry | undefined)?.trackId;
+  const carriedVehicle = (match.carry as BlindRallyCarry | undefined)?.vehicleId;
   const state: State = {
     ...(variant && { variant }),
     phase: "teams",
@@ -239,6 +275,9 @@ export function newGame(
     // A rematch stays on last race's track until someone picks or votes otherwise.
     trackId: hasTrack(carried) ? carried : defaultTrack(),
     ballots: [{ target: "all", votes: [], tied: [] }],
+    // A rematch keeps the class the room last drove (it only matters in ballot mode).
+    vehicleId: isVehicleId(carriedVehicle) ? carriedVehicle : DEFAULT_VEHICLE,
+    vehicleBallot: { votes: [], tied: [] },
     seed: ctx.randomInt(2 ** 31),
     players: players.map((p) => ({ id: p.id, ready: false })),
     teams: [],
@@ -328,6 +367,7 @@ export const blindRallyGame: GameDefinition<
       state.players = state.players.filter((p) => p.id !== playerId);
       fitTeams(state);
       settleTrack(state);
+      settleVehicle(state);
       return unchanged(state);
     }
     // Mid-race the seat stays filled, for the results, and the car's out.

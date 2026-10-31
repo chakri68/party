@@ -1,3 +1,4 @@
+import { isVehicleId } from "../shared/vehicles.ts";
 import { MAX_TEAMS, type BlindRallyAction, type Role } from "../shared/types.ts";
 
 const isRole = (v: unknown): v is Role => v === "driver" || v === "navigator";
@@ -41,6 +42,11 @@ export function parseAction(input: unknown): BlindRallyAction | null {
     case "track.vote":
       if (a.trackId === null) return { type: "track.vote", trackId: null };
       return trackIdOk(a.trackId) ? { type: "track.vote", trackId: a.trackId } : null;
+    case "vehicle.pick":
+      return isVehicleId(a.vehicleId) ? { type: "vehicle.pick", vehicleId: a.vehicleId } : null;
+    case "vehicle.vote":
+      if (a.vehicleId === null) return { type: "vehicle.vote", vehicleId: null };
+      return isVehicleId(a.vehicleId) ? { type: "vehicle.vote", vehicleId: a.vehicleId } : null;
     case "team.leave":
     case "race.start":
     case "race.end":

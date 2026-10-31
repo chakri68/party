@@ -3,6 +3,8 @@
 // notes; those live in data/tracks.json, which only server/ and the lazily
 // loaded navigator chunk may read.
 
+import type { VehicleId } from "./vehicles.ts";
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
@@ -231,6 +233,8 @@ export interface TeamState {
   captain: Role;
   /** Picked when the team forms, then kept: across rematches too. */
   color: TeamColorKey;
+  /** Rally's class for this car (free pick). Blind Rally leaves it at the default and never reads it. */
+  vehicle: VehicleId;
   run: RunState | null;
 }
 
@@ -252,6 +256,19 @@ export interface TrackBallot {
   tied: string[];
 }
 
+/** One car's vote for the room's class (Rally's ballot pick): the car's player votes, one each. */
+export interface VehicleVote {
+  teamId: number;
+  vehicleId: VehicleId;
+}
+
+/** Rally's class ballot: `vehicleId` follows its leader. Mirrors TrackBallot. */
+export interface VehicleBallot {
+  votes: VehicleVote[];
+  /** The classes level on top at the last count, when more than one: the room seed picked between them. */
+  tied: VehicleId[];
+}
+
 /**
  * Which game this state is. Absent: Blind Rally, pairs. "rally": Rally,
  * where each player is a car of one, sat in both seats (rally-spec §2).
@@ -271,6 +288,10 @@ export interface BlindRallyState {
   trackId: string;
   /** Fair Race's one ballot; its votes stay empty when the host picks. Older saved states lack it (server/upgrade.ts). */
   ballots: TrackBallot[];
+  /** The class every car drives when `vehiclePick` is "ballot": the ballot's leader. Older saved states lack it (server/upgrade.ts). */
+  vehicleId: VehicleId;
+  /** Rally's class ballot; empty unless `vehiclePick` is "ballot". Older saved states lack it. */
+  vehicleBallot: VehicleBallot;
   /** The room's sky: every team gets the same weather (Fair Race). */
   seed: number;
   players: PlayerState[];
@@ -282,9 +303,11 @@ export interface BlindRallyState {
 
 /** What survives a rematch (`carryOver` → `match.carry`). */
 export interface BlindRallyCarry {
-  teams: { driverId: string | null; navigatorId: string | null; captain: Role; color: TeamColorKey }[];
+  teams: { driverId: string | null; navigatorId: string | null; captain: Role; color: TeamColorKey; vehicle?: VehicleId }[];
   /** Last race's track: the rematch starts on it, whoever picks or votes next. */
   trackId?: string;
+  /** The class the room last drove (ballot mode); a rematch starts on it. */
+  vehicleId?: VehicleId;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +425,10 @@ export type BlindRallyAction =
   | { type: "track.pick"; trackId: string }
   /** A team captain, ballot mode, TEAMS only. `null` takes the team's vote back. */
   | { type: "track.vote"; trackId: string | null }
+  /** Rally, free pick: this car's class. */
+  | { type: "vehicle.pick"; vehicleId: VehicleId }
+  /** Rally, ballot pick: this car's vote for the room's class; null takes it back. */
+  | { type: "vehicle.vote"; vehicleId: VehicleId | null }
   | { type: "race.start" }
   /** Host: stop the race now and go to results (teams carry over). */
   | { type: "race.end" }

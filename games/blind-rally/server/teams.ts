@@ -1,3 +1,4 @@
+import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
 import { MAX_TEAMS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, type Role, type TeamColorKey, type TeamState } from "../shared/types.ts";
 
 // Seats in cars. Helpers mutate the state they're given; game.ts hands them a
@@ -25,6 +26,7 @@ export const newTeam = (id: number, teams: TeamState[]): TeamState => ({
   navigatorId: null,
   captain: "navigator",
   color: freeColor(teams),
+  vehicle: DEFAULT_VEHICLE,
   run: null,
 });
 
@@ -108,6 +110,8 @@ function fitCars(state: BlindRallyState): void {
     if (!car && state.teams.length < MAX_TEAMS) state.teams.push((car = newTeam(state.teams.length + 1, state.teams)));
     if (!car) break;
     car.driverId = car.navigatorId = p.id;
+    // A freed car comes back as new: the last driver's pick isn't this one's.
+    car.vehicle = DEFAULT_VEHICLE;
     p.ready = false;
   }
   while (state.teams.length > 1 && isEmpty(state.teams.at(-1)!)) state.teams.pop();
@@ -127,14 +131,15 @@ export function restoreTeams(state: BlindRallyState, carry: unknown): void {
     const color = TEAM_COLORS.find((k) => k.key === t.color)?.key;
     // Keep the colour unless it's junk or (somehow) already taken.
     if (color && !state.teams.some((o) => o.color === color)) team.color = color;
-    state.teams.push({ ...team, driverId: keep(t.driverId), navigatorId: keep(t.navigatorId), captain: t.captain === "driver" ? "driver" : "navigator" });
+    state.teams.push({ ...team, driverId: keep(t.driverId), navigatorId: keep(t.navigatorId), captain: t.captain === "driver" ? "driver" : "navigator", vehicle: isVehicleId(t.vehicle) ? t.vehicle : DEFAULT_VEHICLE });
   }
 }
 
 export function carryOf(state: BlindRallyState): BlindRallyCarry {
   return {
-    teams: state.teams.map((t) => ({ driverId: t.driverId, navigatorId: t.navigatorId, captain: t.captain, color: t.color })),
+    teams: state.teams.map((t) => ({ driverId: t.driverId, navigatorId: t.navigatorId, captain: t.captain, color: t.color, vehicle: t.vehicle })),
     trackId: state.trackId,
+    vehicleId: state.vehicleId,
   };
 }
 

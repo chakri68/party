@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseAction } from "../server/parse.ts";
 import { canMove } from "../server/phases.ts";
+import { upgrade } from "../server/upgrade.ts";
 import { seatOf } from "../server/teams.ts";
 import { blindRallySettingFields, parseSettings } from "../shared/rules-text.ts";
 import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
-import { act, ctx, game, newGame, racing, refused, TRACK } from "./helpers.ts";
+import { act, ctx, game, newGame, newRally, racing, refused, TRACK } from "./helpers.ts";
 
 const pub = (s: ReturnType<typeof newGame>) => game.getPublicState(s) as BlindRallyPublicState;
 const roleOf = (s: ReturnType<typeof newGame>, id: string) => {
@@ -314,5 +315,24 @@ describe("parsing", () => {
     expect(parseSettings({ timeLimit: 4 })).toBeNull();
     expect(parseSettings({ camera: "drone" })).toBeNull();
     expect(blindRallySettingFields({ mode: "practice" }, 4)[0]!.hint).toBe("1 team, no other cars");
+  });
+});
+
+describe("rooms saved before car classes", () => {
+  it("get hatch everywhere, an empty ballot and a free pick; a current state is untouched", () => {
+    const s = structuredClone(newRally(2)) as unknown as Record<string, unknown> & { settings: Record<string, unknown>; teams: Record<string, unknown>[] };
+    delete s.vehicleId;
+    delete s.vehicleBallot;
+    delete s.settings.vehiclePick;
+    for (const t of s.teams) delete t.vehicle;
+    const up = upgrade(s as never);
+    expect(up.vehicleId).toBe("hatch");
+    expect(up.vehicleBallot).toEqual({ votes: [], tied: [] });
+    expect(up.settings.vehiclePick).toBe("free");
+    expect(up.teams.map((t) => t.vehicle)).toEqual(["hatch", "hatch"]);
+    const now = newRally(2);
+    expect(upgrade(now)).toBe(now);
+    // And it plays: a vote on the old state doesn't crash.
+    expect(act(s as never, "p0", { type: "player.ready", ready: true }).teams[0]!.vehicle).toBe("hatch");
   });
 });

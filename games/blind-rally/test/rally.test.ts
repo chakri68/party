@@ -5,7 +5,9 @@ import { DEFAULT_VEHICLE, isVehicleId, VEHICLE_IDS, VEHICLES } from "../shared/v
 import { parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
 import { COUNTDOWN_MS, MAX_TEAMS, RESET_PENALTY_MS, type BlindRallyState } from "../shared/types.ts";
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
-import { act, ctx, driveTo, east, finishRun, game, newRally, passCheckpoints, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
+import { parseAction } from "../server/parse.ts";
+import * as vehicles from "../server/vehicles.ts";
+import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Rally (rally-spec.md): Blind Rally's race with the blindfold off. Every
 // player is a car of one, the controls are on the car's own device, and the
@@ -319,5 +321,119 @@ describe("vehicle classes: settings", () => {
   it("Blind Rally keeps its cars free whatever arrives", () => {
     expect(parseSettings({ vehiclePick: "ballot" })!.vehiclePick).toBe("free");
     expect(parseSettings(undefined)!.vehiclePick).toBe("free");
+  });
+});
+
+describe("vehicle classes: rules", () => {
+  const pick = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor") => act(s, who, { type: "vehicle.pick", vehicleId });
+  const vote = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor" | null) => act(s, who, { type: "vehicle.vote", vehicleId });
+  const ballot = (players = 3) => newRally(players, { vehiclePick: "ballot" });
+  const ready = (s: BlindRallyState) => {
+    for (const p of s.players) s = act(s, p.id, { type: "player.ready", ready: true });
+    return s;
+  };
+
+  it("new cars start as hatchbacks", () => {
+    const s = newRally(3);
+    expect(s.teams.map((t) => t.vehicle)).toEqual(["hatch", "hatch", "hatch"]);
+    expect(s.vehicleId).toBe("hatch");
+  });
+
+  it("free: a pick sets that car's class and un-readies its player; the same class again is nothing", () => {
+    let s = act(newRally(2), "p0", { type: "player.ready", ready: true });
+    s = act(s, "p1", { type: "player.ready", ready: true });
+    const same = pick(s, "p0", "hatch");
+    expect(same.players.map((p) => p.ready)).toEqual([true, true]);
+    s = pick(s, "p0", "truck");
+    expect(s.teams.map((t) => t.vehicle)).toEqual(["truck", "hatch"]);
+    expect(s.players.map((p) => p.ready)).toEqual([false, true]);
+  });
+
+  it("refuses what the mode, the phase or the seat does not allow", () => {
+    refused(ballot(), "p0", { type: "vehicle.pick", vehicleId: "truck" }, "cars-voted");
+    refused(newRally(2), "p0", { type: "vehicle.vote", vehicleId: "truck" }, "cars-chosen");
+    const started = rallying(2);
+    refused(started, "p0", { type: "vehicle.pick", vehicleId: "truck" }, "wrong-phase", ctx(GO));
+    refused(started, "p0", { type: "vehicle.vote", vehicleId: "truck" }, "wrong-phase", ctx(GO));
+    const watcher = newRally(5);
+    refused(watcher, "p4", { type: "vehicle.pick", vehicleId: "truck" }, "not-seated");
+    refused(newRally(5, { vehiclePick: "ballot" }), "p4", { type: "vehicle.vote", vehicleId: "truck" }, "not-seated");
+    refused(newGame(4), "p0", { type: "vehicle.pick", vehicleId: "truck" }, "rally-only");
+    refused(newGame(4), "p0", { type: "vehicle.vote", vehicleId: "truck" }, "rally-only");
+    expect(parseAction({ type: "vehicle.pick", vehicleId: "bus" })).toBeNull();
+    expect(parseAction({ type: "vehicle.vote", vehicleId: "bus" })).toBeNull();
+    expect(parseAction({ type: "vehicle.vote", vehicleId: null })).toEqual({ type: "vehicle.vote", vehicleId: null });
+  });
+
+  it("ballot: the leader is the class, and moving it un-readies every car's player", () => {
+    let s = vote(ballot(), "p0", "rwd");
+    s = vote(s, "p1", "rwd");
+    s = ready(s);
+    s = vote(s, "p2", "4x4"); // 2-1, rwd still ahead
+    expect(s.vehicleId).toBe("rwd");
+    expect(s.players.every((p) => p.ready)).toBe(true);
+    s = vote(vote(s, "p0", "4x4"), "p1", "4x4"); // 1-2: moves
+    expect(s.vehicleId).toBe("4x4");
+    expect(s.players.some((p) => p.ready)).toBe(false);
+  });
+
+  it("ballot: a tie is reported and settled by the seed, the same way twice; no votes changes nothing", () => {
+    const tie = () => vote(vote(ballot(2), "p0", "rwd"), "p1", "4x4");
+    const a = tie();
+    expect(a.vehicleBallot.tied).toEqual(["4x4", "rwd"]);
+    expect(["4x4", "rwd"]).toContain(a.vehicleId);
+    expect(tie().vehicleId).toBe(a.vehicleId);
+    const none = ballot();
+    expect(none.vehicleId).toBe("hatch");
+    expect(vote(vote(none, "p0", "truck"), "p0", null).vehicleId).toBe("truck"); // taken back, leader stays: no votes
+    expect(vote(none, "p0", null).vehicleBallot).toEqual({ votes: [], tied: [] });
+  });
+
+  it("a car that goes takes its vote with it", () => {
+    let s = vote(vote(ballot(3), "p0", "truck"), "p1", "rwd");
+    s = vote(s, "p2", "rwd");
+    expect(s.vehicleId).toBe("rwd");
+    s = rallyGame.onPlayerRemoved!(s, "p1", ctx()).state;
+    s = rallyGame.onPlayerRemoved!(s, "p2", ctx()).state;
+    expect(s.vehicleBallot.votes).toEqual([{ teamId: 1, vehicleId: "truck" }]);
+    expect(s.vehicleId).toBe("truck");
+  });
+
+  it("the host flipping the pick mid-lobby: ballot to free clears the votes, free to ballot shows the leader", () => {
+    const { vehicleOf } = vehicles;
+    let s = pick(newRally(3), "p1", "truck");
+    const flipped = (x: BlindRallyState, vehiclePick: "free" | "ballot") => ({ ...x, settings: { ...x.settings, vehiclePick } });
+    // free -> ballot: everyone drives the room's class, not their own pick.
+    let b = flipped(s, "ballot");
+    expect(b.teams.map((t) => vehicleOf(b, t))).toEqual(["hatch", "hatch", "hatch"]);
+    b = vote(b, "p0", "rwd");
+    expect(b.teams.map((t) => vehicleOf(b, t))).toEqual(["rwd", "rwd", "rwd"]);
+    // ballot -> free: votes void on the next count, and each car has its own pick again.
+    let f = flipped(b, "free");
+    f = rallyGame.onPlayerRemoved!(f, "p2", ctx()).state;
+    expect(f.vehicleBallot).toEqual({ votes: [], tied: [] });
+    expect(f.teams.map((t) => vehicleOf(f, t))).toEqual(["hatch", "truck"]);
+    expect(vehicleOf(newGame(2), newGame(2).teams[0]!)).toBe("hatch");
+  });
+
+  it("a spare taking a freed car gets a hatchback, not the last driver's pick", () => {
+    let s = pick(newRally(5), "p1", "truck");
+    s = rallyGame.onPlayerRemoved!(s, "p1", ctx()).state;
+    expect(seats(s)[1]).toEqual([2, "p4", "p4"]);
+    expect(s.teams[1]!.vehicle).toBe("hatch");
+  });
+
+  it("a rematch keeps each car's class and the room's", () => {
+    const start = (x: BlindRallyState) => act(ready(x), "p0", { type: "race.start" });
+    let s = start(pick(newRally(2), "p0", "rwd"));
+    s = finishRun(s, "p0", GO).state;
+    const carry = rallyGame.carryOver!(s);
+    expect(newRally(2, {}, carry).teams.map((t) => t.vehicle)).toEqual(["rwd", "hatch"]);
+    let b = start(vote(vote(ballot(2), "p0", "truck"), "p1", "truck"));
+    b = finishRun(b, "p0", GO).state;
+    expect(newRally(2, { vehiclePick: "ballot" }, rallyGame.carryOver!(b)).vehicleId).toBe("truck");
+    // Junk in the carry is the default, not a crash.
+    const junk = newRally(2, {}, { teams: [{ driverId: "p0", navigatorId: "p0", vehicle: "bus" }], vehicleId: "bus" });
+    expect([junk.vehicleId, junk.teams[0]!.vehicle]).toEqual(["hatch", "hatch"]);
   });
 });
