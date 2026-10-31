@@ -1,0 +1,414 @@
+/* Hold'em. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is he- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.holdem {
+  --card-w: 50px;
+  --card-h: 72px;
+  --hole-w: 56px;
+  --hole-h: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Level line + turn indicator ----------------------------------------- */
+
+.he-info {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.he-cap { white-space: nowrap; }
+
+.he-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.holdem.my-turn .he-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Seats: a compact grid, two across on a phone ------------------------- */
+
+.he-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.he-seat {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "face name cards"
+    "face stack bet";
+  align-items: center;
+  column-gap: 7px;
+  row-gap: 1px;
+  min-height: 52px;
+  padding: 6px 8px 7px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.he-seat > .avatar { grid-area: face; }
+.he-seat.current { border-color: var(--accent); background: var(--accent-soft); }
+.he-seat.won { border-color: var(--accent); }
+.he-seat.idle .he-seat-name, .he-seat.idle .he-seat-stack { opacity: 0.6; }
+.he-seat.gone { opacity: 0.45; }
+.he-seat.away > .avatar { opacity: 0.5; }
+
+.he-seat-name {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.he-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.he-seat-stack {
+  grid-area: stack;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.he-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
+.he-seat-bet {
+  grid-area: bet;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.he-seat-bet .he-chip { width: 13px; height: 13px; }
+.he-gain { color: var(--accent); }
+
+.he-badge {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.he-badge.d { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.he-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.he-tag.hot { color: var(--danger); }
+
+/* Whose turn: drains along the seat's bottom edge. */
+.he-seat-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--line);
+}
+.he-seat-bar span, .he-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+.he-seat-bar.low span, .he-bar.low span { background: var(--danger); }
+
+/* Seat-sized cards: rank over suit. */
+.he-mini {
+  display: inline-grid;
+  place-items: center;
+  align-content: center;
+  width: 19px;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--card);
+  color: var(--card-ink);
+  line-height: 0.9;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+.he-mini b { font-size: 0.7rem; font-weight: 800; letter-spacing: -0.05em; }
+.he-mini i { font-size: 0.62rem; font-style: normal; }
+.he-mini.red { color: var(--red); }
+.he-mini.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3.5px);
+  box-shadow: inset 0 0 0 1.5px var(--card);
+}
+.he-mini.best { box-shadow: 0 0 0 2px var(--accent); }
+.he-mini.flip { animation: he-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+
+/* ---- Table: board, pot, last hand ------------------------------------------ */
+
+.he-table {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.he-board { display: flex; gap: 6px; justify-content: center; }
+.he-middle { display: grid; justify-items: center; gap: 4px; min-height: 1.6em; }
+.he-pot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.he-pot .he-chip { width: 18px; height: 18px; }
+.he-pots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.he-side { white-space: nowrap; }
+.he-summary { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.he-summary.now { color: var(--ink); font-weight: 700; font-size: 0.95rem; }
+.he-summary.pop { animation: he-pop 320ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes he-pop { from { transform: scale(0.85); opacity: 0; } }
+
+/* Showdown: one row per hand that went the distance. */
+.he-showdown { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 100%; max-width: 420px; }
+.he-sd-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  transition: border-color 200ms, background-color 200ms, opacity 250ms, filter 250ms;
+}
+.he-sd-row.enter { animation: he-sd-in 280ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes he-sd-in { from { transform: translateY(6px); opacity: 0; } }
+.he-sd-row.on { border-color: var(--ink); }
+.he-sd-row.won { border-color: var(--accent); background: var(--accent-soft); }
+.he-sd-row.lost { opacity: 0.55; filter: saturate(0.5); }
+.he-sd-who { display: grid; min-width: 0; line-height: 1.2; }
+.he-sd-who b, .he-sd-who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.he-sd-who b { font-size: 0.85rem; }
+.he-sd-who span { font-size: 0.75rem; color: var(--muted); }
+.he-sd-row.won .he-sd-who span { color: var(--ink); font-weight: 700; }
+.he-sd-cards { display: flex; gap: 3px; }
+.he-sd-won { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); font-size: 0.9rem; }
+.he-sd-won:empty { display: none; }
+.he-step { margin: 0; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Cards ------------------------------------------------------------------- */
+
+.he-card {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--card-ink);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.he-card.red { color: var(--red); }
+.he-card.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.he-card.slot { background: none; border: 1.5px dashed var(--line); box-shadow: none; }
+.he-card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: 0.85rem;
+}
+.he-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.he-card .corner i { font-style: normal; font-size: 0.85em; }
+.he-card .tl { top: 3px; left: 4px; }
+.he-card .br { bottom: 3px; right: 4px; transform: rotate(180deg); }
+.he-card .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; }
+.he-card .pip.face { font-weight: 800; font-size: 1.35rem; font-family: Georgia, "Times New Roman", serif; }
+/* Showdown: the winning five stand out, the rest step back. */
+.he-card.best { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); transform: translateY(-3px); }
+.he-card.dim { filter: brightness(0.55) saturate(0.6); }
+.he-card.flip { animation: he-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes he-flip {
+  from { transform: rotateY(90deg) scale(1.08); }
+}
+
+/* ---- Chips -------------------------------------------------------------------- */
+
+.he-chip { display: inline-block; flex: 0 0 auto; width: 16px; height: 16px; color: var(--accent); line-height: 0; }
+.he-chip svg { display: block; }
+.he-chip-fly { color: var(--accent); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5)); }
+
+/* ---- Log + dock --------------------------------------------------------------- */
+
+.he-log { margin: 0; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+.he-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 88%, transparent);
+  display: grid;
+  gap: 8px;
+}
+.holdem.over .he-dock { position: static; background: none; }
+
+.he-me { display: flex; align-items: center; gap: 12px; min-height: var(--hole-h); }
+.he-hole { display: flex; gap: 6px; flex: 0 0 auto; }
+.he-hole .he-card { width: var(--hole-w); height: var(--hole-h); }
+.he-hole .he-card .corner { font-size: 0.95rem; }
+.he-hole.folded .he-card { filter: brightness(0.5) saturate(0.4); }
+.he-me-text { display: grid; gap: 3px; min-width: 0; }
+.he-label { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
+.he-me-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.he-me-stack > span:nth-child(2) { color: var(--ink); font-weight: 700; }
+
+/* Your clock. */
+.he-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+
+.he-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 48px; }
+.he-actions .hint { flex: 1; color: var(--muted); font-size: 0.9rem; }
+/* Fold · Check/Call · Raise: equal thirds, thumb-sized. */
+.he-actions.bet-row, .he-actions.raise-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.he-actions.raise-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-auto-flow: row; }
+.he-actions button { min-height: 52px; padding-inline: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.he-actions button.he-fold { color: var(--danger); }
+.he-actions button.he-call, .he-actions button.he-check { border-color: var(--ink); }
+
+/* ---- Raise panel -------------------------------------------------------------- */
+
+.he-raise {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.he-raise-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+.he-raise-amount { color: var(--ink); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.he-raise-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 8px; }
+.he-step-btn { min-height: 44px; padding: 0; font-size: 1.3rem; line-height: 1; }
+/* The shell styles inputs as text fields; a slider wants none of that. */
+.he-raise input.he-slider {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  accent-color: var(--accent);
+  touch-action: pan-y;
+}
+.he-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.he-quick button { min-height: 44px; padding: 0 4px; font-size: 0.85rem; }
+.he-quick button.on { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Bubbles ------------------------------------------------------------------ */
+
+.anim-bubble.he-allin-bubble { background: var(--danger); color: #1b0606; }
+.anim-bubble.he-win-bubble { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- Bigger screens ------------------------------------------------------------ */
+
+@media (min-width: 520px) {
+  .he-seats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 700px) {
+  .holdem {
+    --card-w: 70px;
+    --card-h: 100px;
+    --hole-w: 76px;
+    --hole-h: 108px;
+    gap: 14px;
+  }
+  .he-seat { min-height: 60px; padding: 8px 10px 9px; }
+  .he-seat-name { font-size: 0.95rem; }
+  .he-mini { width: 23px; height: 32px; }
+  .he-mini b { font-size: 0.82rem; }
+  .he-mini i { font-size: 0.72rem; }
+  .he-table { padding: 22px 20px 16px; gap: 12px; }
+  .he-board { gap: 10px; }
+  .he-card .corner { font-size: 1.05rem; }
+  .he-card .pip { font-size: 2.2rem; }
+  .he-card .pip.face { font-size: 1.9rem; }
+  .he-pot { font-size: 1.2rem; }
+  .he-hole .he-card .corner { font-size: 1.1rem; }
+  /* Room to breathe: the actions sit beside your cards. */
+  .he-dock { grid-template-columns: auto minmax(0, 1fr); align-items: end; column-gap: 16px; }
+  .he-raise { grid-column: 1 / -1; grid-row: 1; }
+  .he-bar { grid-column: 1 / -1; grid-row: 2; }
+  .he-me { grid-column: 1; grid-row: 3; }
+  .he-actions { grid-column: 2; grid-row: 3; min-width: 0; }
+}
+
+/* ---- Feedback ------------------------------------------------------------------ */
+
+.holdem .shake { animation: he-shake 300ms ease; }
+@keyframes he-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holdem .shake { animation: none; outline: 2px solid var(--red); }
+  .he-card, .he-seat { transition: none; }
+  .he-card.best { transform: none; }
+  .he-card.flip, .he-mini.flip { animation: none; }
+  .he-sd-row, .he-sd-row.enter, .he-summary.pop { animation: none; transition: none; }
+  .he-seat-bar span, .he-bar span { transition: none; }
+}
