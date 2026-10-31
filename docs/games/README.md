@@ -14,6 +14,16 @@ New here? Start with [Rooms and the lobby](rooms.md): making a room, getting fri
 | [Go Fish](go-fish.md) | 2–6 | Ask for ranks, collect books of four. |
 | [President](president.md) | 3–8 | Shed your hand; finishing order sets next round's pecking order. |
 | [Cheat](cheat.md) | 3–10 | Play face down, claim anything, call out liars. |
+| [Oh Hell](oh-hell.md) | 3–7 | Bid exactly how many tricks you'll take. Hand sizes change every round. |
+| [Hold'em](holdem.md) | 2–9 | No-limit Texas Hold'em with play chips; blinds climb until someone has everything. |
+
+## Dice
+
+| Game | Players | |
+| --- | --- | --- |
+| [Liar's Dice](liars-dice.md) | 2–8 | Bid on what's under everyone's cups, or call the liar. |
+| [Farkle](farkle.md) | 2–8 | Keep the scorers, push your luck, bank before it busts. |
+| [Thorns](thorns.md) | 3–6 | Stack roses and a thorn face down, then bid how many you can flip. |
 
 ## Words and drawing
 
@@ -26,6 +36,7 @@ New here? Start with [Rooms and the lobby](rooms.md): making a room, getting fri
 | [Bluff Definitions](bluff-definitions.md) | 3–12 | Write a fake definition; find the real one. |
 | [Don't Say It](dont-say-it.md) | 4–12 | Two teams describe words without the obvious ones. |
 | [Face-Off](face-off.md) | 3–12 | Two players called out, name a thing, buzz first. |
+| [Same Page](same-page.md) | 3–12 | Answer a prompt in secret; score for thinking like the room. |
 
 ## Hidden roles
 

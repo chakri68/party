@@ -9,22 +9,29 @@ import { crazyEightsManifest, crazyEightsRules, crazyEightsSettingFields } from 
 import { dominionManifest, dominionRules, dominionSettingFields } from "@games/dominion/shared";
 import { dontSayItManifest, dontSayItRules, dontSayItSettingFields } from "@games/dont-say-it/shared";
 import { faceOffManifest, faceOffRules, faceOffSettingFields } from "@games/face-off/shared";
+import { farkleManifest, farkleRules, farkleSettingFields } from "@games/farkle/shared";
 import type { GameManifest, SettingField } from "@games/game-core";
 import { heistManifest, heistRules, heistSettingFields } from "@games/heist/shared";
+import { holdemManifest, holdemRules, holdemSettingFields } from "@games/holdem/shared";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
+import { liarsDiceManifest, liarsDiceRules, liarsDiceSettingFields } from "@games/liars-dice/shared";
 import { nightfallManifest, nightfallRules, nightfallSettingFields } from "@games/nightfall/shared";
+import { ohHellManifest, ohHellRules, ohHellSettingFields } from "@games/oh-hell/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
 import { presidentManifest, presidentRules, presidentSettingFields } from "@games/president/shared";
+import { samePageManifest, samePageRules, samePageSettingFields } from "@games/same-page/shared";
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
+import { thornsManifest, thornsRules, thornsSettingFields } from "@games/thorns/shared";
 import type { GameClientModule } from "@games/ui";
 
 /** Headings in the host's game list, in the order they show. */
 export const GAME_SECTIONS = [
   { id: "cards", label: "Cards" },
+  { id: "dice", label: "Dice" },
   { id: "words", label: "Words and drawing" },
   { id: "roles", label: "Hidden roles" },
   { id: "racing", label: "Racing" },
@@ -179,6 +186,48 @@ export const games: Record<string, GameEntry> = {
     rules: nightfallRules,
     settingFields: nightfallSettingFields,
     loadClient: () => import("@games/nightfall/client").then((m) => m.default),
+  },
+  "liars-dice": {
+    section: "dice",
+    manifest: liarsDiceManifest,
+    rules: liarsDiceRules,
+    settingFields: liarsDiceSettingFields,
+    loadClient: () => import("@games/liars-dice/client").then((m) => m.default),
+  },
+  farkle: {
+    section: "dice",
+    manifest: farkleManifest,
+    rules: farkleRules,
+    settingFields: farkleSettingFields,
+    loadClient: () => import("@games/farkle/client").then((m) => m.default),
+  },
+  thorns: {
+    section: "dice",
+    manifest: thornsManifest,
+    rules: thornsRules,
+    settingFields: thornsSettingFields,
+    loadClient: () => import("@games/thorns/client").then((m) => m.default),
+  },
+  "oh-hell": {
+    section: "cards",
+    manifest: ohHellManifest,
+    rules: ohHellRules,
+    settingFields: ohHellSettingFields,
+    loadClient: () => import("@games/oh-hell/client").then((m) => m.default),
+  },
+  holdem: {
+    section: "cards",
+    manifest: holdemManifest,
+    rules: holdemRules,
+    settingFields: holdemSettingFields,
+    loadClient: () => import("@games/holdem/client").then((m) => m.default),
+  },
+  "same-page": {
+    section: "words",
+    manifest: samePageManifest,
+    rules: samePageRules,
+    settingFields: samePageSettingFields,
+    loadClient: () => import("@games/same-page/client").then((m) => m.default),
   },
   ...(BLIND_RALLY && {
     "blind-rally": {

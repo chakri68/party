@@ -2,10 +2,11 @@
 
 Party games for a group chat, played on phones. No accounts, no app: a name, a room code, and you're in.
 
-Twenty of them, roughly:
+Twenty-six of them, roughly:
 
-- **Cards**: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat
-- **Words and drawing**: Scribbl, Pass the Bomb, Chain Words, Fake Word, Bluff Definitions, Don't Say It, Face-Off
+- **Cards**: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Oh Hell, Hold'em
+- **Dice**: Liar's Dice, Farkle, Thorns
+- **Words and drawing**: Scribbl, Pass the Bomb, Chain Words, Fake Word, Bluff Definitions, Don't Say It, Face-Off, Same Page
 - **Hidden roles**: Imposter, Short Night, Heist, Nightfall
 - **Racing**: Blind Rally, Rally (hosted site only, see [below](#blind-rally-and-its-flag))
 - **Strategy**: Dominion

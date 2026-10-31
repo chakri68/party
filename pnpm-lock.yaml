@@ -45,6 +45,9 @@ importers:
       '@games/face-off':
         specifier: workspace:*
         version: link:../../games/face-off
+      '@games/farkle':
+        specifier: workspace:*
+        version: link:../../games/farkle
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -54,12 +57,21 @@ importers:
       '@games/heist':
         specifier: workspace:*
         version: link:../../games/heist
+      '@games/holdem':
+        specifier: workspace:*
+        version: link:../../games/holdem
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
+      '@games/liars-dice':
+        specifier: workspace:*
+        version: link:../../games/liars-dice
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
+      '@games/oh-hell':
+        specifier: workspace:*
+        version: link:../../games/oh-hell
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
@@ -72,6 +84,9 @@ importers:
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@games/same-page':
+        specifier: workspace:*
+        version: link:../../games/same-page
       '@games/scribbl':
         specifier: workspace:*
         version: link:../../games/scribbl
@@ -81,6 +96,9 @@ importers:
       '@games/short-night':
         specifier: workspace:*
         version: link:../../games/short-night
+      '@games/thorns':
+        specifier: workspace:*
+        version: link:../../games/thorns
       partyserver:
         specifier: ^0.5.10
         version: 0.5.10(@cloudflare/workers-types@5.20260924.1)
@@ -121,6 +139,9 @@ importers:
       '@games/face-off':
         specifier: workspace:*
         version: link:../../games/face-off
+      '@games/farkle':
+        specifier: workspace:*
+        version: link:../../games/farkle
       '@games/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core
@@ -130,12 +151,21 @@ importers:
       '@games/heist':
         specifier: workspace:*
         version: link:../../games/heist
+      '@games/holdem':
+        specifier: workspace:*
+        version: link:../../games/holdem
       '@games/imposter':
         specifier: workspace:*
         version: link:../../games/imposter
+      '@games/liars-dice':
+        specifier: workspace:*
+        version: link:../../games/liars-dice
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
+      '@games/oh-hell':
+        specifier: workspace:*
+        version: link:../../games/oh-hell
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
@@ -151,6 +181,9 @@ importers:
       '@games/room-client':
         specifier: workspace:*
         version: link:../../packages/room-client
+      '@games/same-page':
+        specifier: workspace:*
+        version: link:../../games/same-page
       '@games/scribbl':
         specifier: workspace:*
         version: link:../../games/scribbl
@@ -160,6 +193,9 @@ importers:
       '@games/short-night':
         specifier: workspace:*
         version: link:../../games/short-night
+      '@games/thorns':
+        specifier: workspace:*
+        version: link:../../games/thorns
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -331,6 +367,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/farkle:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
   games/go-fish:
     dependencies:
       '@games/animation':
@@ -364,6 +418,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/holdem:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
   games/imposter:
     dependencies:
       '@games/animation':
@@ -388,6 +460,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/words
 
+  games/liars-dice:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
   games/nightfall:
     dependencies:
       '@games/audio':
@@ -399,6 +489,24 @@ importers:
       '@games/hidden-roles':
         specifier: workspace:*
         version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/oh-hell:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -460,6 +568,30 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/same-page:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/face-off':
+        specifier: workspace:*
+        version: link:../face-off
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@games/words':
+        specifier: workspace:*
+        version: link:../../packages/words
+
   games/scribbl:
     dependencies:
       '@games/animation':
@@ -510,6 +642,24 @@ importers:
       '@games/hidden-roles':
         specifier: workspace:*
         version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/thorns:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
