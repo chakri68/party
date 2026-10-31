@@ -104,6 +104,8 @@ class NavigatorView implements RoleView {
   /** What Godot has last been told, so each race event is sent once. */
   private frozen: boolean | null = null;
   private sessionSent = false;
+  /** The car Godot was last given. Rally's grid can change it after Godot has booted. */
+  private sentVehicle: string | null = null;
   private lastInput = 0;
   private liveSince = 0;
   private ticker: ReturnType<typeof setInterval>;
@@ -238,8 +240,13 @@ class NavigatorView implements RoleView {
   private sendSession() {
     const session = this.session();
     this.renderNotes(session);
+    // Rally, on the grid: the car changed after Godot booted (an un-ready, a new pick and a ready
+    // again, or the ballot's leader moving). The class isn't in the seat key, so Godot isn't
+    // rebooted; the session goes again and apply_preset re-dresses the car in place.
+    if (this.sessionSent && session && this.props!.game.phase === "teams" && session.vehicle !== this.sentVehicle) this.sessionSent = false;
     if (this.sessionSent || !session || !this.bridge.isReady) return;
     this.sessionSent = true;
+    this.sentVehicle = session.vehicle;
     const run = this.props!.private.role === "navigator" ? this.props!.private.run : null;
     this.bridge.init(
       {

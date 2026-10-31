@@ -137,7 +137,8 @@ export class RallyGrid implements Lobby {
         h("p", { class: "br-sub" }, `${trackName(game.tracks, game.trackId)}, shared road, ${game.timeLimitMs / 60_000} min`, this.clock),
       ),
       editable ? trackPicker(this.api, game, me, isHost, name, true) : null,
-      this.picker.el,
+      // The cars are settled once the countdown starts; the grid cards say who drives what.
+      editable ? this.picker.el : null,
       h("section", { class: "br-cars", "aria-label": "Cars" }, h("h3", {}, editable ? "At the start" : "Cars"), h("div", { class: "br-grid br-car-grid" }, cars.map(card))),
       brief,
       h(

@@ -59,7 +59,7 @@ export class VehiclePicker {
     replaceChildren(this.el, this.title, this.list, this.hint);
   }
 
-  /** `editable`: before the start, in a car. Everyone else sees the cards read-only. */
+  /** `editable`: in a car. Everyone else sees the cards read-only. The grid shows this only before the countdown. */
   update(game: BlindRallyPublicState, me: string, editable: boolean) {
     const ballot = game.vehiclePick === "ballot" ? game.vehicleBallot : null;
     const mine = game.teams.find((t) => t.driverId === me);
@@ -69,9 +69,8 @@ export class VehiclePicker {
     this.editable = editable && !!mine;
     this.mode = ballot ? "ballot" : "free";
     this.selected = cards.find((c) => c.selected)?.id ?? null;
-    const lead = game.phase === "teams";
     this.list.classList.toggle("ballot", !!ballot);
-    this.title.textContent = !lead ? "Cars" : ballot ? "Car: everyone votes" : mine ? "Your car" : "Cars";
+    this.title.textContent = ballot ? "Car: everyone votes" : mine ? "Your car" : "Cars";
 
     // One tab stop for the row: the selected card, else the first. Arrows move between them.
     const stop = this.selected ?? VEHICLE_IDS[0];
@@ -115,20 +114,17 @@ export class VehiclePicker {
     }
 
     const leaderName = leader ? VEHICLES[leader].name : VEHICLES.hatch.name;
-    this.hint.textContent = !lead
-      ? ""
-      : ballot
-        ? [
-            this.editable
-              ? this.selected ? "You voted for this. Tap again to remove your vote." : "Tap a car to vote for it."
-              : "Every car gets 1 vote. You get a vote when you get a car.",
-            ballot.votes.length ? `Everyone drives the ${leaderName}.` : `No votes yet. Everyone drives the ${leaderName} for now.`,
-            "A new winner un-readies everyone.",
-          ].join(" ")
-        : this.editable
-          ? "Tap a car to drive it. Changing your car un-readies you."
-          : "Each player chooses a car. You choose when you get one.";
-    this.hint.hidden = !this.hint.textContent;
+    this.hint.textContent = ballot
+      ? [
+          this.editable
+            ? this.selected ? "You voted for this. Tap again to remove your vote." : "Tap a car to vote for it."
+            : "Every car gets 1 vote. You get a vote when you get a car.",
+          ballot.votes.length ? `Everyone drives the ${leaderName}.` : `No votes yet. Everyone drives the ${leaderName} for now.`,
+          "A new winner un-readies everyone.",
+        ].join(" ")
+      : this.editable
+        ? "Tap a car to drive it. Changing your car un-readies you."
+        : "Each player chooses a car. You choose when you get one.";
   }
 
   private tap(id: VehicleId) {

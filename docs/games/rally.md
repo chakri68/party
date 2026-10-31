@@ -84,7 +84,7 @@ Over the course: your speed in km/h with D or R for the way you're going, and th
 - **You leave the room mid-race.** Your car is DNF.
 - **Reset.** Costs 5 seconds. You go back to the last checkpoint the server counted, so a reset can't skip one, and the car sits still for 1.5 seconds. If the car falls out of the world, the game parks it and asks for the same reset, same cost.
 - **A gate out of order,** or the finish before the last checkpoint, doesn't count. Go back and drive it.
-- **Vote ties.** A coin flip, shown as one: "Tie: picked by coin flip" for a track, "Winning: coin toss" for a car. With no votes the track stays as it was, and the car is the Hatchback.
+- **Vote ties.** A coin flip, shown as one: "Tie: picked by coin flip" for a track, "Winning: coin toss" for a car. With no votes, the track and the car both stay as they were. A rematch keeps the last race's winner.
 - **Changing the track** un-readies everyone, since each course loads when you ready up.
 - **Changing your car** un-readies you, for the same reason. In a car vote, a new winner un-readies everyone.
 - **Taking over a car.** A watcher who gets a free car starts in the Hatchback, not the last driver's car.
