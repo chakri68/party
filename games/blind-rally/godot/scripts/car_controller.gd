@@ -107,6 +107,7 @@ func apply_preset(id: String) -> void:
 	for k in preset["controller"]:
 		set(k, preset["controller"][k])
 	_surf_mul = preset["surfaces"]
+	Vehicles.dress(self, vehicle)
 
 
 ## SURFACES row with this car's multipliers folded in.

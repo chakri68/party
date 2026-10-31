@@ -39,8 +39,9 @@ const ROAD_LIKE := ["road", "snow", "ice", "tarmac"]
 const ICE_SPRAY := 0.3
 const TARMAC_SPRAY := 0.35
 
-## Wheel contact points in the car's frame (-Z forward).
-var wheels := [Vector3(-0.59, 0, -1.12), Vector3(0.59, 0, -1.12), Vector3(-0.59, 0, 1.12), Vector3(0.59, 0, 1.12)]
+## Wheel contact points in the car's frame (-Z forward). Vehicles.dress sets
+## each car class's; these are the hatch's.
+var wheels := [Vector3(-0.587, 0, -1.118), Vector3(0.587, 0, -1.118), Vector3(-0.587, 0, 1.118), Vector3(0.587, 0, 1.118)]
 var marks_placed := 0 ## total ever, for tests
 
 var _car: CarController

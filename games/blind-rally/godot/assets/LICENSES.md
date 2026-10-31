@@ -69,6 +69,10 @@ The license was checked on each pack's page ("Creative Commons CC0") and in the 
 | File | Baked as | Used for |
 | --- | --- | --- |
 | `hatchback-sports.glb` | `car_body`, `car_wheel` | the rally car (green paint remapped to the livery blue) |
+| `suv.glb` | `car_body_4x4`, `car_wheel_4x4` | Rally's 4x4 class (green paint remapped to the livery blue) |
+| `sedan-sports.glb` | `car_body_rwd`, `car_wheel_rwd` | Rally's RWD Classic (red paint remapped to the livery blue) |
+| `truck.glb` | `car_body_truck`, `car_wheel_truck` | Rally's Rally Truck (green paint remapped to the livery blue) |
+| `tractor.glb` | `car_body_tractor`, `car_wheel_tractor`, `car_wheel_tractor_rear` | Rally's Tractor (orange paint remapped to the livery blue) |
 | `sedan.glb` | `wreck` | the wreck in the ferns (body only, paint remapped to rust) |
 | `tractor-shovel.glb` | `skidder` | the log landing's skidder (remapped to faded yellow and rust) |
 | `Textures/colormap.png` | (sampled at bake time) | colours for the car meshes |

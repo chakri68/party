@@ -35,7 +35,9 @@ static var _plates := {} ## shape -> Mesh
 
 ## Body paint, roof plate and number on a car scene (car.tscn's node layout).
 ## Always repaints from the baked mesh, so calling it twice is harmless.
+## Remembered on the car, so a class change (Vehicles.dress) can put it back.
 static func apply(car: Node3D, color: Color, number: int, shape: String) -> void:
+	car.set_meta("livery", [color, number, shape])
 	var body := car.get_node_or_null("Visual/Body") as MeshInstance3D
 	if body:
 		if not body.has_meta("baked_mesh"):
@@ -131,25 +133,24 @@ static func plate_mesh(shape: String) -> Mesh:
 
 ## One mesh for a whole ghost car: body (repainted), four wheels and the roof
 ## plate, merged into a single surface with vertex colours, so a ghost is one
-## draw plus its number. `car` is a car.tscn instance to copy the layout from.
-static func ghost_mesh(car: Node3D, color: Color, shape: String) -> ArrayMesh:
-	var key := "ghost:%s:%s" % [color.to_html(false), valid_shape(shape)]
+## draw plus its number. Built from the class's model (Vehicles), in car space,
+## so a ghost needn't match our own car.
+static func ghost_mesh(vehicle: String, color: Color, shape: String) -> ArrayMesh:
+	vehicle = Vehicles.valid(vehicle)
+	var key := "ghost:%s:%s:%s" % [vehicle, color.to_html(false), valid_shape(shape)]
 	if _painted.has(key):
 		return _painted[key]
+	var m: Dictionary = Vehicles.get_preset(vehicle)["model"]
+	# car.tscn's Visual node: turned half round, so the model's +z is the car's -z.
+	var visual := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var root_inv := car.global_transform.affine_inverse()
-	var body := car.get_node("Visual/Body") as MeshInstance3D
-	var baked: ArrayMesh = body.get_meta("baked_mesh", body.mesh)
-	for path in ["Visual/Body", "Visual/WheelFL", "Visual/WheelFR", "Visual/WheelRL", "Visual/WheelRR"]:
-		var mi := car.get_node_or_null(path) as MeshInstance3D
-		if mi == null:
-			continue
-		var mesh: Mesh = repaint(baked, color) if path == "Visual/Body" else mi.mesh
-		st.append_from(mesh, 0, root_inv * mi.global_transform)
-	var plate := car.get_node_or_null("Visual/Body/Roundel") as MeshInstance3D
-	if plate:
-		st.append_from(_coloured(plate_mesh(shape), PLATE_WHITE), 0, root_inv * plate.global_transform)
+	st.append_from(repaint(load(m["body"]), color), 0, visual)
+	for i in 4:
+		# Right-hand wheels are the left one turned round, as in car.tscn.
+		var flip := Basis(Vector3.UP, PI) if i % 2 == 1 else Basis()
+		st.append_from(Vehicles.wheel_mesh(m, i), 0, visual * Transform3D(flip, Vehicles.hub(m, i)))
+	st.append_from(_coloured(plate_mesh(shape), PLATE_WHITE), 0, visual * (m["roundel"] as Transform3D))
 	var out := st.commit()
 	_painted[key] = out
 	return out

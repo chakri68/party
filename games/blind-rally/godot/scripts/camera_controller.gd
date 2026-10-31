@@ -21,6 +21,8 @@ extends Camera3D
 ## environment and the static map, which renders through it, stay exactly as
 ## they were. main.gd swaps the forest and the mist for their eye-level forms.
 
+const GROUP := "follow_camera" ## Vehicles.dress() finds its car's camera here
+
 @export var target: Node3D
 @export var pitch_deg := 55.0 ## down-tilt from horizontal
 @export var distance := 80.0 ## along the view axis; ortho, so only clipping cares
@@ -41,7 +43,7 @@ extends Camera3D
 @export var chase_aim := Vector2(10.0, 0.8) ## look at: metres ahead, metres up
 @export var chase_lag := 7.0 ## 1/s, how fast the arm swings round after the car
 @export var chase_fov := Vector2(68.0, 80.0) ## vertical FOV at rest, at top speed
-@export var bonnet_offset := Vector3(0.0, 1.3, -1.05) ## car space, -z forward: over the bonnet, ahead of the light pod
+@export var bonnet_offset := Vector3(0.0, 1.3, -1.05) ## car space, -z forward: over the bonnet, ahead of the light pod. Each car class sets its own (Vehicles.dress)
 @export var bonnet_fov := Vector2(70.0, 78.0)
 @export var bonnet_pitch := -2.5 ## degrees: a little more bonnet (and its stripes) for perspective
 @export var persp_far := 118.0 ## fog is total by 108 m (main.gd) and the treeline ring stands at 106
@@ -67,6 +69,7 @@ var _arm_pos := Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	_apply_projection()
 	cull_mask &= ~4 # render layer 3 is the map-only overlay
 	get_viewport().size_changed.connect(fit_to_screen)

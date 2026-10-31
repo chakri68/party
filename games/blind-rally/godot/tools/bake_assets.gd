@@ -40,6 +40,11 @@ const RACING_PALETTE := {
 }
 ## Rally livery: the Car Kit hatchback's green becomes this blue.
 const CAR_PAINT := Color("1f6fe0")
+## Which atlas swatches are a car's paint: [hue from, hue to, the paint's
+## middle value]. Most of the kit is green; the sedan is red-orange, its tail
+## lamps a touch redder (hue 0.023, so the cut sits just above), and the
+## tractor orange, clear of the yellow indicators at 0.13.
+const PAINT_GREEN := [0.3, 0.5, 0.68]
 ## The camper's tent and fire ring: an orange tent reads against the pines.
 const CAMP_PALETTE := {
 	"colorRed": Color("d9642b"),
@@ -108,6 +113,26 @@ const JOBS := {
 		[AABB(Vector3(-0.27, 0.15, 1.84), Vector3(0.54, 0.5, 0.2)), 0.05],
 		[AABB(Vector3(-0.27, 0.15, -2.05), Vector3(0.54, 0.5, 0.25)), 0.05]]}],
 	"car_wheel": [CAR + "hatchback-sports.glb", 1.38, "car", {"only": ["wheel-front-left"], "centre": true}],
+	# Rally's other classes (scripts/vehicles.gd), each scaled to its length
+	# with the tow eyes off (as the hatch's 3.8 m is):
+	# 4x4 4.3 m (spare wheel on the tailgate), RWD 4.4 (spoiler on), truck
+	# 6.0, tractor 3.6 nose to rear tyre. The tractor's rear wheels are the
+	# big ones, so it bakes both.
+	"car_body_4x4": [CAR + "suv.glb", 1.5926, "car", {"only": ["body", "wheel-back"], "drop": [
+		[AABB(Vector3(-0.3, 0.38, 2.05), Vector3(0.6, 0.2, 0.12)), 0.04],
+		[AABB(Vector3(-0.3, 0.32, -1.93), Vector3(0.6, 0.31, 0.12)), 0.04]]}],
+	"car_wheel_4x4": [CAR + "suv.glb", 1.5926, "car", {"only": ["wheel-front-left"], "centre": true}],
+	"car_body_rwd": [CAR + "sedan-sports.glb", 1.7959, "car", {"only": ["body", "spoiler"], "paint": [0.024, 0.06, 0.92], "drop": [
+		[AABB(Vector3(-0.33, 0.25, 2.13), Vector3(0.67, 0.36, 0.13)), 0.05],
+		[AABB(Vector3(-0.33, 0.25, -2.35), Vector3(0.67, 0.36, 0.13)), 0.05]]}],
+	"car_wheel_rwd": [CAR + "sedan-sports.glb", 1.7959, "car", {"only": ["wheel-front-left"], "centre": true}],
+	"car_body_truck": [CAR + "truck.glb", 2.1052, "car", {"only": ["body"], "drop": [
+		[AABB(Vector3(-0.38, 0.30, 2.93), Vector3(0.77, 0.40, 0.15)), 0.06],
+		[AABB(Vector3(-0.38, 0.30, -3.18), Vector3(0.77, 0.40, 0.15)), 0.06]]}],
+	"car_wheel_truck": [CAR + "truck.glb", 2.1052, "car", {"only": ["wheel-front-left"], "centre": true}],
+	"car_body_tractor": [CAR + "tractor.glb", 1.6364, "car", {"only": ["body"], "paint": [0.07, 0.125, 1.0]}],
+	"car_wheel_tractor": [CAR + "tractor.glb", 1.6364, "car", {"only": ["wheel-front-left"], "centre": true}],
+	"car_wheel_tractor_rear": [CAR + "tractor.glb", 1.6364, "car", {"only": ["wheel-back-left"], "centre": true}],
 	# Scenery callouts (build_pine_panic.gd _scenery). The wreck sits on its
 	# belly, so no wheels.
 	"wreck": [CAR + "sedan.glb", 1.75, "rust", {"only": ["body"]}],
@@ -224,7 +249,7 @@ func _bake(src: String, scale: float, palette: String, opts: Dictionary, mat: Ma
 				continue
 			var col := _source_colour(mat_src, uvs, idx, t, opts.get("atlas", ""))
 			var key := xf * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
-			col = _remap(col, mat_src.resource_name if mat_src else "", palette, key)
+			col = _remap(col, mat_src.resource_name if mat_src else "", palette, key, opts.get("paint", PAINT_GREEN))
 			for k in 3:
 				var i := idx[t + k]
 				var w: Vector3 = (xf * verts[i] + shift) * scale
@@ -329,7 +354,7 @@ static func snow_remap(c: Color, tree: bool) -> Color:
 	return c
 
 
-func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO) -> Color:
+func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO, paint := PAINT_GREEN) -> Color:
 	if palette == "snow_tree" or palette == "snow_atlas":
 		return snow_remap(c, palette == "snow_tree")
 	if DESERT_PALETTES.has(palette):
@@ -355,8 +380,9 @@ func _remap(c: Color, mat_name: String, palette: String, at := Vector3.ZERO) -> 
 		"racing":
 			return RACING_PALETTE.get(mat_name, c)
 		"car":
-			# Green paint -> livery, keeping the atlas's light-to-dark ramp.
-			if c.s > 0.35 and c.h > 0.3 and c.h < 0.5:
-				return CAR_PAINT.lightened(clampf((c.v - 0.68) * 1.2, 0.0, 0.3)).darkened(clampf((0.68 - c.v) * 1.5, 0.0, 0.4))
+			# Paint -> livery, keeping the atlas's light-to-dark ramp.
+			var mid: float = paint[2]
+			if c.s > 0.35 and c.h > paint[0] and c.h < paint[1]:
+				return CAR_PAINT.lightened(clampf((c.v - mid) * 1.2, 0.0, 0.3)).darkened(clampf((mid - c.v) * 1.5, 0.0, 0.4))
 			return c
 	return c

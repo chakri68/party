@@ -177,7 +177,7 @@ func _paint(gh: Ghost, hex: String) -> void:
 	gh.color = hex
 	var c := Color.from_string(hex, Color("888888"))
 	var shape := CarPaint.shape_for(hex)
-	gh.body.mesh = CarPaint.ghost_mesh(car, c, shape)
+	gh.body.mesh = CarPaint.ghost_mesh("hatch", c, shape)
 	if shape == "triangle":
 		gh.tag.font_size = 72
 
