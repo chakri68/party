@@ -8,6 +8,7 @@ import {
   RESET_PENALTY_MS,
   TIME_LIMITS,
   TRACK_PICKS,
+  VEHICLE_PICKS,
   WEATHERS,
   type BlindRallySettings,
   type CameraPolicy,
@@ -31,7 +32,7 @@ export const rallyManifest: GameManifest = {
 };
 
 /**
- * Rally's settings are Blind Rally's with four of them free and the rest
+ * Rally's settings are Blind Rally's with five of them free and the rest
  * pinned: always a race, always one shared stage, and every assist on, since
  * the person reading the map is the one driving.
  */
@@ -47,16 +48,17 @@ export const RALLY_DEFAULTS: BlindRallySettings = {
   camera: "free",
   weather: "patchy",
   trackPick: "host",
+  vehiclePick: "free",
   ...FIXED,
 };
 
-/** Untrusted settings → Rally's. Only the four free fields are read; the rest are pinned whatever arrives. */
+/** Untrusted settings → Rally's. Only the five free fields are read; the rest are pinned whatever arrives. */
 export function parseRallySettings(input: unknown): BlindRallySettings | null {
   if (input === undefined || input === null) return { ...RALLY_DEFAULTS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...RALLY_DEFAULTS, ...(input as Partial<BlindRallySettings>) };
-  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TRACK_PICKS.includes(s.trackPick)) return null;
-  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, trackPick: s.trackPick, ...FIXED };
+  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TRACK_PICKS.includes(s.trackPick) || !VEHICLE_PICKS.includes(s.vehiclePick)) return null;
+  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, trackPick: s.trackPick, vehiclePick: s.vehiclePick, ...FIXED };
 }
 
 export const rallyRules: string[] = [
@@ -72,6 +74,8 @@ export const rallyRules: string[] = [
   "A reset takes your car back to the last checkpoint. A reset adds 5 seconds to your time.",
   "The host chooses the track, or every player votes. Each player gets 1 vote.",
   "If the vote is a tie, a coin toss decides. Everyone sees the result.",
+  "Choose your car before the race. Each car drives in a different way.",
+  "The host can make everyone vote for 1 car. Then everyone drives that car.",
   "If you lose connection, your clock stops. You get 30 seconds to connect again.",
   "After 30 seconds, you get a DNF. DNF means \"did not finish\".",
   `Up to ${MAX_TEAMS} cars can race. Other players watch. A watching player gets the next free car.`,
@@ -96,6 +100,16 @@ export function rallySettingFields(raw: unknown, players: number): SettingField[
         { label: "Everyone votes", patch: { trackPick: "ballot" } },
       ],
       hint: s.trackPick === "ballot" ? "Each car gets 1 vote. A coin toss decides a tie" : "The host chooses on the grid screen",
+    },
+    {
+      key: "vehiclePick",
+      label: "Cars",
+      selected: pickIndex(VEHICLE_PICKS, s.vehiclePick),
+      options: [
+        { label: "Each player chooses", patch: { vehiclePick: "free" } },
+        { label: "Everyone votes", patch: { vehiclePick: "ballot" } },
+      ],
+      hint: s.vehiclePick === "ballot" ? "Each car gets 1 vote. A coin toss decides a tie" : "Choose your car on the grid screen",
     },
     {
       key: "timeLimit",
@@ -130,6 +144,7 @@ export function rallyPreview(raw: unknown, track?: TrackLine): { label: string; 
       label: "Track",
       value: track ? `${track.name}, ${ballot ? "chosen by vote" : "chosen by host"}${track.tie ? " (tie, so coin toss)" : ""}` : ballot ? "Everyone votes" : "The host chooses",
     },
+    { label: "Cars", value: s.vehiclePick === "ballot" ? "Everyone votes. Everyone drives the winner" : "Each player chooses" },
     { label: "Stage", value: "Shared: 1 road, other cars are ghosts" },
     { label: "Time limit", value: `${s.timeLimit} min, then DNF` },
     { label: "Camera", value: s.camera === "free" ? "Any of the 3" : `${CAMERA_LABELS[s.camera]} only` },

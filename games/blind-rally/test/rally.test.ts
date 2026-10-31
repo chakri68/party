@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GHOST_EVERY_MS } from "../server/race.ts";
+import { parseSettings } from "../shared/rules-text.ts";
+import { DEFAULT_VEHICLE, isVehicleId, VEHICLE_IDS, VEHICLES } from "../shared/vehicles.ts";
 import { parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
 import { COUNTDOWN_MS, MAX_TEAMS, RESET_PENALTY_MS, type BlindRallyState } from "../shared/types.ts";
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
@@ -98,7 +100,7 @@ describe("Rally settings", () => {
   });
 
   it("show only what the host can change", () => {
-    expect(rallySettingFields({}, 3).map((f) => f.key)).toEqual(["trackPick", "timeLimit", "camera", "weather"]);
+    expect(rallySettingFields({}, 3).map((f) => f.key)).toEqual(["trackPick", "vehiclePick", "timeLimit", "camera", "weather"]);
     expect(rallySettingFields({}, 6).find((f) => f.key === "timeLimit")!.hint).toBe("4 cars race, 2 watch");
   });
 
@@ -283,5 +285,39 @@ describe("the co-driver's dead reckoning", () => {
     const at = routeProgress(TRACK, 1, s.teams[0]!.run!.snap!.position, 10_000);
     expect(at).toBe(cps[1]!.distance);
     expect(upcoming(TRACK, at).every((n) => n.note.distance > cps[1]!.distance)).toBe(true);
+  });
+});
+
+describe("vehicle classes: settings", () => {
+  it("has five cars, each with every bar from 1 to 5", () => {
+    expect([...VEHICLE_IDS]).toEqual(["hatch", "4x4", "rwd", "truck", "tractor"]);
+    expect(DEFAULT_VEHICLE).toBe("hatch");
+    for (const id of VEHICLE_IDS) {
+      expect(isVehicleId(id)).toBe(true);
+      const bars = Object.values(VEHICLES[id].bars);
+      expect(bars).toHaveLength(4);
+      for (const b of bars) expect(b).toBeGreaterThanOrEqual(1), expect(b).toBeLessThanOrEqual(5);
+    }
+    expect(isVehicleId("bus")).toBe(false);
+  });
+
+  it("vehiclePick defaults to free, takes ballot, and refuses anything else", () => {
+    expect(parseRallySettings(undefined)!.vehiclePick).toBe("free");
+    expect(parseRallySettings({ vehiclePick: "ballot" })!.vehiclePick).toBe("ballot");
+    expect(parseRallySettings({ vehiclePick: "x" })).toBeNull();
+  });
+
+  it("the lobby shows a Cars field and a Cars row", () => {
+    const f = rallySettingFields(undefined, 3).find((x) => x.key === "vehiclePick")!;
+    expect(f.label).toBe("Cars");
+    expect(f.options.map((o) => o.label)).toEqual(["Each player chooses", "Everyone votes"]);
+    const row = (raw: unknown) => rallyPreview(raw).find((r) => r.label === "Cars")!.value;
+    expect(row({ vehiclePick: "ballot" })).toBe("Everyone votes. Everyone drives the winner");
+    expect(row({ vehiclePick: "free" })).toBe("Each player chooses");
+  });
+
+  it("Blind Rally keeps its cars free whatever arrives", () => {
+    expect(parseSettings({ vehiclePick: "ballot" })!.vehiclePick).toBe("free");
+    expect(parseSettings(undefined)!.vehiclePick).toBe("free");
   });
 });

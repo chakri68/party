@@ -35,6 +35,8 @@ export interface Assists {
   camera3d: boolean;
 }
 
+export type VehiclePick = "free" | "ballot";
+
 export interface BlindRallySettings {
   mode: Mode;
   /** Minutes. */
@@ -43,6 +45,8 @@ export interface BlindRallySettings {
   weather: Weather;
   stageMode: StageMode;
   trackPick: TrackPick;
+  /** Rally only: each player picks a car, or the room votes for one. Blind Rally pins "free". */
+  vehiclePick: VehiclePick;
   assists: AssistPreset;
   /** Custom's toggles. Kept when a preset is picked, so going back to Custom finds them. */
   liveMarker: boolean;
@@ -58,6 +62,7 @@ export const CAMERA_MODES: readonly CameraMode[] = ["topdown", "chase", "bonnet"
 export const WEATHERS: readonly Weather[] = ["clear", "patchy", "murky"];
 export const STAGE_MODES: readonly StageMode[] = ["solo", "shared"];
 export const TRACK_PICKS: readonly TrackPick[] = ["host", "ballot"];
+export const VEHICLE_PICKS: readonly VehiclePick[] = ["free", "ballot"];
 export const ASSIST_PRESETS: readonly AssistPreset[] = ["beginner", "classic", "nightmare", "custom"];
 export const PRESET_ASSISTS: Record<Exclude<AssistPreset, "custom">, Assists> = {
   beginner: { liveMarker: true, tripMeter: true, paceNotes: true, camera3d: true },
@@ -85,6 +90,7 @@ export const DEFAULT_SETTINGS: BlindRallySettings = {
   weather: "patchy",
   stageMode: "solo",
   trackPick: "host",
+  vehiclePick: "free",
   // Classic Navigation is the featured default (spec §4.3).
   assists: "classic",
   ...PRESET_ASSISTS.classic,

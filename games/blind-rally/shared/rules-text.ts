@@ -83,7 +83,8 @@ export function parseSettings(input: unknown): BlindRallySettings | null {
     ASSIST_KEYS.every((k) => bool(s[k]));
   if (!ok) return null;
   const { mode, timeLimit, camera, weather, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
-  return { mode, timeLimit, camera, weather, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d };
+  // Cars are Rally's. Whatever arrives, Blind Rally stays on "free".
+  return { mode, timeLimit, camera, weather, stageMode, trackPick, vehiclePick: "free", assists, liveMarker, tripMeter, paceNotes, camera3d };
 }
 
 /** Mid-sentence: "Live car marker" reads "live car marker", "3D camera" stays as it is. */
