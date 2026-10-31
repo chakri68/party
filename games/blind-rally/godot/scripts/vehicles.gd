@@ -15,7 +15,9 @@ extends RefCounted
 ## a wheel's radius above. box/box_y: the collision box and its centre height,
 ## its floor 5 cm up like the hatch's. roundel and pod: the roof plate and the
 ## light pod in the body's space (+z forward). bonnet: the bonnet camera,
-## car space. hatch is car.tscn as it stands.
+## car space. chase: the chase camera's arm, metres back and up; tall cabs
+## need it higher and longer, or the cab fills the view. hatch is car.tscn
+## as it stands.
 
 const IDS := ["hatch", "4x4", "rwd", "truck", "tractor"]
 const MESHES := "res://assets/meshes/"
@@ -27,7 +29,8 @@ const PRESETS := {
 			"wheels": [Vector3(-0.587, 0, -1.118), Vector3(0.587, 0, -1.118), Vector3(-0.587, 0, 1.118), Vector3(0.587, 0, 1.118)],
 			"box": Vector3(1.8, 1.0, 3.8), "box_y": 0.55,
 			"roundel": Transform3D(Basis(), Vector3(0, 1.53, -0.15)), "pod": Transform3D(Basis(), Vector3(0, 1.56, 0.62)),
-			"stripes": true, "bonnet": Vector3(0.0, 1.3, -1.05)},
+			"stripes": true, "bonnet": Vector3(0.0, 1.3, -1.05),
+			"chase": {"back": 6.0, "up": 2.5}},
 	},
 	"4x4": {
 		"controller": {"engine_accel": 11.0, "max_speed": 29.0, "max_yaw_rate": 1.9, "yaw_response": 7.0,
@@ -43,7 +46,8 @@ const PRESETS := {
 			"wheels": [Vector3(-0.677, 0, -1.21), Vector3(0.677, 0, -1.21), Vector3(-0.677, 0, 0.892), Vector3(0.677, 0, 0.892)],
 			"box": Vector3(2.4, 1.3, 4.3), "box_y": 0.7,
 			"roundel": Transform3D(Basis(), Vector3(0, 2.08, -0.55)), "pod": Transform3D(Basis(), Vector3(0, 2.11, 0.65)),
-			"stripes": false, "bonnet": Vector3(0.0, 1.65, -1.3)},
+			"stripes": false, "bonnet": Vector3(0.0, 1.65, -1.3),
+			"chase": {"back": 6.0, "up": 3.0}},
 	},
 	"rwd": {
 		"controller": {"engine_accel": 14.5, "max_speed": 33.0, "max_yaw_rate": 2.1, "yaw_response": 10.0,
@@ -54,7 +58,8 @@ const PRESETS := {
 			"wheels": [Vector3(-0.763, 0, -1.185), Vector3(0.763, 0, -1.185), Vector3(-0.763, 0, 1.185), Vector3(0.763, 0, 1.185)],
 			"box": Vector3(2.34, 1.15, 4.4), "box_y": 0.625,
 			"roundel": Transform3D(Basis(), Vector3(0, 1.99, -0.36)), "pod": Transform3D(Basis(), Vector3(0, 2.02, 0.52)),
-			"stripes": false, "bonnet": Vector3(0.0, 1.64, -1.1)},
+			"stripes": false, "bonnet": Vector3(0.0, 1.64, -1.1),
+			"chase": {"back": 6.0, "up": 2.9}},
 	},
 	"truck": {
 		"controller": {"engine_accel": 12.0, "max_speed": 38.0, "brake_decel": 19.0, "max_yaw_rate": 1.6,
@@ -67,7 +72,8 @@ const PRESETS := {
 			"wheels": [Vector3(-0.895, 0, -1.81), Vector3(0.895, 0, -1.81), Vector3(-0.895, 0, 1.6), Vector3(0.895, 0, 1.6)],
 			"box": Vector3(3.16, 1.65, 6.0), "box_y": 0.875,
 			"roundel": Transform3D(Basis(), Vector3(0, 2.75, 0.26)), "pod": Transform3D(Basis(), Vector3(0, 2.78, 0.85)),
-			"stripes": false, "bonnet": Vector3(0.0, 1.97, -1.76)},
+			"stripes": false, "bonnet": Vector3(0.0, 1.97, -1.76),
+			"chase": {"back": 9.0, "up": 5.0}},
 	},
 	"tractor": {
 		"controller": {"engine_accel": 9.0, "max_speed": 19.0, "grip": 7.0, "yaw_response": 8.0,
@@ -83,7 +89,8 @@ const PRESETS := {
 			"wheels": [Vector3(-0.679, 0, -1.195), Vector3(0.679, 0, -1.195), Vector3(-0.761, 0, 0.941), Vector3(0.761, 0, 0.941)],
 			"box": Vector3(2.2, 1.5, 3.6), "box_y": 0.8,
 			"roundel": Transform3D(Basis(), Vector3(0, 2.63, -0.5)), "pod": Transform3D(Basis(), Vector3(0, 2.66, 0.25)),
-			"stripes": false, "bonnet": Vector3(0.0, 1.78, -0.6)},
+			"stripes": false, "bonnet": Vector3(0.0, 1.78, -0.6),
+			"chase": {"back": 7.0, "up": 4.1}},
 	},
 }
 
@@ -103,8 +110,8 @@ static func valid(id: String) -> String:
 
 ## Puts a class's model on a car.tscn instance: body and wheel meshes, wheel,
 ## plate and pod positions, the collision box, the stripes, the dust's wheel
-## contacts and the bonnet camera. A livery already on (CarPaint.apply) goes
-## back on the new body.
+## contacts and the bonnet and chase cameras. A livery already on
+## (CarPaint.apply) goes back on the new body.
 static func dress(car: CarController, id: String) -> void:
 	var m: Dictionary = get_preset(id)["model"]
 	var body := car.get_node("Visual/Body") as MeshInstance3D
@@ -132,6 +139,8 @@ static func dress(car: CarController, id: String) -> void:
 		for cam in car.get_tree().get_nodes_in_group(FollowCamera.GROUP):
 			if (cam as FollowCamera).target == car:
 				cam.bonnet_offset = m["bonnet"]
+				cam.chase_back = m["chase"]["back"]
+				cam.chase_up = m["chase"]["up"]
 	if car.has_meta("livery"):
 		var l: Array = car.get_meta("livery")
 		CarPaint.apply(car, l[0], l[1], l[2])

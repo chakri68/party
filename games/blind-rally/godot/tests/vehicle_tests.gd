@@ -34,6 +34,7 @@ func run() -> void:
 	await test_tractor_offroad()
 	test_hatch_dressed_as_today()
 	await test_models()
+	test_chase_camera()
 	test_preset_keeps_livery()
 	test_audio_per_class()
 	await test_close_times()
@@ -201,6 +202,32 @@ static func painted_share(mesh: Mesh, color: Color) -> float:
 	return painted / maxf(total, 0.0001)
 
 
+## The chase camera sits behind and above each class, high enough that its
+## sight line to the road ahead (chase_aim) clears the roof plate. A fixed
+## 6 m / 2.5 m arm put the truck's and tractor's cab across the whole view.
+## The hatch keeps today's arm.
+func test_chase_camera() -> void:
+	var cam: FollowCamera = t.main.cam
+	var was := cam.mode
+	for id in Vehicles.IDS:
+		car.apply_preset(id)
+		var m: Dictionary = Vehicles.get_preset(id)["model"]
+		check(is_equal_approx(cam.chase_back, m["chase"]["back"]) and is_equal_approx(cam.chase_up, m["chase"]["up"]), "%s chase arm follows the model" % id)
+		# Car space: -z forward, and the body is turned half round.
+		var plate := (car.get_node("Visual/Body/Roundel") as Node3D).position
+		plate.z = -plate.z
+		var eye := Vector3(0, cam.chase_up, cam.chase_back)
+		var aim := Vector3(0, cam.chase_aim.y, -cam.chase_aim.x)
+		var over: float = eye.y + (aim.y - eye.y) * (eye.z - plate.z) / (eye.z - aim.z) - plate.y
+		check(over > 0.0, "%s: the chase camera sees the road over the roof plate (%+.2f m)" % [id, over])
+		cam.set_mode(FollowCamera.Mode.CHASE)
+		var up := cam.global_position.y - car.global_position.y
+		check(up > plate.y, "%s chase eye %.2f m up, over the plate at %.2f" % [id, up, plate.y])
+	cam.set_mode(was)
+	car.apply_preset("hatch")
+	check(cam.chase_back == 6.0 and cam.chase_up == 2.5, "hatch chase arm unchanged: 6 m back, 2.5 m up")
+
+
 ## A class change after the livery is on keeps the team colour.
 func test_preset_keeps_livery() -> void:
 	CarPaint.apply(car, Color("#cc79a7"), 4, "diamond")
@@ -246,6 +273,7 @@ func test_close_times() -> void:
 		t.main.set_autopilot(false)
 		var secs := frames / 60.0
 		check(t.main.finished, "%s finishes Pine Panic on autopilot (%.1f s, CP %d)" % [id, secs, t.main.checkpoints_passed])
+		check(t.main.recoveries == 0, "%s needs no reset (%d)" % [id, t.main.recoveries])
 		times[id] = secs
 		if id == "hatch":
 			cap = secs * 2.0
