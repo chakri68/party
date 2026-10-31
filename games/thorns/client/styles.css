@@ -1,0 +1,391 @@
+/* Thorns. Uses the shell's tokens (--surface, --surface-2, --line, --ink, --muted, --accent, --danger, --card).
+   Everything is th- prefixed: other games' stylesheets may be loaded in the same tab. */
+
+.thorns {
+  --disc: 36px;
+  --disc-overlap: -16px;
+  --hand-disc: 56px;
+  --rose: #d8475f;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Turn indicator ------------------------------------------------------ */
+
+.th-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.thorns.my-turn .th-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Round info ------------------------------------------------------------ */
+
+.th-info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.th-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.th-chip.strong { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+
+/* ---- Mats ------------------------------------------------------------------ */
+
+.th-table {
+  position: relative;
+  padding: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.th-mats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.th-mat {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.th-mat.me { border-style: dashed; }
+.th-mat.current { border-color: var(--accent); border-style: solid; background: var(--accent-soft); }
+.th-mat.winner { border-color: var(--accent); border-style: solid; }
+.th-mat.away { opacity: 0.55; }
+.th-mat.passed:not(.current) .th-stack { opacity: 0.75; }
+
+.th-mat-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.th-mat-head .name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.th-pips { display: flex; gap: 3px; flex: 0 0 auto; }
+.th-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+}
+.th-pip.on { background: var(--rose); border-color: var(--rose); }
+
+.th-mat-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.th-dots { display: flex; gap: 2px; }
+.th-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.th-dot.on { background: var(--muted); }
+.th-tag {
+  margin-left: auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.th-tag.dim { background: none; color: var(--muted); }
+
+/* The stack: a fan of discs, top of the stack on the right. */
+.th-stack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--disc) + 16px);
+  padding: 6px 4px;
+  border-radius: 10px;
+}
+.th-stack .th-disc + .th-disc { margin-left: var(--disc-overlap); }
+button.th-stack {
+  width: 100%;
+  min-height: calc(var(--disc) + 16px);
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+  animation: th-beckon 1.4s ease-in-out infinite;
+}
+button.th-stack:hover { background: var(--accent-soft); }
+button.th-stack:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.th-flip-tag {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+@keyframes th-beckon {
+  50% { box-shadow: 0 0 0 4px var(--accent-soft); }
+}
+.th-slot {
+  width: var(--disc);
+  height: var(--disc);
+  border-radius: 50%;
+  border: 1.5px dashed var(--line);
+}
+
+/* ---- Discs ----------------------------------------------------------------- */
+
+.th-disc {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--disc);
+  height: var(--disc);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.45);
+}
+.th-disc svg { display: block; width: 100%; height: 100%; }
+/* Your own, face up to you only. */
+.th-disc.peek { filter: saturate(0.55) brightness(0.8); box-shadow: 0 0 0 1.5px var(--muted), 0 2px 5px rgb(0 0 0 / 0.45); }
+.th-disc.up { transform: translateY(-3px); }
+.th-disc.up.thorn { box-shadow: 0 0 0 2.5px var(--danger), 0 2px 8px rgb(0 0 0 / 0.5); }
+.th-disc.flip { animation: th-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.th-disc.flip-thorn { animation: th-flip-thorn 620ms cubic-bezier(.2, .8, .2, 1.3) backwards; }
+@keyframes th-flip {
+  from { transform: rotateY(90deg) scale(1.15); }
+}
+@keyframes th-flip-thorn {
+  0% { transform: rotateY(90deg) scale(1.2); }
+  45% { transform: rotateY(0) scale(1.45); }
+}
+.th-mat.sting { animation: th-sting 520ms ease; }
+@keyframes th-sting {
+  0% { border-color: var(--danger); background: rgb(255 123 123 / 0.22); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  100% { border-color: var(--danger); }
+}
+
+/* ---- Result ---------------------------------------------------------------- */
+
+.th-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+.th-stamp {
+  padding: 2px 12px;
+  border: 2.5px solid currentColor;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transform: rotate(-4deg);
+}
+.th-stamp.good { color: var(--accent); }
+.th-stamp.bad { color: var(--danger); }
+.th-stamp.stamp { animation: th-stamp 260ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes th-stamp {
+  from { transform: rotate(-4deg) scale(1.8); opacity: 0; }
+}
+.th-verdict-line { font-weight: 600; }
+
+/* ---- Log + dock ------------------------------------------------------------ */
+
+.th-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.th-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 8px;
+}
+.thorns.finished .th-dock { position: static; background: none; }
+
+.th-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 28px;
+}
+.th-me { display: flex; align-items: baseline; gap: 8px; }
+.th-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.th-me .count { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.th-note { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.th-lost { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--danger); }
+.th-lost .th-disc { --disc: 22px; }
+.hint { color: var(--muted); font-size: 0.9rem; }
+.hint.strong { color: var(--ink); font-weight: 700; }
+
+.th-hand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: calc(var(--hand-disc) + 8px);
+}
+.th-hand .th-disc {
+  --disc: var(--hand-disc);
+  min-height: 0;
+  cursor: default;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+.th-hand .th-disc:disabled { filter: saturate(0.6) brightness(0.75); opacity: 1; }
+.th-hand .th-disc.playable { cursor: pointer; box-shadow: 0 0 0 2px var(--accent), 0 3px 8px rgb(0 0 0 / 0.5); }
+@media (hover: hover) and (pointer: fine) {
+  .th-hand .th-disc.playable:hover { transform: translateY(-5px); }
+}
+.th-hand .th-disc:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.th-empty { color: var(--muted); font-size: 0.9rem; }
+
+.th-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 48px;
+}
+.th-stepper {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.th-stepper button {
+  width: 46px;
+  min-height: 46px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.th-stepper button:disabled { opacity: 0.35; }
+.th-stepper button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+.th-amount {
+  min-width: 34px;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+button.th-bid { min-width: 96px; }
+button.th-pass { min-width: 76px; }
+button.th-ready { min-width: 120px; }
+
+.th-bar {
+  flex: 1 1 120px;
+  max-width: 220px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.th-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+
+/* Speech over a mat. */
+.anim-bubble.th-bubble { background: var(--accent); color: var(--accent-ink); font-weight: 800; }
+
+/* ---- Bigger screens -------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .thorns {
+    --disc: 48px;
+    --disc-overlap: -20px;
+    --hand-disc: 64px;
+    gap: 14px;
+  }
+  .th-table { padding: 16px; }
+  .th-mats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  /* Three or four: two rows of two read better than three and one. */
+  .th-mats[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .th-mat { padding: 10px 12px; }
+  .th-mat-head .name { font-size: 1rem; }
+  .th-hand { gap: 14px; }
+}
+
+/* ---- Feedback -------------------------------------------------------------- */
+
+.thorns .shake { animation: th-shake 300ms ease; }
+@keyframes th-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thorns .shake { animation: none; outline: 2px solid var(--danger); }
+  .th-mat, .th-hand .th-disc { transition: none; }
+  .th-disc.flip, .th-disc.flip-thorn, .th-stamp.stamp, button.th-stack { animation: none; }
+  .th-mat.sting { animation: none; border-color: var(--danger); }
+  .th-hand .th-disc.playable:hover, .th-disc.up { transform: none; }
+  .th-bar span { transition: none; }
+}
