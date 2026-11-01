@@ -18,6 +18,7 @@ func run() -> void:
 	test_reload_mid_sunset()
 	await test_main_wiring()
 	test_session_clock()
+	test_session_clock_catches_up()
 	test_static_plans()
 	test_tints()
 	await test_night_applied()
@@ -114,6 +115,29 @@ func test_session_clock() -> void:
 	check(main.sky.clock == 0.0 and not main.sky.running, "a malformed clock: 0, stopped")
 	main._on_session({"sky": sunset, "clock": {"ms": "x", "running": true}}, "")
 	check(main.sky.clock == 0.0 and not main.sky.running, "a clock with no number: 0, stopped")
+	t._probe_session()
+
+
+## The session's clock is the host's at send time, and a reload queues it
+## until the stage has loaded. Applied as sent, a running sky would sit
+## behind the server by the load time, for the rest of the race.
+func test_session_clock_catches_up() -> void:
+	print("sky: a queued session clock catches up")
+	var tr: Track = main.track
+	main.track = null # the stage is still loading: the session waits
+	main._on_session({"clock": {"ms": 56000, "running": true}}, "")
+	var t0 := Time.get_ticks_usec()
+	OS.delay_msec(400) # the load
+	main.track = tr
+	main._replay_sessions()
+	var waited := float(Time.get_ticks_usec() - t0) / 1_000_000.0
+	check(main.sky.clock >= 56.0 + waited - 0.05 and main.sky.clock < 56.0 + waited + 0.1, "running: lands at 56 s + the %.2f s it waited (%.3f s)" % [waited, main.sky.clock])
+	main.track = null
+	main._on_session({"clock": {"ms": 56000, "running": false}}, "")
+	OS.delay_msec(200)
+	main.track = tr
+	main._replay_sessions()
+	check(main.sky.clock == 56.0 and not main.sky.running, "stopped: no catching up (%.3f s)" % main.sky.clock)
 	t._probe_session()
 
 

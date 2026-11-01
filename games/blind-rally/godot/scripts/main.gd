@@ -154,7 +154,7 @@ const PALETTE := preload("res://assets/materials/vertex_color.tres")
 const GLOW := preload("res://shaders/glow.gdshader")
 var biome: Biome ## the loaded track's (Track.get_biome())
 var _session_seen := false
-var _pending_session: Array = [] ## [cfg, seat] that came before the track did
+var _pending_session: Array = [] ## [cfg, seat, arrived usec] that came before the track did
 var warmup: Warmup ## while one's drawing; see warm_up()
 var warm_count := 0 ## warm-ups so far (tests)
 var _rivals: Array = [] ## initSession `rivals`, the last session's
@@ -213,7 +213,7 @@ func _wait_for_session_track() -> String:
 			break
 	if _pending_session.is_empty():
 		return ""
-	var cfg: Dictionary = _pending_session[0][0] # [cfg, seat]
+	var cfg: Dictionary = _pending_session[0][0] # [cfg, seat, arrived]
 	return String(cfg.get("trackId", ""))
 
 
@@ -249,7 +249,7 @@ func _load_track(id: String) -> void:
 	if not _carried_session.is_empty():
 		var s := _carried_session
 		_carried_session = {}
-		_on_session(s.cfg, s.seat)
+		_on_session(s.cfg, s.seat, s.arrived)
 	_replay_sessions()
 
 
@@ -257,7 +257,7 @@ func _load_track(id: String) -> void:
 ## fires before the stage loads), in order.
 func _replay_sessions() -> void:
 	for s in _pending_session:
-		_on_session(s[0], s[1])
+		_on_session(s[0], s[1], s[2])
 	_pending_session.clear()
 
 
@@ -700,13 +700,17 @@ func _on_finish(body: Node3D) -> void:
 	bridge.emit_physics_event({"kind": "finish"})
 
 
-func _on_session(cfg: Dictionary, seat: String) -> void:
+## `arrived`: Time.get_ticks_usec() when the host sent it (-1: now). A
+## session that waited for the stage keeps its first stamp.
+func _on_session(cfg: Dictionary, seat: String, arrived := -1) -> void:
 	_session_seen = true
+	if arrived < 0:
+		arrived = Time.get_ticks_usec()
 	if track == null:
-		_pending_session.append([cfg, seat])
+		_pending_session.append([cfg, seat, arrived])
 		return
 	_warm_held = true
-	_apply_session(cfg, seat)
+	_apply_session(cfg, seat, arrived)
 	_warm_held = false
 	# With the camera, eggs and rivals as this race will have them. Before the
 	# map exists, _setup_track does it.
@@ -714,12 +718,12 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 		warm_up()
 
 
-func _apply_session(cfg: Dictionary, seat: String) -> void:
+func _apply_session(cfg: Dictionary, seat: String, arrived: int) -> void:
 	var session_track := String(cfg.get("trackId", track_id))
 	if session_track != track_id and ResourceLoader.exists(track_path(session_track)) and session_track.is_valid_ascii_identifier():
 		# Only after a fallback load: start again on the right stage.
 		push_warning("session is for %s, %s is loaded: reloading" % [session_track, track_id])
-		_carried_session = {"cfg": cfg, "seat": seat}
+		_carried_session = {"cfg": cfg, "seat": seat, "arrived": arrived}
 		get_tree().reload_current_scene.call_deferred()
 		return
 	room = bool(cfg.get("room", false))
@@ -763,10 +767,14 @@ func _apply_session(cfg: Dictionary, seat: String) -> void:
 	sky.set_plan(cfg["sky"] if cfg.get("sky") is Dictionary else {})
 	# The run clock as of the send. A reload mid-race boots Godot after the
 	# host's clock event went by unheard, so the session carries it; absent or
-	# malformed is the grid's (0, stopped).
+	# malformed is the grid's (0, stopped). A running clock also gets the
+	# time the session sat in the queue while the stage loaded, or the sky
+	# would trail the server by the load for the rest of the race.
 	var clk: Dictionary = cfg["clock"] if cfg.get("clock") is Dictionary else {}
 	if clk.get("ms") is float or clk.get("ms") is int:
-		sky.set_clock(float(clk["ms"]), bool(clk.get("running", false)))
+		var run := bool(clk.get("running", false))
+		var late_ms := float(Time.get_ticks_usec() - arrived) / 1000.0 if run else 0.0
+		sky.set_clock(float(clk["ms"]) + late_ms, run)
 	else:
 		sky.set_clock(0.0, false)
 	# Same seed, same surprises. `eggs` is a debug override for tools and
