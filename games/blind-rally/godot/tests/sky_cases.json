@@ -1,0 +1,10 @@
+{
+  "cases": [
+    { "plan": { "light": { "from": "night", "to": "night", "atMs": 0, "overMs": 0 } }, "ms": 0, "k": 1 },
+    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 0, "k": 0 },
+    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 28000, "k": 0 },
+    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 56000, "k": 0.5 },
+    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 84000, "k": 1 },
+    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 500000, "k": 1 }
+  ]
+}
