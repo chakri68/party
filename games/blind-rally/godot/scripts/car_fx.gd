@@ -86,6 +86,12 @@ var _ground_up := Vector3.UP
 func _ready() -> void:
 	_car = get_parent() as CarController
 	_visual = _car.get_node("Visual")
+	# The car is physics-interpolated; these aren't. The visual's wheels,
+	# roll and slope tilt are set per frame (it still rides the car's drawn
+	# transform), and dust, marks and streaks are world-space MultiMeshes
+	# written per frame.
+	_visual.physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
 	for w in ["WheelFL", "WheelFR", "WheelRL", "WheelRR"]:
 		_wheel_nodes.append(_visual.get_node(w))
 	_rng.seed = 1234
@@ -211,7 +217,9 @@ func clear() -> void:
 func _process(dt: float) -> void:
 	if not _car:
 		return
-	var xf := _car.global_transform
+	# Where the car is drawn this frame, so dust leaves the wheels you see
+	# and marks sit under them, not up to a tick ahead.
+	var xf := _car.get_global_transform_interpolated()
 	var speed := Vector2(_car.velocity.x, _car.velocity.z).length()
 	var speed_k := clampf(speed / _car.max_speed, 0.0, 1.0)
 	var lat := absf(_car.lateral_speed)
@@ -219,10 +227,10 @@ func _process(dt: float) -> void:
 	_animate_visual(dt, speed)
 	if dt <= 0.0:
 		return
-	_update_xray(dt)
+	_update_xray(dt, xf.origin)
 	if enabled:
 		_emit_dust(dt, xf, speed, speed_k, lat, on_road)
-	_step_puffs(dt)
+	_step_puffs(dt, xf.origin.y)
 	_tyre_marks(xf, speed, lat, on_road)
 	if enabled:
 		_streaks(dt, xf, speed_k)
@@ -299,7 +307,7 @@ func _spawn(p: Vector3, v: Vector3, life: float, size: Vector2, col: Color, grav
 	_p_grav[i] = grav
 
 
-func _step_puffs(dt: float) -> void:
+func _step_puffs(dt: float, car_y: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var face := cam.global_basis if cam else Basis.IDENTITY
 	var any := false
@@ -317,7 +325,7 @@ func _step_puffs(dt: float) -> void:
 		v.y -= _p_grav[i] * dt
 		v *= 1.0 - (2.2 if _p_grav[i] == 0.0 else 0.4) * dt # dust hangs, grit flies
 		var p := _p_pos[i] + v * dt
-		var floor_y := _car.global_position.y + 0.05 # near enough: grit lives half a second
+		var floor_y := car_y + 0.05 # near enough: grit lives half a second
 		if p.y < floor_y and _p_grav[i] > 0.0:
 			p.y = floor_y
 			v = Vector3.ZERO
@@ -377,7 +385,7 @@ func _tyre_marks(xf: Transform3D, speed: float, lat: float, road: bool) -> void:
 ## A faint ring that fades in only while the canopy (or a building) sits
 ## between the camera and the car, so it's never lost under the trees. Three
 ## sphere probes up the view ray stand in for "is a crown in the way".
-func _update_xray(dt: float) -> void:
+func _update_xray(dt: float, car_at: Vector3) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var hidden := false
 	# Top-down only: at eye level nothing sits over the car, and the probes
@@ -389,7 +397,7 @@ func _update_xray(dt: float) -> void:
 		q.collision_mask = 1
 		var up := cam.global_basis.z
 		for d in [3.0, 6.5, 10.0]:
-			q.transform = Transform3D(Basis.IDENTITY, _car.global_position + Vector3(0, 0.8, 0) + up * d)
+			q.transform = Transform3D(Basis.IDENTITY, car_at + Vector3(0, 0.8, 0) + up * d)
 			if not space.intersect_shape(q, 1).is_empty():
 				hidden = true
 				break

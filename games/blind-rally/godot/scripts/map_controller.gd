@@ -483,9 +483,10 @@ func _update_marker() -> void:
 	if not (car and track and image_rect):
 		return
 	var r := _drawn_rect()
-	var uv := track.world_to_map(car.global_position)
+	var at := car.get_global_transform_interpolated() # where it's drawn, not its last tick
+	var uv := track.world_to_map(at.origin)
 	_marker.position = r.position + uv * r.size
-	_marker.rotation = -car.global_rotation.y
+	_marker.rotation = -at.basis.get_euler().y
 
 
 ## Where the square map image actually lands inside image_rect.

@@ -156,6 +156,13 @@ var _warm_held := false ## a session or the stage setup is under way: one warm-u
 
 
 func _ready() -> void:
+	# Physics interpolation: the car moves on 60 Hz ticks and is drawn
+	# between the last two, so it glides at any refresh rate. Only the car:
+	# everything else here is static or moved per frame in _process, and an
+	# interpolated node moved per frame lags a tick and jitters. Whatever
+	# follows the car per frame reads get_global_transform_interpolated().
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
+	car.physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_ON
 	bridge.car = car
 	bridge.session_started.connect(_on_session)
 	var want := track_id
@@ -490,7 +497,7 @@ func _process(_dt: float) -> void:
 	if track == null:
 		return
 	if eye_forest and eye_forest.visible:
-		eye_forest.follow(cam, car.global_position.y)
+		eye_forest.follow(cam, car.get_global_transform_interpolated().origin.y)
 	hud.visible = not room
 	if not hud.visible:
 		return

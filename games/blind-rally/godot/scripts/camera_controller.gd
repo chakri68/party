@@ -70,6 +70,9 @@ var _arm_pos := Vector3.ZERO
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	# Moved every frame from the car's interpolated transform, so the engine
+	# mustn't interpolate it again between ticks.
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
 	_apply_projection()
 	cull_mask &= ~4 # render layer 3 is the map-only overlay
 	get_viewport().size_changed.connect(fit_to_screen)
@@ -125,6 +128,9 @@ func _apply_projection() -> void:
 		environment = perspective_env
 
 
+## Raw transform on purpose: a snap follows a teleport, and the interpolated
+## one only catches up on the next frame. Elsewhere raw and drawn differ by
+## under a tick, for the one frame before _process takes over.
 func snap() -> void:
 	_arm_yaw = target.global_rotation.y
 	_arm_pos = target.global_position
@@ -136,7 +142,7 @@ func snap() -> void:
 	if mode == Mode.TOP_DOWN:
 		_place()
 	else:
-		_process_perspective(0.0, Vector3.ZERO, 30.0)
+		_process_perspective(0.0, Vector3.ZERO, 30.0, target.global_transform)
 
 
 func zoom(step: float) -> void:
@@ -162,8 +168,12 @@ func _process(dt: float) -> void:
 		v.y = 0.0
 	if target is CarController:
 		top = (target as CarController).max_speed
+	# Where the car is drawn this frame, between its last two physics ticks.
+	# Its raw transform only moves on ticks: following that, a frame with no
+	# tick freezes the view and one with two jumps it.
+	var at := target.get_global_transform_interpolated()
 	if mode != Mode.TOP_DOWN:
-		_process_perspective(dt, v, top)
+		_process_perspective(dt, v, top, at)
 		return
 	var k_zoom := 1.0 - exp(-zoom_smoothing * dt)
 	_speed_k = lerpf(_speed_k, clampf(v.length() / top, 0.0, 1.0), k_zoom)
@@ -176,9 +186,9 @@ func _process(dt: float) -> void:
 		want = want.normalized() * cap
 	var k := 1.0 - exp(-smoothing * dt)
 	_lead = _lead.lerp(want, k)
-	_focus = target.global_position + _lead
+	_focus = at.origin + _lead
 	if rotate_with_car:
-		_yaw = lerp_angle(_yaw, target.global_rotation.y, k)
+		_yaw = lerp_angle(_yaw, at.basis.get_euler().y, k)
 
 	# Kick: a stiff, well-damped spring, settles in ~0.3 s with one small overshoot.
 	if kick_enabled:
@@ -202,11 +212,11 @@ func _place() -> void:
 ## Chase and bonnet. The arm follows the car's heading with lag (so a slide
 ## swings the car sideways in frame, which is the point), the FOV opens a
 ## little with speed, and the chase arm is pulled in if a trunk is between
-## it and the car.
-func _process_perspective(dt: float, v: Vector3, top: float) -> void:
+## it and the car. `at` is the car's transform to follow.
+func _process_perspective(dt: float, v: Vector3, top: float, at: Transform3D) -> void:
 	var k_speed := 1.0 - exp(-zoom_smoothing * dt)
 	_speed_k = lerpf(_speed_k, clampf(v.length() / top, 0.0, 1.0), k_speed)
-	var car_yaw := target.global_rotation.y
+	var car_yaw := at.basis.get_euler().y
 	var fovs := chase_fov if mode == Mode.CHASE else bonnet_fov
 	fov = lerpf(fovs.x, fovs.y, _speed_k * _speed_k)
 	if kick_enabled:
@@ -215,12 +225,12 @@ func _process_perspective(dt: float, v: Vector3, top: float) -> void:
 		_kick = _kick.limit_length(kick_max * 0.5)
 	if mode == Mode.BONNET:
 		var b := Basis(Vector3.UP, car_yaw)
-		global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(bonnet_pitch)), target.global_position + b * bonnet_offset + _kick * 0.3)
+		global_transform = Transform3D(b * Basis(Vector3.RIGHT, deg_to_rad(bonnet_pitch)), at.origin + b * bonnet_offset + _kick * 0.3)
 		return
 	var k := 1.0 - exp(-chase_lag * dt)
 	_arm_yaw = lerp_angle(_arm_yaw, car_yaw, k)
 	# Height follows a touch slower than the car, so crests don't jolt the view.
-	_arm_pos = Vector3(target.global_position.x, lerpf(_arm_pos.y, target.global_position.y, k * 0.6), target.global_position.z)
+	_arm_pos = Vector3(at.origin.x, lerpf(_arm_pos.y, at.origin.y, k * 0.6), at.origin.z)
 	var b := Basis(Vector3.UP, _arm_yaw)
 	var pivot := _arm_pos + Vector3(0, 1.0, 0)
 	var want := _arm_pos + b * Vector3(0, chase_up, chase_back)

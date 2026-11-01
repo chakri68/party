@@ -59,6 +59,12 @@ class Ghost:
 
 ## One rival snapshot (wire.ts GhostRelay as a Dictionary: teamId, color,
 ## tick, position [x,y,z], heading, speed). Malformed ones are dropped.
+func _ready() -> void:
+	# Placed every frame from their own snapshot interpolation (_process);
+	# the engine's would lerp that again between physics ticks.
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_OFF
+
+
 func receive(team_id: int, g: Dictionary) -> void:
 	if not enabled or team_id == own_team or car == null:
 		return

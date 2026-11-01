@@ -32,6 +32,7 @@ func _run() -> void:
 	# First, before any key press starts the audio: what's built before GO.
 	await preload("res://tests/warmup_tests.gd").new(self).run()
 	await test_drive_forward()
+	await preload("res://tests/interp_tests.gd").new(self).run()
 	await test_steer()
 	await test_brake_and_reverse()
 	await test_control_timeout()

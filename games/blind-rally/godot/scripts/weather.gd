@@ -245,7 +245,7 @@ func _apply_mist(m: ShaderMaterial) -> void:
 		arr.resize(MIST_MAX)
 		m.set_shader_parameter("mist_puffs", arr)
 	if car:
-		m.set_shader_parameter("mist_car", car.global_position)
+		m.set_shader_parameter("mist_car", car.get_global_transform_interpolated().origin)
 
 
 func _physics_process(dt: float) -> void:
@@ -263,7 +263,7 @@ func _process(_dt: float) -> void:
 		_push_mist()
 		return
 	if car:
-		_mist_mat.set_shader_parameter("car_pos", car.global_position)
+		_mist_mat.set_shader_parameter("car_pos", car.get_global_transform_interpolated().origin)
 	_mist_mat.set_shader_parameter("drift", time * 0.004)
 	_update_mist()
 
@@ -312,7 +312,8 @@ func eye_mist(cam: Vector3, world: Vector3) -> float:
 	var o := Vector2(cam.x, cam.z)
 	var to := Vector2(world.x, world.z) - o
 	var length := to.length()
-	var car_d := Vector2(car.global_position.x, car.global_position.z).distance_to(o)
+	var car_at := car.get_global_transform_interpolated().origin # = the shader's mist_car
+	var car_d := Vector2(car_at.x, car_at.z).distance_to(o)
 	var t0 := car_d + EYE_KEYHOLE.x
 	if length <= t0:
 		return 0.0
@@ -327,7 +328,7 @@ func eye_mist(cam: Vector3, world: Vector3) -> float:
 			var hw := sqrt(r2 - h2)
 			acc += maxf(minf(tc + hw, length) - maxf(tc - hw, t0), 0.0) * p.w * (1.0 - h2 / r2)
 	var ramp := smoothstep(car_d + EYE_KEYHOLE.x, car_d + EYE_KEYHOLE.y, length)
-	var low := 1.0 - smoothstep(MIST_TOP * 0.35, MIST_TOP, world.y - car.global_position.y)
+	var low := 1.0 - smoothstep(MIST_TOP * 0.35, MIST_TOP, world.y - car_at.y)
 	return minf(1.0 - exp(-acc * MIST_DENSITY), MAX_ALPHA) * ramp * low
 
 
@@ -428,4 +429,4 @@ func _push_snow() -> void:
 	_snow_mat.set_shader_parameter("drift", Vector3(w.x, -FALL * time, w.y))
 	_snow_mat.set_shader_parameter("t", time)
 	if car:
-		_snow_mat.set_shader_parameter("centre", car.global_position)
+		_snow_mat.set_shader_parameter("centre", car.get_global_transform_interpolated().origin)

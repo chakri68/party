@@ -102,7 +102,7 @@ func step(target: float, dt: float) -> void:
 
 func _process(dt: float) -> void:
 	if car and visible:
-		step(yaw_of(car.global_basis), dt)
+		step(yaw_of(car.get_global_transform_interpolated().basis), dt)
 
 
 ## Canvas units per CSS pixel; the same sum as MapController.css_px.
