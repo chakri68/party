@@ -13,7 +13,6 @@ extends Node
 ##
 ## light_at mirrors lightAt in shared/sky.ts; tests/sky_cases.json pins both.
 
-signal changed
 ## The light moved enough to show (darkness or tint by more than PUSH_EPS,
 ## or it landed on an end). Weather pushes these into the shaders, main into
 ## the eye-level sky and fog. A static sky emits it once, not every frame.
@@ -141,7 +140,6 @@ func _process(_dt: float) -> void:
 	if running:
 		clock += float(now - _wall_usec) / 1_000_000.0
 	_wall_usec = now
-	changed.emit()
 	refresh()
 
 

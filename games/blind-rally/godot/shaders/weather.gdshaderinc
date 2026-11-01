@@ -117,9 +117,6 @@ float eye_mist(vec3 cam, vec3 world) {
 	return min(1.0 - exp(-acc * mist_density), mist_max) * ramp * low;
 }
 
-// What the light does to a surface at `world`, with darkness `dark` (the
-// palette caps it near the car). White and 1 by day. Call it only inside a
-// weather_seen() branch.
 // 0..1 of a cone from the origin along `dir` (unit), at offset `to`:
 // soft at the sides, brightest near the lamp, gone by `len`.
 float head_cone(vec2 to, vec2 dir, float len, vec2 edge) {
@@ -152,6 +149,9 @@ float headlights(vec3 world) {
 	return min(own + rivals, 1.0) * head_on * (1.0 - NIGHT_FLOOR);
 }
 
+// What the light does to a surface at `world`, with darkness `dark` (the
+// palette caps it near the car). White and 1 by day. Call it only inside a
+// weather_seen() branch.
 vec3 sky_light_at(vec3 world, float dark) {
 	vec3 l = sky_tint * mix(1.0, NIGHT_FLOOR, dark);
 	if (head_on > 0.0) {

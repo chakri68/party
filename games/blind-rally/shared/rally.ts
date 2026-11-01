@@ -33,7 +33,7 @@ export const rallyManifest: GameManifest = {
 };
 
 /**
- * Rally's settings are Blind Rally's with five of them free and the rest
+ * Rally's settings are Blind Rally's with six of them free and the rest
  * pinned: always a race, always one shared stage, and every assist on, since
  * the person reading the map is the one driving.
  */

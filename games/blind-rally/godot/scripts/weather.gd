@@ -254,10 +254,6 @@ func register_tinted(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("sky_tint", haze())
 
 
-func unregister_tinted(mat: ShaderMaterial) -> void:
-	_tinted.erase(mat)
-
-
 ## The light now (SkyClock.light_changed): darkness 0..1 and the tint.
 ## Only called when it moved, so a static sky costs nothing per frame.
 func set_sky(dark: float, tint_now: Color) -> void:

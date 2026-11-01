@@ -113,11 +113,13 @@ describe("Rally settings", () => {
     expect(parseRallySettings(undefined)).toEqual(RALLY_DEFAULTS);
   });
 
-  it("refuse junk in the four free ones", () => {
+  it("refuse junk in the six free ones", () => {
     expect(parseRallySettings({ timeLimit: 4 })).toBeNull();
     expect(parseRallySettings({ camera: "drone" })).toBeNull();
     expect(parseRallySettings({ weather: "lava" })).toBeNull();
     expect(parseRallySettings({ trackPick: "chaos" })).toBeNull();
+    expect(parseRallySettings({ vehiclePick: "chaos" })).toBeNull();
+    expect(parseRallySettings({ time: "noon" })).toBeNull();
     expect(parseRallySettings([1])).toBeNull();
   });
 
