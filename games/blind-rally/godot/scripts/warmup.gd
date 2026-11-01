@@ -18,13 +18,14 @@ extends Node3D
 ## same layers and shadow setting. Sources that would link the same programs
 ## (same kind, same materials, same flags) share one copy, so handing it a
 ## whole stage costs a handful of draws, not hundreds. The copies sit just
-## past the camera's near plane, a millimetre across (under a pixel) and
-## clear where the material allows it. They have no collision and nothing
+## past the camera's near plane, clear where the material allows it, each
+## shrunk by its own bounds to SIZE across (under a pixel): the copy that
+## stands for the road's material may be the whole 300 m road. They have no collision and nothing
 ## reads them, so the race (checkpoints, trip meter, the map) never knows
 ## they were there.
 
 const FRAMES := 2 ## frames drawn before it goes
-const SIZE := 0.001 ## metres
+const SIZE := 0.001 ## metres, a copy's longest side
 const AHEAD := 1.0 ## metres past the near plane
 
 var _left := FRAMES
@@ -79,6 +80,12 @@ func add_source(src: GeometryInstance3D) -> void:
 	p.layers = src.layers
 	p.cast_shadow = src.cast_shadow
 	p.visible = true
+	if p is Label3D:
+		_fit(p, _bounds(src))
+	elif p is MultiMeshInstance3D:
+		_fit(p, (p as MultiMeshInstance3D).multimesh.mesh.get_aabb()) # its one instance sits at the origin
+	else:
+		_fit(p, p.get_aabb())
 	add_child(p)
 
 
@@ -97,8 +104,43 @@ static func distinct(sources: Array) -> Array:
 
 ## A ready-made node to draw as it is (a ghost, from GhostCars.warm_node).
 func add_node(n: Node3D) -> void:
-	n.transform = Transform3D.IDENTITY
+	var box := AABB()
+	var first := true
+	for c in n.find_children("*", "GeometryInstance3D", true, false):
+		var gi := c as GeometryInstance3D
+		var b := _local_of(gi, n) * _bounds(gi)
+		box = b if first else box.merge(b)
+		first = false
+	_fit(n, box)
 	add_child(n)
+
+
+## Scales `p` about its bounds' centre so its longest side is SIZE, centred
+## on this node.
+static func _fit(p: Node3D, box: AABB) -> void:
+	var k := SIZE / maxf(box.get_longest_axis_size(), SIZE * 0.001)
+	p.transform = Transform3D(Basis.from_scale(Vector3.ONE * k), -box.get_center() * k)
+
+
+## A label's bounds before it's ever been drawn (its mesh is built on its
+## first frame): a generous guess from its text and font size.
+static func _bounds(gi: GeometryInstance3D) -> AABB:
+	var b := gi.get_aabb()
+	if b.size == Vector3.ZERO and gi is Label3D:
+		var l := gi as Label3D
+		var h := l.font_size * l.pixel_size * 2.0
+		var w := maxf(1.0, l.text.length()) * h
+		b = AABB(Vector3(-w, -h, -h), Vector3(w, h, h) * 2.0)
+	return b
+
+
+static func _local_of(gi: Node3D, root: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var n: Node = gi
+	while n != root and n is Node3D:
+		t = (n as Node3D).transform * t
+		n = n.get_parent()
+	return t
 
 
 ## What decides which programs a source links. "" (never shared) for a
@@ -139,4 +181,4 @@ func _place() -> void:
 	if cam == null:
 		return
 	var b := cam.global_basis.orthonormalized()
-	global_transform = Transform3D(b.scaled(Vector3.ONE * SIZE), cam.global_position - b.z * (cam.near + AHEAD))
+	global_transform = Transform3D(b, cam.global_position - b.z * (cam.near + AHEAD))

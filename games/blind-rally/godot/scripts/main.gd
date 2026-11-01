@@ -143,8 +143,16 @@ var biome: Biome ## the loaded track's (Track.get_biome())
 var _session_seen := false
 var _pending_session: Array = [] ## [cfg, seat] that came before the track did
 var warmup: Warmup ## while one's drawing; see warm_up()
+var warm_count := 0 ## warm-ups so far (tests)
 var _rivals: Array = [] ## initSession `rivals`, the last session's
-var _stage_sources: Array = [] ## Warmup.distinct of the stage's own geometry
+## Warmup.distinct of each source group, walked once: the stage and the
+## car's x-ray never change, the eggs change per session (configure), the
+## eye forest is built once.
+var _stage_sources: Array = []
+var _xray_sources: Array = []
+var _egg_sources: Array = []
+var _eye_sources: Array = []
+var _warm_held := false ## a session or the stage setup is under way: one warm-up at its end
 
 
 func _ready() -> void:
@@ -279,10 +287,12 @@ func _setup_track() -> void:
 	_build_map_only_ui()
 	_build_map_scrim()
 	await map.render_static_map(track)
+	_warm_held = true
 	if _pending_mode >= 0:
 		set_camera_mode(_pending_mode)
 	if map_only:
 		set_map_only(true)
+	_warm_held = false
 	audio.prepare()
 	warm_up()
 
@@ -290,6 +300,7 @@ func _setup_track() -> void:
 ## Draws every race-only material once (see Warmup), from the camera as it
 ## is now. A second call restarts it.
 func warm_up() -> void:
+	warm_count += 1
 	if warmup and is_instance_valid(warmup):
 		warmup.free()
 	warmup = Warmup.new()
@@ -297,20 +308,17 @@ func warm_up() -> void:
 	var sources: Array = []
 	sources.append_array(fx.warm_sources())
 	sources.append_array(weather.warm_sources())
-	sources.append_array(car.get_node("XRay").find_children("*", "GeometryInstance3D", true, false))
+	sources.append_array(_kinds(_xray_sources, car.get_node("XRay")))
 	if eggs:
-		sources.append_array(eggs.find_children("*", "GeometryInstance3D", true, false))
+		sources.append_array(_kinds(_egg_sources, eggs))
 	# The stage's own: glows (the fire tower's beacon fades in only from far
-	# off, the campfire only once you're near), signs, the tunnel roof. The
-	# stage doesn't change, so its handful of kinds is found once (walking
-	# the whole stage is tens of ms on the web).
-	if _stage_sources.is_empty():
-		_stage_sources = Warmup.distinct(track.find_children("*", "GeometryInstance3D", true, false))
-	sources.append_array(_stage_sources)
+	# off, the campfire only once you're near), signs, the tunnel roof.
+	# Walking the whole stage is tens of ms on the web, hence the caches.
+	sources.append_array(_kinds(_stage_sources, track))
 	# Eye level: the far fire tower's haze copy and any streamed mesh with
 	# nothing in reach yet only draw once you're somewhere along the stage.
 	if eye_forest and eye_forest.visible:
-		sources.append_array(eye_forest.find_children("*", "GeometryInstance3D", true, false))
+		sources.append_array(_kinds(_eye_sources, eye_forest))
 	for src in sources:
 		warmup.add_source(src)
 	if ghosts and ghosts.enabled:
@@ -321,6 +329,28 @@ func warm_up() -> void:
 				break
 		warmup.add_node(ghosts.warm_node(like))
 	add_child(warmup)
+
+
+## One of each kind of draw under `root`, from `cache` (filled on first use,
+## or again if one of them has gone: the eggs replace theirs per session).
+func _kinds(cache: Array, root: Node) -> Array:
+	for n in cache:
+		if not is_instance_valid(n) or _going(n, root):
+			cache.clear()
+			break
+	if cache.is_empty():
+		var live := root.find_children("*", "GeometryInstance3D", true, false).filter(func(n: Node) -> bool: return not _going(n, root))
+		cache.append_array(Warmup.distinct(live))
+	return cache
+
+
+## Freed at the end of this frame, it or a parent below `root`.
+static func _going(n: Node, root: Node) -> bool:
+	while n and n != root:
+		if n.is_queued_for_deletion():
+			return true
+		n = n.get_parent()
+	return false
 
 
 ## The eye-level modes need what top-down never shows: a sky above the
@@ -390,7 +420,7 @@ func set_camera_mode(m: int) -> bool:
 	weather.eye_level = eye
 	# Eye level adds fog and a sky: other shader variants. Draw them now
 	# rather than wherever each material first turns up.
-	if eye != was_eye:
+	if eye != was_eye and not _warm_held:
 		warm_up()
 	return true
 
@@ -572,6 +602,16 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 	if track == null:
 		_pending_session.append([cfg, seat])
 		return
+	_warm_held = true
+	_apply_session(cfg, seat)
+	_warm_held = false
+	# With the camera, eggs and rivals as this race will have them. Before the
+	# map exists, _setup_track does it.
+	if map.render_count > 0 and _carried_session.is_empty(): # not if the stage is reloading
+		warm_up()
+
+
+func _apply_session(cfg: Dictionary, seat: String) -> void:
 	var session_track := String(cfg.get("trackId", track_id))
 	if session_track != track_id and ResourceLoader.exists(track_path(session_track)) and session_track.is_valid_ascii_identifier():
 		# Only after a fallback load: start again on the right stage.
@@ -621,16 +661,13 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 	# tests ({"deer": true} or {"all": false}), like autopilot.
 	eggs.force = cfg["eggs"] if cfg.get("eggs") is Dictionary else {}
 	eggs.configure(sky_seed)
+	_egg_sources.clear() # new eggs, maybe: walked again at the next warm-up
 	set_autopilot(bool(cfg.get("autopilot", false)))
 	set_allowed_cameras(cfg["allowedCameras"] if cfg.get("allowedCameras") is Array else [])
 	if cfg.has("camera"):
 		var want := maxi(CAMERA_MODES.find(String(cfg["camera"])), 0)
 		if not set_camera_mode(want):
 			set_camera_mode(allowed_cameras[0])
-	# With the camera, eggs and rivals as this race will have them. Before the
-	# map exists, _setup_track does it.
-	if map.render_count > 0:
-		warm_up()
 
 
 func _on_race_event(ev: Dictionary) -> void:

@@ -113,8 +113,10 @@ func test_warmup_comes_and_goes() -> void:
 	var in_view := true
 	for n in w.find_children("*", "GeometryInstance3D", true, false):
 		var p := (n as Node3D).global_position
-		in_view = in_view and not cam.is_position_behind(p) and (n as Node3D).global_basis.get_scale().x < 0.01
-	check(in_view, "every piece tiny and in front of the camera")
+		in_view = in_view and not cam.is_position_behind(p)
+	check(in_view, "every piece in front of the camera")
+	await t.process_frame # labels shape on their first frame
+	check(_largest(w) < 0.005, "and every copy's longest side under 5 mm, the stage's road and terrain too (%.4f m)" % _largest(w))
 	for i in 4:
 		await t.process_frame
 	check(main.get_node_or_null("Warmup") == null and not is_instance_valid(w), "gone a few frames later")
@@ -135,6 +137,15 @@ func test_warmup_comes_and_goes() -> void:
 			for m in _materials(n2 as GeometryInstance3D):
 				eye_ok = eye_ok and eye_mats.has(m)
 	check(eye_ok, "into chase: warmed again, the eye-level forest and far landmarks too")
+	check(w != null and _largest(w) < 0.005, "still under 5 mm from the chase camera (%.4f m)" % (_largest(w) if w else -1.0))
+	# One warm-up per session, even when the session also moves the camera.
+	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
+	var before: int = main.warm_count
+	main._on_session({"camera": "chase"}, "")
+	check(main.warm_count == before + 1, "a session that switches to chase warms up once (%d)" % (main.warm_count - before))
+	before = main.warm_count
+	main._on_session({"camera": "topdown"}, "")
+	check(main.warm_count == before + 1, "and so does one switching back (%d)" % (main.warm_count - before))
 	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
 	for i in 4:
 		await t.process_frame
@@ -159,4 +170,13 @@ func _materials(gi: GeometryInstance3D) -> Array:
 				m = (gi as MeshInstance3D).get_surface_override_material(i)
 			if m:
 				out.append(m)
+	return out
+
+
+## The longest side of the biggest copy, in world metres.
+func _largest(w: Node) -> float:
+	var out := 0.0
+	for n in w.find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		out = maxf(out, (gi.global_transform * gi.get_aabb()).get_longest_axis_size())
 	return out
