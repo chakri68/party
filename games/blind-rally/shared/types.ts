@@ -3,7 +3,7 @@
 // notes; those live in data/tracks.json, which only server/ and the lazily
 // loaded navigator chunk may read.
 
-import type { SkyPlan, TimeSetting } from "./sky.ts";
+import type { RainSetting, SkyPlan, TimeSetting } from "./sky.ts";
 import type { VehicleId } from "./vehicles.ts";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,7 @@ export interface BlindRallySettings {
   camera: CameraPolicy;
   weather: Weather;
   time: TimeSetting;
+  rain: RainSetting;
   stageMode: StageMode;
   trackPick: TrackPick;
   /** Rally only: each player picks a car, or the room votes for one. Blind Rally pins "free". */
@@ -93,6 +94,7 @@ export const DEFAULT_SETTINGS: BlindRallySettings = {
   camera: "free",
   weather: "patchy",
   time: "day",
+  rain: "dry",
   stageMode: "solo",
   trackPick: "host",
   vehiclePick: "free",

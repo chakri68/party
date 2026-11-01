@@ -1,6 +1,6 @@
 import type { GameManifest, SettingField } from "@games/game-core";
 import type { Briefing, BriefingLine, TrackLine } from "./rules-text.ts";
-import { TIME_LABELS, TIMES, timeHint } from "./sky.ts";
+import { RAIN_LABELS, RAINS, rainHint, TIME_LABELS, TIMES, timeHint } from "./sky.ts";
 import {
   CAMERA_POLICIES,
   PRESET_ASSISTS,
@@ -49,18 +49,19 @@ export const RALLY_DEFAULTS: BlindRallySettings = {
   camera: "free",
   weather: "patchy",
   time: "day",
+  rain: "dry",
   trackPick: "host",
   vehiclePick: "free",
   ...FIXED,
 };
 
-/** Untrusted settings → Rally's. Only the six free fields are read; the rest are pinned whatever arrives. */
+/** Untrusted settings → Rally's. Only the seven free fields are read; the rest are pinned whatever arrives. */
 export function parseRallySettings(input: unknown): BlindRallySettings | null {
   if (input === undefined || input === null) return { ...RALLY_DEFAULTS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...RALLY_DEFAULTS, ...(input as Partial<BlindRallySettings>) };
-  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TIMES.includes(s.time) || !TRACK_PICKS.includes(s.trackPick) || !VEHICLE_PICKS.includes(s.vehiclePick)) return null;
-  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, time: s.time, trackPick: s.trackPick, vehiclePick: s.vehiclePick, ...FIXED };
+  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TIMES.includes(s.time) || !RAINS.includes(s.rain) || !TRACK_PICKS.includes(s.trackPick) || !VEHICLE_PICKS.includes(s.vehiclePick)) return null;
+  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, time: s.time, rain: s.rain, trackPick: s.trackPick, vehiclePick: s.vehiclePick, ...FIXED };
 }
 
 export const rallyRules: string[] = [
@@ -140,6 +141,13 @@ export function rallySettingFields(raw: unknown, players: number): SettingField[
       selected: pickIndex(TIMES, s.time),
       options: TIMES.map((t) => ({ label: TIME_LABELS[t], patch: { time: t } })),
       hint: timeHint(s.time),
+    },
+    {
+      key: "rain",
+      label: "Rain",
+      selected: pickIndex(RAINS, s.rain),
+      options: RAINS.map((r) => ({ label: RAIN_LABELS[r], patch: { rain: r } })),
+      hint: rainHint(s.rain),
     },
   ];
 }

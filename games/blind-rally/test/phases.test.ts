@@ -322,7 +322,7 @@ describe("parsing", () => {
 
   it("settings", () => {
     expect(parseSettings(undefined)).toEqual({
-      mode: "race", timeLimit: 5, camera: "free", weather: "patchy", time: "day", stageMode: "solo", trackPick: "host", vehiclePick: "free",
+      mode: "race", timeLimit: 5, camera: "free", weather: "patchy", time: "day", rain: "dry", stageMode: "solo", trackPick: "host", vehiclePick: "free",
       assists: "classic", liveMarker: false, tripMeter: true, paceNotes: true, camera3d: true,
     });
     expect(parseSettings({ stageMode: "shared" })!.stageMode).toBe("shared");

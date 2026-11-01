@@ -25,7 +25,7 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
     mode: state.settings.mode,
     stageMode: state.settings.stageMode,
     trackId: state.trackId,
-    skyWords: skyWords(skyPlan(state.settings.time, "dry", state.seed, trackData(state.trackId)), state.trackId),
+    skyWords: skyWords(skyPlan(state.settings.time, state.settings.rain, state.seed, trackData(state.trackId)), state.trackId),
     trackPick: effectiveTrackPick(state.settings),
     // Names, difficulty, length, par and a landmark count: the lobby's cards. No geometry (spec §4.1).
     tracks: trackCatalog(),
@@ -87,7 +87,7 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
     session: {
       trackId: state.trackId,
       seed: state.seed,
-      sky: skyPlan(state.settings.time, "dry", state.seed, trackData(state.trackId)),
+      sky: skyPlan(state.settings.time, state.settings.rain, state.seed, trackData(state.trackId)),
       clouds: CLOUDS[state.settings.weather],
       camera,
       allowedCameras,

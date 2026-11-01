@@ -1,5 +1,5 @@
 import type { SettingField } from "@games/game-core";
-import { TIME_LABELS, TIMES, timeHint } from "./sky.ts";
+import { RAIN_LABELS, RAINS, rainHint, TIME_LABELS, TIMES, timeHint } from "./sky.ts";
 import {
   ASSIST_PRESETS,
   CAMERA_POLICIES,
@@ -78,15 +78,16 @@ export function parseSettings(input: unknown): BlindRallySettings | null {
     CAMERA_POLICIES.includes(s.camera) &&
     WEATHERS.includes(s.weather) &&
     TIMES.includes(s.time) &&
+    RAINS.includes(s.rain) &&
     // Shared needs one track for everyone. Fair Race always has that; Chaos Cup (M3) checks its vote.
     STAGE_MODES.includes(s.stageMode) &&
     TRACK_PICKS.includes(s.trackPick) &&
     ASSIST_PRESETS.includes(s.assists) &&
     ASSIST_KEYS.every((k) => bool(s[k]));
   if (!ok) return null;
-  const { mode, timeLimit, camera, weather, time, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
+  const { mode, timeLimit, camera, weather, time, rain, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
   // Cars are Rally's. Whatever arrives, Blind Rally stays on "free".
-  return { mode, timeLimit, camera, weather, time, stageMode, trackPick, vehiclePick: "free", assists, liveMarker, tripMeter, paceNotes, camera3d };
+  return { mode, timeLimit, camera, weather, time, rain, stageMode, trackPick, vehiclePick: "free", assists, liveMarker, tripMeter, paceNotes, camera3d };
 }
 
 /** Mid-sentence: "Live car marker" reads "live car marker", "3D camera" stays as it is. */
@@ -291,6 +292,13 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
       selected: pickIndex(TIMES, s.time),
       options: TIMES.map((t) => ({ label: TIME_LABELS[t], patch: { time: t } })),
       hint: timeHint(s.time),
+    },
+    {
+      key: "rain",
+      label: "Rain",
+      selected: pickIndex(RAINS, s.rain),
+      options: RAINS.map((r) => ({ label: RAIN_LABELS[r], patch: { rain: r } })),
+      hint: rainHint(s.rain),
     },
   ];
 }

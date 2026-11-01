@@ -46,6 +46,7 @@ Host picks these in the lobby. Everything else is fixed: always a race, always o
 | Camera | **Any**, Top-down, Chase, Bonnet | Which views you get. Any lets you cycle all three, starting in chase. |
 | Mist | Clear, **Patchy cloud**, Murky | Mist hides bits of road. Same sky for everyone. |
 | Time | **Day**, Dawn, Dusk, Night, Day into night, Random | The light for the whole race. Day into night starts bright and goes dark as you drive. Random picks one for you. Same for everyone. |
+| Rain | **Dry**, Rain, Rain starts, Rain stops, Random | How wet the road is. Rain starts and Rain stops change it while you drive. Wet roads make cars slide more. Random picks one for you. Same for everyone. |
 
 ## On your screen
 
