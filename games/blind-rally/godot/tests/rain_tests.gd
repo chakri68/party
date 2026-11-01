@@ -27,6 +27,7 @@ func run() -> void:
 	test_dry_is_today()
 	test_reload_mid_storm(cases)
 	test_rain_stops(cases)
+	test_quiet_once_landed(cases)
 	await test_grip_effect()
 
 
@@ -110,14 +111,63 @@ func test_rain_stops(cases: Array) -> void:
 	check(car.wet == 0.0, "an empty plan dries the car")
 
 
+## The straightest 90 m of the centreline: start transform.
+func _straight_xf() -> Transform3D:
+	var c: PackedVector3Array = main.track.centerline
+	var win := 45 # points, 2 m apart
+	var best := 5
+	var best_bend := INF
+	for i in range(5, c.size() - win - 5, 5):
+		var a := (c[i + 1] - c[i - 1]).normalized()
+		var bend := 0.0
+		for j in range(i, i + win, 5):
+			bend = maxf(bend, 1.0 - a.dot((c[j + 1] - c[j - 1]).normalized()))
+		if bend < best_bend:
+			best_bend = bend
+			best = i
+	return Transform3D(Basis.looking_at(c[best + 1] - c[best - 1], Vector3.UP), c[best] + Vector3(0, 0.6, 0))
+
+
 func test_grip_effect() -> void:
 	var lat := {}
 	for w in [0.0, 1.0]:
-		await t.place(main.track.get_spawn().global_transform)
+		await t.place(_straight_xf())
+		await t.idle(0.1)
+		check(car.surface == "road", "wet %.0f: the car starts on road (%s)" % [w, car.surface])
 		car.wet = w
-		await t.drive(2.0, 0.6, 1.0)
-		lat[w] = absf(car.lateral_speed)
-		print("    wet %.0f: lateral %.2f m/s, surface %s" % [w, lat[w], car.surface])
+		var peak := 0.0 # largest sideways speed while still on road
+		var road_frames := 0
+		for f in 120:
+			if f % 2 == 0:
+				car.set_control(0.5, 1.0, 0.0)
+			await t.physics_frame
+			if car.surface == "road":
+				road_frames += 1
+				peak = maxf(peak, absf(car.lateral_speed))
+		lat[w] = peak
+		print("    wet %.0f: peak lateral %.2f m/s over %d frames on road" % [w, peak, road_frames])
+		check(road_frames > 30, "wet %.0f: %d frames on road" % [w, road_frames])
 	car.wet = 0.0
 	car.neutralize()
-	check(lat[1.0] > lat[0.0], "wet road: more lateral slip after 2 s (%.2f vs %.2f)" % [lat[1.0], lat[0.0]])
+	check(lat[1.0] > lat[0.0], "wet road: more lateral slip within 2 s (%.2f vs %.2f)" % [lat[1.0], lat[0.0]])
+
+
+func test_quiet_once_landed(cases: Array) -> void:
+	var s := SkyClock.new()
+	main.add_child(s)
+	s.set_plan(_plan_where(cases, 0.0, 1.0)) # rain lands at 70000, wet at 90000
+	s.set_clock(75000.0, false)
+	var log: Array = []
+	var last := [s.rain(), s.wetness()]
+	s.rain_changed.connect(func(r: float, w: float) -> void:
+		log.append(maxf(absf(r - last[0]), absf(w - last[1])))
+		last[0] = r
+		last[1] = w)
+	for f in 10:
+		s.set_clock(75000.0 + 20.0 * (f + 1), false) # ~0.0003 wet per step
+	check(s.rain() == 1.0 and s.wetness() < 1.0, "rain landed, road still wetting (wet %.3f)" % s.wetness())
+	var ok := true
+	for m in log:
+		ok = ok and m >= 0.002
+	check(ok and log.size() <= 2, "rain_changed stays quiet once rain landed: %d emits in 10 small steps" % log.size())
+	s.queue_free()

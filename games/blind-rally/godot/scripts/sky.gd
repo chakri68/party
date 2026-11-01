@@ -185,8 +185,8 @@ func _refresh_rain(force: bool) -> void:
 	var r := rain()
 	var w := wetness()
 	var m := maxf(absf(r - _sent_rain), absf(w - _sent_wet))
-	var landed_now: bool = r == rain_plan.to or w == rain_plan.to
-	if not force and m <= PUSH_EPS and not (landed_now and m > 0.0):
+	var landed_now: bool = (r == rain_plan.to and r != _sent_rain) or (w == rain_plan.to and w != _sent_wet)
+	if not force and m <= PUSH_EPS and not landed_now:
 		return
 	_sent_rain = r
 	_sent_wet = w
