@@ -6,6 +6,7 @@ import { awayBanner, teamBadge, runClock, teamClock, type RoleProps, type RoleVi
 import { GodotBridge, type GodotPhysicsEvent, type GodotSnapshot } from "./bridge.ts";
 import { StageLoader } from "./loader.ts";
 import { navigatorTrack } from "./track.ts";
+import { sessionInit, sessionKey } from "./session.ts";
 import { trackName } from "../../shared/tracks-public.ts";
 import "./navigator.css";
 
@@ -23,7 +24,8 @@ import "./navigator.css";
 //   initSession from the navigator DTO (seed, clouds, camera, allowedCameras,
 //     teamNumber/teamColor/teamShape, ghosts, rivals), plus `room: true` (Godot leaves
 //     recovery to the server and hides its debug HUD) and, for a reload
-//     mid-race, the checkpoints the server counted and what's left of a hold
+//     mid-race, the checkpoints the server counted, what's left of a hold and the
+//     sky's run clock (the clock event fires before a booting Godot can hear it)
 //   Godot's `fell` (out of the world, car parked) → race.reset with reason "fell"
 //   shared stage: rivals' `ghost` relays → receiveGhostSnapshot
 //   Godot's `pin` (the Navigator's guess on the big map) → `map.guess`
@@ -106,8 +108,8 @@ class NavigatorView implements RoleView {
   /** Last `running` told to Godot's run clock; null means say it again. */
   private clockRunning: boolean | null = null;
   private sessionSent = false;
-  /** The cars (ours, then the rivals') Godot was last given. Rally's grid can change them after Godot has booted. */
-  private sentCars: string | null = null;
+  /** The cars and sky Godot was last given (sessionKey). Rally's grid can change them after Godot has booted. */
+  private sentKey: string | null = null;
   private lastInput = 0;
   private liveSince = 0;
   private ticker: ReturnType<typeof setInterval>;
@@ -242,34 +244,24 @@ class NavigatorView implements RoleView {
   private sendSession() {
     const session = this.session();
     this.renderNotes(session);
-    // Rally, on the grid: the car changed after Godot booted (an un-ready, a new pick and a ready
-    // again, or the ballot's leader moving). The class isn't in the seat key, so Godot isn't
-    // rebooted; the session goes again and apply_preset re-dresses the car in place. A rival
+    // Rally, on the grid: the car, a rival or the sky changed after Godot booted (an un-ready,
+    // a new pick, the ballot's leader moving, the host changing Time). None of it is in the seat
+    // key, so Godot isn't rebooted; the session goes again and Godot re-dresses in place. A rival
     // joining or re-picking sends it too, so Godot builds that ghost on the grid, not at GO.
-    const cars = session && JSON.stringify([session.vehicle, session.rivals]);
-    if (this.sessionSent && session && this.props!.game.phase === "teams" && cars !== this.sentCars) this.sessionSent = false;
+    const key = session && sessionKey(session);
+    if (this.sessionSent && session && this.props!.game.phase === "teams" && key !== this.sentKey) this.sessionSent = false;
     if (this.sessionSent || !session || !this.bridge.isReady) return;
     this.sessionSent = true;
-    this.sentCars = cars;
-    const run = this.props!.private.role === "navigator" ? this.props!.private.run : null;
+    this.sentKey = key;
+    const p = this.props!;
+    const run = p.private.role === "navigator" ? p.private.run : null;
     this.bridge.init(
-      {
-        ...session,
-        room: true,
-        // A reloaded Navigator's car goes back to the anchor of what the server counted,
-        // held for whatever's left of a reset's hold.
-        checkpoints: run?.checkpoints ?? 0,
-        holdMs: Math.max(0, (run?.holdUntil ?? 0) - this.api.serverNow()),
-        // Their own guess pins, if Godot's been reloaded mid-race.
-        pins: run?.pins ?? { pin: null, trail: [] },
-        // Rally: this device drives. WASD in Godot when the course has focus; no pins; R asks for a reset.
-        keyboard: !!this.addon,
+      sessionInit(session, p.game, this.myTeam(), run, this.api.serverNow(), {
         selfDrive: !!this.addon,
-        autopilot: false,
         muted: !audio.settings.sound,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
-      },
-      this.props!.playerId,
+      }),
+      p.playerId,
     );
     this.frozen = null; // initSession may have reset the car; say it again
     this.clockRunning = null;

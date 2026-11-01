@@ -17,6 +17,7 @@ func run() -> void:
 	await test_clock()
 	test_reload_mid_sunset()
 	await test_main_wiring()
+	test_session_clock()
 	test_static_plans()
 	test_tints()
 	await test_night_applied()
@@ -92,6 +93,27 @@ func test_main_wiring() -> void:
 	check(main.weather.time == main.sky.clock and main.sky.clock >= 12.0, "weather.time is sky.clock after a clock event")
 	main._on_race_event({"kind": "clock", "ms": 3000, "running": false})
 	check(main.weather.time == 3.0, "and follows the next one")
+	t._probe_session()
+
+
+## A Godot that boots mid-race (a reload) gets its clock in initSession: the
+## host's first clock event fires before the stage is loaded, with nothing
+## listening yet, and the host never says it again.
+func test_session_clock() -> void:
+	print("sky: session clock")
+	var sunset := {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}}
+	var tr: Track = main.track
+	main.track = null # the stage is still loading: the session waits
+	main._on_session({"sky": sunset, "clock": {"ms": 56000, "running": true}}, "")
+	check(main._pending_session.size() == 1, "a session before the track is queued")
+	main.track = tr
+	main._replay_sessions()
+	check(absf(main.sky.clock - 56.0) < 0.05 and main.sky.running, "the queued session lands on its clock (%s s)" % main.sky.clock)
+	check(absf(main.sky.darkness() - 0.35) < 0.01, "mid-sunset: dusk at once (%s)" % main.sky.darkness())
+	main._on_session({"sky": sunset, "clock": "junk"}, "")
+	check(main.sky.clock == 0.0 and not main.sky.running, "a malformed clock: 0, stopped")
+	main._on_session({"sky": sunset, "clock": {"ms": "x", "running": true}}, "")
+	check(main.sky.clock == 0.0 and not main.sky.running, "a clock with no number: 0, stopped")
 	t._probe_session()
 
 
@@ -206,7 +228,7 @@ func test_late_register() -> void:
 	_day()
 	check(_reads([[m], [u]], 0.0, Color(1, 1, 1)), "and follows the sky back to day")
 	main.weather.unregister(m)
-	main.weather.unregister_tinted(u)
+	main.weather._tinted.erase(u) # test cleanup; nothing in the game unregisters one
 
 
 func test_shadows() -> void:

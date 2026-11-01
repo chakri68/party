@@ -246,6 +246,12 @@ func _load_track(id: String) -> void:
 		var s := _carried_session
 		_carried_session = {}
 		_on_session(s.cfg, s.seat)
+	_replay_sessions()
+
+
+## The initSessions that came before the track did (web: the host's ready()
+## fires before the stage loads), in order.
+func _replay_sessions() -> void:
 	for s in _pending_session:
 		_on_session(s[0], s[1])
 	_pending_session.clear()
@@ -751,7 +757,14 @@ func _apply_session(cfg: Dictionary, seat: String) -> void:
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
 	sky.set_plan(cfg["sky"] if cfg.get("sky") is Dictionary else {})
-	sky.set_clock(0.0, false)
+	# The run clock as of the send. A reload mid-race boots Godot after the
+	# host's clock event went by unheard, so the session carries it; absent or
+	# malformed is the grid's (0, stopped).
+	var clk: Dictionary = cfg["clock"] if cfg.get("clock") is Dictionary else {}
+	if clk.get("ms") is float or clk.get("ms") is int:
+		sky.set_clock(float(clk["ms"]), bool(clk.get("running", false)))
+	else:
+		sky.set_clock(0.0, false)
 	# Same seed, same surprises. `eggs` is a debug override for tools and
 	# tests ({"deer": true} or {"all": false}), like autopilot.
 	eggs.force = cfg["eggs"] if cfg.get("eggs") is Dictionary else {}
