@@ -50,6 +50,13 @@ extends Node3D
 ## the unshaded ones: the mist and snow sprites here, and whatever was
 ## register_tinted() (the treeline, far landmarks). Late registrations get
 ## the current values, like the clouds.
+##
+## Headlights ride the same path: head_on is the darkness (set_sky), and
+## while it's above 0 every frame pushes head_pos and head_dir from the
+## car's interpolated transform, and the rivals' ghost_heads as GhostCars
+## hands them over. By day nothing is pushed per frame: head_on 0 makes
+## the shaders skip the headlight terms, so stale positions are harmless.
+## The landmarks' glows (set_glows) get night_boost = the darkness.
 
 const LAYER := 8 ## render layer 4
 const BANK_PUFFS := 5
@@ -107,6 +114,9 @@ var _mats: Array[ShaderMaterial] = []
 var _cloud := {} # shader parameter -> value, for materials registered later
 var _sky := {"sky_dark": 0.0, "sky_tint": Color(1, 1, 1)} # the same, for the light
 var _tinted: Array[ShaderMaterial] = [] # unshaded: sky_tint only
+var _glows: Array[ShaderMaterial] = [] # glow.gdshader: night_boost only
+var _ghost_heads := PackedVector4Array() # (x, z, yaw, strength), GhostCars' last
+var _ghost_sent := -1 # ghost_head_count the materials have; -1: unknown
 var _eye_puffs := PackedVector4Array() # what the shaders got last, for the CPU mirror
 var _mist: MultiMeshInstance3D
 var _mist_mat: ShaderMaterial
@@ -228,6 +238,10 @@ func register(mat: ShaderMaterial) -> void:
 	_apply_mist(mat)
 	mat.set_shader_parameter("sky_dark", _sky.sky_dark)
 	mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+	mat.set_shader_parameter("head_on", _sky.sky_dark)
+	if night():
+		_apply_head(mat, _head_xf())
+		_apply_ghosts(mat)
 
 
 ## An unshaded material with a `sky_tint` uniform and nothing else of the
@@ -247,15 +261,77 @@ func unregister_tinted(mat: ShaderMaterial) -> void:
 ## Only called when it moved, so a static sky costs nothing per frame.
 func set_sky(dark: float, tint_now: Color) -> void:
 	_sky = {"sky_dark": dark, "sky_tint": tint_now}
+	var xf: Variant = _head_xf()
 	for m in _mats:
 		m.set_shader_parameter("sky_dark", dark)
 		m.set_shader_parameter("sky_tint", tint_now)
+		m.set_shader_parameter("head_on", dark)
+		if dark > 0.0:
+			_apply_head(m, xf)
+			_apply_ghosts(m)
+	for m in _glows:
+		m.set_shader_parameter("night_boost", dark)
 	for m in _tinted:
 		m.set_shader_parameter("sky_tint", tint_now)
 	if _mist_mat:
 		_mist_mat.set_shader_parameter("sky_tint", tint_now)
 	if _snow_mat:
 		_snow_mat.set_shader_parameter("sky_tint", tint_now)
+
+
+## Is it dark at all (the headlights are on)?
+func night() -> bool:
+	return float(_sky.sky_dark) > 0.0
+
+
+## The glow.gdshader materials to brighten at night (the stage's beacons,
+## campfire, lamps, and the eggs' lights). Replaces the last list; each
+## gets night_boost now.
+func set_glows(mats: Array) -> void:
+	_glows.clear()
+	for m in mats:
+		if m is ShaderMaterial and not _glows.has(m):
+			_glows.append(m)
+			(m as ShaderMaterial).set_shader_parameter("night_boost", _sky.sky_dark)
+
+
+func glows() -> Array[ShaderMaterial]:
+	return _glows
+
+
+## The rivals' headlights, from where GhostCars draws them this frame:
+## (x, z, yaw, strength) each, at most GhostCars.MAX_GHOSTS. Pushed only
+## in the dark; an empty list is pushed once, not every frame.
+func set_ghost_heads(heads: PackedVector4Array) -> void:
+	_ghost_heads = heads
+	if not night() or (heads.is_empty() and _ghost_sent == 0):
+		return
+	for m in _mats:
+		_apply_ghosts(m)
+
+
+func _apply_ghosts(m: ShaderMaterial) -> void:
+	var n := mini(_ghost_heads.size(), GhostCars.MAX_GHOSTS)
+	m.set_shader_parameter("ghost_head_count", n)
+	if n > 0:
+		var arr := _ghost_heads.slice(0, n)
+		arr.resize(GhostCars.MAX_GHOSTS)
+		m.set_shader_parameter("ghost_heads", arr)
+	_ghost_sent = n
+
+
+## Where our headlights are now: the car as drawn (interpolated), or null.
+func _head_xf() -> Variant:
+	return car.get_global_transform_interpolated() if car else null
+
+
+func _apply_head(m: ShaderMaterial, xf: Variant) -> void:
+	if xf == null:
+		return
+	var t: Transform3D = xf
+	m.set_shader_parameter("head_pos", t.origin)
+	var f := Vector2(-t.basis.z.x, -t.basis.z.z)
+	m.set_shader_parameter("head_dir", f.normalized() if f.length_squared() > 1e-8 else Vector2(0, -1))
 
 
 ## A material that's going away (a ghost car that stopped coming).
@@ -301,10 +377,14 @@ func _process(_dt: float) -> void:
 	# The palette's car keyhole (never darker than dusk round the car) reads
 	# mist_car. The eye-level mist pushes it below; any other time it's dark,
 	# push it here, so the keyhole follows the car in every camera and sky.
-	if car and float(_sky.sky_dark) > 0.0 and not (clouds > 0.0 and eye_level):
-		var at := car.get_global_transform_interpolated().origin
+	# The headlights follow the same transform while it's dark.
+	if car and night():
+		var xf := car.get_global_transform_interpolated()
+		var keyhole := not (clouds > 0.0 and eye_level)
 		for m in _mats:
-			m.set_shader_parameter("mist_car", at)
+			if keyhole:
+				m.set_shader_parameter("mist_car", xf.origin)
+			_apply_head(m, xf)
 	if clouds <= 0.0:
 		return
 	_push_snow()

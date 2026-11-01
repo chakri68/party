@@ -23,6 +23,9 @@ func run() -> void:
 	test_late_register()
 	test_shadows()
 	test_env_sunset()
+	await test_headlights()
+	await test_ghost_heads()
+	test_glow_boost()
 
 
 func check(ok: bool, what: String) -> void:
@@ -246,3 +249,136 @@ func test_env_sunset() -> void:
 	check(fog.is_equal_approx(base * SkyClock.TINTS["night"]), "ends on base fog x the night tint exactly (%s)" % fog)
 	_day()
 	check(main._eye_env.fog_light_color.is_equal_approx(base), "and day puts the fog back")
+
+
+## Runs `cb` from _process after every other node's (Weather's, Ghosts'),
+## so a test reads what was pushed and what it was pushed from in one frame.
+class Late extends Node:
+	var cb: Callable
+	func _process(_dt: float) -> void:
+		cb.call()
+
+
+## One frame's look, taken after Weather and Ghosts ran: a physics tick,
+## then a render frame.
+func _after_frame(cb: Callable) -> void:
+	var late := Late.new()
+	late.process_priority = 1000
+	late.cb = cb
+	main.add_child(late)
+	await t.physics_frame
+	await t.process_frame
+	await t.process_frame
+	late.queue_free()
+
+
+## Our headlights follow the car's drawn (interpolated) transform at night,
+## and stop costing anything once day's value is in.
+func test_headlights() -> void:
+	print("sky: headlights")
+	var back: Transform3D = main.car.global_transform
+	main.car.reset_to(Transform3D(Basis(Vector3.UP, 0.7), back.origin + Vector3(6.0, 0.0, -4.0)))
+	_night()
+	var seen := {}
+	await _after_frame(func() -> void:
+		var xf: Transform3D = main.car.get_global_transform_interpolated()
+		seen["at"] = xf.origin
+		seen["fwd"] = Vector2(-xf.basis.z.x, -xf.basis.z.z).normalized()
+		seen["pos"] = main.PALETTE.get_shader_parameter("head_pos")
+		seen["dir"] = main.PALETTE.get_shader_parameter("head_dir")
+		seen["on"] = main.PALETTE.get_shader_parameter("head_on"))
+	check(seen.pos is Vector3 and (seen.pos as Vector3).distance_to(seen.at) < 1e-3, "night: head_pos is the car's interpolated origin (%s vs %s)" % [seen.pos, seen.at])
+	check(seen.dir is Vector2 and (seen.dir as Vector2).distance_to(seen.fwd) < 1e-3, "and head_dir its -Z in xz (%s vs %s)" % [seen.dir, seen.fwd])
+	check(seen.on is float and absf(seen.on - 1.0) < 1e-6, "head_on is the darkness: 1 at night (%s)" % seen.on)
+	var mats: Array = main.weather.materials()
+	var all := true
+	for m in mats:
+		all = all and (m.get_shader_parameter("head_pos") as Variant) is Vector3 and absf(float(m.get_shader_parameter("head_on")) - 1.0) < 1e-6
+	check(all, "on every registered material (%d)" % mats.size())
+	_day()
+	check(float(main.PALETTE.get_shader_parameter("head_on")) == 0.0, "day: head_on 0")
+	var mark := Vector3(1234.0, 5.0, 6789.0)
+	main.PALETTE.set_shader_parameter("head_pos", mark)
+	main.car.reset_to(back)
+	await _after_frame(func() -> void: pass)
+	check(main.PALETTE.get_shader_parameter("head_pos") == mark, "and nothing pushes head_pos by day")
+
+
+## Rivals' headlights: one entry per ghost, from where it's drawn.
+func test_ghost_heads() -> void:
+	print("sky: ghost headlights")
+	var g: GhostCars = main.ghosts
+	g.clear()
+	g.enabled = true
+	_night()
+	var o: Vector3 = main.car.global_position
+	for i in 3:
+		g.receive(21 + i, {"teamId": 21 + i, "color": "#56b4e9", "tick": 1, "position": [o.x + 10.0 * i, o.y, o.z - 30.0], "heading": 0.4 * i, "speed": 0.0})
+	var seen := {}
+	await _after_frame(func() -> void:
+		seen["n"] = main.PALETTE.get_shader_parameter("ghost_head_count")
+		seen["heads"] = main.PALETTE.get_shader_parameter("ghost_heads")
+		var nodes := []
+		for i in 3:
+			var nd := g.ghost_node(21 + i)
+			if nd:
+				nodes.append(nd.global_transform)
+		seen["nodes"] = nodes)
+	check(seen.n == 3, "3 rivals: ghost_head_count 3 (%s)" % seen.n)
+	var heads: Variant = seen.heads
+	var matched := 0
+	if heads is PackedVector4Array and seen.n is int:
+		for xf in seen.nodes:
+			var fwd := Vector2(-xf.basis.z.x, -xf.basis.z.z)
+			for k in mini(seen.n, heads.size()):
+				var h: Vector4 = heads[k]
+				if Vector2(h.x, h.y).distance_to(Vector2(xf.origin.x, xf.origin.z)) < 1e-3 \
+						and Vector2(-sin(h.z), -cos(h.z)).distance_to(fwd) < 1e-3 and h.w > 0.0:
+					matched += 1
+					break
+	check(matched == 3, "each entry sits on its ghost, facing its way (%d of 3)" % matched)
+	for i in 9:
+		g.receive(31 + i, {"teamId": 31 + i, "color": "#009e73", "tick": 1, "position": [o.x, o.y, o.z + 20.0 + i], "heading": 0.0, "speed": 0.0})
+	await _after_frame(func() -> void: seen["n"] = main.PALETTE.get_shader_parameter("ghost_head_count"))
+	check(seen.n == GhostCars.MAX_GHOSTS, "more rivals than seats: capped at %d (%s)" % [GhostCars.MAX_GHOSTS, seen.n])
+	g.clear()
+	await _after_frame(func() -> void: seen["n"] = main.PALETTE.get_shader_parameter("ghost_head_count"))
+	check(seen.n == 0, "ghosts gone: count back to 0 (%s)" % seen.n)
+	_day()
+
+
+## The landmarks' glows (beacon, campfire, eggs' lights) get brighter in
+## the dark: night_boost is the darkness, 0 by day (today's look).
+func test_glow_boost() -> void:
+	print("sky: landmark glow")
+	var glows := []
+	for root in [main.track, main.eggs]:
+		for n in (root as Node).find_children("*", "GeometryInstance3D", true, false):
+			var m := (n as GeometryInstance3D).material_override as ShaderMaterial
+			if m and m.shader and m.shader.resource_path == "res://shaders/glow.gdshader" and not glows.has(m):
+				glows.append(m)
+	check(glows.size() > 0, "the stage has glows to light (%d)" % glows.size())
+	var boosted := func(v: float) -> bool:
+		for m in glows:
+			var b: Variant = m.get_shader_parameter("night_boost")
+			if not (b is float) or absf(b - v) > 1e-6:
+				return false
+		return true
+	_night()
+	check(boosted.call(1.0), "night: every glow's night_boost is 1")
+	_day()
+	check(boosted.call(0.0), "day: 0")
+	main.sky.set_plan({"light": {"from": "dusk", "to": "dusk", "atMs": 0, "overMs": 0}})
+	check(boosted.call(0.35), "dusk: the darkness, 0.35")
+	_day()
+	# A night session builds its eggs after the plan lands: theirs get it too.
+	main._on_session({"sky": {"light": {"from": "night", "to": "night", "atMs": 0, "overMs": 0}}, "eggs": {"all": true}}, "")
+	var live: Array = main.weather.glows()
+	var fresh := true
+	for n in main.eggs.find_children("*", "GeometryInstance3D", true, false):
+		var m := (n as GeometryInstance3D).material_override as ShaderMaterial
+		if m and m.shader == glows[0].shader and not main._going(n, main.eggs):
+			fresh = fresh and live.has(m) and float(m.get_shader_parameter("night_boost")) == 1.0
+	check(fresh and boosted.call(1.0), "a night session: the stage's and the new eggs' glows at 1 (%d tracked)" % live.size())
+	t._probe_session()
+	check(boosted.call(0.0), "and back to 0 with the next day session")

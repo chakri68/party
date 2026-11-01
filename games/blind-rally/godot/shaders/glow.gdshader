@@ -7,6 +7,9 @@
 //
 // Render layer 5 only (the 3D view), never the static map: the map is one
 // still picture and shouldn't catch a light mid-pulse.
+//
+// At night (night_boost, the darkness) they burn up to 3x: the landmarks a
+// Navigator calls out stay easy to see. 0 by day, so day is unchanged.
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 
@@ -16,6 +19,7 @@ uniform float pulse_period = 0.0; // > 0: slow beacon pulse; 0: fire flicker
 uniform vec2 fade = vec2(60.0, 115.0); // metres: full until x, gone by y (stands in for fog)
 uniform bool billboard = true;
 uniform bool flame = false; // crossed quads that sway; UV.y 0 = tip, 1 = base
+uniform float night_boost = 0.0; // the sky's darkness (Weather.set_glows): up to 3x bright at night
 
 varying float v_fade;
 
@@ -44,16 +48,17 @@ void vertex() {
 
 void fragment() {
 	float a;
+	float e = energy * (1.0 + 2.0 * night_boost);
 	if (flame) {
 		// Teardrop: wide at the base, a point at the tip, soft sides.
 		float h = UV.y;
 		float half_w = 0.5 * pow(h, 0.7);
 		a = 1.0 - smoothstep(half_w * 0.4, half_w, abs(UV.x - 0.5));
 		a *= smoothstep(0.0, 0.25, h) * (1.0 - smoothstep(0.85, 1.0, h) * 0.5);
-		ALBEDO = mix(color, vec3(1.0, 0.85, 0.45), h * 0.6) * a * energy * level() * v_fade;
+		ALBEDO = mix(color, vec3(1.0, 0.85, 0.45), h * 0.6) * a * e * level() * v_fade;
 	} else {
 		float r = length(UV - vec2(0.5)) * 2.0;
 		a = pow(clamp(1.0 - r, 0.0, 1.0), 2.0);
-		ALBEDO = color * a * energy * level() * v_fade;
+		ALBEDO = color * a * e * level() * v_fade;
 	}
 }

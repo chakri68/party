@@ -27,6 +27,7 @@ func run() -> void:
 	await test_rival_meshes_on_the_grid()
 	await test_warmup_comes_and_goes()
 	t._probe_session()
+	await test_night_adds_no_material()
 
 
 func check(ok: bool, what: String) -> void:
@@ -108,6 +109,10 @@ func test_warmup_comes_and_goes() -> void:
 		return true
 	check(covered.call(main.eggs), "and every easter egg's materials, seen yet or not")
 	check(covered.call(main.track), "and the stage's own (the fire tower's beacon, the campfire, signs)")
+	var lit := true
+	for m in main.weather.glows():
+		lit = lit and mats.has(m)
+	check(main.weather.glows().size() > 0 and lit, "every glow night brightens is among them (%d)" % main.weather.glows().size())
 	check(w.get_child_count() < 80, "one copy per kind of draw, not per node (%d)" % w.get_child_count())
 	var cam := main.get_viewport().get_camera_3d()
 	var in_view := true
@@ -179,4 +184,36 @@ func _largest(w: Node) -> float:
 	for n in w.find_children("*", "GeometryInstance3D", true, false):
 		var gi := n as GeometryInstance3D
 		out = maxf(out, (gi.global_transform * gi.get_aabb()).get_longest_axis_size())
+	return out
+
+
+## Night (darkness, headlights, ghost lights, glow boost) is uniforms on
+## materials that already exist: nothing new to draw after GO, so the
+## warm-up's source list needs nothing new either.
+func test_night_adds_no_material() -> void:
+	print("warm-up: night builds nothing")
+	var before := _all_materials()
+	main.sky.set_plan({"light": {"from": "night", "to": "night", "atMs": 0, "overMs": 0}})
+	main.sky.set_clock(0.0, false)
+	var o := car.global_position
+	main.ghosts.receive(2, {"teamId": 2, "color": "#56b4e9", "tick": 1, "position": [o.x, o.y, o.z - 30.0], "heading": 0.0, "speed": 0.0, "vehicle": "truck"})
+	for i in 3:
+		await t.process_frame
+	main.ghosts.clear()
+	var after := _all_materials()
+	var added := []
+	for m in after:
+		if not before.has(m) and not (m is ShaderMaterial and (m as ShaderMaterial).shader == GhostCars.SHADER):
+			added.append(m)
+	check(added.is_empty(), "night with a rival: no material but the ghost's own, which the warm-up draws (%d new)" % added.size())
+	main.sky.set_plan({})
+	main.sky.set_clock(0.0, false)
+
+
+## Every material drawn under main now, by identity.
+func _all_materials() -> Dictionary:
+	var out := {}
+	for n in main.find_children("*", "GeometryInstance3D", true, false):
+		for m in _materials(n as GeometryInstance3D):
+			out[m] = true
 	return out

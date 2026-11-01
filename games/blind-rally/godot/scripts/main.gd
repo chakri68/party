@@ -148,6 +148,7 @@ const MAP_MARGIN_PX := 10.0
 const OPEN_3D_SCALE := 0.5
 
 const PALETTE := preload("res://assets/materials/vertex_color.tres")
+const GLOW := preload("res://shaders/glow.gdshader")
 var biome: Biome ## the loaded track's (Track.get_biome())
 var _session_seen := false
 var _pending_session: Array = [] ## [cfg, seat] that came before the track did
@@ -161,6 +162,7 @@ var _stage_sources: Array = []
 var _xray_sources: Array = []
 var _egg_sources: Array = []
 var _eye_sources: Array = []
+var _track_glows: Array = [] ## the stage's glow.gdshader materials, walked once at load
 var _warm_held := false ## a session or the stage setup is under way: one warm-up at its end
 
 
@@ -275,6 +277,8 @@ func _setup_track() -> void:
 	add_child(eggs)
 	eggs.setup(track, car)
 	eggs.configure(weather.seed_value)
+	_track_glows = glow_materials(track)
+	_sync_glows()
 	ghosts = GhostCars.new()
 	ghosts.name = "Ghosts"
 	ghosts.car = car
@@ -357,6 +361,23 @@ func warm_up() -> void:
 				break
 		warmup.add_node(ghosts.warm_node(like))
 	add_child(warmup)
+
+
+## The glow.gdshader materials under `root` (not ones going away), each
+## once. The stage bakes its beacons and campfires into the scene, so this
+## is how they're found.
+func glow_materials(root: Node) -> Array:
+	var out := []
+	for n in root.find_children("*", "GeometryInstance3D", true, false):
+		var m := (n as GeometryInstance3D).material_override as ShaderMaterial
+		if m and m.shader == GLOW and not out.has(m) and not _going(n, root):
+			out.append(m)
+	return out
+
+
+## Weather brightens these at night: the stage's, plus this session's eggs'.
+func _sync_glows() -> void:
+	weather.set_glows(_track_glows + glow_materials(eggs))
 
 
 ## One of each kind of draw under `root`, from `cache` (filled on first use,
@@ -733,6 +754,7 @@ func _apply_session(cfg: Dictionary, seat: String) -> void:
 	eggs.force = cfg["eggs"] if cfg.get("eggs") is Dictionary else {}
 	eggs.configure(sky_seed)
 	_egg_sources.clear() # new eggs, maybe: walked again at the next warm-up
+	_sync_glows()
 	set_autopilot(bool(cfg.get("autopilot", false)))
 	set_allowed_cameras(cfg["allowedCameras"] if cfg.get("allowedCameras") is Array else [])
 	if cfg.has("camera"):

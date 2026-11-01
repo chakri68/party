@@ -18,6 +18,10 @@ extends Node3D
 ##
 ## Cost per ghost: one merged mesh (drawn twice: depth prepass and colour)
 ## and one Label3D for the number. No shadow.
+##
+## At night each ghost also throws a short headlight cone (no Light3D: the
+## world shaders draw it, weather.gdshaderinc). _process hands Weather
+## where each one is drawn this frame, only while it's dark.
 
 const LAYER := 32 ## render layer 6
 const DELAY := 0.12
@@ -54,6 +58,7 @@ class Ghost:
 	var vehicle := ""
 	var font_size := 96 ## the tag's size before a small-middled plate shrinks it
 	var samples: Array = [] ## [arrival time, Vector3, yaw]
+	var yaw := 0.0 ## as drawn now
 	var last_at := 0.0
 
 
@@ -119,6 +124,17 @@ func _process(dt: float) -> void:
 			_despawn(id)
 		else:
 			_place(gh)
+	if weather and weather.night():
+		weather.set_ghost_heads(heads())
+
+
+## Each drawn ghost's headlights: (x, z, yaw, strength 1), in no set order.
+func heads() -> PackedVector4Array:
+	var out := PackedVector4Array()
+	for gh: Ghost in _ghosts.values():
+		var p := gh.node.global_position
+		out.append(Vector4(p.x, p.z, gh.yaw, 1.0))
+	return out
 
 
 ## Pose at clock - DELAY, from the snapshots either side of it.
@@ -147,6 +163,7 @@ func pose_at(gh: Ghost, t: float) -> Array:
 func _place(gh: Ghost) -> void:
 	var pose := pose_at(gh, clock - DELAY)
 	gh.node.global_transform = Transform3D(Basis(Vector3.UP, pose[1]), pose[0])
+	gh.yaw = pose[1]
 	var d := Vector2(pose[0].x - car.global_position.x, pose[0].z - car.global_position.z).length()
 	var a := lerpf(ALPHA.x, ALPHA.y, smoothstep(FADE.x, FADE.y, d))
 	gh.mat.set_shader_parameter("alpha", a)

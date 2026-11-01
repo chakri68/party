@@ -15,6 +15,11 @@
 // - Night (the sky's light): sky_light() multiplies the surface colour by
 //   the tint and darkens it toward NIGHT_FLOOR, so road edges stay faintly
 //   readable at full dark. Sky (sky.gd) sets both, through Weather.
+// - Headlights (night): sky_light() adds back what the dark took inside
+//   our car's cone (long and narrow, plus a short wide spread that shows
+//   corners) and a short cone in front of each rival ghost. No Light3D:
+//   just distance and angle in XZ. Weather pushes head_* and ghost_heads
+//   only while it's dark; head_on 0 (day) skips the lot.
 //
 // The map camera never sees any of it: it doesn't draw render layer 4, the
 // weather layer, and CAMERA_VISIBLE_LAYERS says so. That keeps the static map
@@ -38,6 +43,26 @@ uniform vec3 mist_tint : source_color = vec3(0.8, 0.83, 0.85);
 uniform float sky_dark = 0.0; // 0 day .. 1 night
 uniform vec3 sky_tint : source_color = vec3(1.0);
 const float NIGHT_FLOOR = 0.12; // a full night keeps this share of day brightness
+
+// Headlights. head_on is the darkness, so they fade in at dusk.
+uniform vec3 head_pos = vec3(0.0); // our car, interpolated
+uniform vec2 head_dir = vec2(0.0, -1.0); // its -Z in xz, unit
+uniform float head_on = 0.0;
+const int GHOST_HEADS_MAX = 7; // GhostCars.MAX_GHOSTS
+uniform vec4 ghost_heads[7]; // x, z, yaw, strength
+uniform int ghost_head_count = 0;
+
+// The cone numbers, all of them. Edges are cosines: (fully dark, fully lit).
+const float HEAD_LEN = 60.0; // metres
+const vec2 HEAD_EDGE = vec2(0.883, 0.961); // cos 28, cos 16: a ~22 degree half-angle, soft
+const float SPREAD_LEN = 20.0; // the corner spread
+const vec2 SPREAD_EDGE = vec2(0.342, 0.643); // cos 70, cos 50: ~60 degrees
+const float SPREAD_K = 0.5;
+const vec2 HEAD_TOP = vec2(3.0, 9.0); // metres above the lamps: lit below x, dark by y (no lit treetops)
+const float GHOST_LEN = 25.0;
+const float GHOST_K = 0.5;
+const float GHOST_REACH = 80.0; // a pixel this far from a ghost skips its cone
+const vec3 HEAD_TINT = vec3(1.0, 0.95, 0.85); // halogen, a touch warm
 
 bool weather_seen(uint layers) {
 	return (layers & 8u) != 0u;
@@ -95,8 +120,44 @@ float eye_mist(vec3 cam, vec3 world) {
 // What the light does to a surface at `world`, with darkness `dark` (the
 // palette caps it near the car). White and 1 by day. Call it only inside a
 // weather_seen() branch.
+// 0..1 of a cone from the origin along `dir` (unit), at offset `to`:
+// soft at the sides, brightest near the lamp, gone by `len`.
+float head_cone(vec2 to, vec2 dir, float len, vec2 edge) {
+	float d = length(to);
+	if (d >= len || d < 0.001) {
+		return 0.0;
+	}
+	return smoothstep(edge.x, edge.y, dot(to, dir) / d) * (1.0 - smoothstep(0.0, len, d));
+}
+
+// How much of the dark the headlights take back at `world`: up to
+// (1 - NIGHT_FLOOR) * head_on, so a full beam at night is day brightness.
+float headlights(vec3 world) {
+	vec2 to = world.xz - head_pos.xz;
+	float own = max(head_cone(to, head_dir, HEAD_LEN, HEAD_EDGE),
+			SPREAD_K * head_cone(to, head_dir, SPREAD_LEN, SPREAD_EDGE));
+	own *= 1.0 - smoothstep(HEAD_TOP.x, HEAD_TOP.y, world.y - head_pos.y);
+	float rivals = 0.0;
+	for (int i = 0; i < GHOST_HEADS_MAX; i++) {
+		if (i >= ghost_head_count) {
+			break;
+		}
+		vec4 g = ghost_heads[i];
+		vec2 gt = world.xz - g.xy;
+		if (dot(gt, gt) > GHOST_REACH * GHOST_REACH) {
+			continue;
+		}
+		rivals += GHOST_K * g.w * head_cone(gt, vec2(-sin(g.z), -cos(g.z)), GHOST_LEN, HEAD_EDGE);
+	}
+	return min(own + rivals, 1.0) * head_on * (1.0 - NIGHT_FLOOR);
+}
+
 vec3 sky_light_at(vec3 world, float dark) {
-	return sky_tint * mix(1.0, NIGHT_FLOOR, dark);
+	vec3 l = sky_tint * mix(1.0, NIGHT_FLOOR, dark);
+	if (head_on > 0.0) {
+		l = min(l + HEAD_TINT * headlights(world), vec3(1.0));
+	}
+	return l;
 }
 
 vec3 sky_light(vec3 world) {
