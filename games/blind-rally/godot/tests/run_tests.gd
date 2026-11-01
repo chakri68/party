@@ -29,6 +29,8 @@ func _run() -> void:
 	car.impact.connect(func(s: float, _w: Object) -> void: impacts.append(s))
 
 	await test_track_interface()
+	# First, before any key press starts the audio: what's built before GO.
+	await preload("res://tests/warmup_tests.gd").new(self).run()
 	await test_drive_forward()
 	await test_steer()
 	await test_brake_and_reverse()

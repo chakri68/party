@@ -402,6 +402,13 @@ export interface NavigatorSession {
   vehicle: VehicleId;
   /** Shared stage: other teams' cars arrive as `ghost` relays to draw. */
   ghosts: boolean;
+  /**
+   * Shared stage: every other car's public identity, as its ghost relays will
+   * paint it. Godot builds their ghost meshes on the grid, so the first relay
+   * at GO finds them cached. No coordinates, nothing about their runs. Empty
+   * on a solo stage.
+   */
+  rivals: { teamId: number; color: string; vehicle: VehicleId }[];
   /** The effective set, server-locked. Godot reads liveMarker; the TS chrome does the other two. */
   assists: Assists;
 }

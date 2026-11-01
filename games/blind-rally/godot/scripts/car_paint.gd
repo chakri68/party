@@ -166,7 +166,7 @@ static func _polygon(sides: int, r: float) -> PackedVector2Array:
 ## so a ghost needn't match our own car.
 static func ghost_mesh(vehicle: String, color: Color, shape: String) -> ArrayMesh:
 	vehicle = Vehicles.valid(vehicle)
-	var key := "ghost:%s:%s:%s" % [vehicle, color.to_html(false), valid_shape(shape)]
+	var key := _ghost_key(vehicle, color, shape)
 	if _painted.has(key):
 		return _painted[key]
 	var m: Dictionary = Vehicles.get_preset(vehicle)["model"]
@@ -183,6 +183,16 @@ static func ghost_mesh(vehicle: String, color: Color, shape: String) -> ArrayMes
 	var out := st.commit()
 	_painted[key] = out
 	return out
+
+
+## Whether ghost_mesh() has this one built already (tests; the grid builds
+## every rival's before GO).
+static func ghost_cached(vehicle: String, color: Color, shape: String) -> bool:
+	return _painted.has(_ghost_key(Vehicles.valid(vehicle), color, shape))
+
+
+static func _ghost_key(vehicle: String, color: Color, shape: String) -> String:
+	return "ghost:%s:%s:%s" % [vehicle, color.to_html(false), valid_shape(shape)]
 
 
 ## A copy of surface 0 with a flat vertex colour and no index, so it can be

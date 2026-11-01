@@ -35,6 +35,8 @@ extends Node3D
 ## counted, held that long), assists.tripMeter, assists.camera3d (false: the
 ## map-only view, spec §4.3; Nightmare), teamColor / teamNumber / teamShape
 ## (the livery), ghosts (shared stage: draw rivals from receiveGhostSnapshot),
+## rivals (shared stage: [{teamId, color, vehicle}] of the other cars, whose
+## ghost meshes are built on the grid),
 ## pins ({pin, trail}: a reloaded Navigator's own guess pins; a `pins` race
 ## event replaces them too). Placing or clearing one emits {kind: "pin", x, z}
 ## or {kind: "pin", clear: true} on the bridge.
@@ -48,7 +50,12 @@ extends Node3D
 ## own car, 3D view only, hidden with it in map-only mode.
 ##
 ## Phones (web on Android/iOS) start with shadows off and half the dust.
-## Audio waits for the first tap or key press, as browsers require.
+## Audio waits for the first tap or key press, as browsers require; its loops
+## are built before that (at load, and per class when a session lands).
+##
+## Nothing is built or compiled for the first time at GO (it used to stutter
+## there): rivals' ghost meshes come from initSession `rivals` on the grid,
+## and Warmup draws every race-only material once at load and per session.
 
 var track: Track ## null until the stage is loaded; see track_ready
 @onready var car: CarController = $Car
@@ -135,6 +142,9 @@ const PALETTE := preload("res://assets/materials/vertex_color.tres")
 var biome: Biome ## the loaded track's (Track.get_biome())
 var _session_seen := false
 var _pending_session: Array = [] ## [cfg, seat] that came before the track did
+var warmup: Warmup ## while one's drawing; see warm_up()
+var _rivals: Array = [] ## initSession `rivals`, the last session's
+var _stage_sources: Array = [] ## Warmup.distinct of the stage's own geometry
 
 
 func _ready() -> void:
@@ -273,6 +283,44 @@ func _setup_track() -> void:
 		set_camera_mode(_pending_mode)
 	if map_only:
 		set_map_only(true)
+	audio.prepare()
+	warm_up()
+
+
+## Draws every race-only material once (see Warmup), from the camera as it
+## is now. A second call restarts it.
+func warm_up() -> void:
+	if warmup and is_instance_valid(warmup):
+		warmup.free()
+	warmup = Warmup.new()
+	warmup.name = "Warmup"
+	var sources: Array = []
+	sources.append_array(fx.warm_sources())
+	sources.append_array(weather.warm_sources())
+	sources.append_array(car.get_node("XRay").find_children("*", "GeometryInstance3D", true, false))
+	if eggs:
+		sources.append_array(eggs.find_children("*", "GeometryInstance3D", true, false))
+	# The stage's own: glows (the fire tower's beacon fades in only from far
+	# off, the campfire only once you're near), signs, the tunnel roof. The
+	# stage doesn't change, so its handful of kinds is found once (walking
+	# the whole stage is tens of ms on the web).
+	if _stage_sources.is_empty():
+		_stage_sources = Warmup.distinct(track.find_children("*", "GeometryInstance3D", true, false))
+	sources.append_array(_stage_sources)
+	# Eye level: the far fire tower's haze copy and any streamed mesh with
+	# nothing in reach yet only draw once you're somewhere along the stage.
+	if eye_forest and eye_forest.visible:
+		sources.append_array(eye_forest.find_children("*", "GeometryInstance3D", true, false))
+	for src in sources:
+		warmup.add_source(src)
+	if ghosts and ghosts.enabled:
+		var like := {} # a rival's paint if we know one (its mesh is built), or a grey hatch
+		for r in _rivals:
+			if r is Dictionary and r.get("color") is String and int(r.get("teamId", -1)) != ghosts.own_team:
+				like = r
+				break
+		warmup.add_node(ghosts.warm_node(like))
+	add_child(warmup)
 
 
 ## The eye-level modes need what top-down never shows: a sky above the
@@ -338,7 +386,12 @@ func set_camera_mode(m: int) -> bool:
 		for sc in forest.get_children():
 			if sc is Scatter:
 				(sc as Scatter).set_drawn(not eye)
+	var was_eye := weather.eye_level
 	weather.eye_level = eye
+	# Eye level adds fog and a sky: other shader variants. Draw them now
+	# rather than wherever each material first turns up.
+	if eye != was_eye:
+		warm_up()
 	return true
 
 
@@ -534,6 +587,7 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 	var assists: Dictionary = cfg["assists"] if cfg.get("assists") is Dictionary else {}
 	_apply_assists(assists, true)
 	car.apply_preset(Vehicles.valid(String(cfg.get("vehicle", "hatch"))))
+	audio.prepare() # this class's engine loop now, not at the first key press
 	if cfg.get("teamColor") is String:
 		team_color = Color.from_string(cfg["teamColor"], team_color)
 		team_number = int(cfg["teamNumber"]) if (cfg.get("teamNumber") is float or cfg.get("teamNumber") is int) else team_number
@@ -546,6 +600,8 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 	ghosts.enabled = bool(cfg.get("ghosts", true))
 	if not ghosts.enabled:
 		ghosts.clear()
+	_rivals = cfg["rivals"] if cfg.get("rivals") is Array else []
+	ghosts.prebuild(_rivals)
 	# A reloaded Navigator mid-race: back to the anchor of what the server
 	# counted, or it'd refuse every snapshot from wherever Godot spawned.
 	if cfg.get("checkpoints") is float or cfg.get("checkpoints") is int:
@@ -571,6 +627,10 @@ func _on_session(cfg: Dictionary, seat: String) -> void:
 		var want := maxi(CAMERA_MODES.find(String(cfg["camera"])), 0)
 		if not set_camera_mode(want):
 			set_camera_mode(allowed_cameras[0])
+	# With the camera, eggs and rivals as this race will have them. Before the
+	# map exists, _setup_track does it.
+	if map.render_count > 0:
+		warm_up()
 
 
 func _on_race_event(ev: Dictionary) -> void:

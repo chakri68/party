@@ -93,6 +93,11 @@ export function privateState(state: BlindRallyState, playerId: string): BlindRal
       teamShape: teamColor(team.color).shape,
       vehicle: vehicleOf(state, team),
       ghosts: state.settings.stageMode === "shared",
+      // Field by field, the same three a ghost relay carries (race.ts ghostOf).
+      rivals:
+        state.settings.stageMode === "shared"
+          ? state.teams.filter((t) => t.id !== team.id && t.navigatorId).map((t) => ({ teamId: t.id, color: teamColor(t.color).hex, vehicle: vehicleOf(state, t) }))
+          : [],
       assists: effectiveAssists(state.settings),
     },
     run: {

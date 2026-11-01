@@ -65,6 +65,7 @@ var _buf := PackedFloat32Array()
 var _puffs_live := false
 
 var _mark_mm: MultiMesh
+var _mark_mmi: MultiMeshInstance3D
 var _mark_next := 0
 var _mark_last: Array = [null, null, null, null] # last contact per wheel, or null
 
@@ -149,9 +150,9 @@ func _build_marks() -> void:
 	_mark_mm.mesh = quad
 	_mark_mm.instance_count = MARKS
 	_mark_mm.visible_instance_count = 0
-	var mmi := _world_mmi("TyreMarks", _mark_mm)
+	_mark_mmi = _world_mmi("TyreMarks", _mark_mm)
 	# Marks live on the ground forever; the AABB must cover the whole stage.
-	mmi.custom_aabb = AABB(Vector3(-5000, -10, -5000), Vector3(10000, 20, 10000))
+	_mark_mmi.custom_aabb = AABB(Vector3(-5000, -10, -5000), Vector3(10000, 20, 10000))
 
 
 func _build_streaks() -> void:
@@ -185,6 +186,13 @@ func _world_mmi(n: String, mm: MultiMesh) -> MultiMeshInstance3D:
 	add_child(mmi)
 	mmi.global_transform = Transform3D.IDENTITY
 	return mmi
+
+
+## Dust, tyre marks and streaks: none is drawn until the car first kicks up
+## dust, slides or nears top speed, so each one's shader would compile then.
+## Warmup draws copies of these at load instead.
+func warm_sources() -> Array[MultiMeshInstance3D]:
+	return [_puff_mmi, _mark_mmi, _streak_mmi]
 
 
 ## After a teleport: don't draw a mark from the old spot to the new one.

@@ -8,8 +8,12 @@ extends Node
 ## playback can't run procedural generators. Pre-rendered loops play fine
 ## there and cost nothing per frame.
 ##
+## The loops are built by prepare(), which main.gd calls at load and again when
+## a session sets the class: synthesis is 60-110 ms of GDScript on the web, so
+## it belongs behind the loader or on the grid, not in the frame after GO.
 ## Nothing plays until start(), which main.gd calls on the first user gesture
-## (browsers block audio before one). Kept quiet on purpose (spec §10).
+## (browsers block audio before one); by then it's only play(). Kept quiet on
+## purpose (spec §10).
 
 const RATE := 22050
 const MAX_DB := -8.0
@@ -30,6 +34,7 @@ var muted := false:
 		muted = v
 		_apply_master()
 var started := false
+var built := false ## prepare() has made the players and their loops
 
 var _car: CarController
 var _engine: AudioStreamPlayer
@@ -51,19 +56,28 @@ func _ready() -> void:
 		_car.impact.connect(_on_impact)
 
 
-## Builds the sounds and starts the loops. Safe to call more than once; a
-## later call picks up a class change.
-func start() -> void:
-	if started:
+## Builds the players and their loops, silent. The first call makes all four;
+## a later one only re-makes the engine, and only if the class changed.
+func prepare() -> void:
+	if built:
 		rebuild()
 		return
-	started = true
+	built = true
 	_engine = _player("Engine", _make_engine(_audio()), true)
 	_built_for = _vehicle()
 	_gravel = _player("Gravel", _make_noise(1.2, 0.9, 0.0), true)
 	_skid = _player("Skid", _make_noise(0.8, 0.35, 900.0), true)
 	_thump = _player("Thump", _make_thump(), false)
 	_thump.max_polyphony = 2
+
+
+## Starts the loops (built already, unless nobody called prepare()). Safe to
+## call more than once; a later call picks up a class change.
+func start() -> void:
+	prepare()
+	if started:
+		return
+	started = true
 	for p in [_engine, _gravel, _skid]:
 		p.volume_db = -60.0
 		p.play()
@@ -73,7 +87,7 @@ func start() -> void:
 ## Re-makes the engine loop if the car changed class since it was built. The
 ## probe's class key can do that mid-drive, so _process checks too.
 func rebuild() -> void:
-	if not started or _built_for == _vehicle():
+	if not built or _built_for == _vehicle():
 		return
 	_built_for = _vehicle()
 	var playing := _engine.playing

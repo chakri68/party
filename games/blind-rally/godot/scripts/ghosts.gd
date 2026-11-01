@@ -147,15 +147,50 @@ func _place(gh: Ghost) -> void:
 	gh.tag.modulate.a = a
 
 
+## initSession `rivals` (the other cars on the grid: teamId, color,
+## vehicle): builds each one's mesh now, so the first relays at GO find
+## them in CarPaint's cache instead of costing 15-20 ms a car in one frame.
+## Our own team and malformed entries are skipped.
+func prebuild(rivals: Array) -> void:
+	if not enabled:
+		return
+	for r in rivals:
+		if not (r is Dictionary and r.get("color") is String and _num(r.get("teamId"))) or int(r["teamId"]) == own_team:
+			continue
+		_mesh_for(String(r["color"]), Vehicles.valid(String(r.get("vehicle", "hatch"))))
+
+
+## A ghost as the race draws one (same shader, same number label), not
+## tracked and not drawn by _process: Warmup shows it for a frame so its
+## shader is linked before the first real one. Painted as the first rival
+## if one's built, or a grey hatch.
+func warm_node(rival: Dictionary = {}) -> Node3D:
+	var gh := _build("Warm")
+	var hex := String(rival.get("color", "#888888"))
+	_paint(gh, hex, Vehicles.valid(String(rival.get("vehicle", "hatch"))))
+	gh.tag.text = "0" # an empty label draws nothing, so compiles nothing
+	gh.mat.set_shader_parameter("alpha", 0.0)
+	gh.tag.modulate.a = 0.004 # not 0: a fully clear label may be skipped
+	return gh.node
+
+
 func _spawn(team_id: int) -> Ghost:
-	var gh := Ghost.new()
-	gh.node = Node3D.new()
-	gh.node.name = "Ghost%d" % team_id
+	var gh := _build("Ghost%d" % team_id)
+	gh.tag.text = str(team_id)
 	add_child(gh.node)
-	gh.mat = ShaderMaterial.new()
-	gh.mat.shader = SHADER
 	if weather:
 		weather.register(gh.mat)
+	_ghosts[team_id] = gh
+	return gh
+
+
+## The node, material, body and number of one ghost, outside the tree.
+func _build(node_name: String) -> Ghost:
+	var gh := Ghost.new()
+	gh.node = Node3D.new()
+	gh.node.name = node_name
+	gh.mat = ShaderMaterial.new()
+	gh.mat.shader = SHADER
 	gh.body = MeshInstance3D.new()
 	gh.body.name = "Body"
 	gh.body.layers = LAYER
@@ -165,7 +200,6 @@ func _spawn(team_id: int) -> Ghost:
 	gh.tag = Label3D.new()
 	gh.tag.name = "Number"
 	gh.tag.layers = LAYER
-	gh.tag.text = str(team_id)
 	gh.tag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var src := car.get_node_or_null("Visual/Body/Roundel/Number") as Label3D
 	if src:
@@ -177,20 +211,24 @@ func _spawn(team_id: int) -> Ghost:
 		gh.font_size = src.font_size
 		_number_local = src.transform
 	gh.node.add_child(gh.tag)
-	_ghosts[team_id] = gh
 	return gh
 
 
 func _paint(gh: Ghost, hex: String, vehicle: String) -> void:
 	gh.color = hex
 	gh.vehicle = vehicle
-	var c := Color.from_string(hex, Color("888888"))
 	var shape := CarPaint.shape_for(hex)
-	gh.body.mesh = CarPaint.ghost_mesh(vehicle, c, shape)
+	gh.body.mesh = _mesh_for(hex, vehicle)
 	# The tag sits on this class's own roof plate, not on whatever car we drive.
 	var visual := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
 	gh.tag.transform = visual * (Vehicles.get_preset(vehicle)["model"]["roundel"] as Transform3D) * _number_local
 	gh.tag.font_size = 72 if CarPaint.SMALL_MIDDLE.has(shape) else gh.font_size
+
+
+## The one place a relay's colour and class become a mesh key, so prebuild
+## and _paint can't disagree about which mesh a rival gets.
+func _mesh_for(hex: String, vehicle: String) -> ArrayMesh:
+	return CarPaint.ghost_mesh(vehicle, Color.from_string(hex, Color("888888")), CarPaint.shape_for(hex))
 
 
 func _despawn(team_id: int) -> void:

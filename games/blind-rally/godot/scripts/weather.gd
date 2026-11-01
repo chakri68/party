@@ -223,6 +223,15 @@ func materials() -> Array[ShaderMaterial]:
 	return _mats
 
 
+## Mist and snowfall: both start with nothing to draw (no bank in view, a
+## dry stage), so Warmup draws their shaders once at load.
+func warm_sources() -> Array[MultiMeshInstance3D]:
+	var out: Array[MultiMeshInstance3D] = [_mist]
+	if _snow:
+		out.append(_snow)
+	return out
+
+
 func _apply_cloud(m: ShaderMaterial) -> void:
 	for k in _cloud:
 		m.set_shader_parameter(k, _cloud[k])

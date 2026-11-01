@@ -21,7 +21,7 @@ import "./navigator.css";
 //     trip meter and the pace notes are drawn here, in TS, from snapshots and
 //     the track data
 //   initSession from the navigator DTO (seed, clouds, camera, allowedCameras,
-//     teamNumber/teamColor/teamShape, ghosts), plus `room: true` (Godot leaves
+//     teamNumber/teamColor/teamShape, ghosts, rivals), plus `room: true` (Godot leaves
 //     recovery to the server and hides its debug HUD) and, for a reload
 //     mid-race, the checkpoints the server counted and what's left of a hold
 //   Godot's `fell` (out of the world, car parked) → race.reset with reason "fell"
@@ -104,8 +104,8 @@ class NavigatorView implements RoleView {
   /** What Godot has last been told, so each race event is sent once. */
   private frozen: boolean | null = null;
   private sessionSent = false;
-  /** The car Godot was last given. Rally's grid can change it after Godot has booted. */
-  private sentVehicle: string | null = null;
+  /** The cars (ours, then the rivals') Godot was last given. Rally's grid can change them after Godot has booted. */
+  private sentCars: string | null = null;
   private lastInput = 0;
   private liveSince = 0;
   private ticker: ReturnType<typeof setInterval>;
@@ -242,11 +242,13 @@ class NavigatorView implements RoleView {
     this.renderNotes(session);
     // Rally, on the grid: the car changed after Godot booted (an un-ready, a new pick and a ready
     // again, or the ballot's leader moving). The class isn't in the seat key, so Godot isn't
-    // rebooted; the session goes again and apply_preset re-dresses the car in place.
-    if (this.sessionSent && session && this.props!.game.phase === "teams" && session.vehicle !== this.sentVehicle) this.sessionSent = false;
+    // rebooted; the session goes again and apply_preset re-dresses the car in place. A rival
+    // joining or re-picking sends it too, so Godot builds that ghost on the grid, not at GO.
+    const cars = session && JSON.stringify([session.vehicle, session.rivals]);
+    if (this.sessionSent && session && this.props!.game.phase === "teams" && cars !== this.sentCars) this.sessionSent = false;
     if (this.sessionSent || !session || !this.bridge.isReady) return;
     this.sessionSent = true;
-    this.sentVehicle = session.vehicle;
+    this.sentCars = cars;
     const run = this.props!.private.role === "navigator" ? this.props!.private.run : null;
     this.bridge.init(
       {

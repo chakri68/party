@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as shared from "../shared/index.ts";
-import { COUNTDOWN_MS, type BlindRallyState } from "../shared/types.ts";
+import { COUNTDOWN_MS, teamColor, type BlindRallyState } from "../shared/types.ts";
 import { act, ctx, driveTo, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Spec §8.2: the Driver (and anyone looking at public state) never gets road
@@ -239,13 +239,35 @@ describe("projection: ghosts and Rally", () => {
     }
   });
 
-  it("the Navigator's session says ghosts only on a shared stage, and never names a rival", () => {
+  it("the Navigator's session says ghosts only on a shared stage, and names rivals by their paint alone", () => {
     const solo = game.getPrivateState(racing([["p0", "p1"], ["p2", "p3"]]), "p1");
     const shared = game.getPrivateState(racing([["p0", "p1"], ["p2", "p3"]], 4, { stageMode: "shared" }), "p1");
     expect(solo.role === "navigator" && solo.session.ghosts).toBe(false);
     expect(shared.role === "navigator" && shared.session.ghosts).toBe(true);
-    // Other teams' run state (checkpoints, pins, snapshots) isn't in it at all.
-    expect(JSON.stringify(shared)).not.toMatch(/"teamId":2|p2|p3/);
+    // Solo stage: no ghosts, so nobody to build one for.
+    expect(solo.role === "navigator" && solo.session.rivals).toEqual([]);
+    // Shared: the rival's car as a ghost relay would paint it, and nothing else.
+    expect(shared.role === "navigator" && shared.session.rivals).toEqual([{ teamId: 2, color: "#56b4e9", vehicle: "hatch" }]);
+    // Other teams' run state (checkpoints, pins, snapshots) and their players aren't in it at all.
+    expect(JSON.stringify(shared)).not.toMatch(/p2|p3/);
+  });
+
+  it("Rally: the session lists every other car's teamId, colour and class, never its own, never where", () => {
+    let s = newRally(4);
+    s = act(s, "p1", { type: "vehicle.pick", vehicleId: "truck" });
+    s = act(s, "p2", { type: "vehicle.pick", vehicleId: "tractor" });
+    for (const st of [s, rallying(4)]) {
+      const me = rallyGame.getPrivateState(st, "p0");
+      expect(me.role).toBe("navigator");
+      if (me.role !== "navigator") continue;
+      // The colour and class a ghost relay from that car would carry, so Godot's mesh cache hits.
+      const want = rallyGame.getPublicState(st).teams.filter((t) => t.id !== me.teamId).map((t) => ({ teamId: t.id, color: teamColor(t.color).hex, vehicle: t.vehicle }));
+      expect(me.session.rivals).toEqual(want);
+      expect(me.session.rivals.map((r) => r.teamId)).toEqual([2, 3, 4]);
+      expect(leaks(me.session.rivals)).toEqual([]);
+    }
+    const grid = rallyGame.getPrivateState(s, "p0");
+    expect(grid.role === "navigator" && grid.session.rivals.map((r) => r.vehicle)).toEqual(["truck", "tractor", "hatch"]);
   });
 
   /** A Rally race walked through: grid, ready, start, snaps, a reset, a gate, a drop, the end. Eight cars and a watcher. */
