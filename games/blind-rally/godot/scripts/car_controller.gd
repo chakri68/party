@@ -110,6 +110,31 @@ func apply_preset(id: String) -> void:
 	Vehicles.dress(self, vehicle)
 
 
+## What a wet road does to a surface, at wetness 1: {grip, loose} multipliers.
+## Linear in wetness. Ice is already as slick as it gets.
+const WET := {
+	"road": {"grip": 0.80, "loose": 1.15},
+	"offroad": {"grip": 0.75, "loose": 1.15},
+	"sand": {"grip": 0.75, "loose": 1.15},
+	"snow": {"grip": 0.90, "loose": 1.05},
+	"tarmac": {"grip": 0.95, "loose": 1.10},
+	"ice": {"grip": 1.0, "loose": 1.0},
+}
+
+## 0 dry, 1 soaked (SkyClock.wetness, pushed by main). Snowy: rain falls as
+## snow here, so every surface but ice takes the snow row.
+var wet := 0.0
+var snowy := false
+
+
+## Grip and looseness multipliers for `surface` at wetness `wet`. Wet 0 is
+## exactly {1, 1}, so a dry stage drives as it always did.
+static func wet_grip(surf: String, wetness: float, snow: bool) -> Dictionary:
+	var key := "snow" if (snow and surf != "ice") else surf
+	var row: Dictionary = WET.get(key, WET["offroad"])
+	return {"grip": lerpf(1.0, row.grip, wetness), "loose": lerpf(1.0, row.loose, wetness)}
+
+
 ## SURFACES row with this car's multipliers folded in.
 func _surface_row(name: String) -> Dictionary:
 	var row: Dictionary = SURFACES.get(name, SURFACES["offroad"]).duplicate()
@@ -150,6 +175,9 @@ func _physics_process(dt: float) -> void:
 	_read_input()
 	_read_surface()
 	var s: Dictionary = _surface_row(surface)
+	var wg := wet_grip(surface, wet, snowy)
+	s.grip *= wg.grip
+	s.loose *= wg.loose
 
 	var fwd := -global_basis.z
 	fwd = Vector3(fwd.x, 0, fwd.z).normalized()

@@ -62,6 +62,7 @@ func _run() -> void:
 	await test_drive_forward()
 	await preload("res://tests/interp_tests.gd").new(self).run()
 	await preload("res://tests/sky_tests.gd").new(self).run()
+	await preload("res://tests/rain_tests.gd").new(self).run()
 	await test_steer()
 	await test_brake_and_reverse()
 	await test_control_timeout()

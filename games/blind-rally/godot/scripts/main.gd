@@ -282,6 +282,8 @@ func _setup_track() -> void:
 	sky.light_changed.connect(weather.set_sky)
 	sky.light_changed.connect(_on_light)
 	sky.plan_changed.connect(_on_plan)
+	sky.rain_changed.connect(_on_rain)
+	car.snowy = biome.weather == "snow"
 	eggs = EasterEggs.new()
 	eggs.name = "EasterEggs"
 	add_child(eggs)
@@ -484,6 +486,11 @@ func _on_light(dark: float, tint: Color) -> void:
 func _on_plan() -> void:
 	_night = sky.static_night()
 	_apply_shadows()
+
+
+## The rain or the wet road moved (SkyClock.rain_changed): the car grips by wetness.
+func _on_rain(_rain: float, wet: float) -> void:
+	car.wet = wet
 
 
 const CAMERA_MODES := ["topdown", "chase", "bonnet"]
