@@ -22,6 +22,7 @@ func run() -> void:
 	await test_night_applied()
 	test_late_register()
 	test_shadows()
+	test_env_sunset()
 
 
 func check(ok: bool, what: String) -> void:
@@ -204,16 +205,44 @@ func test_late_register() -> void:
 
 
 func test_shadows() -> void:
-	print("sky: shadows")
+	print("sky: shadows, per plan")
 	var sun := main.track.get_node_or_null("Sun") as DirectionalLight3D
 	var was := sun.shadow_enabled
 	main.set_shadows(true)
 	_night()
-	check(not sun.shadow_enabled, "no sun shadows at night")
+	check(not sun.shadow_enabled, "a static night plan: no sun shadows")
 	_day()
-	check(sun.shadow_enabled, "back on at day")
+	check(sun.shadow_enabled, "day: back to what was wanted (on)")
+	main.sky.set_plan({"light": {"from": "day", "to": "night", "atMs": 0, "overMs": 10000}})
+	main.sky.set_clock(10000.0, false)
+	check(main.sky.darkness() == 1.0 and sun.shadow_enabled, "day into night: shadows stay on, even at darkness 1")
+	main.sky.set_clock(5000.0, false)
+	check(sun.shadow_enabled, "and all through the ramp")
+	_day()
 	main.set_shadows(false) # a phone
 	_night()
+	check(not sun.shadow_enabled, "a phone at night: off")
 	_day()
-	check(not sun.shadow_enabled, "a phone's shadows stay off through night and day")
+	check(not sun.shadow_enabled, "a phone's shadows stay off back at day")
 	main.set_shadows(was)
+
+
+## A sunset steps the eye-level sky and fog in ENV_STEP strides (each one
+## re-bakes the sky's radiance), and lands exactly on the night colours.
+func test_env_sunset() -> void:
+	print("sky: eye-level sky through a sunset")
+	_day()
+	var base: Color = main._eye_base.fog
+	var before: int = main.env_retints
+	main.sky.set_plan({"light": {"from": "day", "to": "night", "atMs": 0, "overMs": 60000}})
+	var ms := 0.0
+	while ms <= 60000.0:
+		main.sky.set_clock(ms, false)
+		ms += 100.0
+	var n: int = main.env_retints - before
+	var bound := ceili(1.0 / main.ENV_STEP) + 1 # darkness spans 1.0, the widest of its channels
+	check(n > 3 and n <= bound, "a minute of sunset re-tints the sky %d times (<= %d), not ~600" % [n, bound])
+	var fog: Color = main._eye_env.fog_light_color
+	check(fog.is_equal_approx(base * SkyClock.TINTS["night"]), "ends on base fog x the night tint exactly (%s)" % fog)
+	_day()
+	check(main._eye_env.fog_light_color.is_equal_approx(base), "and day puts the fog back")

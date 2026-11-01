@@ -104,8 +104,11 @@ var sky: SkyClock ## the run clock and the light plan
 var _eye_env: Environment ## the eye-level camera's, kept so the light can retint it
 var _eye_base := {} ## its day colours (sky and fog), what the tint multiplies
 var _shadows_want := true ## shadows as set (scene, phone, L); night overrides, day restores
-var _night := false ## darkness > NIGHT_SHADOWS
-const NIGHT_SHADOWS := 0.8 ## past this, no sun shadows: there's no sun to cast them
+var _night := false ## a static night plan: no sun shadows (SkyClock.static_night)
+const ENV_STEP := 0.02 ## the eye-level sky re-bakes its radiance on a colour change: ~1 Hz in a sunset, not every 0.002
+var _env_dark := -1.0 ## the light the eye-level sky and fog were last tinted for
+var _env_tint := Color(-1, -1, -1)
+var env_retints := 0 ## how many times they were (tests)
 var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
 ## In the room (initSession `room`): the server decides where the car goes.
@@ -266,6 +269,7 @@ func _setup_track() -> void:
 	weather.sky = sky
 	sky.light_changed.connect(weather.set_sky)
 	sky.light_changed.connect(_on_light)
+	sky.plan_changed.connect(_on_plan)
 	eggs = EasterEggs.new()
 	eggs.name = "EasterEggs"
 	add_child(eggs)
@@ -302,6 +306,7 @@ func _setup_track() -> void:
 		bridge.emit_physics_event({"kind": "pin", "clear": true} if at == null else {"kind": "pin", "x": snappedf(at.x, 0.1), "z": snappedf(at.y, 0.1)}))
 	_eye_env = _perspective_env()
 	cam.perspective_env = _eye_env
+	_on_plan()
 	sky.refresh(true)
 	cam.persp_far = biome.persp_far
 	# The map is one render of the baked forest; a camera switch that lands
@@ -420,21 +425,31 @@ func _perspective_env() -> Environment:
 
 ## The sky's light moved (SkyClock.light_changed; Weather gets the same call
 ## for the shaders). Here: the eye-level sky and fog take the tint, so the
-## treeline ring (fog colour times the tint) still matches the fog; and no
-## sun shadows at night. The Sun and the world Environment keep their scene
-## values, so the static map never changes.
+## treeline ring (fog colour times the tint) still matches the fog. Coarser
+## than the shaders (ENV_STEP), since each change re-bakes the sky's
+## radiance; still exact at the ramp's ends. The Sun and the world
+## Environment keep their scene values, so the static map never changes.
 func _on_light(dark: float, tint: Color) -> void:
-	if _eye_env and not _eye_base.is_empty():
-		var sm := _eye_env.sky.sky_material as ProceduralSkyMaterial
-		sm.sky_top_color = _eye_base.sky_top * tint
-		sm.sky_horizon_color = _eye_base.sky_horizon * tint
-		sm.ground_horizon_color = _eye_base.ground_horizon * tint
-		sm.ground_bottom_color = _eye_base.ground_bottom * tint
-		_eye_env.fog_light_color = _eye_base.fog * tint
-	var night := dark > NIGHT_SHADOWS
-	if night != _night:
-		_night = night
-		_apply_shadows()
+	if _eye_env == null or _eye_base.is_empty():
+		return
+	var m := SkyClock.moved(_env_dark, _env_tint, dark, tint)
+	if m <= ENV_STEP and not (sky.landed() and m > 0.0):
+		return
+	_env_dark = dark
+	_env_tint = tint
+	env_retints += 1
+	var sm := _eye_env.sky.sky_material as ProceduralSkyMaterial
+	sm.sky_top_color = _eye_base.sky_top * tint
+	sm.sky_horizon_color = _eye_base.sky_horizon * tint
+	sm.ground_horizon_color = _eye_base.ground_horizon * tint
+	sm.ground_bottom_color = _eye_base.ground_bottom * tint
+	_eye_env.fog_light_color = _eye_base.fog * tint
+
+
+## A new plan: shadows for its whole run, decided here and nowhere else.
+func _on_plan() -> void:
+	_night = sky.static_night()
+	_apply_shadows()
 
 
 const CAMERA_MODES := ["topdown", "chase", "bonnet"]

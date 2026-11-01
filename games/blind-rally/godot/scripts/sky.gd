@@ -18,6 +18,8 @@ signal changed
 ## or it landed on an end). Weather pushes these into the shaders, main into
 ## the eye-level sky and fog. A static sky emits it once, not every frame.
 signal light_changed(dark: float, tint: Color)
+## set_plan ran: what's decided once per plan (sun shadows) is decided now.
+signal plan_changed
 
 const DARK := {"day": 0.0, "dawn": 0.35, "dusk": 0.35, "night": 1.0}
 ## Multiplied into every world colour at eye level (never the map). Day is
@@ -46,7 +48,28 @@ func set_plan(p: Dictionary) -> void:
 		plan = {"from": "day", "to": "day", "atMs": 0.0, "overMs": 0.0}
 	else:
 		plan = {"from": l["from"], "to": l["to"], "atMs": float(l["atMs"]), "overMs": float(l["overMs"])}
+	plan_changed.emit()
 	refresh()
+
+
+## Night start to finish: the only plan with no sun shadows. Decided per
+## plan, never mid-race: a shadow switch swaps every lit material's shader
+## variant in one frame. A day-into-night run keeps them; at night they're
+## multiplied down with everything else anyway.
+func static_night() -> bool:
+	return plan.from == "night" and plan.to == "night"
+
+
+## At an end of the ramp (k 0 or 1): values here are exact table rows.
+func landed() -> bool:
+	var k: float = light_at(clock * 1000.0).k
+	return k == 0.0 or k == 1.0
+
+
+## How far the light moved between two (darkness, tint) pairs: the largest
+## change in darkness or any tint channel.
+static func moved(d0: float, c0: Color, d1: float, c1: Color) -> float:
+	return maxf(absf(d1 - d0), maxf(absf(c1.r - c0.r), maxf(absf(c1.g - c0.g), absf(c1.b - c0.b))))
 
 
 func set_clock(ms: float, run: bool) -> void:
@@ -87,14 +110,13 @@ func _along(table: Dictionary) -> Variant:
 
 
 ## Emits light_changed if the light moved by more than PUSH_EPS since the
-## last one (or reached an end exactly, so a ramp can't stop at 0.999), or
+## last one (or landed on an end, so a ramp can't stop at 0.999), or
 ## always with `force`. Cheap: two lerps and a compare.
 func refresh(force := false) -> void:
 	var d := darkness()
 	var c := tint()
-	var moved := maxf(absf(d - _sent_dark), maxf(absf(c.r - _sent_tint.r), maxf(absf(c.g - _sent_tint.g), absf(c.b - _sent_tint.b))))
-	var at_end := (d == 0.0 or d == 1.0) and moved > 0.0
-	if not force and moved <= PUSH_EPS and not at_end:
+	var m := moved(_sent_dark, _sent_tint, d, c)
+	if not force and m <= PUSH_EPS and not (landed() and m > 0.0):
 		return
 	_sent_dark = d
 	_sent_tint = c
