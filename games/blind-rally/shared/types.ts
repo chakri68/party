@@ -3,7 +3,7 @@
 // notes; those live in data/tracks.json, which only server/ and the lazily
 // loaded navigator chunk may read.
 
-import type { TimeSetting } from "./sky.ts";
+import type { SkyPlan, TimeSetting } from "./sky.ts";
 import type { VehicleId } from "./vehicles.ts";
 
 // ---------------------------------------------------------------------------
@@ -366,6 +366,8 @@ export interface PublicTrack {
 }
 
 export interface BlindRallyPublicState {
+  /** The light, in a sentence, for the lobby's rules card. */
+  skyWords: string;
   phase: Phase;
   mode: Mode;
   stageMode: StageMode;
@@ -393,6 +395,8 @@ export interface BlindRallyPublicState {
 
 /** What Godot's initSession gets, besides the seat token. */
 export interface NavigatorSession {
+  /** When the light changes in this run (server decides, Godot draws). */
+  sky: SkyPlan;
   trackId: string;
   seed: number;
   clouds: number;

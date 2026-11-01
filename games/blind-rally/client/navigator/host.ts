@@ -2,7 +2,7 @@ import { audio } from "@games/audio";
 import { h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
 import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
-import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
+import { awayBanner, teamBadge, runClock, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { GodotBridge, type GodotPhysicsEvent, type GodotSnapshot } from "./bridge.ts";
 import { StageLoader } from "./loader.ts";
 import { navigatorTrack } from "./track.ts";
@@ -103,6 +103,8 @@ class NavigatorView implements RoleView {
 
   /** What Godot has last been told, so each race event is sent once. */
   private frozen: boolean | null = null;
+  /** Last `running` told to Godot's run clock; null means say it again. */
+  private clockRunning: boolean | null = null;
   private sessionSent = false;
   /** The cars (ours, then the rivals') Godot was last given. Rally's grid can change them after Godot has booted. */
   private sentCars: string | null = null;
@@ -270,6 +272,7 @@ class NavigatorView implements RoleView {
       this.props!.playerId,
     );
     this.frozen = null; // initSession may have reset the car; say it again
+    this.clockRunning = null;
     this.tick();
   }
 
@@ -396,6 +399,14 @@ class NavigatorView implements RoleView {
     if (this.bridge.isReady && this.sessionSent && this.frozen !== !move) {
       this.frozen = !move;
       this.bridge.event({ kind: move ? "go" : "freeze" });
+    }
+    // The sky's clock is its own event: it runs through a reset hold, which freezes the car.
+    if (this.bridge.isReady && this.sessionSent) {
+      const run = runClock(g, this.myTeam(), now);
+      if (run.running !== this.clockRunning) {
+        this.clockRunning = run.running;
+        this.bridge.event({ kind: "clock", ms: run.ms, running: run.running });
+      }
     }
     this.addon?.tick(move);
 

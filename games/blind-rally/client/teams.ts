@@ -181,7 +181,7 @@ export class TeamsScreen {
         "section",
         { class: "br-rules", "aria-label": "Rules for this race" },
         h("h3", {}, editable ? "This race" : "Rules"),
-        h("dl", {}, rulesPreview(room.settings, { name: trackName(game.tracks, game.trackId), tie: coinFlipped(game) }).flatMap((r) => [h("dt", {}, r.label), h("dd", {}, r.value)])),
+        h("dl", {}, rulesPreview(room.settings, { name: trackName(game.tracks, game.trackId), tie: coinFlipped(game), sky: game.skyWords }).flatMap((r) => [h("dt", {}, r.label), h("dd", {}, r.value)])),
       ),
       spares.length
         ? h("div", { class: "br-spares" }, h("h3", {}, editable ? "Not in a car" : "Watching"), h("div", { class: "br-spare-list" }, spares.map((p) => person(p.id))))

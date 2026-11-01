@@ -53,3 +53,18 @@ describe("rooms saved before the Time setting", () => {
     });
   }
 });
+
+describe("Light row in the previews", () => {
+  const track = { name: "Pine Panic", tie: false, sky: "Night." };
+  it("follows the Mist row when the track line has a sky, and is absent without", async () => {
+    const { rulesPreview } = await import("../shared/rules-text.ts");
+    const { rallyPreview } = await import("../shared/rally.ts");
+    for (const preview of [rulesPreview, rallyPreview]) {
+      const rows = preview({ time: "night" }, track);
+      const i = rows.findIndex((r) => r.label === "Mist");
+      expect(rows[i + 1]).toEqual({ label: "Light", value: "Night." });
+      expect(preview({ time: "night" }, { name: "Pine Panic", tie: false }).some((r) => r.label === "Light")).toBe(false);
+      expect(preview({}).some((r) => r.label === "Light")).toBe(false);
+    }
+  });
+});

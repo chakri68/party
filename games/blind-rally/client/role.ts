@@ -42,6 +42,18 @@ export function teamClock(game: BlindRallyPublicState, team: PublicTeam | undefi
   return Math.max(0, raceElapsed(game, now) - team.pausedMs - pausing) + team.penaltyMs;
 }
 
+/**
+ * The clock the sky runs on: the team's time without penalties, and running
+ * only while the car is. A reset hold doesn't stop it (nothing public says
+ * one is on), and the sky shouldn't wait for it either.
+ */
+export function runClock(game: BlindRallyPublicState, team: PublicTeam | undefined, now: number): { ms: number; running: boolean } {
+  if (!team) return { ms: 0, running: false };
+  const ms = Math.max(0, teamClock(game, team, now) - team.penaltyMs);
+  const running = game.startsAt !== null && now >= game.startsAt && team.status === "running" && team.pausedSince === null && game.endedAt === null;
+  return { ms, running };
+}
+
 /** "Sam dropped out: 23 s to get back. Clock stopped." for whichever teammate's gone, or null. */
 export function awayBanner(team: PublicTeam | undefined, nameOf: (role: "driver" | "navigator") => string, now: number): string | null {
   if (!team || !team.away.length || team.status !== "running") return null;

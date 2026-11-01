@@ -97,6 +97,8 @@ const onOff = (a: Assists) => ASSIST_KEYS.map((k) => `${a[k] ? "" : "no "}${lowe
 export interface TrackLine {
   name: string;
   tie: boolean;
+  /** The light for this run, in words. */
+  sky?: string;
 }
 
 /**
@@ -122,6 +124,7 @@ export function rulesPreview(raw: unknown, track?: TrackLine): { label: string; 
     { label: "Assists", value: `${PRESET_LABELS[s.assists]}: ${onOff(a)}` },
     { label: "Navigator camera", value: !a.camera3d ? "None, only the map" : s.camera === "free" ? "Any of the 3" : `${CAMERA_LABELS[s.camera]} only` },
     { label: "Mist", value: WEATHER_LABELS[s.weather] },
+    ...(track?.sky ? [{ label: "Light", value: track.sky }] : []),
     { label: "Reset", value: `+${RESET_PENALTY_MS / 1000} s. The car goes back to the last checkpoint.` },
     { label: "Lost connection", value: `The clock stops. You get ${RACE_GRACE_MS / 1000} s to connect again.` },
   ];

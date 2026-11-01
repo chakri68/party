@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { trackData } from "../server/geometry.ts";
+import { skyPlan, skyWords } from "../shared/sky.ts";
 import * as shared from "../shared/index.ts";
 import { COUNTDOWN_MS, teamColor, type BlindRallyState } from "../shared/types.ts";
 import { act, ctx, driveTo, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, snapAt, SPAWN, TRACK } from "./helpers.ts";
@@ -237,6 +239,17 @@ describe("projection: ghosts and Rally", () => {
     for (const [i, s] of shared.entries()) {
       for (const id of ["p0", "p2"]) expect(game.getPrivateState(s, id), `${s.phase} ${id}`).toEqual(game.getPrivateState(solo[i]!, id));
     }
+  });
+
+  it("the Navigator's session carries the sky plan, and the lobby gets its words", () => {
+    for (const time of ["night", "random"] as const) {
+      const s = racing([["p0", "p1"]], 2, { time });
+      const me = game.getPrivateState(s, "p1");
+      const plan = skyPlan(time, s.seed, trackData(s.trackId));
+      expect(me.role === "navigator" && me.session.sky).toEqual(plan);
+      expect(game.getPublicState(s).skyWords).toBe(skyWords(plan));
+    }
+    expect(game.getPublicState(racing([["p0", "p1"]], 2, { time: "night" })).skyWords).toBe("Night.");
   });
 
   it("the Navigator's session says ghosts only on a shared stage, and names rivals by their paint alone", () => {
