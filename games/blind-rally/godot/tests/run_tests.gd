@@ -33,6 +33,7 @@ func _run() -> void:
 	await preload("res://tests/warmup_tests.gd").new(self).run()
 	await test_drive_forward()
 	await preload("res://tests/interp_tests.gd").new(self).run()
+	await preload("res://tests/sky_tests.gd").new(self).run()
 	await test_steer()
 	await test_brake_and_reverse()
 	await test_control_timeout()
@@ -628,6 +629,9 @@ func test_cloud_shadow() -> void:
 			all_on = all_on and float(m.get_shader_parameter("cloud_strength")) > 0.2 and float(m.get_shader_parameter("cloud_coverage")) > 0.3
 		check(all_on, "%s: cloud shade on in all %d materials" % [main.CAMERA_MODES[mode], w.materials().size()])
 	var o0: Vector2 = main.PALETTE.get_shader_parameter("cloud_offset")
+	# The sky moves with the run clock, which runs on wall time: headless
+	# frames are too quick to move it, so the host's next snapshot does.
+	main.sky.set_clock(w.time * 1000.0 + 2000.0, false)
 	for f in 30:
 		await physics_frame
 	await process_frame

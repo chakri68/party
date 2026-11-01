@@ -100,6 +100,7 @@ var recoveries := 0 ## resets so far, for tests and the autopilot's report card
 var race_time := 0.0 ## physics seconds since spawn, until the finish
 var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pick
 var eye_forest: EyeForest ## built the first time a perspective camera is used
+var sky: SkyClock ## the run clock and the light plan
 var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
 ## In the room (initSession `room`): the server decides where the car goes.
@@ -254,6 +255,10 @@ func _setup_track() -> void:
 	# Locally there's no session yet: a random sky, light cloud. initSession
 	# replaces both.
 	weather.configure(randi(), 0.4)
+	sky = SkyClock.new()
+	sky.name = "SkyClock"
+	add_child(sky)
+	weather.sky = sky
 	eggs = EasterEggs.new()
 	eggs.name = "EasterEggs"
 	add_child(eggs)
@@ -372,12 +377,12 @@ func _perspective_env() -> Environment:
 	sky_mat.ground_horizon_color = biome.fog
 	sky_mat.ground_bottom_color = biome.fog.darkened(0.3)
 	sky_mat.sun_angle_max = 20.0
-	var sky := Sky.new()
-	sky.sky_material = sky_mat
-	sky.radiance_size = Sky.RADIANCE_SIZE_32
-	sky.process_mode = Sky.PROCESS_MODE_QUALITY # static sky: radiance once, not per frame
+	var sky_res := Sky.new()
+	sky_res.sky_material = sky_mat
+	sky_res.radiance_size = Sky.RADIANCE_SIZE_32
+	sky_res.process_mode = Sky.PROCESS_MODE_QUALITY # static sky: radiance once, not per frame
 	env.background_mode = Environment.BG_SKY
-	env.sky = sky
+	env.sky = sky_res
 	# Lighting stays colour-ambient as before; the sky is only a backdrop.
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
@@ -664,6 +669,8 @@ func _apply_session(cfg: Dictionary, seat: String) -> void:
 	# Weather: the room picks the seed so every team gets the same sky.
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
+	sky.set_plan(cfg["sky"] if cfg.get("sky") is Dictionary else {})
+	sky.set_clock(0.0, false)
 	# Same seed, same surprises. `eggs` is a debug override for tools and
 	# tests ({"deer": true} or {"all": false}), like autopilot.
 	eggs.force = cfg["eggs"] if cfg.get("eggs") is Dictionary else {}
@@ -693,6 +700,7 @@ func _on_race_event(ev: Dictionary) -> void:
 		"assists": _apply_assists(ev)
 		"pins": map.restore_pins(ev)
 		"autopilot": set_autopilot(bool(ev.get("on", false))) # debug, the probe's auto-drive
+		"clock": sky.set_clock(float(ev.get("ms", 0.0)), bool(ev.get("running", false)))
 		"weather": weather.configure(int(ev.get("seed", weather.seed_value)), float(ev.get("clouds", weather.clouds)))
 
 

@@ -67,7 +67,15 @@ const FLAKE_WIND := 0.45 ## share of the bank wind the flakes drift with (they'r
 
 @export var clouds := 0.0 ## 0 = clear, 1 = heavy
 var seed_value := 0
-var time := 0.0 ## seconds of race clock; Weather advances it in physics time
+var sky: SkyClock ## the run clock, once a session attaches one
+var _own_time := 0.0 ## the clock without a sky (tests, local runs): physics time
+## Seconds of race clock: the sky's when attached, else Weather's own counter.
+var time: float:
+	get: return sky.clock if sky else _own_time
+	set(v):
+		_own_time = v
+		if sky:
+			sky.clock = v
 
 var car: Node3D
 ## Chase and bonnet: mist goes to the shaders as ground-hugging banks and the
@@ -249,7 +257,8 @@ func _apply_mist(m: ShaderMaterial) -> void:
 
 
 func _physics_process(dt: float) -> void:
-	time += dt
+	if not sky:
+		_own_time += dt
 
 
 func _process(_dt: float) -> void:
