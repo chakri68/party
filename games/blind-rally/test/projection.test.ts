@@ -245,9 +245,9 @@ describe("projection: ghosts and Rally", () => {
     for (const time of ["night", "random"] as const) {
       const s = racing([["p0", "p1"]], 2, { time });
       const me = game.getPrivateState(s, "p1");
-      const plan = skyPlan(time, s.seed, trackData(s.trackId));
+      const plan = skyPlan(time, "dry", s.seed, trackData(s.trackId));
       expect(me.role === "navigator" && me.session.sky).toEqual(plan);
-      expect(game.getPublicState(s).skyWords).toBe(skyWords(plan));
+      expect(game.getPublicState(s).skyWords).toBe(skyWords(plan, s.trackId));
     }
     expect(game.getPublicState(racing([["p0", "p1"]], 2, { time: "night" })).skyWords).toBe("Night.");
   });

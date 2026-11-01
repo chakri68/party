@@ -44,6 +44,6 @@ describe("sessionKey", () => {
     expect(sessionKey({ ...session })).toBe(key);
     expect(sessionKey({ ...session, vehicle: VEHICLE_IDS.find((v) => v !== session.vehicle)! })).not.toBe(key);
     expect(sessionKey({ ...session, rivals: [{ teamId: 9, color: "#fff", vehicle: session.vehicle }] })).not.toBe(key);
-    expect(sessionKey({ ...session, sky: skyPlan("night", session.seed, { length: 2000, par_seconds: null }) })).not.toBe(sessionKey({ ...session, sky: skyPlan("day", session.seed, { length: 2000, par_seconds: null }) }));
+    expect(sessionKey({ ...session, sky: skyPlan("night", "dry", session.seed, { length: 2000, par_seconds: null }) })).not.toBe(sessionKey({ ...session, sky: skyPlan("day", "dry", session.seed, { length: 2000, par_seconds: null }) }));
   });
 });

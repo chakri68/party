@@ -1,10 +1,19 @@
 {
   "cases": [
-    { "plan": { "light": { "from": "night", "to": "night", "atMs": 0, "overMs": 0 } }, "ms": 0, "k": 1 },
-    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 0, "k": 0 },
-    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 28000, "k": 0 },
-    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 56000, "k": 0.5 },
-    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 84000, "k": 1 },
-    { "plan": { "light": { "from": "day", "to": "night", "atMs": 28000, "overMs": 56000 } }, "ms": 500000, "k": 1 }
+    {"plan": {"light": {"from": "night", "to": "night", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 0, "k": 1},
+    {"plan": {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 0, "k": 0},
+    {"plan": {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 28000, "k": 0},
+    {"plan": {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 56000, "k": 0.5},
+    {"plan": {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 84000, "k": 1},
+    {"plan": {"light": {"from": "day", "to": "night", "atMs": 28000, "overMs": 56000}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 500000, "k": 1},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 1, "atMs": 40000, "overMs": 30000}}, "ms": 0, "k": 1, "rain": 0, "wet": 0},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 1, "atMs": 40000, "overMs": 30000}}, "ms": 55000, "k": 1, "rain": 0.5, "wet": 0.3},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 1, "atMs": 40000, "overMs": 30000}}, "ms": 70000, "k": 1, "rain": 1, "wet": 0.6},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 1, "atMs": 40000, "overMs": 30000}}, "ms": 90000, "k": 1, "rain": 1, "wet": 1},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 1, "to": 0, "atMs": 40000, "overMs": 20000}}, "ms": 50000, "k": 1, "rain": 0.5, "wet": 0.8333},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 1, "to": 0, "atMs": 40000, "overMs": 20000}}, "ms": 60000, "k": 1, "rain": 0, "wet": 0.6667},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 1, "to": 0, "atMs": 40000, "overMs": 20000}}, "ms": 100000, "k": 1, "rain": 0, "wet": 0},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 1, "to": 1, "atMs": 0, "overMs": 0}}, "ms": 0, "k": 1, "rain": 1, "wet": 1},
+    {"plan": {"light": {"from": "day", "to": "day", "atMs": 0, "overMs": 0}, "rain": {"from": 0, "to": 0, "atMs": 0, "overMs": 0}}, "ms": 0, "k": 1, "rain": 0, "wet": 0}
   ]
 }
