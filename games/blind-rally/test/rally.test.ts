@@ -3,7 +3,7 @@ import { GHOST_EVERY_MS } from "../server/race.ts";
 import { parseSettings } from "../shared/rules-text.ts";
 import { DEFAULT_VEHICLE, isVehicleId, VEHICLE_IDS, VEHICLES } from "../shared/vehicles.ts";
 import { parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
-import { COUNTDOWN_MS, MAX_TEAMS, RESET_PENALTY_MS, type BlindRallyState } from "../shared/types.ts";
+import { COUNTDOWN_MS, MAX_TEAMS, RALLY_MAX_CARS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyState } from "../shared/types.ts";
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
 import { vehicleCards } from "../client/rally/vehicle-picker.ts";
 import { parseAction } from "../server/parse.ts";
@@ -26,14 +26,33 @@ describe("one-person teams", () => {
     expect(s.teams.map((t) => t.color)).toEqual(["orange", "sky", "green"]);
   });
 
-  it("past MAX_TEAMS the rest watch, and take the next car that frees up", () => {
-    let s = newRally(6);
-    expect(s.teams).toHaveLength(MAX_TEAMS);
-    expect(s.teams.map((t) => t.driverId)).toEqual(["p0", "p1", "p2", "p3"]);
+  it("past RALLY_MAX_CARS the rest watch, and take the next car that frees up", () => {
+    let s = newRally(10);
+    expect(s.teams).toHaveLength(RALLY_MAX_CARS);
+    expect(s.teams.map((t) => t.driverId)).toEqual(["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"]);
     s = rallyGame.onPlayerRemoved!(s, "p1", ctx()).state;
-    // Car 2 is p4's now, colour and number kept: nobody else's plate moved.
-    expect(seats(s)[1]).toEqual([2, "p4", "p4"]);
+    // Car 2 is p8's now, colour and number kept: nobody else's plate moved.
+    expect(seats(s)[1]).toEqual([2, "p8", "p8"]);
     expect(s.teams[1]!.color).toBe("sky");
+  });
+
+  it("eight players take eight cars, each in its own colour", () => {
+    const s = newRally(8);
+    expect(s.teams).toHaveLength(8);
+    expect(s.teams.map((t) => t.color)).toEqual(TEAM_COLORS.map((c) => c.key));
+    expect(new Set(s.teams.map((t) => t.color)).size).toBe(8);
+  });
+
+  it("ten players: eight cars and two watchers", () => {
+    const s = newRally(10);
+    expect(s.teams).toHaveLength(8);
+    expect(s.teams.some((t) => t.driverId === "p8" || t.driverId === "p9")).toBe(false);
+    expect(rallyGame.getPrivateState(s, "p9").role).toBeNull();
+  });
+
+  it("the cap is one car per team colour", () => {
+    expect(RALLY_MAX_CARS).toBe(TEAM_COLORS.length);
+    expect(MAX_TEAMS).toBe(4);
   });
 
   it("someone turning up before the start gets a car; after it, they watch", () => {
@@ -61,11 +80,11 @@ describe("one-person teams", () => {
   });
 
   it("the start waits for everyone in a car, not for the watchers", () => {
-    let s = newRally(5);
-    expect(s.teams.length).toBe(4);
-    for (const id of ["p0", "p1", "p2"]) s = act(s, id, { type: "player.ready", ready: true });
+    let s = newRally(9);
+    expect(s.teams.length).toBe(8);
+    for (const id of ["p0", "p1", "p2", "p3", "p4", "p5", "p6"]) s = act(s, id, { type: "player.ready", ready: true });
     expect(game.getPublicState(s).startBlocker).toBe("Waiting for 1 player to get ready.");
-    s = act(s, "p3", { type: "player.ready", ready: true });
+    s = act(s, "p7", { type: "player.ready", ready: true });
     expect(game.getPublicState(s).startBlocker).toBeNull();
   });
 
@@ -104,11 +123,11 @@ describe("Rally settings", () => {
 
   it("show only what the host can change", () => {
     expect(rallySettingFields({}, 3).map((f) => f.key)).toEqual(["trackPick", "vehiclePick", "timeLimit", "camera", "weather"]);
-    expect(rallySettingFields({}, 6).find((f) => f.key === "timeLimit")!.hint).toBe("4 cars race, 2 watch");
+    expect(rallySettingFields({}, 10).find((f) => f.key === "timeLimit")!.hint).toBe("8 cars race, 2 watch");
   });
 
-  it("are their own lobby entry, one to eight", () => {
-    expect(rallyManifest).toMatchObject({ id: "rally", name: "Rally", minPlayers: 1, maxPlayers: 8, lateJoin: true });
+  it("are their own lobby entry, one to twelve", () => {
+    expect(rallyManifest).toMatchObject({ id: "rally", name: "Rally", minPlayers: 1, maxPlayers: 12, lateJoin: true });
     expect(rallyGame.manifest).toBe(rallyManifest);
     expect(rallyGame.parseSettings).toBe(parseRallySettings);
   });
@@ -213,9 +232,9 @@ describe("Rally results", () => {
   });
 
   it("watchers are listed as watching", () => {
-    const s = rallyGame.onTimer!(rallying(5), "time-up", ctx(Number.MAX_SAFE_INTEGER)).state;
+    const s = rallyGame.onTimer!(rallying(9), "time-up", ctx(Number.MAX_SAFE_INTEGER)).state;
     const r = rallyGame.getResult(s)!;
-    expect(r.standings.filter((x) => x.label === "Watched").map((x) => x.playerId)).toEqual(["p4"]);
+    expect(r.standings.filter((x) => x.label === "Watched").map((x) => x.playerId)).toEqual(["p8"]);
   });
 });
 
@@ -356,9 +375,9 @@ describe("vehicle classes: rules", () => {
     const started = rallying(2);
     refused(started, "p0", { type: "vehicle.pick", vehicleId: "truck" }, "wrong-phase", ctx(GO));
     refused(started, "p0", { type: "vehicle.vote", vehicleId: "truck" }, "wrong-phase", ctx(GO));
-    const watcher = newRally(5);
-    refused(watcher, "p4", { type: "vehicle.pick", vehicleId: "truck" }, "not-seated");
-    refused(newRally(5, { vehiclePick: "ballot" }), "p4", { type: "vehicle.vote", vehicleId: "truck" }, "not-seated");
+    const watcher = newRally(9);
+    refused(watcher, "p8", { type: "vehicle.pick", vehicleId: "truck" }, "not-seated");
+    refused(newRally(9, { vehiclePick: "ballot" }), "p8", { type: "vehicle.vote", vehicleId: "truck" }, "not-seated");
     refused(newGame(4), "p0", { type: "vehicle.pick", vehicleId: "truck" }, "rally-only");
     refused(newGame(4), "p0", { type: "vehicle.vote", vehicleId: "truck" }, "rally-only");
     expect(parseAction({ type: "vehicle.pick", vehicleId: "bus" })).toBeNull();
@@ -418,9 +437,9 @@ describe("vehicle classes: rules", () => {
   });
 
   it("a spare taking a freed car gets a hatchback, not the last driver's pick", () => {
-    let s = pick(newRally(5), "p1", "truck");
+    let s = pick(newRally(9), "p1", "truck");
     s = rallyGame.onPlayerRemoved!(s, "p1", ctx()).state;
-    expect(seats(s)[1]).toEqual([2, "p4", "p4"]);
+    expect(seats(s)[1]).toEqual([2, "p8", "p8"]);
     expect(s.teams[1]!.vehicle).toBe("hatch");
   });
 

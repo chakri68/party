@@ -31,6 +31,7 @@ func run() -> void:
 	await test_r_asks()
 	await test_ghost_feed()
 	await test_rematch_session()
+	await test_eight_cars()
 	main.bridge.physics_event.disconnect(_on_event)
 	car.keyboard_enabled = false
 	map.restore_pins({})
@@ -157,6 +158,28 @@ func test_rematch_session() -> void:
 
 func track_gates() -> int:
 	return main.track.get_checkpoints().size()
+
+
+## Eight cars: every colour maps to its own shape, every shape has a plate,
+## and a rival in car 5..8 gets a ghost like any other.
+func test_eight_cars() -> void:
+	print("rally: eight cars")
+	var hexes := ["#e69f00", "#56b4e9", "#009e73", "#cc79a7", "#f0e442", "#0072b2", "#d55e00", "#e8e6e1"]
+	var shapes := ["circle", "square", "triangle", "diamond", "pentagon", "hexagon", "star", "cross"]
+	for i in 8:
+		check(CarPaint.shape_for(hexes[i]) == shapes[i], "%s is a %s" % [hexes[i], shapes[i]])
+		check(CarPaint.valid_shape(shapes[i]) == shapes[i], "%s is a known shape" % shapes[i])
+		var m := CarPaint.plate_mesh(shapes[i])
+		check(m != null and m.get_surface_count() > 0 and m.get_aabb().size.x > 0.3 and m.get_aabb().size.z > 0.3, "%s plate has a mesh" % shapes[i])
+	await _start()
+	var g: GhostCars = main.ghosts
+	g.clear()
+	var o := car.global_position + Vector3(0, 0, -20)
+	for id in [5, 6, 7, 8]:
+		g.receive(id, {"t": "ghost", "teamId": id, "color": hexes[id - 1], "tick": 1, "position": [o.x, o.y, o.z], "heading": 0.0, "speed": 10.0})
+		check(g.ghost_node(id) != null, "a ghost spawns for car %d" % id)
+	check(g.count() == 4, "four more rivals, four ghosts")
+	g.clear()
 
 
 ## Shared stage: ghosts still arrive and draw while this device drives.

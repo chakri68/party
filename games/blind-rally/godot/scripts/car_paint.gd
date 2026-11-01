@@ -24,9 +24,12 @@ const EXPOSURE := 0.78
 ## Keep in step with that list; an unknown colour gets a circle.
 const SHAPE_BY_COLOR := {
 	"e69f00": "circle", "56b4e9": "square", "009e73": "triangle", "cc79a7": "diamond",
+	"f0e442": "pentagon", "0072b2": "hexagon", "d55e00": "star", "e8e6e1": "cross",
 }
-const SHAPES := ["circle", "square", "triangle", "diamond"]
+const SHAPES := ["circle", "square", "triangle", "diamond", "pentagon", "hexagon", "star", "cross"]
 const PLATE_RADIUS := 0.42
+## Shapes whose middle (where the number sits) is smaller than a circle's.
+const SMALL_MIDDLE := ["triangle", "star", "cross"]
 const PLATE_WHITE := Color(0.96, 0.96, 0.94)
 
 static var _painted := {} ## "<mesh id>:<html>" -> ArrayMesh
@@ -49,8 +52,8 @@ static func apply(car: Node3D, color: Color, number: int, shape: String) -> void
 	var label := car.get_node_or_null("Visual/Body/Roundel/Number") as Label3D
 	if label:
 		label.text = str(number)
-		# A triangle's middle is smaller than a circle's.
-		label.font_size = 72 if shape == "triangle" else 96
+		# A triangle's, star's or cross's middle is smaller than a circle's.
+		label.font_size = 72 if shape in SMALL_MIDDLE else 96
 
 
 static func shape_for(color_hex: String) -> String:
@@ -113,6 +116,23 @@ static func plate_mesh(shape: String) -> Mesh:
 			pts = PackedVector2Array([Vector2(0, 0.56), Vector2(0.5, -0.32), Vector2(-0.5, -0.32)])
 		"diamond":
 			pts = PackedVector2Array([Vector2(0, 0.52), Vector2(0.38, 0), Vector2(0, -0.52), Vector2(-0.38, 0)])
+		# The new four are sized to about the circle's area (0.55 m2), point forward.
+		"pentagon":
+			pts = _polygon(5, 0.48)
+		"hexagon":
+			pts = _polygon(6, 0.46)
+		"star":
+			# Ten points, outer and inner in turn.
+			for i in 10:
+				var a := PI / 2.0 + TAU * i / 10.0
+				pts.append(Vector2(cos(a), sin(a)) * (0.6 if i % 2 == 0 else 0.26))
+		"cross":
+			# Arms 0.34 wide, 1.0 long, stepping round clockwise from the front arm.
+			var w := 0.17
+			var l := 0.5
+			pts = PackedVector2Array([
+				Vector2(-w, l), Vector2(w, l), Vector2(w, w), Vector2(l, w), Vector2(l, -w), Vector2(w, -w),
+				Vector2(w, -l), Vector2(-w, -l), Vector2(-w, -w), Vector2(-l, -w), Vector2(-l, w), Vector2(-w, w)])
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = PLATE_WHITE
 	mat.roughness = 0.7
@@ -129,6 +149,15 @@ static func plate_mesh(shape: String) -> Mesh:
 	var out := st.commit()
 	_plates[shape] = out
 	return out
+
+
+## A regular polygon with a point at the front, `r` to its corners.
+static func _polygon(sides: int, r: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in sides:
+		var a := PI / 2.0 + TAU * i / sides
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	return pts
 
 
 ## One mesh for a whole ghost car: body (repainted), four wheels and the roof

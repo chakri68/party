@@ -1,12 +1,12 @@
 # Rally
 
-Everyone drives their own car down the same stage at once. Rivals are ghosts: no contact, just shame. 1–8 players.
+Everyone drives their own car down the same stage at once. Rivals are ghosts: no contact, just shame. 1–12 players. Up to 8 drive; the rest watch.
 
 > Rally and Blind Rally only appear on builds that ship the 3D engine. The hosted site has them; self-hosted copies don't.
 
 ## The short version
 
-- Each player gets their own car. Up to four race; anyone past that watches.
+- Each player gets their own car. Up to eight race; anyone past that watches. Each car has its own colour and plate shape.
 - Pick from five cars: Hatchback, 4x4, RWD Classic, Rally Truck or Tractor. Or everyone votes and drives the same one.
 - All cars run the same stage at the same time. You see the others as ghosts. You can't hit them and they can't hit you.
 - Pass every checkpoint in order, then the finish. Your co-driver reads the pace notes along the top.
@@ -15,7 +15,7 @@ Everyone drives their own car down the same stage at once. Rivals are ghosts: no
 
 ## How it plays
 
-1. **The grid.** When the host starts the game you land on the starting grid: the track cards, the five car cards, one card per player's car, and the rules for this race. You're already in a car; nobody picks seats. If all four are taken you watch, and the next free car is yours.
+1. **The grid.** When the host starts the game you land on the starting grid: the track cards, the five car cards, one card per player's car, and the rules for this race. You're already in a car; nobody picks seats. If all eight are taken you watch, and the next free car is yours.
 2. **Pick the track.** The host taps a track card, or everyone votes (see Settings). The cards show difficulty, length, landmarks and par time.
 3. **Choose your car.** Tap a car card to drive it. Each card shows the car, one line about it, and four bars from 1 to 5: speed, grip, off-road and weight. In a vote, tap a card to vote for it and tap it again to take your vote back. The card with the most votes says "Winning", and everyone drives that car. Your car's name shows under your name on the grid.
 4. **Read your card, then ready up.** Your briefing card has every control for this race. Tap "I'm ready". That also loads the course ("Loading the stage").
@@ -90,7 +90,7 @@ Over the course: your speed in km/h with D or R for the way you're going, and th
 - **Taking over a car.** A watcher who gets a free car starts in the Hatchback, not the last driver's car.
 - **Time's up, or End race.** Whoever's still out is DNF. End race asks the host to confirm.
 - **Play again.** Everyone starts in the same cars, with the same colours, on the last track.
-- **More than four players.** The rest watch from the grid. Players joining mid-race watch too.
+- **More than eight players.** The rest watch from the grid. Players joining mid-race watch too.
 
 ## Tips
 

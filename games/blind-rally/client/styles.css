@@ -36,6 +36,8 @@
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
+/* Blue is too dark for the badge's ink; white reads better on it. */
+.br-badge[data-color="blue"] { color: #fff; }
 .br-badge svg { width: 12px; height: 12px; fill: currentColor; flex: none; }
 
 /* ---- teams ---------------------------------------------------------------- */

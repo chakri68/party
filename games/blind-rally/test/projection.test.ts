@@ -143,7 +143,7 @@ describe("projection deny-list", () => {
   it("only Drivers and spares get those DTOs: p0 drives, p4 is spare", () => {
     const s = everyPhase()[3]!;
     expect(game.getPrivateState(s, "p0").role).toBe("driver");
-    expect(game.getPrivateState(s, "p4").role).toBeNull();
+    expect(game.getPrivateState(s, "p8").role).toBeNull();
   });
 
   it("events a Driver or spare can see are clean: resets, gates, drop-outs, finishes, the end", () => {
@@ -248,14 +248,14 @@ describe("projection: ghosts and Rally", () => {
     expect(JSON.stringify(shared)).not.toMatch(/"teamId":2|p2|p3/);
   });
 
-  /** A Rally race walked through: grid, ready, start, snaps, a reset, a gate, a drop, the end. Three cars and a watcher. */
+  /** A Rally race walked through: grid, ready, start, snaps, a reset, a gate, a drop, the end. Eight cars and a watcher. */
   function rallyPhases(): BlindRallyState[] {
     const out: BlindRallyState[] = [];
-    let s = newRally(5);
+    let s = newRally(9);
     out.push(s);
     s = act(s, "p0", { type: "player.ready", ready: true });
     out.push(s);
-    s = rallying(5);
+    s = rallying(9);
     out.push(s);
     s = rallyGame.onStream!(s, "p0", snap, ctx(GO))!.state;
     s = rallyGame.onStream!(s, "p1", snap, ctx(GO + 100))!.state;
@@ -276,22 +276,22 @@ describe("projection: ghosts and Rally", () => {
     const states = rallyPhases();
     for (const s of states) {
       expect(leaks(rallyGame.getPublicState(s)), s.phase).toEqual([]);
-      expect(leaks(rallyGame.getPrivateState(s, "p4")), s.phase).toEqual([]);
-      expect(rallyGame.getPrivateState(s, "p4").role).toBeNull();
+      expect(leaks(rallyGame.getPrivateState(s, "p8")), s.phase).toEqual([]);
+      expect(rallyGame.getPrivateState(s, "p8").role).toBeNull();
     }
     expect(leaks(rallyGame.getResult(states.at(-1)!))).toEqual([]);
   });
 
   it("Rally: the car classes and the ballot on the wire are names and counts, never a coordinate", () => {
     for (const vehiclePick of ["free", "ballot"] as const) {
-      let s = newRally(5, { vehiclePick });
+      let s = newRally(9, { vehiclePick });
       s = act(s, "p0", { type: vehiclePick === "ballot" ? "vehicle.vote" : "vehicle.pick", vehicleId: "truck" });
       s = act(s, "p1", { type: vehiclePick === "ballot" ? "vehicle.vote" : "vehicle.pick", vehicleId: "tractor" });
       const pub = rallyGame.getPublicState(s);
       expect(pub.vehiclePick).toBe(vehiclePick);
       expect(pub.vehicleBallot === null, vehiclePick).toBe(vehiclePick === "free");
       expect(leaks(pub), vehiclePick).toEqual([]);
-      expect(leaks(rallyGame.getPrivateState(s, "p4")), vehiclePick).toEqual([]);
+      expect(leaks(rallyGame.getPrivateState(s, "p8")), vehiclePick).toEqual([]);
     }
   });
 
@@ -310,10 +310,10 @@ describe("projection: ghosts and Rally", () => {
   });
 
   it("Rally: what a car's snapshot sends out is ghosts, to the other cars still running, and nothing else", () => {
-    let s = game.onTimer!(rallying(5), "go", ctx(GO)).state;
+    let s = game.onTimer!(rallying(9), "go", ctx(GO)).state;
     s.teams[2]!.run!.status = "dnf";
     const out = rallyGame.onStream!(s, "p0", snap, ctx(GO))!;
-    expect(out.relays!.map((r) => [(r.data as { t: string }).t, r.to])).toEqual([["ghost", ["p1", "p3"]]]);
+    expect(out.relays!.map((r) => [(r.data as { t: string }).t, r.to])).toEqual([["ghost", ["p1", "p3", "p4", "p5", "p6", "p7"]]]);
     expect(Object.keys(out.relays![0]!.data as object).sort()).toEqual(GHOST_KEYS);
   });
 });

@@ -54,7 +54,7 @@ Only on builds that ship the 3D engine. The hosted site has them; self-hosted co
 | Game | Players | |
 | --- | --- | --- |
 | [Blind Rally](blind-rally.md) | 2–12 | The Driver can't see the road. The Navigator can. |
-| [Rally](rally.md) | 1–8 | Plain rally, everyone drives. |
+| [Rally](rally.md) | 1–12 | Plain rally, everyone drives. |
 
 ## Strategy
 

@@ -56,6 +56,10 @@ const SHAPES = {
   square: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/>',
   triangle: '<path d="M8 1.8 14.6 13.8H1.4z"/>',
   diamond: '<path d="M8 1 15 8 8 15 1 8z"/>',
+  pentagon: '<path d="M8 1.2 14.8 6.1 12.2 14 3.8 14 1.2 6.1z"/>',
+  hexagon: '<path d="M4.5 1.8H11.5L15 8 11.5 14.2H4.5L1 8z"/>',
+  star: '<path d="M8 1 9.9 5.8 15 6.1 11 9.4 12.3 14.5 8 11.7 3.7 14.5 5 9.4 1 6.1 6.1 5.8z"/>',
+  cross: '<path d="M5.8 1.5h4.4v4.3h4.3v4.4h-4.3v4.3H5.8v-4.3H1.5V5.8h4.3z"/>',
 };
 
 /**
@@ -68,6 +72,7 @@ export function teamBadge(team: { id: number; color: TeamColorKey }, word: "Team
   const el = document.createElement("span");
   el.className = "br-badge";
   el.style.setProperty("--br-team", c.hex);
+  el.dataset.color = c.key;
   el.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${SHAPES[c.shape]}</svg>`;
   el.append(`${word} ${team.id}`);
   el.title = `${c.name} ${word.toLowerCase()}`;

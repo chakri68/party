@@ -23,7 +23,7 @@ const LAYER := 32 ## render layer 6
 const DELAY := 0.12
 const MAX_EXTRAPOLATE := 0.15
 const TIMEOUT := 2.0
-const MAX_GHOSTS := 7 ## the server's MAX_TEAMS is 4; this is a cap on junk, not a rule
+const MAX_GHOSTS := 7 ## Rally seats 8 cars (RALLY_MAX_CARS), so 7 rivals; a cap on junk, not a rule
 const KEEP := 8 ## snapshots kept per ghost
 ## Fade with flat distance to your own car: faintest inside x metres, full by y.
 const FADE := Vector2(4.0, 14.0)
@@ -52,7 +52,7 @@ class Ghost:
 	var mat: ShaderMaterial
 	var color := ""
 	var vehicle := ""
-	var font_size := 96 ## the tag's size before a triangle plate shrinks it
+	var font_size := 96 ## the tag's size before a small-middled plate shrinks it
 	var samples: Array = [] ## [arrival time, Vector3, yaw]
 	var last_at := 0.0
 
@@ -190,7 +190,7 @@ func _paint(gh: Ghost, hex: String, vehicle: String) -> void:
 	# The tag sits on this class's own roof plate, not on whatever car we drive.
 	var visual := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
 	gh.tag.transform = visual * (Vehicles.get_preset(vehicle)["model"]["roundel"] as Transform3D) * _number_local
-	gh.tag.font_size = 72 if shape == "triangle" else gh.font_size
+	gh.tag.font_size = 72 if CarPaint.SMALL_MIDDLE.has(shape) else gh.font_size
 
 
 func _despawn(team_id: int) -> void:

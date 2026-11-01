@@ -1,5 +1,5 @@
 import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
-import { MAX_TEAMS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, type Role, type TeamColorKey, type TeamState } from "../shared/types.ts";
+import { MAX_TEAMS, RALLY_MAX_CARS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, type Role, type TeamColorKey, type TeamState } from "../shared/types.ts";
 
 // Seats in cars. Helpers mutate the state they're given; game.ts hands them a
 // clone. Invariant: a player is in at most one seat, in at most one team.
@@ -15,7 +15,7 @@ export interface Seat {
 const slot = (role: Role) => (role === "driver" ? "driverId" : "navigatorId");
 const other = (role: Role): Role => (role === "driver" ? "navigator" : "driver");
 
-/** The first palette colour no other team has: four teams, four colours, so there's always one. */
+/** The first palette colour no other team has: a game never has more teams than colours, so there's always one. */
 function freeColor(teams: TeamState[]): TeamColorKey {
   return (TEAM_COLORS.find((c) => !teams.some((t) => t.color === c.key)) ?? TEAM_COLORS[0]!).key;
 }
@@ -99,7 +99,7 @@ export function fitTeams(state: BlindRallyState): void {
 }
 
 /**
- * Rally: everyone gets a car of their own, up to MAX_TEAMS; past that they
+ * Rally: everyone gets a car of their own, up to RALLY_MAX_CARS; past that they
  * watch until one frees up. An emptied car is reused before a new one is
  * made, and trailing empties go, so nobody's number moves.
  */
@@ -107,7 +107,7 @@ function fitCars(state: BlindRallyState): void {
   for (const p of state.players) {
     if (seatOf(state, p.id)) continue;
     let car = state.teams.find(isEmpty);
-    if (!car && state.teams.length < MAX_TEAMS) state.teams.push((car = newTeam(state.teams.length + 1, state.teams)));
+    if (!car && state.teams.length < RALLY_MAX_CARS) state.teams.push((car = newTeam(state.teams.length + 1, state.teams)));
     if (!car) break;
     car.driverId = car.navigatorId = p.id;
     // A freed car comes back as new: the last driver's pick isn't this one's.
@@ -124,12 +124,13 @@ export function restoreTeams(state: BlindRallyState, carry: unknown): void {
   if (!c || !Array.isArray(c.teams)) return;
   const here = new Set(state.players.map((p) => p.id));
   const keep = (id: unknown) => (typeof id === "string" && here.has(id) ? id : null);
-  const limit = state.settings.mode === "practice" ? 1 : MAX_TEAMS;
+  const cap = state.variant === "rally" ? RALLY_MAX_CARS : MAX_TEAMS;
+  const limit = state.settings.mode === "practice" ? 1 : cap;
   state.teams = [];
   for (const [i, t] of c.teams.slice(0, limit).entries()) {
     const team = newTeam(i + 1, state.teams);
-    const color = TEAM_COLORS.find((k) => k.key === t.color)?.key;
-    // Keep the colour unless it's junk or (somehow) already taken.
+    const color = TEAM_COLORS.slice(0, cap).find((k) => k.key === t.color)?.key;
+    // Keep the colour unless it's junk, past this game's palette, or (somehow) already taken.
     if (color && !state.teams.some((o) => o.color === color)) team.color = color;
     state.teams.push({ ...team, driverId: keep(t.driverId), navigatorId: keep(t.navigatorId), captain: t.captain === "driver" ? "driver" : "navigator", vehicle: isVehicleId(t.vehicle) ? t.vehicle : DEFAULT_VEHICLE });
   }

@@ -2,8 +2,8 @@ import type { GameManifest, SettingField } from "@games/game-core";
 import type { Briefing, BriefingLine, TrackLine } from "./rules-text.ts";
 import {
   CAMERA_POLICIES,
-  MAX_TEAMS,
   PRESET_ASSISTS,
+  RALLY_MAX_CARS,
   RACE_GRACE_MS,
   RESET_PENALTY_MS,
   TIME_LIMITS,
@@ -24,9 +24,9 @@ export const rallyManifest: GameManifest = {
   id: "rally",
   name: "Rally",
   description: "Every player drives a car on the same road at the same time. The other cars are ghosts. Your car cannot hit a ghost car.",
-  // One is a time trial. Four cars; anyone past that watches until one frees up.
+  // One is a time trial. Eight cars; anyone past that watches until one frees up.
   minPlayers: 1,
-  maxPlayers: 8,
+  maxPlayers: 12,
   icon: "car",
   lateJoin: true,
 };
@@ -78,7 +78,7 @@ export const rallyRules: string[] = [
   "The host can make everyone vote for 1 car. Then everyone drives that car.",
   "If you lose connection, your clock stops. You get 30 seconds to connect again.",
   "After 30 seconds, you get a DNF. DNF means \"did not finish\".",
-  `Up to ${MAX_TEAMS} cars can race. Other players watch. A watching player gets the next free car.`,
+  `Up to ${RALLY_MAX_CARS} cars can race. Other players watch. A watching player gets the next free car.`,
   "The player with the fastest time wins. Resets add to your time.",
   "If time runs out, every player still driving gets a DNF.",
 ];
@@ -89,7 +89,7 @@ const WEATHER_LABELS: Record<Weather, string> = { clear: "Clear", patchy: "Some 
 
 export function rallySettingFields(raw: unknown, players: number): SettingField[] {
   const s = parseRallySettings(raw) ?? RALLY_DEFAULTS;
-  const cars = Math.min(MAX_TEAMS, players);
+  const cars = Math.min(RALLY_MAX_CARS, players);
   return [
     {
       key: "trackPick",
@@ -116,7 +116,7 @@ export function rallySettingFields(raw: unknown, players: number): SettingField[
       label: "Time limit",
       selected: pickIndex(TIME_LIMITS, s.timeLimit),
       options: TIME_LIMITS.map((m) => ({ label: `${m} min`, patch: { timeLimit: m } })),
-      hint: players > MAX_TEAMS ? `${cars} cars race, ${players - cars} watch` : "Cars still driving then get a DNF",
+      hint: players > RALLY_MAX_CARS ? `${cars} cars race, ${players - cars} watch` : "Cars still driving then get a DNF",
     },
     {
       key: "camera",

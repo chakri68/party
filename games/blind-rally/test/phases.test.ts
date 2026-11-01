@@ -4,7 +4,7 @@ import { canMove } from "../server/phases.ts";
 import { upgrade } from "../server/upgrade.ts";
 import { seatOf } from "../server/teams.ts";
 import { blindRallySettingFields, parseSettings } from "../shared/rules-text.ts";
-import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
+import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, MAX_TEAMS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
 import { act, ctx, game, newGame, newRally, racing, refused, TRACK } from "./helpers.ts";
 
 const pub = (s: ReturnType<typeof newGame>) => game.getPublicState(s) as BlindRallyPublicState;
@@ -216,6 +216,21 @@ describe("team colours", () => {
     const keys = new Set(pub(s).teams.map((t) => t.color));
     expect(keys.size).toBe(4);
     expect(new Set(TEAM_COLORS.map((c) => c.shape)).size).toBe(TEAM_COLORS.length);
+  });
+
+  it("Blind Rally never hands out a colour past its fourth, even full", () => {
+    const s = newGame(12);
+    expect(s.teams).toHaveLength(MAX_TEAMS);
+    expect(s.teams.map((t) => t.color)).toEqual(["orange", "sky", "green", "purple"]);
+  });
+
+  it("the first four identities stay as they were", () => {
+    expect(TEAM_COLORS.slice(0, 4).map((c) => [c.key, c.hex, c.shape])).toEqual([
+      ["orange", "#e69f00", "circle"], ["sky", "#56b4e9", "square"], ["green", "#009e73", "triangle"], ["purple", "#cc79a7", "diamond"],
+    ]);
+    expect(TEAM_COLORS.slice(4).map((c) => [c.key, c.hex, c.shape])).toEqual([
+      ["yellow", "#f0e442", "pentagon"], ["blue", "#0072b2", "hexagon"], ["red", "#d55e00", "star"], ["white", "#e8e6e1", "cross"],
+    ]);
   });
 
   it("a car that appears later takes a colour nobody has", () => {

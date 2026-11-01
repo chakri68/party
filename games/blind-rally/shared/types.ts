@@ -102,22 +102,31 @@ export const DEFAULT_SETTINGS: BlindRallySettings = {
 // Team colours (spec §2, §7.4)
 // ---------------------------------------------------------------------------
 
-export type TeamColorKey = "orange" | "sky" | "green" | "purple";
+export type TeamColorKey = "orange" | "sky" | "green" | "purple" | "yellow" | "blue" | "red" | "white";
 
 export interface TeamColor {
   key: TeamColorKey;
   name: string;
   hex: string;
   /** Never colour alone (§10): every team also has a shape and its number. */
-  shape: "circle" | "square" | "triangle" | "diamond";
+  shape: "circle" | "square" | "triangle" | "diamond" | "pentagon" | "hexagon" | "star" | "cross";
 }
 
-/** Okabe–Ito picks: they stay apart under the common colour blindnesses, and on black. */
+/**
+ * Okabe–Ito picks: they stay apart under the common colour blindnesses, and on
+ * black. Its black is left out (it vanishes on the dark UI and roads), and an
+ * off-white takes the eighth place. The first four are what Blind Rally uses;
+ * the order matters, so only ever append. Godot's car_paint.gd mirrors this.
+ */
 export const TEAM_COLORS: readonly TeamColor[] = [
   { key: "orange", name: "Orange", hex: "#e69f00", shape: "circle" },
   { key: "sky", name: "Sky", hex: "#56b4e9", shape: "square" },
   { key: "green", name: "Green", hex: "#009e73", shape: "triangle" },
   { key: "purple", name: "Purple", hex: "#cc79a7", shape: "diamond" },
+  { key: "yellow", name: "Yellow", hex: "#f0e442", shape: "pentagon" },
+  { key: "blue", name: "Blue", hex: "#0072b2", shape: "hexagon" },
+  { key: "red", name: "Red", hex: "#d55e00", shape: "star" },
+  { key: "white", name: "White", hex: "#e8e6e1", shape: "cross" },
 ];
 
 export const teamColor = (key: TeamColorKey): TeamColor => TEAM_COLORS.find((c) => c.key === key) ?? TEAM_COLORS[0]!;
@@ -126,8 +135,10 @@ export const teamColor = (key: TeamColorKey): TeamColor => TEAM_COLORS.find((c) 
 // Timing and limits
 // ---------------------------------------------------------------------------
 
-/** Pairs: one Driver, one Navigator. Four of them fill the 8 car seats. */
+/** Blind Rally: pairs, one Driver and one Navigator. Four of them fill the 8 car seats. */
 export const MAX_TEAMS = 4;
+/** Rally: one player per car, so every team identity gets used. */
+export const RALLY_MAX_CARS = 8;
 /** 3-2-1 before the clock starts (spec §3.8). */
 export const COUNTDOWN_MS = 3_000;
 /** What a reset costs (spec §5). */
