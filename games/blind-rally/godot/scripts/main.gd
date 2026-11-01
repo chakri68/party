@@ -81,6 +81,9 @@ const SESSION_WAIT_S := 12.0
 ## Set before the node enters the tree to pick the stage without a session
 ## (tools, tests). Empty: see the header.
 @export var track_id := ""
+## Wait for the host's session to name the stage before building one (see
+## the header). The web build's default; tests turn it on to boot like it.
+var wait_for_session := OS.has_feature("web")
 ## A session that arrived for another track than the one loaded; the
 ## reloaded scene picks it up.
 static var _carried_session := {}
@@ -181,7 +184,7 @@ func _ready() -> void:
 		want = _requested_track()
 	if not _carried_session.is_empty():
 		want = String(_carried_session.cfg.get("trackId", want))
-	if want == "" and OS.has_feature("web"):
+	if want == "" and wait_for_session:
 		want = await _wait_for_session_track()
 	if track == null:
 		_load_track(want)
@@ -210,7 +213,8 @@ func _wait_for_session_track() -> String:
 			break
 	if _pending_session.is_empty():
 		return ""
-	return String((_pending_session[0] as Dictionary).get("trackId", ""))
+	var cfg: Dictionary = _pending_session[0][0] # [cfg, seat]
+	return String(cfg.get("trackId", ""))
 
 
 static func track_path(id: String) -> String:

@@ -85,6 +85,7 @@ func _run() -> void:
 	# Second stage: everything above was Pine Panic. Swap the main scene for
 	# one that loads Dust Devil and check what's new there.
 	await test_track_by_id()
+	await test_session_names_the_stage()
 	await test_dust_devil()
 	# Third stage: Snowblind.
 	await preload("res://tests/snowblind_tests.gd").new(self).run()
@@ -1799,6 +1800,29 @@ func test_track_by_id() -> void:
 	check(main.weather.style == "dust", "the weather is dust, not mist")
 	main._on_session({"seed": 7, "trackId": "dust_devil"}, "")
 	check(main.track == track and track.is_inside_tree(), "a session for the loaded stage doesn't reload it")
+
+
+## The web boot: no track_id, no ?track=, so main waits for the host's
+## initSession to name the stage, and builds that one first. It used to read
+## the queued [cfg, seat] pair as a Dictionary, get nothing, build Pine Panic,
+## and only then reload into the session's stage.
+func test_session_names_the_stage() -> void:
+	print("the session names the stage")
+	main.queue_free()
+	await process_frame
+	main = load("res://scenes/main.tscn").instantiate()
+	main.wait_for_session = true
+	var loads: Array[String] = []
+	main.track_ready.connect(func() -> void: loads.append(main.track_id))
+	root.add_child(main)
+	await process_frame
+	check(main.track == null, "nothing's built before the session")
+	main.bridge.session_started.emit({"seed": 7, "trackId": "dust_devil"}, "seat")
+	for i in 5:
+		await process_frame
+	check(loads == ["dust_devil"], "the session's stage is built first, and only it: %s" % [loads])
+	check(main._carried_session.is_empty(), "and no reload is queued")
+	await _boot("dust_devil")
 
 
 func test_dust_devil() -> void:
