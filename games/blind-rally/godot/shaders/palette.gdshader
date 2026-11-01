@@ -19,6 +19,7 @@ uniform vec2 lod_range = vec2(1000.0, 8.0);
 
 varying float v_shade;
 varying float v_mist;
+varying vec3 v_light; // sky_light, per vertex like the shade
 
 void vertex() {
 	if (!OUTPUT_IS_SRGB) {
@@ -36,15 +37,20 @@ void vertex() {
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_shade = 0.0;
 	v_mist = 0.0;
+	v_light = vec3(1.0);
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
 		v_shade = cloud_shade_at(world.xz, true);
 		v_mist = eye_mist(cam, world);
+		// The car's keyhole: never darker than dusk within 4 m of it, back
+		// to the full dark by 5 m, so the car never vanishes into the night.
+		float near_car = 1.0 - smoothstep(4.0, 5.0, distance(world, mist_car));
+		v_light = sky_light_at(world, mix(sky_dark, min(sky_dark, 0.35), near_car));
 	}
 }
 
 void fragment() {
-	ALBEDO = COLOR.rgb * (1.0 - v_shade) * (1.0 - v_mist);
-	EMISSION = mist_tint * v_mist;
+	ALBEDO = COLOR.rgb * (1.0 - v_shade) * v_light * (1.0 - v_mist);
+	EMISSION = mist_tint * sky_tint * v_mist;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.25;
 }

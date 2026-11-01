@@ -17,6 +17,7 @@ uniform float flake = 0.09; // metres across, before jitter
 uniform float t = 0.0; // race clock, for the flutter
 uniform vec3 tint : source_color = vec3(0.96, 0.97, 1.0);
 uniform float opacity = 0.85;
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light; layer 4, never on the map
 
 varying float v_fade;
 
@@ -43,6 +44,6 @@ void vertex() {
 
 void fragment() {
 	float r = length(UV - vec2(0.5)) * 2.0;
-	ALBEDO = tint;
+	ALBEDO = tint * sky_tint;
 	ALPHA = (1.0 - smoothstep(0.35, 1.0, r)) * opacity * v_fade;
 }

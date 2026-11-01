@@ -12,6 +12,7 @@ uniform float alpha : hint_range(0.0, 1.0) = 0.8;
 
 varying float v_shade;
 varying float v_mist;
+varying vec3 v_light; // sky_light, per vertex like the shade
 
 void vertex() {
 	if (!OUTPUT_IS_SRGB) {
@@ -21,15 +22,17 @@ void vertex() {
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_shade = 0.0;
 	v_mist = 0.0;
+	v_light = vec3(1.0);
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
 		v_shade = cloud_shade_at(world.xz, true);
 		v_mist = eye_mist(cam, world);
+		v_light = sky_light(world);
 	}
 }
 
 void fragment() {
-	ALBEDO = COLOR.rgb * (1.0 - v_shade) * (1.0 - v_mist);
-	EMISSION = mist_tint * v_mist;
+	ALBEDO = COLOR.rgb * (1.0 - v_shade) * v_light * (1.0 - v_mist);
+	EMISSION = mist_tint * sky_tint * v_mist;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.25;
 	ALPHA = alpha;

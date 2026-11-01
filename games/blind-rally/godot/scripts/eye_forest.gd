@@ -166,6 +166,7 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 		var rmat := ShaderMaterial.new()
 		rmat.shader = preload("res://shaders/treeline.gdshader")
 		rmat.set_shader_parameter("haze", fog_color)
+		weather.register_tinted(rmat)
 		ring.material_override = rmat
 		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ring.extra_cull_margin = 200.0
@@ -180,6 +181,7 @@ func build(track: Track, palette: ShaderMaterial, weather: Weather) -> void:
 		var m := ShaderMaterial.new()
 		m.shader = lm_shader
 		m.set_shader_parameter("haze", fog_color)
+		weather.register_tinted(m)
 		mi.material_override = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.layers = 16 # 3D view only

@@ -44,9 +44,12 @@ extends Node3D
 ## seed) so they roll in off the water and across the cliff road. The
 ## readability caps hold: same MAX_ALPHA, same keyholes.
 ##
-## Later: the NIGHT modifier (spec §7.2) fits the same slot. A dark multiply
-## pass like the cloud shadow, with the car's keyhole as headlights, would
-## cut visibility the same way without touching the map. Not built.
+## Night (the SkyClock's light): the same path again. set_sky() hands
+## sky_dark and sky_tint to every registered material (weather.gdshaderinc
+## sky_light(): a multiply, gated like the clouds), and sky_tint alone to
+## the unshaded ones: the mist and snow sprites here, and whatever was
+## register_tinted() (the treeline, far landmarks). Late registrations get
+## the current values, like the clouds.
 
 const LAYER := 8 ## render layer 4
 const BANK_PUFFS := 5
@@ -102,6 +105,8 @@ var _wind := Vector2.ZERO
 var _banks: Array = [] # {origin: Vector2, phase, period, thick, puffs: [[offset Vector2, size]]}
 var _mats: Array[ShaderMaterial] = []
 var _cloud := {} # shader parameter -> value, for materials registered later
+var _sky := {"sky_dark": 0.0, "sky_tint": Color(1, 1, 1)} # the same, for the light
+var _tinted: Array[ShaderMaterial] = [] # unshaded: sky_tint only
 var _eye_puffs := PackedVector4Array() # what the shaders got last, for the CPU mirror
 var _mist: MultiMeshInstance3D
 var _mist_mat: ShaderMaterial
@@ -117,6 +122,7 @@ func _ready() -> void:
 	_mist_mat.render_priority = 1
 	_mist_mat.set_shader_parameter("keyhole", KEYHOLE)
 	_mist_mat.set_shader_parameter("max_alpha", MAX_ALPHA)
+	_mist_mat.set_shader_parameter("sky_tint", _sky.sky_tint)
 	var puff := PlaneMesh.new()
 	puff.size = Vector2(1, 1)
 	puff.material = _mist_mat
@@ -220,6 +226,36 @@ func register(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("mist_tint", tint)
 	_apply_cloud(mat)
 	_apply_mist(mat)
+	mat.set_shader_parameter("sky_dark", _sky.sky_dark)
+	mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+
+
+## An unshaded material with a `sky_tint` uniform and nothing else of the
+## weather's (treeline, far landmarks). Registering twice is harmless.
+func register_tinted(mat: ShaderMaterial) -> void:
+	if mat == null or _tinted.has(mat):
+		return
+	_tinted.append(mat)
+	mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+
+
+func unregister_tinted(mat: ShaderMaterial) -> void:
+	_tinted.erase(mat)
+
+
+## The light now (SkyClock.light_changed): darkness 0..1 and the tint.
+## Only called when it moved, so a static sky costs nothing per frame.
+func set_sky(dark: float, tint_now: Color) -> void:
+	_sky = {"sky_dark": dark, "sky_tint": tint_now}
+	for m in _mats:
+		m.set_shader_parameter("sky_dark", dark)
+		m.set_shader_parameter("sky_tint", tint_now)
+	for m in _tinted:
+		m.set_shader_parameter("sky_tint", tint_now)
+	if _mist_mat:
+		_mist_mat.set_shader_parameter("sky_tint", tint_now)
+	if _snow_mat:
+		_snow_mat.set_shader_parameter("sky_tint", tint_now)
 
 
 ## A material that's going away (a ghost car that stopped coming).
@@ -262,6 +298,13 @@ func _physics_process(dt: float) -> void:
 
 
 func _process(_dt: float) -> void:
+	# The palette's car keyhole (never darker than dusk round the car) reads
+	# mist_car. The eye-level mist pushes it below; any other time it's dark,
+	# push it here, so the keyhole follows the car in every camera and sky.
+	if car and float(_sky.sky_dark) > 0.0 and not (clouds > 0.0 and eye_level):
+		var at := car.get_global_transform_interpolated().origin
+		for m in _mats:
+			m.set_shader_parameter("mist_car", at)
 	if clouds <= 0.0:
 		return
 	_push_snow()
@@ -407,6 +450,7 @@ func _build_snowfall() -> void:
 	_snow_mat = ShaderMaterial.new()
 	_snow_mat.shader = preload("res://shaders/snowfall.gdshader")
 	_snow_mat.render_priority = 1
+	_snow_mat.set_shader_parameter("sky_tint", _sky.sky_tint)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1, 1)
 	quad.material = _snow_mat

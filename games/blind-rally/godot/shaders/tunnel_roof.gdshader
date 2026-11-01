@@ -39,11 +39,11 @@ void fragment() {
 	vec3 c = COLOR.rgb * (0.88 + texture(detail, world.xz / 5.3).b * 0.24);
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		c *= 1.0 - cloud_shade_at(world.xz, false);
+		c *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
 		mist = v_mist;
 	}
 	ALBEDO = c * (1.0 - mist);
-	EMISSION = mist_tint * mist;
+	EMISSION = mist_tint * sky_tint * mist;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.25;
 }

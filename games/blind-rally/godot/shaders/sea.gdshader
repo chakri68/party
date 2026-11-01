@@ -57,11 +57,11 @@ void fragment() {
 	c = mix(c, c_foam, foam * 0.92);
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		c *= 1.0 - cloud_shade_at(world.xz, false);
+		c *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
 		mist = v_mist;
 	}
 	ALBEDO = c * (1.0 - mist);
-	EMISSION = mist_tint * mist;
+	EMISSION = mist_tint * sky_tint * mist;
 	// The map looks straight down and is drawn once: a sun glint there
 	// would be a white blot frozen on the chart. Matte when looking down.
 	float chart = smoothstep(0.96, 0.99, INV_VIEW_MATRIX[2].y);

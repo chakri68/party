@@ -12,7 +12,11 @@
 //   the car plus a keyhole, so the car itself is never in it. The top-down
 //   camera gets the old puff sprites instead (mist_count stays 0 then).
 //
-// The map camera never sees either: it doesn't draw render layer 4, the
+// - Night (the sky's light): sky_light() multiplies the surface colour by
+//   the tint and darkens it toward NIGHT_FLOOR, so road edges stay faintly
+//   readable at full dark. Sky (sky.gd) sets both, through Weather.
+//
+// The map camera never sees any of it: it doesn't draw render layer 4, the
 // weather layer, and CAMERA_VISIBLE_LAYERS says so. That keeps the static map
 // identical whatever the sky is doing.
 
@@ -30,6 +34,10 @@ uniform float mist_max = 0.78;
 uniform float mist_density = 0.075; // per metre of bank crossed, at full opacity
 uniform float mist_top = 11.0; // metres above the car where the mist has thinned out
 uniform vec3 mist_tint : source_color = vec3(0.8, 0.83, 0.85);
+
+uniform float sky_dark = 0.0; // 0 day .. 1 night
+uniform vec3 sky_tint : source_color = vec3(1.0);
+const float NIGHT_FLOOR = 0.12; // a full night keeps this share of day brightness
 
 bool weather_seen(uint layers) {
 	return (layers & 8u) != 0u;
@@ -82,4 +90,15 @@ float eye_mist(vec3 cam, vec3 world) {
 	float ramp = smoothstep(car_d + mist_keyhole.x, car_d + mist_keyhole.y, len);
 	float low = 1.0 - smoothstep(mist_top * 0.35, mist_top, world.y - mist_car.y);
 	return min(1.0 - exp(-acc * mist_density), mist_max) * ramp * low;
+}
+
+// What the light does to a surface at `world`, with darkness `dark` (the
+// palette caps it near the car). White and 1 by day. Call it only inside a
+// weather_seen() branch.
+vec3 sky_light_at(vec3 world, float dark) {
+	return sky_tint * mix(1.0, NIGHT_FLOOR, dark);
+}
+
+vec3 sky_light(vec3 world) {
+	return sky_light_at(world, sky_dark);
 }

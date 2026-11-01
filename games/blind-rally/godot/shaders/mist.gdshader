@@ -13,6 +13,7 @@ uniform vec3 car_pos = vec3(0.0);
 uniform vec2 keyhole = vec2(3.5, 9.0); // fully clear inside x, full opacity past y (metres)
 uniform float max_alpha = 0.78;
 uniform vec3 tint : source_color = vec3(0.86, 0.88, 0.9);
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light; layer 4, never on the map
 uniform float drift = 0.0; // slow churn inside the puffs, in noise UV
 
 varying vec3 world;
@@ -33,6 +34,6 @@ void fragment() {
 	vec3 ground = world - view_dir * ((world.y - car_pos.y) / min(view_dir.y, -0.1));
 	float d = distance(ground.xz, car_pos.xz);
 	float hole = smoothstep(keyhole.x, keyhole.y, d);
-	ALBEDO = tint * (0.92 + n * 0.12);
+	ALBEDO = tint * sky_tint * (0.92 + n * 0.12);
 	ALPHA = clamp(blob * COLOR.a * hole, 0.0, max_alpha);
 }

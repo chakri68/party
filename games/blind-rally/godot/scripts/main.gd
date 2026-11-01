@@ -101,6 +101,11 @@ var race_time := 0.0 ## physics seconds since spawn, until the finish
 var allowed_cameras: Array[int] = [0, 1, 2] ## FollowCamera.Mode values Y may pick
 var eye_forest: EyeForest ## built the first time a perspective camera is used
 var sky: SkyClock ## the run clock and the light plan
+var _eye_env: Environment ## the eye-level camera's, kept so the light can retint it
+var _eye_base := {} ## its day colours (sky and fog), what the tint multiplies
+var _shadows_want := true ## shadows as set (scene, phone, L); night overrides, day restores
+var _night := false ## darkness > NIGHT_SHADOWS
+const NIGHT_SHADOWS := 0.8 ## past this, no sun shadows: there's no sun to cast them
 var eggs: EasterEggs ## deer, birds, moose, campers...: seeded like the weather
 var _pending_mode := -1
 ## In the room (initSession `room`): the server decides where the car goes.
@@ -259,6 +264,8 @@ func _setup_track() -> void:
 	sky.name = "SkyClock"
 	add_child(sky)
 	weather.sky = sky
+	sky.light_changed.connect(weather.set_sky)
+	sky.light_changed.connect(_on_light)
 	eggs = EasterEggs.new()
 	eggs.name = "EasterEggs"
 	add_child(eggs)
@@ -277,6 +284,8 @@ func _setup_track() -> void:
 		cam.kick(strength, car.last_impact_normal)
 		bridge.emit_physics_event({"kind": "impact", "strength": snappedf(strength, 0.1)}))
 	is_phone = OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile")
+	var sun0 := track.get_node_or_null("Sun") as DirectionalLight3D
+	_shadows_want = sun0.shadow_enabled if sun0 else false
 	fx.dust_road = biome.dust_road
 	fx.dust_off = biome.dust_off
 	fx.plume = biome.plume
@@ -291,7 +300,9 @@ func _setup_track() -> void:
 	map.tapped.connect(_on_map_tapped)
 	map.pin_changed.connect(func(at: Variant) -> void:
 		bridge.emit_physics_event({"kind": "pin", "clear": true} if at == null else {"kind": "pin", "x": snappedf(at.x, 0.1), "z": snappedf(at.y, 0.1)}))
-	cam.perspective_env = _perspective_env()
+	_eye_env = _perspective_env()
+	cam.perspective_env = _eye_env
+	sky.refresh(true)
 	cam.persp_far = biome.persp_far
 	# The map is one render of the baked forest; a camera switch that lands
 	# before it (an early initSession) waits, so it can't hide those chunks
@@ -397,7 +408,33 @@ func _perspective_env() -> Environment:
 	env.fog_density = 1.0
 	env.fog_sky_affect = 0.0
 	env.fog_aerial_perspective = 0.0
+	_eye_base = {
+		"sky_top": sky_mat.sky_top_color,
+		"sky_horizon": sky_mat.sky_horizon_color,
+		"ground_horizon": sky_mat.ground_horizon_color,
+		"ground_bottom": sky_mat.ground_bottom_color,
+		"fog": env.fog_light_color,
+	}
 	return env
+
+
+## The sky's light moved (SkyClock.light_changed; Weather gets the same call
+## for the shaders). Here: the eye-level sky and fog take the tint, so the
+## treeline ring (fog colour times the tint) still matches the fog; and no
+## sun shadows at night. The Sun and the world Environment keep their scene
+## values, so the static map never changes.
+func _on_light(dark: float, tint: Color) -> void:
+	if _eye_env and not _eye_base.is_empty():
+		var sm := _eye_env.sky.sky_material as ProceduralSkyMaterial
+		sm.sky_top_color = _eye_base.sky_top * tint
+		sm.sky_horizon_color = _eye_base.sky_horizon * tint
+		sm.ground_horizon_color = _eye_base.ground_horizon * tint
+		sm.ground_bottom_color = _eye_base.ground_bottom * tint
+		_eye_env.fog_light_color = _eye_base.fog * tint
+	var night := dark > NIGHT_SHADOWS
+	if night != _night:
+		_night = night
+		_apply_shadows()
 
 
 const CAMERA_MODES := ["topdown", "chase", "bonnet"]
@@ -525,10 +562,17 @@ func _input(e: InputEvent) -> void:
 		audio.start()
 
 
+## Shadows as wanted (phones: off). Night holds them off on top of that;
+## day gives back whatever was wanted.
 func set_shadows(on: bool) -> void:
-	var sun := track.get_node_or_null("Sun") as DirectionalLight3D
+	_shadows_want = on
+	_apply_shadows()
+
+
+func _apply_shadows() -> void:
+	var sun := track.get_node_or_null("Sun") as DirectionalLight3D if track else null
 	if sun:
-		sun.shadow_enabled = on
+		sun.shadow_enabled = _shadows_want and not _night
 
 
 func _unhandled_key_input(e: InputEvent) -> void:
@@ -561,9 +605,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 				var i := Vehicles.IDS.find(car.vehicle)
 				car.apply_preset(Vehicles.IDS[(i + 1) % Vehicles.IDS.size()])
 		KEY_L:
-			var sun := track.get_node_or_null("Sun") as DirectionalLight3D
-			if sun:
-				set_shadows(not sun.shadow_enabled)
+			set_shadows(not _shadows_want)
 
 
 ## Debug autopilot on or off. While it's on it owns the car: remote control

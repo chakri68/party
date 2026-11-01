@@ -10,6 +10,7 @@ render_mode unshaded, fog_disabled, cull_back, shadows_disabled;
 uniform vec3 haze : source_color = vec3(0.69, 0.74, 0.77);
 uniform float haze_k = 0.6;
 uniform float pulse_period = 3.2;
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light (Weather.register_tinted); layer 5, never on the map
 
 varying vec3 v_col;
 
@@ -27,6 +28,6 @@ void fragment() {
 		float k = 0.45 + 0.55 * (0.5 + 0.5 * sin(TIME * 6.2831853 / pulse_period));
 		ALBEDO = mix(vec3(1.0, 0.25, 0.15) * (0.6 + 0.6 * k), haze, haze_k * 0.4);
 	} else {
-		ALBEDO = mix(c * 0.85, haze, haze_k);
+		ALBEDO = mix(c * 0.85, haze, haze_k) * sky_tint;
 	}
 }

@@ -88,11 +88,11 @@ void fragment() {
 	}
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		c *= 1.0 - cloud_shade_at(world.xz, false);
+		c *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
 		mist = v_mist;
 	}
 	ALBEDO = c * (1.0 - mist);
-	EMISSION = mist_tint * mist;
+	EMISSION = mist_tint * sky_tint * mist;
 	ROUGHNESS = mix(mix(0.95, 0.8, damp), 0.22, ice);
 	SPECULAR = mix(0.25, 0.6, ice); // 0.25 as the palette material, so the road lights like everything else
 }
