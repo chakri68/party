@@ -10,7 +10,7 @@ render_mode unshaded, fog_disabled, cull_back, shadows_disabled;
 uniform vec3 haze : source_color = vec3(0.69, 0.74, 0.77);
 uniform float haze_k = 0.6;
 uniform float pulse_period = 3.2;
-uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light (Weather.register_tinted); layer 5, never on the map
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's haze, SkyClock.haze: the tint dimmed with the dark (Weather.register_tinted); layer 5, never on the map
 
 varying vec3 v_col;
 

@@ -32,7 +32,7 @@ void vertex() {
 
 void fragment() {
 	ALBEDO = COLOR.rgb * (1.0 - v_shade) * v_light * (1.0 - v_mist);
-	EMISSION = mist_tint * sky_tint * v_mist;
+	EMISSION = mist_tint * sky_haze() * v_mist;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.25;
 	ALPHA = alpha;

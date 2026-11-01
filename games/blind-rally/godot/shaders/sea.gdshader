@@ -56,15 +56,18 @@ void fragment() {
 	float foam = clamp(band * froth + (1.0 - smoothstep(0.0, 0.9, dist)) * 0.8, 0.0, 1.0);
 	c = mix(c, c_foam, foam * 0.92);
 	float mist = 0.0;
+	float shine = 1.0; // the Sun's glint dims with the light here (night, headlights), not just the albedo
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		c *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
+		vec3 lit = sky_light(world);
+		c *= (1.0 - cloud_shade_at(world.xz, false)) * lit;
+		shine = max(lit.r, max(lit.g, lit.b));
 		mist = v_mist;
 	}
 	ALBEDO = c * (1.0 - mist);
-	EMISSION = mist_tint * sky_tint * mist;
+	EMISSION = mist_tint * sky_haze() * mist;
 	// The map looks straight down and is drawn once: a sun glint there
 	// would be a white blot frozen on the chart. Matte when looking down.
 	float chart = smoothstep(0.96, 0.99, INV_VIEW_MATRIX[2].y);
 	ROUGHNESS = mix(mix(0.34, 0.9, foam), 1.0, chart);
-	SPECULAR = mix(mix(0.35, 0.15, foam), 0.05, chart);
+	SPECULAR = mix(mix(0.35, 0.15, foam), 0.05, chart) * shine;
 }

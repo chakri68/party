@@ -17,7 +17,7 @@ uniform float flake = 0.09; // metres across, before jitter
 uniform float t = 0.0; // race clock, for the flutter
 uniform vec3 tint : source_color = vec3(0.96, 0.97, 1.0);
 uniform float opacity = 0.85;
-uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light; layer 4, never on the map
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's haze, SkyClock.haze: the tint dimmed with the dark; layer 4, never on the map
 
 varying float v_fade;
 

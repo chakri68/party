@@ -46,10 +46,11 @@ extends Node3D
 ##
 ## Night (the SkyClock's light): the same path again. set_sky() hands
 ## sky_dark and sky_tint to every registered material (weather.gdshaderinc
-## sky_light(): a multiply, gated like the clouds), and sky_tint alone to
-## the unshaded ones: the mist and snow sprites here, and whatever was
-## register_tinted() (the treeline, far landmarks). Late registrations get
-## the current values, like the clouds.
+## sky_light(): a multiply, gated like the clouds; their mist glow takes
+## sky_haze()), and the haze (SkyClock.haze: the tint, dimmed with the
+## dark) as `sky_tint` to the unshaded ones: the mist and snow sprites
+## here, and whatever was register_tinted() (the treeline, far landmarks).
+## Late registrations get the current values, like the clouds.
 ##
 ## Headlights ride the same path: head_on is the darkness (set_sky), and
 ## while it's above 0 every frame pushes head_pos and head_dir from the
@@ -132,7 +133,7 @@ func _ready() -> void:
 	_mist_mat.render_priority = 1
 	_mist_mat.set_shader_parameter("keyhole", KEYHOLE)
 	_mist_mat.set_shader_parameter("max_alpha", MAX_ALPHA)
-	_mist_mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+	_mist_mat.set_shader_parameter("sky_tint", haze())
 	var puff := PlaneMesh.new()
 	puff.size = Vector2(1, 1)
 	puff.material = _mist_mat
@@ -250,7 +251,7 @@ func register_tinted(mat: ShaderMaterial) -> void:
 	if mat == null or _tinted.has(mat):
 		return
 	_tinted.append(mat)
-	mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+	mat.set_shader_parameter("sky_tint", haze())
 
 
 func unregister_tinted(mat: ShaderMaterial) -> void:
@@ -271,12 +272,18 @@ func set_sky(dark: float, tint_now: Color) -> void:
 			_apply_ghosts(m)
 	for m in _glows:
 		m.set_shader_parameter("night_boost", dark)
+	var hz := haze()
 	for m in _tinted:
-		m.set_shader_parameter("sky_tint", tint_now)
+		m.set_shader_parameter("sky_tint", hz)
 	if _mist_mat:
-		_mist_mat.set_shader_parameter("sky_tint", tint_now)
+		_mist_mat.set_shader_parameter("sky_tint", hz)
 	if _snow_mat:
-		_snow_mat.set_shader_parameter("sky_tint", tint_now)
+		_snow_mat.set_shader_parameter("sky_tint", hz)
+
+
+## What the unshaded materials get as `sky_tint` now: SkyClock.haze.
+func haze() -> Color:
+	return SkyClock.haze(float(_sky.sky_dark), _sky.sky_tint)
 
 
 ## Is it dark at all (the headlights are on)?
@@ -530,7 +537,7 @@ func _build_snowfall() -> void:
 	_snow_mat = ShaderMaterial.new()
 	_snow_mat.shader = preload("res://shaders/snowfall.gdshader")
 	_snow_mat.render_priority = 1
-	_snow_mat.set_shader_parameter("sky_tint", _sky.sky_tint)
+	_snow_mat.set_shader_parameter("sky_tint", haze())
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1, 1)
 	quad.material = _snow_mat

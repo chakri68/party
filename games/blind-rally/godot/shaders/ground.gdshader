@@ -76,7 +76,7 @@ void fragment() {
 		mist = v_mist;
 	}
 	ALBEDO = albedo * (1.0 - mist);
-	EMISSION = mist_tint * sky_tint * mist;
+	EMISSION = mist_tint * sky_haze() * mist;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.25;
 }

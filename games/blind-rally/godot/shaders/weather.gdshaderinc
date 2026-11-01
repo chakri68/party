@@ -163,3 +163,11 @@ vec3 sky_light_at(vec3 world, float dark) {
 vec3 sky_light(vec3 world) {
 	return sky_light_at(world, sky_dark);
 }
+
+// The air's colour: the tint, dimmed with the dark toward HAZE_FLOOR
+// (SkyClock.HAZE_FLOOR, the same number). The mist glow takes this, not the
+// bare tint, so banks don't shine over a dark stage.
+const float HAZE_FLOOR = 0.3;
+vec3 sky_haze() {
+	return sky_tint * mix(1.0, HAZE_FLOOR, sky_dark);
+}

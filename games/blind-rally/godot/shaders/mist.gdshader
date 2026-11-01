@@ -13,7 +13,7 @@ uniform vec3 car_pos = vec3(0.0);
 uniform vec2 keyhole = vec2(3.5, 9.0); // fully clear inside x, full opacity past y (metres)
 uniform float max_alpha = 0.78;
 uniform vec3 tint : source_color = vec3(0.86, 0.88, 0.9);
-uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's light; layer 4, never on the map
+uniform vec3 sky_tint : source_color = vec3(1.0); // the sky's haze, SkyClock.haze: the tint dimmed with the dark; layer 4, never on the map
 uniform float drift = 0.0; // slow churn inside the puffs, in noise UV
 
 varying vec3 world;

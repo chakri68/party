@@ -23,6 +23,7 @@ func run() -> void:
 	test_late_register()
 	test_shadows()
 	test_env_sunset()
+	test_haze()
 	await test_headlights()
 	await test_ghost_heads()
 	test_glow_boost()
@@ -151,9 +152,10 @@ func _reads(mats: Array, dark: float, tint: Color) -> bool:
 		var c: Variant = m.get_shader_parameter("sky_tint")
 		if not (d is float) or absf(d - dark) > 1e-4 or not (c is Color) or not c.is_equal_approx(tint):
 			return false
+	var hz := SkyClock.haze(dark, tint) # the unshaded ones take the haze
 	for m in mats[1]:
 		var c: Variant = m.get_shader_parameter("sky_tint")
-		if not (c is Color) or not c.is_equal_approx(tint):
+		if not (c is Color) or not c.is_equal_approx(hz):
 			return false
 	return true
 
@@ -246,9 +248,44 @@ func test_env_sunset() -> void:
 	var bound := ceili(1.0 / main.ENV_STEP) + 1 # darkness spans 1.0, the widest of its channels
 	check(n > 3 and n <= bound, "a minute of sunset re-tints the sky %d times (<= %d), not ~600" % [n, bound])
 	var fog: Color = main._eye_env.fog_light_color
-	check(fog.is_equal_approx(base * SkyClock.TINTS["night"]), "ends on base fog x the night tint exactly (%s)" % fog)
+	check(fog.is_equal_approx(base * SkyClock.haze(1.0, SkyClock.TINTS["night"])), "ends on base fog x the night haze exactly (%s)" % fog)
 	_day()
 	check(main._eye_env.fog_light_color.is_equal_approx(base), "and day puts the fog back")
+
+
+## The horizon mustn't glow over a dark stage: at night the eye-level sky
+## and fog, and the mist glow in every world shader, dim with the dark
+## (SkyClock.haze), not just tint. Day keeps today's look.
+func test_haze() -> void:
+	print("sky: the haze dims at night")
+	var night: Color = SkyClock.TINTS["night"]
+	check(SkyClock.haze(0.0, Color(1, 1, 1)) == Color(1, 1, 1), "day: haze is white, today's sky")
+	var hz := SkyClock.haze(1.0, night)
+	var k := SkyClock.HAZE_FLOOR
+	check(hz.is_equal_approx(Color(night.r * k, night.g * k, night.b * k)), "night: haze is the tint x HAZE_FLOOR (%s)" % hz)
+	check(SkyClock.HAZE_FLOOR > 0.12 and SkyClock.HAZE_FLOOR <= 0.4, "HAZE_FLOOR above the ground's NIGHT_FLOOR, well under day (%s)" % SkyClock.HAZE_FLOOR)
+	_night()
+	var top: Color = (main._eye_env.sky.sky_material as ProceduralSkyMaterial).sky_top_color
+	check(top.is_equal_approx(main._eye_base.sky_top * hz), "night: the eye-level sky top is base x haze (%s)" % top)
+	check(main._eye_env.fog_light_color.is_equal_approx(main._eye_base.fog * hz), "night: the fog is base x haze")
+	_day()
+	top = (main._eye_env.sky.sky_material as ProceduralSkyMaterial).sky_top_color
+	check(top.is_equal_approx(main._eye_base.sky_top), "day: the sky top is back to base")
+	# Shaders: the mist glow over a dark stage takes sky_haze(), never the bare tint.
+	var inc := FileAccess.get_file_as_string("res://shaders/weather.gdshaderinc")
+	check(inc.contains("const float HAZE_FLOOR = %s;" % str(SkyClock.HAZE_FLOOR)), "weather.gdshaderinc's HAZE_FLOOR matches SkyClock's")
+	for f in ResourceLoader.list_directory("res://shaders/"):
+		if not f.ends_with(".gdshader"):
+			continue
+		var src := FileAccess.get_file_as_string("res://shaders/" + f)
+		if src.contains("weather.gdshaderinc") and src.contains("mist_tint"):
+			check(not src.contains("mist_tint * sky_tint") and src.contains("sky_haze()"), "%s: the mist glow takes sky_haze()" % f)
+	# The Sun keeps its scene light, so a glossy surface's glint would stay at
+	# day strength over a dark stage: the sea and icy road scale SPECULAR by
+	# the light at the pixel (headlights included).
+	for f in ["sea.gdshader", "road.gdshader"]:
+		var src := FileAccess.get_file_as_string("res://shaders/" + f)
+		check(src.contains("shine = max(lit.r, max(lit.g, lit.b));") and src.contains(") * shine;"), "%s: the glint dims with the light" % f)
 
 
 ## Runs `cb` from _process after every other node's (Weather's, Ghosts'),

@@ -87,12 +87,15 @@ void fragment() {
 		c = mix(c, c_drift * (0.92 + gravel * 0.16), tongue * drift * (1.0 - track * 0.6) * (1.0 - ice * 0.8));
 	}
 	float mist = 0.0;
+	float shine = 1.0; // the Sun's glint dims with the light here (night, headlights), not just the albedo
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		c *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
+		vec3 lit = sky_light(world);
+		c *= (1.0 - cloud_shade_at(world.xz, false)) * lit;
+		shine = max(lit.r, max(lit.g, lit.b));
 		mist = v_mist;
 	}
 	ALBEDO = c * (1.0 - mist);
-	EMISSION = mist_tint * sky_tint * mist;
+	EMISSION = mist_tint * sky_haze() * mist;
 	ROUGHNESS = mix(mix(0.95, 0.8, damp), 0.22, ice);
-	SPECULAR = mix(0.25, 0.6, ice); // 0.25 as the palette material, so the road lights like everything else
+	SPECULAR = mix(0.25, 0.6, ice) * shine; // 0.25 as the palette material, so the road lights like everything else
 }

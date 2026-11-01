@@ -446,7 +446,7 @@ func _perspective_env() -> Environment:
 
 ## The sky's light moved (SkyClock.light_changed; Weather gets the same call
 ## for the shaders). Here: the eye-level sky and fog take the tint, so the
-## treeline ring (fog colour times the tint) still matches the fog. Coarser
+## treeline ring (fog colour times the haze) still matches the fog. Coarser
 ## than the shaders (ENV_STEP), since each change re-bakes the sky's
 ## radiance; still exact at the ramp's ends. The Sun and the world
 ## Environment keep their scene values, so the static map never changes.
@@ -459,12 +459,15 @@ func _on_light(dark: float, tint: Color) -> void:
 	_env_dark = dark
 	_env_tint = tint
 	env_retints += 1
+	# Dimmed with the dark too (SkyClock.haze), not just tinted: a night
+	# sky and fog at the tint alone glowed over a stage at 12%.
+	var hz := SkyClock.haze(dark, tint)
 	var sm := _eye_env.sky.sky_material as ProceduralSkyMaterial
-	sm.sky_top_color = _eye_base.sky_top * tint
-	sm.sky_horizon_color = _eye_base.sky_horizon * tint
-	sm.ground_horizon_color = _eye_base.ground_horizon * tint
-	sm.ground_bottom_color = _eye_base.ground_bottom * tint
-	_eye_env.fog_light_color = _eye_base.fog * tint
+	sm.sky_top_color = _eye_base.sky_top * hz
+	sm.sky_horizon_color = _eye_base.sky_horizon * hz
+	sm.ground_horizon_color = _eye_base.ground_horizon * hz
+	sm.ground_bottom_color = _eye_base.ground_bottom * hz
+	_eye_env.fog_light_color = _eye_base.fog * hz
 
 
 ## A new plan: shadows for its whole run, decided here and nowhere else.

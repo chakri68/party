@@ -30,6 +30,12 @@ const TINTS := {
 	"dusk": Color(1.0, 0.82, 0.68),
 	"night": Color(0.55, 0.62, 0.9),
 }
+## What the dark leaves of the sky, the fog and everything unshaded that
+## stands in for distance or air (treeline, far landmarks, mist, snowfall).
+## Above the ground's NIGHT_FLOOR (weather.gdshaderinc, 0.12), so treetops
+## still show against the sky, but low enough that the horizon doesn't glow
+## over a dark stage. The shaders' sky_haze() uses the same number.
+const HAZE_FLOOR := 0.3
 const PUSH_EPS := 0.002
 const LIGHTS := ["day", "dawn", "dusk", "night"]
 
@@ -95,6 +101,13 @@ func darkness() -> float:
 ## The colour the light has at `clock`, from TINTS, along the same path.
 func tint() -> Color:
 	return _along(TINTS)
+
+
+## The colour of the sky, fog and unshaded stand-ins at darkness `dark`
+## under `tint`: the tint, dimmed toward HAZE_FLOOR. Day: the tint itself.
+static func haze(dark: float, tint_now: Color) -> Color:
+	var k := lerpf(1.0, HAZE_FLOOR, clampf(dark, 0.0, 1.0))
+	return Color(tint_now.r * k, tint_now.g * k, tint_now.b * k)
 
 
 ## A row of `table` (DARK, TINTS) blended from -> to at `clock`.
