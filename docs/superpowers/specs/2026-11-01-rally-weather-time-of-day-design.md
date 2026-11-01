@@ -61,7 +61,7 @@ wetnessAt(plan: SkyPlan, ms: number): number // phase 2
 
 **Where it goes:** `NavigatorSession.sky: SkyPlan` (both games, beside `clouds`), and `BlindRallyPublicState.skyWords: string | null` for the briefing and grid. `skyWords` is null until the track is known.
 
-**One table, two languages:** `games/blind-rally/data/sky-cases.json` lists plans and `(ms → light blend, rain, wetness)` triples. Vitest checks `shared/sky.ts` against it. The Godot suite checks `sky.gd`'s evaluator against the same file.
+**One table, two languages:** `games/blind-rally/godot/tests/sky_cases.json` lists plans and `(ms → light blend, rain, wetness)` triples. Vitest checks `shared/sky.ts` against it. The Godot suite checks `sky.gd`'s evaluator against the same file.
 
 ## 4. Godot
 
@@ -69,8 +69,8 @@ wetnessAt(plan: SkyPlan, ms: number): number // phase 2
 
 The sky runs on the car's **run clock**: the team clock without penalties, which is `raceElapsed − pausedMs − the current pause`. It's 0 on the grid and through the countdown.
 
-- The host sends it as `skyMs` in `initSession` (computed like `teamClock` in `client/role.ts`, minus `penaltyMs`).
-- The new `scripts/sky.gd` (`class_name Sky`) owns the clock. It starts from `skyMs` and advances in `_process` with render delta while the race runs and the server hasn't frozen the car. It stops on `freeze` and resumes on `go`. A reset's hold doesn't stop it, because the team clock doesn't stop for a reset either.
+- The host sends it as a race event `{kind: "clock", ms, running}` (`runClock` in `client/role.ts`: `teamClock` minus `penaltyMs`), right after every session send and whenever `running` flips. Not the existing `freeze`/`go`: those also fire during a reset's hold.
+- The new `scripts/sky.gd` (`class_name Sky`) owns the clock. It jumps to each `clock` event's `ms` and advances in `_process` with render delta while `running`. A reset's hold doesn't stop it, because the team clock doesn't stop for a reset either.
 - `Weather.time` reads `Sky.clock` instead of counting physics ticks. This fixes clouds and snow stepping at 120 Hz+ and mist restarting on reload, both at once.
 - Physics reads the same clock at each tick (for wet grip). A render-rate clock read at 60 Hz ticks is fine: grip moves over tens of seconds.
 
@@ -78,11 +78,11 @@ The sky runs on the car's **run clock**: the team clock without penalties, which
 
 Every frame, Sky evaluates the plan at the clock:
 
-- **light:** sun direction, colour and energy; ambient colour and energy; background sky tint. The stage's own Sun and Environment nodes stay the base, and Sky scales and tints them. Day changes nothing: today's look is the `day` row.
+- **light:** a `sky_tint` colour and the eye-level background and fog colours. The Sun and Environment nodes keep their scene values (the static map renders with them), so all darkening and tinting happens in shader terms gated by `weather_seen()`. The unshaded treeline, far landmarks, mist and snowfall take `sky_tint` too. Day changes nothing: today's look is the `day` row.
 - **`darkness`** 0..1: day 0, dawn and dusk about 0.35, night 1 (tuned in play).
 - **`rain`** and **`wetness`** 0..1 (phase 2).
 
-Shader-side values go to every registered material through `Weather.register` and `weather.gdshaderinc`, the same path the cloud shade uses today. Light palettes per `Light` sit in one table in `sky.gd`: low warm sun at dusk, low cool sun at dawn, a faint blue moon at night. Shadows switch off once the sun's energy is near zero.
+Shader-side values go to every registered material through `Weather.register` and `weather.gdshaderinc`, the same path the cloud shade uses today. Tints per `Light` sit in one table in `sky.gd`: warm at dusk, cool at dawn, a faint blue moon at night. The Sun's shadows switch off at night (darkness > 0.8).
 
 ### 4.3 Night in the shaders (phase 1)
 
@@ -129,8 +129,8 @@ All new terms live in `weather.gdshaderinc` and are skipped when the camera can'
 
 ## 5. Testing and performance
 
-- **TS (vitest):** `skyPlan` for every setting × a few seeds; Random's picks are deterministic per seed and every option is reachable; timings land in the stated fractions; `sky-cases.json` passes; settings parse, defaults and old-state upgrade; `session.sky` and `skyWords` in the projection (and no leak of other teams' runs); the host's `skyMs` maths with a pause and a penalty.
-- **Godot:** `sky.gd`'s evaluator passes `sky-cases.json`; the clock holds at 0 before GO, stops on freeze, resumes on go and starts from `skyMs`; `Weather.time` follows `Sky.clock`; `wet_grip` returns the table's values; puddles are identical for the same seed; warm-up covers every new material; the map camera's cull mask still excludes layer 4. Grep the runner's output for `SCRIPT ERROR` every time.
+- **TS (vitest):** `skyPlan` for every setting × a few seeds; Random's picks are deterministic per seed and every option is reachable; timings land in the stated fractions; `sky_cases.json` passes; settings parse, defaults and old-state upgrade; `session.sky` and `skyWords` in the projection (and no leak of other teams' runs); the host's `runClock` maths with a pause, a penalty and a reset hold.
+- **Godot:** `sky.gd`'s evaluator passes `sky_cases.json`; the clock holds at 0 before any `clock` event and follows each one (jump, run, stop); `Weather.time` follows `Sky.clock`; `wet_grip` returns the table's values; puddles are identical for the same seed; warm-up covers every new material; the map camera's cull mask still excludes layer 4. Grep the runner's output for `SCRIPT ERROR` every time.
 - **Lap-time check (phase 2):** autopilot on all four stages, dry against full rain, every class. Wet is slower by roughly 3–8% and nobody resets more than dry. Tractor and 4x4 lose the least.
 - **Looks (human check):** browser screenshots of each stage at dawn, dusk, night and in rain, in chase, bonnet and top-down, saved to the scratchpad for review. Headless Godot can't render, so this is how we see it.
 - **Performance:** the stutter probe plus bots, 8 cars on Pine Panic and Snowblind, at night with "Rain starts". Worst frame in the first 2 s after GO ≤ 33 ms, no shader links after GO (including when the rain begins), and mean frame time within 10% of day and dry on the laptop.
