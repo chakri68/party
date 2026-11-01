@@ -7,6 +7,17 @@ import { stableHash } from "@games/game-core";
 export type TimeSetting = "day" | "dawn" | "dusk" | "night" | "sunset" | "random";
 export const TIMES: readonly TimeSetting[] = ["day", "dawn", "dusk", "night", "sunset", "random"];
 
+export const TIME_LABELS: Record<TimeSetting, string> = {
+  day: "Day", dawn: "Dawn", dusk: "Dusk", night: "Night", sunset: "Day into night", random: "Random",
+};
+
+export function timeHint(time: TimeSetting): string {
+  if (time === "night") return "It's dark. Your lights show the road ahead.";
+  if (time === "sunset") return "The sun goes down while you drive.";
+  if (time === "random") return "A surprise. Everyone gets the same one.";
+  return "Everyone gets the same light.";
+}
+
 export type Light = "day" | "dawn" | "dusk" | "night";
 
 export interface SkyPlan {

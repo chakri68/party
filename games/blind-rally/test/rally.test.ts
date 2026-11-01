@@ -122,7 +122,7 @@ describe("Rally settings", () => {
   });
 
   it("show only what the host can change", () => {
-    expect(rallySettingFields({}, 3).map((f) => f.key)).toEqual(["trackPick", "vehiclePick", "timeLimit", "camera", "weather"]);
+    expect(rallySettingFields({}, 3).map((f) => f.key)).toEqual(["trackPick", "vehiclePick", "timeLimit", "camera", "weather", "time"]);
     expect(rallySettingFields({}, 10).find((f) => f.key === "timeLimit")!.hint).toBe("8 cars race, 2 watch");
   });
 

@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, TRACK_PICKS, VEHICLE_PICKS, type BlindRallyState } from "../shared/types.ts";
+import { TIMES } from "../shared/sky.ts";
 import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
 
 // Rooms live in Durable Object storage across deploys, so a state saved by an
@@ -8,7 +9,7 @@ import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
 
 export function upgrade(state: BlindRallyState): BlindRallyState {
   const old = state as Partial<BlindRallyState> & BlindRallyState;
-  const settingsOk = TRACK_PICKS.includes(old.settings?.trackPick) && VEHICLE_PICKS.includes(old.settings?.vehiclePick);
+  const settingsOk = TRACK_PICKS.includes(old.settings?.trackPick) && VEHICLE_PICKS.includes(old.settings?.vehiclePick) && TIMES.includes(old.settings?.time);
   const carsOk = isVehicleId(old.vehicleId) && Array.isArray(old.vehicleBallot?.votes) && old.teams.every((t) => isVehicleId(t.vehicle));
   if (Array.isArray(old.ballots) && settingsOk && carsOk) return state;
   return {
@@ -21,6 +22,7 @@ export function upgrade(state: BlindRallyState): BlindRallyState {
           ...old.settings,
           trackPick: TRACK_PICKS.includes(old.settings?.trackPick) ? old.settings.trackPick : DEFAULT_SETTINGS.trackPick,
           vehiclePick: VEHICLE_PICKS.includes(old.settings?.vehiclePick) ? old.settings.vehiclePick : DEFAULT_SETTINGS.vehiclePick,
+          time: TIMES.includes(old.settings?.time) ? old.settings.time : DEFAULT_SETTINGS.time,
         },
     ballots: Array.isArray(old.ballots) ? old.ballots : [{ target: "all", votes: [], tied: [] }],
     vehicleId: isVehicleId(old.vehicleId) ? old.vehicleId : DEFAULT_VEHICLE,

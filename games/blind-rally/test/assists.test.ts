@@ -62,6 +62,6 @@ describe("assists", () => {
     const cam = (raw: unknown) => rulesPreview(raw).find((r) => r.label === "Navigator camera")!.value;
     expect(cam({ assists: "nightmare", camera: "chase" })).toBe("None, only the map");
     expect(cam({ camera: "chase" })).toBe("Chase only");
-    expect(rulesPreview({}).map((r) => r.label)).toEqual(["Track", "Stage", "Time limit", "Assists", "Navigator camera", "Weather", "Reset", "Lost connection"]);
+    expect(rulesPreview({}).map((r) => r.label)).toEqual(["Track", "Stage", "Time limit", "Assists", "Navigator camera", "Mist", "Reset", "Lost connection"]);
   });
 });

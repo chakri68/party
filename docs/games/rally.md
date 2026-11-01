@@ -44,7 +44,8 @@ Host picks these in the lobby. Everything else is fixed: always a race, always o
 | Cars | **Each player chooses**, Everyone votes | Each player chooses: tap your car on the grid. Everyone votes: one vote per car, everyone drives the winner; a tie goes to a coin toss. |
 | Time limit | 3 min, **5 min**, 8 min | Counts from GO. Still out there after that: DNF. |
 | Camera | **Any**, Top-down, Chase, Bonnet | Which views you get. Any lets you cycle all three, starting in chase. |
-| Weather | Clear, **Patchy cloud**, Murky | Mist hides bits of road. Same sky for everyone. |
+| Mist | Clear, **Patchy cloud**, Murky | Mist hides bits of road. Same sky for everyone. |
+| Time | **Day**, Dawn, Dusk, Night, Day into night, Random | The light for the whole race. Day into night starts bright and goes dark as you drive. Random picks one for you. Same for everyone. |
 
 ## On your screen
 

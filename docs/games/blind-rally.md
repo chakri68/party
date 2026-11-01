@@ -44,7 +44,8 @@ Host picks these in the lobby.
 | Time limit | 3 min, **5 min**, 8 min | Counts from GO. Still out there after that: DNF. |
 | Navigator camera | **Any**, Top-down, Chase, Bonnet | Which 3D views the Navigator gets. Any lets them cycle all three. Has no effect when the 3D camera assist is off. |
 | Assists | Beginner, **Classic**, Nightmare, Custom | What the Navigator gets. See below. |
-| Weather | Clear, **Patchy cloud**, Murky | Mist hides bits of road. Same sky for every team. |
+| Mist | Clear, **Patchy cloud**, Murky | Mist hides bits of road. Same sky for every team. |
+| Time | **Day**, Dawn, Dusk, Night, Day into night, Random | The light for the whole race. Day into night starts bright and goes dark as you drive. Random picks one for you. Same for everyone. |
 
 The Custom toggles (Live car marker, Trip meter, Pace notes, 3D camera, each On or Off) only appear when Assists is set to Custom. Switching to Custom starts from whatever the current preset has.
 

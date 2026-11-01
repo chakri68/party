@@ -1,5 +1,6 @@
 import type { GameManifest, SettingField } from "@games/game-core";
 import type { Briefing, BriefingLine, TrackLine } from "./rules-text.ts";
+import { TIME_LABELS, TIMES, timeHint } from "./sky.ts";
 import {
   CAMERA_POLICIES,
   PRESET_ASSISTS,
@@ -47,18 +48,19 @@ export const RALLY_DEFAULTS: BlindRallySettings = {
   timeLimit: 5,
   camera: "free",
   weather: "patchy",
+  time: "day",
   trackPick: "host",
   vehiclePick: "free",
   ...FIXED,
 };
 
-/** Untrusted settings → Rally's. Only the five free fields are read; the rest are pinned whatever arrives. */
+/** Untrusted settings → Rally's. Only the six free fields are read; the rest are pinned whatever arrives. */
 export function parseRallySettings(input: unknown): BlindRallySettings | null {
   if (input === undefined || input === null) return { ...RALLY_DEFAULTS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...RALLY_DEFAULTS, ...(input as Partial<BlindRallySettings>) };
-  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TRACK_PICKS.includes(s.trackPick) || !VEHICLE_PICKS.includes(s.vehiclePick)) return null;
-  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, trackPick: s.trackPick, vehiclePick: s.vehiclePick, ...FIXED };
+  if (!TIME_LIMITS.includes(s.timeLimit) || !CAMERA_POLICIES.includes(s.camera) || !WEATHERS.includes(s.weather) || !TIMES.includes(s.time) || !TRACK_PICKS.includes(s.trackPick) || !VEHICLE_PICKS.includes(s.vehiclePick)) return null;
+  return { timeLimit: s.timeLimit, camera: s.camera, weather: s.weather, time: s.time, trackPick: s.trackPick, vehiclePick: s.vehiclePick, ...FIXED };
 }
 
 export const rallyRules: string[] = [
@@ -127,10 +129,17 @@ export function rallySettingFields(raw: unknown, players: number): SettingField[
     },
     {
       key: "weather",
-      label: "Weather",
+      label: "Mist",
       selected: pickIndex(WEATHERS, s.weather),
       options: WEATHERS.map((w) => ({ label: WEATHER_LABELS[w], patch: { weather: w } })),
       hint: s.weather === "clear" ? "You can see the whole road" : "Mist hides parts of the road. Everyone gets the same weather",
+    },
+    {
+      key: "time",
+      label: "Time",
+      selected: pickIndex(TIMES, s.time),
+      options: TIMES.map((t) => ({ label: TIME_LABELS[t], patch: { time: t } })),
+      hint: timeHint(s.time),
     },
   ];
 }
@@ -148,7 +157,7 @@ export function rallyPreview(raw: unknown, track?: TrackLine): { label: string; 
     { label: "Stage", value: "Shared: 1 road, other cars are ghosts" },
     { label: "Time limit", value: `${s.timeLimit} min, then DNF` },
     { label: "Camera", value: s.camera === "free" ? "Any of the 3" : `${CAMERA_LABELS[s.camera]} only` },
-    { label: "Weather", value: WEATHER_LABELS[s.weather] },
+    { label: "Mist", value: WEATHER_LABELS[s.weather] },
     { label: "Reset", value: `+${RESET_PENALTY_MS / 1000} s. The car goes back to the last checkpoint.` },
     { label: "Lost connection", value: `The clock stops. You get ${RACE_GRACE_MS / 1000} s to connect again.` },
   ];

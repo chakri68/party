@@ -1,4 +1,5 @@
 import type { SettingField } from "@games/game-core";
+import { TIME_LABELS, TIMES, timeHint } from "./sky.ts";
 import {
   ASSIST_PRESETS,
   CAMERA_POLICIES,
@@ -76,15 +77,16 @@ export function parseSettings(input: unknown): BlindRallySettings | null {
     TIME_LIMITS.includes(s.timeLimit) &&
     CAMERA_POLICIES.includes(s.camera) &&
     WEATHERS.includes(s.weather) &&
+    TIMES.includes(s.time) &&
     // Shared needs one track for everyone. Fair Race always has that; Chaos Cup (M3) checks its vote.
     STAGE_MODES.includes(s.stageMode) &&
     TRACK_PICKS.includes(s.trackPick) &&
     ASSIST_PRESETS.includes(s.assists) &&
     ASSIST_KEYS.every((k) => bool(s[k]));
   if (!ok) return null;
-  const { mode, timeLimit, camera, weather, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
+  const { mode, timeLimit, camera, weather, time, stageMode, trackPick, assists, liveMarker, tripMeter, paceNotes, camera3d } = s;
   // Cars are Rally's. Whatever arrives, Blind Rally stays on "free".
-  return { mode, timeLimit, camera, weather, stageMode, trackPick, vehiclePick: "free", assists, liveMarker, tripMeter, paceNotes, camera3d };
+  return { mode, timeLimit, camera, weather, time, stageMode, trackPick, vehiclePick: "free", assists, liveMarker, tripMeter, paceNotes, camera3d };
 }
 
 /** Mid-sentence: "Live car marker" reads "live car marker", "3D camera" stays as it is. */
@@ -119,7 +121,7 @@ export function rulesPreview(raw: unknown, track?: TrackLine): { label: string; 
     { label: "Time limit", value: `${s.timeLimit} min, then DNF` },
     { label: "Assists", value: `${PRESET_LABELS[s.assists]}: ${onOff(a)}` },
     { label: "Navigator camera", value: !a.camera3d ? "None, only the map" : s.camera === "free" ? "Any of the 3" : `${CAMERA_LABELS[s.camera]} only` },
-    { label: "Weather", value: WEATHER_LABELS[s.weather] },
+    { label: "Mist", value: WEATHER_LABELS[s.weather] },
     { label: "Reset", value: `+${RESET_PENALTY_MS / 1000} s. The car goes back to the last checkpoint.` },
     { label: "Lost connection", value: `The clock stops. You get ${RACE_GRACE_MS / 1000} s to connect again.` },
   ];
@@ -275,10 +277,17 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
       : []),
     {
       key: "weather",
-      label: "Weather",
+      label: "Mist",
       selected: pickIndex(WEATHERS, s.weather),
       options: WEATHERS.map((w) => ({ label: WEATHER_LABELS[w], patch: { weather: w } })),
       hint: s.weather === "clear" ? "You can see the whole road" : "Mist hides parts of the road. All teams get the same weather",
+    },
+    {
+      key: "time",
+      label: "Time",
+      selected: pickIndex(TIMES, s.time),
+      options: TIMES.map((t) => ({ label: TIME_LABELS[t], patch: { time: t } })),
+      hint: timeHint(s.time),
     },
   ];
 }
