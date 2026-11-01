@@ -2,7 +2,8 @@ extends SceneTree
 ## Headless smoke tests for the spike. Loads the real main scene and drives
 ## the car through set_control(), the same entry point the web bridge uses.
 ## Run: godot --headless --path . --fixed-fps 60 --script res://tests/run_tests.gd
-## Exit code 0 = all passed.
+## Exit code 0 = all passed and nothing crashed: a SCRIPT ERROR or SHADER
+## ERROR anywhere in the run (see Crashes) is a failure too.
 
 var main: Node3D
 var car: CarController
@@ -11,9 +12,36 @@ var map: MapController
 var failures := 0
 var passes := 0
 var impacts: Array[float] = []
+var crashes := Crashes.new()
+
+
+## A GDScript runtime error aborts the function it's in, and the await
+## chain carries on as if it had returned, so a test that died mid-way
+## printed its SCRIPT ERROR and the run still said "0 failed". This hears
+## every script and shader error the engine logs; each one is a failure.
+class Crashes extends Logger:
+	var _lock := Mutex.new()
+	var _seen: PackedStringArray = []
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type != ERROR_TYPE_SCRIPT and error_type != ERROR_TYPE_SHADER:
+			return
+		_lock.lock()
+		_seen.append("%s ERROR: %s (%s:%d %s)" % ["SHADER" if error_type == ERROR_TYPE_SHADER else "SCRIPT", rationale if rationale else code, file, line, function])
+		_lock.unlock()
+
+	func seen() -> PackedStringArray:
+		_lock.lock()
+		var out := _seen.duplicate()
+		_lock.unlock()
+		return out
 
 
 func _initialize() -> void:
+	OS.add_logger(crashes)
 	_run.call_deferred()
 
 
@@ -92,6 +120,8 @@ func _run() -> void:
 	# Fourth stage: Cliffhanger.
 	await preload("res://tests/cliffhanger_tests.gd").new(self).run()
 
+	for c in crashes.seen():
+		check(false, "crashed: " + c)
 	print("\n%d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
 
