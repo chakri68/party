@@ -1,0 +1,376 @@
+/* Overheat. Uses the shell's tokens (--surface, --surface-2, --line, --ink, --muted, --accent, --danger, --card).
+   Everything is oh- prefixed: other games' stylesheets may be loaded in the same tab.
+   Cards are not scoped under .overheat: flight ghosts live on <body>. */
+
+.overheat {
+  --oh-card-w: 32px;
+  --oh-card-h: 44px;
+  --oh-red: #e5484d;
+  --oh-amber: #f5a524;
+  --oh-blue: #3e8ef7;
+  --oh-green: #2fae6b;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Status + header ----------------------------------------------------- */
+
+.oh-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.overheat.my-turn .oh-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.oh-clock { font-variant-numeric: tabular-nums; }
+
+.oh-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  font-size: 0.9rem;
+}
+.oh-round { font-weight: 700; }
+.oh-gauge b, .oh-deck b { font-variant-numeric: tabular-nums; }
+.oh-gauge b { color: var(--danger); font-size: 1.05rem; }
+.oh-muted { color: var(--muted); font-weight: 400; }
+.oh-head .oh-muted { margin-left: auto; }
+
+/* ---- Rows ------------------------------------------------------------------ */
+
+.oh-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.oh-row {
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms, opacity 200ms;
+  min-width: 0;
+}
+.oh-row.current { border-color: var(--accent); background: var(--accent-soft); }
+.oh-row.me .oh-name { color: var(--accent); }
+.oh-row.st-busted { opacity: 0.55; }
+.oh-row.st-busted .oh-engine { filter: grayscale(0.85); }
+.oh-row.st-out, .oh-row.away { opacity: 0.5; }
+.oh-row.winner { border-color: var(--accent); }
+
+.oh-row-body {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px 10px;
+  min-width: 0;
+}
+/* A target you can tap: the whole row is the button. */
+button.oh-row-body {
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font-weight: inherit;
+}
+.oh-row.aim {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger);
+  cursor: pointer;
+}
+.oh-row.aim button.oh-row-body::after {
+  content: "Tap to aim";
+  justify-self: end;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+button.oh-row-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.oh-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.oh-row-top .avatar { flex: 0 0 auto; }
+.oh-who { display: grid; gap: 2px; min-width: 0; flex: 1; line-height: 1.15; }
+.oh-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oh-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.oh-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.oh-row.st-banked .oh-chip:first-child { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.oh-row.st-busted .oh-chip:first-child { background: var(--danger); border-color: var(--danger); color: #1b0606; }
+.oh-turbo { border-color: var(--accent); color: var(--accent); }
+.oh-fuse {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.oh-fuse[hidden] { display: none; }
+.oh-fuse-icon svg { display: block; width: 16px; height: 16px; fill: currentColor; }
+.oh-fuse-icon .spark { fill: var(--oh-amber); }
+.oh-score {
+  flex: 0 0 auto;
+  min-width: 2.5ch;
+  text-align: right;
+  font-weight: 800;
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Heat bar --------------------------------------------------------------
+   --oh-fill: heat on the bar's scale. --oh-mark: this player's limit on it.
+   --oh-t: heat / limit, which moves the colour from cool blue to hot red. */
+
+.oh-heat {
+  --oh-fill: 0;
+  --oh-mark: 1;
+  --oh-t: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oh-track {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.oh-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: hsl(calc(205 - 205 * var(--oh-t)) 85% 52%);
+  transform: scaleX(var(--oh-fill));
+  transform-origin: left;
+  transition: transform 300ms ease, background 300ms ease;
+}
+/* The limit: a bar across the track. */
+.oh-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: calc(var(--oh-mark) * 100%);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: left 300ms ease;
+}
+.oh-heat-text {
+  flex: 0 0 auto;
+  min-width: 5.5ch;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.oh-heat.near .oh-heat-text, .oh-heat.over .oh-heat-text { color: var(--danger); }
+.oh-heat.near .oh-track { animation: oh-jitter 380ms linear infinite; }
+@keyframes oh-jitter {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1.5px, 0.5px); }
+  50% { transform: translate(1.5px, -0.5px); }
+  75% { transform: translate(-1px, 0); }
+}
+.oh-heat.flash .oh-mark { animation: oh-flash 700ms ease; }
+@keyframes oh-flash {
+  0%, 100% { box-shadow: none; }
+  30% { box-shadow: 0 0 0 4px var(--danger); background: var(--danger); }
+}
+
+/* ---- Cards ------------------------------------------------------------------ */
+
+.oh-engine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: var(--oh-card-h, 44px);
+  align-items: center;
+}
+.oh-empty { color: var(--muted); font-size: 0.85rem; }
+
+.oh-card {
+  --oh-c: #888;
+  --oh-c-ink: #fff;
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  flex: 0 0 auto;
+  width: var(--oh-card-w, 32px);
+  height: var(--oh-card-h, 44px);
+  min-height: 0;
+  padding: 0;
+  border: 2px solid var(--card, #f4f1e8);
+  border-radius: 6px;
+  background: var(--oh-c);
+  color: var(--oh-c-ink);
+  font: inherit;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.4);
+  box-sizing: border-box;
+}
+.oh-red { --oh-c: var(--oh-red, #e5484d); --oh-c-ink: #fff; }
+.oh-amber { --oh-c: var(--oh-amber, #f5a524); --oh-c-ink: #241500; }
+.oh-blue { --oh-c: var(--oh-blue, #3e8ef7); --oh-c-ink: #fff; }
+.oh-green { --oh-c: var(--oh-green, #2fae6b); --oh-c-ink: #04150b; }
+.oh-val { font-size: 1.05rem; font-weight: 800; line-height: 1; }
+.oh-shape svg { display: block; width: 11px; height: 11px; fill: currentColor; }
+.oh-x2 {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--ink, #fff);
+  color: var(--bg, #000);
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.oh-power {
+  --oh-c: var(--card, #f4f1e8);
+  --oh-c-ink: var(--card-ink, #111);
+  width: auto;
+  min-width: var(--oh-card-w, 32px);
+  padding: 0 4px;
+}
+.oh-pname { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.oh-card.leaving { opacity: 0; transform: scale(0.7); transition: opacity 200ms, transform 200ms; }
+.oh-card.landed { animation: oh-land 240ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes oh-land {
+  from { transform: scale(1.12); }
+}
+
+/* Wrench picks: the cards are buttons. */
+button.oh-card.pickable { cursor: pointer; outline: 2px dashed var(--muted); outline-offset: 2px; }
+button.oh-card.picked { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-4px); }
+button.oh-card:focus-visible { outline: 3px solid var(--accent); }
+
+/* ---- Log + dock --------------------------------------------------------------- */
+
+.oh-log {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.oh-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 4px;
+}
+.overheat.finished .oh-dock { position: static; background: none; }
+.oh-note { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.oh-note:empty { display: none; }
+.oh-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+}
+.oh-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 10px;
+  font-weight: 700;
+}
+.oh-actions .hint { color: var(--muted); font-size: 0.95rem; text-align: center; }
+
+/* ---- Bubbles + one-off effects ---------------------------------------------- */
+
+.anim-bubble.oh-gain { background: var(--accent); color: var(--accent-ink); }
+.anim-bubble.oh-loss { background: var(--danger); color: #1b0606; font-size: 1rem; }
+.anim-bubble.oh-hot { background: #ff7a3d; color: #1b0a02; }
+.anim-bubble.oh-cool { background: #3e8ef7; color: #fff; }
+.anim-bubble.oh-callout { background: var(--accent); color: var(--accent-ink); }
+
+.overheat .pop { animation: oh-pop 320ms cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes oh-pop {
+  from { transform: scale(1.35); }
+}
+.oh-fuse.pulse { animation: oh-pop 400ms cubic-bezier(.2, .8, .2, 1.4); }
+.oh-row.aimed { animation: oh-aimed 600ms ease; }
+@keyframes oh-aimed {
+  30% { box-shadow: 0 0 0 3px var(--danger); }
+}
+.oh-row.redline { animation: oh-redline 900ms ease; }
+@keyframes oh-redline {
+  0%, 100% { box-shadow: none; }
+  20%, 60% { box-shadow: 0 0 0 4px var(--accent); background: var(--accent-soft); }
+}
+.overheat .shake { animation: oh-shake 320ms ease; }
+@keyframes oh-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+/* ---- Bigger screens ---------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .overheat {
+    --oh-card-w: 38px;
+    --oh-card-h: 52px;
+    gap: 14px;
+  }
+  .oh-rows { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .oh-val { font-size: 1.25rem; }
+  .oh-shape svg { width: 13px; height: 13px; }
+  .oh-actions { max-width: 520px; margin: 0 auto; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oh-heat.near .oh-track { animation: none; box-shadow: inset 0 0 0 1px var(--line), 0 0 0 2px var(--danger); }
+  .oh-fill, .oh-mark, .oh-row, .oh-card.leaving { transition: none; }
+  .overheat .shake { animation: none; outline: 2px solid var(--danger); }
+  .oh-card.landed, .overheat .pop, .oh-fuse.pulse, .oh-row.aimed, .oh-row.redline, .oh-heat.flash .oh-mark { animation: none; }
+  button.oh-card.picked { transform: none; }
+}

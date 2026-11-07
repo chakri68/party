@@ -19,6 +19,7 @@ import { liarsDiceManifest, liarsDiceRules, liarsDiceSettingFields } from "@game
 import { nightfallManifest, nightfallRules, nightfallSettingFields } from "@games/nightfall/shared";
 import { ohHellManifest, ohHellRules, ohHellSettingFields } from "@games/oh-hell/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
+import { overheatManifest, overheatRules, overheatSettingFields } from "@games/overheat/shared";
 import { passTheBombManifest, passTheBombRules, passTheBombSettingFields } from "@games/pass-the-bomb/shared";
 import { presidentManifest, presidentRules, presidentSettingFields } from "@games/president/shared";
 import { samePageManifest, samePageRules, samePageSettingFields } from "@games/same-page/shared";
@@ -221,6 +222,13 @@ export const games: Record<string, GameEntry> = {
     rules: holdemRules,
     settingFields: holdemSettingFields,
     loadClient: () => import("@games/holdem/client").then((m) => m.default),
+  },
+  overheat: {
+    section: "cards",
+    manifest: overheatManifest,
+    rules: overheatRules,
+    settingFields: overheatSettingFields,
+    loadClient: () => import("@games/overheat/client").then((m) => m.default),
   },
   "same-page": {
     section: "words",

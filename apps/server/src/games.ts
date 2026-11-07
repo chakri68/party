@@ -16,6 +16,7 @@ import { liarsDiceGame } from "@games/liars-dice/server";
 import { nightfallGame } from "@games/nightfall/server";
 import { ohHellGame } from "@games/oh-hell/server";
 import { oldMaidGame } from "@games/old-maid/server";
+import { overheatGame } from "@games/overheat/server";
 import { passTheBombGame } from "@games/pass-the-bomb/server";
 import { presidentGame } from "@games/president/server";
 import { samePageGame } from "@games/same-page/server";
@@ -49,6 +50,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   thorns: thornsGame,
   "oh-hell": ohHellGame,
   holdem: holdemGame,
+  overheat: overheatGame,
   "same-page": samePageGame,
 };
 

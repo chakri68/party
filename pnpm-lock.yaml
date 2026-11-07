@@ -75,6 +75,9 @@ importers:
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
+      '@games/overheat':
+        specifier: workspace:*
+        version: link:../../games/overheat
       '@games/pass-the-bomb':
         specifier: workspace:*
         version: link:../../games/pass-the-bomb
@@ -169,6 +172,9 @@ importers:
       '@games/old-maid':
         specifier: workspace:*
         version: link:../../games/old-maid
+      '@games/overheat':
+        specifier: workspace:*
+        version: link:../../games/overheat
       '@games/pass-the-bomb':
         specifier: workspace:*
         version: link:../../games/pass-the-bomb

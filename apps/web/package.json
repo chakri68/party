@@ -29,6 +29,7 @@
     "@games/nightfall": "workspace:*",
     "@games/oh-hell": "workspace:*",
     "@games/old-maid": "workspace:*",
+    "@games/overheat": "workspace:*",
     "@games/pass-the-bomb": "workspace:*",
     "@games/president": "workspace:*",
     "@games/protocol": "workspace:*",
