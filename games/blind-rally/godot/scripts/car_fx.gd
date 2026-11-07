@@ -43,6 +43,12 @@ const TARMAC_SPRAY := 0.35
 ## each car class's; these are the hatch's.
 var wheels := [Vector3(-0.587, 0, -1.118), Vector3(0.587, 0, -1.118), Vector3(-0.587, 0, 1.118), Vector3(0.587, 0, 1.118)]
 var marks_placed := 0 ## total ever, for tests
+var splashes := 0 ## puddle splashes ever, for tests
+## Water off a puddle: the dust's own puffs and grit, in these colours, so
+## a splash needs no material the warm-up hasn't drawn.
+const SPLASH_SPRAY := Color(0.72, 0.76, 0.8)
+const SPLASH_DROP := Color(0.55, 0.6, 0.66)
+var _in_puddle := false
 
 var _car: CarController
 var _visual: Node3D
@@ -228,6 +234,11 @@ func _process(dt: float) -> void:
 	if dt <= 0.0:
 		return
 	_update_xray(dt, xf.origin)
+	# Splash on the way into a puddle that drags (CarController.PUDDLE_WET).
+	var wet_puddle := _car.wet > CarController.PUDDLE_WET and _car.in_puddle()
+	if wet_puddle and not _in_puddle and enabled and speed > 3.0:
+		_splash(xf, speed_k)
+	_in_puddle = wet_puddle
 	if enabled:
 		_emit_dust(dt, xf, speed, speed_k, lat, on_road)
 	_step_puffs(dt, xf.origin.y)
@@ -292,6 +303,24 @@ func _emit_dust(dt: float, xf: Transform3D, speed: float, speed_k: float, lat: f
 			var v := _car.velocity * 0.4 - fwd * _rng.randf_range(2.0, 5.0) + right * side * _rng.randf_range(0.5, 3.0) + Vector3.UP * _rng.randf_range(2.0, 4.5)
 			var s := _rng.randf_range(0.12, 0.22)
 			_spawn(contact + Vector3(0, 0.15, 0), v, _rng.randf_range(0.35, 0.6), Vector2(s, s), grit, 9.8, 1.0)
+
+
+## One burst off the front wheels: drops flung up and out, and a little
+## spray that hangs. Bigger the faster.
+func _splash(xf: Transform3D, speed_k: float) -> void:
+	splashes += 1
+	var right := xf.basis.x
+	var n := roundi((6.0 + 10.0 * speed_k) * density)
+	for w in 2:
+		var contact: Vector3 = xf * wheels[w]
+		var out := right * (1.0 if w == 1 else -1.0)
+		for i in n:
+			var v := _car.velocity * 0.3 + out * _rng.randf_range(1.5, 4.5) + Vector3.UP * _rng.randf_range(2.5, 5.0) * (0.6 + speed_k)
+			var s := _rng.randf_range(0.1, 0.2)
+			_spawn(contact + Vector3(0, 0.1, 0), v, _rng.randf_range(0.4, 0.7), Vector2(s, s), SPLASH_DROP, 9.8, 0.9)
+		for i in 2:
+			var v := _car.velocity * 0.2 + out * _rng.randf_range(0.5, 1.5) + Vector3.UP * _rng.randf_range(0.8, 1.6)
+			_spawn(contact + Vector3(0, 0.3, 0), v, _rng.randf_range(0.6, 0.9), Vector2(0.8, _rng.randf_range(2.0, 2.8)), SPLASH_SPRAY, 0.0, 0.45)
 
 
 func _spawn(p: Vector3, v: Vector3, life: float, size: Vector2, col: Color, grav: float, alpha: float) -> void:

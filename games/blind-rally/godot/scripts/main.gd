@@ -156,6 +156,7 @@ var biome: Biome ## the loaded track's (Track.get_biome())
 var _session_seen := false
 var _pending_session: Array = [] ## [cfg, seat, arrived usec] that came before the track did
 var warmup: Warmup ## while one's drawing; see warm_up()
+var puddles := PackedVector3Array() ## this seed's (Puddles.place): the car and the weather have them
 var warm_count := 0 ## warm-ups so far (tests)
 var _rivals: Array = [] ## initSession `rivals`, the last session's
 ## Warmup.distinct of each source group, walked once: the stage and the
@@ -275,6 +276,7 @@ func _setup_track() -> void:
 	# Locally there's no session yet: a random sky, light cloud. initSession
 	# replaces both.
 	weather.configure(randi(), 0.4)
+	_place_puddles(weather.seed_value)
 	sky = SkyClock.new()
 	sky.name = "SkyClock"
 	add_child(sky)
@@ -491,6 +493,15 @@ func _on_plan() -> void:
 ## The rain or the wet road moved (SkyClock.rain_changed): the car grips by wetness.
 func _on_rain(_rain: float, wet: float) -> void:
 	car.wet = wet
+	weather.set_wet(wet)
+
+
+## The stage's puddles for this seed (none where it snows), to the car and
+## the weather. Same seed and stage, same puddles, for every team.
+func _place_puddles(seed_in: int) -> void:
+	puddles = Puddles.place(track, seed_in, biome.weather == "snow")
+	car.puddles = puddles
+	weather.set_puddles(puddles)
 
 
 const CAMERA_MODES := ["topdown", "chase", "bonnet"]
@@ -771,6 +782,7 @@ func _apply_session(cfg: Dictionary, seat: String, arrived: int) -> void:
 	# Weather: the room picks the seed so every team gets the same sky.
 	var sky_seed := int(cfg["seed"]) if (cfg.get("seed") is float or cfg.get("seed") is int) else randi()
 	weather.configure(sky_seed, float(cfg.get("clouds", 0.0)))
+	_place_puddles(sky_seed)
 	sky.set_plan(cfg["sky"] if cfg.get("sky") is Dictionary else {})
 	# The run clock as of the send. A reload mid-race boots Godot after the
 	# host's clock event went by unheard, so the session carries it; absent or

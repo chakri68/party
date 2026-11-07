@@ -35,6 +35,7 @@ func run() -> void:
 	await _surfaces(track)
 	_banks(track)
 	await _snowfall(main)
+	_no_puddles(main, track)
 	await _eggs(main)
 	_export(track)
 	await t.test_autopilot_stage()
@@ -98,6 +99,18 @@ func _banks(track: Track) -> void:
 			else:
 				print("    no bank at %.0f m, side %+.0f: %s" % [m, side, hit])
 	check(hits == tried, "from mid-road, a bank within 6.5 m either side (%d/%d)" % [hits, tried])
+
+
+## Rain falls as snow here: no puddles, though the grit patches are "road".
+func _no_puddles(main: Node3D, track: Track) -> void:
+	main._on_session({"seed": 4242, "sky": {"rain": {"from": 1, "to": 1, "atMs": 0, "overMs": 0}}}, "")
+	check(main.puddles.is_empty() and t.car.puddles.is_empty(), "a wet session on Snowblind: no puddles")
+	var mats_ok := true
+	for m in main.weather.materials():
+		mats_ok = mats_ok and int(m.get_shader_parameter("puddle_count")) == 0
+	check(mats_ok, "and no material draws any")
+	check(not Puddles.place(track, 4242, false).is_empty(), "(the grit would take some, if it weren't snow)")
+	main._on_session({}, "")
 
 
 ## Light snowfall from the seed, only on the 3D side.

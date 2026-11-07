@@ -21,6 +21,12 @@
 //   just distance and angle in XZ. Weather pushes head_* and ghost_heads
 //   only while it's dark; head_on 0 (day) skips the lot.
 //
+// - Rain (the SkyClock's wetness): sky_wet darkens the ground and the road
+//   and makes the road glossy; puddle_at() is the standing water, soft discs
+//   in XZ the road shader mixes in by sky_wet. Weather pushes sky_wet only
+//   when the wetness moves and the puddles once per session, so a dry or
+//   steady sky costs nothing per frame. At sky_wet 0 nothing changes.
+//
 // The map camera never sees any of it: it doesn't draw render layer 4, the
 // weather layer, and CAMERA_VISIBLE_LAYERS says so. That keeps the static map
 // identical whatever the sky is doing.
@@ -63,6 +69,11 @@ const float GHOST_LEN = 25.0;
 const float GHOST_K = 0.5;
 const float GHOST_REACH = 80.0; // a pixel this far from a ghost skips its cone
 const vec3 HEAD_TINT = vec3(1.0, 0.95, 0.85); // halogen, a touch warm
+
+uniform float sky_wet = 0.0; // 0 dry .. 1 soaked: the road's wetness, not the rain
+const int PUDDLE_MAX = 24; // Puddles.PUDDLE_MAX
+uniform vec3 puddles[24]; // x, z, radius
+uniform int puddle_count = 0;
 
 bool weather_seen(uint layers) {
 	return (layers & 8u) != 0u;
@@ -170,4 +181,26 @@ vec3 sky_light(vec3 world) {
 const float HAZE_FLOOR = 0.3;
 vec3 sky_haze() {
 	return sky_tint * mix(1.0, HAZE_FLOOR, sky_dark);
+}
+
+// 0..1: how much standing water is at `xz`. Soft discs with a ragged rim
+// (the shared noise nudges the edge), so they read as puddles, not decals.
+// Fragment stage only.
+float puddle_at(vec2 xz) {
+	if (puddle_count <= 0) {
+		return 0.0;
+	}
+	float rim = (texture(detail, xz / 1.7).g - 0.5) * 0.35;
+	float m = 0.0;
+	for (int i = 0; i < PUDDLE_MAX; i++) {
+		if (i >= puddle_count) {
+			break;
+		}
+		vec3 p = puddles[i];
+		vec2 d = xz - p.xy;
+		if (dot(d, d) < p.z * p.z * 1.6) {
+			m = max(m, 1.0 - smoothstep(0.7, 1.0, length(d) / p.z + rim));
+		}
+	}
+	return m;
 }

@@ -58,6 +58,13 @@ extends Node3D
 ## hands them over. By day nothing is pushed per frame: head_on 0 makes
 ## the shaders skip the headlight terms, so stale positions are harmless.
 ## The landmarks' glows (set_glows) get night_boost = the darkness.
+##
+## Rain rides it too: set_wet() hands the road's wetness (SkyClock.wetness,
+## not the rain: the road lags it) to every registered material as sky_wet,
+## and set_puddles() the stage's puddles (Puddles.place) once per session.
+## Both only when they change, so a dry or steady sky pushes nothing per
+## frame. Snow: rain falls as snow, so the ground never looks wet (sky_wet
+## stays 0) and there are no puddles to draw.
 
 const LAYER := 8 ## render layer 4
 const BANK_PUFFS := 5
@@ -116,6 +123,9 @@ var _cloud := {} # shader parameter -> value, for materials registered later
 var _sky := {"sky_dark": 0.0, "sky_tint": Color(1, 1, 1)} # the same, for the light
 var _tinted: Array[ShaderMaterial] = [] # unshaded: sky_tint only
 var _glows: Array[ShaderMaterial] = [] # glow.gdshader: night_boost only
+var _wet := 0.0 # sky_wet the materials have
+var _puddles := PackedVector3Array() # (x, z, radius), the materials have them
+var rain_pushes := 0 ## sky_wet / puddle pushes so far, for tests: none per frame on a steady sky
 var _ghost_heads := PackedVector4Array() # (x, z, yaw, strength), GhostCars' last
 var _ghost_sent := -1 # ghost_head_count the materials have; -1: unknown
 var _eye_puffs := PackedVector4Array() # what the shaders got last, for the CPU mirror
@@ -240,6 +250,8 @@ func register(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("sky_dark", _sky.sky_dark)
 	mat.set_shader_parameter("sky_tint", _sky.sky_tint)
 	mat.set_shader_parameter("head_on", _sky.sky_dark)
+	mat.set_shader_parameter("sky_wet", _wet)
+	_apply_puddles(mat)
 	if night():
 		_apply_head(mat, _head_xf())
 		_apply_ghosts(mat)
@@ -275,6 +287,38 @@ func set_sky(dark: float, tint_now: Color) -> void:
 		_mist_mat.set_shader_parameter("sky_tint", hz)
 	if _snow_mat:
 		_snow_mat.set_shader_parameter("sky_tint", hz)
+
+
+## The road's wetness now (SkyClock.rain_changed), 0..1. Only called when
+## it moved. Snow stages stay dry-looking: the wet there falls as snow.
+func set_wet(wet: float) -> void:
+	var w := 0.0 if style == "snow" else clampf(wet, 0.0, 1.0)
+	if w == _wet:
+		return
+	_wet = w
+	rain_pushes += 1
+	for m in _mats:
+		m.set_shader_parameter("sky_wet", w)
+
+
+func wet() -> float:
+	return _wet
+
+
+## The stage's puddles (Puddles.place), at most PUDDLE_MAX. Once a session.
+func set_puddles(p: PackedVector3Array) -> void:
+	_puddles = p.slice(0, Puddles.PUDDLE_MAX)
+	rain_pushes += 1
+	for m in _mats:
+		_apply_puddles(m)
+
+
+func _apply_puddles(m: ShaderMaterial) -> void:
+	m.set_shader_parameter("puddle_count", _puddles.size())
+	if not _puddles.is_empty():
+		var arr := _puddles.duplicate()
+		arr.resize(Puddles.PUDDLE_MAX)
+		m.set_shader_parameter("puddles", arr)
 
 
 ## What the unshaded materials get as `sky_tint` now: SkyClock.haze.

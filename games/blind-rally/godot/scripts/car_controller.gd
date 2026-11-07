@@ -127,6 +127,24 @@ var wet := 0.0
 var snowy := false
 
 
+## Standing water: (x, z, radius) each (Puddles.place, from main). Above
+## PUDDLE_WET a puddle drags, harder the wetter: PUDDLE_DRAG at wet 1 on
+## top of the surface's drag. Tuned so one at 20 m/s costs about 0.2 s.
+var puddles := PackedVector3Array()
+const PUDDLE_DRAG := 1.15
+const PUDDLE_WET := 0.3
+
+
+## Is the car's centre over a puddle?
+func in_puddle() -> bool:
+	var x := global_position.x
+	var z := global_position.z
+	for p in puddles:
+		if (x - p.x) * (x - p.x) + (z - p.y) * (z - p.y) < p.z * p.z:
+			return true
+	return false
+
+
 ## Grip and looseness multipliers for `surface` at wetness `wet`. Wet 0 is
 ## exactly {1, 1}, so a dry stage drives as it always did.
 static func wet_grip(surf: String, wetness: float, snow: bool) -> Dictionary:
@@ -202,6 +220,8 @@ func _physics_process(dt: float) -> void:
 	# Drag: linear plus rolling, scaled by surface. Going over the surface's top
 	# speed (just drove onto grass at 25 m/s) bleeds off fast but not instantly.
 	var d: float = drag * s.drag
+	if wet > PUDDLE_WET and in_puddle():
+		d += PUDDLE_DRAG * (wet - PUDDLE_WET) / (1.0 - PUDDLE_WET)
 	if absf(v_fwd) > top:
 		d += 1.5
 	v_fwd -= v_fwd * d * dt

@@ -88,7 +88,16 @@ void fragment() {
 	}
 	float mist = 0.0;
 	float shine = 1.0; // the Sun's glint dims with the light here (night, headlights), not just the albedo
+	float wet = 0.0;
+	float pud = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
+		// Rain: the whole road darker and glossier, the puddles darker still
+		// and near mirror-smooth. Wet 0 leaves the road exactly as dry.
+		if (sky_wet > 0.0) {
+			wet = sky_wet;
+			pud = puddle_at(world.xz) * on_road * wet;
+			c *= (1.0 - 0.35 * wet) * (1.0 - 0.35 * pud);
+		}
 		vec3 lit = sky_light(world);
 		c *= (1.0 - cloud_shade_at(world.xz, false)) * lit;
 		shine = max(lit.r, max(lit.g, lit.b));
@@ -96,6 +105,6 @@ void fragment() {
 	}
 	ALBEDO = c * (1.0 - mist);
 	EMISSION = mist_tint * sky_haze() * mist;
-	ROUGHNESS = mix(mix(0.95, 0.8, damp), 0.22, ice);
-	SPECULAR = mix(0.25, 0.6, ice) * shine; // 0.25 as the palette material, so the road lights like everything else
+	ROUGHNESS = mix(mix(mix(mix(0.95, 0.8, damp), 0.22, ice), 0.25, wet), 0.06, pud);
+	SPECULAR = mix(mix(mix(0.25, 0.6, ice), 0.5, wet), 0.7, pud) * shine; // 0.25 as the palette material, so the road lights like everything else
 }

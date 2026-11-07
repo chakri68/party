@@ -73,6 +73,7 @@ void fragment() {
 	float mist = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
 		albedo *= (1.0 - cloud_shade_at(world.xz, false)) * sky_light(world);
+		albedo *= 1.0 - 0.25 * sky_wet; // wet earth is darker
 		mist = v_mist;
 	}
 	ALBEDO = albedo * (1.0 - mist);
