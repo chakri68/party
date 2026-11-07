@@ -142,4 +142,33 @@ describe("core", () => {
     expect(oh.getAwaitedPlayerIds(s)).toEqual(["p0"]);
     expect(oh.getAwaitedPlayerIds({ ...s, step: "round-end" })).toEqual([]);
   });
+
+  it("lets you bank on a later turn after flipping once, with no hand-set flags", () => {
+    let s = stateWith({ n: 2, deck: ["R1", "R2"] });
+    s = ok(act(s, "p0", { type: "flip" })).state;
+    s = ok(act(s, "p1", { type: "flip" })).state;
+    expect(err(act(stateWith({ n: 2 }), "p0", { type: "bank" }))).toBe("must-flip");
+    expect(byId(ok(act(s, "p0", { type: "bank" })).state, "p0").status).toBe("banked");
+  });
+
+  it("resets the first-flip rule each round", () => {
+    const s = stateWith({
+      n: 2,
+      players: [{ engine: ["R3"], flipped: true }, { status: "banked", flipped: true }],
+    });
+    const t = ok(act(s, "p0", { type: "bank" }));
+    const t2 = oh.onTimer!(t.state, "next-round", ctx());
+    expect(err(act(t2.state, "p1", { type: "bank" }))).toBe("must-flip");
+  });
+
+  it("puts a removed player's engine in the discard once and clears it", () => {
+    const s = stateWith({ n: 3, round: 1, players: [{}, { engine: ["B4"], removed: true }, {}] });
+    const id = s.players[1]!.engine[0]!.card.id;
+    s.step = "round-end";
+    const t2 = oh.onTimer!(s, "next-round", ctx());
+    const t3 = { ...t2, state: { ...t2.state, step: "round-end" as const } };
+    const t4 = oh.onTimer!(t3.state, "next-round", ctx());
+    expect(t4.state.discard.filter((c) => c.id === id)).toHaveLength(1);
+    expect(t4.state.players[1]!.engine).toEqual([]);
+  });
 });

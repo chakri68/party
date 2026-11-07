@@ -86,6 +86,7 @@ function bank(state: State, idx: number, out: Out): void {
 function startRound(state: State, ctx: GameContext, out: Out): void {
   for (const p of state.players) {
     for (const e of p.engine) state.discard.push(e.card);
+    p.engine = [];
   }
   state.gauge = GAUGE_MIN + ctx.randomInt(GAUGE_MAX - GAUGE_MIN + 1);
   state.step = "turn";
@@ -137,7 +138,6 @@ function advance(state: State, ctx: GameContext, out: Out): void {
     const idx = (state.turnIndex + step) % n;
     if (state.players[idx]!.status !== "flipping") continue;
     state.turnIndex = idx;
-    state.players[idx]!.flipped = false;
     // Turn-start hook: Fuse ticks go here (Task 3). A tick can bust or bank the
     // player before they act, in which case the turn moves on again.
     return;
