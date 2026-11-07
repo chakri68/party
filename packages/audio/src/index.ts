@@ -148,6 +148,34 @@ const RECORDED: Partial<Record<SoundId, { ids: SampleId[]; gain?: number; layer?
   "game-over": { ids: ["chips-place"], gain: 0.8, layer: true },
 };
 
+/** The ambient bed at level 1, before the user's volume: a background, not a cue. */
+const AMBIENT_GAIN = 0.35;
+
+/**
+ * Two seconds of rain: soft noise with the odd louder drop in it. The tail
+ * fades into the head, so the loop point doesn't click.
+ */
+function rainBuffer(ctx: AudioContext): AudioBuffer {
+  const fade = Math.floor(ctx.sampleRate * 0.05);
+  const len = Math.floor(ctx.sampleRate * 2) + fade;
+  const raw = new Float32Array(len);
+  let lp = 0;
+  for (let i = 0; i < len; i++) {
+    let x = Math.random() * 2 - 1;
+    if (Math.random() < 0.003) x *= 4;
+    lp += 0.5 * (x - lp);
+    raw[i] = lp * 0.6;
+  }
+  const buf = ctx.createBuffer(1, len - fade, ctx.sampleRate);
+  const out = buf.getChannelData(0);
+  for (let i = 0; i < len - fade; i++) out[i] = raw[i]!;
+  for (let i = 0; i < fade; i++) {
+    const k = i / fade;
+    out[i] = raw[i]! * k + raw[len - fade + i]! * (1 - k);
+  }
+  return buf;
+}
+
 // ---------------------------------------------------------------------------
 // Manager
 // ---------------------------------------------------------------------------
@@ -157,6 +185,9 @@ class Feedback {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private buffers = new Map<SampleId, AudioBuffer>();
+  private bed: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  private bedLevel = 0;
+  private bedBuffer: AudioBuffer | null = null;
 
   /**
    * Browsers keep audio locked until a user gesture (§28). Called on the first
@@ -205,6 +236,45 @@ class Feedback {
     g.gain.value = rec.gain ?? 1;
     src.connect(g).connect(this.master);
     src.start(t, SAMPLES[id].start);
+  }
+
+  /**
+   * A steady background bed (rain, for now), 0..1. The first non-zero level
+   * starts a looping band-passed noise on the unlocked context; each call
+   * ramps its gain to level x the user's volume over 0.5 s. Level 0, or sound
+   * off, ramps to silence and stops the source. Cheap to call every tick: it
+   * only touches the graph when the level moves.
+   */
+  ambient(level: number): void {
+    const want = this.settings.sound ? Math.min(1, Math.max(0, level)) : 0;
+    const ctx = this.ctx;
+    if (!ctx || !this.master || ctx.state !== "running") return;
+    if (Math.abs(want - this.bedLevel) < 0.005 && (want > 0) === (this.bed !== null)) return;
+    this.bedLevel = want;
+    const t = ctx.currentTime;
+    if (!this.bed) {
+      if (want === 0) return;
+      const src = ctx.createBufferSource();
+      src.buffer = this.bedBuffer ??= rainBuffer(ctx);
+      src.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = 1600;
+      band.Q.value = 0.4;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      src.connect(band).connect(gain).connect(this.master);
+      src.start(t);
+      this.bed = { src, gain };
+    }
+    const { src, gain } = this.bed;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(want * AMBIENT_GAIN, t + 0.5);
+    if (want === 0) {
+      src.stop(t + 0.5);
+      this.bed = null;
+    }
   }
 
   /** Optional haptics (§29). Silently nothing where unsupported (iOS Safari). */

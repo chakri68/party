@@ -20,12 +20,14 @@ import { captainOf, isSolo, seatOf, startBlocker } from "./teams.ts";
 // server leaks by default. test/projection.test.ts walks both for a deny-list.
 
 export function publicState(state: BlindRallyState): BlindRallyPublicState {
+  const sky = skyPlan(state.settings.time, state.settings.rain, state.seed, trackData(state.trackId));
   return {
     phase: state.phase,
     mode: state.settings.mode,
     stageMode: state.settings.stageMode,
     trackId: state.trackId,
-    skyWords: skyWords(skyPlan(state.settings.time, state.settings.rain, state.seed, trackData(state.trackId)), state.trackId),
+    skyWords: skyWords(sky, state.trackId),
+    skyRain: sky.rain,
     trackPick: effectiveTrackPick(state.settings),
     // Names, difficulty, length, par and a landmark count: the lobby's cards. No geometry (spec §4.1).
     tracks: trackCatalog(),

@@ -370,6 +370,11 @@ export interface PublicTrack {
 export interface BlindRallyPublicState {
   /** The light, in a sentence, for the lobby's rules card. */
   skyWords: string;
+  /**
+   * The run's rain ramp: the same thing skyWords says, as numbers, so the
+   * Driver's phone can play the rain they can't see. Times are run-clock ms.
+   */
+  skyRain: SkyPlan["rain"];
   phase: Phase;
   mode: Mode;
   stageMode: StageMode;

@@ -495,11 +495,13 @@ func _on_plan() -> void:
 
 
 ## The rain or the wet road moved (SkyClock.rain_changed): the car grips by
-## wetness, the road looks it, and the rain (not the wet) falls on screen.
+## wetness, the road looks it, the rain (not the wet) falls on screen, and
+## both are heard: the rain loop and the tyres' hiss.
 func _on_rain(rain: float, wet: float) -> void:
 	car.wet = wet
 	weather.set_wet(wet)
 	weather.set_rain(rain)
+	audio.set_rain(rain, wet)
 
 
 ## The stage's puddles for this seed (none where it snows), to the car and

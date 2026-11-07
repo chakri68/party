@@ -26,6 +26,13 @@ const CYCLES := 24
 const PITCH := Vector2(0.75, 2.6)
 const HARMONICS: Array[float] = [0.55, 0.35, 0.22, 0.14, 0.07]
 const GRIT := 0.06
+## Below this a player is off: stopped, not just quiet (linear_to_db(0.0001)).
+const SILENT_DB := -80.0
+## The rain loop and the wet hiss at full, before MAX_DB.
+const RAIN_MIX := 0.5
+const HISS_MIX := 0.35
+## The hiss needs the tyres rolling: nothing below this, m/s.
+const HISS_MIN_SPEED := 3.0
 
 ## 0..1 master level, on top of the per-sound mix.
 @export var volume := 0.8
@@ -41,6 +48,10 @@ var _engine: AudioStreamPlayer
 var _gravel: AudioStreamPlayer
 var _skid: AudioStreamPlayer
 var _thump: AudioStreamPlayer
+var _rain_p: AudioStreamPlayer
+var _hiss: AudioStreamPlayer
+var _rain := 0.0 ## how hard it rains, from SkyClock via main
+var _wet := 0.0 ## how wet the road is
 var _rng := RandomNumberGenerator.new()
 var _rpm := 0.0
 var _gear := 1
@@ -69,6 +80,9 @@ func prepare() -> void:
 	_skid = _player("Skid", _make_noise(0.8, 0.35, 900.0), true)
 	_thump = _player("Thump", _make_thump(), false)
 	_thump.max_polyphony = 2
+	# Made last, so the loops above keep the noise they've always had.
+	_rain_p = _player("Rain", _make_noise(2.0, 0.45, 0.0), true)
+	_hiss = _player("Hiss", _make_noise(1.0, 1.0, 3200.0), true)
 
 
 ## Starts the loops (built already, unless nobody called prepare()). Safe to
@@ -94,6 +108,46 @@ func rebuild() -> void:
 	_engine.stream = _make_engine(_audio())
 	if playing:
 		_engine.play()
+
+
+## The sky's rain and the road's wetness (SkyClock.rain_changed, via main).
+## _process turns them into the rain loop and the hiss.
+func set_rain(rain: float, wet: float) -> void:
+	_rain = clampf(rain, 0.0, 1.0)
+	_wet = clampf(wet, 0.0, 1.0)
+
+
+## Where it snows, the "rain" is snow: it falls quietly, and the road is
+## snow, not a wet one.
+func _snowy() -> bool:
+	return _car != null and _car.snowy
+
+
+## The rain loop's volume: follows the rain, SILENT_DB when dry.
+func rain_db() -> float:
+	var r := 0.0 if _snowy() else _rain
+	return SILENT_DB if r <= 0.0 else linear_to_db(r * RAIN_MIX) + MAX_DB
+
+
+## The wet tyre hiss at `speed` m/s: wetness x the share of top speed,
+## nothing below HISS_MIN_SPEED.
+func hiss_db(speed: float) -> float:
+	if _snowy() or _wet <= 0.0 or speed < HISS_MIN_SPEED:
+		return SILENT_DB
+	var top := _car.max_speed if _car else 30.0
+	return linear_to_db(_wet * clampf(speed / top, 0.0, 1.0) * HISS_MIX) + MAX_DB
+
+
+## Plays p at db, or stops it at SILENT_DB, so a dry run plays exactly what it
+## did before the rain existed.
+func _drive(p: AudioStreamPlayer, db: float) -> void:
+	if db <= SILENT_DB:
+		if p.playing:
+			p.stop()
+		return
+	p.volume_db = db
+	if not p.playing:
+		p.play()
 
 
 func engine_samples() -> int:
@@ -150,6 +204,8 @@ func _process(dt: float) -> void:
 	var slide := clampf((absf(_car.lateral_speed) - 2.0) / 7.0, 0.0, 1.0)
 	_skid.volume_db = linear_to_db(maxf(slide * 0.5, 0.0001)) + MAX_DB
 	_skid.pitch_scale = lerpf(0.85, 1.1, slide)
+	_drive(_rain_p, rain_db())
+	_drive(_hiss, hiss_db(speed))
 
 
 func _on_impact(strength: float, _who: Object) -> void:

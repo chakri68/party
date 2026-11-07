@@ -37,6 +37,7 @@ func run() -> void:
 	await test_splash_adds_no_material()
 	await test_rain_falls()
 	await test_rain_warmed()
+	await test_rain_heard()
 
 
 func _plan_where(cases: Array, from: float, to: float) -> Dictionary:
@@ -399,6 +400,65 @@ func test_rain_warmed() -> void:
 	check(drawn, "and the warm-up draws its material, though it's dry")
 	for i in 4:
 		await t.process_frame
+
+
+## The rain you hear: both loops built at load, the rain follows `rain`,
+## the hiss wants wet and speed, main hands the sky over, snow is quiet,
+## and on a dry run neither one plays.
+func test_rain_heard() -> void:
+	print("rain heard")
+	var audio: CarAudio = main.audio
+	var rain_p := audio.get_node_or_null("Rain") as AudioStreamPlayer
+	var hiss_p := audio.get_node_or_null("Hiss") as AudioStreamPlayer
+	check(not audio.started, "no gesture yet")
+	check(rain_p != null and rain_p.stream is AudioStreamWAV and hiss_p != null and hiss_p.stream is AudioStreamWAV, "but the rain loop and the tyre hiss are built already")
+	if rain_p == null or hiss_p == null:
+		return
+	var loop := rain_p.stream as AudioStreamWAV
+	check(loop.loop_mode == AudioStreamWAV.LOOP_FORWARD and absf(loop.loop_end / float(CarAudio.RATE) - 2.0) < 0.1, "the rain loops, about 2 s (%.2f s)" % (loop.loop_end / float(CarAudio.RATE)))
+	audio.set_rain(0.0, 0.0)
+	var dry := audio.rain_db()
+	audio.set_rain(1.0, 1.0)
+	var wet := audio.rain_db()
+	check(dry <= CarAudio.SILENT_DB and wet > dry + 40.0, "rain 1 is heard (%.1f dB), rain 0 is silent (%.1f dB)" % [wet, dry])
+	audio.set_rain(0.5, 1.0)
+	check(audio.rain_db() < wet and audio.rain_db() > dry, "rain 0.5 sits between (%.1f dB)" % audio.rain_db())
+	audio.set_rain(1.0, 1.0)
+	check(audio.hiss_db(0.0) <= CarAudio.SILENT_DB and audio.hiss_db(2.9) <= CarAudio.SILENT_DB, "the hiss is silent at a stop and below 3 m/s")
+	check(audio.hiss_db(20.0) > audio.hiss_db(8.0) and audio.hiss_db(8.0) > CarAudio.SILENT_DB, "and grows with speed (%.1f, %.1f dB)" % [audio.hiss_db(8.0), audio.hiss_db(20.0)])
+	audio.set_rain(1.0, 0.0)
+	check(audio.hiss_db(20.0) <= CarAudio.SILENT_DB, "a dry road doesn't hiss, rain or not")
+	car.snowy = true
+	audio.set_rain(1.0, 1.0)
+	check(audio.rain_db() <= CarAudio.SILENT_DB and audio.hiss_db(20.0) <= CarAudio.SILENT_DB, "snow falls quietly: no rain, no hiss")
+	car.snowy = false
+	var sky: SkyClock = main.sky
+	sky.set_plan(SOAKED)
+	sky.set_clock(0.0, false)
+	check(audio.rain_db() == wet, "a Rain session: main hands the rain to the audio")
+	# Now press play, the way the first gesture does.
+	await t.place(_straight_xf())
+	await t.idle(0.5)
+	audio.start()
+	for i in 2: # process_frame fires before the nodes' _process: two to be sure one ran
+		await t.process_frame
+	check(rain_p.playing and is_equal_approx(rain_p.volume_db, wet), "started in the rain: the loop plays at %.1f dB" % rain_p.volume_db)
+	var v := Vector2(car.velocity.x, car.velocity.z).length()
+	check(not hiss_p.playing and v < CarAudio.HISS_MIN_SPEED, "parked (%.2f m/s): no hiss" % v)
+	car.velocity = -car.global_basis.z * 20.0
+	for i in 2:
+		await t.process_frame
+	check(hiss_p.playing and hiss_p.volume_db > CarAudio.SILENT_DB, "rolling at 20 m/s on the wet: it hisses (%.1f dB)" % hiss_p.volume_db)
+	car.neutralize()
+	var was := audio.muted
+	audio.muted = true
+	check(AudioServer.is_bus_mute(0), "mute takes the rain with it (the master bus)")
+	audio.muted = was
+	sky.set_plan({})
+	sky.set_clock(0.0, false)
+	for i in 2:
+		await t.process_frame
+	check(not rain_p.playing and not hiss_p.playing, "Dry: neither plays, as before")
 
 
 func _all_materials() -> Dictionary:

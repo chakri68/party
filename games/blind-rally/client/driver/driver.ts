@@ -5,6 +5,7 @@ import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from 
 import { teamColor } from "../../shared/types.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Controls, Sender } from "./input.ts";
+import { driverRainLevel } from "./rain.ts";
 import { bindPads, coarse, fullscreenButton, pedalZone, steerZone } from "./pads.ts";
 
 // The Driver's phone (spec §4.1): steering under the left thumb, pedals under
@@ -100,6 +101,7 @@ class DriverView implements RoleView {
   destroy() {
     clearInterval(this.ticker);
     clearTimeout(this.confirming);
+    audio.ambient(0);
     this.controls.neutral();
     this.controls.destroy();
     this.sender.destroy();
@@ -199,6 +201,9 @@ class DriverView implements RoleView {
       this.count.classList.toggle("go", count === "GO");
       if (count) audio.buzz(count === "GO" ? 120 : 30);
     }
+
+    // The rain the Navigator's screen shows, heard here: on the same run clock, silent unless running.
+    audio.ambient(driverRainLevel(g, team, now));
 
     this.renderLink(g.phase === "teams");
   }
