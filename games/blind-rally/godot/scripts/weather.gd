@@ -750,8 +750,9 @@ func _push_rain() -> void:
 
 ## Is the camera in a tunnel bore? Top-down, the car stands in for it, the
 ## way the roof decides to dissolve: the rock's cut open there, so no rain
-## falls on what's under it. Flat distance to each bore's line: a few dozen
-## segments, only on a stage with a tunnel, only while it rains.
+## falls on what's under it. Near the bore's line and between its portals
+## (TunnelRoof.in_bore): a few dozen segments, only on a stage with a
+## tunnel, only while it rains.
 func _in_bore() -> bool:
 	if tunnels.is_empty():
 		return false
@@ -762,6 +763,6 @@ func _in_bore() -> bool:
 	if not eye_level and car:
 		p = car.get_global_transform_interpolated().origin
 	for roof in tunnels:
-		if is_instance_valid(roof) and roof.distance_to_bore(p) < roof.reach.y:
+		if is_instance_valid(roof) and roof.in_bore(p, roof.reach.y):
 			return true
 	return false

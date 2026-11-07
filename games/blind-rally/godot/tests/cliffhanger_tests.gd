@@ -250,6 +250,23 @@ func _tunnel(main: Node3D, track: Track) -> void:
 	await t.place(_at(track, i * 2.0 - 120.0))
 	await t.idle(0.6)
 	check(rain != null and roof.distance_to_bore(cam.global_position) > roof.reach.y and rain.visible and w.rain_visible() == 3000, "and 120 m back out in the open, it rains again")
+	# Out of the exit, it rains as soon as the camera is: the bore ends at
+	# its portal, it isn't a 14 m ball round it.
+	var exit_k := 0
+	best = INF
+	for k in track.centerline.size():
+		var d := track.centerline[k].distance_to(roof.line[roof.line.size() - 1])
+		if d < best:
+			best = d
+			exit_k = k
+	await t.place(_at(track, exit_k * 2.0 + 14.0))
+	await t.idle(0.6)
+	var past := roof.distance_to_bore(cam.global_position)
+	check(past < roof.reach.y and not roof.in_bore(cam.global_position, roof.reach.y) and rain.visible,
+		"14 m out of the exit, camera %.1f m from the portal: it rains (%s)" % [past, rain.visible])
+	check(roof.in_bore(roof.line[roof.line.size() / 2] + Vector3(3, 0, 0), roof.reach.y)
+		and not roof.in_bore(roof.line[0] + (roof.line[0] - roof.line[1]).normalized() * 3.0, roof.reach.y),
+		"in_bore: true beside the middle, false 3 m out past the entry")
 	w.set_rain(0.0)
 	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
 	car.neutralize()

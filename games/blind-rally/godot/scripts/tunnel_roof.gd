@@ -49,3 +49,24 @@ func distance_to_bore(p: Vector3) -> float:
 		var t := clampf((q - a).dot(ab) / maxf(ab.length_squared(), 1e-6), 0.0, 1.0)
 		best = minf(best, q.distance_to(a + ab * t))
 	return best
+
+
+## Is p within margin of the bore's line, between its portals? Unlike
+## distance_to_bore, the ends don't round off: a point out past a portal is
+## in the open however close it is, so rain starts the moment the camera
+## clears the exit instead of 14 m later.
+func in_bore(p: Vector3, margin: float) -> bool:
+	var q := Vector2(p.x, p.z)
+	var last := line.size() - 2
+	var best := INF
+	var outside := false # nearest point is a portal, with p beyond it
+	for i in line.size() - 1:
+		var a := Vector2(line[i].x, line[i].z)
+		var b := Vector2(line[i + 1].x, line[i + 1].z)
+		var ab := b - a
+		var t := (q - a).dot(ab) / maxf(ab.length_squared(), 1e-6)
+		var d := q.distance_to(a + ab * clampf(t, 0.0, 1.0))
+		if d < best:
+			best = d
+			outside = (i == 0 and t < 0.0) or (i == last and t > 1.0)
+	return best < margin and not outside
