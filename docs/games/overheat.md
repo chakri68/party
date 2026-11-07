@@ -61,14 +61,14 @@ Host picks these in the lobby.
 
 - **Header.** The round, the heat limit for the round, how many cards are left in the deck, and the target.
 - **One row per player.** Name, score, and a chip: Flipping, Banked +N, Redline +N, Bust or Left. A fuse icon with a count shows their Fuses. "Next ×2" means a Turbo is waiting.
-- **Heat bar.** It fills as heat goes up and turns from blue to red. The dark line is that player's limit, with the numbers next to it (`17 / 24`). After a Heatwave, the line moves left. When a player is 3 or less away from the limit, the bar shakes.
+- **Heat bar.** It fills as heat goes up and turns from blue to red. The line is that player's limit, with the numbers next to it (`17 / 24`). After a Heatwave, the line moves left. When a player is 3 or less away from the limit, the bar shakes.
 - **Cards.** Each card shows its number, its colour and a shape: red circle, amber triangle, blue square, green diamond. A "×2" mark means it counts double.
 - **Buttons.** Flip and Bank +N, where N is what you would score now. Bank is greyed out on your first turn.
 - **Aiming.** For Shove and Fuse, the rows you can aim at get a red border. Tap one. For Wrench, tap one of your cards and one of theirs.
 - **Log.** One line under the table says what just happened, like "Asha shoved a Red 8 onto you."
 - Sounds and vibration mark flips, banks, busts, power cards and your turn.
 
-## When things go sideways
+## When something goes wrong
 
 - **Idle player.** The host gets a "Skip" button after a while. A skip banks for them, or flips if it's their first turn. If they were aiming a card, the game picks a target (and cards) at random.
 - **Disconnected player.** The game waits, and their row shows them as reconnecting. The host can skip or remove them.
@@ -78,6 +78,6 @@ Host picks these in the lobby.
 
 ## Tips
 
-- The average number card is 5. With 5 or less to go, the next flip busts you a little under half the time.
+- With 5 to go, about 1 flip in 3 busts you. With 3 to go, more than half do.
 - Colour bonuses add up. 3 reds and one of each other colour is +10.
 - Watch other players' bars. A Shove onto someone at 26 of 27 is very likely to bust them.

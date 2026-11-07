@@ -86,7 +86,7 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
     case "wrench":
       return `${who(e.playerId)} gave ${whom(e.targetId)} ${an(cardLabel(e.gave.card))} and took ${an(cardLabel(e.got.card))}.`;
     case "fuse":
-      return `${who(e.playerId)} put a Fuse on ${whom(e.targetId)}. Each Fuse adds 1 heat at the start of each turn.`;
+      return `${who(e.playerId)} put a Fuse on ${whom(e.targetId)}. Each Fuse adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
     case "fuse-tick":
       return `Fuse: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "heatwave":
@@ -291,7 +291,7 @@ export class OverheatView implements GameView {
     let text: string;
     if (mine && game.step === "choosing" && pending) {
       text =
-        pending.kind === "wrench" ? "Pick one of your cards, then one of theirs."
+        pending.kind === "wrench" ? "Pick one of your cards and one of theirs."
         : pending.kind === "fuse" ? "Pick a player to get the Fuse."
         : "Pick a player to shove a card onto.";
     } else if (mine) {
@@ -322,7 +322,7 @@ export class OverheatView implements GameView {
 
   private renderHead(game: OverheatPublicState) {
     this.roundEl.textContent = `Round ${game.round}`;
-    replaceChildren(this.gaugeEl, "Limit ", h("b", {}, String(game.gauge)));
+    replaceChildren(this.gaugeEl, "Starting limit ", h("b", {}, String(game.gauge)));
     this.gaugeEl.setAttribute("aria-label", `Heat limit this round: ${game.gauge}`);
     replaceChildren(this.deckEl, "Deck ", h("b", {}, String(game.deckCount)));
     this.deckEl.setAttribute("aria-label", `${game.deckCount} cards in the deck`);
@@ -394,7 +394,7 @@ export class OverheatView implements GameView {
                 { class: "oh-tags" },
                 h("span", { class: "oh-chip" }, status),
                 p.turbo && p.status === "flipping" ? h("span", { class: "oh-chip oh-turbo" }, "Next ×2") : null,
-                h("span", { class: "oh-fuse", hidden: p.fuses === 0, "aria-hidden": "true" }, h("span", { class: "oh-fuse-icon" }), `×${p.fuses}`),
+                h("span", { class: "oh-fuse", hidden: p.fuses === 0 || p.status !== "flipping", "aria-hidden": "true" }, h("span", { class: "oh-fuse-icon" }), `×${p.fuses}`),
               ),
             ),
             h("span", { class: "oh-score", "aria-hidden": "true" }, String(p.score)),
