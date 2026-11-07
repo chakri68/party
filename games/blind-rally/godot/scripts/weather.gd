@@ -65,6 +65,14 @@ extends Node3D
 ## Both only when they change, so a dry or steady sky pushes nothing per
 ## frame. Snow: rain falls as snow, so the ground never looks wet (sky_wet
 ## stays 0) and there are no puddles to draw.
+##
+## And you see it fall: set_rain() (SkyClock.rain, not the wetness) shows
+## round(rain * MAX_DROPS) streaks of one MultiMesh (shaders/rain.gdshader:
+## one draw, moved in the shader, like the snow), set only when the rain
+## moves. While it rains the box follows the camera, and the streaks hide
+## while the camera's in a tunnel bore (tunnels, from main): the only
+## per-frame work, and none on a dry run. Snow: no streaks; the rain adds
+## to the snowfall instead (snowfall = base + rain * RAIN_SNOW, at most 1).
 
 const LAYER := 8 ## render layer 4
 const BANK_PUFFS := 5
@@ -82,6 +90,15 @@ const SHADE_SCALE := 180.0 ## metres per cloud-noise tile; keep in sync with wea
 const MAX_FLAKES := 2400 ## at snowfall 1
 const FALL := 1.6 ## m/s a flake drops
 const FLAKE_WIND := 0.45 ## share of the bank wind the flakes drift with (they're near the ground, in the lee)
+const MAX_DROPS := 3000 ## rain streaks at rain 1
+const DROP_FALL := 9.0 ## m/s a raindrop drops
+const DROP_WIND := 0.8 ## share of the bank wind the drops slant with
+const RAIN_SNOW := 0.6 ## snowfall that rain 1 adds where it snows
+## The rain box, its streaks, and how far ahead of the eye it sits: at eye
+## level a small box round the lens; top-down a wide one round the car, and
+## fatter streaks, since a metre there is a few pixels.
+const RAIN_EYE := {"box": Vector3(30.0, 16.0, 30.0), "width": 0.018, "streak": 0.7, "ahead": 8.0}
+const RAIN_TOP := {"box": Vector3(80.0, 40.0, 80.0), "width": 0.07, "streak": 1.6, "ahead": 0.0}
 
 @export var clouds := 0.0 ## 0 = clear, 1 = heavy
 var seed_value := 0
@@ -103,6 +120,7 @@ var eye_level := false:
 		eye_level = v
 		if _mist:
 			_mist.visible = clouds > 0.0 and not v
+		_rain_view()
 		_push_mist()
 var bounds := Rect2(-500, -500, 1000, 1000)
 ## "mist", "dust" or "snow" (Biome.weather); set_biome() sets these.
@@ -113,8 +131,13 @@ var bank_height := BANK_HEIGHT
 var shade_k := 1.0
 var size_k := 1.0 ## puff size multiplier (sea fog banks are bigger)
 var heading := -1.0 ## radians the banks drift toward; < 0: the seed's
-## How hard it's snowing, 0..1: clouds times a seeded share (snow biome only).
+## How hard it's snowing, 0..1: clouds times a seeded share (snow biome
+## only), plus what the rain adds there.
 var snowfall := 0.0
+var rain := 0.0 ## SkyClock.rain as set_rain() last had it
+## The stage's tunnel roofs (main, at track setup): no rain in their bores.
+var tunnels: Array[TunnelRoof] = []
+var rain_sets := 0 ## times the drop count was set, for tests: none per frame on a steady rain
 
 var _wind := Vector2.ZERO
 var _banks: Array = [] # {origin: Vector2, phase, period, thick, puffs: [[offset Vector2, size]]}
@@ -134,6 +157,10 @@ var _mist_mat: ShaderMaterial
 var _mm: MultiMesh
 var _snow: MultiMeshInstance3D
 var _snow_mat: ShaderMaterial
+var _snow_base := 0.0 # the seed's snowfall, before the rain
+var _rain: MultiMeshInstance3D
+var _rain_mat: ShaderMaterial
+var _rain_hidden := false # in a bore
 
 
 func _ready() -> void:
@@ -177,6 +204,8 @@ func set_biome(b: Biome) -> void:
 	heading = deg_to_rad(b.wind_heading_deg) if b.wind_heading_deg >= 0.0 else -1.0
 	if style == "snow" and _snow == null:
 		_build_snowfall()
+	if style != "snow" and _rain == null:
+		_build_rain()
 	if _mist_mat:
 		_mist_mat.set_shader_parameter("tint", tint.lightened(0.08))
 	for m in _mats:
@@ -215,11 +244,11 @@ func configure(seed_in: int, clouds_in: float) -> void:
 			_banks.append(bank)
 	# After every bank's numbers, so the snow never shifts a bank.
 	var share := rng.randf_range(0.55, 1.0)
-	snowfall = clouds * share if style == "snow" else 0.0
-	if _snow:
-		_snow.visible = snowfall > 0.0
-		_snow.multimesh.visible_instance_count = roundi(snowfall * MAX_FLAKES)
-		_push_snow()
+	_snow_base = clouds * share if style == "snow" else 0.0
+	_set_snowfall()
+	if _rain_mat:
+		var w := _wind * DROP_WIND
+		_rain_mat.set_shader_parameter("vel", Vector3(w.x, -DROP_FALL, w.y))
 	_cloud = {
 		"cloud_coverage": lerpf(0.0, 0.55, clouds) if clouds > 0.0 else -0.2,
 		"cloud_strength": lerpf(0.22, 0.38, clouds) * shade_k if clouds > 0.0 else 0.0,
@@ -287,6 +316,40 @@ func set_sky(dark: float, tint_now: Color) -> void:
 		_mist_mat.set_shader_parameter("sky_tint", hz)
 	if _snow_mat:
 		_snow_mat.set_shader_parameter("sky_tint", hz)
+	if _rain_mat:
+		_rain_mat.set_shader_parameter("sky_tint", hz)
+
+
+## How hard it's raining now (SkyClock.rain_changed), 0..1. Only called
+## when it moved. Where it snows it snows harder instead.
+func set_rain(r: float) -> void:
+	rain = clampf(r, 0.0, 1.0)
+	if style == "snow":
+		_set_snowfall()
+		return
+	if _rain == null:
+		return
+	var n := roundi(rain * MAX_DROPS)
+	if n != _rain.multimesh.visible_instance_count:
+		_rain.multimesh.visible_instance_count = n
+		rain_sets += 1
+	_rain_hidden = n > 0 and _in_bore()
+	_rain.visible = n > 0 and not _rain_hidden
+	_push_rain()
+
+
+## Streaks drawn now: 0 where it snows or it's dry.
+func rain_visible() -> int:
+	return _rain.multimesh.visible_instance_count if _rain else 0
+
+
+## The seed's snowfall plus the rain's share, and the flakes to match.
+func _set_snowfall() -> void:
+	snowfall = clampf(_snow_base + rain * RAIN_SNOW, 0.0, 1.0) if style == "snow" else 0.0
+	if _snow:
+		_snow.visible = snowfall > 0.0
+		_snow.multimesh.visible_instance_count = roundi(snowfall * MAX_FLAKES)
+		_push_snow()
 
 
 ## The road's wetness now (SkyClock.rain_changed), 0..1. Only called when
@@ -390,12 +453,15 @@ func materials() -> Array[ShaderMaterial]:
 	return _mats
 
 
-## Mist and snowfall: both start with nothing to draw (no bank in view, a
-## dry stage), so Warmup draws their shaders once at load.
+## Mist, snowfall and rain: all start with nothing to draw (no bank in
+## view, a dry stage, a storm that hasn't come), so Warmup draws their
+## shaders once at load.
 func warm_sources() -> Array[MultiMeshInstance3D]:
 	var out: Array[MultiMeshInstance3D] = [_mist]
 	if _snow:
 		out.append(_snow)
+	if _rain:
+		out.append(_rain)
 	return out
 
 
@@ -432,9 +498,17 @@ func _process(_dt: float) -> void:
 			if keyhole:
 				m.set_shader_parameter("mist_car", xf.origin)
 			_apply_head(m, xf)
+	# Rain and snow don't need clouds: rain adds to the snowfall.
+	_push_snow()
+	if rain > 0.0 and _rain:
+		var hide := _in_bore()
+		if hide != _rain_hidden:
+			_rain_hidden = hide
+			_rain.visible = not hide
+		if not hide:
+			_push_rain()
 	if clouds <= 0.0:
 		return
-	_push_snow()
 	_cloud["cloud_offset"] = _wind * time
 	for m in _mats:
 		m.set_shader_parameter("cloud_offset", _wind * time)
@@ -610,3 +684,84 @@ func _push_snow() -> void:
 	_snow_mat.set_shader_parameter("t", time)
 	if car:
 		_snow_mat.set_shader_parameter("centre", car.get_global_transform_interpolated().origin)
+
+
+## The streaks: MAX_DROPS thin quads at fixed random spots in the box (seed
+## 2: where a drop sits isn't weather, only how many fall is).
+func _build_rain() -> void:
+	_rain_mat = ShaderMaterial.new()
+	_rain_mat.shader = preload("res://shaders/rain.gdshader")
+	_rain_mat.render_priority = 1
+	_rain_mat.set_shader_parameter("sky_tint", haze())
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1, 1)
+	quad.material = _rain_mat
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = true
+	mm.mesh = quad
+	mm.instance_count = MAX_DROPS
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	for i in MAX_DROPS:
+		mm.set_instance_transform(i, Transform3D.IDENTITY)
+		mm.set_instance_custom_data(i, Color(rng.randf(), rng.randf(), rng.randf(), rng.randf()))
+	mm.visible_instance_count = 0
+	_rain = MultiMeshInstance3D.new()
+	_rain.name = "Rain"
+	_rain.multimesh = mm
+	_rain.layers = LAYER
+	_rain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_rain.custom_aabb = AABB(Vector3(-5000, -500, -5000), Vector3(10000, 1000, 10000))
+	_rain.visible = false
+	add_child(_rain)
+	_rain_view()
+
+
+## The box and streak size for the camera (eye_level), once per switch.
+func _rain_view() -> void:
+	if _rain_mat == null:
+		return
+	var v: Dictionary = RAIN_EYE if eye_level else RAIN_TOP
+	_rain_mat.set_shader_parameter("box", v.box)
+	_rain_mat.set_shader_parameter("width", v.width)
+	_rain_mat.set_shader_parameter("streak", v.streak)
+
+
+## Where the rain box sits: at eye level just ahead of the lens (flat), so
+## the near air is full; top-down round the car, where the view looks.
+func _rain_centre() -> Vector3:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if eye_level and cam:
+		var f := -cam.global_basis.z
+		f.y = 0.0
+		return cam.global_position + (f.normalized() * float(RAIN_EYE.ahead) if f.length_squared() > 1e-6 else Vector3.ZERO)
+	if car:
+		return car.get_global_transform_interpolated().origin
+	return cam.global_position if cam else Vector3.ZERO
+
+
+func _push_rain() -> void:
+	if _rain_mat == null or rain <= 0.0:
+		return
+	_rain_mat.set_shader_parameter("t", time)
+	_rain_mat.set_shader_parameter("centre", _rain_centre())
+
+
+## Is the camera in a tunnel bore? Top-down, the car stands in for it, the
+## way the roof decides to dissolve: the rock's cut open there, so no rain
+## falls on what's under it. Flat distance to each bore's line: a few dozen
+## segments, only on a stage with a tunnel, only while it rains.
+func _in_bore() -> bool:
+	if tunnels.is_empty():
+		return false
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam == null:
+		return false
+	var p := cam.global_position
+	if not eye_level and car:
+		p = car.get_global_transform_interpolated().origin
+	for roof in tunnels:
+		if is_instance_valid(roof) and roof.distance_to_bore(p) < roof.reach.y:
+			return true
+	return false

@@ -240,6 +240,17 @@ func _tunnel(main: Node3D, track: Track) -> void:
 	check(roof.cut < 0.01, "chase in the bore: the roof stays (%.2f)" % roof.cut)
 	check(cam.global_position.y < road_y + Builder.TUN_H - 0.3 and roof.distance_to_bore(cam.global_position) < Builder.TUN_H,
 		"and the chase camera stays under it (%.1f m over the road, %.1f m off the line)" % [cam.global_position.y - road_y, roof.distance_to_bore(cam.global_position)])
+	# Rain doesn't fall in the bore: the camera's under rock.
+	var w: Weather = main.weather
+	var rain := w.get_node_or_null("Rain") as MultiMeshInstance3D
+	w.set_rain(1.0)
+	await t.process_frame
+	await t.process_frame
+	check(rain != null and roof.distance_to_bore(cam.global_position) < roof.reach.y and not rain.visible, "rain 1, chase camera in the bore: no rain drawn")
+	await t.place(_at(track, i * 2.0 - 120.0))
+	await t.idle(0.6)
+	check(rain != null and roof.distance_to_bore(cam.global_position) > roof.reach.y and rain.visible and w.rain_visible() == 3000, "and 120 m back out in the open, it rains again")
+	w.set_rain(0.0)
 	main.set_camera_mode(FollowCamera.Mode.TOP_DOWN)
 	car.neutralize()
 	await t.place(track.get_spawn().global_transform)

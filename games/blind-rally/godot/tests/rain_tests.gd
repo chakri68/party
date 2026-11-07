@@ -1,7 +1,9 @@
 extends RefCounted
 ## Rain and wet roads: SkyClock's rain_at / wetness_at match the shared cases,
 ## wet_grip is the constraints table, a reload mid-storm grips right in the
-## same frame, and a wet road lets the tail out. Run from run_tests.gd.
+## same frame, and a wet road lets the tail out; puddles, the wet look, and
+## the rain you see. Snowblind's snow and Cliffhanger's tunnel are checked
+## in their own stage files (the stage has to be loaded). Run from run_tests.gd.
 
 var t ## the runner (run_tests.gd)
 var main: Node3D
@@ -33,6 +35,8 @@ func run() -> void:
 	await test_wet_look()
 	await test_puddle_drag()
 	await test_splash_adds_no_material()
+	await test_rain_falls()
+	await test_rain_warmed()
 
 
 func _plan_where(cases: Array, from: float, to: float) -> Dictionary:
@@ -345,6 +349,56 @@ func test_splash_adds_no_material() -> void:
 			added.append(m)
 	check(added.is_empty(), "splashing adds no material after GO (%d new)" % added.size())
 	check(fx.warm_sources().has(fx.get_node("Dust")), "and the dust puffs it's drawn with are a warm-up source")
+
+
+## The streaks: as many as the rain says, one draw, the weather layer only,
+## and main hands them the sky's rain.
+func test_rain_falls() -> void:
+	print("rain falls")
+	var w: Weather = main.weather
+	var node := w.get_node_or_null("Rain") as MultiMeshInstance3D
+	check(node != null and node.multimesh.instance_count == Weather.MAX_DROPS, "one MultiMesh of %d drops" % Weather.MAX_DROPS)
+	if node == null:
+		return
+	check(node.layers == Weather.LAYER and (MapController.CULL_MASK & node.layers) == 0, "on the weather layer only: the map never draws it")
+	w.set_rain(1.0)
+	check(w.rain_visible() == 3000 and node.visible, "rain 1: 3000 drops (%d)" % w.rain_visible())
+	w.set_rain(0.5)
+	check(w.rain_visible() == 1500 and node.visible, "rain 0.5: 1500 (%d)" % w.rain_visible())
+	w.set_rain(0.0)
+	check(w.rain_visible() == 0 and not node.visible, "rain 0: none, and hidden")
+	var sky: SkyClock = main.sky
+	sky.set_plan(SOAKED)
+	sky.set_clock(0.0, false)
+	check(w.rain_visible() == 3000, "a Rain session: main hands the rain over (%d)" % w.rain_visible())
+	var mat := node.multimesh.mesh.surface_get_material(0) as ShaderMaterial
+	var pushes := w.rain_sets
+	for i in 30:
+		await t.process_frame
+	check(w.rain_sets == pushes and node.visible, "steady rain: the count is set only when the rain moves (%d sets in 30 frames)" % (w.rain_sets - pushes))
+	check(Color(mat.get_shader_parameter("sky_tint")) == w.haze(), "the streaks take the sky's haze, so they dim at night")
+	sky.set_plan({})
+	sky.set_clock(0.0, false)
+	check(w.rain_visible() == 0 and not node.visible, "and a dry one takes it away")
+
+
+## The streaks are drawn at load, so Rain starts links nothing mid-race.
+func test_rain_warmed() -> void:
+	var w: Weather = main.weather
+	var node := w.get_node_or_null("Rain") as MultiMeshInstance3D
+	check(node != null and w.warm_sources().has(node), "the rain is a warm-up source")
+	if node == null:
+		return
+	main.warm_up()
+	var warm := main.get_node_or_null("Warmup") as Warmup
+	var mat := node.multimesh.mesh.surface_get_material(0)
+	var drawn := false
+	if warm:
+		for n in warm.find_children("*", "MultiMeshInstance3D", true, false):
+			drawn = drawn or _materials(n as GeometryInstance3D).has(mat)
+	check(drawn, "and the warm-up draws its material, though it's dry")
+	for i in 4:
+		await t.process_frame
 
 
 func _all_materials() -> Dictionary:

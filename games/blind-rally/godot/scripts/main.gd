@@ -270,6 +270,10 @@ func _setup_track() -> void:
 	weather.car = car
 	weather.bounds = track.bounds
 	weather.set_biome(biome)
+	weather.tunnels.clear()
+	for n in track.find_children("*", "MeshInstance3D", true, false):
+		if n is TunnelRoof:
+			weather.tunnels.append(n)
 	weather.register(PALETTE)
 	for m in track.world_materials():
 		weather.register(m)
@@ -490,10 +494,12 @@ func _on_plan() -> void:
 	_apply_shadows()
 
 
-## The rain or the wet road moved (SkyClock.rain_changed): the car grips by wetness.
-func _on_rain(_rain: float, wet: float) -> void:
+## The rain or the wet road moved (SkyClock.rain_changed): the car grips by
+## wetness, the road looks it, and the rain (not the wet) falls on screen.
+func _on_rain(rain: float, wet: float) -> void:
 	car.wet = wet
 	weather.set_wet(wet)
+	weather.set_rain(rain)
 
 
 ## The stage's puddles for this seed (none where it snows), to the car and

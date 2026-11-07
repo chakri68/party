@@ -126,6 +126,19 @@ func _snowfall(main: Node3D) -> void:
 	check(w.snowfall == 0.0, "no cloud, no snow (another seed: %.2f)" % b)
 	var flakes := w.find_children("*", "MultiMeshInstance3D", true, false).filter(func(n: Node) -> bool: return (n as MultiMeshInstance3D).multimesh.instance_count >= Weather.MAX_FLAKES)
 	check(flakes.size() == 1 and (flakes[0] as VisualInstance3D).layers == 8, "one MultiMesh of flakes, weather layer only (never the map)")
+	# Rain falls as snow here: more flakes, no streaks.
+	w.configure(31, 0.6)
+	w.set_rain(1.0)
+	check(w.rain_visible() == 0 and w.get_node_or_null("Rain") == null, "rain 1 on Snowblind: no streaks")
+	check(is_equal_approx(w.snowfall, minf(a + 0.6, 1.0)), "and the snowfall rises by 0.6, to %.2f (from %.2f)" % [w.snowfall, a])
+	var snow := flakes[0] as MultiMeshInstance3D
+	check(snow.visible and snow.multimesh.visible_instance_count == roundi(w.snowfall * Weather.MAX_FLAKES), "with that many flakes (%d)" % snow.multimesh.visible_instance_count)
+	w.configure(31, 0.0)
+	check(is_equal_approx(w.snowfall, 0.6) and snow.visible, "no cloud, but rain: it still snows (%.2f)" % w.snowfall)
+	w.set_rain(0.5)
+	check(is_equal_approx(w.snowfall, 0.3), "half the rain, 0.3 of snow")
+	w.set_rain(0.0)
+	check(w.snowfall == 0.0 and not snow.visible, "dry and clear: no snow")
 	w.configure(4242, 0.4)
 
 
