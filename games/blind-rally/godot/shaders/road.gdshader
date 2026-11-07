@@ -91,12 +91,16 @@ void fragment() {
 	float wet = 0.0;
 	float pud = 0.0;
 	if (weather_seen(CAMERA_VISIBLE_LAYERS)) {
-		// Rain: the whole road darker and glossier, the puddles darker still
-		// and near mirror-smooth. Wet 0 leaves the road exactly as dry.
+		// Rain: water fills the gaps between the stones, so wet gravel goes
+		// darker and richer in colour, not shiny (gloss there reflects the
+		// sky and reads as frost). Tarmac and ice (vertex alpha) and the
+		// puddles get the real gloss, below. Wet 0 leaves the road as dry.
 		if (sky_wet > 0.0) {
 			wet = sky_wet;
 			pud = puddle_at(world.xz) * on_road * wet;
-			c *= (1.0 - 0.35 * wet) * (1.0 - 0.35 * pud);
+			float luma = dot(c, vec3(0.299, 0.587, 0.114));
+			c = max(mix(vec3(luma), c, 1.0 + 0.35 * wet), vec3(0.0));
+			c *= (1.0 - 0.42 * wet) * (1.0 - 0.35 * pud);
 		}
 		vec3 lit = sky_light(world);
 		c *= (1.0 - cloud_shade_at(world.xz, false)) * lit;
@@ -105,6 +109,7 @@ void fragment() {
 	}
 	ALBEDO = c * (1.0 - mist);
 	EMISSION = mist_tint * sky_haze() * mist;
-	ROUGHNESS = mix(mix(mix(mix(0.95, 0.8, damp), 0.22, ice), 0.25, wet), 0.06, pud);
-	SPECULAR = mix(mix(mix(0.25, 0.6, ice), 0.5, wet), 0.7, pud) * shine; // 0.25 as the palette material, so the road lights like everything else
+	float gloss = wet * mix(0.2, 1.0, ice); // gravel: a faint sheen; tarmac and ice: properly glossy
+	ROUGHNESS = mix(mix(mix(mix(0.95, 0.8, damp), 0.22, ice), 0.25, gloss), 0.06, pud);
+	SPECULAR = mix(mix(mix(0.25, 0.6, ice), 0.5, gloss), 0.7, pud) * shine; // 0.25 as the palette material, so the road lights like everything else
 }
