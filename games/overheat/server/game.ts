@@ -239,6 +239,12 @@ function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: st
   return true;
 }
 
+/** The current player banks, and the turn moves on. */
+function bankTurn(state: State, ctx: GameContext, out: Out): void {
+  bank(state, state.turnIndex, out);
+  advance(state, ctx, out);
+}
+
 /** The current player flips one card. With nothing left to draw they bank instead. */
 function flip(state: State, ctx: GameContext, out: Out): void {
   const idx = state.turnIndex;
@@ -426,11 +432,65 @@ export const overheatGame: GameDefinition<
     const state = clone(prev);
     const out = newOut();
     if (action.type === "flip") flip(state, ctx, out);
-    else {
-      bank(state, seat, out);
+    else bankTurn(state, ctx, out);
+    return { ok: true, transition: done(state, out) };
+  },
+
+  skipTurn(prev, playerId, ctx) {
+    if (!awaited(prev).includes(playerId)) return { state: prev, events: [] };
+    const state = clone(prev);
+    const out = newOut([pub({ type: "turn-skipped", playerId })]);
+    const seat = state.players.findIndex((p) => p.id === playerId);
+    const pending = state.pending;
+    if (state.step === "choosing" && pending) {
+      const pick = <T>(xs: T[]): T => xs[ctx.randomInt(xs.length)]!;
+      const target = state.players[pick(validTargets(state, seat, pending.kind))]!;
+      if (pending.kind === "wrench") {
+        const mine = pick(state.players[seat]!.engine).card.id;
+        const theirs = pick(target.engine).card.id;
+        choose(state, seat, { type: "wrench", targetId: target.id, mine, theirs }, ctx, out);
+      } else {
+        choose(state, seat, { type: "target", targetId: target.id }, ctx, out);
+      }
+    } else if (current(state).flipped) bankTurn(state, ctx, out);
+    else flip(state, ctx, out);
+    return done(state, out);
+  },
+
+  onPlayerRemoved(prev, playerId, ctx) {
+    const idx = prev.players.findIndex((p) => p.id === playerId);
+    if (prev.phase !== "playing" || idx < 0 || prev.players[idx]!.removed) return { state: prev, events: [] };
+    const state = clone(prev);
+    const out = newOut([pub({ type: "player-removed", playerId })]);
+    const gone = state.players[idx]!;
+    gone.removed = true;
+    gone.status = "out";
+    if (state.players.filter(inGame).length < 2) {
+      finish(state, "abandoned", out);
+      return done(state, out);
+    }
+    const pending = state.pending;
+    if (state.step === "choosing" && pending) {
+      const chooser = state.players.findIndex((p) => p.id === pending.chooserId);
+      if (chooser === idx) {
+        // The chooser left: the card goes to the discard with no effect.
+        state.discard.push(pending.card);
+        state.pending = null;
+        state.step = "turn";
+        advance(state, ctx, out);
+      } else if (!validTargets(state, chooser, pending.kind).length) {
+        out.events.push(pub({ type: "fizzle", playerId: pending.chooserId, card: pending.card }));
+        state.discard.push(pending.card);
+        state.pending = null;
+        state.step = "turn";
+        advance(state, ctx, out);
+      }
+      // Otherwise the choice stands. If the turn owner left, `advance` will
+      // step past their seat once it resolves.
+    } else if (state.step === "turn" && idx === state.turnIndex) {
       advance(state, ctx, out);
     }
-    return { ok: true, transition: done(state, out) };
+    return done(state, out);
   },
 
   onTimer(prev, timerId, ctx) {
