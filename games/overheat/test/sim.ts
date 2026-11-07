@@ -10,7 +10,7 @@ export interface SimResult {
 
 /**
  * Plays whole games back to back with simple bots until `rounds` rounds have
- * finished. Bots bank once heat is within 6 of their gauge; choices use Skip's
+ * finished. Bots bank once heat is within 4 of their gauge; choices use Skip's
  * random pick. Every figure is per player-round (each non-removed player's
  * outcome in a finished round counts once).
  */
@@ -37,7 +37,7 @@ export function simulate(opts: { players: number; rounds: number; seed: number }
         t = oh.skipTurn!(state, state.pending!.chooserId, ctx);
       } else {
         const me = state.players[state.turnIndex]!;
-        const bankNow = me.flipped && me.heat >= me.gauge - 6;
+        const bankNow = me.flipped && me.heat >= me.gauge - 4;
         const r = oh.handleAction(state, me.id, { type: bankNow ? "bank" : "flip" }, ctx);
         if (!r.ok) throw new Error(`sim: bot action rejected: ${r.error.code}`);
         t = r.transition;

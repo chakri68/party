@@ -16,7 +16,7 @@ describe("balance", () => {
     }
     console.table(table);
     for (const [players, r] of Object.entries(table)) {
-      expect(Number(r.bustRate), `${players}p bust rate`).toBeGreaterThan(0.02);
+      expect(Number(r.bustRate), `${players}p bust rate`).toBeGreaterThan(0.1);
       expect(Number(r.bustRate), `${players}p bust rate`).toBeLessThan(0.6);
       expect(Number(r.avgEngineCards), `${players}p engine cards`).toBeGreaterThan(2);
       expect(Number(r.avgEngineCards), `${players}p engine cards`).toBeLessThan(10);
