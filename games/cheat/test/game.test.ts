@@ -358,5 +358,5 @@ describe("whole games", () => {
         expect(r.standings[0]!.playerId).toBe(t.state.winnerId);
       }
     }
-  });
+  }, 30_000); // many whole games: a full parallel run can push it past 5 s
 });

@@ -364,7 +364,7 @@ describe("no-deadlock property", () => {
       }
       expect(state.winnerId).not.toBeNull();
     }
-  });
+  }, 30_000); // many whole games: a full parallel run can push it past 5 s
 });
 
 describe("several decks", () => {

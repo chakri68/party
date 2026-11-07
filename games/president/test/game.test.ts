@@ -433,5 +433,5 @@ describe("whole games", () => {
       for (const id of r.winnerIds) expect(state.players.find((p) => p.id === id)!.points).toBe(top);
       expect(r.standings).toHaveLength(n);
     }
-  });
+  }, 30_000); // many whole games: a full parallel run can push it past 5 s
 });
