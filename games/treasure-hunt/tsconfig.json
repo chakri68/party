@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // node: only the fixture test touches the filesystem.
+    "types": ["vite/client", "node"],
+    "resolveJsonModule": true
+  },
+  // godot/, build/ and scripts/ stay out: tsc only sees what's listed.
+  "include": ["shared", "server", "client", "test"]
+}

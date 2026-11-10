@@ -688,6 +688,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
 
+  games/treasure-hunt:
+    dependencies:
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@26.6.5)(esbuild@0.28.1)
+
   packages/animation: {}
 
   packages/audio: {}
