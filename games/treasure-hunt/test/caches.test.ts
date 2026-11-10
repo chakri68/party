@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cellSlope, generateLayout, macroHeight, makeLayout, rng, validateLayout } from "../shared/index.ts";
-import { CACHE_BOUND, CACHE_MAX_SLOPE, cacheSpots, makeCaches } from "../server/caches.ts";
-import { makeHunt } from "../server/hunt.ts";
+import { CACHE_BOUND, CACHE_MAX_SLOPE, cacheSpots, makeCaches, type CacheTally } from "../server/caches.ts";
+import { CACHE_SEED, makeHunt } from "../server/hunt.ts";
 
 describe("makeHunt", () => {
   it("is deterministic", () => {
@@ -43,8 +43,14 @@ describe("makeHunt", () => {
       const spots = cacheSpots(l);
       const pieceSpots = spots.filter((s) => pieceIds.has(s.source)).length;
       const minorSpots = spots.length - pieceSpots;
+      const tally: CacheTally = { second: 0, dropped: 0 };
+      expect(makeCaches(l, rng(l.seed ^ CACHE_SEED), tally)).toEqual(caches);
       const n = caches.length;
-      expect(fromPieces).toBe(Math.min(pieceSpots, Math.max(Math.round(n / 2), n - minorSpots)));
+      // A dropped repeat is replaced from its own side when it can be, else the other.
+      const want = Math.min(pieceSpots, Math.max(Math.round(n / 2), n - minorSpots));
+      expect(Math.abs(fromPieces - want)).toBeLessThanOrEqual(tally.dropped);
+      // Every clue list is unique, so a clue never points at someone else's cache.
+      expect(new Set(caches.map((c) => c.clues.join("\n"))).size).toBe(n);
       const keys = new Set<string>();
       for (const c of caches) {
         expect(pieceIds.has(c.source) || minorIds.has(c.source)).toBe(true);
@@ -55,6 +61,8 @@ describe("makeHunt", () => {
         expect(c.dy).toBeGreaterThanOrEqual(0);
         expect(c.dy).toBeLessThanOrEqual(1);
         keys.add(`${c.x},${c.z}`);
+        // Any clue area around a piece holds the whole piece: never the hardest.
+        if (pieceIds.has(c.source)) expect(c.difficulty).toBeLessThanOrEqual(2);
       }
       expect(keys.size).toBe(caches.length);
     }

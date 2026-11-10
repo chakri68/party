@@ -8,7 +8,7 @@ import { MINOR_SLOT } from "../shared/minor.ts";
 import type { Rng } from "../shared/noise.ts";
 import { TEMPLATES, worldSlot } from "../shared/templates.ts";
 import type { TreasureLayout } from "../shared/types.ts";
-import { clueKinds, cluesFor } from "./clues.ts";
+import { clueKinds, clueTexts, cluesFor, rateClues, type ClueKind } from "./clues.ts";
 
 export interface Cache {
   /** "c0", "c1", … */
@@ -62,8 +62,21 @@ function shuffle<T>(a: T[], r: Rng): T[] {
   return a;
 }
 
-/** Pick 20–30 caches, about half from pieces, and give each its clues. Null when fewer than 20 spots are valid (R6). */
-export function makeCaches(l: TreasureLayout, r: Rng): Cache[] | null {
+/** How often makeCaches had to step in to keep clue lists unique. */
+export interface CacheTally {
+  /** A repeat list fixed by adding a second clue. */
+  second: number;
+  /** A spot dropped because no second clue made it unique. */
+  dropped: number;
+}
+
+/**
+ * Pick 20–30 caches, about half from pieces, and give each its clues.
+ * No two caches share a clue list, so a clue dealt to one player never
+ * points at another player's cache. Null when fewer than 20 spots are valid
+ * (R6), or too few are left after dropping repeats.
+ */
+export function makeCaches(l: TreasureLayout, r: Rng, tally?: CacheTally): Cache[] | null {
   const spots = cacheSpots(l);
   if (spots.length < CACHE_MIN) return null;
   const pieceIds = new Set(l.pieces.map((p) => p.id));
@@ -73,9 +86,40 @@ export function makeCaches(l: TreasureLayout, r: Rng): Cache[] | null {
   // Half from pieces, but fall back on whichever side has spots to spare.
   const np = Math.min(fromPieces.length, Math.max(Math.round(n / 2), n - fromMinor.length));
   // Mixed so a cache's id doesn't say where it came from.
-  const picked = shuffle([...fromPieces.slice(0, np), ...fromMinor.slice(0, n - np)], r);
-  return picked.map((s, i) => {
-    const spot = { id: `c${i}`, ...s };
-    return { ...spot, ...cluesFor(l, spot, r) };
-  });
+  const queue = shuffle([...fromPieces.splice(0, np), ...fromMinor.splice(0, n - np)], r);
+
+  const seen = new Set<string>();
+  const out: Cache[] = [];
+  while (queue.length > 0) {
+    const s = queue.shift()!;
+    const spot = { id: `c${out.length}`, ...s };
+    let got = cluesFor(l, spot, r);
+    if (seen.has(got.clues.join("\n"))) {
+      got = unique(l, spot, got.clues, seen, r) ?? got;
+      if (seen.has(got.clues.join("\n"))) {
+        // Replace it from the same side when we can, so the split holds.
+        const spare = pieceIds.has(s.source) ? (fromPieces.shift() ?? fromMinor.shift()) : (fromMinor.shift() ?? fromPieces.shift());
+        if (spare) queue.unshift(spare);
+        if (tally) tally.dropped++;
+        continue;
+      }
+      if (tally) tally.second++;
+    }
+    seen.add(got.clues.join("\n"));
+    out.push({ ...spot, ...got });
+  }
+  return out.length < CACHE_MIN ? null : out;
+}
+
+/** A second clue of another kind that makes this one-clue list new, or null. */
+function unique(l: TreasureLayout, s: CacheSpot, clues: string[], seen: Set<string>, r: Rng): Pick<Cache, "clues" | "difficulty"> | null {
+  if (clues.length !== 1) return null;
+  const texts = clueTexts(l, s);
+  const have = [...texts].find(([, t]) => t === clues[0])![0];
+  const others = shuffle([...texts.keys()].filter((k) => k !== have), r);
+  for (const k of others) {
+    const got = rateClues(l, s, [have, k] as ClueKind[]);
+    if (!seen.has(got.clues.join("\n"))) return got;
+  }
+  return null;
 }

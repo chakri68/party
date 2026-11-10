@@ -78,7 +78,7 @@ describe("clues", () => {
     expect((Math.round(raw / 10) * 10) % 360).toBe(Number(m[3]));
   });
 
-  it("1000 seeds: 1–2 clues of different kinds, true to the map, difficulty is the easiest", () => {
+  it("1000 seeds: 1–2 clues of different kinds, true to the map, difficulty is the easiest (2 at most at a piece)", () => {
     for (let seed = 1; seed <= 1000; seed++) {
       const { layout: l, caches } = makeHunt(seed);
       for (const c of caches) {
@@ -86,7 +86,9 @@ describe("clues", () => {
         expect(c.clues.length).toBeLessThanOrEqual(2);
         const kinds = c.clues.map((t) => checkClue(l, c, t));
         expect(new Set(kinds).size).toBe(kinds.length);
-        expect(c.difficulty).toBe(Math.min(...kinds.map((k) => DIFFICULTY[k])));
+        const easiest = Math.min(...kinds.map((k) => DIFFICULTY[k]));
+        const atPiece = l.pieces.some((p) => p.id === c.source);
+        expect(c.difficulty).toBe(atPiece ? Math.min(easiest, 2) : easiest);
       }
     }
   }, 120_000);

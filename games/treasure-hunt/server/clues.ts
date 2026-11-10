@@ -84,23 +84,40 @@ function bearing(l: TreasureLayout, s: Spot): string | null {
 const BUILD: Record<ClueKind, (l: TreasureLayout, s: Spot) => string | null> = { landmark, relational, bearing };
 const KINDS: ClueKind[] = ["landmark", "relational", "bearing"];
 
-/** The clue kinds that can point at this spot, easiest first. */
-export function clueKinds(l: TreasureLayout, s: Spot): ClueKind[] {
-  return KINDS.filter((k) => BUILD[k](l, s) !== null);
-}
-
-/** One clue, or two of different kinds (p = 0.4). Difficulty is the easiest kind given. */
-export function cluesFor(l: TreasureLayout, c: Omit<Cache, "clues" | "difficulty">, r: Rng): { clues: string[]; difficulty: 1 | 2 | 3 } {
+/** Every clue that fits this spot, by kind. */
+export function clueTexts(l: TreasureLayout, s: Spot): Map<ClueKind, string> {
   const texts = new Map<ClueKind, string>();
   for (const k of KINDS) {
-    const t = BUILD[k](l, c);
+    const t = BUILD[k](l, s);
     if (t) texts.set(k, t);
   }
-  const pool = [...texts.keys()];
+  return texts;
+}
+
+/** The clue kinds that can point at this spot, easiest first. */
+export function clueKinds(l: TreasureLayout, s: Spot): ClueKind[] {
+  return [...clueTexts(l, s).keys()];
+}
+
+/**
+ * These kinds' clues, easiest first, and the difficulty: the easiest kind,
+ * but never 3 at a piece. Any area a bearing or relational clue draws holds
+ * the whole piece, and a piece has only 2–4 slots to check once you're there.
+ */
+export function rateClues(l: TreasureLayout, s: Spot, kinds: ClueKind[]): { clues: string[]; difficulty: 1 | 2 | 3 } {
+  const texts = clueTexts(l, s);
+  const sorted = [...kinds].sort((a, b) => CLUE_DIFFICULTY[a] - CLUE_DIFFICULTY[b]);
+  const easiest = CLUE_DIFFICULTY[sorted[0]!];
+  const atPiece = l.pieces.some((p) => p.id === s.source);
+  return { clues: sorted.map((k) => texts.get(k)!), difficulty: atPiece ? (Math.min(easiest, 2) as 1 | 2) : easiest };
+}
+
+/** One clue, or two of different kinds (p = 0.4). */
+export function cluesFor(l: TreasureLayout, c: Omit<Cache, "clues" | "difficulty">, r: Rng): { clues: string[]; difficulty: 1 | 2 | 3 } {
+  const pool = clueKinds(l, c);
   if (pool.length === 0) throw new Error(`no clue fits cache ${c.id}`);
   const count = pool.length > 1 && r() < SECOND_CLUE ? 2 : 1;
   const chosen: ClueKind[] = [];
   for (let n = 0; n < count; n++) chosen.push(pool.splice(Math.floor(r() * pool.length), 1)[0]!);
-  chosen.sort((a, b) => CLUE_DIFFICULTY[a] - CLUE_DIFFICULTY[b]);
-  return { clues: chosen.map((k) => texts.get(k)!), difficulty: CLUE_DIFFICULTY[chosen[0]!] };
+  return rateClues(l, c, chosen);
 }
