@@ -69,6 +69,7 @@ describe("canStart and startNote", () => {
 
   it("only in the teams phase", () => {
     expect(canStart({ ...pub([p("p1", 1, true)]), phase: "hunting" })).toBe(false);
+    expect(startNote({ ...pub([p("p1", 1)]), phase: "hunting" })).toBeNull();
   });
 });
 

@@ -51,8 +51,9 @@ export function canStart(game: Game): boolean {
   return game.phase === "teams" && present(game).some((p) => p.ready);
 }
 
-/** The line under the host's Start, or null when everyone is ready. */
+/** The line under the host's Start, or null when everyone is ready (or it's not the teams phase). */
 export function startNote(game: Game): string | null {
+  if (game.phase !== "teams") return null;
   if (!canStart(game)) return "Waiting for the map to load.";
   return present(game).some((p) => !p.ready) ? "Players still loading will watch this round." : null;
 }

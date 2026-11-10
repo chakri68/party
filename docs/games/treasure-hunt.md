@@ -100,7 +100,7 @@ The team with the most caches wins. If two teams found the same number, the team
 ## When things go wrong
 
 - **The map did not load.** Press **Try again**. It downloads it again from the start.
-- **Your phone joined.** It shows "Treasure Hunt needs a computer with a keyboard and mouse." It still counts as ready.
+- **Your phone joined.** It shows "Treasure Hunt needs a computer with a keyboard and mouse." It still counts as ready. It also shows the teams, so a host on a phone can still pick teams and start.
 - **Pressing E does not pick up the cache.** A short message says why:
   - "Get out of the buggy first."
   - "Go closer to the cache."

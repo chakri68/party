@@ -36,6 +36,7 @@ import { TeamsPanel } from "./teams.ts";
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
+// They do get the teams panel above it, so a phone host can still start.
 
 const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
 const PHONE = "Treasure Hunt needs a computer with a keyboard and mouse.";
@@ -338,7 +339,7 @@ export class TreasureHuntView implements GameView {
           this.bar,
           h("div", { class: "th-view" }, this.stage, this.hud.board, this.hud.count, this.toast, this.loader.el, this.teams.el, this.msg),
         )
-      : h("div", { class: "treasure-hunt th-phone" }, h("p", { class: "th-phone-text" }, PHONE), this.msg);
+      : h("div", { class: "treasure-hunt th-phone" }, this.teams.el, h("p", { class: "th-phone-text" }, PHONE), this.msg);
   }
 
   mount(container: HTMLElement) {
@@ -397,12 +398,13 @@ export class TreasureHuntView implements GameView {
       this.readySeed = seed;
       this.api.act({ type: "ready" });
     }
+    // Over the loader and the map alike: Godot keeps loading under it. On a
+    // phone it sits above the message instead.
+    this.teams.update(game, this.names, this.playerId, this.hostId === this.playerId);
     if (!this.desktop) return;
 
     this.feed.sync();
     this.loader.el.hidden = loaded;
-    // Over the loader and the map alike: Godot keeps loading under it.
-    this.teams.update(game, this.names, this.playerId, this.hostId === this.playerId);
     this.bar.hidden = !loaded;
     this.end.hidden = game.phase !== "hunting" || this.hostId !== this.playerId;
     if (game.phase === "finished") this.bridge.releasePointer();

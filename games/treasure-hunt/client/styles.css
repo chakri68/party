@@ -90,6 +90,8 @@
 .th-phone { grid-template-rows: none; place-content: center; padding: 24px 16px; text-align: center; }
 .th-phone-text { margin: 0; max-width: 28ch; font-size: 1.1rem; }
 .th-phone .th-msg { position: static; margin-top: 12px; background: none; }
+/* The teams panel, in the flow above the message: a phone host still starts the game. */
+.th-phone .th-teams { position: static; width: min(380px, 100%); margin: 0 auto 16px; text-align: left; }
 
 /* ---- loading the map (Blind Rally's loader) -------------------------------- */
 
