@@ -6,6 +6,7 @@ import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type God
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
+import { ReplayView } from "./replay.ts";
 import { MapCanvas } from "./map/map-canvas.ts";
 import { clickAction, islandView, visibleDots, type Overlay } from "./map/overlays.ts";
 import { TeamsPanel } from "./teams.ts";
@@ -323,6 +324,7 @@ export class TreasureHuntView implements GameView {
   private mapCanvas = h("canvas", { class: "th-map-canvas" });
   private mapBox = h("div", { class: "th-map-box" }, this.mapCanvas, h("p", { class: "th-map-hint" }, MAP_HINT));
   private mapEl = h("div", { class: "th-map", role: "dialog", "aria-label": "Map of the island", tabindex: "-1", hidden: true }, this.mapBox);
+  private replay = new ReplayView();
   private root: HTMLElement;
 
   /** The seed Godot last said world-ready for. */
@@ -390,10 +392,10 @@ export class TreasureHuntView implements GameView {
           "div",
           { class: "treasure-hunt" },
           this.bar,
-          h("div", { class: "th-view" }, this.stage, this.mini, this.hud.board, this.hud.count, this.toast, this.loader.el, this.teams.el, this.msg),
+          h("div", { class: "th-view" }, this.stage, this.mini, this.hud.board, this.hud.count, this.toast, this.loader.el, this.replay.el, this.teams.el, this.msg),
           this.mapEl,
         )
-      : h("div", { class: "treasure-hunt th-phone" }, this.teams.el, h("p", { class: "th-phone-text" }, PHONE), this.msg);
+      : h("div", { class: "treasure-hunt th-phone" }, this.teams.el, h("p", { class: "th-phone-text" }, PHONE), this.replay.el, this.msg);
   }
 
   mount(container: HTMLElement) {
@@ -411,6 +413,7 @@ export class TreasureHuntView implements GameView {
     clearInterval(this.mapTicker);
     document.removeEventListener("keydown", this.onDocKey);
     clearTimeout(this.toastTimer);
+    this.replay.destroy();
     this.bridge.dispose();
     this.root.remove();
   }
@@ -461,11 +464,15 @@ export class TreasureHuntView implements GameView {
     // Over the loader and the map alike: Godot keeps loading under it. On a
     // phone it sits above the message instead.
     this.teams.update(game, this.names, this.playerId, this.hostId === this.playerId);
+    // The replay takes the stage's place; Godot stays loaded under it.
+    this.replay.update(game, layoutFor(game.seed));
+    const replaying = ReplayView.shows(game);
     if (!this.desktop) return;
 
     this.feed.sync();
-    this.loader.el.hidden = loaded;
-    this.bar.hidden = !loaded;
+    this.stage.hidden = replaying;
+    this.loader.el.hidden = loaded || replaying;
+    this.bar.hidden = !loaded || replaying;
     this.end.hidden = game.phase !== "hunting" || this.hostId !== this.playerId;
     if (game.phase === "finished") this.bridge.releasePointer();
     if (game.phase === "hunting" && loaded) this.msg.textContent = "";
