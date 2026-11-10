@@ -102,12 +102,14 @@ func test_vehicle() -> void:
 	r.upsert("p2", _snap(0, 0, 0), 0.0)
 	r.tick(0.0)
 	check(r.body("p2").visible, "on foot, the capsule shows")
-	r.upsert("p2", _snap(0, 0, 0, 0.0, "b1"), 0.1)
-	r.tick(0.1)
-	check(not r.body("p2").visible, "v set → hidden")
-	r.upsert("p2", _snap(0, 0, 0), 0.2)
+	# In a buggy they're still drawn: the streamed pos is already the seat.
+	r.upsert("p2", _snap(3, 1, 4, 0.0, "b1"), 0.1)
 	r.tick(0.2)
-	check(r.body("p2").visible, "out of the buggy, it shows again")
+	check(r.body("p2").visible and r.capsule("p2").visible and r.label("p2").visible, "v set → capsule and tag still show")
+	check(r.body("p2").position.is_equal_approx(Vector3(3, 1, 4)), "drawn at the streamed seat")
+	r.upsert("p2", _snap(0, 0, 0), 0.3)
+	r.tick(0.3)
+	check(r.body("p2").visible, "out of the buggy, it still shows")
 	await _done(r)
 
 

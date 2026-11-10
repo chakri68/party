@@ -8,8 +8,9 @@ extends Node3D
 ## A capsule shows up on its player's first snapshot, eases from where it
 ## was drawn to the latest one over LERP_S, and goes when a roster drops
 ## its player or after STALE_S with no snapshot. In a vehicle (v set) it
-## hides: the buggy draws them. No physics anywhere: players pass through
-## each other (§13.3).
+## still shows: the server relays a seated player's pos as their seat, and
+## the buggy draws nobody. No physics anywhere: players pass through each
+## other (§13.3).
 
 ## Mirrors NAME_RANGE in shared/world.ts.
 const NAME_RANGE := 50.0
@@ -41,7 +42,6 @@ class Remote:
 	var to_pos: Vector3
 	var to_yaw: float
 	var t0: float ## when the latest snapshot came
-	var in_vehicle: bool
 
 	func pose_at(now_s: float) -> Array:
 		var a := clampf((now_s - t0) / LERP_S, 0.0, 1.0)
@@ -104,8 +104,6 @@ func upsert(id: String, snap: Dictionary, now_s: float) -> void:
 	r.to_pos = at
 	r.to_yaw = yaw
 	r.t0 = now_s
-	r.in_vehicle = snap.get("v") != null
-	r.body.visible = not r.in_vehicle
 
 
 ## Moves everyone to where they are at `now_s`, and drops the stale.
@@ -118,7 +116,6 @@ func tick(now_s: float) -> void:
 		var pose := r.pose_at(now_s)
 		r.body.position = pose[0]
 		r.body.rotation.y = pose[1]
-		r.body.visible = not r.in_vehicle
 
 
 func count() -> int:
