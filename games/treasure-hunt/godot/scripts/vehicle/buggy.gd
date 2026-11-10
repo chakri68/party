@@ -144,6 +144,11 @@ func _physics_process(dt: float) -> void:
 	# Hills: an arcade share of gravity along the slope.
 	if on_floor:
 		v_fwd -= slope_pull * -get_floor_normal().dot(fwd) * dt
+	# Empty and nobody on the pedals: the handbrake's on. Without it the
+	# slope pull beats rolling resistance past ~14° and it wanders off.
+	var parked := on_floor and driver == null and throttle_input == 0.0 and brake_input == 0.0
+	if parked:
+		v_fwd = 0.0
 
 	# Steering: the wheel turns at a limited rate; the yaw rate scales with
 	# speed, fades out near standstill and tightens at the top.
@@ -164,7 +169,7 @@ func _physics_process(dt: float) -> void:
 	var g := grip * lerpf(1.0, drift_grip, clampf(slide, 0.0, 1.0))
 	var cap := deg_to_rad(max_slip_deg)
 	g *= 1.0 + 5.0 * smoothstep(cap * 0.7, cap, absf(slip))
-	v_lat = lerpf(v_lat, 0.0, clampf(g * dt, 0.0, 1.0))
+	v_lat = 0.0 if parked else lerpf(v_lat, 0.0, clampf(g * dt, 0.0, 1.0))
 	v_fwd = move_toward(v_fwd, 0.0, absf(v_lat) * slide_scrub * dt)
 
 	# Recompose against the old axes, then turn: the car points slightly away

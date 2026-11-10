@@ -43,6 +43,7 @@ func interact() -> bool:
 	# Disabled also takes it out of physics (disable_mode REMOVE), so nothing
 	# bumps into a walker that's sitting in the seat.
 	walker.set_move(Vector2.ZERO, false, false)
+	walker.cancel_scramble()
 	walker.process_mode = Node.PROCESS_MODE_DISABLED
 	walker.visible = false
 	_snap_to_seat()
@@ -53,9 +54,12 @@ func interact() -> bool:
 
 
 ## Puts the buggy back on its wheels, 1 m over the ground where it is. Only
-## when it's stuck (throttle held, going nowhere, for STUCK_S) or tipped.
+## when it's stuck (throttle held, going nowhere, for STUCK_S) or tipped,
+## and only from the seat or from beside it, not from across the map.
 func reset_vehicle() -> bool:
 	if field == null or (buggy.stuck_s < STUCK_S and buggy.tilt_deg() <= RESET_TILT_DEG):
+		return false
+	if mode != &"driving" and walker.global_position.distance_to(buggy.global_position) > ENTER_RANGE:
 		return false
 	var p := buggy.global_position
 	buggy.place_upright(Vector3(p.x, field.height_at(p.x, p.z) + 1.0, p.z))

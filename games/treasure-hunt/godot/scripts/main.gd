@@ -103,16 +103,27 @@ func start_world(layout: Dictionary) -> void:
 	walker.process_mode = Node.PROCESS_MODE_INHERIT
 	walker.visible = true
 	focus = walker
-	# Parked 6 m to your right, facing the same way.
-	var at := field.spawn + Vector3(cos(field.spawn_yaw), 0, -sin(field.spawn_yaw)) * 6.0
-	at.y = field.height_at(at.x, at.z)
-	_place(buggy, at, field.spawn_yaw)
+	_place(buggy, buggy_spawn(), field.spawn_yaw)
 	buggy.process_mode = Node.PROCESS_MODE_INHERIT
 	buggy.visible = true
 	rig.yaw = field.spawn_yaw
 	rig.follow(walker, &"walk")
 	rig.snap()
 	world_ready.emit(Time.get_ticks_msec() - t0)
+
+
+## Parked 6 m to your right, facing the same way, at the highest ground
+## under its four corners so neither end starts buried on a slope.
+func buggy_spawn() -> Vector3:
+	var fwd := Vector3(-sin(field.spawn_yaw), 0, -cos(field.spawn_yaw))
+	var right := Vector3(-fwd.z, 0, fwd.x)
+	var at := field.spawn + right * 6.0
+	at.y = -INF
+	for sx in [-0.5, 0.5]:
+		for sz in [-0.5, 0.5]:
+			var c: Vector3 = at + right * sx * Buggy.BOX.x + fwd * sz * Buggy.BOX.z
+			at.y = maxf(at.y, field.height_at(c.x, c.z))
+	return at
 
 
 func _teardown() -> void:

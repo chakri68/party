@@ -91,6 +91,13 @@ func is_scrambling() -> bool:
 	return _scramble_t >= 0.0
 
 
+## Drops a scramble part-way (getting into the buggy), so it doesn't pick
+## up again from wherever you are next.
+func cancel_scramble() -> void:
+	_scramble_t = -1.0
+	velocity = Vector3.ZERO
+
+
 func _physics_process(dt: float) -> void:
 	if input_enabled:
 		set_move(Input.get_vector("move_left", "move_right", "move_back", "move_forward"), Input.is_action_pressed("run"), Input.is_action_pressed("jump"))

@@ -37,7 +37,10 @@ func run() -> void:
 	await test_enter()
 	await test_exit_right()
 	await test_exit_roof()
+	await test_exit_behind()
 	await test_exit_nowhere()
+	await test_scramble_then_ride()
+	await test_parked_on_slope()
 	await test_reset()
 	await test_reset_tilted()
 	await test_drift_tilted()
@@ -124,6 +127,16 @@ func test_spawn() -> void:
 	check(buggy.collision_layer == 2, "buggy is on layer 2")
 	check(main.watched.has(buggy), "the fall check watches the buggy")
 	check(avatar.mode == &"foot" and main.focus == walker, "you start on foot, and the streamer follows the walker")
+	# Placed over the highest ground under its footprint, so no end starts buried.
+	var at: Vector3 = main.buggy_spawn()
+	var fwd2 := Vector3(-sin(field.spawn_yaw), 0, -cos(field.spawn_yaw))
+	var right2 := Vector3(-fwd2.z, 0, fwd2.x)
+	var buried := 0.0
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var c: Vector3 = at + right2 * sx * Buggy.BOX.x * 0.5 + fwd2 * sz * Buggy.BOX.z * 0.5
+			buried = maxf(buried, _ground(c) - at.y)
+	check(buried < 0.001, "the buggy's spawn clears the ground under all four corners (%.2f m buried)" % buried)
 
 
 func test_top_speed() -> void:
@@ -264,6 +277,23 @@ func test_exit_roof() -> void:
 	await _frames(1)
 
 
+func test_exit_behind() -> void:
+	var pad: Array = await _beside(1.0)
+	var top: float = pad[1]
+	check(avatar.interact(), "got in")
+	var walls := _hemmed_in(top)
+	(walls.pop_back() as Node).queue_free() # the back one
+	await _frames(5)
+	check(avatar.interact() and avatar.mode == &"foot", "both sides blocked, the back clear: out")
+	var rel := walker.global_position - buggy.global_position
+	check(rel.z > Buggy.BOX.z * 0.5 and absf(rel.x) < 0.5, "out behind (x %+.2f, z %+.2f)" % [rel.x, rel.z])
+	check(_walker_clear(), "clear of the walls")
+	for b in walls:
+		(b as Node).queue_free()
+	(pad[0] as Node).queue_free()
+	await _frames(1)
+
+
 func test_exit_nowhere() -> void:
 	var pad: Array = await _beside(1.0)
 	var top: float = pad[1]
@@ -285,6 +315,9 @@ func test_reset() -> void:
 	var at := Vector3(s.x + 3, 0, s.z)
 	at.y = _ground(at) + 0.3
 	_park(at)
+	var door := buggy.to_global(PlayerAvatar.DOOR)
+	_put_walker(Vector3(door.x, _ground(door) + 0.05, door.z))
+	check(avatar.interact(), "got in")
 	await _frames(20)
 	buggy.set_control(0, 1, 0)
 	await _frames(60)
@@ -311,6 +344,7 @@ func test_reset() -> void:
 	check(absf(p.y - _ground(p)) < 0.4 and buggy.is_on_floor(), "and back on the ground (%.2f m off)" % (p.y - _ground(p)))
 	check(absf(p.x - at.x) < 0.5 and absf(p.z - at.z) < 1.0, "where it was")
 	wall.queue_free()
+	await _get_out_if_in()
 	await _frames(1)
 
 
@@ -319,7 +353,11 @@ func test_reset_tilted() -> void:
 	var at := Vector3(s.x + 3, 0, s.z)
 	at.y = _ground(at) + 2.0
 	_park(at)
-	buggy.rotate_object_local(Vector3.FORWARD, deg_to_rad(50))
+	buggy.rotate_object_local(Vector3.FORWARD, deg_to_rad(90))
+	_put_walker(at + Vector3(0, 0, 40))
+	check(not avatar.reset_vehicle(), "on its side but you're 40 m away: no reset")
+	_put_walker(at + Vector3(-2.0, 0, 0))
+	buggy.rotate_object_local(Vector3.FORWARD, deg_to_rad(-40))
 	check(not avatar.reset_vehicle(), "tilted 50° and still: no reset")
 	buggy.rotate_object_local(Vector3.FORWARD, deg_to_rad(40))
 	check(avatar.reset_vehicle(), "on its side: reset works")
@@ -353,3 +391,58 @@ func test_drift_tilted() -> void:
 	rig.follow(walker, &"walk")
 	rig.snap()
 	dummy.queue_free()
+
+
+## Getting in mid-scramble ends the scramble, so getting out doesn't drag
+## you back to the ledge.
+func test_scramble_then_ride() -> void:
+	var pad: Array = _pad()
+	var top: float = pad[1]
+	var s := field.spawn
+	_park(Vector3(s.x + 40, top + 0.05, s.z)) # out of the way for now
+	await _frames(2) # let it leave before the walker lands where it was
+	_put_walker(Vector3(s.x, top + 0.05, s.z))
+	rig.yaw = 0.0
+	await _frames(20)
+	var box := _box(Vector3(2, 0.9, 8), Vector3(s.x, top + 0.45, s.z - 5.5))
+	await _frames(2)
+	walker.set_move(Vector2(0, 1), false, true)
+	for i in 150:
+		await t.physics_frame
+		if walker.is_scrambling():
+			break
+	walker.set_move(Vector2.ZERO, false, false)
+	check(walker.is_scrambling(), "a scramble started")
+	var w := walker.global_position
+	_park(Vector3(w.x + 2.0, top + 0.05, w.z + 2.5))
+	check(avatar.interact(), "got in mid-scramble")
+	await _frames(5)
+	check(avatar.interact(), "and out")
+	var spot := walker.global_position
+	await _frames(30)
+	var d := Vector2(walker.global_position.x, walker.global_position.z).distance_to(Vector2(spot.x, spot.z))
+	check(not walker.is_scrambling() and d < 0.3, "the walker stays where it got out (%.2f m away)" % d)
+	box.queue_free()
+	(pad[0] as Node).queue_free()
+	await _frames(1)
+
+
+## Nobody in it, nobody on the pedals: it stays put on a 20° slope.
+func test_parked_on_slope() -> void:
+	var pad: Array = _pad()
+	var top: float = pad[1]
+	var s := field.spawn
+	var a := deg_to_rad(20.0)
+	var ramp := _box(Vector3(12, 0.4, 20), Vector3(s.x, top + 6.0, s.z))
+	ramp.rotation.x = a
+	var n := Vector3(0, cos(a), sin(a))
+	_park(ramp.global_position + n * 0.25)
+	buggy.global_basis = Basis(Vector3.RIGHT, a) # sitting on it, nose uphill
+	await _frames(60)
+	var p0 := buggy.global_position
+	await _frames(300)
+	var moved := buggy.global_position.distance_to(p0)
+	check(buggy.is_on_floor() and moved < 0.2, "parked on a 20° ramp, it moves %.3f m in 5 s" % moved)
+	ramp.queue_free()
+	(pad[0] as Node).queue_free()
+	await _frames(1)
