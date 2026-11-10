@@ -263,6 +263,13 @@ func _on_dark(d: float) -> void:
 		pieces.set_lamps(d >= DayClock.LAMP_ON)
 
 
+## The glint is measured from you (the walker, which rides in the seat),
+## not from the camera behind you.
+func glint_tick() -> void:
+	if caches != null and focus != null:
+		caches.glint(walker.global_position, torch_on, dark)
+
+
 func set_torch(on: bool) -> void:
 	torch_on = on
 	rig.torch.visible = on
@@ -401,8 +408,7 @@ func _process(_dt: float) -> void:
 	if streamer and focus:
 		streamer.update(focus.global_position)
 	compass.set_yaw(rig.yaw)
-	if caches != null:
-		caches.glint(rig.camera.global_position, torch_on, dark)
+	glint_tick()
 	prompt_tick()
 	if _debug.visible:
 		_debug.text = "%d fps   %d chunks" % [Engine.get_frames_per_second(), streamer.loaded_count() if streamer else 0]
@@ -425,10 +431,10 @@ func drop_pin() -> bool:
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("pin") and not e.is_echo() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		drop_pin()
-	# Not before the round's on: no head start in the buggy, and no
-	# resetting it either.
 	if e.is_action_pressed("torch") and not e.is_echo():
 		set_torch(not torch_on)
+	# Not before the round's on: no head start in the buggy, and no
+	# resetting it either.
 	if field != null and phase == &"hunting" and e.is_action_pressed("interact"):
 		avatar.interact()
 	elif field != null and phase == &"hunting" and e.is_action_pressed("reset_vehicle"):

@@ -45,7 +45,25 @@ func test_main() -> void:
 	fleet.apply([_veh("a", 0, null), _veh("b", 10, null)], "me")
 	check(not _heads_on(a), "the driver leaves: lights go off")
 	fleet.apply([_veh("a", 0, "me"), _veh("b", 10, null)], "me")
+	check(not _heads_on(a) and a.mode == &"local", "listed as mine but nobody seated yet: off")
+	a.driver = main.walker
+	fleet.set_dark(0.4)
 	check(_heads_on(a) and a.mode == &"local", "I drive it: lights on")
+	a.driver = null
+	fleet.set_dark(0.4)
+	check(not _heads_on(a), "I get out: lights off before any new list")
+	a.driver = main.walker
+	# Edges of LAMP_ON.
+	fleet.set_dark(0.30)
+	check(_heads_on(a), "headlights: dark 0.30 is on")
+	fleet.set_dark(0.29)
+	check(not _heads_on(a), "headlights: dark 0.29 is off")
+	main._on_dark(0.30)
+	var edge: Array = main.pieces.find_children("Lamp*", "OmniLight3D", true, false)
+	check(edge.all(func(l: OmniLight3D) -> bool: return l.visible), "lamps: dark 0.30 is on")
+	main._on_dark(0.29)
+	check(edge.all(func(l: OmniLight3D) -> bool: return not l.visible), "lamps: dark 0.29 is off")
+	main._on_dark(0.4)
 
 	# Pieces and lamps.
 	var lamps: Array = main.pieces.find_children("Lamp*", "OmniLight3D", true, false)
@@ -78,6 +96,16 @@ func test_main() -> void:
 	main._unhandled_input(ev)
 	check(not main.torch_on and not torch.visible, "F again: it goes off")
 	check(InputMap.has_action("torch"), "an InputMap action torch exists")
+	# The glint is measured from the player, not the camera.
+	main.set_phase(&"hunting")
+	main.caches.reveal("g1", 0.0, 0.0, 0.0)
+	var cr: Cache = main.caches.crate("g1")
+	main.walker.global_position = cr.global_position + Vector3(7, 0, 0)
+	main.rig.camera.global_position = cr.global_position + Vector3(7, 0, 0) + Vector3(0, 0, 12)
+	main.torch_on = true
+	main.dark = 0.6
+	main.glint_tick()
+	check(main.rig.camera.global_position.distance_to(cr.global_position) > 8.0 and is_equal_approx(cr.strip_mat.emission_energy_multiplier, 2.0), "glint: 7 m from me but over 8 m from the camera: it glints")
 	main.queue_free()
 	await t.process_frame
 
@@ -89,9 +117,17 @@ func test_glint() -> void:
 	cs.reveal("c1", 0.0, 0.0, 0.0)
 	var c := cs.crate("c1")
 	var at := c.global_position
-	var e := func() -> float: return c.strip_mat.emission_energy_multiplier if c.strip_mat.emission_enabled else 0.0
+	var e := func() -> float: return c.strip_mat.emission_energy_multiplier
 	cs.glint(at + Vector3(5, 0, 0), true, 0.6)
 	check(is_equal_approx(e.call(), 2.0), "glint: torch on, 5 m, dark 0.6: energy 2")
+	cs.glint(at + Vector3(7.9, 0, 0), true, 0.6)
+	check(is_equal_approx(e.call(), 2.0), "glint: 7.9 m glints")
+	cs.glint(at + Vector3(8.1, 0, 0), true, 0.6)
+	check(e.call() == 0.0, "glint: 8.1 m doesn't")
+	cs.glint(at + Vector3(5, 0, 0), true, 0.30)
+	check(is_equal_approx(e.call(), 2.0), "glint: dark 0.30 is on")
+	cs.glint(at + Vector3(5, 0, 0), true, 0.29)
+	check(e.call() == 0.0, "glint: dark 0.29 is off")
 	cs.glint(at + Vector3(9, 0, 0), true, 0.6)
 	check(e.call() == 0.0, "glint: 9 m: 0")
 	cs.glint(at + Vector3(5, 0, 0), false, 0.6)
@@ -102,8 +138,11 @@ func test_glint() -> void:
 	cs.glint(at, true, 0.6)
 	check(cs.crate("c1").strip_mat != cs.crate("c2").strip_mat, "each cache has its own strip material")
 	cs.glint(at + Vector3(5, 0, 0), true, 0.6)
-	cs.found("c1")
-	cs.crate("c1").visible = false
+	c.found = true
 	cs.glint(at + Vector3(5, 0, 0), true, 0.6)
-	check(e.call() == 0.0, "glint: a found, hidden cache stays dark")
+	check(e.call() == 0.0, "glint: a found cache stays dark")
+	c.found = false
+	c.visible = false
+	cs.glint(at + Vector3(5, 0, 0), true, 0.6)
+	check(e.call() == 0.0, "glint: a hidden cache stays dark")
 	cs.queue_free()

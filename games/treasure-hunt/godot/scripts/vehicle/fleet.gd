@@ -60,7 +60,7 @@ func set_dark(d: float) -> void:
 func _refresh_lights() -> void:
 	for id in _buggies:
 		var b: Buggy = _buggies[id]
-		var on := dark >= DayClock.LAMP_ON and (b.driver != null or vehicle(id).get("driver") != null)
+		var on := dark >= DayClock.LAMP_ON and (b.driver != null if b.mode == &"local" else vehicle(id).get("driver") != null)
 		if on != b.lights_on:
 			b.set_lights(on)
 

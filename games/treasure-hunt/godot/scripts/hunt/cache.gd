@@ -34,6 +34,7 @@ func _init(cache_id := "") -> void:
 	strip_mat.albedo_color = COLOR.lightened(0.45)
 	strip_mat.roughness = 0.8
 	strip_mat.emission = Color("#fff2c0")
+	strip_mat.emission_enabled = true # always: flipping it recompiles the shader
 	strip_mat.emission_energy_multiplier = 0.0
 	var body := MeshInstance3D.new()
 	body.mesh = _body_mesh
@@ -52,8 +53,9 @@ func _init(cache_id := "") -> void:
 
 ## The strip shines (energy 2) or doesn't (0).
 func set_glint(on: bool) -> void:
-	strip_mat.emission_enabled = on
-	strip_mat.emission_energy_multiplier = 2.0 if on else 0.0
+	var e := 2.0 if on else 0.0
+	if strip_mat.emission_energy_multiplier != e:
+		strip_mat.emission_energy_multiplier = e
 
 
 ## Shrinks away over FOUND_S, then hides. Already found: nothing.
