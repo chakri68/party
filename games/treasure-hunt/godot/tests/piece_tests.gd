@@ -105,6 +105,11 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 	check(_queries_see(piece), what + ": the queries see its colliders")
 	for slot: Dictionary in s.slots:
 		_check_slot(what, slot)
+	if tid == "shipwreck":
+		_check_bow(what, piece, s.params)
+	if tid == "plane":
+		var top := _space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(2.0, 3, 5.3), Vector3(2.0, 0.5, 5.3), 1))
+		check(top and absf(top.position.y - 1.5) < 0.05, what + ": the tail stabiliser is solid")
 	if tid == "plane":
 		check(_debris_clear(piece, s.slots) >= 1.0, "%s: loose debris is 1 m clear of every slot (%.2f m)" % [what, _debris_clear(piece, s.slots)])
 	_vp.remove_child(piece)
@@ -149,6 +154,26 @@ func _queries_see(piece: Node) -> bool:
 		if not found:
 			return false
 	return true
+
+
+## The bow is a wedge: solid on its centreline near the tip, open beside it
+## where a full box would leave an invisible wall.
+func _check_bow(what: String, piece: Node3D, p: Dictionary) -> void:
+	var hull := piece.get_node_or_null("Hull") as Node3D
+	check(hull != null, what + ": has a Hull node")
+	if hull == null:
+		return
+	var L := float(p.length)
+	var B := L * 0.3
+	var H := L * 0.25
+	# In the hull's own frame, so the probes follow its tilt and burying.
+	var at := func(x: float, z: float) -> bool:
+		var q := PhysicsPointQueryParameters3D.new()
+		q.position = hull.global_transform * Vector3(x, H * 0.5, z)
+		q.collision_mask = 1
+		return not _space.intersect_point(q).is_empty()
+	check(at.call(0.0, -L * 0.5 + 0.3), what + ": the bow is solid near its tip")
+	check(not at.call(B * 0.5 - 0.2, -L * 0.5 + 0.3), what + ": beside the bow's tip is open")
 
 
 ## The plane's small bits have no colliders, so the queries can't see them:

@@ -59,15 +59,34 @@ describe("Godot fixtures", () => {
 // and both ends of every range get built. Variants 0, 1, 2 cover the colours.
 const ROLLS = [0, 0.5, 1 - 1e-9];
 
+// Rolling every param with the same v never builds the tight corners, so
+// these are added on top: the widest hull rolled the other way, wires on a
+// tall tower, a full camp with its pit, a long trail in every direction (4.71
+// runs it past the wing slot), and every stone of a small ring that can fall.
+const WORST: Record<string, Record<string, number>[]> = {
+  shipwreck: [
+    { length: 20, buried: 0.5, tilt: -20 },
+    { length: 20, buried: 0, tilt: -20 },
+  ],
+  "radio-tower": [
+    { height: 35, wires: 1 },
+    { height: 27.5, wires: 1 },
+  ],
+  camp: [{ tents: 3, firepit: 1 }],
+  plane: [0.79, 1.57, 3.93, 4.71, 5.5].map((heading) => ({ debris: 30, heading })),
+  "stone-circle": [{ stones: 6, fallen: 3 }],
+};
+
 function pieceSamples() {
   const templates: Record<string, unknown> = {};
   for (const [id, t] of Object.entries(TEMPLATES)) {
     templates[id] = {
       labels: t.labels,
-      samples: ROLLS.map((v, variant) => {
-        const params = t.roll(() => v);
-        return { params, variant, slots: t.slots(params).map(({ x, z, dy }) => ({ x, z, dy })) };
-      }),
+      samples: [...ROLLS.map((v) => t.roll(() => v)), ...(WORST[id] ?? [])].map((params, i) => ({
+        params,
+        variant: i % 3,
+        slots: t.slots(params).map(({ x, z, dy }) => ({ x, z, dy })),
+      })),
     };
   }
   return { templates };

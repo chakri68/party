@@ -159,6 +159,20 @@ static func cylinder_shape(b: StaticBody3D, r: float, h: float, pos: Vector3) ->
 	_shape(b, s, Transform3D(Basis.IDENTITY, pos))
 
 
+## A convex hull of `points`, with its origin at their average so the
+## shape's position is inside it.
+static func convex_shape(b: StaticBody3D, points: PackedVector3Array) -> void:
+	var mid := Vector3.ZERO
+	for v in points:
+		mid += v / points.size()
+	var local := PackedVector3Array()
+	for v in points:
+		local.append(v - mid)
+	var s := ConvexPolygonShape3D.new()
+	s.points = local
+	_shape(b, s, Transform3D(Basis.IDENTITY, mid))
+
+
 static func _shape(b: StaticBody3D, s: Shape3D, xf: Transform3D) -> void:
 	var cs := CollisionShape3D.new()
 	cs.shape = s

@@ -2,6 +2,9 @@ extends SceneTree
 ## Headless tests for the Treasure Hunt client. Nothing is instantiated up
 ## front: each suite builds what it needs from the fixtures.
 ## Run: godot --headless --path . --fixed-fps 60 --script res://tests/run_tests.gd
+## After adding a class_name script, run `godot --headless --path . --import`
+## first: this runner doesn't rescan the class cache, so a new class name
+## reads as "not declared" until you do.
 ## Exit code 0 = all passed and nothing crashed: a SCRIPT ERROR or SHADER
 ## ERROR anywhere in the run (see Crashes) is a failure too.
 

@@ -31,6 +31,7 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	PieceKit.box_shape(b, Vector3(2.0, 2.0, 12.0), Vector3(0, 1.0, 0))
 	PieceKit.box_shape(b, Vector3(14.0, 0.25, 2.0), Vector3(0, 0.7, -1.0))
 	PieceKit.box_shape(b, Vector3(0.15, 2.0, 1.5), Vector3(0, 2.2, 5.2))
+	PieceKit.box_shape(b, Vector3(4.5, 0.2, 1.2), Vector3(0, 1.4, 5.3)) # the tail's stabiliser, at chest height
 
 	var slots: Array[Vector3] = [Vector3(0, 0, -7.5), Vector3(0, 0, 7.5), Vector3(-8.2, 0, -1)]
 	var small := debris

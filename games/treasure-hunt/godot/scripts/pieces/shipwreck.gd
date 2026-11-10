@@ -32,7 +32,13 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	PieceKit.box(hull, Vector3(0.1, H * 0.4, L * 0.15), Vector3(-B * 0.5 - 0.02, H * 0.45, L * 0.1), dark)
 
 	var b := PieceKit.body(hull)
-	PieceKit.box_shape(b, Vector3(B, H, L), Vector3(0, H * 0.5, 0))
+	# The box behind the bow, and the bow's own wedge, so there's no
+	# invisible wall either side of the point.
+	PieceKit.box_shape(b, Vector3(B, H, L - bow), Vector3(0, H * 0.5, bow * 0.5))
+	var root_z := -L * 0.5 + bow
+	PieceKit.convex_shape(b, PackedVector3Array([
+		Vector3(-B * 0.5, 0, root_z), Vector3(B * 0.5, 0, root_z), Vector3(0, 0, -L * 0.5),
+		Vector3(-B * 0.5, H, root_z), Vector3(B * 0.5, H, root_z), Vector3(0, H, -L * 0.5)]))
 	PieceKit.box_shape(b, Vector3(B * 0.5, 1.6, 2.5), Vector3(0, H + 0.8, L * 0.5 - 2.0))
 	PieceKit.cylinder_shape(b, 0.22, L * 0.25, Vector3(0, H + L * 0.125, -L * 0.1))
 	return root
