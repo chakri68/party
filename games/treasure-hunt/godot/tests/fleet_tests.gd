@@ -53,8 +53,11 @@ func run() -> void:
 	await test_pending_timeout()
 	await test_parked()
 	await test_phase_lock()
+	await test_dropped_while_in()
+	await test_new_seed()
 	main.queue_free()
 	await t.process_frame
+	await test_reload_takes_seat_back()
 
 
 func check(ok: bool, what: String) -> void:
@@ -141,8 +144,17 @@ func test_exit() -> void:
 	var p := b.global_position
 	var u: Dictionary = unseats[0] if unseats.size() == 1 else {}
 	check(u.has_all(["x", "y", "z", "yaw"]) and Vector3(u.x, u.y, u.z).distance_to(p) < 0.02 and absf(angle_difference(float(u.yaw), _yaw_of(b))) < 0.002, "exit sends unseat with the pose (%s)" % [unseats])
+	# The server hasn't heard yet: a resync still names me. Not back in.
+	_vehicles([_t0("me")])
+	check(avatar.mode == &"foot" and walker.visible, "after a local exit, a stale list still naming me doesn't pull me back in")
+	seats.clear()
+	check(not avatar.interact() and avatar.mode == &"foot" and seats.is_empty(), "nor does E on the buggy I just left, while the server catches up")
 	_vehicles([_v("t0", p.x, p.z, null, null, p.y, _yaw_of(b))])
 	check(b.mode == &"parked" and b.collision_layer == 2, "the list frees the seat: t0 is parked, collider on")
+	_vehicles([_v("t0", p.x, p.z, "me", null, p.y, _yaw_of(b))])
+	check(avatar.mode == &"driving" and b.driver == walker, "after a clearing list, a new list naming me takes the seat")
+	avatar.interact()
+	_vehicles([_v("t0", p.x, p.z, null, null, p.y, _yaw_of(b))])
 	await _frames(1)
 	check(not main.watched.has(b), "the fall check skips a parked buggy")
 
@@ -210,6 +222,9 @@ func test_ride() -> void:
 	var p: Dictionary = positions[-1] if positions.size() > 0 else {}
 	var sp := b.to_global(seat)
 	check(p.get("v") == "t0" and p.get("foot") == false and p.has("x") and Vector3(p.x, p.y, p.z).distance_to(sp) < 0.05, "riding streams the seat position with v t0 (%s)" % p)
+	_vehicles([_v("t0", to.x, to.z, null, "me", to.y, 0.2)])
+	await _frames(2)
+	check(avatar.mode == &"riding" and b.mode == &"parked" and walker.global_position.distance_to(b.to_global(seat)) < 0.01, "the driver leaves while I ride: still riding, the buggy parked")
 	unseats.clear()
 	check(avatar.interact() and avatar.mode == &"foot" and walker.visible, "E while riding gets out")
 	check(unseats.size() == 1 and Vector3(unseats[0].x, unseats[0].y, unseats[0].z).distance_to(b.global_position) < 0.02, "a passenger's exit sends unseat with the buggy's pose")
@@ -233,11 +248,17 @@ func test_pending_timeout() -> void:
 	check(not avatar.pending_seat.is_empty(), "asked again")
 	await _frames(int(PlayerAvatar.PENDING_S * 60) + 5)
 	check(avatar.pending_seat.is_empty() and avatar.mode == &"foot", "an ask nobody answers clears after 3 s")
-	# The server did seat me after all: E gets in at once, no second ask.
+	# The server did seat me after all: the seat is mine, so I take it.
 	_vehicles([_t0("me")])
-	check(avatar.mode == &"foot", "a late list doesn't pull me in by itself")
-	seats.clear()
-	check(avatar.interact() and avatar.mode == &"driving" and seats.is_empty(), "E on a buggy that already names me gets in without asking")
+	check(avatar.mode == &"driving" and avatar.buggy == b, "a late yes after the timeout takes the seat")
+	avatar.interact()
+	_vehicles([_t0()])
+	# Left by hand: the 3 s guard runs out, and a list naming me counts again.
+	await _seat_in_t0("driver")
+	avatar.interact()
+	await _frames(int(PlayerAvatar.PENDING_S * 60) + 5)
+	_vehicles([_t0("me")])
+	check(avatar.mode == &"driving", "after the 3 s guard, a list naming me takes the seat")
 	avatar.interact()
 	_vehicles([_t0()])
 
@@ -264,6 +285,50 @@ func test_parked() -> void:
 	_vehicles([_t0()])
 	await _frames(1)
 	check(fleet.get_buggy("t1") == null and fleet.count() == 1, "a vehicle gone from the list goes")
+
+
+func test_dropped_while_in() -> void:
+	_vehicles([_t0("me")])
+	check(avatar.mode == &"driving", "in t0 again")
+	unseats.clear()
+	_vehicles([])
+	check(avatar.mode == &"foot" and walker.visible and unseats.is_empty(), "a list that drops the buggy I'm in: out locally, nothing sent")
+	await _frames(1)
+	check(fleet.count() == 0 and fleet.get_child_count() == 0, "and the buggy is gone")
+	_vehicles([_t0(), _v("t1", at0.x + 8, at0.z)])
+
+
+func test_new_seed() -> void:
+	main.start_world(t.layout(2))
+	field = main.field
+	await _frames(1)
+	var buggies := main.find_children("*", "Buggy", true, false)
+	check(fleet.count() == 2 and buggies.size() == 2 and fleet.get_child_count() == 2, "a new seed with fleet buggies: no leftover nodes (%d)" % buggies.size())
+	check(fleet.get_buggy("t0").visible and fleet.get_buggy("t1").visible and fleet.get_buggy("t0").process_mode == Node.PROCESS_MODE_INHERIT, "they're back on the new ground")
+	main._teardown()
+	check(not fleet.get_buggy("t0").visible and fleet.get_buggy("t0").process_mode == Node.PROCESS_MODE_DISABLED, "and hidden while there's no world")
+
+
+## I1: an iframe reload is a fresh Godot. The server still seats me, and
+## the re-sent list has to put me back in that seat.
+func test_reload_takes_seat_back() -> void:
+	main = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	t.root.add_child(main)
+	bridge = main.bridge
+	fleet = main.fleet
+	avatar = main.avatar
+	walker = main.walker
+	field = main.field
+	walker.input_enabled = false
+	_vehicles([_t0("me")])
+	var b := fleet.get_buggy("t0")
+	check(avatar.mode == &"driving" and avatar.buggy == b and b.driver == walker and b.mode == &"local", "a fresh avatar with a list naming me as driver ends up driving")
+	_vehicles([_t0("p2")])
+	check(avatar.mode == &"foot", "out again")
+	_vehicles([_t0("p2", "me")])
+	check(avatar.mode == &"riding" and avatar.buggy == b and main.rig.profile == &"ride", "a fresh avatar with a list naming me as passenger ends up riding")
+	main.queue_free()
+	await t.process_frame
 
 
 func test_phase_lock() -> void:

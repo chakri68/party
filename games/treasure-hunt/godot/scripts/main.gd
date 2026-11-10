@@ -68,6 +68,9 @@ func _ready() -> void:
 	fleet = Fleet.new()
 	fleet.name = "Fleet"
 	fleet.seaward = seaward.bind(SEA_DRIVE_DEPTH)
+	# Puppets move before the avatar snaps a rider to its seat, so the seat
+	# it streams is this frame's.
+	fleet.process_physics_priority = -1
 	add_child(fleet)
 	walker.seaward = seaward.bind(SEA_WALK_DEPTH)
 	_watch()
@@ -201,6 +204,8 @@ func start_world(layout: Dictionary) -> void:
 	rig.yaw = field.spawn_yaw
 	rig.follow(walker, &"walk")
 	rig.snap()
+	# A list that came before the ground (an iframe reload) may seat us.
+	avatar.take_seat()
 	world_ready.emit(Time.get_ticks_msec() - t0)
 
 

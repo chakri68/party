@@ -9,7 +9,11 @@ extends Node
 ## Standalone (no vehicles list yet: headless, the editor) E gets you
 ## straight into the buggy, as in M2. Online, a seat is the server's: E only
 ## asks (seat_asked), and you get in when a list names you in that seat.
-## Getting out is local and at once; unseated tells the server where.
+## A list naming you while you're on foot with nothing asked (a reloaded
+## iframe: the server still seats you) puts you back in that seat too.
+## Getting out is local and at once; unseated tells the server where, and
+## until a list stops naming you there (or 3 s pass), lists that still do
+## are stale and don't pull you back in.
 
 signal mode_changed(mode: StringName)
 ## E by a cache, on foot. main sends it on as emitClaim.
@@ -47,6 +51,9 @@ var camera: RigCamera
 ## {id, seat} while an ask is out, else {}.
 var pending_seat: Dictionary = {}
 var pending_left := 0.0
+## The vehicle id you just got out of by hand, until the server's caught up.
+var _leaving := ""
+var _leaving_left := 0.0
 var field: TerrainField ## for the reset's ground height; main sets it per world
 var caches: Caches ## main sets it per world; null, there's nothing to pick up
 
@@ -75,6 +82,8 @@ func interact() -> bool:
 	if not fleet.seen:
 		_enter(b, &"driver")
 		return true
+	if b.id == _leaving:
+		return false
 	var v := fleet.vehicle(b.id)
 	var driver: Variant = v.get("driver")
 	var passenger: Variant = v.get("passenger")
@@ -136,7 +145,10 @@ func _on_vehicles() -> void:
 		var held: Variant = fleet.vehicle(buggy.id).get("driver" if mode == &"driving" else "passenger")
 		if held != fleet.me:
 			_get_out(true)
+	if _leaving != "" and _seat_of(_leaving) == &"":
+		_leaving = ""
 	if pending_seat.is_empty():
+		take_seat()
 		return
 	var v := fleet.vehicle(pending_seat.id)
 	var holder: Variant = v.get(pending_seat.seat)
@@ -146,6 +158,31 @@ func _on_vehicles() -> void:
 		var b := fleet.get_buggy(pending_seat.id)
 		if b != null:
 			_enter(b, StringName(pending_seat.seat))
+
+
+## On foot with nothing asked and a list that seats you (the server's word
+## outlives an iframe reload): into that seat, as if the ask had just come
+## back yes. Not the one you just left; not before there's ground.
+func take_seat() -> void:
+	if mode != &"foot" or not pending_seat.is_empty() or field == null or not fleet.seen:
+		return
+	for b in fleet.all():
+		if b.id == _leaving:
+			continue
+		var seat := _seat_of(b.id)
+		if seat != &"":
+			_enter(b, seat)
+			return
+
+
+## The seat the latest list gives me in `id`, or &"".
+func _seat_of(id: String) -> StringName:
+	var v := fleet.vehicle(id)
+	if v.get("driver") == fleet.me:
+		return &"driver"
+	if v.get("passenger") == fleet.me:
+		return &"passenger"
+	return &""
 
 
 ## The vehicle you're in, for the pos stream: null on foot and in the
@@ -193,6 +230,7 @@ func on_foot() -> void:
 		buggy.set_control(0, 0, 0)
 	buggy = null
 	pending_seat = {}
+	_leaving = ""
 	_set_mode(&"foot")
 
 
@@ -203,6 +241,10 @@ func _physics_process(dt: float) -> void:
 		pending_left -= dt
 		if pending_left <= 0.0:
 			pending_seat = {}
+	if _leaving != "":
+		_leaving_left -= dt
+		if _leaving_left <= 0.0:
+			_leaving = ""
 
 
 func _snap_to_seat() -> void:
@@ -229,6 +271,8 @@ func _get_out(forced := false) -> bool:
 	if fleet.seen and not forced:
 		var p := buggy.global_position
 		unseated.emit({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "yaw": snappedf(Fleet.yaw_of(buggy), 0.001)})
+		_leaving = buggy.id
+		_leaving_left = PENDING_S
 	buggy = null
 	camera.follow(walker, &"walk")
 	_set_mode(&"foot")
