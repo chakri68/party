@@ -136,12 +136,24 @@ func _check_lamp(what: String, piece: Node, k: int, l: Dictionary) -> void:
 
 ## The bulbs are lamp_mat: off after a build, emissive and unshaded when on.
 func _check_lamp_switch(what: String, piece: Node) -> void:
-	var m := PieceKit.lamp_mat(Color("#ffe8a0"))
-	check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, what + ": lamps start off")
-	PieceKit.set_lamps_on(true)
-	check(m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED, what + ": set_lamps_on(true) lights them")
 	PieceKit.set_lamps_on(false)
-	check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, what + ": set_lamps_on(false) dims them")
+	for c in [Color("#ffe8a0"), Color("#ff4030"), Color("#ffc870")]:
+		var m := PieceKit.lamp_mat(c)
+		check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, "%s: lamp %s starts off" % [what, c.to_html()])
+		PieceKit.set_lamps_on(true)
+		check(m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED, "%s: set_lamps_on(true) lights %s" % [what, c.to_html()])
+		PieceKit.set_lamps_on(false)
+		check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, "%s: set_lamps_on(false) dims %s" % [what, c.to_html()])
+	# A piece built while lamps are on starts lit, lights and all.
+	PieceKit.set_lamps_on(true)
+	var lit := PieceKit.build({"id": "lit", "template": "camp", "params": {"tents": 1, "firepit": 0}})
+	var l := lit.get_node_or_null("Lamp0") as OmniLight3D
+	check(l != null and l.visible, what + ": a piece built with lamps on has its light on")
+	lit.free()
+	PieceKit.set_lamps_on(false)
+	var dark := PieceKit.build({"id": "dark", "template": "camp", "params": {"tents": 1, "firepit": 0}})
+	check(not (dark.get_node("Lamp0") as OmniLight3D).visible, what + ": and with lamps off, its light is off")
+	dark.free()
 
 
 func _check_slot(what: String, slot: Dictionary) -> void:

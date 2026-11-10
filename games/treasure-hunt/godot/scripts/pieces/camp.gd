@@ -33,10 +33,11 @@ static func build(p: Dictionary, label: int) -> Node3D:
 		PieceKit.kenney(root, "campfire_logs", Vector3(0, 0.02, 0), Vector3(0.45, 0.12, 0.45))
 		PieceKit.cylinder_shape(b, PIT, 0.12, Vector3(0, 0.06, 0))
 
-	# A lantern on a thin post, 2.6 m out at 135°. The post has no collider: it
-	# is 0.1 m thick and clear of every slot, so walking through it costs nothing.
+	# A lantern on a thin post, 2.6 m out at 135°. The post has no collider:
+	# it is 0.1 m thick and clear of every slot, so walking through it
+	# costs nothing.
 	var post := PieceKit.polar(TAU * 3.0 / 8.0, 2.6)
-	PieceKit.box(root, Vector3(0.1, 2.0, 0.1), post + Vector3(0, 1.0, 0), PieceKit.mat(PieceKit.WOOD))
+	PieceKit.box(root, Vector3(0.1, 2.05, 0.1), post + Vector3(0, 1.025, 0), PieceKit.mat(PieceKit.WOOD))
 	var bulb := post + Vector3(0, 2.2, 0)
 	PieceKit.cylinder(root, 0.12, 0.12, 0.3, bulb, PieceKit.lamp_mat(Color("#ffc870")))
 	PieceKit.lamp_light(root, 0, bulb)

@@ -105,14 +105,14 @@ static func _set_lamp(m: StandardMaterial3D, on: bool) -> void:
 
 
 ## The light of lamp `index`, named Lamp<index>, at `pos`. Hidden until the
-## clock turns it on. The glowing mesh beside it is built by the piece.
+## clock turns lamps on (a piece built while they are on starts lit). The glowing mesh beside it is built by the piece.
 static func lamp_light(parent: Node3D, index: int, pos: Vector3) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.name = "Lamp%d" % index
 	l.omni_range = 9.0
 	l.light_color = Color("#ffd890")
 	l.position = pos
-	l.visible = false
+	l.visible = _lamps_on
 	parent.add_child(l)
 	return l
 
