@@ -26,8 +26,9 @@
 .th-bar-right { margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px 14px; }
 .th-end, .th-clue-toggle { flex: none; }
 .th-bar [hidden] { display: none; }
-.th-timer, .th-score { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.th-timer, .th-score, .th-clock { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .th-timer { color: var(--accent); font-size: 1.05rem; }
+.th-clock { color: var(--muted); }
 .th-race { color: var(--muted); white-space: nowrap; }
 
 /* Row 2 always: with the bar hidden (the replay), auto-placement would drop it into the 0 px auto row. */
@@ -85,6 +86,8 @@
 /* Another team got it first (Race). Struck and greyed; the tag stays unstruck. */
 .th-clue-taken { color: var(--muted); }
 .th-clue-taken > span:last-child { text-decoration: line-through; text-decoration-color: rgb(156 152 136 / 0.6); }
+.th-clue-photo { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; margin-top: 6px; border: 1px solid var(--line); border-radius: var(--radius); }
+.th-clue-wait { display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
 .th-clue-tag {
   display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px;
   background: var(--surface-2); font-size: 0.72rem; font-weight: 700; text-decoration: none; vertical-align: 1px;

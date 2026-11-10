@@ -1,5 +1,6 @@
 import { h } from "@games/ui";
-import type { THMode, THPrivate } from "../shared/types.ts";
+import { clockText } from "../shared/sky.ts";
+import type { PhotoCam, THMode, THPrivate } from "../shared/types.ts";
 
 // The HUD over the map: the timer and score (they sit in the strip above it),
 // the clue board down the right, and the 3-2-1 in the middle. The text comes
@@ -27,9 +28,27 @@ export function countdownText(ms: number): string {
 }
 
 /** One line per cache on the board, in board order. taken: another team got it first (Race). */
-export function clueItems(priv: THPrivate | null): { text: string; found: boolean; taken: boolean }[] {
-  return (priv?.clues ?? []).map((c) => ({ text: c.clues.join(" "), found: c.found, taken: c.taken }));
+export function clueItems(
+  priv: THPrivate | null,
+  photoFor?: (id: string, cam: PhotoCam) => string | undefined,
+): { text: string; found: boolean; taken: boolean; photo: { src?: string } | null }[] {
+  return (priv?.clues ?? []).map((c) => {
+    const src = c.photo ? photoFor?.(c.id, c.photo) : undefined;
+    return { text: c.clues.join(" "), found: c.found, taken: c.taken, photo: c.photo ? (src ? { src } : {}) : null };
+  });
 }
+
+export const PHOTO_WAIT = "The photo is loading.";
+export const PHOTO_ALT = "Photo clue";
+
+/** What a clue's photo slot shows: the image, the loading line, or nothing. */
+export function photoView(photo: { src?: string } | null): { src: string; alt: string } | { wait: string } | null {
+  if (!photo) return null;
+  return photo.src ? { src: photo.src, alt: PHOTO_ALT } : { wait: PHOTO_WAIT };
+}
+
+/** The game clock for the bar, or "" when there is none. */
+export const clockLabel = (min: number | null | undefined) => (min == null ? "" : clockText(min));
 
 export interface HudState {
   /** Ms left on the round, or null when there's no timer to show. */
@@ -39,10 +58,13 @@ export interface HudState {
   /** pool is the target in Race. */
   score: { found: number; pool: number; mode: THMode } | null;
   priv: THPrivate | null;
+  /** The game minute after midnight, or null when there's no clock to show. */
+  clock?: number | null;
 }
 
 export class Hud {
   readonly timer = h("span", { class: "th-timer", role: "timer", hidden: true });
+  readonly clock = h("span", { class: "th-clock", title: "Time in the game", hidden: true });
   readonly score = h("span", { class: "th-score", hidden: true });
   readonly race = h("span", { class: "th-race", hidden: true });
   readonly toggle = h("button", { type: "button", class: "th-clue-toggle", "aria-controls": "th-clues", hidden: true }, "Clues");
@@ -50,10 +72,12 @@ export class Hud {
   readonly board = h("aside", { class: "th-clues", id: "th-clues", "aria-label": "Your clues", hidden: true }, h("h2", { class: "th-clues-title" }, "Your caches"), this.list);
   readonly count = h("p", { class: "th-count", "aria-live": "assertive", hidden: true });
 
+  private photoFor: ((id: string, cam: PhotoCam) => string | undefined) | undefined;
   private open = true;
   private lastClues = "";
 
-  constructor() {
+  constructor(photoFor?: (id: string, cam: PhotoCam) => string | undefined) {
+    this.photoFor = photoFor;
     this.toggle.addEventListener("click", () => {
       this.open = !this.open;
       this.board.classList.toggle("th-clues-shut", !this.open);
@@ -66,6 +90,10 @@ export class Hud {
     this.timer.hidden = s.left === null;
     if (s.left !== null) this.timer.textContent = formatLeft(s.left);
 
+    const clock = clockLabel(s.clock);
+    this.clock.hidden = clock === "";
+    this.clock.textContent = clock;
+
     this.score.hidden = !s.score || s.score.pool === 0;
     if (s.score) this.score.textContent = scoreText(s.score.found, s.score.pool, s.score.mode);
     this.race.hidden = this.score.hidden || s.score?.mode !== "race";
@@ -75,7 +103,7 @@ export class Hud {
     this.count.hidden = c === "";
     if (this.count.textContent !== c) this.count.textContent = c;
 
-    const items = clueItems(s.priv);
+    const items = clueItems(s.priv, this.photoFor);
     this.board.hidden = this.toggle.hidden = items.length === 0;
     // Called on every tick for the clocks; only touch the list when it changed.
     const key = JSON.stringify(items);
@@ -87,7 +115,13 @@ export class Hud {
           "li",
           { class: it.found ? "th-clue th-clue-found" : it.taken ? "th-clue th-clue-taken" : "th-clue" },
           h("span", { class: "th-clue-mark" }, it.found ? "✓" : ""),
-          h("span", {}, it.text, it.taken ? h("span", { class: "th-clue-tag" }, "Taken") : null),
+          h(
+            "span",
+            {},
+            it.text,
+            it.taken ? h("span", { class: "th-clue-tag" }, "Taken") : null,
+            photoNode(photoView(it.photo)),
+          ),
         ),
       ),
     );
@@ -97,4 +131,9 @@ export class Hud {
     this.toggle.setAttribute("aria-expanded", String(this.open));
     this.toggle.textContent = this.open ? "Hide clues" : "Show clues";
   }
+}
+
+function photoNode(v: ReturnType<typeof photoView>) {
+  if (!v) return null;
+  return "src" in v ? h("img", { class: "th-clue-photo", src: v.src, alt: v.alt }) : h("span", { class: "th-clue-wait" }, v.wait);
 }

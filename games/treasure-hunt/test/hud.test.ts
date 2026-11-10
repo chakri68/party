@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clueItems, countdownText, formatLeft, scoreText } from "../client/hud.ts";
+import { clockLabel, clueItems, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
 import type { THPrivate } from "../shared/types.ts";
 
 describe("formatLeft", () => {
@@ -58,12 +58,58 @@ describe("clueItems", () => {
 
   it("gives one line per cache in pool order, with its found flag", () => {
     expect(clueItems(priv)).toEqual([
-      { text: "Under the red lighthouse.", found: false, taken: false },
-      { text: "Between the old camp and the grey plane, nearer the old camp. About 100 m from the red lighthouse, at 90°.", found: true, taken: false },
+      { text: "Under the red lighthouse.", found: false, taken: false, photo: null },
+      { text: "Between the old camp and the grey plane, nearer the old camp. About 100 m from the red lighthouse, at 90°.", found: true, taken: false, photo: null },
     ]);
   });
 
   it("gives nothing without a private state", () => {
     expect(clueItems(null)).toEqual([]);
+  });
+});
+
+describe("photo clues", () => {
+  const cam = { x: 1, z: 2, yaw: 0, pitch: 0, target: "lighthouse" };
+  const withPhoto: THPrivate = {
+    teamId: 1,
+    pins: [],
+    clues: [{ id: "p1", clues: ["A photo."], difficulty: 2, found: false, taken: false, photo: cam }],
+    revealed: [],
+  };
+
+  it("gives photo {} while the image is not there", () => {
+    expect(clueItems(withPhoto)[0]!.photo).toEqual({});
+    expect(clueItems(withPhoto, () => undefined)[0]!.photo).toEqual({});
+  });
+
+  it("gives photo null for a clue with no camera", () => {
+    expect(clueItems({ ...withPhoto, clues: [{ ...withPhoto.clues[0]!, photo: null }] })[0]!.photo).toBeNull();
+  });
+
+  it("asks the store by id and camera, and passes the src through", () => {
+    const items = clueItems(withPhoto, (id, c) => (id === "p1" && c === cam ? "data:image/jpeg;base64,AAA" : undefined));
+    expect(items[0]!.photo).toEqual({ src: "data:image/jpeg;base64,AAA" });
+  });
+
+  it("says the photo is loading", () => {
+    expect(photoView({})).toEqual({ wait: "The photo is loading." });
+  });
+
+  it("renders the image with its alt", () => {
+    expect(photoView({ src: "data:x" })).toEqual({ src: "data:x", alt: "Photo clue" });
+  });
+
+  it("adds nothing extra without a camera", () => {
+    expect(photoView(null)).toBeNull();
+  });
+});
+
+describe("clock", () => {
+  it("shows 17:40 for a dusk game in countdown", () => {
+    expect(clockLabel(1060)).toBe("17:40");
+  });
+
+  it("shows nothing with no clock", () => {
+    expect(clockLabel(null)).toBe("");
   });
 });

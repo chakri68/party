@@ -96,8 +96,8 @@ describe("clueItems taken", () => {
       ],
     };
     expect(clueItems(priv)).toEqual([
-      { text: "A.", found: false, taken: true },
-      { text: "B.", found: true, taken: false },
+      { text: "A.", found: false, taken: true, photo: null },
+      { text: "B.", found: true, taken: false, photo: null },
     ]);
   });
 });
