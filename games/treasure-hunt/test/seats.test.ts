@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { buggySlots } from "../shared/buggies.ts";
 import { DEFAULT_SETTINGS, type THAction, type THPublic } from "../shared/types.ts";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
-import { POS_STALE_MS, SEAT_RANGE } from "../shared/world.ts";
+import { macroHeight } from "../shared/generate.ts";
+import { POS_STALE_MS, SEAT_RANGE, SEAT_STALE_MS, UNSEAT_Y_SLACK } from "../shared/world.ts";
 
 const ctx = (now = 1000): GameContext => ({ now, randomInt: seededRandomInt(7), hostId: "p0" });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
@@ -136,10 +137,37 @@ describe("seats", () => {
     expect(veh(e, "t0")).toMatchObject({ x: Math.round((v1.x - 2) * 100) / 100, z: Math.round((v1.z + 1) * 100) / 100, y: 25 });
   });
 
-  it("an unseat from a never-driven buggy takes y as sent", () => {
-    let s = okState(seat(hunting(1), "p0", "t0", "driver", 11_000));
-    s = okState(act(s, "p0", { type: "unseat", x: veh(s, "t0").x, y: 123, z: veh(s, "t0").z, yaw: 0 }, 11_100));
-    expect(veh(s, "t0").y).toBe(123);
+  it("an unseat from a never-driven buggy keeps y near the ground", () => {
+    const s = okState(seat(hunting(1), "p0", "t0", "driver", 11_000));
+    const { x, z } = veh(s, "t0");
+    const ground = macroHeight(s.layout, x, z);
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    // Close to the ground: as sent.
+    expect(veh(okState(act(s, "p0", { type: "unseat", x, y: ground + 3, z, yaw: 0 }, 11_100)), "t0").y).toBe(r2(ground + 3));
+    // Way up or way down: back within UNSEAT_Y_SLACK.
+    expect(veh(okState(act(s, "p0", { type: "unseat", x, y: ground + 500, z, yaw: 0 }, 11_100)), "t0").y).toBe(r2(ground + UNSEAT_Y_SLACK));
+    expect(veh(okState(act(s, "p0", { type: "unseat", x, y: ground - 500, z, yaw: 0 }, 11_100)), "t0").y).toBe(r2(ground - UNSEAT_Y_SLACK));
+  });
+
+  it("a removed player can't sit", () => {
+    let s = near(hunting(2), "p1", "t0", 11_000);
+    s = th.onPlayerRemoved!(s, "p1", ctx(11_000)).state;
+    const r = act(s, "p1", { type: "seat", vehicleId: "t0", seat: "driver" }, 11_000);
+    expect(r.ok ? null : r.error.code).toBe("not-in-game");
+  });
+
+  it("a seat whose holder went quiet is free; a fresh one is not", () => {
+    let s = okState(seat(hunting(3), "p0", "t0", "driver", 11_000));
+    // p0's last pos is from 11 000. Just inside SEAT_STALE_MS: still taken.
+    const early = seat(s, "p1", "t0", "driver", 11_000 + SEAT_STALE_MS);
+    expect(early.ok ? null : early.error.code).toBe("seat-taken");
+    // 15 s on: p1 gets it, and p0 holds nothing.
+    s = okState(seat(s, "p1", "t0", "driver", 26_000));
+    expect(veh(s, "t0").driver).toBe("p1");
+    expect(s.vehicles.some((v) => v.driver === "p0" || v.passenger === "p0")).toBe(false);
+    // p1 is fresh: p2 can't take it.
+    const r = seat(s, "p2", "t0", "driver", 26_100);
+    expect(r.ok ? null : r.error.code).toBe("seat-taken");
   });
 
   it("seats close with the hunt but stay filled", () => {

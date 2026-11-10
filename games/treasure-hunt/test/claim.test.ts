@@ -201,8 +201,9 @@ describe("claim", () => {
     // no-position: too old.
     s = standOn(s, "p0", mine, 11_000);
     expect(code(claim(s, "p0", mine, 11_000 + POS_STALE_MS + 1))).toBe("no-position");
-    // in-vehicle.
-    expect(code(claim(standOn(s, "p0", mine, 12_000, false), "p0", mine, 12_000))).toBe("in-vehicle");
+    // in-vehicle: the server's seat counts, not what the stream says. Seated, streaming foot:true, v:null.
+    const seated = { ...s, vehicles: s.vehicles.map((v, i) => (i === 0 ? { ...v, driver: "p0" } : v)) };
+    expect(code(claim(standOn(seated, "p0", mine, 12_000), "p0", mine, 12_000))).toBe("in-vehicle");
     // too-far: XZ.
     const xz = pos(s, "p0", c.x + CLAIM_CHECK + 0.5, groundAt(s, mine), c.z, 12_000)!.state;
     expect(code(claim(xz, "p0", mine, 12_000))).toBe("too-far");

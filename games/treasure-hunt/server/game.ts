@@ -45,9 +45,11 @@ import {
   RACE_OPEN_START,
   REVEAL_RADIUS,
   SEAT_RANGE,
+  SEAT_STALE_MS,
   TRACK_CAP,
   TRACK_MIN_M,
   TRACK_MIN_MS,
+  UNSEAT_Y_SLACK,
 } from "../shared/world.ts";
 import { rng } from "../shared/noise.ts";
 import type { Cache } from "./caches.ts";
@@ -114,10 +116,12 @@ export interface THServerPlayer extends THPlayer {
   pos: THPos | null;
   /** When the last too-fast move was seen. Claims wait JUMP_GRACE_MS after it. */
   jumpAt: number;
-  /** Route points: [s since start, x, z], ints. Hunting only, capped at TRACK_CAP. */
+  /** Route points: [s since start, x, z], ints. Hunting only, thinned at TRACK_CAP. */
   route: [number, number, number][];
   /** The last route point's real time and spot. In memory. */
   routeLast: { at: number; x: number; z: number } | null;
+  /** Points are kept TRACK_MIN_MS × this apart. Doubles each time the route hits TRACK_CAP. `?? 1` on old rooms. */
+  routeStep: number;
 }
 
 /** A claim, kept for the replay. */
@@ -154,6 +158,8 @@ export interface THState {
   endedAt: number | null;
   endsAt: number | null;
   countdownEndsAt: number | null;
+  /** When a stream snapshot last asked for a write. In memory; a reload just writes a little early. */
+  lastPersistAt?: number;
 }
 
 type Events = GameEventEnvelope<THEvent>[];
@@ -456,7 +462,10 @@ function seatAction(s: THState, playerId: string, action: SeatAction, ctx: GameC
       const k = d > UNSEAT_SLACK ? UNSEAT_SLACK / d : 1;
       v.x = round2(v.x + dx * k);
       v.z = round2(v.z + dz * k);
-      v.y = round2(v.y === null ? action.y : Math.min(v.y + HEIGHT_TOL, Math.max(v.y - HEIGHT_TOL, action.y)));
+      // Never driven: no streamed y to hold it to, so the ground under it will do.
+      const y0 = v.y ?? macroHeight(s.layout, v.x, v.z);
+      const slack = v.y === null ? UNSEAT_Y_SLACK : HEIGHT_TOL;
+      v.y = round2(Math.min(y0 + slack, Math.max(y0 - slack, action.y)));
       v.yaw = round2(action.yaw);
     }
     return ok(next, [], []);
@@ -468,7 +477,12 @@ function seatAction(s: THState, playerId: string, action: SeatAction, ctx: GameC
   if (!pos || ctx.now - pos.at > POS_STALE_MS) return reject("no-position", "We lost your position. Try again.");
   if (held) return reject("in-vehicle", "Get out of the buggy first.");
   if (Math.hypot(pos.x - v.x, pos.z - v.z) > SEAT_RANGE) return reject("too-far-seat", "Go closer to the buggy.");
-  if (v[action.seat] !== null) return reject("seat-taken", "Someone is already in that seat.");
+  // A holder who stopped streaming (a closed tab, a sleeping laptop) has left it.
+  // Seats don't free on disconnect: a page reload would lose them.
+  const holder = v[action.seat];
+  const theirs = holder === null ? null : next.players.find((p) => p.id === holder)?.pos;
+  if (holder !== null && theirs && ctx.now - theirs.at <= SEAT_STALE_MS) return reject("seat-taken", "Someone is already in that seat.");
+  // Taking it clears the stale holder.
   v[action.seat] = playerId;
   return ok(next, [], []);
 }
@@ -596,6 +610,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         jumpAt: NEVER,
         route: [],
         routeLast: null,
+        routeStep: 1,
       })),
       finds: [],
       vehicles: [],
@@ -659,6 +674,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       if (v.driver === playerId) v.driver = null;
       if (v.passenger === playerId) v.passenger = null;
     }
+    // Pins only exist in countdown and hunting; outside them this finds none.
+    s.pins = (s.pins ?? []).filter((x) => x.by !== playerId);
     events.push(pub({ type: "player-removed", playerId }));
     if (s.phase === "teams") {
       // Their team goes with them if they were its last member. Nobody left at all: it is over.
@@ -679,7 +696,9 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const snap = parsePos(data);
     // In a buggy and on foot at once: one of them is a lie.
     if (!snap || (snap.v !== null && snap.foot)) return null;
-    const next = { x: snap.x, y: snap.y, z: snap.z, foot: snap.foot };
+    // The seat is the server's: the stream's foot and v only had to agree with each other.
+    const held = seatOf(state, playerId);
+    const next = { x: snap.x, y: snap.y, z: snap.z, foot: !held };
     const now = ctx.now;
 
     let jumpAt = me.jumpAt;
@@ -709,28 +728,39 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       relays.push({ to, data });
     }
 
-    // A route point: at most one per TRACK_MIN_MS, and only after TRACK_MIN_M of walking.
-    // `?? []`: rooms saved before the route log.
+    // A route point: at most one per TRACK_MIN_MS × routeStep, and only after TRACK_MIN_M of walking.
+    // At TRACK_CAP every other point goes (both ends stay) and the step doubles, so a long
+    // round keeps its whole route at a lower rate. `?? []`, `?? 1`: rooms saved before these.
     let route = me.route ?? [];
     let routeLast = me.routeLast ?? null;
-    let point = false;
-    if (state.phase === "hunting" && state.startedAt !== null && route.length < TRACK_CAP) {
+    let routeStep = me.routeStep ?? 1;
+    if (state.phase === "hunting" && state.startedAt !== null) {
       const last = routeLast;
-      if (!last || (now - last.at >= TRACK_MIN_MS && Math.hypot(next.x - last.x, next.z - last.z) >= TRACK_MIN_M)) {
-        point = true;
+      if (!last || (now - last.at >= TRACK_MIN_MS * routeStep && Math.hypot(next.x - last.x, next.z - last.z) >= TRACK_MIN_M)) {
         route = [...route, [Math.round((now - state.startedAt) / 1000), Math.round(next.x), Math.round(next.z)]];
         routeLast = { at: now, x: next.x, z: next.z };
+        if (route.length >= TRACK_CAP) {
+          route = route.filter((_, i) => i % 2 === 0 || i === route.length - 1);
+          routeStep *= 2;
+        }
       }
     }
 
-    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, route, routeLast };
+    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, route, routeLast, routeStep };
     const players = state.players.map((p) => (p.id === playerId ? player : p));
-    const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: snap.foot, v: snap.v };
+    const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: !held, v: held?.v.id ?? null };
     const teams = relays.length ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
-    // The driver's snapshot is the buggy's pose. In memory: the route point rule persists ~1 Hz.
+    // The driver's snapshot is the buggy's pose. In memory, like everything here, until the next write.
     const vehicles =
-      snap.v === null ? state.vehicles : (state.vehicles ?? []).map((v) => (v.id === snap.v && v.driver === playerId ? { ...v, x: relay.x, y: relay.y, z: relay.z, yaw: relay.yaw } : v));
-    return { state: { ...state, players, teams, vehicles }, relay, ...(relays.length ? { relays } : {}), persist: point || relays.length > 0 };
+      held?.seat !== "driver" ? state.vehicles : state.vehicles.map((v) => (v === held.v ? { ...v, x: relay.x, y: relay.y, z: relay.z, yaw: relay.yaw } : v));
+    // One write a second for the whole room (§9), plus one for every reveal: a reveal must survive a restart.
+    const persist = relays.length > 0 || now - (state.lastPersistAt ?? NEVER) >= TRACK_MIN_MS;
+    return {
+      state: { ...state, players, teams, vehicles, ...(persist ? { lastPersistAt: now } : {}) },
+      relay,
+      ...(relays.length ? { relays } : {}),
+      persist,
+    };
   },
 
   getPublicState: (s) => ({

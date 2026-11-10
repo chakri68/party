@@ -74,6 +74,16 @@ describe("pins", () => {
     expect(code(act(s, "p0", { type: "pin", x: 950, z: -950 }))).toBeNull();
   });
 
+  it("a removed player's pins go, in countdown and in hunting", () => {
+    for (const base of [started(), hunting()]) {
+      let s = okState(act(base, "p0", { type: "pin", x: 1, z: 1 }));
+      s = okState(act(s, "p1", { type: "pin", x: 2, z: 2 }));
+      s = th.onPlayerRemoved!(s, "p0", ctx(11_000)).state;
+      expect(mine(s, "p1").map((p) => p.by)).toEqual(["p1"]);
+      expect(s.pins.some((p) => p.by === "p0")).toBe(false);
+    }
+  });
+
   it("spectators can't pin", () => {
     const s = hunting();
     s.players[2]!.spectator = true;

@@ -33,12 +33,16 @@ export const POS_HZ = 10;
 export const TRACK_MIN_MS = 1000;
 /** ...and only after moving this far (m). */
 export const TRACK_MIN_M = 5;
-/** Route points kept per player. */
+/** Route points kept per player. At the cap, every other point goes and the rate halves. */
 export const TRACK_CAP = 2000;
 /** Live pins per player. A 6th removes the oldest. */
 export const PIN_CAP = 5;
 /** Metres (XZ) from a player's last pos to a buggy seat. */
 export const SEAT_RANGE = 4;
+/** A seat holder quiet this long (ms) has left the buggy: a live client streams at POS_HZ. */
+export const SEAT_STALE_MS = 10_000;
+/** Metres above or below the ground a never-driven buggy can be left at. */
+export const UNSEAT_Y_SLACK = 20;
 /** Other teams show on the minimap within this (m). */
 export const DOT_RANGE = 150;
 /** Name tags show within this (m). */
