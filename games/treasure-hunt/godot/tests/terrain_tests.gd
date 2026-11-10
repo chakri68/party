@@ -29,6 +29,12 @@ func run() -> void:
 	test_mountain_sides()
 	await test_walls()
 	test_water()
+	test_pads()
+	test_pad_chunk_flat()
+	test_trails()
+	test_trail_colour()
+	test_wreck_by_the_sea()
+	test_height_cost()
 
 
 func check(ok: bool, what: String) -> void:
@@ -369,3 +375,186 @@ func test_water() -> void:
 	var m := w.material_override as StandardMaterial3D
 	check(m != null and m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and m.albedo_color.b > m.albedo_color.r, "water is blue and see-through")
 	w.free()
+
+
+# --- pads and trails (M2) -----------------------------------------------------
+
+## The same layout with no pieces: the ground a pad blends back into.
+func _plain(l: Dictionary) -> TerrainField:
+	var bare := l.duplicate()
+	bare.pieces = []
+	return TerrainField.from_layout(bare)
+
+
+## Inside some other piece's pad or blend ring, where its own rule wins.
+func _near_other(l: Dictionary, x: float, z: float, skip: int) -> bool:
+	var ps: Array = l.pieces
+	for k in ps.size():
+		if k != skip and Vector2(x - ps[k].x, z - ps[k].z).length() < float(ps[k].padR) + TerrainField.PAD_BLEND + 0.01:
+			return true
+	return false
+
+
+func test_pads() -> void:
+	check(TerrainField.PAD_BLEND == 10.0, "pads blend back over 10 m")
+	var pads := 0
+	var centre := true
+	var inside := true
+	var edge := true
+	var blended := true
+	for n in range(1, t.FIXTURES + 1):
+		var l: Dictionary = t.layout(n)
+		var f := TerrainField.from_layout(l)
+		var plain := _plain(l)
+		var ps: Array = l.pieces
+		for k in ps.size():
+			var p: Dictionary = ps[k]
+			var r := float(p.padR)
+			pads += 1
+			if absf(f.height_at(p.x, p.z) - p.padY) > 0.01:
+				centre = false
+				print("    layout %d %s centre: %.3f vs padY %.1f" % [n, p.id, f.height_at(p.x, p.z), p.padY])
+			for a in 16:
+				var dir := Vector2(cos(TAU * a / 16.0), sin(TAU * a / 16.0))
+				var q := Vector2(p.x, p.z) + dir * (r - 0.05)
+				inside = inside and absf(f.height_at(q.x, q.y) - p.padY) <= 0.01
+				var e := Vector2(p.x, p.z) + dir * (r + TerrainField.PAD_BLEND)
+				if not _near_other(l, e.x, e.y, k) and absf(f.height_at(e.x, e.y) - plain.height_at(e.x, e.y)) > 0.01:
+					edge = false
+					print("    layout %d %s edge %d: %.3f vs plain %.3f" % [n, p.id, a, f.height_at(e.x, e.y), plain.height_at(e.x, e.y)])
+				# Halfway through the blend it sits between the pad and the plain ground.
+				var m := Vector2(p.x, p.z) + dir * (r + TerrainField.PAD_BLEND * 0.5)
+				if not _near_other(l, m.x, m.y, k):
+					var lo := minf(p.padY, plain.height_at(m.x, m.y)) - 0.01
+					var hi := maxf(p.padY, plain.height_at(m.x, m.y)) + 0.01
+					blended = blended and f.height_at(m.x, m.y) >= lo and f.height_at(m.x, m.y) <= hi
+	check(pads > 0 and centre, "height_at at each piece's centre is its padY (%d pieces)" % pads)
+	check(inside, "height_at is padY all the way to padR")
+	check(edge, "at padR + 10 the ground is the plain field again")
+	check(blended, "inside the blend ring the ground is between the pad and the plain field")
+
+
+func test_pad_chunk_flat() -> void:
+	var p: Dictionary = layout.pieces[0]
+	var cx := floori(float(p.x) / TerrainField.CHUNK)
+	var cz := floori(float(p.z) / TerrainField.CHUNK)
+	var c := _chunk(cx, cz)
+	var verts: PackedVector3Array = _arrays(c)[Mesh.ARRAY_VERTEX]
+	var lo := INF
+	var hi := -INF
+	var n := 0
+	for v in verts:
+		var w := v + c.position
+		if Vector2(w.x - p.x, w.z - p.z).length() < float(p.padR):
+			lo = minf(lo, v.y)
+			hi = maxf(hi, v.y)
+			n += 1
+	check(n > 10 and hi - lo < 0.05, "a chunk over %s has a flat floor on its pad (%d vertices, %.3f m spread)" % [p.id, n, hi - lo])
+	c.free()
+
+
+func test_trails() -> void:
+	check(TerrainField.TRAIL_HALF_WIDTH == 2.0, "TRAIL_HALF_WIDTH mirrors trails.ts")
+	var pts := 0
+	var flat := true
+	var mids := true
+	for n in range(1, t.FIXTURES + 1):
+		var l: Dictionary = t.layout(n)
+		var f := TerrainField.from_layout(l)
+		for tr: Dictionary in l.trails:
+			var ps: Array = tr.pts
+			for i in ps.size():
+				var x: float = ps[i][0]
+				var z: float = ps[i][1]
+				if _near_other(l, x, z, -1):
+					continue
+				pts += 1
+				if absf(f.height_at(x, z) - f.macro_height(x, z)) > 0.01:
+					flat = false
+					print("    layout %d trail point (%.1f, %.1f): %.3f vs macro %.3f" % [n, x, z, f.height_at(x, z), f.macro_height(x, z)])
+				if i > 0:
+					var mx: float = (x + ps[i - 1][0]) * 0.5
+					var mz: float = (z + ps[i - 1][1]) * 0.5
+					if not _near_other(l, mx, mz, -1):
+						mids = mids and absf(f.height_at(mx, mz) - f.macro_height(mx, mz)) <= 0.01
+	check(pts > 0 and flat, "on a trail point the detail is 0: height_at = macro_height (%d points)" % pts)
+	check(mids, "and halfway between trail points too")
+	# Far from every trail and pad, the detail is still there.
+	var f1 := TerrainField.from_layout(layout)
+	var diff := 0.0
+	for k in 200:
+		var x := -700.0 + k * 7.1
+		var z := 333.0 - k * 3.3
+		if f1.trail_distance(x, z) > 10.0 and not _near_other(layout, x, z, -1):
+			diff = maxf(diff, absf(f1.height_at(x, z) - f1.macro_height(x, z)))
+	check(diff > 0.3, "away from trails the detail stays (max %.2f m)" % diff)
+
+
+func test_trail_colour() -> void:
+	var dirt := Color("#8a6a48")
+	var f := TerrainField.from_layout(layout)
+	var on := true
+	var off := true
+	var n := 0
+	for tr: Dictionary in layout.trails:
+		for pt: Array in tr.pts:
+			var x: float = pt[0]
+			var z: float = pt[1]
+			var c := f.color_at(x, z, f.height_at(x, z))
+			on = on and c.is_equal_approx(dirt)
+			n += 1
+	check(n > 0 and on, "the ground on a trail is dirt brown (%d points)" % n)
+	for k in 300:
+		var x := -700.0 + k * 4.7
+		var z := -500.0 + k * 3.1
+		if f.trail_distance(x, z) > TerrainField.TRAIL_HALF_WIDTH + 1.0:
+			off = off and not f.color_at(x, z, f.height_at(x, z)).is_equal_approx(dirt)
+	check(off, "more than 1 m past the trail's edge, it isn't")
+	var tp: Array = layout.trails[0].pts[1]
+	var a := Vector2(tp[0], tp[1])
+	var b := Vector2(layout.trails[0].pts[2][0], layout.trails[0].pts[2][1])
+	var side := (b - a).normalized().orthogonal()
+	var q := a + side * (TerrainField.TRAIL_HALF_WIDTH + 0.5)
+	var mixed := f.color_at(q.x, q.y, f.height_at(q.x, q.y))
+	check(not mixed.is_equal_approx(dirt), "half a metre past the edge it is blending out")
+
+
+## Layout 4 has a wreck low by the sea. Its pad is land; the sand rule and
+## the sea rule still hold around it.
+func test_wreck_by_the_sea() -> void:
+	var l: Dictionary = t.layout(4)
+	var f := TerrainField.from_layout(l)
+	var wreck: Dictionary = {}
+	for p: Dictionary in l.pieces:
+		if p.template == "shipwreck":
+			wreck = p
+	check(not wreck.is_empty(), "layout 4 has a shipwreck")
+	if wreck.is_empty():
+		return
+	check(absf(f.height_at(wreck.x, wreck.z) - wreck.padY) < 0.01, "the wreck stands on its pad (%.1f m)" % wreck.padY)
+	var sand := true
+	var wet := 0
+	for a in 32:
+		for d in [0.0, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0]:
+			var x: float = wreck.x + cos(TAU * a / 32.0) * d
+			var z: float = wreck.z + sin(TAU * a / 32.0) * d
+			var h := f.height_at(x, z)
+			if h < TerrainField.SAND_BELOW and f.trail_distance(x, z) > TerrainField.TRAIL_HALF_WIDTH + 1.0:
+				sand = sand and f.color_at(x, z, h) == TerrainField.SAND
+			if h < TerrainField.SEA_LEVEL - 1.0:
+				wet += 1
+	check(sand, "low ground around the wreck is still sand")
+	check(wet > 0, "deep water is still near the wreck, so the sea rule has a shore (%d samples)" % wet)
+
+
+## Every lookup goes through height_at: per call, over a spread of points.
+func test_height_cost() -> void:
+	var f := TerrainField.from_layout(layout)
+	var n := 100000
+	var t0 := Time.get_ticks_usec()
+	var acc := 0.0
+	for k in n:
+		acc += f.height_at(-740.0 + float(k % 500) * 2.96, -740.0 + float(k / 500) * 7.4)
+	var us := float(Time.get_ticks_usec() - t0) / n
+	print("  height_at: %.3f us per call (%d calls)" % [us, n])
+	check(is_finite(acc) and us < 20.0, "height_at stays cheap (%.3f us a call)" % us)

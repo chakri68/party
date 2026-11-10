@@ -25,6 +25,7 @@ const SEA_DRIVE_DEPTH := 0.5
 var field: TerrainField
 var streamer: ChunkStreamer
 var pieces: Pieces
+var minor: MinorPoints
 var world: Node3D ## everything built from the layout; rebuilt on a new seed
 ## What the streamer builds around: whichever body you're controlling.
 var focus: Node3D
@@ -117,12 +118,16 @@ func start_world(layout: Dictionary) -> void:
 	world.add_child(streamer)
 	streamer.setup(field, mat)
 	streamer.load_initial(field.spawn)
-	# On the pad height for now. The pads aren't flattened into the terrain
-	# yet, so on real ground a piece can float or sink a little.
+	# The field flattens each pad to padY, so the pieces stand on it.
 	pieces = Pieces.new()
 	pieces.name = "Pieces"
 	world.add_child(pieces)
 	pieces.build_all(layout)
+	minor = MinorPoints.new()
+	minor.name = "MinorPoints"
+	minor.field = field
+	world.add_child(minor)
+	minor.build_all(layout)
 
 	avatar.on_foot()
 	avatar.field = field
@@ -162,6 +167,7 @@ func _teardown() -> void:
 	world = null
 	streamer = null
 	pieces = null
+	minor = null
 	field = null
 
 
