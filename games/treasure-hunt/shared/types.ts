@@ -1,6 +1,7 @@
 import type { MinorPoint } from "./minor.ts";
 import type { TeamColorKey } from "./teams.ts";
 import type { Trail } from "./trails.ts";
+import { TIMES, type TimeSetting } from "./sky.ts";
 import { RACE_TARGET_DEFAULT, RACE_TARGETS, TIMED_MINUTES, type RingSide } from "./world.ts";
 
 export type TemplateId = "lighthouse" | "shipwreck" | "stone-circle" | "radio-tower" | "camp" | "plane";
@@ -78,6 +79,8 @@ export interface THPublic {
   mode: THMode;
   /** Race: caches to win. Also each team's poolSize in Race. */
   target: number;
+  /** The sky clock's minute at the start of the round, resolved once on the server. */
+  sky: { startMin: number };
   /** The final layout seed. Clients rebuild the map with generateLayout. */
   seed: number;
   /** A team whose hunters all left mid-round stays listed, with no members. */
@@ -189,19 +192,22 @@ export interface THSettings {
   mode: THMode;
   /** Timed only. */
   minutes: THMinutes;
+  /** When the round's clock starts. "random" is resolved once on the server. */
+  time: TimeSetting;
   /** Race only: caches to win. */
   target: number;
 }
 
-export const DEFAULT_SETTINGS: THSettings = { mode: "timed", minutes: 30, target: RACE_TARGET_DEFAULT };
+export const DEFAULT_SETTINGS: THSettings = { mode: "timed", minutes: 30, time: "day", target: RACE_TARGET_DEFAULT };
 
 /** Missing or empty means the default, field by field; anything present must be a known value. */
 export function parseTHSettings(input: unknown): THSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
-  const { mode = DEFAULT_SETTINGS.mode, minutes = DEFAULT_SETTINGS.minutes, target = DEFAULT_SETTINGS.target } = input as Record<string, unknown>;
+  const { mode = DEFAULT_SETTINGS.mode, minutes = DEFAULT_SETTINGS.minutes, time = DEFAULT_SETTINGS.time, target = DEFAULT_SETTINGS.target } = input as Record<string, unknown>;
   if (mode !== "timed" && mode !== "race") return null;
   if (!(TIMED_MINUTES as readonly unknown[]).includes(minutes)) return null;
+  if (!(TIMES as readonly unknown[]).includes(time)) return null;
   if (!(RACE_TARGETS as readonly unknown[]).includes(target)) return null;
-  return { mode, minutes: minutes as THMinutes, target: target as number };
+  return { mode, minutes: minutes as THMinutes, time: time as TimeSetting, target: target as number };
 }

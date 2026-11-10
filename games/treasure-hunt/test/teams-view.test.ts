@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canStart, memberText, startNote, teamRows } from "../client/teams.ts";
 import { clueItems, raceText, scoreText } from "../client/hud.ts";
-import { treasureHuntSettingFields } from "../shared/rules-text.ts";
+import { treasureHuntRules, treasureHuntSettingFields } from "../shared/rules-text.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
 const pub = (players: THPublic["players"], teams: THPublic["teams"] = [
@@ -106,14 +106,14 @@ describe("treasureHuntSettingFields", () => {
   const keys = (raw: unknown) => treasureHuntSettingFields(raw, 4).map((f) => f.key);
 
   it("hides Caches to win in Timed", () => {
-    expect(keys({ mode: "timed" })).toEqual(["mode", "minutes"]);
-    expect(keys(undefined)).toEqual(["mode", "minutes"]);
+    expect(keys({ mode: "timed" })).toEqual(["mode", "minutes", "time"]);
+    expect(keys(undefined)).toEqual(["mode", "minutes", "time"]);
   });
 
   it("shows Caches to win, 3 to 10, in Race", () => {
     const fields = treasureHuntSettingFields({ mode: "race", target: 7 }, 4);
-    expect(fields.map((f) => f.key)).toEqual(["mode", "minutes", "target"]);
-    const target = fields[2]!;
+    expect(fields.map((f) => f.key)).toEqual(["mode", "minutes", "time", "target"]);
+    const target = fields[3]!;
     expect(target.label).toBe("Caches to win");
     expect(target.options.map((o) => o.patch)).toEqual([3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ target: n })));
     expect(target.options[target.selected]!.patch).toEqual({ target: 7 });
@@ -127,5 +127,28 @@ describe("treasureHuntSettingFields", () => {
       ["Race", { mode: "race" }],
     ]);
     expect(mode.selected).toBe(1);
+  });
+
+  it("offers the time of day after Round length", () => {
+    const f = treasureHuntSettingFields({ time: "dusk" }, 4).find((x) => x.key === "time")!;
+    expect(f.label).toBe("Time of day");
+    expect(f.options.map((o) => [o.label, o.patch])).toEqual([
+      ["Day", { time: "day" }],
+      ["Dusk", { time: "dusk" }],
+      ["Night", { time: "night" }],
+      ["Random", { time: "random" }],
+    ]);
+    expect(f.selected).toBe(1);
+    expect(f.hint).toBe("The sun sets during the round. A long round ends in the dark.");
+    expect(treasureHuntSettingFields({ time: "random" }, 4).find((x) => x.key === "time")!.hint).toBe("A surprise. Everyone gets the same one.");
+  });
+
+  it("rules carry the sky lines", () => {
+    expect(treasureHuntRules).toContain(
+      "A clue names a place on the map, says the cache is between two places, gives a distance and a direction, shows a photo taken near the cache, or says where a shadow ends or a lamp shines.",
+    );
+    expect(treasureHuntRules).toContain("The clock at the top shows the time in the game. It moves 1 minute for every real minute. A shadow clue needs that time.");
+    expect(treasureHuntRules.some((r) => r.startsWith("At night, press F to turn your torch on or off."))).toBe(true);
+    expect(treasureHuntRules.some((r) => r.startsWith("A clue names a place on the map, says the cache is between two places, or"))).toBe(false);
   });
 });

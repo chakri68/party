@@ -1,4 +1,5 @@
 import type { SettingField } from "@games/game-core";
+import { TIME_LABELS, TIMES, timeHint } from "./sky.ts";
 import { DEFAULT_SETTINGS, parseTHSettings } from "./types.ts";
 import { RACE_TARGETS, TIMED_MINUTES } from "./world.ts";
 
@@ -11,7 +12,9 @@ export const treasureHuntRules: string[] = [
   "Your team gets a list of clues. Each clue points to one hidden cache.",
   "Timed: each team has its own list. The team with the most caches when the time ends wins.",
   "Race: all teams share the same list. 3 clues are open at the start, and 1 more opens each time any team finds a cache. A cache one team finds is gone for the others. The first team to find the set number wins.",
-  "A clue names a place on the map, says the cache is between two places, or gives a distance and a direction from a place.",
+  "A clue names a place on the map, says the cache is between two places, gives a distance and a direction, shows a photo taken near the cache, or says where a shadow ends or a lamp shines.",
+  "The clock at the top shows the time in the game. It moves 1 minute for every real minute. A shadow clue needs that time.",
+  "At night, press F to turn your torch on or off. Buggy lights come on by themselves when it gets dark. Some places have lamps that come on when it gets dark. A cache has a small strip that shines when your torch is close.",
   "Directions are in degrees. 0° is north, 90° is east. The strip at the top of the screen shows where you are facing.",
   "A cache shows up when someone on your team is close to it. Walk up to it and press E to pick it up. You must be on foot.",
   "Move with W, A, S and D. Move the mouse to look. Hold Shift to run. Press Space to jump.",
@@ -43,6 +46,13 @@ export function treasureHuntSettingFields(raw: unknown, _players: number): Setti
       label: "Round length",
       selected: Math.max(0, TIMED_MINUTES.indexOf(s.minutes)),
       options: TIMED_MINUTES.map((m) => ({ label: `${m} minutes`, patch: { minutes: m } })),
+    },
+    {
+      key: "time",
+      label: "Time of day",
+      selected: Math.max(0, TIMES.indexOf(s.time)),
+      options: TIMES.map((t) => ({ label: TIME_LABELS[t], patch: { time: t } })),
+      hint: timeHint(s.time),
     },
   ];
   if (s.mode === "race") {

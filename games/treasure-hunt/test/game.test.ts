@@ -1,5 +1,6 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
+import { startMinOf } from "../shared/sky.ts";
 import { DEFAULT_SETTINGS } from "../shared/types.ts";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
 import { treasureHuntSettingFields } from "../shared/rules-text.ts";
@@ -166,11 +167,17 @@ describe("treasure hunt server", () => {
   });
 
   it("parseSettings defaults to Timed, 30 minutes, and rejects junk", () => {
-    const d = { mode: "timed", minutes: 30, target: 5 };
+    const d = { mode: "timed", minutes: 30, time: "day", target: 5 };
     expect(th.parseSettings(undefined)).toEqual(d);
     expect(th.parseSettings({})).toEqual(d);
     for (const m of [15, 30, 60]) expect(th.parseSettings({ minutes: m })).toEqual({ ...d, minutes: m });
     for (const bad of [5, [], { minutes: 20 }, { minutes: "30" }]) expect(th.parseSettings(bad)).toBeNull();
+  });
+
+  it("parseSettings reads the time of day", () => {
+    expect(th.parseSettings({ time: "dusk" })!.time).toBe("dusk");
+    expect(th.parseSettings({})!.time).toBe("day");
+    expect(th.parseSettings({ time: "noon" })).toBeNull();
   });
 
   it("setting fields: a Round length select after Mode", () => {
@@ -189,5 +196,22 @@ describe("treasure hunt server", () => {
     ]);
     expect(treasureHuntSettingFields(undefined, 1)[1]!.selected).toBe(1);
     expect(treasureHuntSettingFields("junk", 1)[1]!.selected).toBe(1);
+  });
+
+  it("resolves the start minute once, on the server", () => {
+    const start = (time: string, randomInt: GameContext["randomInt"]) =>
+      th.getPublicState(th.createGame(players(2), { ...DEFAULT_SETTINGS, time } as never, { roundNumber: 1, dealerSeat: 0 }, ctx({ randomInt })).state);
+    const draws: number[] = [];
+    const spy: GameContext["randomInt"] = (n) => {
+      const v = seededRandomInt(7)(n);
+      draws.push(v);
+      return v;
+    };
+    const pub = start("random", spy);
+    expect(pub.sky.startMin).toBe(startMinOf("random", draws[0]!));
+    expect(pub.seed).toBeGreaterThanOrEqual(draws[0]!);
+    expect(start("night", seededRandomInt(7)).sky.startMin).toBe(1320);
+    expect(start("day", seededRandomInt(7)).sky.startMin).toBe(600);
+    expect(start("dusk", seededRandomInt(7)).sky.startMin).toBe(1060);
   });
 });

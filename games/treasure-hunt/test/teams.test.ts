@@ -176,10 +176,10 @@ describe("teams phase", () => {
   });
 
   it("settings: mode, minutes and target, with defaults", () => {
-    expect(th.defaultSettings).toEqual({ mode: "timed", minutes: 30, target: 5 });
-    expect(th.parseSettings(undefined)).toEqual({ mode: "timed", minutes: 30, target: 5 });
-    expect(th.parseSettings({ minutes: 15 })).toEqual({ mode: "timed", minutes: 15, target: 5 });
-    expect(th.parseSettings({ mode: "race", minutes: 60, target: 10 })).toEqual({ mode: "race", minutes: 60, target: 10 });
+    expect(th.defaultSettings).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5 });
+    expect(th.parseSettings(undefined)).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5 });
+    expect(th.parseSettings({ minutes: 15 })).toEqual({ mode: "timed", minutes: 15, time: "day", target: 5 });
+    expect(th.parseSettings({ mode: "race", minutes: 60, target: 10 })).toEqual({ mode: "race", minutes: 60, time: "day", target: 10 });
     for (const bad of [{ mode: "solo" }, { target: 2 }, { target: 11 }, { target: "5" }, { minutes: 20 }]) expect(th.parseSettings(bad)).toBeNull();
   });
 });

@@ -53,6 +53,7 @@ import {
 } from "../shared/world.ts";
 import { rng } from "../shared/noise.ts";
 import type { Cache } from "./caches.ts";
+import { startMinOf } from "../shared/sky.ts";
 import { makeHunt } from "./hunt.ts";
 
 // The Timed round (§3, §6.3–6.4, §8):
@@ -139,6 +140,8 @@ export interface THState {
   phase: Phase;
   seed: number;
   settings: THSettings;
+  /** Resolved once at createGame, so "random" is the same for everyone. */
+  sky: { startMin: number };
   layout: TreasureLayout;
   /** Server only. Never in public state. */
   caches: Cache[];
@@ -591,11 +594,15 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   },
 
   createGame(players, settings, match, ctx) {
-    const { layout, caches } = makeHunt(ctx.randomInt(2 ** 31));
+    const parsed = parseTHSettings(settings) ?? DEFAULT_SETTINGS;
+    const s = ctx.randomInt(2 ** 31);
+    const startMin = startMinOf(parsed.time, s);
+    const { layout, caches } = makeHunt(s, { startMin, minutes: parsed.minutes });
     const state: THState = {
       phase: "teams",
       seed: layout.seed,
-      settings: parseTHSettings(settings) ?? DEFAULT_SETTINGS,
+      settings: parsed,
+      sky: { startMin },
       layout,
       caches,
       release: [],
@@ -767,6 +774,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     phase: s.phase,
     mode: s.settings.mode,
     target: s.settings.target,
+    sky: { startMin: s.sky.startMin },
     seed: s.layout.seed,
     teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: race(s) ? s.settings.target : t.pool.length })),
     players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),
