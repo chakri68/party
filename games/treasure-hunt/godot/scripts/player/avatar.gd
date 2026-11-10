@@ -45,6 +45,7 @@ func interact() -> bool:
 		return _get_out()
 	var id := claimable()
 	if id != "":
+		caches.mark_claimed(id)
 		claimed.emit(id)
 		return true
 	if walker.global_position.distance_to(buggy.to_global(DOOR)) > ENTER_RANGE:

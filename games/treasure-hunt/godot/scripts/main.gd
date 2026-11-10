@@ -257,6 +257,7 @@ func _stop(body: Node3D) -> void:
 
 func _physics_process(_dt: float) -> void:
 	if field == null:
+		_pos_accum = 0.0
 		return
 	walker.look_yaw = rig.yaw
 	if focus:
@@ -280,9 +281,10 @@ func _pos_tick(dt: float) -> void:
 	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "foot": avatar.mode == &"foot"})
 
 
-## The E prompt: shown while there's a cache to pick up and you're on foot.
+## The E prompt: shown while the round's on, you're on foot, and there's a
+## cache to pick up.
 func prompt_tick() -> void:
-	prompt.visible = field != null and avatar.claimable() != ""
+	prompt.visible = field != null and phase == &"hunting" and avatar.claimable() != ""
 
 
 ## The deep-water rule. Where the ground at `p` is more than `depth` under
@@ -321,10 +323,11 @@ func _process(_dt: float) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	# Not before the round's on: no getting a head start in the buggy.
+	# Not before the round's on: no head start in the buggy, and no
+	# resetting it either.
 	if field != null and phase == &"hunting" and e.is_action_pressed("interact"):
 		avatar.interact()
-	elif field != null and e.is_action_pressed("reset_vehicle"):
+	elif field != null and phase == &"hunting" and e.is_action_pressed("reset_vehicle"):
 		avatar.reset_vehicle()
 	if e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).physical_keycode == KEY_F3:
 		_debug.visible = not _debug.visible

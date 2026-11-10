@@ -39,6 +39,7 @@ func run() -> void:
 	test_reveal()
 	test_nearest()
 	await test_claim()
+	await test_one_press_one_claim()
 	await test_claim_beats_the_buggy()
 	await test_no_claim_from_the_buggy()
 	await test_phase_lock()
@@ -128,6 +129,40 @@ func test_claim() -> void:
 	check(crate != null and not crate.visible, "a found crate is gone after its scale-down")
 	main.prompt_tick()
 	check(not main.prompt.visible, "and the prompt goes with it")
+
+
+## Two presses inside one round trip send one claim. With no found back
+## (a reject), the hold lapses after 1.5 s and E claims again.
+func test_one_press_one_claim() -> void:
+	var at := _ahead(70)
+	_reveal("c6", at)
+	_put(at + Vector3(1.0, 0, 0))
+	await _frames(10)
+	claims.clear()
+	avatar.interact()
+	avatar.interact()
+	check(claims.size() == 1, "two quick presses send one claim (%d)" % claims.size())
+	main.prompt_tick()
+	check(not main.prompt.visible, "no prompt while the claim is out")
+	await t.create_timer(0.5).timeout
+	avatar.interact()
+	check(claims.size() == 1, "still one claim 0.5 s on")
+	await t.create_timer(1.1).timeout
+	avatar.interact()
+	check(claims.size() == 2 and claims[1].get("id") == "c6", "1.5 s with no found: E claims again (%d)" % claims.size())
+	bridge.receive_found_json(JSON.stringify({"id": "c6"}))
+	check(main.caches.nearest_claimable(walker.global_position) == "", "found ends it")
+	# The prompt is for the round only.
+	_reveal("c7", _ahead(80))
+	_put(_ahead(80) + Vector3(1.0, 0, 0))
+	await _frames(10)
+	bridge.receive_phase_json(JSON.stringify({"phase": "countdown"}))
+	main.prompt_tick()
+	check(not main.prompt.visible, "no prompt in countdown")
+	bridge.receive_phase_json(JSON.stringify({"phase": "hunting"}))
+	main.prompt_tick()
+	check(main.prompt.visible, "it's back in hunting")
+	bridge.receive_found_json(JSON.stringify({"id": "c7"}))
 
 
 ## Standing at the buggy's door with a cache right there, E picks up.

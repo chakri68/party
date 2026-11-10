@@ -10,11 +10,22 @@ extends Node3D
 const CLAIM_RANGE := 3.0
 ## And not from a ledge this far above or below it.
 const CLAIM_RISE := 2.5
+## After a claim goes out, that cache isn't claimable again for this long,
+## so a second E inside one round trip doesn't send a second claim. found()
+## ends the hold early; a real reject (moved too fast, no position) just
+## lets it lapse, and you can try again.
+const CLAIM_HOLD_S := 1.5
 
 var field: TerrainField
 
 var _crates := {} ## id -> Cache
 var _found := {} ## id -> true, including ids not revealed yet
+var _claimed := {} ## id -> _now when its claim went out
+var _now := 0.0 ## seconds of game time, so it runs with the engine's clock
+
+
+func _process(dt: float) -> void:
+	_now += dt
 
 
 ## Puts cache `id` at height_at(x, z) + dy. A second reveal of the same id
@@ -33,6 +44,7 @@ func reveal(id: String, x: float, z: float, dy: float) -> void:
 ## Someone (you) found it. Fine before its reveal: it'll arrive found.
 func found(id: String) -> void:
 	_found[id] = true
+	_claimed.erase(id)
 	var c: Cache = _crates.get(id)
 	if c:
 		c.mark_found()
@@ -43,7 +55,7 @@ func nearest_claimable(pos: Vector3) -> String:
 	var best := ""
 	var best_d := CLAIM_RANGE
 	for id: String in _crates:
-		if _found.has(id):
+		if _found.has(id) or (_claimed.has(id) and _now - float(_claimed[id]) < CLAIM_HOLD_S):
 			continue
 		var p: Vector3 = (_crates[id] as Cache).global_position
 		if absf(p.y - pos.y) > CLAIM_RISE:
@@ -55,11 +67,17 @@ func nearest_claimable(pos: Vector3) -> String:
 	return best
 
 
+## A claim for `id` just went out: hold it for CLAIM_HOLD_S.
+func mark_claimed(id: String) -> void:
+	_claimed[id] = _now
+
+
 func clear() -> void:
 	for c: Node in _crates.values():
 		c.queue_free()
 	_crates.clear()
 	_found.clear()
+	_claimed.clear()
 
 
 func count() -> int:
