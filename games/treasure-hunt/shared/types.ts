@@ -15,7 +15,12 @@ export type TemplateId =
   | "farm"
   | "watchtower"
   | "lookout"
-  | "garden";
+  | "garden"
+  | "quarry"
+  | "cave"
+  | "hot-spring"
+  | "frozen-lake"
+  | "siege-camp";
 
 /** One placed set piece (layer 3). Built in Godot from its template and params. */
 export interface SetPiece {

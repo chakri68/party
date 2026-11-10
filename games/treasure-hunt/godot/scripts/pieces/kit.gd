@@ -19,6 +19,11 @@ const BUILDERS := {
 	"watchtower": preload("res://scripts/pieces/watchtower.gd"),
 	"lookout": preload("res://scripts/pieces/lookout.gd"),
 	"garden": preload("res://scripts/pieces/garden.gd"),
+	"quarry": preload("res://scripts/pieces/quarry.gd"),
+	"cave": preload("res://scripts/pieces/cave.gd"),
+	"hot-spring": preload("res://scripts/pieces/hot_spring.gd"),
+	"frozen-lake": preload("res://scripts/pieces/frozen_lake.gd"),
+	"siege-camp": preload("res://scripts/pieces/siege_camp.gd"),
 }
 
 ## TEMPLATES[t].labels, mirrored. piece_tests checks it against pieces.json.
@@ -34,6 +39,11 @@ const LABELS := {
 	"watchtower": ["grey", "sandy", "dark"],
 	"lookout": ["green", "brown", "red"],
 	"garden": ["white", "sandy", "dark"],
+	"quarry": ["grey", "sandy", "red"],
+	"cave": ["grey", "dark", "sandy"],
+	"hot-spring": ["blue", "green", "white"],
+	"frozen-lake": ["blue", "white", "grey"],
+	"siege-camp": ["red", "blue", "yellow"],
 }
 
 const COLOURS := {

@@ -7,6 +7,8 @@ import {
   PHOTO_FILL,
   PHOTO_FOV_MAX,
   PHOTO_FOV_MIN,
+  PHOTO_MAX,
+  PHOTO_MIN_TOP,
   START_MIN,
   TEMPLATES,
   generateLayout,
@@ -91,7 +93,7 @@ describe("photoCam", () => {
   });
 
   it("skips the spot's own piece", () => {
-    const own = flat([{ template: "radio-tower", x: 40, z: 40 }, { template: "camp", x: 120, z: 30 }]);
+    const own = flat([{ template: "radio-tower", x: 40, z: 40 }, { template: "plane", x: 120, z: 30 }]);
     expect(photoCam(own, { ...spot(40, 30), source: "p0" }, DAY)?.target).toBe("p1");
   });
 
@@ -120,7 +122,7 @@ describe("photoCam", () => {
   });
 
   it("null with a ridge between the spot and the only near piece", () => {
-    const ridged = flat([{ template: "camp", x: 160, z: 0 }]);
+    const ridged = flat([{ template: "plane", x: 160, z: 0 }]);
     expect(photoCam(ridged, spot(0, 0), DAY)).not.toBeNull();
     paint(ridged, 80, 0, 20, 400);
     expect(photoCam(ridged, spot(0, 0), DAY)).toBeNull();
@@ -136,16 +138,16 @@ describe("photoCam", () => {
     const dark = flat([
       { template: "plane", x: 60, z: 0 },
       { template: "lighthouse", x: 0, z: 150, params: { ruined: 1 } },
-      { template: "camp", x: -120, z: 0 },
+      { template: "windmill", x: -120, z: 0 },
     ]);
     expect(photoCam(dark, spot(0, 0), DAY)!.target).toBe("p0");
-    // A ruined lighthouse has no lamps, so the camp wins.
+    // A ruined lighthouse has no lamps, so the windmill wins.
     expect(photoCam(dark, spot(0, 0), NIGHT)!.target).toBe("p2");
   });
 
   // A dusk round that ends in the dark: a photo can render after dark (a Race clue opens late, a page reloads).
   it("a round that gets dark later counts as night; a short dusk round doesn't", () => {
-    const dark = flat([{ template: "plane", x: 60, z: 0 }, { template: "camp", x: -120, z: 0 }]);
+    const dark = flat([{ template: "plane", x: 60, z: 0 }, { template: "windmill", x: -120, z: 0 }]);
     expect(photoCam(dark, spot(0, 0), DUSK_SHORT)!.target).toBe("p0");
     expect(photoCam(dark, spot(0, 0), DUSK_LONG)!.target).toBe("p1");
   });
@@ -161,7 +163,21 @@ describe("photoCam", () => {
     expect(cam.fov).toBe(Math.round(cam.fov * 10) / 10);
     // Close up the lens is as wide as it goes; far off, as long as it goes.
     expect(photoCam(flat([{ template: "radio-tower", x: 45, z: 30 }]), s, DAY)!.fov).toBe(PHOTO_FOV_MAX);
-    expect(photoCam(flat([{ template: "camp", x: 280, z: 30 }]), s, DAY)!.fov).toBe(PHOTO_FOV_MIN);
+    expect(photoCam(flat([{ template: "plane", x: 280, z: 30 }]), s, DAY)!.fov).toBe(PHOTO_FOV_MIN);
+  });
+
+  it("a flat piece is no target: a hot spring alone gives null", () => {
+    const low = flat([
+      { template: "hot-spring", x: 100, z: 0 },
+      { template: "radio-tower", x: 40 + PHOTO_MAX + 20, z: 30 },
+    ]);
+    expect(TEMPLATES["hot-spring"].top({ steam: 0, pools: 1 })).toBeLessThan(PHOTO_MIN_TOP);
+    expect(photoCam(low, s, DAY)).toBeNull();
+  });
+
+  it("a flat piece doesn't block a taller one farther off", () => {
+    const two = flat([{ template: "frozen-lake", x: 60, z: 30 }, { template: "plane", x: 160, z: 30 }]);
+    expect(photoCam(two, s, DAY)!.target).toBe("p1");
   });
 });
 
@@ -178,6 +194,20 @@ describe("photo caches", () => {
       if (caches.some((c) => c.photo)) hits++;
     }
     expect(hits).toBeGreaterThanOrEqual(40);
+  });
+
+  it("60 seeds by day: no photo targets a piece under PHOTO_MIN_TOP", () => {
+    let n = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const { layout: l, caches } = makeHunt(seed, DAY);
+      for (const c of caches) {
+        if (!c.photo) continue;
+        n++;
+        const p = l.pieces.find((q) => q.id === c.photo!.target)!;
+        expect(TEMPLATES[p.template].top(p.params), `seed ${seed} ${c.id} ${p.template}`).toBeGreaterThanOrEqual(PHOTO_MIN_TOP);
+      }
+    }
+    expect(n).toBeGreaterThan(40);
   });
 
   // Review I1: dusk 60 ends in the dark, so every photo aims at a piece with lamps.

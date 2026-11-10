@@ -34,9 +34,21 @@ const RANGES: Record<TemplateId, Record<string, [number, number]>> = {
   watchtower: { floors: [1, 3], broken: [0, 1] },
   lookout: { stilts: [4, 8] },
   garden: { hedge: [1.2, 2] },
+  quarry: { terraces: [2, 3] },
+  cave: { chambers: [1, 3] },
+  "hot-spring": { steam: [0, 2], pools: [1, 2] },
+  "frozen-lake": { hole: [0, 1] },
+  "siege-camp": { engines: [2, 3], broken: [0, 3] },
 };
-const BOOLS = new Set(["ruined", "wires", "firepit", "turning", "broken"]);
-const INTS = new Set(["stones", "fallen", "tents", "debris", "buildings", "ruin", "floors"]);
+// "template.param". The watchtower's `broken` is a flag; the siege camp's counts engines.
+const BOOLS = new Set([
+  "lighthouse.ruined", "radio-tower.wires", "camp.firepit", "windmill.turning", "watchtower.broken", "frozen-lake.hole",
+]);
+const INTS = new Set([
+  "stone-circle.stones", "stone-circle.fallen", "camp.tents", "plane.debris", "farm.buildings", "farm.ruin",
+  "watchtower.floors", "quarry.terraces", "cave.chambers", "hot-spring.steam", "hot-spring.pools",
+  "siege-camp.engines", "siege-camp.broken",
+]);
 
 /** Macro vertices as [x, z, height m, biome name]. */
 function vertices(l: TreasureLayout): [number, number, number, string][] {
@@ -87,9 +99,10 @@ describe("TEMPLATES", () => {
           const v = params[k]!;
           expect(v, `${id}.${k}`).toBeGreaterThanOrEqual(lo);
           expect(v, `${id}.${k}`).toBeLessThanOrEqual(hi);
-          if (BOOLS.has(k)) expect([0, 1]).toContain(v);
-          if (INTS.has(k)) expect(Number.isInteger(v)).toBe(true);
+          if (BOOLS.has(`${id}.${k}`)) expect([0, 1]).toContain(v);
+          if (INTS.has(`${id}.${k}`)) expect(Number.isInteger(v)).toBe(true);
         }
+        if (id === "siege-camp") expect(params.broken!, "broken engines").toBeLessThanOrEqual(params.engines!);
         const slots = t.slots(params);
         expect(slots.length).toBeGreaterThanOrEqual(2);
         expect(slots.length).toBeLessThanOrEqual(4);
@@ -183,6 +196,28 @@ describe("placePieces", () => {
             expect(biomeAt(l, p.x, p.z), where).toBe("meadow");
             expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
             break;
+          case "quarry":
+            expect(biomeAt(l, p.x, p.z), where).toBe("rocky");
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(4);
+            break;
+          case "cave":
+            expect(biomeAt(l, p.x, p.z), where).toBe("rocky");
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(6);
+            break;
+          case "hot-spring":
+            expect(["rocky", "wetland"]).toContain(biomeAt(l, p.x, p.z));
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
+            break;
+          case "frozen-lake": {
+            const b = biomeAt(l, p.x, p.z);
+            expect(b === "snowcap" || (b === "rocky" && h >= 25), where).toBe(true);
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
+            break;
+          }
+          case "siege-camp":
+            expect(["meadow", "rocky"]).toContain(biomeAt(l, p.x, p.z));
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
+            break;
         }
       });
       // At most 3 of a kind, each with its own label.
@@ -250,9 +285,9 @@ describe("lamps and heights", () => {
     }
   });
 
-  it("camp: a lantern, no top", () => {
+  it("camp: a lantern, and its bulb is the top", () => {
     const t = TEMPLATES.camp;
-    expect(t.top).toBeUndefined();
+    for (const p of samples("camp")) expect(t.top(p)).toBe(2.35);
     const [l] = t.lamps!({ tents: 2, firepit: 0 });
     expect(l!.x).toBeCloseTo(Math.sin((3 * Math.PI) / 4) * 2.6, 9);
     expect(l!.z).toBeCloseTo(-Math.cos((3 * Math.PI) / 4) * 2.6, 9);
@@ -260,10 +295,20 @@ describe("lamps and heights", () => {
     expect(l!.clue).toBe(true);
   });
 
-  it("the other templates have neither", () => {
-    for (const id of ["shipwreck", "stone-circle", "plane"] as TemplateId[]) {
-      expect(TEMPLATES[id].top).toBeUndefined();
-      expect(TEMPLATES[id].lamps).toBeUndefined();
+  it("shipwreck, stone circle and plane: a top, no lamps", () => {
+    for (const id of ["shipwreck", "stone-circle", "plane"] as TemplateId[]) expect(TEMPLATES[id].lamps).toBeUndefined();
+    for (const p of samples("stone-circle")) expect(TEMPLATES["stone-circle"].top(p)).toBe(3.4);
+    for (const p of samples("plane")) expect(TEMPLATES.plane.top(p)).toBe(3.2);
+    // The mast's tip: L / 2 up the tilted hull, less what's buried of its 0.25 L.
+    const ship = TEMPLATES.shipwreck;
+    expect(ship.top({ length: 16, buried: 0, tilt: 0 })).toBeCloseTo(8, 9);
+    expect(ship.top({ length: 20, buried: 0.5, tilt: -20 })).toBeCloseTo(10 * Math.cos(Math.PI / 9) - 2.5, 9);
+    expect(ship.top({ length: 12, buried: 0.2, tilt: 20 })).toBeCloseTo(6 * Math.cos(Math.PI / 9) - 0.6, 9);
+  });
+
+  it("every template has a top", () => {
+    for (const id of IDS) {
+      for (const p of samples(id)) expect(TEMPLATES[id].top(p), id).toBeGreaterThan(0);
     }
   });
 
@@ -414,14 +459,131 @@ describe("windmill, farm, watchtower, fire lookout, garden", () => {
     }
   });
 
-  it("pieces.json keeps the old six templates as they were at dbba03a", () => {
+  it("pieces.json keeps the old six templates as they were at dbba03a, but for the new tops", () => {
     // sha256 of JSON.stringify([[id, entry], ...]) over the six, read from
-    // the fixture as committed before the five were added.
+    // the fixture as committed before the five were added. M4b task 3 gave
+    // shipwreck, stone-circle, camp and plane a `top`: that key is left out
+    // for those four, and everything else must match byte for byte.
     const file = join(import.meta.dirname, "../godot/tests/fixtures/pieces.json");
     const fx = JSON.parse(readFileSync(file, "utf8"));
     const old = ["lighthouse", "shipwreck", "stone-circle", "radio-tower", "camp", "plane"];
-    const hash = createHash("sha256").update(JSON.stringify(old.map((k) => [k, fx.templates[k]]))).digest("hex");
+    const topless = new Set(["shipwreck", "stone-circle", "camp", "plane"]);
+    const entry = (k: string) => {
+      const e = fx.templates[k];
+      if (!topless.has(k)) return e;
+      return {
+        ...e,
+        samples: e.samples.map((smp: Record<string, unknown>) => {
+          expect(typeof smp.top, `${k} sample has a top`).toBe("number");
+          const { top: _, ...rest } = smp;
+          return rest;
+        }),
+      };
+    };
+    const hash = createHash("sha256").update(JSON.stringify(old.map((k) => [k, entry(k)]))).digest("hex");
     expect(hash).toBe("b5e42018e58bc6ff019ba5bbdf3e735d1bbbef9fca648d31e1d1bd680618331f");
     expect(Object.keys(fx.templates).sort()).toEqual([...IDS].sort());
+  });
+});
+
+// M4b task 3: the land templates, the values in its brief word for word.
+describe("quarry, cave, hot spring, frozen lake, siege camp", () => {
+  type Want = { top: number; slots: [number, number, number, string][] };
+  const WANT: Record<string, { rolls: Record<string, number>[]; want: (p: Record<string, number>) => Want }> = {
+    quarry: {
+      rolls: [{ terraces: 2 }, { terraces: 3 }],
+      want: (p) => ({
+        top: 2 * p.terraces! - 1,
+        slots: [
+          [-4, 3, 1, "On the lowest step of the {label}."],
+          [5.8, -3, 0, "Beside the cart in the {label}."],
+          [0, -8, 0, "At the mouth of the {label}."],
+        ],
+      }),
+    },
+    cave: {
+      rolls: [{ chambers: 1 }, { chambers: 2 }, { chambers: 3 }],
+      want: (p) => ({
+        top: 6,
+        slots: [
+          [2.6, -3, 0, "At the mouth of the {label}."],
+          [0, 3 * p.chambers! - 3.5, 0, "Deep inside the {label}."],
+          [-5.5, -4, 0.5, "On a rock by the {label}."],
+        ],
+      }),
+    },
+    "hot-spring": {
+      rolls: [{ steam: 0, pools: 1 }, { steam: 2, pools: 2 }, { steam: 1, pools: 2 }],
+      want: (p) => ({
+        top: 1,
+        slots: [
+          [0, -4.2, 0, "Among the rocks at the edge of the {label}."],
+          [-4.8, 2, 0.5, "On a flat rock by the {label}."],
+          ...(p.pools === 2 ? [[6.8, 5.7, 0, "Beside the small pool of the {label}."] as [number, number, number, string]] : []),
+        ],
+      }),
+    },
+    "frozen-lake": {
+      rolls: [{ hole: 0 }, { hole: 1 }],
+      want: (p) => ({
+        top: 2.5,
+        slots: [
+          p.hole ? [4, -1.4, 0, "By the hole in the ice of the {label}."] : [0, 0, 0, "In the middle of the {label}."],
+          [-8.6, 6, 0, "Beside the shelter at the {label}."],
+          [0, 13.5, 0, "On the far shore of the {label}."],
+        ],
+      }),
+    },
+    "siege-camp": {
+      rolls: [{ engines: 2, broken: 0 }, { engines: 3, broken: 1 }, { engines: 3, broken: 3 }],
+      want: (p) => ({
+        top: p.broken === 0 ? 8 : 3,
+        slots: [
+          [3, -6, 0, "Beside the big siege engine at the {label}."],
+          [-7, 6, 0, "Behind the catapult at the {label}."],
+          [0, 8, 0, "Between the banners at the {label}."],
+        ],
+      }),
+    },
+  };
+
+  it("names, labels and pad radii", () => {
+    const meta = (id: TemplateId) => [TEMPLATES[id].name, TEMPLATES[id].labels, TEMPLATES[id].padR];
+    expect(meta("quarry")).toEqual(["quarry", ["grey", "sandy", "red"], 16]);
+    expect(meta("cave")).toEqual(["cave", ["grey", "dark", "sandy"], 12]);
+    expect(meta("hot-spring")).toEqual(["hot spring", ["blue", "green", "white"], 10]);
+    expect(meta("frozen-lake")).toEqual(["frozen lake", ["blue", "white", "grey"], 18]);
+    expect(meta("siege-camp")).toEqual(["siege camp", ["red", "blue", "yellow"], 16]);
+    expect(IDS.length).toBe(16);
+  });
+
+  for (const [id, { rolls, want }] of Object.entries(WANT)) {
+    it(`${id}: top and slots for each roll, no lamps`, () => {
+      const t = TEMPLATES[id as TemplateId];
+      expect(t.lamps).toBeUndefined();
+      for (const p of rolls) {
+        const w = want(p);
+        expect(t.top(p), JSON.stringify(p)).toBeCloseTo(w.top, 9);
+        const slots = t.slots(p);
+        expect(slots.map((s) => [s.x, s.z, s.dy, s.hint])).toEqual(w.slots);
+        for (const s of slots) expect(Math.hypot(s.x, s.z), `${id} ${s.hint}`).toBeLessThanOrEqual(t.padR - 1);
+        for (let i = 0; i < slots.length; i++) {
+          for (let j = 0; j < i; j++) {
+            const d = Math.hypot(slots[i]!.x - slots[j]!.x, slots[i]!.z - slots[j]!.z);
+            expect(d, `${id} slots ${j} and ${i}`).toBeGreaterThanOrEqual(1.5);
+          }
+        }
+      }
+    });
+  }
+
+  it("siege camp rolls: 2–3 engines, 0 to all of them broken", () => {
+    const seen = new Set<string>();
+    const r = rng(41);
+    for (let n = 0; n < 400; n++) {
+      const p = TEMPLATES["siege-camp"].roll(r);
+      seen.add(`${p.engines}/${p.broken}`);
+    }
+    expect([...seen].sort()).toEqual(["2/0", "2/1", "2/2", "3/0", "3/1", "3/2", "3/3"]);
   });
 });

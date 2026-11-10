@@ -16,7 +16,7 @@ const DY_TOL := 0.3
 const MAX_NODES := 60
 const MAX_ACROSS := 60.0
 ## The M4b built templates. Their slots also keep clear of every mesh's AABB.
-const BUILT := ["windmill", "farm", "watchtower", "lookout", "garden"]
+const BUILT := ["windmill", "farm", "watchtower", "lookout", "garden", "quarry", "cave", "hot-spring", "frozen-lake", "siege-camp"]
 
 var _vp: SubViewport
 var _space: PhysicsDirectSpaceState3D
@@ -111,7 +111,8 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 	if s.has("top"):
 		# `top` is the height over the origin, the one a shadow tip is cast
 		# from. The windmill's sails sit off it, at z −2.8, and reach higher.
-		var hi := _aabb_geometry(piece, ["Sails"]).end.y
+		# Steam is a drifting cloud, not a part of the piece.
+		var hi := _aabb_geometry(piece, ["Sails", "Steam0", "Steam1"]).end.y
 		check(absf(hi - float(s.top)) <= 0.15, "%s: top %.2f m within 0.15 of %.2f" % [what, hi, float(s.top)])
 	for k in (s.lamps if s.has("lamps") else []).size():
 		_check_lamp(what, piece, k, s.lamps[k])
@@ -128,6 +129,10 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 		await _check_sails(what, piece, s)
 	if tid == "farm":
 		_check_doorway(what)
+	if tid == "cave":
+		_check_tunnel(what, int(s.params.chambers))
+	if tid == "hot-spring":
+		await _check_steam(what, piece, s.params)
 	if tid == "plane":
 		check(_debris_clear(piece, s.slots) >= 1.0, "%s: loose debris is 1 m clear of every slot (%.2f m)" % [what, _debris_clear(piece, s.slots)])
 	_vp.remove_child(piece)
@@ -283,6 +288,57 @@ func _check_doorway(what: String) -> void:
 		pq.position = Vector3(x, 1.0, -3.1)
 		pq.collision_mask = 1
 		check(not _space.intersect_point(pq).is_empty(), "%s: the barn wall stands at x %.1f, beside the doorway" % [what, x])
+
+
+## The cave's tunnel, x −1.25..1.25 and 2.5 m high, from its mouth at
+## z −2 to 3 · chambers − 2: room for the walker all the way to the deep
+## slot, rock over it and either side of it, and rock past its end.
+func _check_tunnel(what: String, chambers: int) -> void:
+	var end := -2.0 + 3.0 * chambers
+	var z := -2.5
+	var open := true
+	while z <= end - 1.5 + 0.01:
+		var cap := CapsuleShape3D.new()
+		cap.radius = RADIUS
+		cap.height = HEIGHT
+		var sq := PhysicsShapeQueryParameters3D.new()
+		sq.shape = cap
+		sq.transform = Transform3D(Basis.IDENTITY, Vector3(0, LIFT + HEIGHT * 0.5, z))
+		sq.collision_mask = 1
+		var hits := _space.intersect_shape(sq)
+		check(hits.is_empty(), "%s: the walker fits the tunnel at z %.1f%s" % [what, z, _names(hits)])
+		open = open and hits.is_empty()
+		z += 0.5
+	var solid := func(at: Vector3) -> bool:
+		var pq := PhysicsPointQueryParameters3D.new()
+		pq.position = at
+		pq.collision_mask = 1
+		return not _space.intersect_point(pq).is_empty()
+	var mid := (-2.0 + end) * 0.5
+	check(solid.call(Vector3(0, 3.0, mid)), "%s: rock over the tunnel at z %.1f" % [what, mid])
+	check(solid.call(Vector3(-1.5, 1.0, mid)) and solid.call(Vector3(1.5, 1.0, mid)), "%s: rock either side of the tunnel" % what)
+	check(solid.call(Vector3(0, 1.0, end + 0.3)), "%s: rock past the tunnel's end at z %.1f" % [what, end])
+	check(not solid.call(Vector3(0, 1.0, end - 0.3)), "%s: open just before the tunnel's end" % what)
+
+
+## Steam over each pool, 12 or 24 puffs by `steam`, or none. Cheap
+## CPUParticles3D quads in local coords, no colliders, and they run.
+func _check_steam(what: String, piece: Node3D, p: Dictionary) -> void:
+	var want: int = [0, 12, 24][int(p.steam)]
+	var pools := int(p.pools)
+	for k in 2:
+		var s := piece.get_node_or_null("Steam%d" % k) as CPUParticles3D
+		if want == 0 or k >= pools:
+			check(s == null, "%s: no Steam%d" % [what, k])
+			continue
+		check(s != null, "%s: has Steam%d" % [what, k])
+		if s == null:
+			continue
+		check(s.amount == want and s.emitting and s.local_coords, "%s: Steam%d has %d puffs (%d), emitting, local" % [what, k, want, s.amount])
+		check(s.mesh is QuadMesh and (s.mesh as QuadMesh).size.x <= 1.0, "%s: Steam%d puffs are small quads" % [what, k])
+		check(s.find_children("*", "CollisionShape3D", true, false).is_empty(), "%s: Steam%d has no collider" % [what, k])
+	for i in 10:
+		await t.process_frame
 
 
 ## The plane's small bits have no colliders, so the queries can't see them:

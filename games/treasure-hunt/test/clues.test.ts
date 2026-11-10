@@ -192,15 +192,19 @@ describe("shadow clues", () => {
 
   it("by day: one spot per tall piece whose tip leaves its pad, at the tip, inside the window", () => {
     const spots = shadowSpots(l, DAY, rng(1));
-    const tall = l.pieces.filter((q) => TEMPLATES[q.template].top);
-    // Seed 3 since M4b: the lighthouse (p0) and the radio tower (p2). The
-    // garden, watchtower, farm, fire lookout and windmill are all 12 m or
-    // less, and at 10 to 11 the sun is high enough that each tip stays on
-    // its own pad, every minute of the window.
-    expect(spots.map((s) => s.source)).toEqual(["p0", "p2"]);
-    expect(tall.map((q) => q.template)).toEqual(["lighthouse", "radio-tower", "garden", "watchtower", "farm", "lookout", "windmill"]);
+    // Every template has a top since M4b task 3.
+    const tall = l.pieces;
+    // Seed 5 since M4b task 3: the windmill (p2, 12.1 m), the lighthouse
+    // (p6) and the radio tower (p10). The other nine are 9.6 m or less, and
+    // at 10 to 11 the sun is high enough that each tip stays on its own
+    // pad, every minute of the window.
+    expect(spots.map((s) => s.source)).toEqual(["p2", "p6", "p10"]);
+    expect(tall.map((q) => q.template)).toEqual([
+      "garden", "farm", "windmill", "stone-circle", "camp", "lookout",
+      "lighthouse", "plane", "hot-spring", "watchtower", "radio-tower", "siege-camp",
+    ]);
     for (const q of tall.filter((q) => !spots.some((s) => s.source === q.id))) {
-      const top = TEMPLATES[q.template].top!(q.params);
+      const top = TEMPLATES[q.template].top(q.params);
       for (let m = DAY.startMin; m <= DAY.startMin + DAY.minutes; m += SHADOW_STEP) {
         const tip = groundTip(l, q, top, m);
         if (tip) expect(Math.hypot(tip.x - q.x, tip.z - q.z), `${q.id} at ${m}`).toBeLessThanOrEqual(q.padR + SHADOW_PAD_GAP);

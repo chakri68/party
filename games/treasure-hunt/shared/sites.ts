@@ -62,6 +62,12 @@ const RULES: Record<TemplateId, (l: TreasureLayout, s: Site) => boolean> = {
   watchtower: (l, s) => s.biome !== "forest" && s.h >= 15 && padSpread(l, s.x, s.z, TEMPLATES.watchtower.padR) <= 3,
   lookout: (l, s) => s.biome === "forest" && s.h >= 10 && padSpread(l, s.x, s.z, TEMPLATES.lookout.padR) <= 3,
   garden: (l, s) => s.biome === "meadow" && padSpread(l, s.x, s.z, TEMPLATES.garden.padR) <= 2,
+  quarry: (l, s) => s.biome === "rocky" && padSpread(l, s.x, s.z, TEMPLATES.quarry.padR) <= 4,
+  cave: (l, s) => s.biome === "rocky" && padSpread(l, s.x, s.z, TEMPLATES.cave.padR) <= 6,
+  "hot-spring": (l, s) => (s.biome === "rocky" || s.biome === "wetland") && padSpread(l, s.x, s.z, TEMPLATES["hot-spring"].padR) <= 2,
+  "frozen-lake": (l, s) =>
+    (s.biome === "snowcap" || (s.biome === "rocky" && s.h >= 25)) && padSpread(l, s.x, s.z, TEMPLATES["frozen-lake"].padR) <= 3,
+  "siege-camp": (l, s) => (s.biome === "meadow" || s.biome === "rocky") && padSpread(l, s.x, s.z, TEMPLATES["siege-camp"].padR) <= 3,
 };
 
 /** Every vertex that passes the rules shared by all pieces: bounds, land, away from spawn. */

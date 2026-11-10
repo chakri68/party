@@ -34,7 +34,7 @@ export interface Template {
   /** 2–4 slots, 0 ≤ dy ≤ 1. */
   slots(params: Record<string, number>): Slot[];
   /** Metres above the pad of the piece's highest point, at its local origin. */
-  top?(params: Record<string, number>): number;
+  top(params: Record<string, number>): number;
   /** Lamps that come on at dusk. */
   lamps?(params: Record<string, number>): Lamp[];
 }
@@ -98,6 +98,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
       buried: round(between(r, 0, 0.5), 0.01),
       tilt: round(between(r, -20, 20), 1),
     }),
+    // The broken mast's tip, L / 2 over the keel: tilted, then sunk by `buried` of the hull's 0.25 L.
+    top: (p) => p.length! * (0.5 * Math.cos((p.tilt! * Math.PI) / 180) - 0.25 * p.buried!),
     slots: (p) => {
       const L = p.length!;
       return [
@@ -116,6 +118,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["grey", "dark", "sandy"],
     padR: 14,
     roll: (r) => ({ stones: int(r, 6, 12), fallen: int(r, 0, 3) }),
+    // Stone 0, the tallest, never falls.
+    top: () => 3.4,
     slots: (p) => {
       const Rc = circleRadius(p);
       const n = p.stones!;
@@ -167,6 +171,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["orange", "green", "blue"],
     padR: 14,
     roll: (r) => ({ tents: int(r, 1, 3), firepit: coin(r) }),
+    // The lantern's bulb, on its post.
+    top: () => 2.35,
     // A lantern on a post, 2.6 m out at 135°, clear of every tent and slot.
     lamps: () => [{ ...polar((3 * Math.PI) / 4, 2.6), y: 2.2, clue: true }],
     slots: (p) => [
@@ -192,6 +198,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["white", "yellow", "red"],
     padR: 16,
     roll: (r) => ({ debris: int(r, 10, 30), heading: round(between(r, 0, 2 * Math.PI), 0.01) }),
+    // The tail fin.
+    top: () => 3.2,
     slots: (p) => {
       const out: Slot[] = [
         { x: 0, z: -7.5, dy: 0, hint: "By the nose of the {label}." },
@@ -301,6 +309,106 @@ export const TEMPLATES: Record<TemplateId, Template> = {
       { x: 0, z: 3, dy: 0, hint: "Behind the fountain in the {label}." },
       { x: 6.5, z: 6.5, dy: 0, hint: "In a corner of the {label}." },
       { x: 0, z: -9.5, dy: 0, hint: "Outside the gate of the {label}." },
+    ],
+  },
+
+  // An open-fronted horseshoe of rock blocks, the label on the rock. Step k
+  // (k = 0..terraces − 1) is a block x −8..8, z (2 + 2k)..(4 + 2k), 2k + 1
+  // high. Side walls at x −10..−8 and 8..10, z 0..(2 + 2 · terraces),
+  // 2 · terraces − 1 high. A cart, 1.4 × 2.4 m along Z, at (4, −3), tools
+  // leaning on its −X side.
+  quarry: {
+    id: "quarry",
+    name: "quarry",
+    labels: ["grey", "sandy", "red"],
+    padR: 16,
+    roll: (r) => ({ terraces: int(r, 2, 3) }),
+    top: (p) => 2 * p.terraces! - 1,
+    slots: () => [
+      { x: -4, z: 3, dy: 1, hint: "On the lowest step of the {label}." },
+      { x: 5.8, z: -3, dy: 0, hint: "Beside the cart in the {label}." },
+      { x: 0, z: -8, dy: 0, hint: "At the mouth of the {label}." },
+    ],
+  },
+
+  // A rock mound x −7..7, z −2..10, 6 m high, the label on the rock. A
+  // tunnel 2.5 m wide and 2.5 m high runs in from z = −2 along +Z for
+  // 3 · chambers m. The mound is boxes round the hollow: left and right
+  // walls, a roof slab and a back wall. A rock 1 × 0.5 × 1 m at (−5.5, −4).
+  cave: {
+    id: "cave",
+    name: "cave",
+    labels: ["grey", "dark", "sandy"],
+    padR: 12,
+    roll: (r) => ({ chambers: int(r, 1, 3) }),
+    top: () => 6,
+    slots: (p) => [
+      { x: 2.6, z: -3, dy: 0, hint: "At the mouth of the {label}." },
+      { x: 0, z: 3 * p.chambers! - 3.5, dy: 0, hint: "Deep inside the {label}." },
+      { x: -5.5, z: -4, dy: 0.5, hint: "On a rock by the {label}." },
+    ],
+  },
+
+  // A pool of radius 3 at the centre: water, the label's colour, at 0.05 m,
+  // in a ring of rocks from radius 3 to 3.6, 0.4 m high. Pools 2: a second
+  // pool of radius 2 (rocks 2–2.6) at (6.8, 2.5). A boulder 1 m high on the
+  // big ring at (0, 3.3). Steam over each pool: 0, 12 or 24 puffs. A flat
+  // rock 1.2 × 0.5 × 1.2 m at (−4.8, 2).
+  "hot-spring": {
+    id: "hot-spring",
+    name: "hot spring",
+    labels: ["blue", "green", "white"],
+    padR: 10,
+    roll: (r) => ({ steam: int(r, 0, 2), pools: int(r, 1, 2) }),
+    top: () => 1,
+    slots: (p) => {
+      const out: Slot[] = [
+        { x: 0, z: -4.2, dy: 0, hint: "Among the rocks at the edge of the {label}." },
+        { x: -4.8, z: 2, dy: 0.5, hint: "On a flat rock by the {label}." },
+      ];
+      if (p.pools === 2) out.push({ x: 6.8, z: 5.7, dy: 0, hint: "Beside the small pool of the {label}." });
+      return out;
+    },
+  },
+
+  // Ice of radius 12, the label's colour, at 0.03 m: no collider, the pad is
+  // the floor. Hole 1: a dark disc of radius 1.2 at (4, −3) and a fishing
+  // stand at (5.6, −3). A canvas shelter 3 × 2.5 × 2.5 m at (−11, 6).
+  "frozen-lake": {
+    id: "frozen-lake",
+    name: "frozen lake",
+    labels: ["blue", "white", "grey"],
+    padR: 18,
+    roll: (r) => ({ hole: coin(r) }),
+    top: () => 2.5,
+    slots: (p) => [
+      p.hole
+        ? { x: 4, z: -1.4, dy: 0, hint: "By the hole in the ice of the {label}." }
+        : { x: 0, z: 0, dy: 0, hint: "In the middle of the {label}." },
+      { x: -8.6, z: 6, dy: 0, hint: "Beside the shelter at the {label}." },
+      { x: 0, z: 13.5, dy: 0, hint: "On the far shore of the {label}." },
+    ],
+  },
+
+  // Engine 0: a trebuchet 4 × 6 m (x × z), 8 m high, at (0, −6). Engine 1: a
+  // catapult 3 × 4 m at (−7, 3). Engine 2: a ballista 2.5 × 3 m at (7, 3).
+  // The first `broken` engines are wrecks, under 1 m high. Banner poles 3 m
+  // high at (±3, 8), the label on the banners.
+  "siege-camp": {
+    id: "siege-camp",
+    name: "siege camp",
+    labels: ["red", "blue", "yellow"],
+    padR: 16,
+    roll: (r) => {
+      const engines = int(r, 2, 3);
+      return { engines, broken: int(r, 0, engines) };
+    },
+    // The trebuchet is the first to break; then the banner poles are the top.
+    top: (p) => (p.broken! === 0 ? 8 : 3),
+    slots: () => [
+      { x: 3, z: -6, dy: 0, hint: "Beside the big siege engine at the {label}." },
+      { x: -7, z: 6, dy: 0, hint: "Behind the catapult at the {label}." },
+      { x: 0, z: 8, dy: 0, hint: "Between the banners at the {label}." },
     ],
   },
 };

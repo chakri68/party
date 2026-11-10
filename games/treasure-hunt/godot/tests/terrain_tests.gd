@@ -690,18 +690,22 @@ func test_trail_colour() -> void:
 	check(not mixed.is_equal_approx(dirt), "half a metre past the edge it is blending out")
 
 
-## Layout 4 has a wreck low by the sea. Its pad is land; the sand rule and
-## the sea rule still hold around it.
+## A wreck low by the sea, on the first fixture map that has one (since
+## M4b task 3, extra map 13, seed 110879: layout 4 lost its wreck when the
+## library grew). Its pad is land; the sand rule and the sea rule still
+## hold around it.
 func test_wreck_by_the_sea() -> void:
-	var l: Dictionary = t.layout(4)
-	var f := TerrainField.from_layout(l)
+	var l: Dictionary = {}
 	var wreck: Dictionary = {}
-	for p: Dictionary in l.pieces:
-		if p.template == "shipwreck":
-			wreck = p
-	check(not wreck.is_empty(), "layout 4 has a shipwreck")
+	for m: Dictionary in _all_layouts():
+		for p: Dictionary in m.pieces:
+			if wreck.is_empty() and p.template == "shipwreck":
+				wreck = p
+				l = m
+	check(not wreck.is_empty(), "a fixture map has a shipwreck (seed %d)" % int(l.get("seed", 0)))
 	if wreck.is_empty():
 		return
+	var f := TerrainField.from_layout(l)
 	check(absf(f.height_at(wreck.x, wreck.z) - wreck.padY) < 0.01, "the wreck stands on its pad (%.1f m)" % wreck.padY)
 	var sand := true
 	var wet := 0

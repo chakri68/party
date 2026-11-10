@@ -35,6 +35,8 @@ export const PHOTO_TARGET = 3;
 export const PHOTO_FOV_MIN = 10;
 export const PHOTO_FOV_MAX = 60;
 export const PHOTO_FILL = 0.4;
+/** A photo's target stands at least this tall: a flat piece is a grey sliver at range. */
+export const PHOTO_MIN_TOP = 3;
 export const LIGHT_TARGET = 2;
 export const PHOTO_W = 480;
 export const PHOTO_H = 270;

@@ -3,7 +3,7 @@
 // The client renders the picture from this pose once the world is built.
 
 import { macroHeight } from "../shared/generate.ts";
-import { PHOTO_DIST, PHOTO_EYE, PHOTO_FILL, PHOTO_FOV_MAX, PHOTO_FOV_MIN, PHOTO_MAX, darkWithin } from "../shared/sky.ts";
+import { PHOTO_DIST, PHOTO_EYE, PHOTO_FILL, PHOTO_FOV_MAX, PHOTO_FOV_MIN, PHOTO_MAX, PHOTO_MIN_TOP, darkWithin } from "../shared/sky.ts";
 import { TEMPLATES } from "../shared/templates.ts";
 import type { PhotoCam, SetPiece, TreasureLayout } from "../shared/types.ts";
 import { CACHE_BOUND, CACHE_MIN_HEIGHT, type CacheSpot } from "./caches.ts";
@@ -23,7 +23,8 @@ const lit = (p: SetPiece) => (TEMPLATES[p.template].lamps?.(p.params).length ?? 
 /**
  * The camera for a photo of this spot, or null. Faces the nearest piece within
  * PHOTO_MAX that isn't the one the spot sits at (a shadow tip's own piece is
- * 10–100 m off, so that one counts, as for bearings). In a round that gets
+ * 10–100 m off, so that one counts, as for bearings), and stands at least
+ * PHOTO_MIN_TOP tall. In a round that gets
  * dark at any point, only a lit piece counts: a photo can render late (a Race
  * clue opens mid-round, a page reloads), and an unlit piece after dark is a
  * black picture. The lens is zoomed so the piece's top fills about
@@ -37,6 +38,7 @@ export function photoCam(l: TreasureLayout, s: Pick<CacheSpot, "x" | "z" | "sour
   for (const p of l.pieces) {
     if (s.shadowMin === undefined && p.id === s.source) continue;
     if (night && !lit(p)) continue;
+    if (TEMPLATES[p.template].top(p.params) < PHOTO_MIN_TOP) continue;
     const d = Math.hypot(p.x - s.x, p.z - s.z);
     if (d > 0 && d <= best) {
       t = p;
@@ -53,7 +55,7 @@ export function photoCam(l: TreasureLayout, s: Pick<CacheSpot, "x" | "z" | "sour
   if (l.pieces.some((p) => Math.hypot(x - p.x, z - p.z) <= p.padR)) return null;
 
   const eye = ground + PHOTO_EYE;
-  const top = TEMPLATES[t.template].top?.(t.params) ?? 6;
+  const top = TEMPLATES[t.template].top(t.params);
   const aim = t.padY + top / 2;
   const dx = t.x - x;
   const dz = t.z - z;

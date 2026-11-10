@@ -89,7 +89,7 @@ export function shadowWindow(sky: HuntSky): { from: number; to: number } {
 }
 
 /**
- * One spot per piece with a `top`: the tip of its shadow on the ground at a
+ * One spot per piece: the tip of its shadow on the ground at a
  * clock minute in the window, a whole SHADOW_STEP, picked by `r`. A minute
  * whose tip lands on a pad or a minor point is skipped. A piece with no
  * usable minute in the window (sun too low, shadow too long, tip blocked)
@@ -100,8 +100,7 @@ export function shadowSpots(l: TreasureLayout, sky: HuntSky, r: Rng): CacheSpot[
   const { from, to } = shadowWindow(sky);
   const first = Math.ceil(from / SHADOW_STEP) * SHADOW_STEP;
   for (const p of l.pieces) {
-    const top = TEMPLATES[p.template].top?.(p.params);
-    if (top === undefined) continue;
+    const top = TEMPLATES[p.template].top(p.params);
     const ok: { m: number; x: number; z: number }[] = [];
     for (let m = first; m <= to; m += SHADOW_STEP) {
       if (sunAt(m).el < SHADOW_MIN_EL) continue;

@@ -75,6 +75,8 @@ const WORST: Record<string, Record<string, number>[]> = {
   camp: [{ tents: 3, firepit: 1 }],
   plane: [0.79, 1.57, 3.93, 4.71, 5.5].map((heading) => ({ debris: 30, heading })),
   "stone-circle": [{ stones: 6, fallen: 3 }],
+  // The trebuchet down but the catapult up: the banner poles are the top.
+  "siege-camp": [{ engines: 3, broken: 1 }],
 };
 
 function pieceSamples() {
@@ -86,7 +88,7 @@ function pieceSamples() {
         params,
         variant: i % 3,
         slots: t.slots(params).map(({ x, z, dy }) => ({ x, z, dy })),
-        ...(t.top ? { top: t.top(params) } : {}),
+        top: t.top(params),
         ...(t.lamps ? { lamps: t.lamps(params) } : {}),
       })),
     };
