@@ -8,9 +8,9 @@ import { layoutFor } from "./layout-cache.ts";
 // The whole game is the Godot map in an iframe; this file is the frame
 // around it and the only one that talks to the bridge.
 //
-//   generating  the map loads (StageLoader). Godot's ready() gets the
+//   teams       the map loads (StageLoader). Godot's ready() gets the
 //               session ({layout}); its world-ready gets act("ready"), once
-//               per seed. Then "Waiting for N players" until the round starts.
+//               per seed. Then "Waiting for N players" until the host starts.
 //   countdown   3, 2, 1 over the map. Godot keeps everyone still.
 //   hunting     the map fills the game area, under one strip: the help line,
 //               the timer, the score and End round for the host. The clue
@@ -276,7 +276,7 @@ export class TreasureHuntView implements GameView {
     const seed = game.seed;
     // Phones are "ready" at once: there is nothing for them to load.
     const loaded = !this.desktop || this.builtSeed === seed;
-    if (game.phase === "generating" && loaded && this.readySeed !== seed) {
+    if (game.phase === "teams" && loaded && this.readySeed !== seed) {
       this.readySeed = seed;
       this.api.act({ type: "ready" });
     }
@@ -284,7 +284,7 @@ export class TreasureHuntView implements GameView {
 
     this.feed.sync();
     this.loader.el.hidden = loaded;
-    const waiting = game.phase === "generating" && loaded;
+    const waiting = game.phase === "teams" && loaded;
     this.wait.hidden = !waiting;
     if (waiting) {
       const n = game.players.filter((p) => p.id !== this.playerId && !p.ready && !p.removed).length;

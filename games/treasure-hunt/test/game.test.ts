@@ -1,12 +1,12 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SETTINGS } from "../shared/types.ts";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
 import { treasureHuntSettingFields } from "../shared/rules-text.ts";
-import { READY_TIMEOUT_MS } from "../shared/types.ts";
 
 const ctx = (extra: Partial<GameContext> = {}): GameContext => ({ now: 1000, randomInt: seededRandomInt(7), hostId: "p0", ...extra });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
-const make = (n = 2) => th.createGame(players(n), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx());
+const make = (n = 2) => th.createGame(players(n), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx());
 const types = (t: { events: { event: { type: string } }[] }) => t.events.map((e) => e.event.type);
 
 function act(state: THState, id: string, action: Parameters<typeof th.handleAction>[2], c = ctx()) {
@@ -14,79 +14,57 @@ function act(state: THState, id: string, action: Parameters<typeof th.handleActi
   if (!r.ok) throw new Error(r.error.code);
   return r.transition;
 }
+/** Everyone ready, then the host (p0) starts. */
+const started = (state: THState, c = ctx()) => act(state.players.reduce((s, p) => act(s, p.id, { type: "ready" }, c).state, state), "p0", { type: "start" }, c);
 
 describe("treasure hunt server", () => {
-  it("creates in generating with a layout and the ready timer", () => {
+  it("creates in teams with a layout and no timer", () => {
     const t = make();
-    expect(t.state.phase).toBe("generating");
+    expect(t.state.phase).toBe("teams");
     expect(t.state.layout.seed).toBe(t.state.seed);
     expect(t.state.seed).toBeGreaterThanOrEqual(0);
     expect(t.state.seed).toBeLessThan(2 ** 31);
     expect(t.state.players.every((p) => !p.ready)).toBe(true);
-    expect(t.timers).toEqual([{ kind: "set", timerId: "ready-timeout", delayMs: READY_TIMEOUT_MS }]);
+    expect(t.timers).toEqual([]);
     expect(th.getAwaitedPlayerIds(t.state)).toEqual(["p0", "p1"]);
   });
 
-  it("starts the countdown when everyone is ready, and cancels the timer", () => {
+  it("everyone ready still waits for the host's start", () => {
     let t = make();
     t = act(t.state, "p0", { type: "ready" });
-    expect(t.state.phase).toBe("generating");
     expect(th.getAwaitedPlayerIds(t.state)).toEqual(["p1"]);
     t = act(t.state, "p1", { type: "ready" }, ctx({ now: 5000 }));
-    expect(t.state.phase).toBe("countdown");
-    expect(t.state.countdownEndsAt).toBe(5000 + 3000);
-    expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
-    expect(t.timers).toContainEqual({ kind: "cancel", timerId: "ready-timeout" });
-    expect(th.getAwaitedPlayerIds(t.state)).toEqual([]);
-  });
-
-  it("timeout turns the unready into spectators and starts", () => {
-    let t = make();
-    t = act(t.state, "p0", { type: "ready" });
-    t = th.onTimer!(t.state, "ready-timeout", ctx({ now: 9000 }));
-    expect(t.state.phase).toBe("countdown");
-    expect(t.state.players.find((p) => p.id === "p1")!.spectator).toBe(true);
-    expect(t.state.players.find((p) => p.id === "p0")!.spectator).toBe(false);
-    expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: ["p1"] }]);
-    expect(t.state.countdownEndsAt).toBe(9000 + 3000);
-  });
-
-  it("timeout with nobody ready keeps waiting and re-arms the timer", () => {
-    let t = make(2);
-    t = th.onTimer!(t.state, "ready-timeout", ctx({ now: 61_000 }));
-    expect(t.state.phase).toBe("generating");
-    expect(t.state.players.every((p) => !p.spectator)).toBe(true);
+    expect(t.state.phase).toBe("teams");
     expect(t.events).toEqual([]);
-    expect(t.timers).toEqual([{ kind: "set", timerId: "ready-timeout", delayMs: READY_TIMEOUT_MS }]);
-    expect(th.getAwaitedPlayerIds(t.state)).toEqual(["p0", "p1"]);
+    expect(th.getAwaitedPlayerIds(t.state)).toEqual([]);
+    t = act(t.state, "p0", { type: "start" }, ctx({ now: 6000 }));
+    expect(t.state.phase).toBe("countdown");
+    expect(t.state.countdownEndsAt).toBe(6000 + 3000);
+    expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
   });
 
-  it("solo slow load: the timer fires, then a late ready starts the round with that player hunting", () => {
-    let t = make(1);
-    t = th.onTimer!(t.state, "ready-timeout", ctx({ now: 61_000 }));
-    expect(t.state.phase).toBe("generating");
-    t = act(t.state, "p0", { type: "ready" }, ctx({ now: 90_000 }));
-    expect(t.state.phase).toBe("countdown");
+  it("a late ready after a solo start is a no-op", () => {
+    let t = started(make(1).state);
     const p0 = t.state.players[0]!;
     expect(p0.spectator).toBe(false);
     expect(p0.pool.length).toBeGreaterThan(0);
-    expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
+    expect(act(t.state, "p0", { type: "ready" }).state).toEqual(t.state);
     t = th.onTimer!(t.state, "countdown", ctx({ now: 93_000 }));
     expect(t.state.phase).toBe("hunting");
     expect(th.getPrivateState(t.state, "p0").clues.length).toBe(p0.pool.length);
   });
 
   it("a countdown with no hunters finishes at once", () => {
-    // Only reachable through odd states: p0 is a ready spectator, p1 leaves.
-    const s0 = make(2).state;
-    const s = { ...s0, players: s0.players.map((p) => (p.id === "p0" ? { ...p, ready: true, spectator: true } : p)) };
-    const t = th.onPlayerRemoved!(s, "p1", ctx({ now: 4000 }));
+    // Only reachable through odd states: p0 is a ready spectator.
+    const s0 = make(1).state;
+    const s = { ...s0, players: s0.players.map((p) => ({ ...p, ready: true, spectator: true })) };
+    const t = act(s, "p0", { type: "start" }, ctx({ now: 4000 }));
     expect(t.state.phase).toBe("finished");
-    expect(types(t)).toEqual(["player-removed", "ended"]);
+    expect(types(t)).toEqual(["ended"]);
   });
 
   it("a hunt with no hunters finishes at once", () => {
-    let t = act(make(1).state, "p0", { type: "ready" });
+    let t = started(make(1).state);
     expect(t.state.phase).toBe("countdown");
     const s = { ...t.state, players: t.state.players.map((p) => ({ ...p, spectator: true, pool: [] })) };
     t = th.onTimer!(s, "countdown", ctx({ now: 7000 }));
@@ -95,18 +73,15 @@ describe("treasure hunt server", () => {
     expect(t.timers).not.toContainEqual(expect.objectContaining({ kind: "set", timerId: "round" }));
   });
 
-  it("ignores the timer outside generating", () => {
-    let t = make(1);
-    t = act(t.state, "p0", { type: "ready" });
+  it("ignores a stale ready-timeout from an M2 room", () => {
+    const t = make(1);
     const after = th.onTimer!(t.state, "ready-timeout", ctx());
     expect(after.state).toEqual(t.state);
     expect(after.events).toEqual([]);
   });
 
   it("accepts a late or repeated ready as a no-op", () => {
-    let t = make();
-    t = act(t.state, "p0", { type: "ready" });
-    t = act(t.state, "p1", { type: "ready" });
+    const t = started(make().state);
     const late = act(t.state, "p1", { type: "ready" }, ctx({ now: 99999 }));
     expect(late.state).toEqual(t.state);
     expect(late.events).toEqual([]);
@@ -116,23 +91,23 @@ describe("treasure hunt server", () => {
   });
 
   it("rejects end from a non-host", () => {
-    const t = act(act(make().state, "p0", { type: "ready" }).state, "p1", { type: "ready" });
+    const t = started(make().state);
     const r = th.handleAction(t.state, "p1", { type: "end" }, ctx());
     expect(r).toMatchObject({ ok: false, error: { code: "not-host" } });
   });
 
-  it("rejects end while generating", () => {
+  it("rejects end in the teams phase", () => {
     const r = th.handleAction(make().state, "p0", { type: "end" }, ctx());
     expect(r).toMatchObject({ ok: false, error: { code: "not-hunting" } });
   });
 
   it("rejects end in the countdown", () => {
-    const t = act(act(make().state, "p0", { type: "ready" }).state, "p1", { type: "ready" });
+    const t = started(make().state);
     expect(th.handleAction(t.state, "p0", { type: "end" }, ctx())).toMatchObject({ ok: false, error: { code: "not-hunting" } });
   });
 
   it("host ends a hunting round", () => {
-    let t = act(act(make().state, "p0", { type: "ready" }).state, "p1", { type: "ready" });
+    let t = started(make().state);
     t = th.onTimer!(t.state, "countdown", ctx({ now: 7000 }));
     t = act(t.state, "p0", { type: "end" }, ctx({ now: 7777 }));
     expect(t.state.phase).toBe("finished");
@@ -153,14 +128,14 @@ describe("treasure hunt server", () => {
     expect(th.getResult(make().state)).toBeNull();
   });
 
-  it("removing the last unready player starts the round", () => {
+  it("removing the last unready player does not start the round", () => {
     let t = make();
     t = act(t.state, "p0", { type: "ready" });
     t = th.onPlayerRemoved!(t.state, "p1", ctx({ now: 4000 }));
-    expect(t.state.phase).toBe("countdown");
-    expect(types(t)).toEqual(["player-removed", "countdown"]);
+    expect(t.state.phase).toBe("teams");
+    expect(types(t)).toEqual(["player-removed"]);
     expect(t.state.players.find((p) => p.id === "p1")!.removed).toBe(true);
-    expect(t.timers).toContainEqual({ kind: "cancel", timerId: "ready-timeout" });
+    expect(th.getAwaitedPlayerIds(t.state)).toEqual([]);
   });
 
   it("finishes when no players are left", () => {
@@ -189,11 +164,11 @@ describe("treasure hunt server", () => {
       expect(th.parseAction(bad)).toBeNull();
   });
 
-  it("parseSettings defaults to 30 minutes and rejects junk", () => {
-    expect(th.defaultSettings).toEqual({ minutes: 30 });
-    expect(th.parseSettings(undefined)).toEqual({ minutes: 30 });
-    expect(th.parseSettings({})).toEqual({ minutes: 30 });
-    for (const m of [15, 30, 60]) expect(th.parseSettings({ minutes: m })).toEqual({ minutes: m });
+  it("parseSettings defaults to Timed, 30 minutes, and rejects junk", () => {
+    const d = { mode: "timed", minutes: 30, target: 5 };
+    expect(th.parseSettings(undefined)).toEqual(d);
+    expect(th.parseSettings({})).toEqual(d);
+    for (const m of [15, 30, 60]) expect(th.parseSettings({ minutes: m })).toEqual({ ...d, minutes: m });
     for (const bad of [5, [], { minutes: 20 }, { minutes: "30" }]) expect(th.parseSettings(bad)).toBeNull();
   });
 

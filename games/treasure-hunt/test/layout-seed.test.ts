@@ -1,5 +1,6 @@
 import { seededRandomInt } from "@games/game-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SETTINGS } from "../shared/types.ts";
 import { layoutFor } from "../client/layout-cache.ts";
 import { treasureHuntGame as th } from "../server/game.ts";
 import { makeHunt } from "../server/hunt.ts";
@@ -22,7 +23,7 @@ describe("seed-only public state", () => {
   it("keeps public state small with 8 players", () => {
     const ctx = { now: 1000, randomInt: seededRandomInt(7), hostId: "p0" };
     const players = Array.from({ length: 8 }, (_, i) => ({ id: `p${i}` }));
-    const t = th.createGame(players, { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx);
+    const t = th.createGame(players, { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx);
     expect(JSON.stringify(th.getPublicState(t.state)).length).toBeLessThan(4000);
   });
 

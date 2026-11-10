@@ -13,23 +13,26 @@ import { treasureHuntManifest } from "../shared/manifest.ts";
 import {
   DEFAULT_SETTINGS,
   parseTHSettings,
-  READY_TIMEOUT_MS,
   type Phase,
   type THAction,
+  type THCarry,
   type THEvent,
   type THPlayer,
   type THPrivate,
   type THPublic,
   type THReveal,
   type THSettings,
+  type THTeam,
   type TreasureLayout,
 } from "../shared/types.ts";
+import { isTeamColorKey, TEAM_COLORS, type TeamColorKey } from "../shared/teams.ts";
 import {
   CLAIM_CHECK,
   COUNTDOWN_MS,
   HEIGHT_TOL,
   JUMP_GRACE_MS,
   MAX_SPEED,
+  MAX_TEAMS,
   POS_HZ,
   POS_STALE_MS,
   REVEAL_RADIUS,
@@ -39,11 +42,12 @@ import { makeHunt } from "./hunt.ts";
 
 // The Timed round (§3, §6.3–6.4, §8):
 //
-//   generating  every client builds the map and says ready. At the timeout,
-//               if anyone is ready, the rest become spectators; if nobody
-//               is, the timer re-arms and the room keeps waiting. Pools are
-//               dealt here, and again on the way out, once the spectators
-//               are known.
+//   teams       every client builds the map and says ready. Players pick
+//               teams (up to MAX_TEAMS, one per colour); the host can move
+//               anyone. The host starts: whoever isn't ready yet becomes a
+//               spectator, and a team left with no hunters gets no pool.
+//               Pools are dealt here, and again on the way out, once the
+//               spectators are known.
 //   countdown   COUNTDOWN_MS. Positions stream in, nobody moves (R8).
 //   hunting     minutes × 60 000. Positions stream in and reveal pool caches
 //               within REVEAL_RADIUS to their owner only. Claims are checked
@@ -55,7 +59,6 @@ import { makeHunt } from "./hunt.ts";
 // Cache x/z never reach the public state. A player learns a cache's spot from
 // its reveal relay or their private state, and only for their own pool.
 
-const READY_TIMER = "ready-timeout";
 const COUNTDOWN_TIMER = "countdown";
 const ROUND_TIMER = "round";
 
@@ -86,6 +89,8 @@ export interface THState {
   layout: TreasureLayout;
   /** Server only. Never in public state. */
   caches: Cache[];
+  /** In id order. Every player's teamId is one of these, until they leave in the teams phase. */
+  teams: THTeam[];
   players: THServerPlayer[];
   startedAt: number | null;
   endedAt: number | null;
@@ -144,21 +149,68 @@ function deal(s: THState): void {
 function finish(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
   s.phase = "finished";
   s.endedAt = ctx.now;
-  for (const timerId of [READY_TIMER, COUNTDOWN_TIMER, ROUND_TIMER]) timers.push({ kind: "cancel", timerId });
+  for (const timerId of [COUNTDOWN_TIMER, ROUND_TIMER]) timers.push({ kind: "cancel", timerId });
   events.push(pub({ type: "ended" }));
 }
 
 /** Every hunter still here has cleared their pool (or none is left). */
 const allDone = (s: THState) => hunters(s).every((p) => p.found.length >= p.pool.length);
 
-/** Everyone still here is ready: the countdown starts. Nobody here at all: it is over. */
-function startIfReady(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
-  if (s.phase !== "generating") return;
-  const here = active(s);
-  if (!here.length) return finish(s, ctx, events, timers);
-  if (!here.every((p) => p.ready)) return;
-  countdown(s, ctx, events, timers);
+// --- Teams -----------------------------------------------------------------
+
+const freeColor = (teams: THTeam[]): TeamColorKey | null => TEAM_COLORS.find((c) => !teams.some((t) => t.color === c.key))?.key ?? null;
+const freeId = (teams: THTeam[]): number => {
+  let id = 1;
+  while (teams.some((t) => t.id === id)) id++;
+  return id;
+};
+
+/** A new team in the first free colour, or null when all MAX_TEAMS are in use. */
+function newTeam(s: THState, color: TeamColorKey | null = null): THTeam | null {
+  if (s.teams.length >= MAX_TEAMS) return null;
+  const c = color && !s.teams.some((t) => t.color === color) ? color : freeColor(s.teams);
+  if (!c) return null;
+  const team = { id: freeId(s.teams), color: c };
+  s.teams.push(team);
+  s.teams.sort((a, b) => a.id - b.id);
+  return team;
 }
+
+/** Drops teams nobody (still here) is on. Their colours are free again. */
+function prune(s: THState): void {
+  s.teams = s.teams.filter((t) => s.players.some((p) => !p.removed && p.teamId === t.id));
+}
+
+function move(s: THState, playerId: string, teamId: number): void {
+  s.players.find((p) => p.id === playerId)!.teamId = teamId;
+  prune(s);
+}
+
+/** Back to the carried teams; anyone the carry doesn't place gets a team of their own. */
+function seatTeams(s: THState, carry: unknown): void {
+  const c = carry as Partial<THCarry> | null | undefined;
+  const placed = new Set<string>();
+  if (c && typeof c === "object" && Array.isArray(c.teams)) {
+    for (const t of c.teams) {
+      if (!t || typeof t !== "object" || !Array.isArray(t.members)) continue;
+      const members = s.players.filter((p) => !placed.has(p.id) && t.members.includes(p.id));
+      if (!members.length) continue;
+      const team = newTeam(s, isTeamColorKey(t.color) ? t.color : null);
+      if (!team) break;
+      for (const p of members) {
+        p.teamId = team.id;
+        placed.add(p.id);
+      }
+    }
+  }
+  for (const p of s.players) {
+    if (placed.has(p.id)) continue;
+    // maxPlayers is MAX_TEAMS, so this never runs out; if it does, share the first team.
+    p.teamId = (newTeam(s) ?? s.teams[0]!).id;
+  }
+}
+
+const members = (s: THState, teamId: number) => s.players.filter((p) => p.teamId === teamId);
 
 function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
   // Safety net: a round nobody can play is over before it starts.
@@ -166,7 +218,7 @@ function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRe
   s.phase = "countdown";
   s.countdownEndsAt = ctx.now + COUNTDOWN_MS;
   deal(s);
-  timers.push({ kind: "cancel", timerId: READY_TIMER }, { kind: "set", timerId: COUNTDOWN_TIMER, delayMs: COUNTDOWN_MS });
+  timers.push({ kind: "set", timerId: COUNTDOWN_TIMER, delayMs: COUNTDOWN_MS });
   events.push(pub({ type: "countdown", spectators: s.players.filter((p) => p.spectator && !p.removed).map((p) => p.id) }));
 }
 
@@ -238,6 +290,53 @@ function result(s: THState): GameOutcome {
   };
 }
 
+const isTeamId = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 99;
+
+type TeamAction = Extract<THAction, { type: "team.join" | "team.new" | "team.assign" | "start" }>;
+
+/** Team picks and the host's start: all in the teams phase. `s` is already a clone. */
+function teamAction(s: THState, playerId: string, action: TeamAction, ctx: GameContext): GameResult<THState, THEvent> {
+  const events: Events = [];
+  const timers: TimerRequest[] = [];
+  const me = s.players.find((p) => p.id === playerId);
+  if (!me || me.removed) return reject("not-in-game", "You are not in this game.");
+  const host = ctx.hostId === playerId;
+  if ((action.type === "start" || action.type === "team.assign") && !host) {
+    return reject("not-host", action.type === "start" ? "Only the host can start the round." : "Only the host can move players.");
+  }
+  if (s.phase !== "teams") return reject("wrong-phase", "Teams are picked before the hunt.");
+
+  switch (action.type) {
+    case "team.join": {
+      if (!s.teams.some((t) => t.id === action.teamId)) return reject("no-such-team", "That team does not exist.");
+      if (me.teamId === action.teamId) return reject("already-there", "You are already on that team.");
+      move(s, playerId, action.teamId);
+      break;
+    }
+    case "team.new": {
+      const team = newTeam(s);
+      if (!team) return reject("too-many-teams", `There are already ${MAX_TEAMS} teams.`);
+      move(s, playerId, team.id);
+      break;
+    }
+    case "team.assign": {
+      const them = s.players.find((p) => p.id === action.playerId);
+      if (!them || them.removed) return reject("not-in-game", "That player is not in this game.");
+      if (!s.teams.some((t) => t.id === action.teamId)) return reject("no-such-team", "That team does not exist.");
+      move(s, action.playerId, action.teamId);
+      break;
+    }
+    case "start": {
+      const here = active(s);
+      if (!here.some((p) => p.ready)) return reject("nobody-ready", "Wait until someone has loaded the map.");
+      for (const p of here) if (!p.ready) p.spectator = true;
+      countdown(s, ctx, events, timers);
+      break;
+    }
+  }
+  return ok(s, events, timers);
+}
+
 export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPrivate, THSettings, THEvent> = {
   manifest: treasureHuntManifest,
 
@@ -248,22 +347,28 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const a = input as Record<string, unknown>;
     if (a.type === "ready" || a.type === "end") return { type: a.type };
     if (a.type === "claim" && typeof a.cacheId === "string" && a.cacheId.length <= 16) return { type: "claim", cacheId: a.cacheId };
+    if (a.type === "team.new" || a.type === "start") return { type: a.type };
+    if (a.type === "team.join" && isTeamId(a.teamId)) return { type: "team.join", teamId: a.teamId };
+    if (a.type === "team.assign" && isTeamId(a.teamId) && typeof a.playerId === "string" && a.playerId.length <= 64)
+      return { type: "team.assign", playerId: a.playerId, teamId: a.teamId };
     return null;
   },
 
-  createGame(players, settings, _match, ctx) {
+  createGame(players, settings, match, ctx) {
     const { layout, caches } = makeHunt(ctx.randomInt(2 ** 31));
     const state: THState = {
-      phase: "generating",
+      phase: "teams",
       seed: layout.seed,
       settings: parseTHSettings(settings) ?? DEFAULT_SETTINGS,
       layout,
       caches,
+      teams: [],
       players: players.map((p) => ({
         id: p.id,
         ready: false,
         spectator: false,
         removed: false,
+        teamId: null,
         pool: [],
         found: [],
         revealed: [],
@@ -276,8 +381,9 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       endsAt: null,
       countdownEndsAt: null,
     };
+    seatTeams(state, match.carry);
     deal(state);
-    return out(state, [], [{ kind: "set", timerId: READY_TIMER, delayMs: READY_TIMEOUT_MS }]);
+    return out(state, [], []);
   },
 
   handleAction(state, playerId, action, ctx) {
@@ -286,36 +392,27 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const events: Events = [];
     const timers: TimerRequest[] = [];
     if (action.type === "ready") {
-      // A slow tab can send this at any time. Anything but a first ready in generating is a no-op.
+      // A slow tab can send this at any time. Anything but a first ready in teams is a no-op.
+      // It never starts the round: the host does.
       const me = s.players.find((p) => p.id === playerId);
-      if (s.phase !== "generating" || !me || me.removed || me.ready) return ok(s, events, timers);
+      if (s.phase !== "teams" || !me || me.removed || me.ready) return ok(s, events, timers);
       me.ready = true;
-      startIfReady(s, ctx, events, timers);
       return ok(s, events, timers);
     }
-    if (ctx.hostId !== playerId) return reject("not-host", "Only the host can end the round.");
-    if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on yet.");
-    finish(s, ctx, events, timers);
-    return ok(s, events, timers);
+    if (action.type === "end") {
+      if (ctx.hostId !== playerId) return reject("not-host", "Only the host can end the round.");
+      if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on yet.");
+      finish(s, ctx, events, timers);
+      return ok(s, events, timers);
+    }
+    return teamAction(s, playerId, action, ctx);
   },
 
   onTimer(state, timerId, ctx) {
     const s = clone(state);
     const events: Events = [];
     const timers: TimerRequest[] = [];
-    if (timerId === READY_TIMER && s.phase === "generating") {
-      const here = active(s);
-      if (!here.length) {
-        finish(s, ctx, events, timers);
-      } else if (!here.some((p) => p.ready)) {
-        // Nobody has loaded yet (a slow first download): keep waiting rather
-        // than turn the whole table into spectators of an empty round.
-        timers.push({ kind: "set", timerId: READY_TIMER, delayMs: READY_TIMEOUT_MS });
-      } else {
-        for (const p of here) if (!p.ready) p.spectator = true;
-        countdown(s, ctx, events, timers);
-      }
-    } else if (timerId === COUNTDOWN_TIMER && s.phase === "countdown") {
+    if (timerId === COUNTDOWN_TIMER && s.phase === "countdown") {
       hunt(s, ctx, events, timers);
     } else if (timerId === ROUND_TIMER && s.phase === "hunting") {
       finish(s, ctx, events, timers);
@@ -331,7 +428,12 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     if (!p || p.removed) return out(s, events, timers);
     p.removed = true;
     events.push(pub({ type: "player-removed", playerId }));
-    if (s.phase === "generating") startIfReady(s, ctx, events, timers);
+    if (s.phase === "teams") {
+      // Their team goes with them if they were its last member. Nobody left at all: it is over.
+      p.teamId = null;
+      prune(s);
+      if (!active(s).length) finish(s, ctx, events, timers);
+    }
     // Gone mid-round: they stop counting toward "everyone is done".
     else if ((s.phase === "countdown" || s.phase === "hunting") && allDone(s)) finish(s, ctx, events, timers);
     return out(s, events, timers);
@@ -377,11 +479,16 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   getPublicState: (s) => ({
     phase: s.phase,
     seed: s.layout.seed,
+    teams: s.teams.map((t) => {
+      const on = members(s, t.id);
+      return { ...t, foundCount: on.reduce((n, p) => n + p.found.length, 0), poolSize: on.reduce((n, p) => n + p.pool.length, 0) };
+    }),
     players: s.players.map((p) => ({
       id: p.id,
       ready: p.ready,
       spectator: p.spectator,
       removed: p.removed,
+      teamId: p.teamId,
       foundCount: p.found.length,
       poolSize: p.pool.length,
     })),
@@ -406,7 +513,13 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     };
   },
 
-  getAwaitedPlayerIds: (s) => (s.phase === "generating" ? active(s).filter((p) => !p.ready).map((p) => p.id) : []),
+  getAwaitedPlayerIds: (s) => (s.phase === "teams" ? active(s).filter((p) => !p.ready).map((p) => p.id) : []),
 
   getResult: (s) => (s.phase === "finished" ? result(s) : null),
+
+  carryOver: (s): THCarry => ({
+    teams: s.teams
+      .map((t) => ({ color: t.color, members: members(s, t.id).filter((p) => !p.removed).map((p) => p.id) }))
+      .filter((t) => t.members.length),
+  }),
 };

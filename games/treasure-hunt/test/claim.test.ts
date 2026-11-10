@@ -1,5 +1,6 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SETTINGS } from "../shared/types.ts";
 import { dealPools, treasureHuntGame as th, type THState } from "../server/game.ts";
 import { macroHeight } from "../shared/generate.ts";
 import { CLAIM_CHECK, COUNTDOWN_MS, HEIGHT_TOL, JUMP_GRACE_MS, MAX_SPEED, POS_STALE_MS, REVEAL_RADIUS } from "../shared/world.ts";
@@ -7,15 +8,22 @@ import { CLAIM_CHECK, COUNTDOWN_MS, HEIGHT_TOL, JUMP_GRACE_MS, MAX_SPEED, POS_ST
 const ctx = (now = 1000): GameContext => ({ now, randomInt: seededRandomInt(7), hostId: "p0" });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
 
-/** n players, everyone ready, past the countdown: hunting at t = 10 000. */
-function hunting(n = 2, minutes: 15 | 30 | 60 = 30): THState {
-  let s = th.createGame(players(n), { minutes }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-  for (let i = 0; i < n; i++) {
-    const r = th.handleAction(s, `p${i}`, { type: "ready" }, ctx(2000));
+/** `ids` say ready, then the host (p0) starts: the countdown at `now`. */
+function start(s: THState, now: number, ids: string[] = s.players.map((p) => p.id)) {
+  for (const id of ids) {
+    const r = th.handleAction(s, id, { type: "ready" }, ctx(now));
     if (!r.ok) throw new Error(r.error.code);
     s = r.transition.state;
   }
-  return th.onTimer!(s, "countdown", ctx(10_000)).state;
+  const r = th.handleAction(s, "p0", { type: "start" }, ctx(now));
+  if (!r.ok) throw new Error(r.error.code);
+  return r.transition;
+}
+
+/** n players, everyone ready, past the countdown: hunting at t = 10 000. */
+function hunting(n = 2, minutes: 15 | 30 | 60 = 30): THState {
+  const s = th.createGame(players(n), { ...DEFAULT_SETTINGS, minutes }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+  return th.onTimer!(start(s, 2000).state, "countdown", ctx(10_000)).state;
 }
 
 const me = (s: THState, id: string) => s.players.find((p) => p.id === id)!;
@@ -65,10 +73,9 @@ describe("pools", () => {
   });
 
   it("deals again at the countdown: spectators get nothing", () => {
-    let s = th.createGame(players(3), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    let s = th.createGame(players(3), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
     expect(s.players.every((p) => p.pool.length > 0)).toBe(true);
-    s = (th.handleAction(s, "p0", { type: "ready" }, ctx()) as { ok: true; transition: { state: THState } }).transition.state;
-    s = th.onTimer!(s, "ready-timeout", ctx(5000)).state;
+    s = start(s, 5000, ["p0"]).state;
     expect(s.phase).toBe("countdown");
     expect(me(s, "p1").spectator).toBe(true);
     expect(me(s, "p1").pool).toEqual([]);
@@ -112,7 +119,7 @@ describe("reveal", () => {
   });
 
   it("drops pos outside countdown and hunting, from removed players, and junk", () => {
-    const gen = th.createGame(players(1), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    const gen = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
     expect(pos(gen, "p0", 0, 0, 0, 2000)).toBeNull();
     const s = hunting(2);
     expect(th.onStream!(s, "p0", { t: "pos", x: "1", y: 0, z: 0, foot: true }, ctx(11_000))).toBeNull();
@@ -132,9 +139,8 @@ describe("reveal", () => {
   });
 
   it("drops pos from a spectator", () => {
-    let s = th.createGame(players(2), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-    s = (th.handleAction(s, "p0", { type: "ready" }, ctx(2000)) as { ok: true; transition: { state: THState } }).transition.state;
-    s = th.onTimer!(s, "ready-timeout", ctx(5000)).state;
+    let s = th.createGame(players(2), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    s = start(s, 5000, ["p0"]).state;
     s = th.onTimer!(s, "countdown", ctx(8000)).state;
     expect(me(s, "p1").spectator).toBe(true);
     expect(pos(s, "p1", 1, 2, 3, 9000)).toBeNull();
@@ -166,11 +172,10 @@ describe("reveal", () => {
   });
 
   it("accepts pos in the countdown", () => {
-    const s = th.createGame(players(1), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-    const r = th.handleAction(s, "p0", { type: "ready" }, ctx(2000));
-    if (!r.ok) throw new Error();
-    expect(r.transition.state.phase).toBe("countdown");
-    const p = pos(r.transition.state, "p0", 1, 2, 3, 2500)!;
+    const s = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    const t = start(s, 2000);
+    expect(t.state.phase).toBe("countdown");
+    const p = pos(t.state, "p0", 1, 2, 3, 2500)!;
     expect(me(p.state, "p0").pos).toEqual({ x: 1, y: 2, z: 3, foot: true, at: 2500 });
   });
 });
@@ -178,10 +183,8 @@ describe("reveal", () => {
 describe("claim", () => {
   it("each check has its own code, in order", () => {
     // not-hunting: still in the countdown.
-    let pre = th.createGame(players(1), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-    const r0 = th.handleAction(pre, "p0", { type: "ready" }, ctx(2000));
-    if (!r0.ok) throw new Error();
-    pre = r0.transition.state;
+    let pre = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    pre = start(pre, 2000).state;
     expect(code(claim(pre, "p0", me(pre, "p0").pool[0]!, 2500))).toBe("not-hunting");
 
     let s = hunting(2);
@@ -295,17 +298,13 @@ describe("claim", () => {
 });
 
 describe("timed round", () => {
-  it("runs generating → countdown → hunting → finished with the right timers", () => {
-    let t = th.createGame(players(1), { minutes: 15 }, { roundNumber: 1, dealerSeat: 0 }, ctx());
-    expect(t.state.phase).toBe("generating");
-    const r = th.handleAction(t.state, "p0", { type: "ready" }, ctx(2000));
-    if (!r.ok) throw new Error();
-    t = r.transition;
+  it("runs teams → countdown → hunting → finished with the right timers", () => {
+    let t = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: 15 }, { roundNumber: 1, dealerSeat: 0 }, ctx());
+    expect(t.state.phase).toBe("teams");
+    expect(t.timers).toEqual([]);
+    t = start(t.state, 2000);
     expect(t.state.phase).toBe("countdown");
-    expect(t.timers).toEqual([
-      { kind: "cancel", timerId: "ready-timeout" },
-      { kind: "set", timerId: "countdown", delayMs: COUNTDOWN_MS },
-    ]);
+    expect(t.timers).toEqual([{ kind: "set", timerId: "countdown", delayMs: COUNTDOWN_MS }]);
     expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
     expect(th.getPublicState(t.state).countdownEndsAt).toBe(2000 + COUNTDOWN_MS);
     expect(th.getPublicState(t.state).endsAt).toBeNull();
@@ -327,10 +326,8 @@ describe("timed round", () => {
 
   it("uses the minutes setting for the round timer", () => {
     for (const m of [30, 60] as const) {
-      let s = th.createGame(players(1), { minutes: m }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-      const r = th.handleAction(s, "p0", { type: "ready" }, ctx());
-      if (!r.ok) throw new Error();
-      s = r.transition.state;
+      let s = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: m }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+      s = start(s, 1000).state;
       expect(th.onTimer!(s, "countdown", ctx()).timers).toEqual([{ kind: "set", timerId: "round", delayMs: m * 60_000 }]);
     }
   });

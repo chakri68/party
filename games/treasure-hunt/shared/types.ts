@@ -1,6 +1,7 @@
 import type { MinorPoint } from "./minor.ts";
+import type { TeamColorKey } from "./teams.ts";
 import type { Trail } from "./trails.ts";
-import { TIMED_MINUTES, type RingSide } from "./world.ts";
+import { RACE_TARGET_DEFAULT, RACE_TARGETS, TIMED_MINUTES, type RingSide } from "./world.ts";
 
 export type TemplateId = "lighthouse" | "shipwreck" | "stone-circle" | "radio-tower" | "camp" | "plane";
 
@@ -49,17 +50,23 @@ export interface TreasureLayout {
   minor: MinorPoint[];
 }
 
-/** How long the server waits for every client to load the world before it starts anyway. */
-export const READY_TIMEOUT_MS = 60_000;
+export type Phase = "teams" | "countdown" | "hunting" | "finished";
 
-export type Phase = "generating" | "countdown" | "hunting" | "finished";
+/** Up to MAX_TEAMS, one per colour. A team with no members is gone. */
+export interface THTeam {
+  id: number;
+  color: TeamColorKey;
+}
 
 export interface THPlayer {
   id: string;
+  /** Their client has built the map. */
   ready: boolean;
-  /** Never reported ready in time. Watches instead of hunting, with no pool. */
+  /** Wasn't ready when the host started. Watches instead of hunting, with no pool. */
   spectator: boolean;
   removed: boolean;
+  /** null only once they've left in the teams phase. */
+  teamId: number | null;
 }
 
 /** What everyone sees of a player. Never their pool or position. */
@@ -72,6 +79,8 @@ export interface THPublic {
   phase: Phase;
   /** The final layout seed. Clients rebuild the map with generateLayout. */
   seed: number;
+  /** Counts are the team's: until pools move to teams, the sum over its members. */
+  teams: (THTeam & { foundCount: number; poolSize: number })[];
   players: THPublicPlayer[];
   startedAt: number | null;
   /** When the round timer fires. Set in hunting. */
@@ -87,7 +96,21 @@ export interface THPrivate {
   revealed: { id: string; x: number; z: number; dy: number }[];
 }
 
-export type THAction = { type: "ready" } | { type: "end" } | { type: "claim"; cacheId: string };
+export type THAction =
+  | { type: "ready" }
+  | { type: "end" }
+  | { type: "claim"; cacheId: string }
+  | { type: "team.join"; teamId: number }
+  | { type: "team.new" }
+  /** Host only. */
+  | { type: "team.assign"; playerId: string; teamId: number }
+  /** Host only. */
+  | { type: "start" };
+
+/** Handed from a finished game to the rematch's createGame. */
+export interface THCarry {
+  teams: { color: TeamColorKey; members: string[] }[];
+}
 
 /** Client → server, at POS_HZ in countdown and hunting. */
 export type THStreamIn = { t: "pos"; x: number; y: number; z: number; foot: boolean };
@@ -102,17 +125,24 @@ export type THEvent =
   | { type: "player-removed"; playerId: string };
 
 export type THMinutes = (typeof TIMED_MINUTES)[number];
+export type THMode = "timed" | "race";
 export interface THSettings {
+  mode: THMode;
+  /** Timed only. */
   minutes: THMinutes;
+  /** Race only: caches to win. */
+  target: number;
 }
 
-export const DEFAULT_SETTINGS: THSettings = { minutes: 30 };
+export const DEFAULT_SETTINGS: THSettings = { mode: "timed", minutes: 30, target: RACE_TARGET_DEFAULT };
 
-/** Missing or empty means the default; anything else must be a known length. */
+/** Missing or empty means the default, field by field; anything present must be a known value. */
 export function parseTHSettings(input: unknown): THSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
-  const m = (input as Record<string, unknown>).minutes;
-  if (m === undefined) return { ...DEFAULT_SETTINGS };
-  return (TIMED_MINUTES as readonly unknown[]).includes(m) ? { minutes: m as THMinutes } : null;
+  const { mode = DEFAULT_SETTINGS.mode, minutes = DEFAULT_SETTINGS.minutes, target = DEFAULT_SETTINGS.target } = input as Record<string, unknown>;
+  if (mode !== "timed" && mode !== "race") return null;
+  if (!(TIMED_MINUTES as readonly unknown[]).includes(minutes)) return null;
+  if (!(RACE_TARGETS as readonly unknown[]).includes(target)) return null;
+  return { mode, minutes: minutes as THMinutes, target: target as number };
 }

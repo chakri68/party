@@ -141,7 +141,7 @@ describe("GodotFeed", () => {
     const { feed, last } = setup();
     feed.update(priv(), "hunting", 1);
     feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
-    feed.update(priv(), "generating", 2);
+    feed.update(priv(), "teams", 2);
     feed.sync();
     expect(reveals(last())).toEqual([]);
   });
