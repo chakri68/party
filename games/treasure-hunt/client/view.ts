@@ -46,6 +46,10 @@ const CLAIM_ERRORS: Record<string, string> = {
   "too-far-seat": "Go closer to the buggy.",
   "no-vehicle": "That buggy is not here.",
   "not-seated": "You are not in a buggy.",
+  // Pins.
+  "bad-pin": "You can't put a pin there.",
+  "no-pin": "That pin is gone.",
+  "not-your-pin": "You can only remove your own pins.",
 };
 
 /** What to tell the player when a claim is turned down. */

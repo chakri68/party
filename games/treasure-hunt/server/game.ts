@@ -15,6 +15,7 @@ import {
   DEFAULT_SETTINGS,
   parseTHSettings,
   type Phase,
+  type Pin,
   type THAction,
   type THCarry,
   type THEvent,
@@ -38,6 +39,7 @@ import {
   JUMP_GRACE_MS,
   MAX_SPEED,
   MAX_TEAMS,
+  PIN_CAP,
   POS_HZ,
   POS_STALE_MS,
   RACE_OPEN_START,
@@ -144,6 +146,10 @@ export interface THState {
   finds: THFind[];
   /** Set at start: a team slot per team in play, then every loose slot. Empty before. */
   vehicles: Vehicle[];
+  /** Every team's pins, oldest first. `?? []`: rooms saved before pins. */
+  pins: (Pin & { team: number })[];
+  /** Next pin id is "q" + this. `?? 0` on old rooms. */
+  pinSeq: number;
   startedAt: number | null;
   endedAt: number | null;
   endsAt: number | null;
@@ -390,6 +396,32 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   return ok(next, events, timers);
 }
 
+const PIN_LIMIT = 950;
+
+/** Pins are a hunter's, in countdown and hunting. A team's pins are its own: the cap is per player. */
+function pinAction(s: THState, playerId: string, action: Extract<THAction, { type: "pin" | "unpin" }>): GameResult<THState, THEvent> {
+  if (s.phase !== "countdown" && s.phase !== "hunting") return reject("not-hunting", "The hunt is not on.");
+  const me = s.players.find((p) => p.id === playerId);
+  if (!me || me.removed || me.spectator || me.teamId === null) return reject("not-in-game", "You are not in this game.");
+  const next = clone(s);
+  next.pins ??= [];
+  next.pinSeq ??= 0;
+  if (action.type === "unpin") {
+    const pin = next.pins.find((p) => p.id === action.pinId);
+    if (!pin) return reject("no-pin", "That pin is gone.");
+    if (pin.by !== playerId) return reject("not-your-pin", "You can only remove your own pins.");
+    next.pins = next.pins.filter((p) => p !== pin);
+    return ok(next, [], []);
+  }
+  const { x, z } = action;
+  if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > PIN_LIMIT || Math.abs(z) > PIN_LIMIT)
+    return reject("bad-pin", "You can't put a pin there.");
+  next.pins.push({ id: `q${next.pinSeq++}`, by: playerId, x: round1(x), z: round1(z), team: me.teamId });
+  const own = next.pins.filter((p) => p.by === playerId);
+  if (own.length > PIN_CAP) next.pins = next.pins.filter((p) => p !== own[0]);
+  return ok(next, [], []);
+}
+
 /** The vehicle I hold a seat in, and which seat. `?? []`: rooms saved before buggies. */
 function seatOf(s: THState, playerId: string): { v: Vehicle; seat: Seat } | null {
   for (const v of s.vehicles ?? []) {
@@ -534,6 +566,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       return { type: "team.assign", playerId: a.playerId, teamId: a.teamId };
     if (a.type === "seat" && typeof a.vehicleId === "string" && a.vehicleId.length >= 1 && a.vehicleId.length <= 8 && (a.seat === "driver" || a.seat === "passenger"))
       return { type: "seat", vehicleId: a.vehicleId, seat: a.seat };
+    if (a.type === "pin" && typeof a.x === "number" && typeof a.z === "number") return { type: "pin", x: a.x, z: a.z };
+    if (a.type === "unpin" && typeof a.pinId === "string" && a.pinId.length <= 8) return { type: "unpin", pinId: a.pinId };
     if (a.type === "unseat") {
       const { x, y, z, yaw } = a;
       const place = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= POS_LIMIT;
@@ -565,6 +599,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       })),
       finds: [],
       vehicles: [],
+      pins: [],
+      pinSeq: 0,
       startedAt: null,
       endedAt: null,
       endsAt: null,
@@ -577,6 +613,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   handleAction(state, playerId, action, ctx) {
     if (action.type === "claim") return claim(state, playerId, action.cacheId, ctx);
+    if (action.type === "pin" || action.type === "unpin") return pinAction(state, playerId, action);
     if (action.type === "seat" || action.type === "unseat") return seatAction(state, playerId, action, ctx);
     const s = clone(state);
     const events: Events = [];
@@ -725,7 +762,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         const c = cache(id);
         return { id, x: round1(c.x), z: round1(c.z), dy: c.dy };
       }),
-      pins: [],
+      pins: (s.pins ?? []).filter((p) => p.team === team.id).map(({ id, by, x, z }) => ({ id, by, x, z })),
     };
   },
 

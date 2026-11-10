@@ -122,7 +122,7 @@ export interface THPrivate {
   clues: { id: string; clues: string[]; difficulty: number; found: boolean; taken: boolean }[];
   /** x and z rounded to 0.1. */
   revealed: { id: string; x: number; z: number; dy: number }[];
-  /** Empty until pins land (Task 7). */
+  /** My team's pins, oldest first. */
   pins: Pin[];
 }
 
@@ -137,6 +137,8 @@ export type THAction =
   /** Host only. */
   | { type: "start" }
   | { type: "seat"; vehicleId: string; seat: Seat }
+  | { type: "pin"; x: number; z: number }
+  | { type: "unpin"; pinId: string }
   /** Where you got out. A driver's buggy rests here, clamped near its last streamed pose. */
   | { type: "unseat"; x: number; y: number; z: number; yaw: number };
 
