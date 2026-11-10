@@ -1,4 +1,4 @@
-import type { TreasureLayout } from "../../shared/types.ts";
+import type { Phase, TreasureLayout } from "../../shared/types.ts";
 import build from "./godot-build.json";
 
 // The TS half of the iframe bridge, copied from Blind Rally's and cut down to
@@ -25,17 +25,44 @@ export interface SessionConfig {
 /** What Godot reports. M1 has one kind. `seed` is the layout Godot built. */
 export type GodotStatus = { kind: "world-ready"; ms: number; chunks: number; seed: number };
 
-/** The object both sides share. Godot fills in initSession. */
-interface HostObject {
+export interface CacheReveal {
+  id: string;
+  x: number;
+  z: number;
+  dy: number;
+}
+export interface GodotPos {
+  x: number;
+  y: number;
+  z: number;
+  foot: boolean;
+}
+
+/** One call into Godot. All three are idempotent on Godot's side. */
+export type BridgeCall =
+  | { fn: "revealCache"; arg: CacheReveal }
+  | { fn: "cacheFound"; arg: { id: string } }
+  | { fn: "setPhase"; arg: { phase: Phase } };
+
+type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
+
+/** The object both sides share. Godot fills in initSession and the GodotFns. */
+interface HostObject extends GodotFns {
   emitStatus(s: GodotStatus): void;
   ready(): void;
+  emitPos(p: GodotPos): void;
+  emitClaim(c: { id: string }): void;
   initSession?(config: SessionConfig): void;
 }
 
 export interface BridgeHandlers {
   status(s: GodotStatus): void;
-  /** Godot has attached (the session goes out by itself). */
+  /** Godot has attached and has the session. Anything else it needs goes now. */
   ready(): void;
+  /** Where the player is, about POS_HZ times a second. */
+  pos(p: GodotPos): void;
+  /** The player pressed E by this cache. */
+  claim(id: string): void;
   /** Bytes in so far, from Godot's own preloader. `total` is 0 when it doesn't know. */
   progress(loaded: number, total: number): void;
   /** The engine's downloaded and running; the scene's still coming up. */
@@ -133,8 +160,15 @@ export class GodotBridge {
         // A second ready() is the iframe reloading: a fresh Godot, so the session goes again.
         const reloaded = this.isReady;
         this.isReady = true;
-        this.handlers.ready();
         this.send(reloaded);
+        // After the session, so the view's resync lands on the new world's queue.
+        this.handlers.ready();
+      },
+      emitPos: (p) => {
+        if (p && [p.x, p.y, p.z].every(Number.isFinite) && typeof p.foot === "boolean") this.handlers.pos({ x: p.x, y: p.y, z: p.z, foot: p.foot });
+      },
+      emitClaim: (c) => {
+        if (c && typeof c.id === "string") this.handlers.claim(c.id);
       },
     };
     const iframe = document.createElement("iframe");
@@ -156,7 +190,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) delete this.host.initSession;
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);
@@ -170,6 +204,16 @@ export class GodotBridge {
   setSession(config: SessionConfig) {
     this.session = config;
     this.send(false);
+  }
+
+  /**
+   * Calls into Godot, if it's up. Before ready() there's nobody listening;
+   * the view sends the lot again when ready() comes.
+   */
+  call(calls: BridgeCall[]) {
+    const host = this.host;
+    if (!host || !this.isReady) return;
+    for (const c of calls) (host[c.fn] as ((arg: unknown) => void) | undefined)?.(c.arg);
   }
 
   /** Tear the engine down and boot it again from scratch: the failed state's way out. */

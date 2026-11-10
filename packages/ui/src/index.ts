@@ -50,8 +50,8 @@ export interface GameClientApi {
 }
 
 export interface GameView extends View<GameViewProps> {
-  /** The server rejected an action this view sent. */
-  rejected(clientActionId: string, message: string): void;
+  /** The server rejected an action this view sent. `code` is the game's error code. */
+  rejected(clientActionId: string, message: string, code?: string): void;
   /**
    * Resolves once the view has acted out everything it was given. The shell
    * waits on it before covering the table (e.g. with results), so the last

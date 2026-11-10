@@ -223,7 +223,7 @@ export class RoomView implements View {
       if (this.gameView && this.gameViewFed) this.gameView.stream?.(m.from, m.data);
       else if (this.last?.room.phase === "playing") this.streamBacklog.push(m);
     });
-    client.on("rejected", ({ clientActionId, message }) => this.gameView?.rejected(clientActionId, message));
+    client.on("rejected", ({ clientActionId, message, code }) => this.gameView?.rejected(clientActionId, message, code));
     client.on("error", ({ message }) => this.showToast(message));
     client.on("nudged", ({ byPlayerId }) => {
       const room = this.last?.room;
