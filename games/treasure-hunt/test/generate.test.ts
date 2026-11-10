@@ -37,7 +37,7 @@ describe("generateLayout", () => {
 
   it("has the right shape", () => {
     const l = generateLayout(7);
-    expect(l.version).toBe(1);
+    expect(l.version).toBe(2);
     expect(l.macro).toMatchObject({ origin: MACRO_ORIGIN, cell: MACRO_CELL, size: MACRO_SIZE });
     expect(l.macro.heights).toHaveLength(61 * 61);
     expect(l.macro.biomes).toHaveLength(61 * 61);

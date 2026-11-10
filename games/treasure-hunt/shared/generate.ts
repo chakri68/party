@@ -1,5 +1,5 @@
-// World generator, layers 1–2 (§4.2): the macro heightfield, the edge ring and
-// the biomes. A pure function of the seed.
+// World generator, layers 1–3 (§4.2): the macro heightfield, the edge ring,
+// the biomes and the set pieces (sites.ts). A pure function of the seed.
 //
 // The height at a point is built in three passes:
 //   1. Interior: a low base noise, plus basins and ridges (faded out near the
@@ -13,6 +13,7 @@
 //      corner, the mountain wins: it is the steeper rule.
 
 import { fbm2, rng } from "./noise.ts";
+import { placePieces, validatePieces } from "./sites.ts";
 import type { TreasureLayout } from "./types.ts";
 import {
   BIOMES,
@@ -278,11 +279,12 @@ export function generateLayout(seed: number): TreasureLayout {
   }
 
   const layout: TreasureLayout = {
-    version: 1,
+    version: 2,
     seed,
     macro: { origin: MACRO_ORIGIN, cell: MACRO_CELL, size: n, heights, biomes },
     ring: plan.ring,
     spawn: { x: 0, z: 0, yaw: 0 },
+    pieces: [],
   };
 
   // Spawn: the first of up to 200 seeded tries that is on flat land, well inside.
@@ -294,6 +296,9 @@ export function generateLayout(seed: number): TreasureLayout {
     layout.spawn = { x, z, yaw: yawToCentre(x, z) };
     break;
   }
+
+  // Its own stream, so layer 3 never shifts layers 1–2.
+  layout.pieces = placePieces(layout, rng(seed ^ 0x5e7));
   return layout;
 }
 
@@ -375,6 +380,7 @@ export function validateLayout(l: TreasureLayout): string[] {
   if (!spawnOk(l, x, z, false)) problems.push(`spawn (${x}, ${z}) is not on flat land well inside`);
   if (Math.hypot(x, z) > 0 && Math.abs(yaw - yawToCentre(x, z)) > 1e-9) problems.push("spawn does not face the centre");
   if (Math.hypot(x, z) === 0) problems.push("spawn is at the centre, with no direction to face");
+  problems.push(...validatePieces(l));
   return problems;
 }
 

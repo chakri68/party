@@ -1,7 +1,29 @@
 import type { RingSide } from "./world.ts";
 
+export type TemplateId = "lighthouse" | "shipwreck" | "stone-circle" | "radio-tower" | "camp" | "plane";
+
+/** One placed set piece (layer 3). Built in Godot from its template and params. */
+export interface SetPiece {
+  /** "p0", "p1", … in placement order. */
+  id: string;
+  template: TemplateId;
+  /** Rounded to 0.1 m. */
+  x: number;
+  z: number;
+  /** Radians, Godot style: yaw 0 faces −Z. */
+  yaw: number;
+  /** The flat pad's height in metres: macroHeight at (x, z), rounded to 0.1. */
+  padY: number;
+  /** The pad's radius in metres. */
+  padR: number;
+  /** Index into TEMPLATES[template].labels. Unique per template on a map. */
+  variant: number;
+  /** Rolled by the template. Booleans are 0/1. */
+  params: Record<string, number>;
+}
+
 export interface TreasureLayout {
-  version: 1;
+  version: 2;
   /** The seed actually used, after any rerolls. */
   seed: number;
   macro: {
@@ -17,6 +39,8 @@ export interface TreasureLayout {
   ring: [RingSide, RingSide, RingSide, RingSide];
   /** yaw in radians, Godot style: yaw 0 faces −Z. The spawn faces the map centre. */
   spawn: { x: number; z: number; yaw: number };
+  /** Layer 3: 10–14 set pieces. */
+  pieces: SetPiece[];
 }
 
 /** How long the server waits for every client to load the world before it starts anyway. */

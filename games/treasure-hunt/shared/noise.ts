@@ -50,8 +50,11 @@ function fade(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+/** A seeded stream of numbers in [0, 1). */
+export type Rng = () => number;
+
 /** A small seeded PRNG (mulberry32) for picking features. Returns [0, 1). */
-export function rng(seed: number): () => number {
+export function rng(seed: number): Rng {
   let s = hash3(seed, 0x51ed, 0x7a3) | 0;
   return () => {
     s = (s + 0x6d2b79f5) | 0;

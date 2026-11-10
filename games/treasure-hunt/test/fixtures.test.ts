@@ -26,7 +26,10 @@ function format(l: TreasureLayout): string {
     `    "biomes": ${grid(macro.biomes)}`,
     `  },`,
     `  "ring": ${JSON.stringify(l.ring)},`,
-    `  "spawn": ${JSON.stringify(l.spawn)}`,
+    `  "spawn": ${JSON.stringify(l.spawn)},`,
+    `  "pieces": [`,
+    l.pieces.map((p) => "    " + JSON.stringify(p)).join(",\n"),
+    `  ]`,
     "}",
     "",
   ].join("\n");

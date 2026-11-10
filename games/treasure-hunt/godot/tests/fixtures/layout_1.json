@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "seed": 1,
   "macro": {
     "origin": -960, "cell": 32, "size": 61,
@@ -131,5 +131,21 @@
     ]
   },
   "ring": ["mountain","sea","mountain","mountain"],
-  "spawn": {"x":-11,"z":354,"yaw":-0.03106345103506063}
+  "spawn": {"x":-11,"z":354,"yaw":-0.03106345103506063},
+  "pieces": [
+    {"id":"p0","template":"camp","x":-576,"z":-32,"yaw":5.923,"padY":9.1,"padR":14,"variant":0,"params":{"tents":1,"firepit":0}},
+    {"id":"p1","template":"stone-circle","x":-128,"z":480,"yaw":0.084,"padY":14.1,"padR":14,"variant":1,"params":{"stones":6,"fallen":3}},
+    {"id":"p2","template":"radio-tower","x":608,"z":-64,"yaw":2.143,"padY":22,"padR":8,"variant":2,"params":{"height":24,"wires":0}},
+    {"id":"p3","template":"plane","x":512,"z":-480,"yaw":3.753,"padY":13.4,"padR":16,"variant":1,"params":{"debris":18,"heading":1.34}},
+    {"id":"p4","template":"lighthouse","x":608,"z":544,"yaw":5.607,"padY":18.7,"padR":10,"variant":2,"params":{"height":16,"ruined":0}},
+    {"id":"p5","template":"camp","x":288,"z":192,"yaw":3.403,"padY":10,"padR":14,"variant":1,"params":{"tents":2,"firepit":0}},
+    {"id":"p6","template":"stone-circle","x":-224,"z":352,"yaw":1.716,"padY":13.8,"padR":14,"variant":2,"params":{"stones":11,"fallen":3}},
+    {"id":"p7","template":"radio-tower","x":608,"z":320,"yaw":0.599,"padY":21.1,"padR":8,"variant":1,"params":{"height":31.1,"wires":0}},
+    {"id":"p8","template":"plane","x":-576,"z":192,"yaw":0.227,"padY":15.9,"padR":16,"variant":2,"params":{"debris":20,"heading":6.25}},
+    {"id":"p9","template":"lighthouse","x":608,"z":128,"yaw":5.278,"padY":20.7,"padR":10,"variant":1,"params":{"height":19.700000000000003,"ruined":1}},
+    {"id":"p10","template":"camp","x":-672,"z":672,"yaw":2.006,"padY":8.3,"padR":14,"variant":2,"params":{"tents":1,"firepit":1}},
+    {"id":"p11","template":"stone-circle","x":256,"z":-416,"yaw":5.448,"padY":18.5,"padR":14,"variant":0,"params":{"stones":11,"fallen":2}},
+    {"id":"p12","template":"radio-tower","x":64,"z":-384,"yaw":4.27,"padY":53.4,"padR":8,"variant":0,"params":{"height":25.6,"wires":0}},
+    {"id":"p13","template":"plane","x":-192,"z":-448,"yaw":1.251,"padY":20,"padR":16,"variant":0,"params":{"debris":15,"heading":4.14}}
+  ]
 }

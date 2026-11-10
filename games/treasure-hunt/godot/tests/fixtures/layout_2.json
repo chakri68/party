@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "seed": 2,
   "macro": {
     "origin": -960, "cell": 32, "size": 61,
@@ -131,5 +131,18 @@
     ]
   },
   "ring": ["mountain","mountain","mountain","mountain"],
-  "spawn": {"x":-127,"z":24,"yaw":-1.3840225222521778}
+  "spawn": {"x":-127,"z":24,"yaw":-1.3840225222521778},
+  "pieces": [
+    {"id":"p0","template":"camp","x":-576,"z":-480,"yaw":6.243,"padY":9.5,"padR":14,"variant":0,"params":{"tents":3,"firepit":0}},
+    {"id":"p1","template":"radio-tower","x":512,"z":-64,"yaw":1.174,"padY":23.7,"padR":8,"variant":1,"params":{"height":22.400000000000002,"wires":1}},
+    {"id":"p2","template":"stone-circle","x":160,"z":640,"yaw":3.443,"padY":16.6,"padR":14,"variant":0,"params":{"stones":12,"fallen":2}},
+    {"id":"p3","template":"plane","x":-384,"z":640,"yaw":1.093,"padY":24.9,"padR":16,"variant":1,"params":{"debris":24,"heading":2.27}},
+    {"id":"p4","template":"camp","x":-224,"z":-352,"yaw":1.582,"padY":16.5,"padR":14,"variant":2,"params":{"tents":3,"firepit":1}},
+    {"id":"p5","template":"radio-tower","x":-448,"z":224,"yaw":5.262,"padY":43.9,"padR":8,"variant":0,"params":{"height":28.1,"wires":1}},
+    {"id":"p6","template":"stone-circle","x":512,"z":-544,"yaw":5.172,"padY":28.6,"padR":14,"variant":2,"params":{"stones":11,"fallen":0}},
+    {"id":"p7","template":"plane","x":-192,"z":512,"yaw":2.715,"padY":17.5,"padR":16,"variant":2,"params":{"debris":26,"heading":1.76}},
+    {"id":"p8","template":"camp","x":384,"z":672,"yaw":6.113,"padY":25.6,"padR":14,"variant":1,"params":{"tents":2,"firepit":1}},
+    {"id":"p9","template":"radio-tower","x":0,"z":-32,"yaw":1.667,"padY":18.4,"padR":8,"variant":2,"params":{"height":33.4,"wires":1}},
+    {"id":"p10","template":"stone-circle","x":-672,"z":96,"yaw":4.407,"padY":14.6,"padR":14,"variant":1,"params":{"stones":9,"fallen":0}}
+  ]
 }

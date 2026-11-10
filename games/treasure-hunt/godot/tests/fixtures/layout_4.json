@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "seed": 4,
   "macro": {
     "origin": -960, "cell": 32, "size": 61,
@@ -131,5 +131,18 @@
     ]
   },
   "ring": ["mountain","sea","sea","mountain"],
-  "spawn": {"x":-411,"z":-423,"yaw":-2.3705819865812705}
+  "spawn": {"x":-411,"z":-423,"yaw":-2.3705819865812705},
+  "pieces": [
+    {"id":"p0","template":"shipwreck","x":-192,"z":640,"yaw":5.063,"padY":3.8,"padR":14,"variant":1,"params":{"length":19.900000000000002,"buried":0.33,"tilt":-5}},
+    {"id":"p1","template":"plane","x":64,"z":416,"yaw":2.391,"padY":14.7,"padR":16,"variant":0,"params":{"debris":22,"heading":4.15}},
+    {"id":"p2","template":"stone-circle","x":384,"z":576,"yaw":1.036,"padY":16.1,"padR":14,"variant":2,"params":{"stones":10,"fallen":1}},
+    {"id":"p3","template":"camp","x":480,"z":-288,"yaw":0.626,"padY":18.9,"padR":14,"variant":1,"params":{"tents":2,"firepit":1}},
+    {"id":"p4","template":"lighthouse","x":640,"z":-416,"yaw":2.148,"padY":16.4,"padR":10,"variant":2,"params":{"height":17.400000000000002,"ruined":0}},
+    {"id":"p5","template":"radio-tower","x":384,"z":352,"yaw":4.084,"padY":18.2,"padR":8,"variant":2,"params":{"height":22.900000000000002,"wires":0}},
+    {"id":"p6","template":"plane","x":-32,"z":-256,"yaw":3.315,"padY":18.2,"padR":16,"variant":1,"params":{"debris":25,"heading":0.54}},
+    {"id":"p7","template":"stone-circle","x":-672,"z":-576,"yaw":2.21,"padY":16.1,"padR":14,"variant":1,"params":{"stones":11,"fallen":0}},
+    {"id":"p8","template":"camp","x":576,"z":-160,"yaw":4.212,"padY":24.5,"padR":14,"variant":0,"params":{"tents":2,"firepit":1}},
+    {"id":"p9","template":"lighthouse","x":-640,"z":640,"yaw":6.034,"padY":11.2,"padR":10,"variant":0,"params":{"height":21.3,"ruined":0}},
+    {"id":"p10","template":"radio-tower","x":608,"z":608,"yaw":0.403,"padY":17.4,"padR":8,"variant":1,"params":{"height":33.4,"wires":1}}
+  ]
 }
