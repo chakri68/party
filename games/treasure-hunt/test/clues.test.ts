@@ -7,6 +7,7 @@ import {
   START_MIN,
   TEMPLATES,
   generateLayout,
+  macroHeight,
   pieceLabel,
   rng,
   shadowTip,
@@ -19,7 +20,7 @@ import {
 } from "../shared/index.ts";
 import { makeHunt, type HuntSky } from "../server/hunt.ts";
 import { cacheSpots, type Cache, type CacheSpot } from "../server/caches.ts";
-import { SHADOW_MINOR_GAP, clueTexts, shadowSpots } from "../server/clues.ts";
+import { SHADOW_MINOR_GAP, clueTexts, groundTip, shadowSpots } from "../server/clues.ts";
 import { photoCam } from "../server/photos.ts";
 
 const LANDMARK_FILLER = /^[A-Z][^.]*\.$/;
@@ -72,7 +73,7 @@ function checkClue(l: TreasureLayout, c: Cache, clue: string, sky: HuntSky): Kin
     expect(min).toBeLessThanOrEqual(sky.startMin + sky.minutes);
     expect(`${sh[2]}:${sh[3]}`).toBe(`${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`);
     expect(sunAt(min).el).toBeGreaterThanOrEqual(SHADOW_MIN_EL);
-    const tip = shadowTip(p, TEMPLATES[p.template].top!(p.params), min)!;
+    const tip = groundTip(l, p, TEMPLATES[p.template].top!(p.params), min)!;
     expect(Math.hypot(tip.x - c.x, tip.z - c.z)).toBeLessThan(1e-9);
     expect(Math.hypot(c.x - p.x, c.z - p.z)).toBeLessThanOrEqual(SHADOW_MAX);
     return "shadow";
@@ -213,7 +214,7 @@ describe("shadow clues", () => {
 
   it("drops a tip that lands on another piece's pad or at a minor point", () => {
     const one: HuntSky = { startMin: 600, minutes: 0 };
-    const tip = shadowTip(p, TEMPLATES.lighthouse.top!(p.params), 600)!;
+    const tip = groundTip(l, p, TEMPLATES.lighthouse.top!(p.params), 600)!;
     expect(shadowSpots(l, one, rng(1)).some((s) => s.source === p.id)).toBe(true);
     // Move another piece so its pad edge is just past the tip, inside the 1 m gap.
     const other = l.pieces.find((q) => q.id !== p.id)!;
@@ -250,8 +251,65 @@ describe("shadow clues", () => {
     expect(tips.length).toBeGreaterThan(0);
     for (const s of tips) {
       const q = l.pieces.find((x) => x.id === s.source)!;
-      const tip = shadowTip(q, TEMPLATES[q.template].top!(q.params), s.shadowMin!)!;
+      const tip = groundTip(l, q, TEMPLATES[q.template].top!(q.params), s.shadowMin!)!;
       expect(Math.hypot(tip.x - s.x, tip.z - s.z)).toBeLessThan(1e-9);
+    }
+  });
+
+  // Review M1: the tip is where the ray from the top meets the ground, not the pad's plane.
+  it("60 seeds by day: the ray from the top meets the ground within 0.5 m of the tip", () => {
+    let n = 0;
+    let moved = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const g = generateLayout(seed);
+      for (const s of shadowSpots(g, DAY, rng(seed))) {
+        n++;
+        const p = g.pieces.find((q) => q.id === s.source)!;
+        const top = TEMPLATES[p.template].top!(p.params);
+        const { el } = sunAt(s.shadowMin!);
+        const len = Math.hypot(s.x - p.x, s.z - p.z);
+        const ray = p.padY + top - len * Math.tan((el * Math.PI) / 180);
+        expect(Math.abs(ray - macroHeight(g, s.x, s.z)), `seed ${seed} ${p.id}`).toBeLessThanOrEqual(0.5);
+        expect(len).toBeLessThanOrEqual(SHADOW_MAX);
+        const flat = shadowTip(p, top, s.shadowMin!)!;
+        if (Math.hypot(flat.x - s.x, flat.z - s.z) > 1) moved++;
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+    // The ground isn't the pad's plane, so plenty of tips move.
+    expect(moved).toBeGreaterThan(10);
+  });
+
+  it("no tip when the ground climbs over the ray", () => {
+    const top = TEMPLATES.lighthouse.top!(p.params);
+    expect(groundTip(l, p, top, 600)).not.toBeNull();
+    const hill = structuredClone(l);
+    hill.macro.heights = hill.macro.heights.map(() => Math.round((p.padY + top + 20) * 10));
+    expect(groundTip(hill, p, top, 600)).toBeNull();
+  });
+});
+
+describe("Race shadow clues", () => {
+  const RACE: HuntSky = { ...DAY, race: true };
+
+  it("Race names a time in the first half of the window; Timed uses all of it", () => {
+    const race = new Set<number>();
+    const timed = new Set<number>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = generateLayout(seed);
+      for (const s of shadowSpots(g, RACE, rng(seed))) race.add(s.shadowMin!);
+      for (const s of shadowSpots(g, DAY, rng(seed))) timed.add(s.shadowMin!);
+    }
+    expect(Math.min(...race)).toBeGreaterThanOrEqual(DAY.startMin);
+    expect(Math.max(...race)).toBeLessThanOrEqual(DAY.startMin + Math.floor(DAY.minutes / 2));
+    expect(Math.max(...timed)).toBeGreaterThan(DAY.startMin + Math.floor(DAY.minutes / 2));
+  });
+
+  it("a Race hunt's shadow caches keep to the first half too", () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      for (const c of makeHunt(seed, RACE).caches) {
+        if (c.shadowMin !== undefined) expect(c.shadowMin).toBeLessThanOrEqual(DAY.startMin + 30);
+      }
     }
   });
 });

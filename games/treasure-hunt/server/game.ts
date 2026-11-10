@@ -597,7 +597,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const parsed = parseTHSettings(settings) ?? DEFAULT_SETTINGS;
     const s = ctx.randomInt(2 ** 31);
     const startMin = startMinOf(parsed.time, s);
-    const { layout, caches } = makeHunt(s, { startMin, minutes: parsed.minutes });
+    const { layout, caches } = makeHunt(s, { startMin, minutes: parsed.minutes, race: parsed.mode === "race" });
     const state: THState = {
       phase: "teams",
       seed: layout.seed,

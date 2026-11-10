@@ -8,7 +8,8 @@
 // Light clues (lamp, shadow) only go out when they'll be true during the
 // round's clock window, so every clue builder takes the sky.
 
-import { LAMP_REACH, SHADOW_MIN_EL, SHADOW_STEP, clockText, darkWithin, shadowTip, sunAt } from "../shared/sky.ts";
+import { macroHeight } from "../shared/generate.ts";
+import { LAMP_REACH, SHADOW_MAX, SHADOW_MIN_EL, SHADOW_STEP, clockText, darkWithin, shadowTip, sunAt } from "../shared/sky.ts";
 import type { Rng } from "../shared/noise.ts";
 import { TEMPLATES, pieceLabel, worldLamp, worldSlot } from "../shared/templates.ts";
 import type { PhotoCam, SetPiece, TreasureLayout } from "../shared/types.ts";
@@ -47,22 +48,63 @@ function clearTip(l: TreasureLayout, t: { x: number; z: number }): boolean {
   return !l.minor.some((m) => Math.hypot(t.x - m.x, t.z - m.z) <= SHADOW_MINOR_GAP);
 }
 
+/** Fixed-point passes that move a shadow tip from the pad's plane onto the ground. */
+export const SHADOW_PASSES = 3;
+/** After them, the ray from the top must meet the ground this close to the tip, in metres. */
+export const SHADOW_SETTLE = 0.5;
+
 /**
- * One spot per piece with a `top`: the tip of its shadow at a clock minute in
- * the window, a whole SHADOW_STEP, picked by `r`. A minute whose tip lands on
- * a pad or a minor point is skipped. A piece with no usable minute in the
- * window (sun too low, shadow too long, tip blocked) gives nothing.
+ * Where the shadow of a piece `top` metres over its pad really ends: on the
+ * ground at the tip, not on the pad's plane (shadowTip). The ray from the top
+ * drops tan(el) per metre, so the tip sits at len = (padY + top − ground) /
+ * tan(el), where ground is under the tip, which moves with len: a few passes
+ * from the flat answer settle it. On a slope steeper than the ray they don't
+ * (each pass overshoots the last), so a tip still off by SHADOW_SETTLE is
+ * dropped too. Null then, or when the sun is too low, the shadow too long, or
+ * the ground climbs above the ray (len ≤ 0).
+ */
+export function groundTip(l: TreasureLayout, p: SetPiece, top: number, min: number): { x: number; z: number } | null {
+  const flat = shadowTip(p, top, min);
+  if (!flat) return null;
+  const { az, el } = sunAt(min);
+  const tan = Math.tan((el * Math.PI) / 180);
+  let tip = flat;
+  for (let i = 0; i < SHADOW_PASSES; i++) {
+    const len = (p.padY + top - macroHeight(l, tip.x, tip.z)) / tan;
+    if (!Number.isFinite(len) || len <= 0 || len > SHADOW_MAX) return null;
+    tip = { x: p.x - len * Math.sin((az * Math.PI) / 180), z: p.z + len * Math.cos((az * Math.PI) / 180) };
+  }
+  const len = Math.hypot(tip.x - p.x, tip.z - p.z);
+  return Math.abs(p.padY + top - len * tan - macroHeight(l, tip.x, tip.z)) <= SHADOW_SETTLE ? tip : null;
+}
+
+/**
+ * The clock minutes a shadow clue may name. Race (`sky.race`) only takes the
+ * first half of the window: `minutes` is a cap there, and most races end well
+ * before it, so a later time would be a shadow nobody sees.
+ */
+export function shadowWindow(sky: HuntSky): { from: number; to: number } {
+  return { from: sky.startMin, to: sky.startMin + (sky.race ? Math.floor(sky.minutes / 2) : sky.minutes) };
+}
+
+/**
+ * One spot per piece with a `top`: the tip of its shadow on the ground at a
+ * clock minute in the window, a whole SHADOW_STEP, picked by `r`. A minute
+ * whose tip lands on a pad or a minor point is skipped. A piece with no
+ * usable minute in the window (sun too low, shadow too long, tip blocked)
+ * gives nothing.
  */
 export function shadowSpots(l: TreasureLayout, sky: HuntSky, r: Rng): CacheSpot[] {
   const out: CacheSpot[] = [];
-  const first = Math.ceil(sky.startMin / SHADOW_STEP) * SHADOW_STEP;
+  const { from, to } = shadowWindow(sky);
+  const first = Math.ceil(from / SHADOW_STEP) * SHADOW_STEP;
   for (const p of l.pieces) {
     const top = TEMPLATES[p.template].top?.(p.params);
     if (top === undefined) continue;
     const ok: { m: number; x: number; z: number }[] = [];
-    for (let m = first; m <= sky.startMin + sky.minutes; m += SHADOW_STEP) {
+    for (let m = first; m <= to; m += SHADOW_STEP) {
       if (sunAt(m).el < SHADOW_MIN_EL) continue;
-      const tip = shadowTip(p, top, m);
+      const tip = groundTip(l, p, top, m);
       if (tip && clearTip(l, tip)) ok.push({ m, ...tip });
     }
     if (ok.length === 0) continue;

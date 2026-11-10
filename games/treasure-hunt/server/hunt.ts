@@ -14,6 +14,8 @@ export const CACHE_SEED = 0xcac4e;
 export interface HuntSky {
   startMin: number;
   minutes: number;
+  /** Race: `minutes` is only the cap, so shadow clue times keep to its first half. */
+  race?: boolean;
 }
 
 /**
