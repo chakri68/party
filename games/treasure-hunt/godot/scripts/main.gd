@@ -17,7 +17,7 @@ const SEA_WALK_DEPTH := 1.0
 const SEA_DRIVE_DEPTH := 0.5
 ## Mirrors POS_HZ in shared/world.ts: where you are goes to the server this
 ## often, in countdown and hunting.
-const POS_HZ := 4
+const POS_HZ := 10
 
 @onready var walker: Walker = $Walker
 @onready var rig: RigCamera = $Rig

@@ -263,7 +263,7 @@ func test_pos_stream() -> void:
 	positions.clear()
 	await _frames(120)
 	var n := positions.size()
-	check(absf(n - 8) <= 1, "emitPos fires about 4 times a second (%d in 2 s)" % n)
+	check(absf(n - 20) <= 1, "emitPos fires about 10 times a second (%d in 2 s)" % n)
 	if n > 0:
 		var p: Dictionary = positions[-1]
 		var w := walker.global_position

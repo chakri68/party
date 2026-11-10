@@ -20,6 +20,8 @@ import {
   type THPlayer,
   type THPrivate,
   type THPublic,
+  type THPosRelay,
+  type THReplay,
   type THReveal,
   type THSettings,
   type THTeam,
@@ -37,6 +39,9 @@ import {
   POS_STALE_MS,
   RACE_OPEN_START,
   REVEAL_RADIUS,
+  TRACK_CAP,
+  TRACK_MIN_M,
+  TRACK_MIN_MS,
 } from "../shared/world.ts";
 import { rng } from "../shared/noise.ts";
 import type { Cache } from "./caches.ts";
@@ -98,6 +103,21 @@ export interface THServerPlayer extends THPlayer {
   pos: THPos | null;
   /** When the last too-fast move was seen. Claims wait JUMP_GRACE_MS after it. */
   jumpAt: number;
+  /** Route points: [s since start, x, z], ints. Hunting only, capped at TRACK_CAP. */
+  route: [number, number, number][];
+  /** The last route point's real time and spot. In memory. */
+  routeLast: { at: number; x: number; z: number } | null;
+}
+
+/** A claim, kept for the replay. */
+export interface THFind {
+  cacheId: string;
+  teamId: number;
+  playerId: string;
+  /** Seconds since the start. */
+  t: number;
+  x: number;
+  z: number;
 }
 
 export interface THState {
@@ -112,6 +132,7 @@ export interface THState {
   /** In id order. Every player's teamId is one of these, until they leave in the teams phase. */
   teams: THServerTeam[];
   players: THServerPlayer[];
+  finds: THFind[];
   startedAt: number | null;
   endedAt: number | null;
   endsAt: number | null;
@@ -288,19 +309,35 @@ function hunt(s: THState, ctx: GameContext, events: Events, timers: TimerRequest
   events.push(pub({ type: "hunt-start" }));
 }
 
+/** Hunters' routes, removed ones included, and every find. Spectators never hunted. */
+function replay(s: THState): THReplay {
+  return {
+    durationS: s.startedAt === null || s.endedAt === null ? 0 : Math.round((s.endedAt - s.startedAt) / 1000),
+    tracks: s.players.filter((p) => !p.spectator && p.teamId !== null).map((p) => ({ playerId: p.id, teamId: p.teamId!, points: (p.route ?? []).map((r) => [...r] as [number, number, number]) })),
+    finds: (s.finds ?? []).map((f) => ({ ...f })),
+  };
+}
+
 const out = (state: THState, events: Events, timers: TimerRequest[]): GameTransition<THState, THEvent> => ({ state, events, timers });
 const ok = (state: THState, events: Events, timers: TimerRequest[]): GameResult<THState, THEvent> => ({ ok: true, transition: out(state, events, timers) });
 
 /** Far past the edge ring (±950): anything bigger is junk, not a place. */
 const POS_LIMIT = 2000;
 
-function parsePos(data: unknown): Omit<THPos, "at"> | null {
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+function parsePos(data: unknown): (Omit<THPos, "at"> & { yaw: number; v: string | null }) | null {
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
   if (d.t !== "pos" || typeof d.foot !== "boolean") return null;
   const { x, y, z } = d;
   if (![x, y, z].every((v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= POS_LIMIT)) return null;
-  return { x: x as number, y: y as number, z: z as number, foot: d.foot };
+  // Godot sends the M2 shape until the client catches up: no yaw, no v.
+  const yaw = d.yaw ?? 0;
+  if (typeof yaw !== "number" || !Number.isFinite(yaw)) return null;
+  const v = d.v ?? null;
+  if (v !== null && (typeof v !== "string" || v.length < 1 || v.length > 8)) return null;
+  return { x: x as number, y: y as number, z: z as number, foot: d.foot, yaw, v };
 }
 
 function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext): GameResult<THState, THEvent> {
@@ -326,6 +363,7 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   const t = next.teams.find((x) => x.id === team.id)!;
   t.found.push(cacheId);
   t.lastClaimAt = ctx.now;
+  (next.finds ??= []).push({ cacheId, teamId: team.id, playerId, t: Math.round((ctx.now - (s.startedAt ?? ctx.now)) / 1000), x: Math.round(cache.x), z: Math.round(cache.z) });
   const events: Events = [pub({ type: "claimed", playerId, foundCount: t.found.length })];
   const timers: TimerRequest[] = [];
   if (allDone(next)) finish(next, ctx, events, timers);
@@ -444,7 +482,10 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         teamId: null,
         pos: null,
         jumpAt: NEVER,
+        route: [],
+        routeLast: null,
       })),
+      finds: [],
       startedAt: null,
       endedAt: null,
       endsAt: null,
@@ -508,13 +549,14 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     return out(s, events, timers);
   },
 
-  // 4 Hz per player: a shallow copy, never a structuredClone of the whole map.
+  // 10 Hz per player: a shallow copy, never a structuredClone of the whole map.
   onStream(state, playerId, data, ctx) {
     if (!ctx || (state.phase !== "countdown" && state.phase !== "hunting")) return null;
     const me = state.players.find((p) => p.id === playerId);
     if (!me || me.removed || me.spectator) return null;
-    const next = parsePos(data);
-    if (!next) return null;
+    const snap = parsePos(data);
+    if (!snap) return null;
+    const next = { x: snap.x, y: snap.y, z: snap.z, foot: snap.foot };
     const now = ctx.now;
 
     let jumpAt = me.jumpAt;
@@ -544,11 +586,25 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       relays.push({ to, data });
     }
 
-    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt };
+    // A route point: at most one per TRACK_MIN_MS, and only after TRACK_MIN_M of walking.
+    // `?? []`: rooms saved before the route log.
+    let route = me.route ?? [];
+    let routeLast = me.routeLast ?? null;
+    let point = false;
+    if (state.phase === "hunting" && state.startedAt !== null && route.length < TRACK_CAP) {
+      const last = routeLast;
+      if (!last || (now - last.at >= TRACK_MIN_MS && Math.hypot(next.x - last.x, next.z - last.z) >= TRACK_MIN_M)) {
+        point = true;
+        route = [...route, [Math.round((now - state.startedAt) / 1000), Math.round(next.x), Math.round(next.z)]];
+        routeLast = { at: now, x: next.x, z: next.z };
+      }
+    }
+
+    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, route, routeLast };
     const players = state.players.map((p) => (p.id === playerId ? player : p));
-    if (!relays.length) return { state: { ...state, players }, persist: false };
-    const teams = state.teams.map((t) => (t === team ? { ...t, revealed } : t));
-    return { state: { ...state, players, teams }, relays };
+    const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: snap.foot, v: snap.v };
+    const teams = relays.length ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
+    return { state: { ...state, players, teams }, relay, ...(relays.length ? { relays } : {}), persist: point };
   },
 
   getPublicState: (s) => ({
@@ -559,6 +615,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     startedAt: s.startedAt,
     endsAt: s.endsAt,
     countdownEndsAt: s.countdownEndsAt,
+    replay: s.phase === "finished" ? replay(s) : null,
   }),
 
   getPrivateState(s, playerId) {

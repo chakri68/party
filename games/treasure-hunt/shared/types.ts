@@ -84,6 +84,8 @@ export interface THPublic {
   endsAt: number | null;
   /** When the countdown ends. Set from the countdown on. */
   countdownEndsAt: number | null;
+  /** Only in finished. */
+  replay: THReplay | null;
 }
 
 /** A map pin. Seen by the pinner's team only. x and z rounded to 0.1. */
@@ -123,7 +125,26 @@ export interface THCarry {
 }
 
 /** Client → server, at POS_HZ in countdown and hunting. */
-export type THStreamIn = { t: "pos"; x: number; y: number; z: number; foot: boolean };
+export type THStreamIn = {
+  t: "pos";
+  x: number;
+  y: number;
+  z: number;
+  /** Radians, Godot style. Missing reads as 0. */
+  yaw: number;
+  foot: boolean;
+  /** The id of the vehicle you sit in, 1 to 8 characters. Missing reads as null. */
+  v: string | null;
+};
+/** What everyone else gets: the snapshot rounded to 0.01. The runtime adds `from`. */
+export type THPosRelay = THStreamIn;
+
+/** The round, drawn after it ends (§9). Ints: seconds since the start, and metres. */
+export interface THReplay {
+  durationS: number;
+  tracks: { playerId: string; teamId: number; points: [number, number, number][] }[];
+  finds: { cacheId: string; teamId: number; playerId: string; t: number; x: number; z: number }[];
+}
 /** Server → a whole team, the first time any of its hunters comes within REVEAL_RADIUS of a pool cache. */
 export type THReveal = { t: "reveal"; id: string; x: number; z: number; dy: number };
 

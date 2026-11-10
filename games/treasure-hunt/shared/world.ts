@@ -28,7 +28,7 @@ export const CLAIM_RANGE = 3;
 /** The server accepts a claim this close (XZ): looser than CLAIM_RANGE, for lag. */
 export const CLAIM_CHECK = 6;
 /** How often the client sends its position. */
-export const POS_HZ = 4;
+export const POS_HZ = 10;
 /** A route point is kept at most this often (ms)... */
 export const TRACK_MIN_MS = 1000;
 /** ...and only after moving this far (m). */
