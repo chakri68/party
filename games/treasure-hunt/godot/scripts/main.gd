@@ -1,6 +1,7 @@
 extends Node3D
 ## Puts a playable world together: terrain, sea, walls, the walker, the
-## buggy and the camera. start_world() is the one way in. Locally (editor, desktop run,
+## buggy, the camera, and the hunt on top (caches, compass, the E prompt,
+## the position stream). start_world() is the one way in. Locally (editor, desktop run,
 ## tests) _ready feeds it a fixture; on the web the bridge feeds it the
 ## session's layout, and hears world-ready back. Same seed twice does nothing, so a session that
 ## arrives twice builds once.
@@ -14,6 +15,9 @@ const FALL_LIMIT := 5.0
 ## the wheel hubs (0.48 m) in the buggy.
 const SEA_WALK_DEPTH := 1.0
 const SEA_DRIVE_DEPTH := 0.5
+## Mirrors POS_HZ in shared/world.ts: where you are goes to the server this
+## often, in countdown and hunting.
+const POS_HZ := 4
 
 @onready var walker: Walker = $Walker
 @onready var rig: RigCamera = $Rig
@@ -31,8 +35,21 @@ var world: Node3D ## everything built from the layout; rebuilt on a new seed
 var focus: Node3D
 ## Bodies the fall check watches.
 var watched: Array[Node3D] = []
+## The round's phase, from setPhase. Walker and buggy take input only in
+## hunting. Off-web there's no host to send one, so it starts as hunting and
+## M1's free roam (and its tests) is unchanged; on the web it starts locked
+## and waits for the view.
+var phase: StringName = &"hunting"
+var caches: Caches ## per world, like pieces
+var compass: Compass
+var prompt: PickupPrompt
 
 var _seed := 0
+var _pos_accum := 0.0
+## Reveals and founds that came before there was ground to put them on (an
+## iframe reload: the view re-sends them as soon as we say ready).
+var _pending_reveals: Array[Dictionary] = []
+var _pending_found: Array[String] = []
 
 
 func _ready() -> void:
@@ -45,6 +62,17 @@ func _ready() -> void:
 	avatar.setup(walker, buggy, rig)
 	avatar.mode_changed.connect(func(m: StringName) -> void: focus = buggy if m == &"driving" else walker)
 	bridge.session_started.connect(_on_session)
+	bridge.cache_revealed.connect(reveal_cache)
+	bridge.cache_found.connect(found_cache)
+	bridge.phase_set.connect(set_phase)
+	avatar.claimed.connect(bridge.emit_claim)
+	compass = Compass.new()
+	compass.name = "Compass"
+	$UI.add_child(compass)
+	prompt = PickupPrompt.new()
+	prompt.name = "Prompt"
+	$UI.add_child(prompt)
+	set_phase(&"generating" if OS.has_feature("web") else &"hunting")
 	world_ready.connect(func(ms: int) -> void:
 		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count(), "seed": _seed}))
 	var n := _requested_layout()
@@ -128,9 +156,20 @@ func start_world(layout: Dictionary) -> void:
 	minor.field = field
 	world.add_child(minor)
 	minor.build_all(layout)
+	caches = Caches.new()
+	caches.name = "Caches"
+	caches.field = field
+	world.add_child(caches)
+	for r in _pending_reveals:
+		caches.reveal(r.id, r.x, r.z, r.dy)
+	for id in _pending_found:
+		caches.found(id)
+	_pending_reveals.clear()
+	_pending_found.clear()
 
 	avatar.on_foot()
 	avatar.field = field
+	avatar.caches = caches
 	_place(walker, field.spawn, field.spawn_yaw)
 	walker.process_mode = Node.PROCESS_MODE_INHERIT
 	walker.visible = true
@@ -142,6 +181,28 @@ func start_world(layout: Dictionary) -> void:
 	rig.follow(walker, &"walk")
 	rig.snap()
 	world_ready.emit(Time.get_ticks_msec() - t0)
+
+
+## {id, x, z, dy} from the bridge. Before the world, it waits for one.
+func reveal_cache(r: Dictionary) -> void:
+	if caches == null:
+		_pending_reveals.append(r)
+	else:
+		caches.reveal(r.id, r.x, r.z, r.dy)
+
+
+func found_cache(id: String) -> void:
+	if caches == null:
+		_pending_found.append(id)
+	else:
+		caches.found(id)
+
+
+func set_phase(p: StringName) -> void:
+	phase = p
+	var lock := p != &"hunting"
+	walker.locked = lock
+	buggy.locked = lock
 
 
 ## Parked 6 m to your right, facing the same way, at the highest ground
@@ -168,6 +229,8 @@ func _teardown() -> void:
 	streamer = null
 	pieces = null
 	minor = null
+	caches = null
+	avatar.caches = null
 	field = null
 
 
@@ -200,6 +263,26 @@ func _physics_process(_dt: float) -> void:
 		streamer.ensure_around(focus.global_position)
 	for b in watched:
 		_fall_check(b)
+	_pos_tick(_dt)
+
+
+## Where you are (the walker, or the buggy you're in), POS_HZ times a second,
+## while the round is counting down or on.
+func _pos_tick(dt: float) -> void:
+	if focus == null or (phase != &"countdown" and phase != &"hunting"):
+		_pos_accum = 0.0
+		return
+	_pos_accum += dt
+	if _pos_accum < 1.0 / POS_HZ:
+		return
+	_pos_accum = fmod(_pos_accum, 1.0 / POS_HZ)
+	var p := focus.global_position
+	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "foot": avatar.mode == &"foot"})
+
+
+## The E prompt: shown while there's a cache to pick up and you're on foot.
+func prompt_tick() -> void:
+	prompt.visible = field != null and avatar.claimable() != ""
 
 
 ## The deep-water rule. Where the ground at `p` is more than `depth` under
@@ -231,12 +314,15 @@ func _fall_check(b: Node3D) -> void:
 func _process(_dt: float) -> void:
 	if streamer and focus:
 		streamer.update(focus.global_position)
+	compass.set_yaw(rig.yaw)
+	prompt_tick()
 	if _debug.visible:
 		_debug.text = "%d fps   %d chunks" % [Engine.get_frames_per_second(), streamer.loaded_count() if streamer else 0]
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if field != null and e.is_action_pressed("interact"):
+	# Not before the round's on: no getting a head start in the buggy.
+	if field != null and phase == &"hunting" and e.is_action_pressed("interact"):
 		avatar.interact()
 	elif field != null and e.is_action_pressed("reset_vehicle"):
 		avatar.reset_vehicle()

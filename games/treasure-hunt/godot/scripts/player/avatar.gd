@@ -6,6 +6,8 @@ extends Node
 ## to point the streamer at whatever you're controlling.
 
 signal mode_changed(mode: StringName)
+## E by a cache, on foot. main sends it on as emitClaim.
+signal claimed(id: String)
 
 const ENTER_RANGE := 3.0
 ## In buggy space (-Z forward, +X right): just outside the driver's door,
@@ -26,6 +28,7 @@ var walker: Walker
 var buggy: Buggy
 var camera: RigCamera
 var field: TerrainField ## for the reset's ground height; main sets it per world
+var caches: Caches ## main sets it per world; null, there's nothing to pick up
 
 
 func setup(w: Walker, b: Buggy, c: RigCamera) -> void:
@@ -34,10 +37,16 @@ func setup(w: Walker, b: Buggy, c: RigCamera) -> void:
 	camera = c
 
 
-## Get in if you're by the door, get out if you're driving and there's room.
+## On foot by a cache: pick it up (claimed, and the buggy's left alone).
+## Else get in if you're by the door, get out if you're driving and there's
+## room.
 func interact() -> bool:
 	if mode == &"driving":
 		return _get_out()
+	var id := claimable()
+	if id != "":
+		claimed.emit(id)
+		return true
 	if walker.global_position.distance_to(buggy.to_global(DOOR)) > ENTER_RANGE:
 		return false
 	# Disabled also takes it out of physics (disable_mode REMOVE), so nothing
@@ -51,6 +60,13 @@ func interact() -> bool:
 	camera.follow(buggy, &"drive")
 	_set_mode(&"driving")
 	return true
+
+
+## The cache E would pick up right now, or "". Only on foot.
+func claimable() -> String:
+	if mode != &"foot" or caches == null:
+		return ""
+	return caches.nearest_claimable(walker.global_position)
 
 
 ## Puts the buggy back on its wheels, 1 m over the ground where it is. Only

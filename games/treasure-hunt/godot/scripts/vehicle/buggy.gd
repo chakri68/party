@@ -58,6 +58,8 @@ const STUCK_SPEED := 0.5
 ## Who's in the driver's seat, or null.
 var driver: Node = null
 var input_enabled := true
+## Out of the hunting phase (main sets it): no controls at all, it coasts.
+var locked := false
 ## main.seaward, bound to the buggy's depth: down the seabed where it's too
 ## deep, else zero. Unset, there's no sea rule.
 var seaward := Callable()
@@ -121,6 +123,8 @@ static func _lean(up: Vector3, heading: Vector3) -> Basis:
 func _physics_process(dt: float) -> void:
 	if driver != null and input_enabled:
 		set_control(Input.get_axis("move_left", "move_right"), Input.get_action_strength("move_forward"), Input.get_action_strength("move_back"))
+	if locked:
+		set_control(0, 0, 0)
 
 	var fwd := flat_forward(global_basis)
 	var right := Vector3(-fwd.z, 0, fwd.x)

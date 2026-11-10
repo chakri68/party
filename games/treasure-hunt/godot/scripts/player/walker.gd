@@ -24,6 +24,9 @@ const SCRAMBLE_MIN := 0.3
 const SCRAMBLE_REACH := 0.35
 
 var input_enabled := true
+## Out of the hunting phase (main sets it): no moving from any input, the
+## keyboard or set_move. Gravity still works, so you stay on the ground.
+var locked := false
 var look_yaw := 0.0
 ## main.seaward, bound to your wading depth: down the seabed where it's too
 ## deep, else zero. Unset (tests on their own), there's no sea rule.
@@ -104,6 +107,8 @@ func cancel_scramble() -> void:
 func _physics_process(dt: float) -> void:
 	if input_enabled:
 		set_move(Input.get_vector("move_left", "move_right", "move_back", "move_forward"), Input.is_action_pressed("run"), Input.is_action_pressed("jump"))
+	if locked:
+		set_move(Vector2.ZERO, false, false)
 
 	if is_scrambling():
 		_step_scramble(dt)

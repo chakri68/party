@@ -46,7 +46,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	for path in ["res://tests/terrain_tests.gd", "res://tests/stream_tests.gd", "res://tests/walker_tests.gd", "res://tests/buggy_tests.gd", "res://tests/sea_tests.gd", "res://tests/piece_tests.gd", "res://tests/minor_tests.gd"]:
+	for path in ["res://tests/terrain_tests.gd", "res://tests/stream_tests.gd", "res://tests/walker_tests.gd", "res://tests/buggy_tests.gd", "res://tests/sea_tests.gd", "res://tests/piece_tests.gd", "res://tests/minor_tests.gd", "res://tests/hunt_tests.gd"]:
 		# load(), not preload: a suite that doesn't compile fails the run
 		# here instead of killing _run and leaving the tree up for ever.
 		var suite: GDScript = load(path)
