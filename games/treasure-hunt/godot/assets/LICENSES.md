@@ -4,6 +4,9 @@
 | --- | --- | --- | --- | --- |
 | Car Kit | Kenney (kenney.nl) | https://kenney.nl/assets/car-kit | CC0 1.0 | 3.1 |
 | Nature Kit | Kenney (kenney.nl) | https://kenney.nl/assets/nature-kit | CC0 1.0 | 2.1 |
+| Castle Kit | Kenney (kenney.nl) | https://kenney.nl/assets/castle-kit | CC0 1.0 | 2.0 |
+| Fantasy Town Kit | Kenney (kenney.nl) | https://kenney.nl/assets/fantasy-town-kit | CC0 1.0 | 2.0 |
+| Survival Kit | Kenney (kenney.nl) | https://kenney.nl/assets/survival-kit | CC0 1.0 | 2.0 |
 
 CC0 means credit isn't required. It's given anyway.
 
@@ -27,3 +30,61 @@ Both meshes were baked by Blind Rally's `tools/bake_assets.gd` and copied from `
 | `campfire_stones.glb`, `campfire_logs.glb` | the camp fire pit |
 | `log.glb` | the camp's log seat |
 | `log_large.glb` | a spare log at the camp |
+| `cliff_block_rock.glb`, `cliff_blockHalf_rock.glb`, `cliff_cave_rock.glb` | cliff and cave pieces (M4b) |
+| `rock_smallFlatA.glb`, `rock_smallB.glb` | small rocks (M4b) |
+| `log_stack.glb` | a stack of logs (M4b) |
+
+These six came from the kit's `Models/GLTF format/` folder.
+
+**Fantasy Town Kit** → `kenney_town-kit/`, from the kit's `Models/GLB format/`. The models share one texture atlas. The glbs point at `Textures/colormap.png`, which is copied with them. `PieceKit.kenney()` takes them as `"<kit>/<model>"`.
+
+| File | Used for |
+| --- | --- |
+| `windmill.glb` | M4b set pieces |
+| `blade.glb` | M4b set pieces |
+| `wall-wood.glb` | M4b set pieces |
+| `wall-wood-broken.glb` | M4b set pieces |
+| `wall-wood-doorway-square.glb` | M4b set pieces |
+| `roof-gable.glb` | M4b set pieces |
+| `fence.glb` | M4b set pieces |
+| `fence-broken.glb` | M4b set pieces |
+| `cart.glb` | M4b set pieces |
+| `fountain-round.glb` | M4b set pieces |
+| `hedge.glb` | M4b set pieces |
+| `lantern.glb` | M4b set pieces |
+| `pillar-wood.glb` | M4b set pieces |
+| `planks.glb` | M4b set pieces |
+| `stairs-wood.glb` | M4b set pieces |
+
+**Castle Kit** → `kenney_castle-kit/`, from the kit's `Models/GLB format/`. The models share one texture atlas. The glbs point at `Textures/colormap.png`, which is copied with them. `PieceKit.kenney()` takes them as `"<kit>/<model>"`.
+
+| File | Used for |
+| --- | --- |
+| `tower-square-base.glb` | M4b set pieces |
+| `tower-square-mid.glb` | M4b set pieces |
+| `tower-square-top.glb` | M4b set pieces |
+| `wall-half.glb` | M4b set pieces |
+| `rocks-large.glb` | M4b set pieces |
+| `rocks-small.glb` | M4b set pieces |
+| `siege-trebuchet.glb` | M4b set pieces |
+| `siege-trebuchet-demolished.glb` | M4b set pieces |
+| `siege-catapult.glb` | M4b set pieces |
+| `siege-catapult-demolished.glb` | M4b set pieces |
+| `siege-ballista.glb` | M4b set pieces |
+| `siege-ballista-demolished.glb` | M4b set pieces |
+| `flag-banner-long.glb` | M4b set pieces |
+
+**Survival Kit** → `kenney_survival-kit/`, from the kit's `Models/GLB format/`. The models share one texture atlas. The glbs point at `Textures/colormap.png`, which is copied with them. `PieceKit.kenney()` takes them as `"<kit>/<model>"`.
+
+| File | Used for |
+| --- | --- |
+| `box-large.glb` | M4b set pieces |
+| `barrel.glb` | M4b set pieces |
+| `structure-canvas.glb` | M4b set pieces |
+| `structure.glb` | M4b set pieces |
+| `campfire-fishing-stand.glb` | M4b set pieces |
+| `signpost.glb` | M4b set pieces |
+| `tool-pickaxe.glb` | M4b set pieces |
+| `tool-shovel.glb` | M4b set pieces |
+| `resource-stone-large.glb` | M4b set pieces |
+| `bucket.glb` | M4b set pieces |

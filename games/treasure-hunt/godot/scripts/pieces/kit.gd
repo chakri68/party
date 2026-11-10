@@ -1,7 +1,7 @@
 class_name PieceKit
 extends RefCounted
 ## Builds the set pieces of templates.ts (spec §5): greybox primitives, a few
-## Kenney nature-kit meshes, and simple colliders on layer 1. Each template's
+## Kenney kit meshes (nature, castle, town, survival), and simple colliders on layer 1. Each template's
 ## script follows the geometry noted beside it in templates.ts, because that's
 ## what its cache slots assume. Get it wrong and a cache spawns inside a wall.
 ##
@@ -30,7 +30,7 @@ const COLOURS := {
 	"red": Color("#c8463c"), "white": Color("#e8e4dc"), "blue": Color("#3c6ec8"),
 	"green": Color("#4c8c4a"), "black": Color("#2a2a2a"), "yellow": Color("#e0b83a"),
 	"orange": Color("#e07a2e"), "grey": Color("#8a8a86"), "dark": Color("#55534f"),
-	"sandy": Color("#c2a878"),
+	"sandy": Color("#c2a878"), "brown": Color("#8a5a34"),
 }
 
 ## Trim that isn't a label.
@@ -38,7 +38,9 @@ const WOOD := Color("#7a5a3a")
 const METAL := Color("#3c3c3a")
 const CONCRETE := Color("#a8a49c")
 
-const KENNEY := "res://assets/kenney_nature-kit/%s.glb"
+## "<kit>/<model>" → glb. A bare name is the nature kit.
+const KENNEY := "res://assets/kenney_%s-kit/%s.glb"
+const KITS := ["nature", "castle", "town", "survival"]
 
 static var _mats := {}
 static var _lamp_keys: Array[String] = []
@@ -158,11 +160,44 @@ static func kenney(parent: Node3D, file: String, pos: Vector3, size: Vector3, ya
 
 static func _kenney_mesh(file: String) -> Mesh:
 	if not _meshes.has(file):
-		var scene: Node = (load(KENNEY % file) as PackedScene).instantiate()
-		var mi := scene.find_children("*", "MeshInstance3D", true, false)
-		_meshes[file] = (mi[0] as MeshInstance3D).mesh if mi.size() > 0 else (scene as MeshInstance3D).mesh
+		var kit := "nature"
+		var model := file
+		if file.contains("/"):
+			kit = file.get_slice("/", 0)
+			model = file.get_slice("/", 1)
+		if not KITS.has(kit):
+			push_error("PieceKit: no kit '%s'" % kit)
+			return null
+		var scene: Node = (load(KENNEY % [kit, model]) as PackedScene).instantiate()
+		var found := scene.find_children("*", "MeshInstance3D", true, false)
+		if scene is MeshInstance3D:
+			found.append(scene)
+		_meshes[file] = _merged(scene, found)
 		scene.free()
 	return _meshes[file]
+
+
+## One mesh from every MeshInstance3D under `root`, each surface moved by its
+## node's transform. A lone mesh is returned as it is.
+static func _merged(root: Node, found: Array[Node]) -> Mesh:
+	if found.size() == 1:
+		return (found[0] as MeshInstance3D).mesh
+	var out := ArrayMesh.new()
+	for n: MeshInstance3D in found:
+		var xf := Transform3D.IDENTITY
+		var cur: Node = n
+		while cur != null and cur != root:
+			xf = (cur as Node3D).transform * xf
+			cur = cur.get_parent()
+		if n == root:
+			xf = Transform3D.IDENTITY
+		for i in n.mesh.get_surface_count():
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			st.append_from(n.mesh, i, xf)
+			st.set_material(n.mesh.surface_get_material(i))
+			st.commit(out)
+	return out
 
 
 ## A static body on layer 1 (the world), hearing nothing.

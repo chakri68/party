@@ -46,6 +46,7 @@ func run() -> void:
 		for i in samples.size():
 			await test_sample(tid, i, samples[i])
 	await test_build_all()
+	test_kits()
 	_vp.queue_free()
 	await t.process_frame
 	await test_main_builds_pieces()
@@ -289,6 +290,46 @@ func _aabb_geometry(n: Node) -> AABB:
 
 func _geometry(n: Node) -> Array[Node]:
 	return n.find_children("*", "GeometryInstance3D", true, false)
+
+
+## Every model the M4b set-piece builders may use, as PieceKit.kenney names it.
+const KIT_MODELS := {
+	"town": ["windmill", "blade", "wall-wood", "wall-wood-broken", "wall-wood-doorway-square", "roof-gable", "fence", "fence-broken", "cart", "fountain-round", "hedge", "lantern", "pillar-wood", "planks", "stairs-wood"],
+	"castle": ["tower-square-base", "tower-square-mid", "tower-square-top", "wall-half", "rocks-large", "rocks-small", "siege-trebuchet", "siege-trebuchet-demolished", "siege-catapult", "siege-catapult-demolished", "siege-ballista", "siege-ballista-demolished", "flag-banner-long"],
+	"survival": ["box-large", "barrel", "structure-canvas", "structure", "campfire-fishing-stand", "signpost", "tool-pickaxe", "tool-shovel", "resource-stone-large", "bucket"],
+	"nature": ["cliff_block_rock", "cliff_blockHalf_rock", "cliff_cave_rock", "rock_smallFlatA", "rock_smallB", "log_stack"],
+}
+
+
+func test_kits() -> void:
+	var host := Node3D.new()
+	var bad_size: Array[String] = []
+	var bad_mat: Array[String] = []
+	var n := 0
+	for kit: String in KIT_MODELS:
+		for model: String in KIT_MODELS[kit]:
+			n += 1
+			var name := "%s/%s" % [kit, model]
+			var mi := PieceKit.kenney(host, name, Vector3.ZERO, Vector3.ONE)
+			if mi == null or mi.mesh == null:
+				bad_size.append(name)
+				continue
+			var sz := mi.mesh.get_aabb().size
+			if sz.x <= 0.01 or sz.y <= 0.01 or sz.z <= 0.01:
+				bad_size.append(name)
+			if kit != "nature":
+				var textured := false
+				for i in mi.mesh.get_surface_count():
+					var m := mi.mesh.surface_get_material(i) as BaseMaterial3D
+					textured = textured or (m != null and m.albedo_texture != null)
+				if not textured or mi.material_override != null:
+					bad_mat.append(name)
+	check(n == 44, "test_kits covers 44 models (%d)" % n)
+	check(bad_size.is_empty(), "every kit model loads with a mesh above 0.01 on each axis %s" % [bad_size])
+	check(bad_mat.is_empty(), "castle, town and survival models keep a textured material %s" % [bad_mat])
+	check(PieceKit.COLOURS.has("brown"), "COLOURS has brown")
+	check(PieceKit.kenney(host, "rock_smallA", Vector3.ZERO, Vector3.ONE) != null, "a bare name is still the nature kit")
+	host.free()
 
 
 func test_build_all() -> void:
