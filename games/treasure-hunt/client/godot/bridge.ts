@@ -130,6 +130,8 @@ export interface BridgeHandlers {
   started(): void;
   /** It's not going to load. `why` is for the screen; retry() is the way out. */
   failed(why: string): void;
+  /** A key went down inside the iframe (Godot has focus), seen before Godot sees it. */
+  keydown?(e: KeyboardEvent): void;
 }
 
 /** What godot/web/shell.html posts to us while the engine boots. */
@@ -223,6 +225,7 @@ export class GodotBridge {
     }
   };
   private isReady = false;
+  private onKey = (e: KeyboardEvent) => this.handlers.keydown?.(e);
 
   constructor(handlers: BridgeHandlers) {
     this.handlers = handlers;
@@ -292,6 +295,8 @@ export class GodotBridge {
     const attach = () => {
       const w = iframe.contentWindow as (Window & { treasureHuntHost?: HostObject }) | null;
       if (w && this.host && w.treasureHuntHost !== this.host) w.treasureHuntHost = this.host;
+      // Capture, so Godot can't swallow it. The same listener twice on one window is a no-op.
+      w?.addEventListener("keydown", this.onKey, true);
     };
     // A load is a new document, so any Godot we had is gone. Until the new
     // one calls ready(), there's nobody to send to, and it'll need the session.

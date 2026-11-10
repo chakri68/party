@@ -2,10 +2,12 @@ import { h, type GameClientApi, type GameView, type GameViewProps } from "@games
 import { teamColor } from "../shared/teams.ts";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPos, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
+import { MapCanvas } from "./map/map-canvas.ts";
+import { clickAction, islandView, visibleDots, type Overlay } from "./map/overlays.ts";
 import { TeamsPanel } from "./teams.ts";
 
 // The whole game is the Godot map in an iframe; this file is the frame
@@ -37,10 +39,24 @@ import { TeamsPanel } from "./teams.ts";
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
 // They do get the teams panel above it, so a phone host can still start.
+//
+// The map (countdown and hunting): a minimap bottom-left, 300 m across and
+// centred on the last pos Godot sent, and the whole island on M or the Map
+// button. Others are their last pos relay, dropped after OTHERS_TTL_MS of
+// quiet. M is caught on the iframe's window (Godot has focus) and on ours (the
+// map does, once open). A click on the island drops a pin there, or takes
+// back my own pin if it's within 12 px; both are acts, so a no gets a toast.
 
 const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
 const PHONE = "Treasure Hunt needs a computer with a keyboard and mouse.";
 const TOAST_MS = 3000;
+const MAP_HINT = "Click to drop a pin. Click your own pin to remove it. M or Esc to close.";
+/** A player we haven't heard from in this long is off the map. */
+const OTHERS_TTL_MS = 5000;
+const MINI_PX = 180;
+const MINI_ACROSS = 300;
+/** At most 10 redraws a second, the pos stream's own rate. */
+const MAP_REDRAW_MS = 100;
 
 const CLAIM_ERRORS: Record<string, string> = {
   "in-vehicle": "Get out of the buggy first.",
@@ -266,6 +282,17 @@ export class ActLog {
 /** Seat id → name, for the teams panel. */
 const seatNames = (seats: readonly { id: string; name: string }[]) => Object.fromEntries(seats.map((s) => [s.id, s.name]));
 
+/** Draw on a square canvas `css` px across, sharp at the screen's pixel ratio. */
+function paint(canvas: HTMLCanvasElement, css: number, draw: (ctx: CanvasRenderingContext2D) => void) {
+  const dpr = devicePixelRatio || 1;
+  const px = Math.round(css * dpr);
+  if (canvas.width !== px) canvas.width = canvas.height = px;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(px / css, 0, 0, px / css, 0, 0);
+  draw(ctx);
+}
+
 /** A touch screen with no mouse or trackpad to go with it. */
 function touchOnly(): boolean {
   return matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
@@ -288,9 +315,14 @@ export class TreasureHuntView implements GameView {
   private stage = h("div", { class: "th-stage" });
   private help = h("p", { class: "th-help" }, HELP);
   private end = h("button", { type: "button", class: "th-end", hidden: true }, "End round");
-  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.score, this.hud.race, this.hud.timer, this.hud.toggle, this.end));
+  private mapBtn = h("button", { type: "button", class: "th-map-toggle", "aria-pressed": "false", hidden: true }, "Map");
+  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.score, this.hud.race, this.hud.timer, this.mapBtn, this.hud.toggle, this.end));
   private msg = h("p", { class: "th-msg", role: "alert" });
   private toast = h("p", { class: "th-toast", role: "status", "aria-live": "polite", hidden: true });
+  private mini = h("canvas", { class: "th-minimap", "aria-hidden": "true", hidden: true });
+  private mapCanvas = h("canvas", { class: "th-map-canvas" });
+  private mapBox = h("div", { class: "th-map-box" }, this.mapCanvas, h("p", { class: "th-map-hint" }, MAP_HINT));
+  private mapEl = h("div", { class: "th-map", role: "dialog", "aria-label": "Map of the island", tabindex: "-1", hidden: true }, this.mapBox);
   private root: HTMLElement;
 
   /** The seed Godot last said world-ready for. */
@@ -302,6 +334,17 @@ export class TreasureHuntView implements GameView {
   private acts = new ActLog();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
+  private mapTicker: ReturnType<typeof setInterval> | undefined;
+  /** The last pos Godot sent: my own spot on the map. */
+  private myPos: GodotPos | null = null;
+  /** Everyone else's last pos relay, and when it came (performance.now()). */
+  private others = new Map<string, { x: number; z: number; at: number }>();
+  /** Painted on first use, again for a new seed. */
+  private base: MapCanvas | null = null;
+  private mapOpen = false;
+  /** The map is up: countdown or hunting, with the world built. */
+  private live = false;
+  private onDocKey = (e: KeyboardEvent) => this.onKey(e);
 
   constructor(api: GameClientApi) {
     this.api = api;
@@ -322,7 +365,11 @@ export class TreasureHuntView implements GameView {
         this.builtSeed = s.seed;
         this.render();
       },
-      pos: (p) => this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, yaw: p.yaw, foot: p.foot, v: p.v }),
+      keydown: (e) => this.onKey(e),
+      pos: (p) => {
+        this.myPos = p;
+        this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, yaw: p.yaw, foot: p.foot, v: p.v });
+      },
       claim: (id) => {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
@@ -332,12 +379,19 @@ export class TreasureHuntView implements GameView {
     });
     this.feed = new GodotFeed((calls) => this.bridge.call(calls));
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
+    this.mapBtn.addEventListener("click", () => this.setMap(!this.mapOpen));
+    // The dimmed edge closes it; the island takes the click as a pin.
+    this.mapEl.addEventListener("click", (e) => {
+      if (e.target === this.mapEl) this.setMap(false);
+    });
+    this.mapCanvas.addEventListener("click", (e) => this.mapClick(e));
     this.root = this.desktop
       ? h(
           "div",
           { class: "treasure-hunt" },
           this.bar,
-          h("div", { class: "th-view" }, this.stage, this.hud.board, this.hud.count, this.toast, this.loader.el, this.teams.el, this.msg),
+          h("div", { class: "th-view" }, this.stage, this.mini, this.hud.board, this.hud.count, this.toast, this.loader.el, this.teams.el, this.msg),
+          this.mapEl,
         )
       : h("div", { class: "treasure-hunt th-phone" }, this.teams.el, h("p", { class: "th-phone-text" }, PHONE), this.msg);
   }
@@ -348,10 +402,14 @@ export class TreasureHuntView implements GameView {
     void this.bridge.mount(this.stage);
     // The clocks. Four times a second keeps m:ss from skipping a beat.
     this.ticker = setInterval(() => this.tick(), 250);
+    this.mapTicker = setInterval(() => this.drawMaps(), MAP_REDRAW_MS);
+    document.addEventListener("keydown", this.onDocKey);
   }
 
   destroy() {
     clearInterval(this.ticker);
+    clearInterval(this.mapTicker);
+    document.removeEventListener("keydown", this.onDocKey);
     clearTimeout(this.toastTimer);
     this.bridge.dispose();
     this.root.remove();
@@ -364,6 +422,8 @@ export class TreasureHuntView implements GameView {
 
   stream(from: string, data: unknown) {
     this.feed.stream(from, data);
+    const p = parseRemote(from, data);
+    if (p && from !== this.playerId) this.others.set(from, { x: p.x, z: p.z, at: performance.now() });
   }
 
   update(props: GameViewProps) {
@@ -409,8 +469,78 @@ export class TreasureHuntView implements GameView {
     this.end.hidden = game.phase !== "hunting" || this.hostId !== this.playerId;
     if (game.phase === "finished") this.bridge.releasePointer();
     if (game.phase === "hunting" && loaded) this.msg.textContent = "";
+    this.live = loaded && (game.phase === "countdown" || game.phase === "hunting");
+    this.mini.hidden = this.mapBtn.hidden = !this.live;
+    if (!this.live && this.mapOpen) this.setMap(false);
     this.tick();
   }
+
+  /** M toggles the map, Esc closes it. Not while typing, and not held down. */
+  private onKey(e: KeyboardEvent) {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t instanceof HTMLElement && t.closest("input, textarea, select, [contenteditable]")) return;
+    if (e.code === "KeyM" && (this.live || this.mapOpen)) {
+      e.preventDefault();
+      this.setMap(!this.mapOpen);
+    } else if (e.key === "Escape" && this.mapOpen) {
+      e.preventDefault();
+      this.setMap(false);
+    }
+  }
+
+  private setMap(open: boolean) {
+    if (open && !this.live) return;
+    this.mapOpen = open;
+    this.mapEl.hidden = !open;
+    this.mapBtn.setAttribute("aria-pressed", String(open));
+    if (!open) return;
+    this.bridge.releasePointer();
+    // Keys come to us now, not to Godot: no walking off while you read the map.
+    this.mapEl.focus();
+    this.drawMaps();
+  }
+
+  private mapClick(e: MouseEvent) {
+    const game = this.game;
+    if (!this.mapOpen || !this.live || !game) return;
+    const mine = (this.priv?.pins ?? []).filter((p) => p.by === this.playerId);
+    const view = islandView(layoutFor(game.seed), this.mapCanvas.clientWidth);
+    this.acts.add(this.api.act(clickAction({ px: e.offsetX, py: e.offsetY }, mine, view)));
+  }
+
+  /** Pins, then the dots the rules allow, then me. */
+  private overlays(game: THPublic): Overlay[] {
+    const now = performance.now();
+    for (const [id, o] of this.others) if (now - o.at > OTHERS_TTL_MS) this.others.delete(id);
+    const teamOf = (id: string) => {
+      const p = game.players.find((q) => q.id === id);
+      return p && !p.removed ? p.teamId : null;
+    };
+    const hex = (teamId: number | null) => {
+      const t = game.teams.find((q) => q.id === teamId);
+      return t ? teamColor(t.color).hex : "#ffffff";
+    };
+    const myTeam = teamOf(this.playerId);
+    const out: Overlay[] = pinsFor(game, this.priv, this.playerId).list.map((p) => ({ kind: "pin", x: p.x, z: p.z, color: p.color, mine: p.mine }));
+    for (const d of visibleDots(this.myPos, this.others, teamOf, myTeam, this.playerId)) out.push({ kind: "dot", x: d.x, z: d.z, color: hex(d.team), mate: d.mate });
+    if (this.myPos) out.push({ kind: "me", x: this.myPos.x, z: this.myPos.z, yaw: this.myPos.yaw });
+    return out;
+  }
+
+  private drawMaps() {
+    const game = this.game;
+    if (!game || !this.live) return;
+    if (this.base?.seed !== game.seed) this.base = new MapCanvas(layoutFor(game.seed));
+    const overlays = this.overlays(game);
+    const spawn = layoutFor(game.seed).spawn;
+    const c = this.myPos ?? spawn;
+    paint(this.mini, MINI_PX, (ctx) => this.base!.draw(ctx, { cx: c.x, cz: c.z, metresAcross: MINI_ACROSS, w: MINI_PX, h: MINI_PX }, overlays));
+    if (!this.mapOpen) return;
+    const size = this.mapCanvas.clientWidth;
+    if (size > 0) paint(this.mapCanvas, size, (ctx) => this.base!.draw(ctx, islandView(layoutFor(game.seed), size), overlays));
+  }
+
 
   private tick() {
     const game = this.game;

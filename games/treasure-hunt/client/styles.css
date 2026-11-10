@@ -85,6 +85,33 @@
 .th-toast { z-index: 5; }
 .th-toast[hidden] { display: none; }
 
+/* ---- the map ------------------------------------------------------------------
+   The minimap sits bottom-left and lets clicks through to Godot. The full map
+   is a square over everything, min(90vh, 90vw); its dim edge closes it. */
+
+.th-minimap {
+  position: absolute; left: 10px; bottom: 10px; z-index: 2; width: 180px; height: 180px;
+  border: 1.5px solid var(--line); border-radius: 12px; pointer-events: none;
+}
+.th-minimap[hidden] { display: none; }
+/* Keep the error line clear of it. */
+.th-view:has(.th-minimap:not([hidden])) .th-msg { bottom: 200px; }
+
+.th-map { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgb(14 14 12 / 0.6); outline: none; }
+.th-map[hidden] { display: none; }
+.th-map-box {
+  position: relative; width: min(90vh, 90vw); height: min(90vh, 90vw);
+  border: 1.5px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--bg);
+}
+.th-map-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+.th-map-hint {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); margin: 0; padding: 4px 12px;
+  max-width: calc(100% - 24px); width: max-content; border-radius: 10px; background: rgb(14 14 12 / 0.82);
+  color: var(--muted); font-size: 0.85rem; pointer-events: none;
+}
+.th-map-toggle { flex: none; }
+.th-map-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
 /* ---- phones: no map, one plain line ---------------------------------------- */
 
 .th-phone { grid-template-rows: none; place-content: center; padding: 24px 16px; text-align: center; }
