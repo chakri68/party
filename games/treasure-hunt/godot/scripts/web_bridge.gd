@@ -15,6 +15,7 @@ extends Node
 ##   host.vehicles({me, list: [{id, x, y, z, yaw, driver, passenger}]})  full list, every update
 ##   host.pins({list: [{id, x, z, color, mine}]})   my team's pins, full list, every update
 ##   host.skyClock({min, running})          game minutes after midnight; DayClock carries it on
+##   host.photos({list: [{id, x, z, yaw, pitch}]})  my team's photo clue poses; Photos renders new ones
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
@@ -22,6 +23,7 @@ extends Node
 ##   host.emitSeat({vehicleId, seat})      E by a buggy: "driver" or "passenger"
 ##   host.emitUnseat({x, y, z, yaw})       got out; the buggy's pose
 ##   host.emitPin({x, z})                  P: where the camera looks at the ground
+##   host.emitPhoto({id, data})            a photo clue, rendered: base64 JPEG
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Every inbound call
 ## has a receive_*_json seam and every outbound one a *_sent signal, so
@@ -43,12 +45,15 @@ signal vehicles_set(list: Array, me: String)
 signal pins_set(list: Array)
 ## The day clock: minutes after midnight, and whether it's moving.
 signal sky_clock_set(min: float, running: bool)
+## Photo clue poses: [{id, x, z, yaw, pitch}]. Photos checks each one.
+signal photos_set(list: Array)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
 signal seat_sent(seat: Dictionary)
 signal unseat_sent(pose: Dictionary)
 signal pin_sent(pin: Dictionary)
+signal photo_sent(photo: Dictionary)
 
 const HOST_POLL_S := 0.25
 const HOST_POLL_GIVE_UP_S := 20.0
@@ -68,6 +73,7 @@ var _cb_remote: JavaScriptObject
 var _cb_vehicles: JavaScriptObject
 var _cb_pins: JavaScriptObject
 var _cb_sky_clock: JavaScriptObject
+var _cb_photos: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -120,6 +126,8 @@ func _try_attach() -> void:
 	_host.pins = _cb_pins
 	_cb_sky_clock = JavaScriptBridge.create_callback(_on_js.bind(receive_sky_clock_json))
 	_host.skyClock = _cb_sky_clock
+	_cb_photos = JavaScriptBridge.create_callback(_on_js.bind(receive_photos_json))
+	_host.photos = _cb_photos
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -165,6 +173,14 @@ func emit_pin(at: Dictionary) -> void:
 	pin_sent.emit(at)
 	if connected and _host.emitPin:
 		_host.emitPin(_json.parse(JSON.stringify(at)))
+
+
+## A rendered photo clue: {id, data}, data being base64 JPEG.
+func emit_photo(id: String, data: String) -> void:
+	var d := {"id": id, "data": data}
+	photo_sent.emit(d)
+	if connected and _host.emitPhoto:
+		_host.emitPhoto(_json.parse(JSON.stringify(d)))
 
 
 ## The session as JSON text. Every number in it is a float now (JSON has no
@@ -231,6 +247,13 @@ func receive_sky_clock_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and _num(d.get("min")) and d.get("running") is bool:
 		sky_clock_set.emit(float(d.min), d.running)
+
+
+## {list}. Photos checks each pose; this only checks the shape.
+func receive_photos_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and d.get("list") is Array:
+		photos_set.emit(d.list)
 
 
 static func _num(v: Variant) -> bool:

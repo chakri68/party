@@ -60,6 +60,9 @@ var pins: Pins
 ## otherwise (and always off-web), so the look is today's. Lamps and
 ## headlights listen on day_clock.dark_changed.
 var day_clock: DayClock
+## Photo clues, rendered in this world for the page. Outside the world like
+## pins; the ground is set per world.
+var photos: Photos
 ## Sun, moon, ambient, sky and fog, from day_clock every frame.
 var daylight: Daylight
 ## F: your torch. It only lights the world while on (a spot on the camera).
@@ -116,6 +119,11 @@ func _ready() -> void:
 	daylight.setup($Sun, $Moon, env, env.sky.sky_material)
 	daylight.apply(day_clock.minute())
 	bridge.sky_clock_set.connect(day_clock.set_clock)
+	photos = Photos.new()
+	photos.name = "Photos"
+	add_child(photos)
+	bridge.photos_set.connect(photos.set_list)
+	photos.photo_ready.connect(bridge.emit_photo)
 	# A listener that joins after the first frame misses the first dark_changed.
 	day_clock.dark_changed.connect(_on_dark)
 	_on_dark(DayClock.dark_at(day_clock.minute()))
@@ -230,6 +238,7 @@ func start_world(layout: Dictionary) -> void:
 	focus = walker
 	fleet.set_field(field)
 	pins.set_field(field)
+	photos.set_world(field, streamer)
 	if not fleet.seen:
 		_place(fleet.get_buggy(""), buggy_spawn(), field.spawn_yaw)
 	rig.yaw = field.spawn_yaw
@@ -314,6 +323,7 @@ func _teardown() -> void:
 	field = null
 	fleet.set_field(null)
 	pins.set_field(null)
+	photos.set_world(null, null)
 
 
 ## Hidden and frozen until there's ground to stand on.

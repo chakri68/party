@@ -16,6 +16,8 @@ const MAX_C := 14
 var _field: TerrainField
 var _mat: Material
 var _chunks := {} # Vector2i -> TerrainChunk
+## A photo's spot (hold): chunks within LOAD_RADIUS of it outlive the focus moving off.
+var _held: Variant = null # Vector3 or null
 
 
 func setup(field: TerrainField, mat: Material) -> void:
@@ -58,6 +60,20 @@ func update(at: Vector3) -> void:
 	_unload(at)
 
 
+## Keeps chunks within LOAD_RADIUS of `at` from unloading until release().
+## One point at a time: a second hold moves it.
+func hold(at: Vector3) -> void:
+	_held = at
+
+
+func release() -> void:
+	_held = null
+
+
+func is_held() -> bool:
+	return _held != null
+
+
 func has_chunk(cx: int, cz: int) -> bool:
 	return _chunks.has(Vector2i(cx, cz))
 
@@ -93,9 +109,12 @@ func _missing(at: Vector3) -> Array[Vector2i]:
 func _unload(at: Vector3) -> void:
 	var p := Vector2(at.x, at.z)
 	var r2 := UNLOAD_RADIUS * UNLOAD_RADIUS
+	var held := Vector2(_held.x, _held.z) if _held != null else Vector2.ZERO
+	var keep2 := LOAD_RADIUS * LOAD_RADIUS
 	var gone: Array[Vector2i] = []
 	for k: Vector2i in _chunks:
-		if _centre(k).distance_squared_to(p) > r2:
+		var c := _centre(k)
+		if c.distance_squared_to(p) > r2 and (_held == null or c.distance_squared_to(held) > keep2):
 			gone.append(k)
 	for k in gone:
 		var c: TerrainChunk = _chunks[k]

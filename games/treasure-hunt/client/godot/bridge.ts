@@ -79,6 +79,35 @@ export interface PinAsk {
   z: number;
 }
 
+/** Where a photo clue's camera stands, as Godot needs it. From THPrivate's PhotoCam. */
+export interface PhotoPose {
+  id: string;
+  x: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+}
+
+/** My team's photo clue poses, all of them. Godot renders the ones it hasn't for that pose. */
+export interface PhotosCall {
+  list: PhotoPose[];
+}
+
+/** The sky clock: game minutes after midnight, and whether it's moving. */
+export interface SkyClock {
+  min: number;
+  running: boolean;
+}
+
+/** A photo Godot rendered: base64 JPEG. */
+export interface GodotPhoto {
+  id: string;
+  data: string;
+}
+
+/** A JPEG this long is not one of ours (480 × 270 at 0.75 is far smaller). */
+export const PHOTO_DATA_MAX = 400_000;
+
 /** Another player's pos relay, with who sent it. */
 export type RemotePos = GodotPos & { id: string };
 
@@ -90,7 +119,9 @@ export type BridgeCall =
   | { fn: "roster"; arg: Roster }
   | { fn: "remotePos"; arg: RemotePos }
   | { fn: "vehicles"; arg: Vehicles }
-  | { fn: "pins"; arg: PinsCall };
+  | { fn: "pins"; arg: PinsCall }
+  | { fn: "skyClock"; arg: SkyClock }
+  | { fn: "photos"; arg: PhotosCall };
 
 type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 
@@ -107,6 +138,8 @@ interface HostObject extends GodotFns {
   emitUnseat(p: unknown): void;
   /** Checked with godotPin. */
   emitPin(p: unknown): void;
+  /** Checked with godotPhoto. */
+  emitPhoto(p: unknown): void;
   initSession?(config: SessionConfig): void;
 }
 
@@ -124,6 +157,8 @@ export interface BridgeHandlers {
   unseat(p: UnseatPose): void;
   /** The player pressed P: a pin for this spot. */
   pin(p: PinAsk): void;
+  /** A photo clue, rendered. */
+  photo(p: GodotPhoto): void;
   /** Bytes in so far, from Godot's own preloader. `total` is 0 when it doesn't know. */
   progress(loaded: number, total: number): void;
   /** The engine's downloaded and running; the scene's still coming up. */
@@ -192,6 +227,14 @@ export function godotPin(p: unknown): PinAsk | null {
   const d = p as Record<string, unknown>;
   if (typeof d.x !== "number" || typeof d.z !== "number" || !Number.isFinite(d.x) || !Number.isFinite(d.z)) return null;
   return { x: d.x, z: d.z };
+}
+
+/** What Godot's emitPhoto gave us, checked and copied, or null. */
+export function godotPhoto(p: unknown): GodotPhoto | null {
+  if (!p || typeof p !== "object") return null;
+  const d = p as Record<string, unknown>;
+  if (typeof d.id !== "string" || d.id.length < 1 || typeof d.data !== "string" || d.data.length > PHOTO_DATA_MAX) return null;
+  return { id: d.id, data: d.data };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
@@ -283,6 +326,10 @@ export class GodotBridge {
         const at = godotPin(p);
         if (at) this.handlers.pin(at);
       },
+      emitPhoto: (p) => {
+        const photo = godotPhoto(p);
+        if (photo) this.handlers.photo(photo);
+      },
     };
     const iframe = document.createElement("iframe");
     iframe.className = "th-godot";
@@ -305,7 +352,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins"] as const) delete this.host[k];
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins", "skyClock", "photos"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);
@@ -329,6 +376,16 @@ export class GodotBridge {
     const host = this.host;
     if (!host || !this.isReady) return;
     for (const c of calls) (host[c.fn] as ((arg: unknown) => void) | undefined)?.(c.arg);
+  }
+
+  /** The sky clock, if Godot is up. */
+  skyClock(min: number, running: boolean) {
+    this.call([{ fn: "skyClock", arg: { min, running } }]);
+  }
+
+  /** My team's photo clue poses, if Godot is up. */
+  photos(list: PhotoPose[]) {
+    this.call([{ fn: "photos", arg: { list } }]);
   }
 
   /** Tear the engine down and boot it again from scratch: the failed state's way out. */

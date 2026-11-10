@@ -1,8 +1,8 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
-import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
+import type { Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPos, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -45,7 +45,13 @@ import { TeamsPanel } from "./teams.ts";
 // centred on the last pos Godot sent, and the whole island on M or the Map
 // button. Others are their last pos relay, dropped after OTHERS_TTL_MS of
 // quiet. M is caught on the iframe's window (Godot has focus) and on ours (the
-// map does, once open). A click on the island drops a pin there, or takes
+// map does, once open).
+//
+// The sky: every sync tells Godot the game minute (skyMinute) and whether it
+// runs, so a reload mid-round comes up at the right time, not the start.
+// Photo clues: the poses go to Godot when the clue board changes and on its
+// ready(); it renders each in the world and sends back a JPEG, kept in
+// `photos` by clue id and pose for the board. A click on the island drops a pin there, or takes
 // back my own pin if it's within 12 px; both are acts, so a no gets a toast.
 
 const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
@@ -109,6 +115,56 @@ export function resync(priv: THPrivate | null, phase: Phase, streamed: Iterable<
   return calls;
 }
 
+/** What skyMinute reads. */
+export type SkyState = Pick<THPublic, "phase" | "sky" | "startedAt" | "replay">;
+
+/**
+ * The game minute (after midnight) at `now`, server time. It sits at the start
+ * minute before the hunt, runs one game minute per real one in it, and stops
+ * at the round's length when it's over.
+ */
+export function skyMinute(game: SkyState, now: number): number {
+  const start = game.sky.startMin;
+  if (game.phase === "hunting" && game.startedAt !== null) return start + Math.max(0, now - game.startedAt) / 60_000;
+  if (game.phase === "finished" && game.replay) return start + game.replay.durationS / 60;
+  return start;
+}
+
+/** My team's photo clue poses, in board order. */
+export function photoList(priv: THPrivate | null): PhotoPose[] {
+  const out: PhotoPose[] = [];
+  for (const c of priv?.clues ?? []) if (c.photo) out.push({ id: c.id, x: c.photo.x, z: c.photo.z, yaw: c.photo.yaw, pitch: c.photo.pitch });
+  return out;
+}
+
+/**
+ * The photos Godot rendered, as data URLs, keyed `${id}|${x},${z}`: a clue
+ * whose camera moved is a new photo, and one that went is never shown. Lives
+ * as long as the view, so an iframe reload keeps them.
+ */
+export class PhotoStore {
+  private images = new Map<string, string>();
+
+  static key(id: string, cam: Pick<PhotoCam, "x" | "z">): string {
+    return `${id}|${cam.x},${cam.z}`;
+  }
+
+  get size() {
+    return this.images.size;
+  }
+
+  /** Godot names only the id: the pose is the one on the board now. No camera, no photo. */
+  put(id: string, data: string, priv: THPrivate | null) {
+    const cam = priv?.clues.find((c) => c.id === id)?.photo;
+    if (cam) this.images.set(PhotoStore.key(id, cam), `data:image/jpeg;base64,${data}`);
+  }
+
+  /** The data URL for this clue at this pose, or undefined while it renders. */
+  get(id: string, cam: Pick<PhotoCam, "x" | "z">): string | undefined {
+    return this.images.get(PhotoStore.key(id, cam));
+  }
+}
+
 /** The server's reveal relay, or null. */
 function parseReveal(data: unknown): CacheReveal | null {
   if (!data || typeof data !== "object") return null;
@@ -166,19 +222,26 @@ export class GodotFeed {
   private roster: Roster | null = null;
   private vehicles: Vehicles | null = null;
   private pins: PinsCall | null = null;
+  private sky: SkyState | null = null;
+  /** The photo poses last sent, as JSON: "[]" sends nothing. */
+  private photosSent = "[]";
   /** The last pos Godot sent. */
   private myPos: GodotPos | null = null;
   private send: (calls: BridgeCall[]) => void;
+  private now: () => number;
 
-  constructor(send: (calls: BridgeCall[]) => void) {
+  /** `now` is server time, for the sky clock. */
+  constructor(send: (calls: BridgeCall[]) => void, now: () => number = () => Date.now()) {
     this.send = send;
+    this.now = now;
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
-  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null, pins: PinsCall | null = null) {
+  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null, pins: PinsCall | null = null, sky: SkyState | null = null) {
     this.roster = roster;
     this.vehicles = vehicles;
     this.pins = pins;
+    this.sky = sky;
     // A new map's caches are new ones. (A relay before the first update is kept.)
     if (this.seed !== null && seed !== this.seed) this.streamed.clear();
     this.priv = priv;
@@ -205,12 +268,21 @@ export class GodotFeed {
   }
 
   /**
-   * Everything again: the roster, the buggies, the pins, then the rest. Cheap: a pool
-   * is a handful of caches, and Godot keeps capsules and buggies that didn't change.
+   * Everything again: the roster, the buggies, the pins, the sky clock, then
+   * the rest. Cheap: a pool is a handful of caches, and Godot keeps capsules
+   * and buggies that didn't change. The photo poses go only when they changed,
+   * or on Godot's ready() (`ready`): each one is a render on Godot's side.
    */
-  sync() {
+  sync(ready = false) {
     if (!this.phase) return;
     const calls = resync(this.priv, this.phase, this.streamed.values());
+    const photos = photoList(this.priv);
+    const key = JSON.stringify(photos);
+    if (key !== this.photosSent || (ready && photos.length > 0)) {
+      this.photosSent = key;
+      calls.unshift({ fn: "photos", arg: { list: photos } });
+    }
+    if (this.sky) calls.unshift({ fn: "skyClock", arg: { min: skyMinute(this.sky, this.now()), running: this.sky.phase === "hunting" } });
     if (this.pins) calls.unshift({ fn: "pins", arg: this.pins });
     if (this.vehicles) calls.unshift({ fn: "vehicles", arg: this.withMine(this.vehicles) });
     if (this.roster) calls.unshift({ fn: "roster", arg: this.roster });
@@ -329,6 +401,8 @@ export class TreasureHuntView implements GameView {
 
   private bridge: GodotBridge;
   private feed: GodotFeed;
+  /** Photo clues Godot rendered, for the clue board: photos.get(id, cam). */
+  readonly photos = new PhotoStore();
   private loader: StageLoader;
   private hud = new Hud();
   private teams = new TeamsPanel((a) => this.acts.add(this.api.act(a)));
@@ -373,7 +447,7 @@ export class TreasureHuntView implements GameView {
     this.bridge = new GodotBridge({
       ready: () => {
         this.loader.started();
-        this.feed.sync();
+        this.feed.sync(true);
       },
       progress: (loaded, total) => this.loader.progress(loaded, total),
       started: () => this.loader.started(),
@@ -397,9 +471,13 @@ export class TreasureHuntView implements GameView {
       },
       seat: (s) => this.acts.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
       pin: (p) => this.acts.add(this.api.act({ type: "pin", x: p.x, z: p.z })),
+      photo: (p) => {
+        this.photos.put(p.id, p.data, this.priv);
+        this.tick();
+      },
       unseat: (p) => this.acts.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
     });
-    this.feed = new GodotFeed((calls) => this.bridge.call(calls));
+    this.feed = new GodotFeed((calls) => this.bridge.call(calls), () => this.api.serverNow());
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
     this.mapBtn.addEventListener("click", () => this.setMap(!this.mapOpen));
     // The dimmed edge closes it; the island takes the click as a pin.
@@ -458,7 +536,7 @@ export class TreasureHuntView implements GameView {
     this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId), {
       me: this.playerId,
       list: this.game.vehicles,
-    }, pinsFor(this.game, this.priv, this.playerId));
+    }, pinsFor(this.game, this.priv, this.playerId), this.game);
     this.claims.update(this.priv, this.game.seed);
     if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();
