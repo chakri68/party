@@ -1,7 +1,8 @@
 extends RefCounted
-## Minor points (minor.ts): rock piles, fallen logs and old campfires. Each
-## kind, built at the origin on a flat floor at several turns, leaves its one
-## cache slot at local (1.2, 0) open, as the piece slots are. Then
+## Minor points (minor.ts): rock piles, fallen logs, old campfires, sheds,
+## barrels, signposts, woodpiles and carts. Each kind, built at the origin on
+## a flat floor at several turns, leaves its one cache slot open, as the
+## piece slots are. Then
 ## MinorPoints.build_all over layout_1, and main building it.
 ## Run from run_tests.gd, with its helpers and its pass/fail count.
 
@@ -11,8 +12,14 @@ const RADIUS := 0.35
 const HEIGHT := 1.8
 const LIFT := 0.05
 const DY_TOL := 0.3
-## MINOR_SLOT in minor.ts: the same spot for every kind.
-const SLOT := Vector3(1.2, 0, 0)
+## MINOR_SLOT in minor.ts, by kind.
+const SLOTS := {
+	"rocks": Vector3(1.2, 0, 0), "log": Vector3(1.2, 0, 0), "campfire": Vector3(1.2, 0, 0),
+	"shed": Vector3(2.2, 0, 0), "barrels": Vector3(1.2, 0, 0), "signpost": Vector3(1.2, 0, 0),
+	"woodpile": Vector3(1.5, 0, 0), "cart": Vector3(1.4, 0, 0),
+}
+## The signpost post is too thin to block anyone, so it has no collider.
+const NO_COLLIDER := ["signpost"]
 const YAWS := [0.0, 1.0, 2.5, 4.4]
 
 var _vp: SubViewport
@@ -33,7 +40,7 @@ func run() -> void:
 	_space = _vp.find_world_3d().direct_space_state
 	var ground := _space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(10, 2, 10), Vector3(10, -1, 10), 1))
 	check(ground and absf(ground.position.y) < 0.01, "the queries see the test floor")
-	for kind: String in ["rocks", "log", "campfire"]:
+	for kind: String in SLOTS:
 		for i in 3:
 			for yaw: float in YAWS:
 				await test_slot(kind, "m%d" % i, yaw)
@@ -71,7 +78,8 @@ func test_slot(kind: String, id: String, yaw: float) -> void:
 	await t.physics_frame
 	await t.physics_frame
 	var shapes := node.find_children("*", "CollisionShape3D", true, false)
-	check(shapes.size() > 0, "%s: has a collider (%d)" % [what, shapes.size()])
+	var solid := not NO_COLLIDER.has(kind)
+	check((shapes.size() > 0) == solid, "%s: has a collider only if it should (%d)" % [what, shapes.size()])
 	check(_queries_see(node), what + ": the queries see its colliders")
 	var tops := 0.0
 	for v: VisualInstance3D in node.find_children("*", "VisualInstance3D", true, false):
@@ -80,7 +88,11 @@ func test_slot(kind: String, id: String, yaw: float) -> void:
 		var rocks := node.find_children("*", "MeshInstance3D", true, false).size()
 		check(rocks >= 3 and rocks <= 5 and tops <= 1.0, "%s: %d rocks, none higher than 1 m (%.2f)" % [what, rocks, tops])
 
-	var at := Basis(Vector3.UP, yaw) * SLOT
+	if kind == "barrels":
+		check(tops <= 1.1 and node.find_children("*", "MeshInstance3D", true, false).size() >= 2, "%s: 2–3 barrels, none higher than 1.1 m (%.2f)" % [what, tops])
+	if kind == "signpost":
+		check(tops >= 1.9 and tops <= 2.1, "%s: the post is 2 m high (%.2f)" % [what, tops])
+	var at: Vector3 = Basis(Vector3.UP, yaw) * SLOTS[kind]
 	var tag := "%s: slot (%.2f, %.2f)" % [what, at.x, at.z]
 	var pq := PhysicsPointQueryParameters3D.new()
 	pq.position = at + Vector3(0, 0.5, 0)
@@ -98,7 +110,7 @@ func test_slot(kind: String, id: String, yaw: float) -> void:
 	check(hit and absf(hit.position.y) <= DY_TOL, tag + " stands on the ground")
 	# And the thing itself is solid: a capsule on the point hits it.
 	sq.transform = Transform3D(Basis.IDENTITY, Vector3(0, LIFT + HEIGHT * 0.5, 0))
-	check(not _space.intersect_shape(sq).is_empty(), what + ": the point itself is blocked")
+	check(_space.intersect_shape(sq).is_empty() != solid, what + ": the point itself is blocked only if it should be")
 	_vp.remove_child(node)
 	node.free()
 
@@ -140,10 +152,10 @@ func test_build_all() -> void:
 			continue
 		for g: GeometryInstance3D in n.find_children("*", "GeometryInstance3D", true, false):
 			ranged = ranged and g.visibility_range_end == MinorPoints.RANGE_END
-		bodies = bodies and n.find_children("*", "CollisionShape3D", true, false).size() > 0
+		bodies = bodies and (n.find_children("*", "CollisionShape3D", true, false).size() > 0 or m.kind == "signpost")
 	check(placed, "each minor point sits at (x, ground_y, z), no higher than height_at, turned by yaw")
 	check(MinorPoints.RANGE_END == 300.0 and ranged, "every minor mesh fades out at 300 m")
-	check(bodies, "every minor point has a collider")
+	check(bodies, "every minor point has a collider, bar signposts")
 	mp.clear()
 	check(mp.get_child_count() == 0, "clear empties it")
 	mp.queue_free()
@@ -160,7 +172,7 @@ func test_main_builds_minor() -> void:
 
 
 ## On a 25° slope (the steepest minor.ts allows): the slot beside each kind
-## stays open whichever way it faces, and rocks and campfires don't float.
+## stays open whichever way it faces, and nothing but the log floats.
 ## The slope is on layer 2, so the walker query (mask 1) sees only the point.
 func test_slope() -> void:
 	var vp := SubViewport.new()
@@ -182,14 +194,14 @@ func test_slope() -> void:
 	var space := vp.find_world_3d().direct_space_state
 	var probe := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(2, 10, 0), Vector3(2, -10, 0), 2))
 	check(probe and absf(probe.position.y - ground.call(2.0, 0.0)) < 0.02, "the queries see the 25° slope")
-	for kind: String in ["rocks", "log", "campfire"]:
+	for kind: String in SLOTS:
 		for yaw: float in [0.0, PI * 0.5, PI, PI * 1.5]:
 			var what := "%s on 25° yaw %.2f" % [kind, yaw]
 			var node := MinorPoints.build_one({"id": "m1", "kind": kind, "x": 0.0, "z": 0.0, "yaw": yaw}, ground)
 			vp.add_child(node)
 			await t.physics_frame
 			await t.physics_frame
-			var s := Basis(Vector3.UP, yaw) * SLOT
+			var s: Vector3 = Basis(Vector3.UP, yaw) * SLOTS[kind]
 			var at := Vector3(s.x, ground.call(s.x, s.z), s.z)
 			var pq := PhysicsPointQueryParameters3D.new()
 			pq.position = at + Vector3(0, 0.5, 0)
@@ -204,7 +216,7 @@ func test_slope() -> void:
 			sq.collision_mask = 1
 			check(space.intersect_shape(sq).is_empty(), what + ": the slot has room for the walker")
 			sq.transform = Transform3D(Basis.IDENTITY, Vector3(0, node.position.y + LIFT + HEIGHT * 0.5, 0))
-			check(not space.intersect_shape(sq).is_empty(), what + ": the point itself is blocked")
+			check(space.intersect_shape(sq).is_empty() != (not NO_COLLIDER.has(kind)), what + ": the point itself is blocked only if it should be")
 			if kind != "log":
 				# Its base, all round its footprint, is at most 0.1 m over the ground.
 				var base := node.position.y - MinorPoints.SINK

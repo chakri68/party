@@ -1,5 +1,6 @@
-// Layer 5 (§4.2): minor points. Rock piles, fallen logs and old campfires
-// scattered over the land. Each one holds a single cache slot.
+// Layer 5 (§4.2): minor points. Rock piles, fallen logs, old campfires, sheds,
+// barrels, signposts, woodpiles and carts scattered over the land. Each one
+// holds a single cache slot.
 
 import { cellSlope, macroHeight } from "./generate.ts";
 import type { Rng } from "./noise.ts";
@@ -8,10 +9,10 @@ import type { Trail } from "./trails.ts";
 import type { TreasureLayout } from "./types.ts";
 import { BIOMES, type Biome } from "./world.ts";
 
-export type MinorKind = "rocks" | "log" | "campfire";
+export type MinorKind = "rocks" | "log" | "campfire" | "shed" | "barrels" | "signpost" | "woodpile" | "cart";
 export interface MinorPoint { id: string; kind: MinorKind; x: number; z: number; yaw: number }
 
-export const MINOR_MIN = 40;
+export const MINOR_MIN = 60;
 export const MINOR_MAX = 80;
 export const MINOR_BOUND = 720;
 export const MINOR_GAP = 35;
@@ -29,15 +30,36 @@ const TRIES = 6000;
  *   log      lies along Z, 3 m long (z −1.5..1.5), 0.4 m thick each side of x = 0.
  *   campfire a ring of stones within 0.7 m of the point, with a few small logs
  *            inside it.
- * Each slot is 1.2 m from the middle, on the ground (dy 0), clear of all three.
+ *   shed     a 2.4 × 2.4 × 2.4 m box, centred on the point.
+ *   barrels  2–3 barrels within 0.8 m of the point, none higher than 1.1 m.
+ *   signpost a post 0.15 m thick and 2 m high, with a sign about 1 m wide.
+ *            No collider: the post is too thin to block anyone.
+ *   woodpile a stack 1.8 m long (along Z), 0.9 m wide (x) and 1.0 m high.
+ *   cart     1.4 m wide (x) by 2.4 m long (along Z).
+ * Each slot is on the ground (dy 0), clear of its footprint, 1.2 m from the
+ * middle except: shed 2.2, woodpile 1.5, cart 1.4.
  */
 export const MINOR_SLOT: Record<MinorKind, Slot> = {
   rocks: { x: 1.2, z: 0, dy: 0, hint: "Beside a pile of rocks." },
   log: { x: 1.2, z: 0, dy: 0, hint: "Beside a fallen log." },
   campfire: { x: 1.2, z: 0, dy: 0, hint: "Next to an old campfire." },
+  shed: { x: 2.2, z: 0, dy: 0, hint: "Beside an old shed." },
+  barrels: { x: 1.2, z: 0, dy: 0, hint: "Beside some old barrels." },
+  signpost: { x: 1.2, z: 0, dy: 0, hint: "At the foot of a signpost." },
+  woodpile: { x: 1.5, z: 0, dy: 0, hint: "Beside a stack of logs." },
+  cart: { x: 1.4, z: 0, dy: 0, hint: "Next to an old cart." },
 };
 
-const KINDS: MinorKind[] = ["rocks", "log", "campfire"];
+const KINDS = Object.keys(MINOR_SLOT) as MinorKind[];
+
+/** Kinds each biome can hold. Meadow takes all eight. */
+export const MINOR_KINDS: Record<Biome, MinorKind[]> = {
+  forest: ["log", "campfire", "woodpile", "shed"],
+  rocky: ["rocks", "signpost", "barrels"],
+  snowcap: ["rocks", "shed", "signpost"],
+  wetland: ["log", "signpost", "barrels"],
+  meadow: KINDS,
+};
 
 /** Biome of the macro vertex nearest (x, z). */
 export function biomeAt(l: TreasureLayout, x: number, z: number): Biome {
@@ -47,10 +69,9 @@ export function biomeAt(l: TreasureLayout, x: number, z: number): Biome {
   return BIOMES[biomes[j * size + i]!]!;
 }
 
-function kindFor(biome: Biome, r: Rng): MinorKind {
-  if (biome === "forest") return r() < 0.5 ? "log" : "campfire";
-  if (biome === "rocky") return "rocks";
-  return KINDS[Math.floor(r() * 3)]!;
+export function kindFor(biome: Biome, r: Rng): MinorKind {
+  const list = MINOR_KINDS[biome];
+  return list[Math.floor(r() * list.length)]!;
 }
 
 /** Distance from (x, z) to the nearest trail segment. */
@@ -79,7 +100,7 @@ export function minorProblem(l: TreasureLayout, x: number, z: number): string | 
   return null;
 }
 
-/** Roll 40–80 minor points. Needs `l.trails` to be set already. */
+/** Roll 60–80 minor points. Needs `l.trails` to be set already. */
 export function placeMinor(l: TreasureLayout, r: Rng): MinorPoint[] {
   const target = MINOR_MIN + Math.floor(r() * (MINOR_MAX - MINOR_MIN + 1));
   const out: MinorPoint[] = [];

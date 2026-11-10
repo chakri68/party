@@ -1,12 +1,18 @@
 class_name MinorPoints
 extends Node3D
-## The layout's minor points (minor.ts): rock piles, fallen logs and old
-## campfires, one child each, named by id. Each is built to the footprint in
-## minor.ts's MINOR_SLOT comment, because its one cache slot at local
-## (1.2, 0) assumes it:
+## The layout's minor points (minor.ts): rock piles, fallen logs, old
+## campfires, sheds, barrels, signposts, woodpiles and carts, one child each,
+## named by id. Each is built to the footprint in minor.ts's MINOR_SLOT
+## comment, because its one cache slot (1.2 m out, or 2.2 shed, 1.5 woodpile,
+## 1.4 cart, on the local X axis) assumes it:
 ##   rocks    a pile within 0.8 m of the point, none higher than 1 m
 ##   log      along Z, z −1.5..1.5, 0.4 m each side of x = 0
 ##   campfire a stone ring within 0.7 m, small logs inside it
+##   shed     a 2.4 m box, centred
+##   barrels  2–3 within 0.8 m, none higher than 1.1 m
+##   signpost a post 0.15 m thick, 2 m high, sign about 1 m wide; no collider
+##   woodpile 0.9 (x) by 1.8 (z) by 1.0 m high
+##   cart     1.4 (x) by 2.4 (z) by 1.0 m high
 ## Local frame as the pieces': −Z front, +X right, turned by yaw.
 
 ## Small things: past this they're gone. The pieces carry the distance view.
@@ -18,7 +24,13 @@ const LOG := Vector3(3.0, 0.6, 0.8) ## log_large runs along its own X
 const RING := 0.65 ## stone ring radius
 const RING_H := 0.2
 ## Footprint radius per kind, where ground_y samples.
-const FOOTPRINT := {"rocks": 0.8, "campfire": 0.7}
+const FOOTPRINT := {"rocks": 0.8, "campfire": 0.7, "shed": 1.7, "barrels": 0.8, "signpost": 0.3, "woodpile": 1.0, "cart": 1.4}
+const SHED := 2.4
+const BARREL := Vector3(0.6, 0.9, 0.6)
+const SIGN := Vector3(1.0, 2.0, 0.15)
+const WOODPILE := Vector3(0.9, 1.0, 1.8)
+const CART := Vector3(1.4, 1.0, 2.4)
+const SAMPLES := 8 ## ground samples round a footprint
 
 ## Read for heights; main sets it. Without one, build_all makes its own.
 var field: TerrainField
@@ -43,8 +55,8 @@ func clear() -> void:
 		c.queue_free()
 
 
-## Where a point's root sits: the lowest of 3 samples round its footprint
-## (rocks, campfire), or of its middle and both sides (log), so it never
+## Where a point's root sits: the lowest of 8 samples round its footprint
+## (all but the log), or of its middle and both sides (log), so it never
 ## floats. `ground` is height_at(x, z); an empty Callable means flat at 0.
 static func ground_y(m: Dictionary, ground: Callable) -> float:
 	if not ground.is_valid():
@@ -55,8 +67,8 @@ static func ground_y(m: Dictionary, ground: Callable) -> float:
 	var spots: Array[Vector3] = []
 	var kind := String(m.get("kind", ""))
 	if FOOTPRINT.has(kind):
-		for k in 3:
-			spots.append(Basis(Vector3.UP, TAU * k / 3.0) * Vector3(FOOTPRINT[kind], 0, 0))
+		for k in SAMPLES:
+			spots.append(Basis(Vector3.UP, TAU * k / SAMPLES) * Vector3(FOOTPRINT[kind], 0, 0))
 	else:
 		spots.assign([Vector3.ZERO, Vector3(LOG.z * 0.5, 0, 0), Vector3(-LOG.z * 0.5, 0, 0)])
 	var y := INF
@@ -83,6 +95,16 @@ static func build_one(m: Dictionary, ground: Callable) -> Node3D:
 			_log(root, ground)
 		"campfire":
 			_campfire(root)
+		"shed":
+			_shed(root)
+		"barrels":
+			_barrels(root, rng)
+		"signpost":
+			_signpost(root)
+		"woodpile":
+			_woodpile(root)
+		"cart":
+			_cart(root)
 		_:
 			push_error("MinorPoints: no kind '%s'" % m.get("kind"))
 			root.free()
@@ -133,3 +155,42 @@ static func _campfire(root: Node3D) -> void:
 	PieceKit.kenney(root, "campfire_logs", base + Vector3(0, 0.02, 0), Vector3(0.7, 0.35, 0.7))
 	var b := PieceKit.body(root)
 	PieceKit.cylinder_shape(b, RING, RING_H + SINK + 0.15, base + Vector3(0, (RING_H + SINK + 0.15) * 0.5, 0))
+
+
+static func _shed(root: Node3D) -> void:
+	var base := Vector3(0, -SINK, 0)
+	var h := SHED + SINK
+	PieceKit.kenney(root, "survival/structure", base, Vector3(SHED, h, SHED))
+	PieceKit.box_shape(PieceKit.body(root), Vector3(SHED, h, SHED), base + Vector3(0, h * 0.5, 0))
+
+
+## 2–3 upright barrels round the middle, 0.4 m out, so a walker on the point
+## still touches them.
+static func _barrels(root: Node3D, rng: RandomNumberGenerator) -> void:
+	var b := PieceKit.body(root)
+	var n := 2 + rng.randi() % 2
+	var a0 := rng.randf() * TAU
+	var h := BARREL.y + SINK
+	for k in n:
+		var at := PieceKit.polar(a0 + TAU * k / n, 0.4) - Vector3(0, SINK, 0)
+		PieceKit.kenney(root, "survival/barrel", at, Vector3(BARREL.x, h, BARREL.z), rng.randf() * TAU)
+		PieceKit.cylinder_shape(b, BARREL.x * 0.5, h, at + Vector3(0, h * 0.5, 0))
+
+
+## Thin, so no collider (like the camp lantern post).
+static func _signpost(root: Node3D) -> void:
+	PieceKit.kenney(root, "survival/signpost", Vector3(0, -SINK, 0), Vector3(SIGN.x, SIGN.y + SINK, SIGN.z))
+
+
+static func _woodpile(root: Node3D) -> void:
+	var base := Vector3(0, -SINK, 0)
+	var h := WOODPILE.y + SINK
+	PieceKit.kenney(root, "nature/log_stack", base, Vector3(WOODPILE.x, h, WOODPILE.z))
+	PieceKit.box_shape(PieceKit.body(root), Vector3(WOODPILE.x, h, WOODPILE.z), base + Vector3(0, h * 0.5, 0))
+
+
+static func _cart(root: Node3D) -> void:
+	var base := Vector3(0, -SINK, 0)
+	var h := CART.y + SINK
+	PieceKit.kenney(root, "town/cart", base, Vector3(CART.x, h, CART.z))
+	PieceKit.box_shape(PieceKit.body(root), Vector3(CART.x, h, CART.z), base + Vector3(0, h * 0.5, 0))

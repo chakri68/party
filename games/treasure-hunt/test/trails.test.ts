@@ -2,6 +2,8 @@ import { cellSlope } from "../shared/generate.ts";
 import { describe, expect, it } from "vitest";
 import {
   BIOMES,
+  MINOR_KINDS,
+  kindFor,
   MINOR_SLOT,
   TRAIL_HALF_WIDTH,
   generateLayout,
@@ -51,6 +53,11 @@ describe("trails and minor points", () => {
     expect(MINOR_SLOT.rocks.hint).toBe("Beside a pile of rocks.");
     expect(MINOR_SLOT.log.hint).toBe("Beside a fallen log.");
     expect(MINOR_SLOT.campfire.hint).toBe("Next to an old campfire.");
+    expect(MINOR_SLOT.shed).toMatchObject({ x: 2.2, z: 0, hint: "Beside an old shed." });
+    expect(MINOR_SLOT.barrels).toMatchObject({ x: 1.2, z: 0, hint: "Beside some old barrels." });
+    expect(MINOR_SLOT.signpost).toMatchObject({ x: 1.2, z: 0, hint: "At the foot of a signpost." });
+    expect(MINOR_SLOT.woodpile).toMatchObject({ x: 1.5, z: 0, hint: "Beside a stack of logs." });
+    expect(MINOR_SLOT.cart).toMatchObject({ x: 1.4, z: 0, hint: "Next to an old cart." });
     for (const s of Object.values(MINOR_SLOT)) expect(s.dy).toBe(0);
     expect(TRAIL_HALF_WIDTH).toBe(2);
   });
@@ -99,12 +106,12 @@ describe("trails and minor points", () => {
     }
   }, 30_000);
 
-  it("1000 seeds: 40–80 minor points, few pieces are unjoined, kinds follow biomes", () => {
+  it("1000 seeds: 60–80 minor points, few pieces are unjoined, kinds follow biomes", () => {
     let unjoined = 0;
     for (let seed = 1; seed <= 1000; seed++) {
       const l = makeLayout(seed);
       expect(validateLayout(l), `seed ${seed}`).toEqual([]);
-      expect(l.minor.length, `seed ${seed}`).toBeGreaterThanOrEqual(40);
+      expect(l.minor.length, `seed ${seed}`).toBeGreaterThanOrEqual(60);
       expect(l.minor.length, `seed ${seed}`).toBeLessThanOrEqual(80);
       const n = unjoinedPieces(l).length;
       unjoined += n;
@@ -114,10 +121,23 @@ describe("trails and minor points", () => {
         const i = Math.round((m.x - origin) / cell);
         const j = Math.round((m.z - origin) / cell);
         const b = BIOMES[biomes[j * size + i]!];
-        if (b === "forest") expect(["log", "campfire"]).toContain(m.kind);
-        if (b === "rocky") expect(m.kind).toBe("rocks");
+        expect(MINOR_KINDS[b!], `seed ${seed} ${m.id}`).toContain(m.kind);
       }
     }
     expect(unjoined / 1000).toBeLessThan(0.5);
+  }, 30_000);
+
+  it("200 seeds: every kind shows on at least half the maps, and kindFor keeps to its biome", () => {
+    const seen = new Map<string, number>();
+    for (let seed = 1; seed <= 200; seed++) {
+      const l = makeLayout(seed);
+      for (const k of new Set(l.minor.map((m) => m.kind))) seen.set(k, (seen.get(k) ?? 0) + 1);
+    }
+    for (const k of Object.keys(MINOR_SLOT)) expect(seen.get(k) ?? 0, k).toBeGreaterThanOrEqual(100);
+    for (const b of BIOMES) {
+      const r = rng(3);
+      for (let i = 0; i < 200; i++) expect(MINOR_KINDS[b]).toContain(kindFor(b, r));
+    }
+    expect(MINOR_KINDS.meadow.length).toBe(8);
   }, 30_000);
 });

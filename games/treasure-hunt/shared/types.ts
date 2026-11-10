@@ -63,7 +63,7 @@ export interface TreasureLayout {
   pieces: SetPiece[];
   /** Layer 4: trails between the pieces and the spawn. */
   trails: Trail[];
-  /** Layer 5: 40–80 minor points. */
+  /** Layer 5: 60–80 minor points. */
   minor: MinorPoint[];
 }
 
