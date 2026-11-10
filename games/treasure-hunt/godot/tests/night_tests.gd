@@ -64,6 +64,17 @@ func test_main() -> void:
 	main._on_dark(0.29)
 	check(edge.all(func(l: OmniLight3D) -> bool: return not l.visible), "lamps: dark 0.29 is off")
 	main._on_dark(0.4)
+	# Review M3: only a flip of LAMP_ON reaches the pieces. A lamp hidden by
+	# hand stays hidden through dark steps that don't flip, so none walked them.
+	var probe: OmniLight3D = edge[0]
+	probe.visible = false
+	main._on_dark(0.41)
+	main._on_dark(0.9)
+	check(not probe.visible and main._lamps_lit, "lamps: steps that stay over LAMP_ON don't call set_lamps")
+	main._on_dark(0.2)
+	main._on_dark(0.25)
+	main._on_dark(0.4)
+	check(probe.visible and main._lamps_lit, "lamps: off and back on again: set_lamps runs")
 
 	# Pieces and lamps.
 	var lamps: Array = main.pieces.find_children("Lamp*", "OmniLight3D", true, false)

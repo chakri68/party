@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { clockLabel, clueItems, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
+import { clockLabel, clueItems, clueListKey, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
 import type { THPrivate } from "../shared/types.ts";
 
 describe("formatLeft", () => {
@@ -69,7 +71,7 @@ describe("clueItems", () => {
 });
 
 describe("photo clues", () => {
-  const cam = { x: 1, z: 2, yaw: 0, pitch: 0, target: "lighthouse" };
+  const cam = { x: 1, z: 2, yaw: 0, pitch: 0, fov: 30, target: "lighthouse" };
   const withPhoto: THPrivate = {
     teamId: 1,
     pins: [],
@@ -101,6 +103,28 @@ describe("photo clues", () => {
 
   it("adds nothing extra without a camera", () => {
     expect(photoView(null)).toBeNull();
+  });
+
+  // Review: the render-skip key ran JSON.stringify over every data URL, every tick.
+  it("the list key holds the pose and the image's length, not the image", () => {
+    const big = "data:image/jpeg;base64," + "A".repeat(40_000);
+    const key = (src?: string, p = withPhoto) => clueListKey(p, clueItems(p, () => src));
+    expect(key(big).length).toBeLessThan(200);
+    expect(key(big)).toContain(String(big.length));
+    expect(key(big)).not.toBe(key(undefined));
+    expect(key(big)).toBe(key(big));
+    const moved: THPrivate = { ...withPhoto, clues: [{ ...withPhoto.clues[0]!, photo: { ...cam, fov: 31 } }] };
+    expect(key(big, moved)).not.toBe(key(big));
+    const found: THPrivate = { ...withPhoto, clues: [{ ...withPhoto.clues[0]!, found: true }] };
+    expect(key(big, found)).not.toBe(key(big));
+  });
+
+  it("the loading line isn't struck through with a found or taken clue", () => {
+    const css = readFileSync(join(import.meta.dirname, "../client/styles.css"), "utf8");
+    const rule = /\.th-clue-wait \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toContain("text-decoration: none");
+    // A block child still gets its parent's line-through; an inline-block doesn't.
+    expect(rule).toContain("display: inline-block");
   });
 });
 

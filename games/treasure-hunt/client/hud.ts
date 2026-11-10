@@ -38,6 +38,22 @@ export function clueItems(
   });
 }
 
+/**
+ * What the clue list's render depends on, small: a photo counts by its pose
+ * and whether (and how long) its image is, not the ~40 KB data URL, since
+ * render runs every tick.
+ */
+export function clueListKey(priv: THPrivate | null, items: ReturnType<typeof clueItems>): string {
+  const clues = priv?.clues ?? [];
+  return items
+    .map((it, i) => {
+      const cam = clues[i]?.photo;
+      const photo = it.photo && cam ? `${cam.x},${cam.z},${cam.yaw},${cam.pitch},${cam.fov}:${it.photo.src?.length ?? 0}` : "";
+      return `${it.found ? 1 : 0}${it.taken ? 1 : 0}|${photo}|${it.text}`;
+    })
+    .join("\n");
+}
+
 export const PHOTO_WAIT = "The photo is loading.";
 export const PHOTO_ALT = "Photo clue";
 
@@ -106,7 +122,7 @@ export class Hud {
     const items = clueItems(s.priv, this.photoFor);
     this.board.hidden = this.toggle.hidden = items.length === 0;
     // Called on every tick for the clocks; only touch the list when it changed.
-    const key = JSON.stringify(items);
+    const key = clueListKey(s.priv, items);
     if (key === this.lastClues) return;
     this.lastClues = key;
     this.list.replaceChildren(

@@ -87,7 +87,9 @@
 .th-clue-taken { color: var(--muted); }
 .th-clue-taken > span:last-child { text-decoration: line-through; text-decoration-color: rgb(156 152 136 / 0.6); }
 .th-clue-photo { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; margin-top: 6px; border: 1px solid var(--line); border-radius: var(--radius); }
-.th-clue-wait { display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
+/* Inside the struck-through clue text, but a loading line isn't part of the clue.
+   A parent's line-through still draws over a block child; an inline-block is out of its reach. */
+.th-clue-wait { display: inline-block; width: 100%; margin-top: 4px; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
 .th-clue-tag {
   display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px;
   background: var(--surface-2); font-size: 0.72rem; font-weight: 700; text-decoration: none; vertical-align: 1px;

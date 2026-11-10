@@ -69,6 +69,8 @@ var daylight: Daylight
 var torch_on := false
 ## The sky's darkness as last heard from day_clock.
 var dark := 0.0
+## The lamps' state as last set: set_lamps only runs when it flips.
+var _lamps_lit := false
 
 var _seed := 0
 var _pos_accum := 0.0
@@ -212,7 +214,8 @@ func start_world(layout: Dictionary) -> void:
 	pieces.name = "Pieces"
 	world.add_child(pieces)
 	pieces.build_all(layout)
-	pieces.set_lamps(dark >= DayClock.LAMP_ON)
+	_lamps_lit = dark >= DayClock.LAMP_ON
+	pieces.set_lamps(_lamps_lit)
 	minor = MinorPoints.new()
 	minor.name = "MinorPoints"
 	minor.field = field
@@ -264,12 +267,15 @@ func found_cache(id: String) -> void:
 		caches.found(id)
 
 
-## Lamps and headlights follow the dark.
+## Lamps and headlights follow the dark. Darkness moves in 0.01 steps and
+## set_lamps walks every piece, so the lamps only hear about a flip.
 func _on_dark(d: float) -> void:
 	dark = d
 	fleet.set_dark(d)
-	if pieces != null:
-		pieces.set_lamps(d >= DayClock.LAMP_ON)
+	var lit := d >= DayClock.LAMP_ON
+	if pieces != null and lit != _lamps_lit:
+		_lamps_lit = lit
+		pieces.set_lamps(lit)
 
 
 ## The glint is measured from you (the walker, which rides in the seat),
