@@ -47,6 +47,11 @@ shadow_enabled = true
 directional_shadow_mode = 1
 directional_shadow_max_distance = 120.0
 
+[node name="Moon" type="DirectionalLight3D" parent="."]
+light_color = Color(0.7, 0.78, 1, 1)
+light_energy = 0.0
+visible = false
+
 [node name="Environment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_day")
 

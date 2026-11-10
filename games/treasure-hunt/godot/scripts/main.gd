@@ -56,6 +56,12 @@ var prompt: PickupPrompt
 var remotes: Remotes
 ## My team's pins. Outside the world, like the fleet; the ground is set per world.
 var pins: Pins
+## The round's game time. Sits at 10:00, stopped, until a skyClock says
+## otherwise (and always off-web), so the look is today's. Lamps and
+## headlights listen on day_clock.dark_changed.
+var day_clock: DayClock
+## Sun, moon, ambient, sky and fog, from day_clock every frame.
+var daylight: Daylight
 
 var _seed := 0
 var _pos_accum := 0.0
@@ -96,6 +102,16 @@ func _ready() -> void:
 	add_child(pins)
 	bridge.pins_set.connect(pins.apply)
 	bridge.remote_moved.connect(_on_remote)
+	day_clock = DayClock.new()
+	day_clock.name = "DayClock"
+	add_child(day_clock)
+	daylight = Daylight.new()
+	daylight.name = "Daylight"
+	add_child(daylight)
+	var env: Environment = $Environment.environment
+	daylight.setup($Sun, $Moon, env, env.sky.sky_material)
+	daylight.apply(day_clock.minute())
+	bridge.sky_clock_set.connect(day_clock.set_clock)
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -360,6 +376,7 @@ func _fall_check(b: Node3D) -> void:
 
 
 func _process(_dt: float) -> void:
+	daylight.update(day_clock.minute())
 	if streamer and focus:
 		streamer.update(focus.global_position)
 	compass.set_yaw(rig.yaw)

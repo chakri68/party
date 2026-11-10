@@ -14,6 +14,7 @@ extends Node
 ##   host.remotePos({id, x, y, z, yaw, foot, v})             another player, as relayed
 ##   host.vehicles({me, list: [{id, x, y, z, yaw, driver, passenger}]})  full list, every update
 ##   host.pins({list: [{id, x, z, color, mine}]})   my team's pins, full list, every update
+##   host.skyClock({min, running})          game minutes after midnight; DayClock carries it on
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
@@ -40,6 +41,8 @@ signal remote_moved(id: String, snap: Dictionary)
 signal vehicles_set(list: Array, me: String)
 ## My team's pins: [{id, x, z, color, mine}]. Pins checks each one.
 signal pins_set(list: Array)
+## The day clock: minutes after midnight, and whether it's moving.
+signal sky_clock_set(min: float, running: bool)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
@@ -64,6 +67,7 @@ var _cb_roster: JavaScriptObject
 var _cb_remote: JavaScriptObject
 var _cb_vehicles: JavaScriptObject
 var _cb_pins: JavaScriptObject
+var _cb_sky_clock: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -114,6 +118,8 @@ func _try_attach() -> void:
 	_host.vehicles = _cb_vehicles
 	_cb_pins = JavaScriptBridge.create_callback(_on_js.bind(receive_pins_json))
 	_host.pins = _cb_pins
+	_cb_sky_clock = JavaScriptBridge.create_callback(_on_js.bind(receive_sky_clock_json))
+	_host.skyClock = _cb_sky_clock
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -218,6 +224,13 @@ func receive_pins_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and d.get("list") is Array:
 		pins_set.emit(d.list)
+
+
+## {min, running}. A non-numeric min or a missing running is dropped.
+func receive_sky_clock_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and _num(d.get("min")) and d.get("running") is bool:
+		sky_clock_set.emit(float(d.min), d.running)
 
 
 static func _num(v: Variant) -> bool:
