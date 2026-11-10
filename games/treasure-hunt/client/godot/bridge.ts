@@ -86,6 +86,8 @@ export interface PhotoPose {
   z: number;
   yaw: number;
   pitch: number;
+  /** Vertical, degrees. */
+  fov: number;
 }
 
 /** My team's photo clue poses, all of them. Godot renders the ones it hasn't for that pose. */
@@ -99,11 +101,14 @@ export interface SkyClock {
   running: boolean;
 }
 
-/** A photo Godot rendered: base64 JPEG, and the camera's x and z it was rendered at. */
+/** A photo Godot rendered: base64 JPEG, and the whole pose it was rendered at. */
 export interface GodotPhoto {
   id: string;
   x: number;
   z: number;
+  yaw: number;
+  pitch: number;
+  fov: number;
   data: string;
 }
 
@@ -236,9 +241,10 @@ export function godotPhoto(p: unknown): GodotPhoto | null {
   if (!p || typeof p !== "object") return null;
   const d = p as Record<string, unknown>;
   if (typeof d.id !== "string" || d.id.length < 1) return null;
-  if (typeof d.x !== "number" || typeof d.z !== "number" || !Number.isFinite(d.x) || !Number.isFinite(d.z)) return null;
+  const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  if (!num(d.x) || !num(d.z) || !num(d.yaw) || !num(d.pitch) || !num(d.fov)) return null;
   if (typeof d.data !== "string" || d.data.length < 1 || d.data.length > PHOTO_DATA_MAX) return null;
-  return { id: d.id, x: d.x, z: d.z, data: d.data };
+  return { id: d.id, x: d.x, z: d.z, yaw: d.yaw, pitch: d.pitch, fov: d.fov, data: d.data };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */

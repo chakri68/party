@@ -52,7 +52,9 @@ import { TeamsPanel } from "./teams.ts";
 // runs, so a reload mid-round comes up at the right time, not the start.
 // Photo clues: the poses go to Godot when the clue board changes and on its
 // ready(); it renders each in the world and sends back a JPEG with the pose
-// it was taken at, kept in `photos` by clue id and pose for the board.
+// it was taken at, kept in `photos` by clue id and pose for the board. A pose
+// `photos` already holds never goes again: a reloaded iframe would render it
+// over the good one, later in the round and so maybe darker.
 
 const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
 const PHONE = "Treasure Hunt needs a computer with a keyboard and mouse.";
@@ -133,22 +135,24 @@ export function skyMinute(game: SkyState, now: number): number {
 /** My team's photo clue poses, in board order. */
 export function photoList(priv: THPrivate | null): PhotoPose[] {
   const out: PhotoPose[] = [];
-  for (const c of priv?.clues ?? []) if (c.photo) out.push({ id: c.id, x: c.photo.x, z: c.photo.z, yaw: c.photo.yaw, pitch: c.photo.pitch });
+  for (const c of priv?.clues ?? []) if (c.photo) out.push({ id: c.id, x: c.photo.x, z: c.photo.z, yaw: c.photo.yaw, pitch: c.photo.pitch, fov: c.photo.fov });
   return out;
 }
 
 /**
- * The photos Godot rendered, as data URLs, keyed `${id}|${x},${z}` by the
- * pose Godot rendered: a clue whose camera moved is a new photo, so an old
+ * The photos Godot rendered, as data URLs, keyed `${id}|${x},${z},${yaw},${pitch},${fov}`
+ * by the pose Godot rendered: a clue whose camera moved is a new photo, so an old
  * render never shows under the new pose. Lives as long as the view, so an
  * iframe reload keeps them; a new map empties it.
  */
+type Pose = Pick<PhotoCam, "x" | "z" | "yaw" | "pitch" | "fov">;
+
 export class PhotoStore {
   private images = new Map<string, string>();
   private seed: number | null = null;
 
-  static key(id: string, cam: Pick<PhotoCam, "x" | "z">): string {
-    return `${id}|${cam.x},${cam.z}`;
+  static key(id: string, cam: Pose): string {
+    return `${id}|${cam.x},${cam.z},${cam.yaw},${cam.pitch},${cam.fov}`;
   }
 
   get size() {
@@ -167,8 +171,13 @@ export class PhotoStore {
   }
 
   /** The data URL for this clue at this pose, or undefined while it renders. */
-  get(id: string, cam: Pick<PhotoCam, "x" | "z">): string | undefined {
+  get(id: string, cam: Pose): string | undefined {
     return this.images.get(PhotoStore.key(id, cam));
+  }
+
+  /** Is there an image for this clue at this pose? */
+  has(id: string, cam: Pose): boolean {
+    return this.images.has(PhotoStore.key(id, cam));
   }
 }
 
@@ -236,11 +245,13 @@ export class GodotFeed {
   private myPos: GodotPos | null = null;
   private send: (calls: BridgeCall[]) => void;
   private now: () => number;
+  private held: (p: PhotoPose) => boolean;
 
-  /** `now` is server time, for the sky clock. */
-  constructor(send: (calls: BridgeCall[]) => void, now: () => number = () => Date.now()) {
+  /** `now` is server time, for the sky clock. `held`: the page has this photo already (PhotoStore.has). */
+  constructor(send: (calls: BridgeCall[]) => void, now: () => number = () => Date.now(), held: (p: PhotoPose) => boolean = () => false) {
     this.send = send;
     this.now = now;
+    this.held = held;
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
@@ -279,15 +290,17 @@ export class GodotFeed {
    * the rest. Cheap: a pool is a handful of caches, and Godot keeps capsules
    * and buggies that didn't change. The photo poses go only when they changed,
    * or on Godot's ready() (`ready`): each one is a render on Godot's side.
+   * Poses the page holds a photo for are left out, so nothing renders twice.
    */
   sync(ready = false) {
     if (!this.phase) return;
     const calls = resync(this.priv, this.phase, this.streamed.values());
     const photos = photoList(this.priv);
     const key = JSON.stringify(photos);
-    if (key !== this.photosSent || (ready && photos.length > 0)) {
+    if (key !== this.photosSent || ready) {
       this.photosSent = key;
-      calls.unshift({ fn: "photos", arg: { list: photos } });
+      const list = photos.filter((p) => !this.held(p));
+      if (list.length > 0) calls.unshift({ fn: "photos", arg: { list } });
     }
     if (this.sky) calls.unshift({ fn: "skyClock", arg: { min: skyMinute(this.sky, this.now()), running: this.sky.phase === "hunting" } });
     if (this.pins) calls.unshift({ fn: "pins", arg: this.pins });
@@ -484,7 +497,11 @@ export class TreasureHuntView implements GameView {
       },
       unseat: (p) => this.acts.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
     });
-    this.feed = new GodotFeed((calls) => this.bridge.call(calls), () => this.api.serverNow());
+    this.feed = new GodotFeed(
+      (calls) => this.bridge.call(calls),
+      () => this.api.serverNow(),
+      (p) => this.photos.has(p.id, p),
+    );
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
     this.mapBtn.addEventListener("click", () => this.setMap(!this.mapOpen));
     // The dimmed edge closes it; the island takes the click as a pin.

@@ -219,7 +219,7 @@ describe("treasure hunt server", () => {
     /** A made-up pose per cache, so every cache has one to leak. */
     const posed = (st: THState): THState => ({
       ...st,
-      caches: st.caches.map((c, i) => ({ ...c, photo: { x: i, z: -i, yaw: 0.5, pitch: 0.1, target: "p0" } })),
+      caches: st.caches.map((c, i) => ({ ...c, photo: { x: i, z: -i, yaw: 0.5, pitch: 0.1, fov: 30, target: "p0" } })),
     });
     const poses = (st: THState, pid: string) => th.getPrivateState(st, pid).clues.map((c) => [c.id, c.photo]);
 

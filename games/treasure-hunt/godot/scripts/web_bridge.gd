@@ -15,7 +15,7 @@ extends Node
 ##   host.vehicles({me, list: [{id, x, y, z, yaw, driver, passenger}]})  full list, every update
 ##   host.pins({list: [{id, x, z, color, mine}]})   my team's pins, full list, every update
 ##   host.skyClock({min, running})          game minutes after midnight; DayClock carries it on
-##   host.photos({list: [{id, x, z, yaw, pitch}]})  my team's photo clue poses; Photos renders new ones
+##   host.photos({list: [{id, x, z, yaw, pitch, fov}]})  my team's photo clue poses; Photos renders new ones
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
@@ -23,7 +23,7 @@ extends Node
 ##   host.emitSeat({vehicleId, seat})      E by a buggy: "driver" or "passenger"
 ##   host.emitUnseat({x, y, z, yaw})       got out; the buggy's pose
 ##   host.emitPin({x, z})                  P: where the camera looks at the ground
-##   host.emitPhoto({id, x, z, data})      a photo clue, rendered at x, z: base64 JPEG
+##   host.emitPhoto({id, x, z, yaw, pitch, fov, data})  a photo clue, rendered at that pose: base64 JPEG
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Every inbound call
 ## has a receive_*_json seam and every outbound one a *_sent signal, so
@@ -45,7 +45,7 @@ signal vehicles_set(list: Array, me: String)
 signal pins_set(list: Array)
 ## The day clock: minutes after midnight, and whether it's moving.
 signal sky_clock_set(min: float, running: bool)
-## Photo clue poses: [{id, x, z, yaw, pitch}]. Photos checks each one.
+## Photo clue poses: [{id, x, z, yaw, pitch, fov}]. Photos checks each one.
 signal photos_set(list: Array)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
@@ -175,10 +175,10 @@ func emit_pin(at: Dictionary) -> void:
 		_host.emitPin(_json.parse(JSON.stringify(at)))
 
 
-## A rendered photo clue: {id, x, z, data}. x, z: the pose it was rendered
-## at; data: base64 JPEG.
-func emit_photo(id: String, x: float, z: float, data: String) -> void:
-	var d := {"id": id, "x": x, "z": z, "data": data}
+## A rendered photo clue: {id, x, z, yaw, pitch, fov, data}. The pose is the
+## one it was rendered at (the page keys on all of it); data: base64 JPEG.
+func emit_photo(id: String, pose: Dictionary, data: String) -> void:
+	var d := {"id": id, "x": pose.x, "z": pose.z, "yaw": pose.yaw, "pitch": pose.pitch, "fov": pose.fov, "data": data}
 	photo_sent.emit(d)
 	if connected and _host.emitPhoto:
 		_host.emitPhoto(_json.parse(JSON.stringify(d)))

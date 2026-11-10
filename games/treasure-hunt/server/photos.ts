@@ -3,7 +3,7 @@
 // The client renders the picture from this pose once the world is built.
 
 import { macroHeight } from "../shared/generate.ts";
-import { LAMP_CLUE_DARK, PHOTO_DIST, PHOTO_EYE, PHOTO_MAX, darkAt } from "../shared/sky.ts";
+import { PHOTO_DIST, PHOTO_EYE, PHOTO_FILL, PHOTO_FOV_MAX, PHOTO_FOV_MIN, PHOTO_MAX, darkWithin } from "../shared/sky.ts";
 import { TEMPLATES } from "../shared/templates.ts";
 import type { PhotoCam, SetPiece, TreasureLayout } from "../shared/types.ts";
 import { CACHE_BOUND, CACHE_MIN_HEIGHT, type CacheSpot } from "./caches.ts";
@@ -23,12 +23,15 @@ const lit = (p: SetPiece) => (TEMPLATES[p.template].lamps?.(p.params).length ?? 
 /**
  * The camera for a photo of this spot, or null. Faces the nearest piece within
  * PHOTO_MAX that isn't the one the spot sits at (a shadow tip's own piece is
- * 10–100 m off, so that one counts, as for bearings). At night only a lit piece
- * counts: anything else would be a black picture. Null when the camera would
+ * 10–100 m off, so that one counts, as for bearings). In a round that gets
+ * dark at any point, only a lit piece counts: a photo can render late (a Race
+ * clue opens mid-round, a page reloads), and an unlit piece after dark is a
+ * black picture. The lens is zoomed so the piece's top fills about
+ * PHOTO_FILL of the frame's height. Null when the camera would
  * stand in the sea, out of bounds, on a pad, or behind a ridge.
  */
 export function photoCam(l: TreasureLayout, s: Pick<CacheSpot, "x" | "z" | "source" | "shadowMin">, sky: HuntSky): PhotoCam | null {
-  const night = darkAt(sky.startMin) >= LAMP_CLUE_DARK;
+  const night = darkWithin(sky.startMin, sky.minutes);
   let t: SetPiece | null = null;
   let best = PHOTO_MAX;
   for (const p of l.pieces) {
@@ -50,7 +53,8 @@ export function photoCam(l: TreasureLayout, s: Pick<CacheSpot, "x" | "z" | "sour
   if (l.pieces.some((p) => Math.hypot(x - p.x, z - p.z) <= p.padR)) return null;
 
   const eye = ground + PHOTO_EYE;
-  const aim = t.padY + (TEMPLATES[t.template].top?.(t.params) ?? 6) / 2;
+  const top = TEMPLATES[t.template].top?.(t.params) ?? 6;
+  const aim = t.padY + top / 2;
   const dx = t.x - x;
   const dz = t.z - z;
   const len = Math.hypot(dx, dz);
@@ -58,6 +62,8 @@ export function photoCam(l: TreasureLayout, s: Pick<CacheSpot, "x" | "z" | "sour
     const f = d / len;
     if (eye + (aim - eye) * f < macroHeight(l, x + dx * f, z + dz * f) - PHOTO_DIP) return null;
   }
+  // Vertical fov, as Godot's Camera3D (keep height) takes it: `top` spans PHOTO_FILL of the frame.
+  const fov = Math.min(PHOTO_FOV_MAX, Math.max(PHOTO_FOV_MIN, (2 * Math.atan(top / PHOTO_FILL / 2 / len) * 180) / Math.PI));
   // Godot: forward is (−sin yaw, −cos yaw).
-  return { x, z, yaw: r2(Math.atan2(-dx, -dz)), pitch: r2(Math.atan2(aim - eye, len)), target: t.id };
+  return { x, z, yaw: r2(Math.atan2(-dx, -dz)), pitch: r2(Math.atan2(aim - eye, len)), fov: r1(fov), target: t.id };
 }

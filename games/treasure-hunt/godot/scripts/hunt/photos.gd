@@ -13,8 +13,9 @@ extends Node
 ## nothing): that pose goes to the back of the queue, and after MAX_TRIES
 ## it's dropped, unrendered, until a list names it again.
 
-## x and z: the pose it was rendered at, so the page files it under that.
-signal photo_ready(id: String, x: float, z: float, data: String)
+## pose: {x, z, yaw, pitch, fov}, the pose it was rendered at, so the page
+## files it under that.
+signal photo_ready(id: String, pose: Dictionary, data: String)
 
 ## Copies of PHOTO_W, PHOTO_H, PHOTO_Q and PHOTO_EYE in shared/sky.ts.
 const PHOTO_W := 480
@@ -31,7 +32,7 @@ var _vp: SubViewport
 var _cam: Camera3D
 ## id -> the pose key rendered for it.
 var _done := {}
-## [{id, x, z, yaw, pitch, key, tries}], oldest first. One per id.
+## [{id, x, z, yaw, pitch, fov, key, tries}], oldest first. One per id.
 var _queue: Array[Dictionary] = []
 var _busy := false
 ## Bumped by set_world: a render that outlives its world is thrown away.
@@ -64,13 +65,13 @@ func set_world(field: TerrainField, streamer: ChunkStreamer) -> void:
 	_pump.call_deferred()
 
 
-## [{id, x, z, yaw, pitch}]: render whatever hasn't been, for that pose.
-## Entries that don't check out are skipped.
+## [{id, x, z, yaw, pitch, fov}]: render whatever hasn't been, for that pose.
+## fov is vertical, in degrees. Entries that don't check out are skipped.
 func set_list(list: Array) -> void:
 	for e: Variant in list:
-		if not (e is Dictionary and e.get("id") is String and _num(e.get("x")) and _num(e.get("z")) and _num(e.get("yaw")) and _num(e.get("pitch"))):
+		if not (e is Dictionary and e.get("id") is String and _num(e.get("x")) and _num(e.get("z")) and _num(e.get("yaw")) and _num(e.get("pitch")) and _fov(e.get("fov"))):
 			continue
-		var key := "%s,%s,%s,%s" % [e.x, e.z, e.yaw, e.pitch]
+		var key := "%s,%s,%s,%s,%s" % [e.x, e.z, e.yaw, e.pitch, e.fov]
 		if _done.get(e.id) == key:
 			continue
 		var at := _queue.find_custom(func(q: Dictionary) -> bool: return q.id == e.id)
@@ -78,7 +79,7 @@ func set_list(list: Array) -> void:
 			if _queue[at].key == key:
 				continue
 			_queue.remove_at(at)
-		_queue.append({"id": e.id, "x": float(e.x), "z": float(e.z), "yaw": float(e.yaw), "pitch": float(e.pitch), "key": key, "tries": 0})
+		_queue.append({"id": e.id, "x": float(e.x), "z": float(e.z), "yaw": float(e.yaw), "pitch": float(e.pitch), "fov": float(e.fov), "key": key, "tries": 0})
 	_pump()
 
 
@@ -121,6 +122,8 @@ func _render(e: Dictionary) -> void:
 	var eye := Vector3(e.x, _field.height_at(e.x, e.z) + PHOTO_EYE, e.z)
 	_cam.position = eye
 	_cam.rotation = Vector3(e.pitch, e.yaw, 0.0)
+	# Camera3D keeps height by default, so fov is the vertical one, as photoCam means it.
+	_cam.fov = e.fov
 	streamer.ensure_around(eye)
 	streamer.ensure_around(eye + Vector3(-sin(e.yaw), 0.0, -cos(e.yaw)) * AHEAD)
 	streamer.hold(eye)
@@ -147,7 +150,8 @@ func _render(e: Dictionary) -> void:
 	if img.get_format() != Image.FORMAT_RGB8:
 		img.convert(Image.FORMAT_RGB8)
 	_done[e.id] = e.key
-	photo_ready.emit(e.id, e.x, e.z, Marshalls.raw_to_base64(img.save_jpg_to_buffer(PHOTO_Q)))
+	var pose := {"x": e.x, "z": e.z, "yaw": e.yaw, "pitch": e.pitch, "fov": e.fov}
+	photo_ready.emit(e.id, pose, Marshalls.raw_to_base64(img.save_jpg_to_buffer(PHOTO_Q)))
 	_pump.call_deferred()
 
 
@@ -159,3 +163,8 @@ static func _let_go(streamer: ChunkStreamer) -> void:
 
 static func _num(v: Variant) -> bool:
 	return v is float or v is int
+
+
+## Camera3D takes 1–179; photoCam sends 10–60.
+static func _fov(v: Variant) -> bool:
+	return _num(v) and v >= 1.0 and v <= 179.0

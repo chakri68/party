@@ -56,8 +56,8 @@ func _until(got: Array, n: int, limit := 120) -> void:
 		await t.process_frame
 
 
-func _pose(id: String, x: float, z: float, yaw := 0.5) -> Dictionary:
-	return {"id": id, "x": x, "z": z, "yaw": yaw, "pitch": 0.05}
+func _pose(id: String, x: float, z: float, yaw := 0.5, fov := 30.0) -> Dictionary:
+	return {"id": id, "x": x, "z": z, "yaw": yaw, "pitch": 0.05, "fov": fov}
 
 
 func test_render_once_per_pose() -> void:
@@ -66,7 +66,7 @@ func test_render_once_per_pose() -> void:
 	t.root.add_child(p)
 	p.set_world(w.field, w.streamer)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, x: float, z: float, data: String) -> void: got.append([id, data, x, z]))
+	p.photo_ready.connect(func(id: String, pose: Dictionary, data: String) -> void: got.append([id, data, pose.x, pose.z, pose]))
 
 	p.set_list([_pose("c1", 10, 20), _pose("c2", -30, 40)])
 	await _until(got, 2)
@@ -85,6 +85,19 @@ func test_render_once_per_pose() -> void:
 	check(got.size() == 3 and is_equal_approx(got[2][2], 12.0) and is_equal_approx(got[2][3], 20.0), "the photo names the pose it was rendered at")
 	check(not w.streamer.is_held(), "the streamer is let go after each photo")
 
+	# The lens is part of the pose: a new fov is a new photo, shot with it.
+	p.set_list([_pose("c1", 12, 20, 0.5, 18.5), _pose("c2", -30, 40)])
+	await _until(got, 4, 120)
+	check(got.size() == 4 and got[3][0] == "c1", "the same pose with a new fov: once more (%d)" % got.size())
+	check(is_equal_approx(p._cam.fov, 18.5), "the camera takes the pose's fov (%s)" % p._cam.fov)
+	var last: Dictionary = got[3][4] if got.size() == 4 else {}
+	check(last == {"x": 12.0, "z": 20.0, "yaw": 0.5, "pitch": 0.05, "fov": 18.5}, "the photo names its whole pose (%s)" % [last])
+	# A missing or out-of-range fov is skipped.
+	var bad := _pose("c3", 5, 5)
+	bad.erase("fov")
+	p.set_list([bad, _pose("c4", 5, 5, 0.5, 0.0), _pose("c5", 5, 5, 0.5, 200.0)])
+	check(p.pending() == 0 and not p.busy(), "no fov, fov 0 or fov 200: skipped")
+
 	p.queue_free()
 	w.streamer.queue_free()
 	await t.process_frame
@@ -94,7 +107,7 @@ func test_before_world() -> void:
 	var p := FakePhotos.new()
 	t.root.add_child(p)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, _x: float, _z: float, _data: String) -> void: got.append(id))
+	p.photo_ready.connect(func(id: String, _pose: Dictionary, _data: String) -> void: got.append(id))
 	p.set_list([_pose("c1", 10, 20)])
 	await _until(got, 1, 10)
 	check(got.is_empty(), "no world yet: queued, not rendered")
@@ -119,7 +132,7 @@ func test_queued_pose_replaced() -> void:
 	var p := FakePhotos.new()
 	t.root.add_child(p)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, x: float, _z: float, _data: String) -> void: got.append([id, x]))
+	p.photo_ready.connect(func(id: String, pose: Dictionary, _data: String) -> void: got.append([id, pose.x]))
 	# No world yet, so all of it waits in the queue.
 	p.set_list([_pose("c1", 10, 20), _pose("c2", -30, 40)])
 	p.set_list([_pose("c1", 15, 20), _pose("c2", -30, 40)])
@@ -155,7 +168,7 @@ func test_blank_capture() -> void:
 	t.root.add_child(p)
 	p.set_world(w.field, w.streamer)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, _x: float, _z: float, _data: String) -> void: got.append(id))
+	p.photo_ready.connect(func(id: String, _pose: Dictionary, _data: String) -> void: got.append(id))
 	p.set_list([_pose("c1", 10, 20)])
 	for i in 60:
 		await t.process_frame
@@ -184,8 +197,8 @@ func test_main_wiring() -> void:
 	bridge.photo_sent.connect(func(d: Dictionary) -> void: sent.append(d))
 	var photos: Photos = main.photos
 	check(photos != null and photos.pending() + (1 if photos.busy() else 0) == 1, "main hands the list to Photos")
-	photos.photo_ready.emit("c9", 1.5, -2.0, "abc")
-	check(sent == [{"id": "c9", "x": 1.5, "z": -2.0, "data": "abc"}], "a photo goes out as emitPhoto({id, x, z, data})")
+	photos.photo_ready.emit("c9", {"x": 1.5, "z": -2.0, "yaw": 0.5, "pitch": 0.05, "fov": 22.5}, "abc")
+	check(sent == [{"id": "c9", "x": 1.5, "z": -2.0, "yaw": 0.5, "pitch": 0.05, "fov": 22.5, "data": "abc"}], "a photo goes out as emitPhoto({id, x, z, yaw, pitch, fov, data})")
 	# The real capture, headless: an empty frame, tried and dropped, quietly.
 	for i in 40:
 		await t.process_frame

@@ -4,6 +4,9 @@ import {
   MACRO_ORIGIN,
   MACRO_SIZE,
   PHOTO_DIST,
+  PHOTO_FILL,
+  PHOTO_FOV_MAX,
+  PHOTO_FOV_MIN,
   START_MIN,
   TEMPLATES,
   generateLayout,
@@ -18,6 +21,8 @@ import { photoCam } from "../server/photos.ts";
 
 const DAY: HuntSky = { startMin: START_MIN.day, minutes: 30 };
 const NIGHT: HuntSky = { startMin: START_MIN.night, minutes: 30 };
+const DUSK_SHORT: HuntSky = { startMin: START_MIN.dusk, minutes: 15 };
+const DUSK_LONG: HuntSky = { startMin: START_MIN.dusk, minutes: 60 };
 const PHOTO = /^A photo taken about 5 m from the cache, looking at the (.+)\.$/;
 
 /** A flat 10 m island, no minor points, these pieces. `params` overrides the roll. */
@@ -137,6 +142,27 @@ describe("photoCam", () => {
     // A ruined lighthouse has no lamps, so the camp wins.
     expect(photoCam(dark, spot(0, 0), NIGHT)!.target).toBe("p2");
   });
+
+  // A dusk round that ends in the dark: a photo can render after dark (a Race clue opens late, a page reloads).
+  it("a round that gets dark later counts as night; a short dusk round doesn't", () => {
+    const dark = flat([{ template: "plane", x: 60, z: 0 }, { template: "camp", x: -120, z: 0 }]);
+    expect(photoCam(dark, spot(0, 0), DUSK_SHORT)!.target).toBe("p0");
+    expect(photoCam(dark, spot(0, 0), DUSK_LONG)!.target).toBe("p1");
+  });
+
+  it("the lens frames the target's top at PHOTO_FILL of the height, clamped", () => {
+    const cam = photoCam(l, s, DAY)!;
+    const t = l.pieces[0]!;
+    const top = TEMPLATES[t.template].top!(t.params);
+    const len = Math.hypot(t.x - cam.x, t.z - cam.z);
+    // tan(fov/2) is half the frame's height at the target's distance.
+    const fill = top / (2 * len * Math.tan((cam.fov * Math.PI) / 360));
+    expect(Math.abs(fill - PHOTO_FILL)).toBeLessThan(0.01);
+    expect(cam.fov).toBe(Math.round(cam.fov * 10) / 10);
+    // Close up the lens is as wide as it goes; far off, as long as it goes.
+    expect(photoCam(flat([{ template: "radio-tower", x: 45, z: 30 }]), s, DAY)!.fov).toBe(PHOTO_FOV_MAX);
+    expect(photoCam(flat([{ template: "camp", x: 280, z: 30 }]), s, DAY)!.fov).toBe(PHOTO_FOV_MIN);
+  });
 });
 
 describe("photo caches", () => {
@@ -152,5 +178,20 @@ describe("photo caches", () => {
       if (caches.some((c) => c.photo)) hits++;
     }
     expect(hits).toBeGreaterThanOrEqual(40);
+  });
+
+  // Review I1: dusk 60 ends in the dark, so every photo aims at a piece with lamps.
+  it("40 seeds at dusk, 60 minutes: every photo target has lamps", () => {
+    let n = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const { layout: l, caches } = makeHunt(seed, DUSK_LONG);
+      for (const c of caches) {
+        if (!c.photo) continue;
+        n++;
+        const p = l.pieces.find((q) => q.id === c.photo!.target)!;
+        expect(TEMPLATES[p.template].lamps?.(p.params).length ?? 0, `seed ${seed} ${c.id} ${p.template}`).toBeGreaterThan(0);
+      }
+    }
+    expect(n).toBeGreaterThan(20);
   });
 });

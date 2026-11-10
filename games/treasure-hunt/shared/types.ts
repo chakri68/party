@@ -131,6 +131,8 @@ export interface PhotoCam {
   yaw: number;
   /** Radians up, rounded to 0.01. */
   pitch: number;
+  /** Vertical field of view in degrees, PHOTO_FOV_MIN–PHOTO_FOV_MAX, rounded to 0.1. */
+  fov: number;
   /** The piece the camera faces. */
   target: string;
 }
