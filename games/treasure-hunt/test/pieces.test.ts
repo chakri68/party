@@ -1,3 +1,4 @@
+import { LAMP_REACH } from "../shared/sky.ts";
 import { describe, expect, it } from "vitest";
 import {
   BIOMES,
@@ -8,6 +9,7 @@ import {
   pieceLabel,
   placePieces,
   rng,
+  worldLamp,
   worldSlot,
   type SetPiece,
   type TemplateId,
@@ -180,6 +182,80 @@ describe("worldSlot", () => {
     expect(w.dy).toBe(0.5);
     const q = worldSlot({ ...p, x: 100, z: -50, yaw: 0 }, { x: 2, z: 3, dy: 0, hint: "" });
     expect(q).toEqual({ x: 102, z: -47, dy: 0 });
+  });
+});
+
+describe("lamps and heights", () => {
+  const samples = (id: TemplateId) => {
+    const t = TEMPLATES[id];
+    return [0, 0.5, 1 - 1e-9].map((v) => t.roll(() => v));
+  };
+
+  it("lighthouse: top and lamps", () => {
+    for (const p of samples("lighthouse")) {
+      const t = TEMPLATES.lighthouse;
+      expect(t.top!(p)).toBeCloseTo(p.height! + (p.ruined ? 1.1 : 3.6), 9);
+      const R = 2.5 + p.height! * 0.1;
+      expect(t.lamps!(p)).toEqual(
+        p.ruined
+          ? []
+          : [
+              { x: 0, y: p.height! + 1.2, z: 0, clue: false },
+              { x: 0, y: 2.6, z: -(R + 0.25), clue: true },
+            ],
+      );
+    }
+  });
+
+  it("radio tower: top and lamps", () => {
+    for (const p of samples("radio-tower")) {
+      const t = TEMPLATES["radio-tower"];
+      const b = 1 + p.height! * 0.03;
+      expect(t.top!(p)).toBeCloseTo(p.height! + 3.5, 9);
+      expect(t.lamps!(p)).toEqual([
+        { x: 0, y: p.height! + 3.25, z: 0, clue: false },
+        { x: b + 3.5, y: 2.6, z: -1.75, clue: true },
+      ]);
+    }
+  });
+
+  it("camp: a lantern, no top", () => {
+    const t = TEMPLATES.camp;
+    expect(t.top).toBeUndefined();
+    const [l] = t.lamps!({ tents: 2, firepit: 0 });
+    expect(l!.x).toBeCloseTo(Math.sin((3 * Math.PI) / 4) * 2.6, 9);
+    expect(l!.z).toBeCloseTo(-Math.cos((3 * Math.PI) / 4) * 2.6, 9);
+    expect(l!.y).toBe(2.2);
+    expect(l!.clue).toBe(true);
+  });
+
+  it("the other templates have neither", () => {
+    for (const id of ["shipwreck", "stone-circle", "plane"] as TemplateId[]) {
+      expect(TEMPLATES[id].top).toBeUndefined();
+      expect(TEMPLATES[id].lamps).toBeUndefined();
+    }
+  });
+
+  it("every clue lamp is within LAMP_REACH of a slot of its piece", () => {
+    for (const id of IDS) {
+      const t = TEMPLATES[id];
+      if (!t.lamps) continue;
+      for (const p of samples(id)) {
+        for (const l of t.lamps(p).filter((x) => x.clue)) {
+          const d = Math.min(...t.slots(p).map((s) => Math.hypot(s.x - l.x, s.z - l.z)));
+          expect(d, id).toBeLessThanOrEqual(LAMP_REACH);
+        }
+      }
+    }
+  });
+
+  it("worldLamp turns like worldSlot and lifts by padY", () => {
+    const p = { x: 100, z: -50, yaw: Math.PI / 2, padY: 7 };
+    const w = worldLamp(p, { x: 2, y: 2.6, z: 3, clue: true });
+    const s = worldSlot(p, { x: 2, z: 3, dy: 0, hint: "" });
+    expect(w.x).toBeCloseTo(s.x, 9);
+    expect(w.z).toBeCloseTo(s.z, 9);
+    expect(w.y).toBeCloseTo(9.6, 9);
   });
 });
 

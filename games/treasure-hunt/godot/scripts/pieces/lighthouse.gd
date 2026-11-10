@@ -35,6 +35,7 @@ static func build(p: Dictionary, label: int) -> Node3D:
 		_ruin(root, b, h, R * TAPER, R, spot)
 	else:
 		_lamp(root, h, R * TAPER)
+		_door_lamp(root, R)
 		_boxes(root, b, spot)
 	return root
 
@@ -45,7 +46,16 @@ static func _lamp(root: Node3D, h: float, rt: float) -> void:
 	PieceKit.cylinder(root, rt + 0.5, rt + 0.5, 0.3, Vector3(0, h + 0.15, 0), metal)
 	var lamp := PieceKit.cylinder(root, rt * 0.55, rt * 0.55, 1.8, Vector3(0, h + 1.2, 0), PieceKit.lamp_mat(Color("#ffe8a0")))
 	lamp.name = "Lamp"
+	PieceKit.lamp_light(root, 0, Vector3(0, h + 1.2, 0))
 	PieceKit.cylinder(root, 0.0, rt * 0.75, 1.5, Vector3(0, h + 2.85, 0), metal)
+
+
+## A bulb on a short bracket over the door, 0.25 m out from the wall.
+static func _door_lamp(root: Node3D, R: float) -> void:
+	var at := Vector3(0, 2.6, -(R + 0.25))
+	PieceKit.box(root, Vector3(0.08, 0.08, 0.3), Vector3(0, 2.6, -R - 0.05), PieceKit.mat(PieceKit.METAL))
+	PieceKit.cylinder(root, 0.12, 0.12, 0.24, at, PieceKit.lamp_mat(Color("#ffe8a0")))
+	PieceKit.lamp_light(root, 1, at)
 
 
 ## A broken rim, rubble on the −X side, and the fallen block (top at 0.5).

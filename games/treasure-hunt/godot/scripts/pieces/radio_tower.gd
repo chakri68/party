@@ -44,8 +44,14 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	PieceKit.commit(root, st, PieceKit.mat(PieceKit.label_colour("radio-tower", label)))
 	var lamp := PieceKit.box(root, Vector3(0.5, 0.5, 0.5), Vector3(0, h + 3.25, 0), PieceKit.lamp_mat(Color("#ff4030")))
 	lamp.name = "Lamp"
+	PieceKit.lamp_light(root, 0, Vector3(0, h + 3.25, 0))
 
 	_hut(root, b, Vector3(bw + 3.5, 0, 0))
+	# A bulb on a bracket at the roof edge over the door.
+	var at := Vector3(bw + 3.5, 2.6, -1.75)
+	PieceKit.box(root, Vector3(0.08, 0.08, 0.2), Vector3(at.x, 2.6, -1.6), PieceKit.mat(PieceKit.METAL))
+	PieceKit.cylinder(root, 0.12, 0.12, 0.24, at, PieceKit.lamp_mat(Color("#ffe8a0")))
+	PieceKit.lamp_light(root, 1, at)
 	if int(p.get("wires", 0)) == 1:
 		_wires(root, b, h, half)
 	return root

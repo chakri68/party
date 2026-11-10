@@ -16,6 +16,15 @@ export interface Slot {
   hint: string;
 }
 
+/** A lamp in the piece's local frame. y is metres above the pad. `clue` is true
+ *  for a ground lamp a cache can be "under". */
+export interface Lamp {
+  x: number;
+  y: number;
+  z: number;
+  clue: boolean;
+}
+
 export interface Template {
   id: TemplateId;
   name: string;
@@ -24,6 +33,10 @@ export interface Template {
   roll(r: Rng): Record<string, number>;
   /** 2–4 slots, 0 ≤ dy ≤ 1. */
   slots(params: Record<string, number>): Slot[];
+  /** Metres above the pad of the piece's highest point, at its local origin. */
+  top?(params: Record<string, number>): number;
+  /** Lamps that come on at dusk. */
+  lamps?(params: Record<string, number>): Lamp[];
 }
 
 const between = (r: Rng, lo: number, hi: number) => lo + (hi - lo) * r();
@@ -51,6 +64,16 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["red", "white", "blue"],
     padR: 10,
     roll: (r) => ({ height: round(between(r, 14, 22), 0.1), ruined: coin(r) }),
+    // Working: gallery, lamp and roof reach height + 3.6. Ruined: the broken rim, height + 1.1.
+    top: (p) => p.height! + (p.ruined ? 1.1 : 3.6),
+    // Working only: the lamp at the top, and one over the door.
+    lamps: (p) =>
+      p.ruined
+        ? []
+        : [
+            { x: 0, y: p.height! + 1.2, z: 0, clue: false },
+            { x: 0, y: 2.6, z: -(lighthouseRadius(p) + 0.25), clue: true },
+          ],
     slots: (p) => {
       const R = lighthouseRadius(p);
       return [
@@ -115,6 +138,13 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["red", "white", "yellow"],
     padR: 8,
     roll: (r) => ({ height: round(between(r, 20, 35), 0.1), wires: coin(r) }),
+    // The mast ends at height + 3, the red lamp on it at height + 3.5.
+    top: (p) => p.height! + 3.5,
+    // The red lamp on the mast, and one at the hut door.
+    lamps: (p) => [
+      { x: 0, y: p.height! + 3.25, z: 0, clue: false },
+      { x: towerBase(p) + 3.5, y: 2.6, z: -1.75, clue: true },
+    ],
     slots: (p) => {
       const b = towerBase(p);
       const out: Slot[] = [
@@ -137,6 +167,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     labels: ["orange", "green", "blue"],
     padR: 14,
     roll: (r) => ({ tents: int(r, 1, 3), firepit: coin(r) }),
+    // A lantern on a post, 2.6 m out at 135°, clear of every tent and slot.
+    lamps: () => [{ ...polar((3 * Math.PI) / 4, 2.6), y: 2.2, clue: true }],
     slots: (p) => [
       { ...polar(0, 7.2), dy: 0, hint: "Behind a tent at the {label}." },
       p.firepit
@@ -183,4 +215,11 @@ export function worldSlot(p: Pick<SetPiece, "x" | "z" | "yaw">, s: Slot): { x: n
   const c = Math.cos(p.yaw);
   const n = Math.sin(p.yaw);
   return { x: p.x + s.x * c + s.z * n, z: p.z - s.x * n + s.z * c, dy: s.dy };
+}
+
+/** A lamp in world space. Turns like `worldSlot`; y is the pad plus the lamp's own. */
+export function worldLamp(p: Pick<SetPiece, "x" | "z" | "yaw" | "padY">, l: Lamp): { x: number; y: number; z: number } {
+  const c = Math.cos(p.yaw);
+  const n = Math.sin(p.yaw);
+  return { x: p.x + l.x * c + l.z * n, y: p.padY + l.y, z: p.z - l.x * n + l.z * c };
 }

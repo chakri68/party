@@ -41,6 +41,8 @@ const CONCRETE := Color("#a8a49c")
 const KENNEY := "res://assets/kenney_nature-kit/%s.glb"
 
 static var _mats := {}
+static var _lamp_keys: Array[String] = []
+static var _lamps_on := false
 static var _meshes := {}
 static var _unit := BoxMesh.new()
 
@@ -75,17 +77,44 @@ static func mat(c: Color) -> StandardMaterial3D:
 	return _mats[key]
 
 
-## The night lamp: unlit, so it reads as glowing. Real light comes in M4.
+## A lamp's glowing material: unlit and emissive when on, a plain shaded
+## colour when off. Starts in whichever state set_lamps_on last put them.
 static func lamp_mat(c: Color) -> StandardMaterial3D:
 	var key := "lamp" + c.to_html()
 	if not _mats.has(key):
 		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.albedo_color = c
-		m.emission_enabled = true
 		m.emission = c
+		_lamp_keys.append(key)
+		_set_lamp(m, _lamps_on)
 		_mats[key] = m
 	return _mats[key]
+
+
+## Every lamp material at once: glowing (on) or plain (off). The clock calls
+## this at dusk and dawn.
+static func set_lamps_on(on: bool) -> void:
+	_lamps_on = on
+	for key in _lamp_keys:
+		_set_lamp(_mats[key], on)
+
+
+static func _set_lamp(m: StandardMaterial3D, on: bool) -> void:
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED if on else BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	m.emission_enabled = on
+
+
+## The light of lamp `index`, named Lamp<index>, at `pos`. Hidden until the
+## clock turns it on. The glowing mesh beside it is built by the piece.
+static func lamp_light(parent: Node3D, index: int, pos: Vector3) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.name = "Lamp%d" % index
+	l.omni_range = 9.0
+	l.light_color = Color("#ffd890")
+	l.position = pos
+	l.visible = false
+	parent.add_child(l)
+	return l
 
 
 static func mesh(parent: Node3D, m: Mesh, xf: Transform3D, material: Material) -> MeshInstance3D:

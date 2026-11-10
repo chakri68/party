@@ -86,6 +86,8 @@ function pieceSamples() {
         params,
         variant: i % 3,
         slots: t.slots(params).map(({ x, z, dy }) => ({ x, z, dy })),
+        ...(t.top ? { top: t.top(params) } : {}),
+        ...(t.lamps ? { lamps: t.lamps(params) } : {}),
       })),
     };
   }

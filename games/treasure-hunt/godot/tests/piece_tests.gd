@@ -105,6 +105,13 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 	check(_queries_see(piece), what + ": the queries see its colliders")
 	for slot: Dictionary in s.slots:
 		_check_slot(what, slot)
+	if s.has("top"):
+		var hi := _aabb_geometry(piece).end.y
+		check(absf(hi - float(s.top)) <= 0.15, "%s: top %.2f m within 0.15 of %.2f" % [what, hi, float(s.top)])
+	for k in (s.lamps if s.has("lamps") else []).size():
+		_check_lamp(what, piece, k, s.lamps[k])
+	if s.has("lamps"):
+		_check_lamp_switch(what, piece)
 	if tid == "shipwreck":
 		_check_bow(what, piece, s.params)
 	if tid == "plane":
@@ -114,6 +121,27 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 		check(_debris_clear(piece, s.slots) >= 1.0, "%s: loose debris is 1 m clear of every slot (%.2f m)" % [what, _debris_clear(piece, s.slots)])
 	_vp.remove_child(piece)
 	piece.free()
+
+
+## Lamp<k> is an OmniLight3D at the lamp, range 9, off until the clock turns it on.
+func _check_lamp(what: String, piece: Node, k: int, l: Dictionary) -> void:
+	var n := piece.get_node_or_null("Lamp%d" % k) as OmniLight3D
+	check(n != null, "%s: has an OmniLight3D Lamp%d" % [what, k])
+	if n == null:
+		return
+	var want := Vector3(l.x, l.y, l.z)
+	check(n.global_position.distance_to(want) <= 0.05, "%s: Lamp%d at %s (got %s)" % [what, k, want, n.global_position])
+	check(is_equal_approx(n.omni_range, 9.0) and not n.visible, "%s: Lamp%d range 9, hidden" % [what, k])
+
+
+## The bulbs are lamp_mat: off after a build, emissive and unshaded when on.
+func _check_lamp_switch(what: String, piece: Node) -> void:
+	var m := PieceKit.lamp_mat(Color("#ffe8a0"))
+	check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, what + ": lamps start off")
+	PieceKit.set_lamps_on(true)
+	check(m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED, what + ": set_lamps_on(true) lights them")
+	PieceKit.set_lamps_on(false)
+	check(not m.emission_enabled and m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, what + ": set_lamps_on(false) dims them")
 
 
 func _check_slot(what: String, slot: Dictionary) -> void:
@@ -230,6 +258,17 @@ func _aabb(n: Node) -> AABB:
 	var out := AABB()
 	var first := true
 	for v: VisualInstance3D in n.find_children("*", "VisualInstance3D", true, false):
+		var b := v.global_transform * v.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
+
+
+## Meshes only: lights have an AABB of their own range.
+func _aabb_geometry(n: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for v: GeometryInstance3D in _geometry(n):
 		var b := v.global_transform * v.get_aabb()
 		out = b if first else out.merge(b)
 		first = false
