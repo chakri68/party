@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   BIOMES,
   MACRO_CELL,
@@ -14,9 +14,14 @@ import {
 
 const SEEDS = Array.from({ length: 1000 }, (_, i) => i + 1);
 
-// One pass over 1000 seeds, shared by the tests that need it.
-let cache: TreasureLayout[] | undefined;
-const layouts = (): TreasureLayout[] => (cache ??= SEEDS.map((s) => makeLayout(s)));
+// One pass over 1000 seeds, shared by the tests that need it. It runs every
+// layer now (pieces, trails, minor points), so it gets its own budget rather
+// than eating the first test's.
+let cache: TreasureLayout[] = [];
+const layouts = (): TreasureLayout[] => cache;
+beforeAll(() => {
+  cache = SEEDS.map((s) => makeLayout(s));
+}, 120_000);
 
 /** A point `out` metres outside side `side` (N, E, S, W), at `t` along it. */
 function sidePoint(side: number, t: number, out: number): [number, number] {
@@ -67,11 +72,12 @@ describe("macroHeight", () => {
 describe("1000 seeds", () => {
   it("are all valid, with fewer than 2% rerolls", () => {
     const all = layouts();
+    expect(all).toHaveLength(SEEDS.length);
     const invalid = all.filter((l) => validateLayout(l).length > 0);
     expect(invalid.map((l) => [l.seed, validateLayout(l)])).toEqual([]);
     const rerolls = all.filter((l, i) => l.seed !== SEEDS[i]).length;
     expect(rerolls).toBeLessThan(20);
-  }, 20_000); // the first test to touch layouts() pays for all 1000
+  });
 
   it("spawn on land, inside the margin, facing the centre", () => {
     for (const l of layouts()) {

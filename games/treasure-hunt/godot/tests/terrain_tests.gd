@@ -389,10 +389,11 @@ func _plain(l: Dictionary) -> TerrainField:
 
 
 ## Inside some other piece's pad or blend ring, where its own rule wins.
-func _near_other(l: Dictionary, x: float, z: float, skip: int) -> bool:
+## Each ring is as wide as that pad's own blend in `f`.
+func _near_other(f: TerrainField, l: Dictionary, x: float, z: float, skip: int) -> bool:
 	var ps: Array = l.pieces
 	for k in ps.size():
-		if k != skip and Vector2(x - ps[k].x, z - ps[k].z).length() < float(ps[k].padR) + TerrainField.MAX_BLEND + 0.01:
+		if k != skip and Vector2(x - ps[k].x, z - ps[k].z).length() < float(ps[k].padR) + f.pad_blend(k) + 0.01:
 			return true
 	return false
 
@@ -536,35 +537,52 @@ func test_trail_ends() -> void:
 	check(ends > 0 and bad == 0, "trail ends climb at most 35° into their pads where the land allows (%d of %d over)" % [bad, ends])
 
 
-## Out from each pad's edge to the end of its blend, at least 18 of 72
-## directions are walkable (≤ 40° all the way). Where the hills alone
-## allow fewer than 21 that far out (a peak with cliffs round it), the pad
-## may cost at most 3 of them.
+## How far out the no-pad baseline looks: the widest ring there can be. A
+## fixed reach, so a ring that widened doesn't also soften its own baseline.
+const BARE_REACH := TerrainField.MAX_BLEND + 0.5
+## Every pad, cliffs or not, has this many ways down its first 10 m of ring.
+const NEAR_REACH := 10.0
+
+## Two rules, 72 directions, walkable = ≤ 40° all the way:
+## - out to padR + 10, every pad has at least 18;
+## - out to the end of its blend, at least 18 too. Where the hills alone
+##   allow fewer than 21 out to padR + BARE_REACH (a peak with cliffs round
+##   it), the pad may cost at most 3 of those.
 func test_pad_walkable() -> void:
 	var low := 72
 	var low_at := ""
+	var near_low := 72
+	var near_at := ""
 	var ok_all := true
+	var near_all := true
 	for l: Dictionary in _all_layouts():
 		var f := TerrainField.from_layout(l)
 		var plain: TerrainField = null
 		var ps: Array = l.pieces
 		for k in ps.size():
 			var p: Dictionary = ps[k]
-			var stop := float(p.padR) + f.pad_blend(k) + 0.5
-			var ok := _walkable(f, p, stop)
+			var r := float(p.padR)
+			var near := _walkable(f, p, r + NEAR_REACH)
+			near_all = near_all and near >= 18
+			if near < near_low:
+				near_low = near
+				near_at = "seed %d %s %s" % [l.seed, p.id, p.template]
+			var ok := _walkable(f, p, r + f.pad_blend(k) + 0.5)
 			var need := 18
 			if ok < 18:
 				if plain == null:
 					plain = _plain(l)
-				var bare := _walkable(plain, p, stop)
+				var bare := _walkable(plain, p, r + BARE_REACH)
 				if bare < 21:
 					need = bare - 3
-				print("    seed %d %s %s: %d walkable, %d with no pad (blend %.1f)" % [l.seed, p.id, p.template, ok, bare, f.pad_blend(k)])
+				print("    seed %d %s %s: %d walkable, %d with no pad to padR + %.1f (blend %.1f)" % [l.seed, p.id, p.template, ok, bare, BARE_REACH, f.pad_blend(k)])
 			ok_all = ok_all and ok >= need
 			if ok < low:
 				low = ok
 				low_at = "seed %d %s %s" % [l.seed, p.id, p.template]
 	print("  fewest walkable directions off a pad: %d of 72 (%s)" % [low, low_at])
+	print("  fewest walkable directions to padR + %.0f: %d of 72 (%s)" % [NEAR_REACH, near_low, near_at])
+	check(near_all, "every pad has at least 18 of 72 walkable ways down its first %.0f m (fewest %d, %s)" % [NEAR_REACH, near_low, near_at])
 	check(ok_all, "every pad has at least 18 of 72 walkable ways off it, or nearly what its hills allow (fewest %d, %s)" % [low, low_at])
 
 
@@ -619,7 +637,7 @@ func test_trails() -> void:
 			for i in ps.size():
 				var x: float = ps[i][0]
 				var z: float = ps[i][1]
-				if _near_other(l, x, z, -1):
+				if _near_other(f, l, x, z, -1):
 					continue
 				pts += 1
 				if absf(f.height_at(x, z) - f.macro_height(x, z)) > 0.01:
@@ -628,7 +646,7 @@ func test_trails() -> void:
 				if i > 0:
 					var mx: float = (x + ps[i - 1][0]) * 0.5
 					var mz: float = (z + ps[i - 1][1]) * 0.5
-					if not _near_other(l, mx, mz, -1):
+					if not _near_other(f, l, mx, mz, -1):
 						mids = mids and absf(f.height_at(mx, mz) - f.macro_height(mx, mz)) <= 0.01
 	check(pts > 0 and flat, "on a trail point the detail is 0: height_at = macro_height (%d points)" % pts)
 	check(mids, "and halfway between trail points too")
@@ -638,7 +656,7 @@ func test_trails() -> void:
 	for k in 200:
 		var x := -700.0 + k * 7.1
 		var z := 333.0 - k * 3.3
-		if f1.trail_distance(x, z) > 10.0 and not _near_other(layout, x, z, -1):
+		if f1.trail_distance(x, z) > 10.0 and not _near_other(f1, layout, x, z, -1):
 			diff = maxf(diff, absf(f1.height_at(x, z) - f1.macro_height(x, z)))
 	check(diff > 0.3, "away from trails the detail stays (max %.2f m)" % diff)
 
