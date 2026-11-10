@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { godotPos, shouldSendSession, worldReadyFor, type BridgeCall, type Roster } from "../client/godot/bridge.ts";
-import { ClaimLog, GodotFeed, claimError, resync, rosterFor } from "../client/view.ts";
+import { godotPos, godotSeat, godotUnseat, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
+import { ActLog, ClaimLog, GodotFeed, claimError, resync, rosterFor } from "../client/view.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
@@ -201,6 +201,26 @@ describe("GodotFeed, the other players", () => {
     ]);
     expect(sent[0]![sent[0]!.length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
   });
+
+  // Review Focus 3: a reloaded iframe is a fresh Godot. Its ready() has to
+  // bring back everything a running one had: who's who, the buggies, and the
+  // reveals the stream brought.
+  it("GodotFeed: a second ready() re-sends roster, vehicles and reveals", () => {
+    const { feed, sent } = setup();
+    const vehicles: Vehicles = { me: "p1", list: [{ id: "t0", x: 1, y: null, z: 2, yaw: 0, driver: "p2", passenger: null }] };
+    feed.update(priv, "hunting", 1, roster, vehicles);
+    feed.sync(); // the first ready()
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    sent.length = 0;
+    feed.sync(); // ready() again, with no update in between
+    const calls = sent[0]!;
+    expect(calls.slice(0, 2)).toEqual([
+      { fn: "roster", arg: roster },
+      { fn: "vehicles", arg: vehicles },
+    ]);
+    expect(calls).toContainEqual({ fn: "revealCache", arg: { id: "c4", x: 12, z: -30, dy: 0.5 } });
+    expect(calls[calls.length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
+  });
 });
 
 describe("rosterFor", () => {
@@ -243,6 +263,46 @@ describe("godotPos", () => {
     expect(godotPos({ x: 1, y: 2, z: 3, yaw: Number.NaN, foot: true, v: null })).toBeNull();
     expect(godotPos({ x: 1, y: 2, z: 3, yaw: 0, foot: true, v: 7 })).toBeNull();
     expect(godotPos(null)).toBeNull();
+  });
+});
+
+// Bridge v3, the buggies: what Godot asks for is checked before it becomes an act.
+describe("godotSeat and godotUnseat", () => {
+  it("takes a vehicle id and a seat", () => {
+    expect(godotSeat({ vehicleId: "t0", seat: "driver" })).toEqual({ vehicleId: "t0", seat: "driver" });
+    expect(godotSeat({ vehicleId: "l2", seat: "passenger", extra: 1 })).toEqual({ vehicleId: "l2", seat: "passenger" });
+  });
+
+  it("drops a bad seat ask", () => {
+    expect(godotSeat({ vehicleId: "t0", seat: "roof" })).toBeNull();
+    expect(godotSeat({ vehicleId: "", seat: "driver" })).toBeNull();
+    expect(godotSeat({ vehicleId: "123456789", seat: "driver" })).toBeNull();
+    expect(godotSeat({ vehicleId: 3, seat: "driver" })).toBeNull();
+    expect(godotSeat(null)).toBeNull();
+  });
+
+  it("takes a finite pose, and drops anything else", () => {
+    expect(godotUnseat({ x: 1, y: 2, z: -3, yaw: 0.5 })).toEqual({ x: 1, y: 2, z: -3, yaw: 0.5 });
+    expect(godotUnseat({ x: 1, y: 2, z: -3 })).toBeNull();
+    expect(godotUnseat({ x: 1, y: Number.POSITIVE_INFINITY, z: -3, yaw: 0 })).toBeNull();
+    expect(godotUnseat("x")).toBeNull();
+  });
+});
+
+describe("ActLog", () => {
+  it("knows its own acts, once each", () => {
+    const log = new ActLog();
+    log.add("a1");
+    expect(log.rejected("a1")).toBe(true);
+    expect(log.rejected("a1")).toBe(false);
+    expect(log.rejected("nope")).toBe(false);
+  });
+
+  it("keeps only the latest few, since an accepted act never hears back", () => {
+    const log = new ActLog(3);
+    for (const id of ["a1", "a2", "a3", "a4"]) log.add(id);
+    expect(log.rejected("a1")).toBe(false);
+    expect(log.rejected("a4")).toBe(true);
   });
 });
 

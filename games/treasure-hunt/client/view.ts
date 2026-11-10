@@ -1,7 +1,7 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type RemotePos, type Roster } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -24,8 +24,10 @@ import { layoutFor } from "./layout-cache.ts";
 // next real update (a relay doesn't bump the state). Another player's pos
 // relay goes straight on too, if they're in the roster: everyone Godot
 // should draw, with their name and colour. Every render and every ready()
-// sends it all again (the roster, then resync: private state plus the
-// reveals that came over the stream since). A reveal can miss: it went to the old world
+// sends it all again (the roster, the buggies, then resync: private state
+// plus the reveals that came over the stream since). E by a buggy is Godot
+// asking for a seat (→ act seat); getting out is act unseat. A turned-down
+// seat gets a toast; Godot just lets its ask time out. A reveal can miss: it went to the old world
 // just before a rebuild, or to an iframe that reloaded.
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
@@ -123,6 +125,7 @@ export class GodotFeed {
   private seed: number | null = null;
   private streamed = new Map<string, CacheReveal>();
   private roster: Roster | null = null;
+  private vehicles: Vehicles | null = null;
   private send: (calls: BridgeCall[]) => void;
 
   constructor(send: (calls: BridgeCall[]) => void) {
@@ -130,8 +133,9 @@ export class GodotFeed {
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
-  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null) {
+  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null) {
     this.roster = roster;
+    this.vehicles = vehicles;
     // A new map's caches are new ones. (A relay before the first update is kept.)
     if (this.seed !== null && seed !== this.seed) this.streamed.clear();
     this.priv = priv;
@@ -152,10 +156,14 @@ export class GodotFeed {
     this.send([{ fn: "revealCache", arg: r }]);
   }
 
-  /** Everything again, the roster first. Cheap: a pool is a handful of caches, and Godot keeps capsules that didn't change. */
+  /**
+   * Everything again: the roster, the buggies, then the rest. Cheap: a pool
+   * is a handful of caches, and Godot keeps capsules and buggies that didn't change.
+   */
   sync() {
     if (!this.phase) return;
     const calls = resync(this.priv, this.phase, this.streamed.values());
+    if (this.vehicles) calls.unshift({ fn: "vehicles", arg: this.vehicles });
     if (this.roster) calls.unshift({ fn: "roster", arg: this.roster });
     this.send(calls);
   }
@@ -205,6 +213,32 @@ export class ClaimLog {
   }
 }
 
+/**
+ * Acts whose rejection gets a toast (seats). An accepted act never hears
+ * back, so only the latest `cap` are kept.
+ */
+export class ActLog {
+  private ids: string[] = [];
+  private cap: number;
+
+  constructor(cap = 16) {
+    this.cap = cap;
+  }
+
+  add(actionId: string) {
+    this.ids.push(actionId);
+    if (this.ids.length > this.cap) this.ids.shift();
+  }
+
+  /** True if this was one of ours; it is forgotten either way. */
+  rejected(actionId: string): boolean {
+    const i = this.ids.indexOf(actionId);
+    if (i < 0) return false;
+    this.ids.splice(i, 1);
+    return true;
+  }
+}
+
 /** A touch screen with no mouse or trackpad to go with it. */
 function touchOnly(): boolean {
   return matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
@@ -238,6 +272,7 @@ export class TreasureHuntView implements GameView {
   /** The seed we last sent act("ready") for. */
   private readySeed: number | null = null;
   private claims = new ClaimLog();
+  private seats = new ActLog();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
 
@@ -264,6 +299,8 @@ export class TreasureHuntView implements GameView {
       claim: (id) => {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
+      seat: (s) => this.seats.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
+      unseat: (p) => this.seats.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
     });
     this.feed = new GodotFeed((calls) => this.bridge.call(calls));
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
@@ -293,7 +330,7 @@ export class TreasureHuntView implements GameView {
   }
 
   rejected(clientActionId: string, message: string, code?: string) {
-    if (this.claims.rejected(clientActionId)) this.showToast(claimError(code, message));
+    if (this.claims.rejected(clientActionId) || this.seats.rejected(clientActionId)) this.showToast(claimError(code, message));
     else this.msg.textContent = message;
   }
 
@@ -306,7 +343,10 @@ export class TreasureHuntView implements GameView {
     this.priv = (props.private as THPrivate | null) ?? null;
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
-    this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId));
+    this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId), {
+      me: this.playerId,
+      list: this.game.vehicles,
+    });
     this.claims.update(this.priv, this.game.seed);
     if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();

@@ -1,4 +1,4 @@
-import type { Phase, TreasureLayout } from "../../shared/types.ts";
+import type { Phase, Seat, TreasureLayout, Vehicle } from "../../shared/types.ts";
 import build from "./godot-build.json";
 
 // The TS half of the iframe bridge, copied from Blind Rally's and cut down to
@@ -38,7 +38,7 @@ export interface GodotPos {
   /** The body's facing, radians, Godot style: the walker's, or the buggy's you're in. */
   yaw: number;
   foot: boolean;
-  /** The vehicle you're in. null on foot, and while driving the one buggy, which has no id yet. */
+  /** The vehicle you're in. null on foot, and in the standalone buggy (no list yet), which has no id. */
   v: string | null;
 }
 
@@ -46,6 +46,26 @@ export interface GodotPos {
 export interface Roster {
   me: string;
   players: { id: string; name: string; color: string; team: number }[];
+}
+
+/** Every buggy, as the server has them, plus who's us (Godot drives the ones naming `me`). */
+export interface Vehicles {
+  me: string;
+  list: Vehicle[];
+}
+
+/** E by a buggy: which seat Godot asks for. */
+export interface SeatAsk {
+  vehicleId: string;
+  seat: Seat;
+}
+
+/** Getting out: the buggy's pose. The server clamps it for a driver and ignores it for a passenger. */
+export interface UnseatPose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
 }
 
 /** Another player's pos relay, with who sent it. */
@@ -57,7 +77,8 @@ export type BridgeCall =
   | { fn: "cacheFound"; arg: { id: string } }
   | { fn: "setPhase"; arg: { phase: Phase } }
   | { fn: "roster"; arg: Roster }
-  | { fn: "remotePos"; arg: RemotePos };
+  | { fn: "remotePos"; arg: RemotePos }
+  | { fn: "vehicles"; arg: Vehicles };
 
 type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 
@@ -68,6 +89,10 @@ interface HostObject extends GodotFns {
   /** Checked with godotPos: it comes from Godot's JSON, not from our types. */
   emitPos(p: unknown): void;
   emitClaim(c: { id: string }): void;
+  /** Checked with godotSeat. */
+  emitSeat(s: unknown): void;
+  /** Checked with godotUnseat. */
+  emitUnseat(p: unknown): void;
   initSession?(config: SessionConfig): void;
 }
 
@@ -79,6 +104,10 @@ export interface BridgeHandlers {
   pos(p: GodotPos): void;
   /** The player pressed E by this cache. */
   claim(id: string): void;
+  /** The player pressed E by a buggy. */
+  seat(s: SeatAsk): void;
+  /** The player got out. */
+  unseat(p: UnseatPose): void;
   /** Bytes in so far, from Godot's own preloader. `total` is 0 when it doesn't know. */
   progress(loaded: number, total: number): void;
   /** The engine's downloaded and running; the scene's still coming up. */
@@ -119,6 +148,24 @@ export function godotPos(p: unknown): GodotPos | null {
   if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
   if (typeof d.foot !== "boolean" || !(d.v === null || typeof d.v === "string")) return null;
   return { x: d.x as number, y: d.y as number, z: d.z as number, yaw: d.yaw as number, foot: d.foot, v: d.v };
+}
+
+/** What Godot's emitSeat gave us, checked and copied, or null. Ids are buggySlots ids, 1–8 chars. */
+export function godotSeat(s: unknown): SeatAsk | null {
+  if (!s || typeof s !== "object") return null;
+  const d = s as Record<string, unknown>;
+  if (typeof d.vehicleId !== "string" || d.vehicleId.length < 1 || d.vehicleId.length > 8) return null;
+  if (d.seat !== "driver" && d.seat !== "passenger") return null;
+  return { vehicleId: d.vehicleId, seat: d.seat };
+}
+
+/** What Godot's emitUnseat gave us, checked and copied, or null. */
+export function godotUnseat(p: unknown): UnseatPose | null {
+  if (!p || typeof p !== "object") return null;
+  const d = p as Record<string, unknown>;
+  const nums = [d.x, d.y, d.z, d.yaw];
+  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  return { x: d.x as number, y: d.y as number, z: d.z as number, yaw: d.yaw as number };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
@@ -197,6 +244,14 @@ export class GodotBridge {
       emitClaim: (c) => {
         if (c && typeof c.id === "string") this.handlers.claim(c.id);
       },
+      emitSeat: (s) => {
+        const ask = godotSeat(s);
+        if (ask) this.handlers.seat(ask);
+      },
+      emitUnseat: (p) => {
+        const pose = godotUnseat(p);
+        if (pose) this.handlers.unseat(pose);
+      },
     };
     const iframe = document.createElement("iframe");
     iframe.className = "th-godot";
@@ -217,7 +272,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos"] as const) delete this.host[k];
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);
