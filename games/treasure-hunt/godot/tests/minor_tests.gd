@@ -40,6 +40,8 @@ func run() -> void:
 	test_build_all()
 	_vp.queue_free()
 	await t.process_frame
+	await test_slope()
+	await t.process_frame
 	await test_main_builds_minor()
 
 
@@ -61,7 +63,7 @@ func _floor() -> StaticBody3D:
 
 func test_slot(kind: String, id: String, yaw: float) -> void:
 	var what := "%s %s yaw %.1f" % [kind, id, yaw]
-	var node := MinorPoints.build_one({"id": id, "kind": kind, "x": 0.0, "z": 0.0, "yaw": yaw}, null)
+	var node := MinorPoints.build_one({"id": id, "kind": kind, "x": 0.0, "z": 0.0, "yaw": yaw}, Callable())
 	check(node != null, what + ": builds")
 	if node == null:
 		return
@@ -132,14 +134,14 @@ func test_build_all() -> void:
 	var bodies := true
 	for m: Dictionary in want:
 		var n := mp.get_node_or_null(NodePath(String(m.id))) as Node3D
-		var h := field.height_at(m.x, m.z)
-		if n == null or not n.position.is_equal_approx(Vector3(m.x, h, m.z)) or not n.basis.is_equal_approx(Basis(Vector3.UP, m.yaw)):
+		var h := MinorPoints.ground_y(m, field.height_at)
+		if n == null or not n.position.is_equal_approx(Vector3(m.x, h, m.z)) or not n.basis.is_equal_approx(Basis(Vector3.UP, m.yaw)) or h > field.height_at(m.x, m.z) + 1e-6:
 			placed = false
 			continue
 		for g: GeometryInstance3D in n.find_children("*", "GeometryInstance3D", true, false):
 			ranged = ranged and g.visibility_range_end == MinorPoints.RANGE_END
 		bodies = bodies and n.find_children("*", "CollisionShape3D", true, false).size() > 0
-	check(placed, "each minor point sits on the ground at (x, height_at, z), turned by yaw")
+	check(placed, "each minor point sits at (x, ground_y, z), no higher than height_at, turned by yaw")
 	check(MinorPoints.RANGE_END == 300.0 and ranged, "every minor mesh fades out at 300 m")
 	check(bodies, "every minor point has a collider")
 	mp.clear()
@@ -154,4 +156,64 @@ func test_main_builds_minor() -> void:
 	var want: int = t.layout(1).minor.size()
 	check(n != null and n.get_child_count() == want, "main's world has layout_1's %d minor points" % want)
 	main.queue_free()
+	await t.process_frame
+
+
+## On a 25° slope (the steepest minor.ts allows): the slot beside each kind
+## stays open whichever way it faces, and rocks and campfires don't float.
+## The slope is on layer 2, so the walker query (mask 1) sees only the point.
+func test_slope() -> void:
+	var vp := SubViewport.new()
+	vp.world_3d = World3D.new()
+	t.root.add_child(vp)
+	var g := tan(deg_to_rad(25.0))
+	var ground := func(x: float, _z: float) -> float: return g * x
+	var b := StaticBody3D.new()
+	b.collision_layer = 2
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(60, 1, 60)
+	cs.shape = box
+	# Top face through the origin, rising along +X.
+	cs.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(25.0)), Vector3(0, -0.5, 0).rotated(Vector3.BACK, deg_to_rad(25.0)))
+	b.add_child(cs)
+	vp.add_child(b)
+	await t.physics_frame
+	var space := vp.find_world_3d().direct_space_state
+	var probe := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(2, 10, 0), Vector3(2, -10, 0), 2))
+	check(probe and absf(probe.position.y - ground.call(2.0, 0.0)) < 0.02, "the queries see the 25° slope")
+	for kind: String in ["rocks", "log", "campfire"]:
+		for yaw: float in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var what := "%s on 25° yaw %.2f" % [kind, yaw]
+			var node := MinorPoints.build_one({"id": "m1", "kind": kind, "x": 0.0, "z": 0.0, "yaw": yaw}, ground)
+			vp.add_child(node)
+			await t.physics_frame
+			await t.physics_frame
+			var s := Basis(Vector3.UP, yaw) * SLOT
+			var at := Vector3(s.x, ground.call(s.x, s.z), s.z)
+			var pq := PhysicsPointQueryParameters3D.new()
+			pq.position = at + Vector3(0, 0.5, 0)
+			pq.collision_mask = 1
+			check(space.intersect_point(pq).is_empty(), what + ": no collider 0.5 m over the slot")
+			var cap := CapsuleShape3D.new()
+			cap.radius = RADIUS
+			cap.height = HEIGHT
+			var sq := PhysicsShapeQueryParameters3D.new()
+			sq.shape = cap
+			sq.transform = Transform3D(Basis.IDENTITY, at + Vector3(0, LIFT + HEIGHT * 0.5, 0))
+			sq.collision_mask = 1
+			check(space.intersect_shape(sq).is_empty(), what + ": the slot has room for the walker")
+			sq.transform = Transform3D(Basis.IDENTITY, Vector3(0, node.position.y + LIFT + HEIGHT * 0.5, 0))
+			check(not space.intersect_shape(sq).is_empty(), what + ": the point itself is blocked")
+			if kind != "log":
+				# Its base, all round its footprint, is at most 0.1 m over the ground.
+				var base := node.position.y - MinorPoints.SINK
+				var worst := -INF
+				for a in 16:
+					var q := Basis(Vector3.UP, TAU * a / 16.0) * Vector3(MinorPoints.FOOTPRINT[kind], 0, 0)
+					worst = maxf(worst, base - ground.call(q.x, q.z))
+				check(worst <= 0.1, "%s: doesn't float (base at most %.2f m over the ground)" % [what, worst])
+			vp.remove_child(node)
+			node.free()
+	vp.queue_free()
 	await t.process_frame

@@ -30,6 +30,8 @@ func run() -> void:
 	await test_walls()
 	test_water()
 	test_pads()
+	test_trail_ends()
+	test_pad_walkable()
 	test_pad_chunk_flat()
 	test_trails()
 	test_trail_colour()
@@ -390,48 +392,199 @@ func _plain(l: Dictionary) -> TerrainField:
 func _near_other(l: Dictionary, x: float, z: float, skip: int) -> bool:
 	var ps: Array = l.pieces
 	for k in ps.size():
-		if k != skip and Vector2(x - ps[k].x, z - ps[k].z).length() < float(ps[k].padR) + TerrainField.PAD_BLEND + 0.01:
+		if k != skip and Vector2(x - ps[k].x, z - ps[k].z).length() < float(ps[k].padR) + TerrainField.MAX_BLEND + 0.01:
 			return true
 	return false
 
 
+## Fixtures 1–5 and the 40 extra maps.
+func _all_layouts() -> Array:
+	var out := []
+	for n in range(1, t.FIXTURES + 1):
+		out.append(t.layout(n))
+	var extra: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/extra_layouts.json"))
+	if extra is Dictionary:
+		out.append_array(extra.layouts)
+	return out
+
+
+## The blend the ruling asks for: wide enough that the step alone peaks
+## near 30°, measured against the ground without the pad.
+func _want_blend(plain: TerrainField, p: Dictionary) -> float:
+	var drop := 0.0
+	for a in 16:
+		var x: float = p.x + cos(TAU * a / 16.0) * float(p.padR)
+		var z: float = p.z + sin(TAU * a / 16.0) * float(p.padR)
+		drop = maxf(drop, absf(float(p.padY) - plain.height_at(x, z)))
+	return clampf(1.5 * drop / tan(deg_to_rad(30.0)), 10.0, 50.0)
+
+
 func test_pads() -> void:
-	check(TerrainField.PAD_BLEND == 10.0, "pads blend back over 10 m")
+	check(TerrainField.MIN_BLEND == 10.0 and TerrainField.MAX_BLEND == 50.0, "pad blends run 10–50 m")
+	var ls := _all_layouts()
+	check(ls.size() == t.FIXTURES + 40, "45 layouts to check (%d)" % ls.size())
 	var pads := 0
 	var centre := true
 	var inside := true
 	var edge := true
 	var blended := true
-	for n in range(1, t.FIXTURES + 1):
-		var l: Dictionary = t.layout(n)
+	var widths := true
+	var apart := true
+	var wide := 0
+	var widened := 0
+	for n in ls.size():
+		var l: Dictionary = ls[n]
 		var f := TerrainField.from_layout(l)
 		var plain := _plain(l)
 		var ps: Array = l.pieces
 		for k in ps.size():
 			var p: Dictionary = ps[k]
 			var r := float(p.padR)
+			var blend := f.pad_blend(k)
 			pads += 1
+			if blend > 10.0:
+				wide += 1
+			if blend > _want_blend(plain, p) + 1e-6:
+				widened += 1
+			if blend < _want_blend(plain, p) - 1e-6 or blend > TerrainField.MAX_BLEND:
+				widths = false
+				print("    layout %d %s blend %.2f, want %.2f" % [n, p.id, blend, _want_blend(plain, p)])
+			for q in range(k + 1, ps.size()):
+				var gap := Vector2(p.x - ps[q].x, p.z - ps[q].z).length()
+				if gap < r + blend + float(ps[q].padR) + f.pad_blend(q):
+					apart = false
 			if absf(f.height_at(p.x, p.z) - p.padY) > 0.01:
 				centre = false
 				print("    layout %d %s centre: %.3f vs padY %.1f" % [n, p.id, f.height_at(p.x, p.z), p.padY])
 			for a in 16:
 				var dir := Vector2(cos(TAU * a / 16.0), sin(TAU * a / 16.0))
-				var q := Vector2(p.x, p.z) + dir * (r - 0.05)
-				inside = inside and absf(f.height_at(q.x, q.y) - p.padY) <= 0.01
-				var e := Vector2(p.x, p.z) + dir * (r + TerrainField.PAD_BLEND)
-				if not _near_other(l, e.x, e.y, k) and absf(f.height_at(e.x, e.y) - plain.height_at(e.x, e.y)) > 0.01:
+				var c := Vector2(p.x, p.z) + dir * (r - 0.05)
+				inside = inside and absf(f.height_at(c.x, c.y) - p.padY) <= 0.01
+				var e := Vector2(p.x, p.z) + dir * (r + blend)
+				if absf(f.height_at(e.x, e.y) - plain.height_at(e.x, e.y)) > 0.01:
 					edge = false
 					print("    layout %d %s edge %d: %.3f vs plain %.3f" % [n, p.id, a, f.height_at(e.x, e.y), plain.height_at(e.x, e.y)])
-				# Halfway through the blend it sits between the pad and the plain ground.
-				var m := Vector2(p.x, p.z) + dir * (r + TerrainField.PAD_BLEND * 0.5)
-				if not _near_other(l, m.x, m.y, k):
-					var lo := minf(p.padY, plain.height_at(m.x, m.y)) - 0.01
-					var hi := maxf(p.padY, plain.height_at(m.x, m.y)) + 0.01
-					blended = blended and f.height_at(m.x, m.y) >= lo and f.height_at(m.x, m.y) <= hi
+				# Through the ring it's the plain ground plus the pad's step at
+				# the edge, eased out: half of it at a quarter of the way out.
+				var step: float = float(p.padY) - plain.height_at(p.x + dir.x * r, p.z + dir.y * r)
+				var m := Vector2(p.x, p.z) + dir * (r + blend * 0.25)
+				var want := plain.height_at(m.x, m.y) + step * (1.0 - smoothstep(0.0, 1.0, 0.25))
+				if absf(f.height_at(m.x, m.y) - want) > 0.01:
+					blended = false
+					print("    layout %d %s ring %d: %.3f vs %.3f" % [n, p.id, a, f.height_at(m.x, m.y), want])
 	check(pads > 0 and centre, "height_at at each piece's centre is its padY (%d pieces)" % pads)
 	check(inside, "height_at is padY all the way to padR")
-	check(edge, "at padR + 10 the ground is the plain field again")
-	check(blended, "inside the blend ring the ground is between the pad and the plain field")
+	check(widths, "each pad's blend is at least clamp(1.5 drop / tan 30°, 10, 50), at most 50 (%d wider than 10 m, %d widened past that for the hill)" % [wide, widened])
+	check(apart, "no two pads' blend rings overlap")
+	check(edge, "at padR + blend the ground is the plain field again")
+	check(blended, "in the ring the ground is the plain field plus the edge step, eased out")
+
+
+## The along-track slope from a to b, degrees, at a.
+func _along(f: TerrainField, a: Vector2, u: Vector2) -> float:
+	var g := (f.height_at(a.x + u.x * 0.5, a.y + u.y * 0.5) - f.height_at(a.x - u.x * 0.5, a.y - u.y * 0.5))
+	return rad_to_deg(atan(absf(g)))
+
+
+## Every trail that ends at a pad: over its last 20 m, and straight on in to
+## the pad edge, it's no steeper than the buggy climbs (35°), except where
+## the plain ground there is steeper than 30° already.
+func test_trail_ends() -> void:
+	var ends := 0
+	var bad := 0
+	var worst := 0.0
+	for l: Dictionary in _all_layouts():
+		var f := TerrainField.from_layout(l)
+		var plain := _plain(l)
+		for tr: Dictionary in l.trails:
+			var pts: Array = tr.pts
+			for e in [[0, 1], [pts.size() - 1, -1]]:
+				var end := Vector2(pts[e[0]][0], pts[e[0]][1])
+				for p: Dictionary in l.pieces:
+					var c := Vector2(p.x, p.z)
+					if end.distance_to(c) > float(p.padR) + 4.0:
+						continue
+					ends += 1
+					var path: Array[Vector2] = []
+					# In from the end to the pad edge...
+					var u := (c - end).normalized()
+					var k := 0.0
+					while k < end.distance_to(c) - float(p.padR) + 0.5:
+						path.append(end + u * k)
+						k += 0.5
+					# ...and back along the trail 20 m.
+					var j: int = e[0]
+					var walked := 0.0
+					while walked < 20.0 and j + e[1] >= 0 and j + e[1] < pts.size():
+						var a := Vector2(pts[j][0], pts[j][1])
+						var b := Vector2(pts[j + e[1]][0], pts[j + e[1]][1])
+						var s := 0.0
+						while s < a.distance_to(b) and walked + s < 20.0:
+							path.append(a + (b - a).normalized() * s)
+							s += 0.5
+						walked += a.distance_to(b)
+						j += e[1]
+					var steep := 0.0
+					for q in range(1, path.size()):
+						var dir: Vector2 = (path[q] - path[q - 1]).normalized()
+						if _along(plain, path[q], dir) <= 30.0:
+							steep = maxf(steep, _along(f, path[q], dir))
+					worst = maxf(worst, steep)
+					if steep > 35.0:
+						bad += 1
+	print("  trail ends into pads: %d of %d over 35° (worst %.1f°)" % [bad, ends, worst])
+	check(ends > 0 and bad == 0, "trail ends climb at most 35° into their pads where the land allows (%d of %d over)" % [bad, ends])
+
+
+## Out from each pad's edge to the end of its blend, at least 18 of 72
+## directions are walkable (≤ 40° all the way). Where the hills alone
+## allow fewer than 21 that far out (a peak with cliffs round it), the pad
+## may cost at most 3 of them.
+func test_pad_walkable() -> void:
+	var low := 72
+	var low_at := ""
+	var ok_all := true
+	for l: Dictionary in _all_layouts():
+		var f := TerrainField.from_layout(l)
+		var plain: TerrainField = null
+		var ps: Array = l.pieces
+		for k in ps.size():
+			var p: Dictionary = ps[k]
+			var stop := float(p.padR) + f.pad_blend(k) + 0.5
+			var ok := _walkable(f, p, stop)
+			var need := 18
+			if ok < 18:
+				if plain == null:
+					plain = _plain(l)
+				var bare := _walkable(plain, p, stop)
+				if bare < 21:
+					need = bare - 3
+				print("    seed %d %s %s: %d walkable, %d with no pad (blend %.1f)" % [l.seed, p.id, p.template, ok, bare, f.pad_blend(k)])
+			ok_all = ok_all and ok >= need
+			if ok < low:
+				low = ok
+				low_at = "seed %d %s %s" % [l.seed, p.id, p.template]
+	print("  fewest walkable directions off a pad: %d of 72 (%s)" % [low, low_at])
+	check(ok_all, "every pad has at least 18 of 72 walkable ways off it, or nearly what its hills allow (fewest %d, %s)" % [low, low_at])
+
+
+func _walkable(f: TerrainField, p: Dictionary, stop: float) -> int:
+	var tan40 := tan(deg_to_rad(40.0))
+	var r := float(p.padR)
+	var ok := 0
+	for a in 72:
+		var u := Vector2(cos(TAU * a / 72.0), sin(TAU * a / 72.0))
+		var prev := f.height_at(p.x + u.x * (r - 0.5), p.z + u.y * (r - 0.5))
+		var d := r
+		var walk := true
+		while d <= stop and walk:
+			var h := f.height_at(p.x + u.x * d, p.z + u.y * d)
+			walk = absf(h - prev) / 0.5 <= tan40
+			prev = h
+			d += 0.5
+		if walk:
+			ok += 1
+	return ok
 
 
 func test_pad_chunk_flat() -> void:

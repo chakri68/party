@@ -17,6 +17,8 @@ const SINK := 0.1
 const LOG := Vector3(3.0, 0.6, 0.8) ## log_large runs along its own X
 const RING := 0.65 ## stone ring radius
 const RING_H := 0.2
+## Footprint radius per kind, where ground_y samples.
+const FOOTPRINT := {"rocks": 0.8, "campfire": 0.7}
 
 ## Read for heights; main sets it. Without one, build_all makes its own.
 var field: TerrainField
@@ -26,10 +28,9 @@ func build_all(layout: Dictionary) -> void:
 	clear()
 	var f := field if field != null else TerrainField.from_layout(layout)
 	for m: Dictionary in layout.get("minor", []):
-		var node := build_one(m, f)
+		var node := build_one(m, f.height_at)
 		if node == null:
 			continue
-		node.position.y = f.height_at(node.position.x, node.position.z)
 		for g: GeometryInstance3D in node.find_children("*", "GeometryInstance3D", true, false):
 			g.visibility_range_end = RANGE_END
 		add_child(node)
@@ -42,12 +43,35 @@ func clear() -> void:
 		c.queue_free()
 
 
-## One point at (x, 0, z), turned by yaw; build_all lifts it onto the
-## ground. With a field the log tilts to the slope under it.
-static func build_one(m: Dictionary, f: TerrainField) -> Node3D:
+## Where a point's root sits: the lowest of 3 samples round its footprint
+## (rocks, campfire), or of its middle and both sides (log), so it never
+## floats. `ground` is height_at(x, z); an empty Callable means flat at 0.
+static func ground_y(m: Dictionary, ground: Callable) -> float:
+	if not ground.is_valid():
+		return 0.0
+	var x := float(m.get("x", 0))
+	var z := float(m.get("z", 0))
+	var turn := Basis(Vector3.UP, float(m.get("yaw", 0)))
+	var spots: Array[Vector3] = []
+	var kind := String(m.get("kind", ""))
+	if FOOTPRINT.has(kind):
+		for k in 3:
+			spots.append(Basis(Vector3.UP, TAU * k / 3.0) * Vector3(FOOTPRINT[kind], 0, 0))
+	else:
+		spots.assign([Vector3.ZERO, Vector3(LOG.z * 0.5, 0, 0), Vector3(-LOG.z * 0.5, 0, 0)])
+	var y := INF
+	for s in spots:
+		var w := turn * s
+		y = minf(y, ground.call(x + w.x, z + w.z))
+	return y
+
+
+## One point at (x, ground_y, z), turned by yaw. With ground the log also
+## tilts to the slope under its ends.
+static func build_one(m: Dictionary, ground: Callable) -> Node3D:
 	var root := Node3D.new()
 	root.name = String(m.get("id", "minor"))
-	root.position = Vector3(float(m.get("x", 0)), 0, float(m.get("z", 0)))
+	root.position = Vector3(float(m.get("x", 0)), ground_y(m, ground), float(m.get("z", 0)))
 	root.rotation.y = float(m.get("yaw", 0))
 	# Same id, same pile, every client.
 	var rng := RandomNumberGenerator.new()
@@ -56,7 +80,7 @@ static func build_one(m: Dictionary, f: TerrainField) -> Node3D:
 		"rocks":
 			_rocks(root, rng)
 		"log":
-			_log(root, f)
+			_log(root, ground)
 		"campfire":
 			_campfire(root)
 		_:
@@ -88,14 +112,14 @@ static func _rock(root: Node3D, b: StaticBody3D, file: String, at: Vector3, size
 
 
 ## Lies along Z, pitched to the ground under its two ends.
-static func _log(root: Node3D, f: TerrainField) -> void:
+static func _log(root: Node3D, ground: Callable) -> void:
 	var pivot := Node3D.new()
 	pivot.name = "Log"
 	root.add_child(pivot)
-	if f != null:
+	if ground.is_valid():
 		var along := Basis(Vector3.UP, root.rotation.y) * Vector3(0, 0, LOG.x * 0.5)
-		var front := f.height_at(root.position.x - along.x, root.position.z - along.z)
-		var back := f.height_at(root.position.x + along.x, root.position.z + along.z)
+		var front: float = ground.call(root.position.x - along.x, root.position.z - along.z)
+		var back: float = ground.call(root.position.x + along.x, root.position.z + along.z)
 		pivot.rotation.x = atan2(front - back, LOG.x)
 	var base := Vector3(0, -SINK, 0)
 	PieceKit.kenney(pivot, "log_large", base, LOG, PI * 0.5)

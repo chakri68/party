@@ -27,8 +27,21 @@ const DETAIL_FULL := 3.0
 ## Below this height the ground is sand, whatever the biome.
 const SAND_BELOW := 1.5
 ## A set piece's pad is flat at padY out to padR, then eases back to the
-## plain ground over this many metres.
-const PAD_BLEND := 10.0
+## plain ground over its blend width. The width grows with the step from
+## padY to the ground at padR, so the ramp adds at most BLEND_SLOPE to the
+## hill's own slope instead of a fixed 10 m squeezing 13 m into a wall.
+const MIN_BLEND := 10.0
+const MAX_BLEND := 50.0
+const BLEND_SLOPE := 30.0 # degrees
+## The widening rule (see _blend_for): along each way a trail comes in, a
+## 1 m step may climb at most RING_CLIMB wherever the plain ground climbs at
+## most RING_PLAIN. 33°, not the buggy's 35°, leaves room for trails that
+## bend off the straight line in. TRAIL_LOOK is how much of a trail's end
+## that covers.
+const RING_CLIMB := 33.0
+const RING_PLAIN := 30.0
+const RING_STEP := 5.0
+const TRAIL_LOOK := 24.0
 ## Mirrors shared/trails.ts. The dirt strip is this wide each side of the
 ## line; the detail noise fades out over one metre more.
 const TRAIL_HALF_WIDTH := 2.0
@@ -38,6 +51,7 @@ const DIRT := Color("#8a6a48")
 ## keyed by the cell's low-corner vertex, so height_at gets the key for free.
 const HAS_PAD := 1
 const HAS_TRAIL := 2
+const PAD_STRIDE := 5
 
 const BIOME_COLORS: Array[Color] = [
 	Color(0.45, 0.62, 0.30), # meadow
@@ -56,7 +70,7 @@ var spawn_yaw: float
 var _heights := PackedFloat64Array() # decimetres, x fastest
 var _biomes := PackedInt32Array()
 var _noise := FastNoiseLite.new()
-## Pads as [x, z, padY, padR] and trail segments as [ax, az, bx, bz], flat.
+## Pads as [x, z, padY, padR, blend] and trail segments as [ax, az, bx, bz], flat.
 var _pads := PackedFloat64Array()
 var _segs := PackedFloat64Array()
 ## Per hash cell, the pads and segments whose reach touches it.
@@ -132,27 +146,50 @@ func _featured_height(c: int, what: int, x: float, z: float, m: float) -> float:
 	var pads := _cell_pads[c]
 	# On a pad: done, no noise needed.
 	for k in pads:
-		var o := k * 4
+		var o := k * PAD_STRIDE
 		var dx := x - _pads[o]
 		var dz := z - _pads[o + 1]
 		var r := _pads[o + 3]
 		if dx * dx + dz * dz <= r * r:
 			return _pads[o + 2]
-	var h := m
-	if m > DETAIL_FLOOR:
-		var fade := smoothstep(DETAIL_FLOOR, DETAIL_FULL, m)
-		if what & HAS_TRAIL:
-			fade *= smoothstep(0.0, TRAIL_REACH, _trail_distance_in(c, x, z))
-		if fade > 0.0:
-			h += _noise.get_noise_2d(x, z) * DETAIL_AMP * fade
-	# The blend ring: padY at padR, the plain ground by padR + PAD_BLEND.
+	var h := _bare(c, what, x, z, m)
+	# The blend ring: the pad's step at its edge, straight out from the
+	# middle, eased away by padR + blend. Carrying the step (not easing the
+	# height towards padY) leaves the hill's own slope alone, so the ramp
+	# adds at most 1.5 · step / blend to it. Easing the height instead
+	# steepens a falling hillside 1.7×, whatever the width.
 	for k in pads:
-		var o := k * 4
+		var o := k * PAD_STRIDE
 		var r := _pads[o + 3]
-		var d := Vector2(x - _pads[o], z - _pads[o + 1]).length()
-		if d < r + PAD_BLEND:
-			h = lerpf(_pads[o + 2], h, smoothstep(r, r + PAD_BLEND, d))
+		var e := r + _pads[o + 4]
+		var dx := x - _pads[o]
+		var dz := z - _pads[o + 1]
+		var d := sqrt(dx * dx + dz * dz)
+		if d < e:
+			var ex := _pads[o] + dx / d * r
+			var ez := _pads[o + 1] + dz / d * r
+			h += (_pads[o + 2] - _bare_at(ex, ez)) * (1.0 - smoothstep(r, e, d))
 	return h
+
+
+## The ground with no pads: macro plus detail, faded on trails.
+func _bare(c: int, what: int, x: float, z: float, m: float) -> float:
+	if m <= DETAIL_FLOOR:
+		return m
+	var fade := smoothstep(DETAIL_FLOOR, DETAIL_FULL, m)
+	if what & HAS_TRAIL:
+		fade *= smoothstep(0.0, TRAIL_REACH, _trail_distance_in(c, x, z))
+	return m + _noise.get_noise_2d(x, z) * DETAIL_AMP * fade if fade > 0.0 else m
+
+
+func _bare_at(x: float, z: float) -> float:
+	var c := _hash_cell(x, z)
+	return _bare(c, _flags[c], x, z, macro_height(x, z))
+
+
+## Piece k's blend width, in metres (layout order).
+func pad_blend(k: int) -> float:
+	return _pads[k * PAD_STRIDE + 4]
 
 
 ## Distance to the nearest trail, or INF where no trail comes within
@@ -197,13 +234,6 @@ func _index(pieces: Array, trails: Array) -> void:
 	for c in MACRO_SIZE * MACRO_SIZE:
 		_cell_pads[c] = PackedInt32Array()
 		_cell_segs[c] = PackedInt32Array()
-	for p: Dictionary in pieces:
-		var x := float(p.x)
-		var z := float(p.z)
-		var r := float(p.padR)
-		var k := _pads.size() / 4
-		_pads.append_array([x, z, float(p.padY), r])
-		_file(_cell_pads, HAS_PAD, k, x, z, x, z, r + PAD_BLEND)
 	for tr: Dictionary in trails:
 		var pts: Array = tr.get("pts", [])
 		for i in range(1, pts.size()):
@@ -214,6 +244,100 @@ func _index(pieces: Array, trails: Array) -> void:
 			var k := _segs.size() / 4
 			_segs.append_array([ax, az, bx, bz])
 			_file(_cell_segs, HAS_TRAIL, k, ax, az, bx, bz, TRAIL_REACH)
+	for p: Dictionary in pieces:
+		var x := float(p.x)
+		var z := float(p.z)
+		var y := float(p.padY)
+		var r := float(p.padR)
+		_pads.append_array([x, z, y, r, _blend_for(x, z, y, r, _trail_ways(trails, x, z, r))])
+	# Pieces are 150 m apart and padR is at most 18, so even two 50 m blends
+	# leave room. If that ever changes, the overlap would blend twice: say so.
+	var n := _pads.size() / PAD_STRIDE
+	for k in n:
+		var o := k * PAD_STRIDE
+		for q in range(k + 1, n):
+			var oq := q * PAD_STRIDE
+			var gap := Vector2(_pads[o] - _pads[oq], _pads[o + 1] - _pads[oq + 1]).length()
+			var reach := _pads[o + 3] + _pads[o + 4] + _pads[oq + 3] + _pads[oq + 4]
+			if gap < reach:
+				push_error("TerrainField: pads %d and %d overlap (%.0f m apart, rings reach %.0f)" % [k, q, gap, reach])
+			assert(gap >= reach, "pad blend rings overlap")
+	for k in n:
+		var o := k * PAD_STRIDE
+		_file(_cell_pads, HAS_PAD, k, _pads[o], _pads[o + 1], _pads[o], _pads[o + 1], _pads[o + 3] + _pads[o + 4])
+
+
+## How wide a pad's ring must be. At least the step at padR spread so the
+## ramp alone peaks at BLEND_SLOPE: clamp(1.5 · step / tan 30°, 10, 50).
+## The ramp adds to the hill's own slope, though, and on a 20–29° hillside
+## that sum passes the buggy's 35°. So where trails come in (`ways`, angles
+## from the middle) it widens in RING_STEP steps until each of those ways
+## keeps to RING_CLIMB, or it reaches MAX_BLEND. Elsewhere a wider ring
+## only reaches further into the hills, so it isn't widened.
+func _blend_for(x: float, z: float, y: float, r: float, ways: PackedFloat64Array) -> float:
+	var drop := 0.0
+	for a in 16:
+		drop = maxf(drop, absf(y - _bare_at(x + cos(TAU * a / 16.0) * r, z + sin(TAU * a / 16.0) * r)))
+	var b := clampf(1.5 * drop / tan(deg_to_rad(BLEND_SLOPE)), MIN_BLEND, MAX_BLEND)
+	if ways.is_empty():
+		return b
+	const N := int(MAX_BLEND) + 1 # samples 1 m apart, padR .. padR + MAX_BLEND
+	var plain := PackedFloat64Array()
+	plain.resize(ways.size() * N)
+	for w in ways.size():
+		var ux := cos(ways[w])
+		var uz := sin(ways[w])
+		for i in N:
+			plain[w * N + i] = _bare_at(x + ux * (r + i), z + uz * (r + i))
+	var climb := tan(deg_to_rad(RING_CLIMB))
+	var flat := tan(deg_to_rad(RING_PLAIN))
+	while b < MAX_BLEND and not _ring_ok(plain, N, ways.size(), y, b, climb, flat):
+		b = minf(MAX_BLEND, b + RING_STEP)
+	return b
+
+
+## Whether a ring b wide keeps every 1 m step in under `climb` where the
+## plain step is under `flat`. plain is one row of n heights per way, from
+## padR out.
+static func _ring_ok(plain: PackedFloat64Array, n: int, ways: int, y: float, b: float, climb: float, flat: float) -> bool:
+	var last := mini(n - 1, ceili(b) + 1)
+	for w in ways:
+		var o := w * n
+		var step := y - plain[o]
+		var prev := y
+		for i in range(1, last + 1):
+			var h := plain[o + i] + step * (1.0 - smoothstep(0.0, b, float(i)))
+			if absf(plain[o + i] - plain[o + i - 1]) <= flat and absf(h - prev) > climb:
+				return false
+			prev = h
+	return true
+
+
+## The angles, from (x, z), of the last TRAIL_LOOK m of every trail that
+## ends within padR + 4 of it (the trail rule in trails.ts), every 2 m.
+static func _trail_ways(trails: Array, x: float, z: float, r: float) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	var c := Vector2(x, z)
+	for tr: Dictionary in trails:
+		var pts: Array = tr.get("pts", [])
+		if pts.size() < 2:
+			continue
+		for e in [[0, 1], [pts.size() - 1, -1]]:
+			var j: int = e[0]
+			if Vector2(pts[j][0], pts[j][1]).distance_to(c) > r + 4.0:
+				continue
+			var walked := 0.0
+			while walked < TRAIL_LOOK and j + e[1] >= 0 and j + e[1] < pts.size():
+				var a := Vector2(pts[j][0], pts[j][1])
+				var b := Vector2(pts[j + e[1]][0], pts[j + e[1]][1])
+				var s := 0.0
+				while s < a.distance_to(b):
+					var q := a + (b - a).normalized() * s - c
+					out.append(atan2(q.y, q.x))
+					s += 2.0
+				walked += a.distance_to(b)
+				j += e[1]
+	return out
 
 
 func _file(cells: Array[PackedInt32Array], flag: int, k: int, ax: float, az: float, bx: float, bz: float, pad: float) -> void:

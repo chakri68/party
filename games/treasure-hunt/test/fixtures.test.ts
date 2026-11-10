@@ -100,3 +100,20 @@ describe("Godot piece fixture", () => {
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(want);
   });
 });
+
+// 40 more maps for the pad and trail-end slope checks in terrain_tests.gd:
+// a wider spread of hills than the 5 above. Compact, and without the minor
+// points, which those checks don't read.
+const EXTRA_SEEDS = Array.from({ length: 40 }, (_, k) => 13 + 7919 * (k + 1));
+
+describe("Godot extra layouts fixture", () => {
+  it("extra_layouts.json matches makeLayout over EXTRA_SEEDS", () => {
+    const file = join(DIR, "extra_layouts.json");
+    const want = EXTRA_SEEDS.map((s) => {
+      const { minor: _, ...rest } = makeLayout(s);
+      return rest;
+    });
+    if (UPDATE) writeFileSync(file, JSON.stringify({ layouts: want }) + "\n");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ layouts: want });
+  });
+});
