@@ -1,0 +1,43 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/buggy.gd" id="1_buggy"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/car_body_4x4.res" id="2_body"]
+[ext_resource type="ArrayMesh" path="res://assets/meshes/car_wheel_4x4.res" id="3_wheel"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(2.4, 2, 4.3)
+
+[node name="Buggy" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+floor_snap_length = 0.3
+safe_margin = 0.02
+script = ExtResource("1_buggy")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" type="Node3D" parent="."]
+rotation = Vector3(0, 3.14159, 0)
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+mesh = ExtResource("2_body")
+
+[node name="WheelFL" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.677, 0.478, 1.21)
+mesh = ExtResource("3_wheel")
+
+[node name="WheelFR" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.677, 0.478, 1.21)
+rotation = Vector3(0, 3.14159, 0)
+mesh = ExtResource("3_wheel")
+
+[node name="WheelRL" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.677, 0.478, -0.892)
+mesh = ExtResource("3_wheel")
+
+[node name="WheelRR" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.677, 0.478, -0.892)
+rotation = Vector3(0, 3.14159, 0)
+mesh = ExtResource("3_wheel")

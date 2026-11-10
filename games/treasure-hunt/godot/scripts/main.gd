@@ -1,6 +1,6 @@
 extends Node3D
-## Puts a playable world together: terrain, sea, walls, the walker and the
-## camera. start_world() is the one way in. Locally (editor, desktop run,
+## Puts a playable world together: terrain, sea, walls, the walker, the
+## buggy and the camera. start_world() is the one way in. Locally (editor, desktop run,
 ## tests) _ready feeds it a fixture; on the web the bridge (Task 6) feeds it
 ## the session's layout. Same seed twice does nothing, so a session that
 ## arrives twice builds once.
@@ -12,13 +12,14 @@ const FALL_LIMIT := 5.0
 
 @onready var walker: Walker = $Walker
 @onready var rig: RigCamera = $Rig
+@onready var buggy: Buggy = $Buggy
+@onready var avatar: PlayerAvatar = $Avatar
 @onready var _debug: Label = $UI/Debug
 
 var field: TerrainField
 var streamer: ChunkStreamer
 var world: Node3D ## everything built from the layout; rebuilt on a new seed
-## What the streamer builds around. The walker for now; Task 5 switches it
-## to whatever the player drives.
+## What the streamer builds around: whichever body you're controlling.
 var focus: Node3D
 ## Bodies the fall check watches.
 var watched: Array[Node3D] = []
@@ -28,7 +29,11 @@ var _seed := 0
 
 func _ready() -> void:
 	_park(walker)
+	_park(buggy)
 	watched.append(walker)
+	watched.append(buggy)
+	avatar.setup(walker, buggy, rig)
+	avatar.mode_changed.connect(func(m: StringName) -> void: focus = buggy if m == &"driving" else walker)
 	var n := _requested_layout()
 	var path := "res://tests/fixtures/layout_%d.json" % n
 	if n > 0 and FileAccess.file_exists(path):
@@ -92,10 +97,18 @@ func start_world(layout: Dictionary) -> void:
 	streamer.setup(field, mat)
 	streamer.load_initial(field.spawn)
 
+	avatar.on_foot()
+	avatar.field = field
 	_place(walker, field.spawn, field.spawn_yaw)
 	walker.process_mode = Node.PROCESS_MODE_INHERIT
 	walker.visible = true
 	focus = walker
+	# Parked 6 m to your right, facing the same way.
+	var at := field.spawn + Vector3(cos(field.spawn_yaw), 0, -sin(field.spawn_yaw)) * 6.0
+	at.y = field.height_at(at.x, at.z)
+	_place(buggy, at, field.spawn_yaw)
+	buggy.process_mode = Node.PROCESS_MODE_INHERIT
+	buggy.visible = true
 	rig.yaw = field.spawn_yaw
 	rig.follow(walker, &"walk")
 	rig.snap()
@@ -163,5 +176,9 @@ func _process(_dt: float) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	if field != null and e.is_action_pressed("interact"):
+		avatar.interact()
+	elif field != null and e.is_action_pressed("reset_vehicle"):
+		avatar.reset_vehicle()
 	if e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).physical_keycode == KEY_F3:
 		_debug.visible = not _debug.visible

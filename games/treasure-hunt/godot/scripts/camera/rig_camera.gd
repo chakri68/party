@@ -114,13 +114,25 @@ func _process(dt: float) -> void:
 	_place(target.get_global_transform_interpolated(), dt)
 
 
+## Where a body is heading: its -Z flattened onto the ground plane, so a
+## pitched or rolled buggy still reads as facing the same way. Nose straight
+## up or down, -Z has no flat part and the roof says which way it was going.
+static func heading(b: Basis) -> Vector3:
+	var f := -b.z
+	var flat := Vector3(f.x, 0, f.z)
+	if flat.length_squared() < 1e-6:
+		flat = -b.y * signf(f.y)
+		flat.y = 0
+	return flat.normalized() if flat.length_squared() > 1e-12 else Vector3.FORWARD
+
+
 func _place(at: Transform3D, dt: float) -> void:
 	var prof: Dictionary = PROFILES[profile]
 	_since_look += dt
 	if profile == &"drive" and _since_look > DRIFT_AFTER_S:
-		# Behind = looking where the target faces: forward is -basis.z.
-		var behind := atan2(at.basis.z.x, at.basis.z.z)
-		yaw = lerp_angle(yaw, behind, 1.0 - exp(-DRIFT_RATE * dt))
+		# Behind = looking where the target is heading, flat on the ground.
+		var f := heading(at.basis)
+		yaw = lerp_angle(yaw, atan2(-f.x, -f.z), 1.0 - exp(-DRIFT_RATE * dt))
 	var pivot := at.origin + Vector3.UP * float(prof.pivot)
 	var length := float(prof.length)
 	if _blend < 1.0:

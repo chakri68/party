@@ -1,8 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/player/walker.gd" id="2_walker"]
 [ext_resource type="Script" path="res://scripts/camera/rig_camera.gd" id="3_rig"]
+[ext_resource type="PackedScene" path="res://scenes/buggy.tscn" id="4_buggy"]
+[ext_resource type="Script" path="res://scripts/player/avatar.gd" id="5_avatar"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_day"]
 sky_top_color = Color(0.3, 0.5, 0.78, 1)
@@ -50,6 +52,11 @@ environment = SubResource("Env_day")
 
 [node name="Walker" type="CharacterBody3D" parent="."]
 script = ExtResource("2_walker")
+
+[node name="Buggy" parent="." instance=ExtResource("4_buggy")]
+
+[node name="Avatar" type="Node" parent="."]
+script = ExtResource("5_avatar")
 
 [node name="Rig" type="Node3D" parent="."]
 script = ExtResource("3_rig")

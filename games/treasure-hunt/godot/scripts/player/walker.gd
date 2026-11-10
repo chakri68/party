@@ -41,7 +41,7 @@ var _scramble_to := Vector3.ZERO
 func _init() -> void:
 	floor_max_angle = deg_to_rad(40.0) # reachable on foot (§4.2)
 	collision_layer = 2 # not 1, so the camera's spring arm looks past us
-	collision_mask = 1
+	collision_mask = 1 | 2 # the world, and the buggy: you can stand on its roof
 
 	_shape = CapsuleShape3D.new()
 	_shape.radius = RADIUS
