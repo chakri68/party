@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MACRO_SIZE, makeLayout, type TreasureLayout } from "../shared/index.ts";
+import { MACRO_SIZE, makeLayout, TEMPLATES, type TreasureLayout } from "../shared/index.ts";
 
 // Godot's tests read these layouts. If the generator changes, this test fails
 // first; rerun with UPDATE_FIXTURES=1 to rewrite them, then rerun the Godot tests.
@@ -51,4 +51,33 @@ describe("Godot fixtures", () => {
       expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(layout);
     });
   }
+});
+
+// Godot builds each template from its params, then checks every slot stands
+// open (piece_tests.gd). These are the params it builds from: every roll at
+// its lowest, its middle and its highest, so both sides of every coin flip
+// and both ends of every range get built. Variants 0, 1, 2 cover the colours.
+const ROLLS = [0, 0.5, 1 - 1e-9];
+
+function pieceSamples() {
+  const templates: Record<string, unknown> = {};
+  for (const [id, t] of Object.entries(TEMPLATES)) {
+    templates[id] = {
+      labels: t.labels,
+      samples: ROLLS.map((v, variant) => {
+        const params = t.roll(() => v);
+        return { params, variant, slots: t.slots(params).map(({ x, z, dy }) => ({ x, z, dy })) };
+      }),
+    };
+  }
+  return { templates };
+}
+
+describe("Godot piece fixture", () => {
+  it("pieces.json matches TEMPLATES", () => {
+    const file = join(DIR, "pieces.json");
+    const want = pieceSamples();
+    if (UPDATE) writeFileSync(file, JSON.stringify(want, null, 2) + "\n");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(want);
+  });
 });
