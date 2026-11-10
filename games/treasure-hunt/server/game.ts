@@ -35,8 +35,10 @@ import {
   MAX_TEAMS,
   POS_HZ,
   POS_STALE_MS,
+  RACE_OPEN_START,
   REVEAL_RADIUS,
 } from "../shared/world.ts";
+import { rng } from "../shared/noise.ts";
 import type { Cache } from "./caches.ts";
 import { makeHunt } from "./hunt.ts";
 
@@ -56,6 +58,13 @@ import { makeHunt } from "./hunt.ts";
 //               or when every team in play has cleared its pool.
 //   finished    teams ranked by found count, then difficulty, then who
 //               finished first. Each player's row is their team's.
+//
+// Race to N (§6.3, §8) runs the same phases, with one shared list instead of
+// pools. Every cache goes into a seeded release order at start. The first
+// RACE_OPEN_START + (claims by every team) are open, for every team alike. A
+// claimed cache stays on the list, shown found or taken, and is never
+// revealed again. The first team to `target` wins at once; the timer still
+// caps the round, and then the Timed ranking decides.
 //
 // "In play" means the team has a hunter: a member still here, not watching.
 // A team whose hunters all leave mid-round keeps its finds and its place in
@@ -77,7 +86,7 @@ export interface THPos {
 }
 
 export interface THServerTeam extends THTeam {
-  /** Cache ids. Same size and difficulty mix for every team in play; empty for the rest. */
+  /** Timed: cache ids, same size and difficulty mix for every team in play; empty for the rest. Race: always empty. */
   pool: string[];
   found: string[];
   /** Revealed to the team, by whichever member got close first. */
@@ -98,6 +107,8 @@ export interface THState {
   layout: TreasureLayout;
   /** Server only. Never in public state. */
   caches: Cache[];
+  /** Race: every cache id in release order, set at start. Empty in Timed and before start. */
+  release: string[];
   /** In id order. Every player's teamId is one of these, until they leave in the teams phase. */
   teams: THServerTeam[];
   players: THServerPlayer[];
@@ -156,7 +167,31 @@ const inPlay = (s: THState, t: THTeam) => members(s, t.id).some((p) => !p.remove
 const ranked = (s: THState, t: THTeam) => members(s, t.id).some((p) => !p.spectator);
 const teamOf = (s: THState, p: THPlayer) => s.teams.find((t) => t.id === p.teamId);
 
+/** Every cache in a Fisher–Yates shuffle seeded from the map: the same seed, the same order. */
+export function releaseOrder(caches: Cache[], seed: number): string[] {
+  const r = rng(seed ^ 0x52414345);
+  const ids = caches.map((c) => c.id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+  }
+  return ids;
+}
+
+const race = (s: THState) => s.settings.mode === "race";
+const totalClaims = (s: THState) => s.teams.reduce((n, t) => n + t.found.length, 0);
+/** Race: the caches open right now, the same for every team. slice caps it at every cache. `?? []`: rooms saved before Race. */
+const openIds = (s: THState) => (s.release ?? []).slice(0, RACE_OPEN_START + totalClaims(s));
+const claimedBy = (s: THState, cacheId: string) => s.teams.find((t) => t.found.includes(cacheId));
+/** The caches a team hunts: its pool in Timed, the open list in Race. */
+const board = (s: THState, t: THServerTeam) => (race(s) ? openIds(s) : t.pool);
+
 function deal(s: THState): void {
+  if (race(s)) {
+    s.release = releaseOrder(s.caches, s.layout.seed);
+    for (const t of s.teams) t.pool = [];
+    return;
+  }
   const pools = dealPools(s.caches, s.teams.filter((t) => inPlay(s, t)).map((t) => t.id));
   for (const t of s.teams) t.pool = pools[t.id] ?? [];
 }
@@ -168,8 +203,16 @@ function finish(s: THState, ctx: GameContext, events: Events, timers: TimerReque
   events.push(pub({ type: "ended" }));
 }
 
-/** Every team in play has cleared its pool (or none is left). */
-const allDone = (s: THState) => s.teams.filter((t) => inPlay(s, t)).every((t) => t.found.length >= t.pool.length);
+/**
+ * The round is over. Timed: every team in play has cleared its pool (or none
+ * is left). Race: a team hit the target, every cache is claimed, or no team is
+ * left in play.
+ */
+function allDone(s: THState): boolean {
+  const live = s.teams.filter((t) => inPlay(s, t));
+  if (!race(s)) return live.every((t) => t.found.length >= t.pool.length);
+  return !live.length || s.teams.some((t) => t.found.length >= s.settings.target) || totalClaims(s) >= s.caches.length;
+}
 
 // --- Teams -----------------------------------------------------------------
 
@@ -266,9 +309,11 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   const team = me && teamOf(s, me);
   const cache = s.caches.find((c) => c.id === cacheId);
   // Spectators watch: their team's list is not theirs to claim from.
-  if (!me || me.removed || me.spectator || !team || !cache || !team.pool.includes(cacheId)) {
+  if (!me || me.removed || me.spectator || !team || !cache || !board(s, team).includes(cacheId)) {
     return reject("not-yours", "That cache is not on your team's list.");
   }
+  const by = claimedBy(s, cacheId);
+  if (by && by.id !== team.id) return reject("taken", "Another team found this cache first.");
   if (team.found.includes(cacheId)) return reject("already-found", "Your team already found this cache.");
   const pos = me.pos;
   if (!pos || ctx.now - pos.at > POS_STALE_MS) return reject("no-position", "We lost your position. Try again.");
@@ -389,6 +434,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       settings: parseTHSettings(settings) ?? DEFAULT_SETTINGS,
       layout,
       caches,
+      release: [],
       teams: [],
       players: players.map((p) => ({
         id: p.id,
@@ -488,8 +534,9 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const jumping = now - jumpAt < JUMP_GRACE_MS;
     // The whole team watches, spectators too.
     const to = team ? members(state, team.id).filter((p) => !p.removed).map((p) => p.id) : [];
-    for (const id of jumping || !team ? [] : team.pool) {
-      if (revealed.includes(id)) continue;
+    for (const id of jumping || !team ? [] : board(state, team)) {
+      // In Race a claimed cache is gone: nobody gets it revealed after that.
+      if (revealed.includes(id) || (race(state) && claimedBy(state, id))) continue;
       const c = state.caches.find((x) => x.id === id);
       if (!c || Math.hypot(c.x - next.x, c.z - next.z) > REVEAL_RADIUS) continue;
       revealed.push(id);
@@ -507,7 +554,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   getPublicState: (s) => ({
     phase: s.phase,
     seed: s.layout.seed,
-    teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: t.pool.length })),
+    teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: race(s) ? s.settings.target : t.pool.length })),
     players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),
     startedAt: s.startedAt,
     endsAt: s.endsAt,
@@ -522,9 +569,10 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     // Spectators get the same board: they watch, they can't claim.
     return {
       teamId: team.id,
-      clues: team.pool.map((id) => {
+      clues: board(s, team).map((id) => {
         const c = cache(id);
-        return { id, clues: c.clues, difficulty: c.difficulty, found: team.found.includes(id), taken: false };
+        const by = claimedBy(s, id);
+        return { id, clues: c.clues, difficulty: c.difficulty, found: by === team, taken: !!by && by !== team };
       }),
       revealed: team.revealed.map((id) => {
         const c = cache(id);

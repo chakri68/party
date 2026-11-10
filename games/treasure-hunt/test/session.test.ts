@@ -159,6 +159,7 @@ describe("claimError", () => {
     expect(claimError("moved-too-fast", "x")).toBe("Wait a moment and try again.");
     expect(claimError("already-found", "x")).toBe("Your team already found this cache.");
     expect(claimError("not-yours", "x")).toBe("This cache is not on your team's list.");
+    expect(claimError("taken", "x")).toBe("Another team found this cache first.");
     expect(claimError("not-hunting", "x")).toBe("The hunt has not started.");
   });
 
