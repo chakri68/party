@@ -8,6 +8,7 @@ import type {
   StreamRelay,
   TimerRequest,
 } from "@games/game-core";
+import { buggySlots } from "../shared/buggies.ts";
 import { macroHeight } from "../shared/generate.ts";
 import { treasureHuntManifest } from "../shared/manifest.ts";
 import {
@@ -26,6 +27,8 @@ import {
   type THSettings,
   type THTeam,
   type TreasureLayout,
+  type Seat,
+  type Vehicle,
 } from "../shared/types.ts";
 import { isTeamColorKey, TEAM_COLORS, teamColor, type TeamColorKey } from "../shared/teams.ts";
 import {
@@ -39,6 +42,7 @@ import {
   POS_STALE_MS,
   RACE_OPEN_START,
   REVEAL_RADIUS,
+  SEAT_RANGE,
   TRACK_CAP,
   TRACK_MIN_M,
   TRACK_MIN_MS,
@@ -70,6 +74,11 @@ import { makeHunt } from "./hunt.ts";
 // claimed cache stays on the list, shown found or taken, and is never
 // revealed again. The first team to `target` wins at once; the timer still
 // caps the round, and then the Timed ranking decides.
+//
+// Buggies (§7.2): one parked by the spawn per team in play, plus a few loose
+// ones by set pieces, all placed at start. Two seats each, taken in hunting
+// only. The driver's stream moves the buggy; getting out sets where it rests.
+// Seats free when their player leaves; the round ending frees nothing.
 //
 // "In play" means the team has a hunter: a member still here, not watching.
 // A team whose hunters all leave mid-round keeps its finds and its place in
@@ -133,6 +142,8 @@ export interface THState {
   teams: THServerTeam[];
   players: THServerPlayer[];
   finds: THFind[];
+  /** Set at start: a team slot per team in play, then every loose slot. Empty before. */
+  vehicles: Vehicle[];
   startedAt: number | null;
   endedAt: number | null;
   endsAt: number | null;
@@ -289,12 +300,21 @@ function seatTeams(s: THState, carry: unknown): void {
   }
 }
 
+/** Team slots go t0, t1, … to the teams in play, in team order. Loose slots are for anyone. */
+function park(s: THState): void {
+  const slots = buggySlots(s.layout);
+  const team = slots.filter((x) => x.id.startsWith("t")).slice(0, s.teams.filter((t) => inPlay(s, t)).length);
+  const loose = slots.filter((x) => x.id.startsWith("l"));
+  s.vehicles = [...team, ...loose].map(({ id, x, z, yaw }) => ({ id, x, y: null, z, yaw, driver: null, passenger: null }));
+}
+
 function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
   // Safety net: a round nobody can play is over before it starts.
   if (!hunters(s).length) return finish(s, ctx, events, timers);
   s.phase = "countdown";
   s.countdownEndsAt = ctx.now + COUNTDOWN_MS;
   deal(s);
+  park(s);
   timers.push({ kind: "set", timerId: COUNTDOWN_TIMER, delayMs: COUNTDOWN_MS });
   events.push(pub({ type: "countdown", spectators: s.players.filter((p) => p.spectator && !p.removed).map((p) => p.id) }));
 }
@@ -368,6 +388,57 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   const timers: TimerRequest[] = [];
   if (allDone(next)) finish(next, ctx, events, timers);
   return ok(next, events, timers);
+}
+
+/** The vehicle I hold a seat in, and which seat. `?? []`: rooms saved before buggies. */
+function seatOf(s: THState, playerId: string): { v: Vehicle; seat: Seat } | null {
+  for (const v of s.vehicles ?? []) {
+    if (v.driver === playerId) return { v, seat: "driver" };
+    if (v.passenger === playerId) return { v, seat: "passenger" };
+  }
+  return null;
+}
+
+type SeatAction = Extract<THAction, { type: "seat" | "unseat" }>;
+
+/** How far (XZ) a driver can get out from where the buggy last streamed. */
+const UNSEAT_SLACK = 5;
+
+function seatAction(s: THState, playerId: string, action: SeatAction, ctx: GameContext): GameResult<THState, THEvent> {
+  if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on.");
+  const me = s.players.find((p) => p.id === playerId);
+  if (!me || me.removed || me.spectator) return reject("not-in-game", "You are not in this game.");
+  const next = clone(s);
+  next.vehicles ??= [];
+  const held = seatOf(next, playerId);
+
+  if (action.type === "unseat") {
+    if (!held) return reject("not-seated", "You are not in a buggy.");
+    const { v, seat } = held;
+    v[seat] = null;
+    // Only the driver moved it. Trust the sent pose, but only within reach of the last streamed one.
+    if (seat === "driver") {
+      const dx = action.x - v.x;
+      const dz = action.z - v.z;
+      const d = Math.hypot(dx, dz);
+      const k = d > UNSEAT_SLACK ? UNSEAT_SLACK / d : 1;
+      v.x = round2(v.x + dx * k);
+      v.z = round2(v.z + dz * k);
+      v.y = round2(v.y === null ? action.y : Math.min(v.y + HEIGHT_TOL, Math.max(v.y - HEIGHT_TOL, action.y)));
+      v.yaw = round2(action.yaw);
+    }
+    return ok(next, [], []);
+  }
+
+  const v = next.vehicles.find((x) => x.id === action.vehicleId);
+  if (!v) return reject("no-vehicle", "That buggy is not here.");
+  const pos = me.pos;
+  if (!pos || ctx.now - pos.at > POS_STALE_MS) return reject("no-position", "We lost your position. Try again.");
+  if (held) return reject("in-vehicle", "Get out of the buggy first.");
+  if (Math.hypot(pos.x - v.x, pos.z - v.z) > SEAT_RANGE) return reject("too-far-seat", "Go closer to the buggy.");
+  if (v[action.seat] !== null) return reject("seat-taken", "Someone is already in that seat.");
+  v[action.seat] = playerId;
+  return ok(next, [], []);
 }
 
 function difficultyFound(s: THState, t: THServerTeam): number {
@@ -461,6 +532,13 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     if (a.type === "team.join" && isTeamId(a.teamId)) return { type: "team.join", teamId: a.teamId };
     if (a.type === "team.assign" && isTeamId(a.teamId) && typeof a.playerId === "string" && a.playerId.length <= 64)
       return { type: "team.assign", playerId: a.playerId, teamId: a.teamId };
+    if (a.type === "seat" && typeof a.vehicleId === "string" && a.vehicleId.length >= 1 && a.vehicleId.length <= 8 && (a.seat === "driver" || a.seat === "passenger"))
+      return { type: "seat", vehicleId: a.vehicleId, seat: a.seat };
+    if (a.type === "unseat") {
+      const { x, y, z, yaw } = a;
+      const place = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= POS_LIMIT;
+      if (place(x) && place(y) && place(z) && typeof yaw === "number" && Number.isFinite(yaw)) return { type: "unseat", x, y, z, yaw };
+    }
     return null;
   },
 
@@ -486,6 +564,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         routeLast: null,
       })),
       finds: [],
+      vehicles: [],
       startedAt: null,
       endedAt: null,
       endsAt: null,
@@ -498,6 +577,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   handleAction(state, playerId, action, ctx) {
     if (action.type === "claim") return claim(state, playerId, action.cacheId, ctx);
+    if (action.type === "seat" || action.type === "unseat") return seatAction(state, playerId, action, ctx);
     const s = clone(state);
     const events: Events = [];
     const timers: TimerRequest[] = [];
@@ -537,6 +617,11 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const p = s.players.find((x) => x.id === playerId);
     if (!p || p.removed) return out(s, events, timers);
     p.removed = true;
+    // Their seats free. A driven buggy rests at its last streamed pose.
+    for (const v of s.vehicles ?? []) {
+      if (v.driver === playerId) v.driver = null;
+      if (v.passenger === playerId) v.passenger = null;
+    }
     events.push(pub({ type: "player-removed", playerId }));
     if (s.phase === "teams") {
       // Their team goes with them if they were its last member. Nobody left at all: it is over.
@@ -555,7 +640,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const me = state.players.find((p) => p.id === playerId);
     if (!me || me.removed || me.spectator) return null;
     const snap = parsePos(data);
-    if (!snap) return null;
+    // In a buggy and on foot at once: one of them is a lie.
+    if (!snap || (snap.v !== null && snap.foot)) return null;
     const next = { x: snap.x, y: snap.y, z: snap.z, foot: snap.foot };
     const now = ctx.now;
 
@@ -604,7 +690,10 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const players = state.players.map((p) => (p.id === playerId ? player : p));
     const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: snap.foot, v: snap.v };
     const teams = relays.length ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
-    return { state: { ...state, players, teams }, relay, ...(relays.length ? { relays } : {}), persist: point || relays.length > 0 };
+    // The driver's snapshot is the buggy's pose. In memory: the route point rule persists ~1 Hz.
+    const vehicles =
+      snap.v === null ? state.vehicles : (state.vehicles ?? []).map((v) => (v.id === snap.v && v.driver === playerId ? { ...v, x: relay.x, y: relay.y, z: relay.z, yaw: relay.yaw } : v));
+    return { state: { ...state, players, teams, vehicles }, relay, ...(relays.length ? { relays } : {}), persist: point || relays.length > 0 };
   },
 
   getPublicState: (s) => ({
@@ -616,6 +705,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     endsAt: s.endsAt,
     countdownEndsAt: s.countdownEndsAt,
     replay: s.phase === "finished" ? replay(s) : null,
+    vehicles: (s.vehicles ?? []).map((v) => ({ ...v })),
   }),
 
   getPrivateState(s, playerId) {

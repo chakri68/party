@@ -125,7 +125,7 @@ describe("stream v2", () => {
     expect(send(s, "p0", { v: 3 }, 10_100)).toBeNull();
     expect(send(s, "p0", { v: "" }, 10_100)).toBeNull();
     expect(send(s, "p0", { v: "123456789" }, 10_100)).toBeNull();
-    expect(send(s, "p0", { v: "12345678" }, 10_100)!.relay).toMatchObject({ v: "12345678" });
+    expect(send(s, "p0", { v: "12345678", foot: false }, 10_100)!.relay).toMatchObject({ v: "12345678" });
     expect(send(s, "p0", { v: null }, 10_100)!.relay).toMatchObject({ v: null });
   });
 

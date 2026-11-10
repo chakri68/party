@@ -86,7 +86,25 @@ export interface THPublic {
   countdownEndsAt: number | null;
   /** Only in finished. */
   replay: THReplay | null;
+  /** Empty before start. */
+  vehicles: Vehicle[];
 }
+
+/** A buggy with two seats (§7.2). The passenger only looks around and drops pins. */
+export interface Vehicle {
+  /** A buggySlots id: "t0".."t7" or "l0".."l2". */
+  id: string;
+  x: number;
+  /** null until somebody drives it: it then rests where the driver last streamed. */
+  y: number | null;
+  z: number;
+  /** Radians, Godot style. */
+  yaw: number;
+  driver: string | null;
+  passenger: string | null;
+}
+
+export type Seat = "driver" | "passenger";
 
 /** A map pin. Seen by the pinner's team only. x and z rounded to 0.1. */
 export interface Pin {
@@ -117,7 +135,10 @@ export type THAction =
   /** Host only. */
   | { type: "team.assign"; playerId: string; teamId: number }
   /** Host only. */
-  | { type: "start" };
+  | { type: "start" }
+  | { type: "seat"; vehicleId: string; seat: Seat }
+  /** Where you got out. A driver's buggy rests here, clamped near its last streamed pose. */
+  | { type: "unseat"; x: number; y: number; z: number; yaw: number };
 
 /** Handed from a finished game to the rematch's createGame. */
 export interface THCarry {

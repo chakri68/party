@@ -41,6 +41,11 @@ const CLAIM_ERRORS: Record<string, string> = {
   "already-found": "Your team already found this cache.",
   "not-yours": "This cache is not on your team's list.",
   "not-hunting": "The hunt has not started.",
+  // Seats. "in-vehicle" above reads right for a seat too.
+  "seat-taken": "Someone is already in that seat.",
+  "too-far-seat": "Go closer to the buggy.",
+  "no-vehicle": "That buggy is not here.",
+  "not-seated": "You are not in a buggy.",
 };
 
 /** What to tell the player when a claim is turned down. */
