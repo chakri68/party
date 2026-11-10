@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from "../shared/types.ts";
 import type { THPublic } from "../shared/types.ts";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
 import { macroHeight } from "../shared/generate.ts";
-import { POS_HZ, TRACK_CAP, TRACK_MIN_M, TRACK_MIN_MS } from "../shared/world.ts";
+import { POS_HZ, REVEAL_RADIUS, TRACK_CAP, TRACK_MIN_M, TRACK_MIN_MS } from "../shared/world.ts";
 
 const ctx = (now = 1000): GameContext => ({ now, randomInt: seededRandomInt(7), hostId: "p0" });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
@@ -136,6 +136,16 @@ describe("stream v2", () => {
     const r = send(s, "p0", { x: c.x, z: c.z }, 10_100)!;
     expect(r.relay).toBeDefined();
     expect(r.relays!.length).toBeGreaterThan(0);
+  });
+
+  it("a reveal step with no route point still persists", () => {
+    let s = hunting(1);
+    const c = s.caches.find((x) => x.id === s.teams[0]!.pool[0]!)!;
+    s = send(s, "p0", { x: c.x + REVEAL_RADIUS + 1, z: c.z }, 11_000)!.state;
+    const r = send(s, "p0", { x: c.x + REVEAL_RADIUS - 0.5, z: c.z }, 11_100)!;
+    expect(r.relays!.length).toBeGreaterThan(0);
+    expect(route(r.state, "p0")).toHaveLength(1);
+    expect(r.persist).toBe(true);
   });
 
   it("spectator snapshots are dropped with no relay", () => {

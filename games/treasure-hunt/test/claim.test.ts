@@ -99,6 +99,7 @@ describe("reveal", () => {
     const near = pos(s, "p0", c.x + REVEAL_RADIUS - 1, 10, c.z, 12_000)!;
     const mine = (near.relays ?? []).filter((r) => (r.data as { id: string }).id === cid);
     expect(mine).toEqual([{ to: ["p0"], data: { t: "reveal", id: cid, x: Math.round(c.x * 10) / 10, z: Math.round(c.z * 10) / 10, dy: c.dy } }]);
+    expect(near.persist).not.toBe(false);
     s = near.state;
     // Once only.
     const again = pos(s, "p0", c.x + REVEAL_RADIUS - 2, 10, c.z, 12_500)!;

@@ -604,7 +604,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const players = state.players.map((p) => (p.id === playerId ? player : p));
     const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: snap.foot, v: snap.v };
     const teams = relays.length ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
-    return { state: { ...state, players, teams }, relay, ...(relays.length ? { relays } : {}), persist: point };
+    return { state: { ...state, players, teams }, relay, ...(relays.length ? { relays } : {}), persist: point || relays.length > 0 };
   },
 
   getPublicState: (s) => ({
