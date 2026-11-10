@@ -20,6 +20,7 @@ import {
 import { makeHunt, type HuntSky } from "../server/hunt.ts";
 import { cacheSpots, type Cache, type CacheSpot } from "../server/caches.ts";
 import { SHADOW_MINOR_GAP, clueTexts, shadowSpots } from "../server/clues.ts";
+import { photoCam } from "../server/photos.ts";
 
 const LANDMARK_FILLER = /^[A-Z][^.]*\.$/;
 const RELATIONAL = /^Between the (.+) and the (.+), nearer the (.+)\.$/;
@@ -27,9 +28,10 @@ const BEARING = /^About (\d+) m from the (.+), at (\d+)°\.$/;
 
 const SHADOW = /^Where the shadow of the (.+) ends at (\d\d):(\d\d)\.$/;
 const LAMP = /^Under the lamp at the (.+)\. It comes on when it gets dark\.$/;
+const PHOTO = /^A photo taken about 5 m from the cache, looking at the (.+)\.$/;
 
-type Kind = "landmark" | "relational" | "bearing" | "shadow" | "lamp";
-const DIFFICULTY: Record<Kind, 1 | 2 | 3> = { landmark: 1, relational: 2, bearing: 3, shadow: 3, lamp: 2 };
+type Kind = "landmark" | "relational" | "bearing" | "shadow" | "lamp" | "photo";
+const DIFFICULTY: Record<Kind, 1 | 2 | 3> = { landmark: 1, relational: 2, bearing: 3, shadow: 3, lamp: 2, photo: 2 };
 
 const DAY: HuntSky = { startMin: START_MIN.day, minutes: 60 };
 const DUSK_SHORT: HuntSky = { startMin: START_MIN.dusk, minutes: 15 };
@@ -86,6 +88,13 @@ function checkClue(l: TreasureLayout, c: Cache, clue: string, sky: HuntSky): Kin
     });
     expect(near).toBe(true);
     return "lamp";
+  }
+  const ph = PHOTO.exec(clue);
+  if (ph) {
+    const p = byLabel(l, ph[1]!);
+    expect(c.photo).toEqual(photoCam(l, c, sky));
+    expect(c.photo!.target).toBe(p.id);
+    return "photo";
   }
   const rel = RELATIONAL.exec(clue);
   if (rel) {

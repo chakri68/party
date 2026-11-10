@@ -44,9 +44,9 @@ describe("resync", () => {
     teamId: 1,
     pins: [],
     clues: [
-      { id: "c1", clues: ["a"], difficulty: 1, found: true, taken: false },
-      { id: "c2", clues: ["b"], difficulty: 2, found: false, taken: false },
-      { id: "c3", clues: ["c"], difficulty: 3, found: false, taken: false },
+      { id: "c1", clues: ["a"], difficulty: 1, found: true, taken: false, photo: null },
+      { id: "c2", clues: ["b"], difficulty: 2, found: false, taken: false, photo: null },
+      { id: "c3", clues: ["c"], difficulty: 3, found: false, taken: false, photo: null },
     ],
     revealed: [
       { id: "c1", x: 10.5, z: -3, dy: 0 },
@@ -64,7 +64,7 @@ describe("resync", () => {
   });
 
   it("marks a cache another team took as found too, so its crate goes", () => {
-    const took: THPrivate = { ...priv, clues: [...priv.clues, { id: "c4", clues: ["d"], difficulty: 1, found: false, taken: true }] };
+    const took: THPrivate = { ...priv, clues: [...priv.clues, { id: "c4", clues: ["d"], difficulty: 1, found: false, taken: true, photo: null }] };
     expect(resync(took, "hunting").filter((c) => c.fn === "cacheFound")).toEqual([
       { fn: "cacheFound", arg: { id: "c1" } },
       { fn: "cacheFound", arg: { id: "c4" } },
@@ -94,7 +94,7 @@ describe("GodotFeed", () => {
   const priv = (revealed: THPrivate["revealed"] = []): THPrivate => ({
     teamId: 1,
     pins: [],
-    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false, taken: false }, { id: "c4", clues: ["b"], difficulty: 2, found: false, taken: false }],
+    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false, taken: false, photo: null }, { id: "c4", clues: ["b"], difficulty: 2, found: false, taken: false, photo: null }],
     revealed,
   });
   const setup = () => {
@@ -358,7 +358,7 @@ describe("ClaimLog", () => {
   const priv = (found: string[]): THPrivate => ({
     teamId: 1,
     pins: [],
-    clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id), taken: false })),
+    clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id), taken: false, photo: null })),
     revealed: [],
   });
 

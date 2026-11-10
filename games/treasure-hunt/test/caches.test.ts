@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { START_MIN, cellSlope, generateLayout, macroHeight, makeLayout, rng, validateLayout } from "../shared/index.ts";
+import { PHOTO_TARGET, START_MIN, cellSlope, generateLayout, macroHeight, makeLayout, rng, validateLayout } from "../shared/index.ts";
 import { CACHE_BOUND, CACHE_MAX_SLOPE, cacheSpots, makeCaches, type CacheTally } from "../server/caches.ts";
 import { clueKinds } from "../server/clues.ts";
 import { CACHE_SEED, makeHunt, type HuntSky } from "../server/hunt.ts";
@@ -29,7 +29,8 @@ function checkHunt(seed: number, sky: HuntSky): void {
   const want = Math.min(pieceSpots, Math.max(Math.round(n / 2), n - minorSpots));
   expect(Math.abs(fromPieces - want)).toBeLessThanOrEqual(tally.dropped);
   // Every clue list is unique, so a clue never points at someone else's cache.
-  expect(new Set(caches.map((c) => c.clues.join("\n"))).size).toBe(n);
+  // Two photos of the same landmark read the same, so the pose is part of the key.
+  expect(new Set(caches.map((c) => c.clues.join("\n") + (c.photo ? `|${c.photo.x},${c.photo.z}` : ""))).size).toBe(n);
   const keys = new Set<string>();
   for (const c of caches) {
     expect(pieceIds.has(c.source) || minorIds.has(c.source)).toBe(true);
@@ -107,4 +108,27 @@ describe("light clues", () => {
       }
     }
   });
+});
+
+describe("photo quota", () => {
+  const PHOTO = /^A photo taken about 5 m from the cache/;
+
+  it("50 seeds, day and night: up to PHOTO_TARGET caches lead with a photo, and light still leads", () => {
+    for (const sky of [SKY, { startMin: START_MIN.night, minutes: 30 }]) {
+      for (let s = 1; s <= 50; s++) {
+        const { layout: l, caches } = makeHunt(s, sky);
+        const spots = cacheSpots(l, sky);
+        // A light-forced spot isn't forced for a photo too, so count the others.
+        const photoable = spots.filter((p) => {
+          const k = clueKinds(l, p, sky);
+          return k.includes("photo") && !k.includes("shadow") && !k.includes("lamp");
+        }).length;
+        const lightable = spots.some((p) => clueKinds(l, p, sky).some((k) => k === "shadow" || k === "lamp"));
+        const lead = caches.filter((c) => PHOTO.test(c.clues[0]!)).length;
+        // A photo's key holds its pose, so a forced photo spot is never dropped as a repeat.
+        expect(lead, `seed ${s}`).toBeGreaterThanOrEqual(Math.min(PHOTO_TARGET, photoable));
+        if (lightable) expect(caches.some((c) => isLight(c.clues[0]!)), `seed ${s}`).toBe(true);
+      }
+    }
+  }, 60_000);
 });

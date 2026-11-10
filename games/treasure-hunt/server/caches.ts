@@ -6,10 +6,10 @@
 import { cellSlope, macroHeight } from "../shared/generate.ts";
 import { MINOR_SLOT } from "../shared/minor.ts";
 import { rng, type Rng } from "../shared/noise.ts";
-import { LIGHT_TARGET } from "../shared/sky.ts";
+import { LIGHT_TARGET, PHOTO_TARGET } from "../shared/sky.ts";
 import { TEMPLATES, worldSlot } from "../shared/templates.ts";
-import type { TreasureLayout } from "../shared/types.ts";
-import { LIGHT_KINDS, clueKinds, clueTexts, cluesFor, rateClues, shadowSpots, type ClueKind } from "./clues.ts";
+import type { PhotoCam, TreasureLayout } from "../shared/types.ts";
+import { LIGHT_KINDS, clueKey, clueKinds, clueTexts, cluesFor, rateClues, shadowSpots, type ClueKind, type Rated } from "./clues.ts";
 import type { HuntSky } from "./hunt.ts";
 
 export interface Cache {
@@ -25,9 +25,11 @@ export interface Cache {
   shadowMin?: number;
   difficulty: 1 | 2 | 3;
   clues: string[];
+  /** The camera for its photo clue, or null when it has none. */
+  photo: PhotoCam | null;
 }
 
-export type CacheSpot = Omit<Cache, "id" | "clues" | "difficulty">;
+export type CacheSpot = Omit<Cache, "id" | "clues" | "difficulty" | "photo">;
 
 export const CACHE_MIN = 20;
 export const CACHE_MAX = 30;
@@ -82,7 +84,9 @@ export interface CacheTally {
  * Pick 20–30 caches, about half from pieces, and give each its clues.
  * Up to LIGHT_TARGET spots that can take a light clue (shadow, lamp) always
  * make the cut and lead with that clue, so a round's time of day shows up in
- * its clues. No two caches share a clue list, so a clue dealt to one player
+ * its clues. Then up to PHOTO_TARGET more lead with a photo, the same way;
+ * a spot is forced for one of the two, never both. No two caches share a
+ * clue list (a photo's pose counts), so a clue dealt to one player
  * never points at another player's cache. Null when fewer than 20 spots are
  * valid (R6), or too few are left after dropping repeats.
  */
@@ -96,11 +100,14 @@ export function makeCaches(l: TreasureLayout, r: Rng, sky: HuntSky, tally?: Cach
     const k = clueKinds(l, s, sky).find((x) => LIGHT_KINDS.includes(x));
     if (k) lightOf.set(s, k);
   }
-  const forced = new Set(shuffle([...lightOf.keys()], r).slice(0, LIGHT_TARGET));
-  // Light spots are all piece spots; the forced ones go to the front so the split keeps them.
-  const shuffled = shuffle(spots.filter((s) => pieceIds.has(s.source)), r);
-  const fromPieces = [...shuffled.filter((s) => forced.has(s)), ...shuffled.filter((s) => !forced.has(s))];
-  const fromMinor = shuffle(spots.filter((s) => !pieceIds.has(s.source)), r);
+  const lead = new Map<CacheSpot, ClueKind>();
+  for (const s of shuffle([...lightOf.keys()], r).slice(0, LIGHT_TARGET)) lead.set(s, lightOf.get(s)!);
+  const photoable = spots.filter((s) => !lead.has(s) && clueKinds(l, s, sky).includes("photo"));
+  for (const s of shuffle(photoable, r).slice(0, PHOTO_TARGET)) lead.set(s, "photo");
+  // Forced spots go to the front of their side so the split keeps them. Light spots are all piece spots; photos can be either.
+  const front = (a: CacheSpot[]) => [...a.filter((s) => lead.has(s)), ...a.filter((s) => !lead.has(s))];
+  const fromPieces = front(shuffle(spots.filter((s) => pieceIds.has(s.source)), r));
+  const fromMinor = front(shuffle(spots.filter((s) => !pieceIds.has(s.source)), r));
   const n = Math.min(spots.length, CACHE_MIN + Math.floor(r() * (CACHE_MAX - CACHE_MIN + 1)));
   // Half from pieces, but fall back on whichever side has spots to spare.
   const np = Math.min(fromPieces.length, Math.max(Math.round(n / 2), n - fromMinor.length));
@@ -112,11 +119,11 @@ export function makeCaches(l: TreasureLayout, r: Rng, sky: HuntSky, tally?: Cach
   while (queue.length > 0) {
     const s = queue.shift()!;
     const spot = { id: `c${out.length}`, ...s };
-    const lead = forced.has(s) ? lightOf.get(s) : undefined;
-    let got = cluesFor(l, spot, sky, r, lead);
-    if (seen.has(got.clues.join("\n"))) {
-      got = unique(l, spot, got.clues, seen, sky, r, lead) ?? got;
-      if (seen.has(got.clues.join("\n"))) {
+    const kind = lead.get(s);
+    let got = cluesFor(l, spot, sky, r, kind);
+    if (seen.has(clueKey(got))) {
+      got = unique(l, spot, got.clues, seen, sky, r, kind) ?? got;
+      if (seen.has(clueKey(got))) {
         // Replace it from the same side when we can, so the split holds.
         const spare = pieceIds.has(s.source) ? (fromPieces.shift() ?? fromMinor.shift()) : (fromMinor.shift() ?? fromPieces.shift());
         if (spare) queue.unshift(spare);
@@ -125,7 +132,7 @@ export function makeCaches(l: TreasureLayout, r: Rng, sky: HuntSky, tally?: Cach
       }
       if (tally) tally.second++;
     }
-    seen.add(got.clues.join("\n"));
+    seen.add(clueKey(got));
     out.push({ ...spot, ...got });
   }
   return out.length < CACHE_MIN ? null : out;
@@ -140,14 +147,14 @@ function unique(
   sky: HuntSky,
   r: Rng,
   lead?: ClueKind,
-): Pick<Cache, "clues" | "difficulty"> | null {
+): Rated | null {
   if (clues.length !== 1) return null;
   const texts = clueTexts(l, s, sky);
   const have = [...texts].find(([, t]) => t === clues[0])![0];
   const others = shuffle([...texts.keys()].filter((k) => k !== have), r);
   for (const k of others) {
     const got = rateClues(l, s, [have, k] as ClueKind[], sky, lead);
-    if (!seen.has(got.clues.join("\n"))) return got;
+    if (!seen.has(clueKey(got))) return got;
   }
   return null;
 }

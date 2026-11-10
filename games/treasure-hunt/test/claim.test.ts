@@ -403,7 +403,7 @@ describe("secrecy", () => {
     expect(priv.clues.map((c) => c.id)).toEqual(team(s, "p0").pool);
     for (const c of priv.clues) {
       const cache = cacheOf(s, c.id);
-      expect(c).toEqual({ id: c.id, clues: cache.clues, difficulty: cache.difficulty, found: false, taken: false });
+      expect(c).toEqual({ id: c.id, clues: cache.clues, difficulty: cache.difficulty, found: false, taken: false, photo: cache.photo });
     }
     expect(priv.revealed).toEqual([]);
     expect(priv.teamId).toBe(me(s, "p0").teamId);

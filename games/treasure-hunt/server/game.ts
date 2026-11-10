@@ -796,7 +796,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       clues: board(s, team).map((id) => {
         const c = cache(id);
         const by = claimedBy(s, id);
-        return { id, clues: c.clues, difficulty: c.difficulty, found: by === team, taken: !!by && by !== team };
+        // Only a board cache's pose goes out: Race's unreleased ones never reach here. `?? null`: caches saved before photos.
+        return { id, clues: c.clues, difficulty: c.difficulty, found: by === team, taken: !!by && by !== team, photo: c.photo ?? null };
       }),
       revealed: team.revealed.map((id) => {
         const c = cache(id);

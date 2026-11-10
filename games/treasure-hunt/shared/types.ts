@@ -122,11 +122,25 @@ export interface Pin {
   z: number;
 }
 
+/** Where a photo clue's camera stands (§6.2): about PHOTO_DIST from the cache, facing a landmark. */
+export interface PhotoCam {
+  /** Rounded to 0.1. The eye is PHOTO_EYE over the ground here. */
+  x: number;
+  z: number;
+  /** Radians, Godot style (yaw 0 faces −Z, positive turns left), rounded to 0.01. */
+  yaw: number;
+  /** Radians up, rounded to 0.01. */
+  pitch: number;
+  /** The piece the camera faces. */
+  target: string;
+}
+
 /** A player's team's clue board, and the caches anyone on the team has come close to (R1). */
 export interface THPrivate {
   teamId: number | null;
   /** taken: another team claimed it first. Race only; always false in Timed. */
-  clues: { id: string; clues: string[]; difficulty: number; found: boolean; taken: boolean }[];
+  /** photo: the camera for this cache's photo clue, or null when it has none. */
+  clues: { id: string; clues: string[]; difficulty: number; found: boolean; taken: boolean; photo: PhotoCam | null }[];
   /** x and z rounded to 0.1. */
   revealed: { id: string; x: number; z: number; dy: number }[];
   /** My team's pins, oldest first. */

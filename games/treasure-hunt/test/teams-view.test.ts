@@ -91,8 +91,8 @@ describe("clueItems taken", () => {
       pins: [],
       revealed: [],
       clues: [
-        { id: "c1", clues: ["A."], difficulty: 1, found: false, taken: true },
-        { id: "c2", clues: ["B."], difficulty: 1, found: true, taken: false },
+        { id: "c1", clues: ["A."], difficulty: 1, found: false, taken: true, photo: null },
+        { id: "c2", clues: ["B."], difficulty: 1, found: true, taken: false, photo: null },
       ],
     };
     expect(clueItems(priv)).toEqual([

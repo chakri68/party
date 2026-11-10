@@ -4,18 +4,20 @@
 //   lamp       a lit ground lamp over a piece slot, when the round gets dark.
 //   bearing    a distance and a compass bearing from a nearby piece.
 //   shadow     where a tall piece's shadow ends at a clock time in the round.
+//   photo      a picture from about 5 m behind the cache, facing a landmark.
 // Light clues (lamp, shadow) only go out when they'll be true during the
 // round's clock window, so every clue builder takes the sky.
 
 import { LAMP_REACH, SHADOW_MIN_EL, SHADOW_STEP, clockText, darkWithin, shadowTip, sunAt } from "../shared/sky.ts";
 import type { Rng } from "../shared/noise.ts";
 import { TEMPLATES, pieceLabel, worldLamp, worldSlot } from "../shared/templates.ts";
-import type { SetPiece, TreasureLayout } from "../shared/types.ts";
+import type { PhotoCam, SetPiece, TreasureLayout } from "../shared/types.ts";
 import type { Cache, CacheSpot } from "./caches.ts";
 import type { HuntSky } from "./hunt.ts";
+import { photoCam } from "./photos.ts";
 
-export type ClueKind = "landmark" | "relational" | "bearing" | "shadow" | "lamp";
-export const CLUE_DIFFICULTY: Record<ClueKind, 1 | 2 | 3> = { landmark: 1, relational: 2, bearing: 3, shadow: 3, lamp: 2 };
+export type ClueKind = "landmark" | "relational" | "bearing" | "shadow" | "lamp" | "photo";
+export const CLUE_DIFFICULTY: Record<ClueKind, 1 | 2 | 3> = { landmark: 1, relational: 2, bearing: 3, shadow: 3, lamp: 2, photo: 2 };
 export const LIGHT_KINDS: readonly ClueKind[] = ["shadow", "lamp"];
 
 /** Relational: the cache's projection onto AB lands in this part of it… */
@@ -152,14 +154,22 @@ function lamp(l: TreasureLayout, s: Spot, sky: HuntSky): string | null {
   return `Under the lamp at the ${pieceLabel(p)}. It comes on when it gets dark.`;
 }
 
+/** The photo's words. The picture itself is the pose, carried on the cache. */
+function photo(l: TreasureLayout, s: Spot, sky: HuntSky): string | null {
+  const cam = photoCam(l, s, sky);
+  const p = cam && l.pieces.find((q) => q.id === cam.target);
+  return p ? `A photo taken about 5 m from the cache, looking at the ${pieceLabel(p)}.` : null;
+}
+
 const BUILD: Record<ClueKind, (l: TreasureLayout, s: Spot, sky: HuntSky) => string | null> = {
   landmark,
   relational,
   bearing,
   shadow,
   lamp,
+  photo,
 };
-const KINDS: ClueKind[] = ["landmark", "relational", "bearing", "lamp", "shadow"];
+const KINDS: ClueKind[] = ["landmark", "relational", "bearing", "lamp", "shadow", "photo"];
 
 /** Every clue that fits this spot, by kind. */
 export function clueTexts(l: TreasureLayout, s: Spot, sky: HuntSky): Map<ClueKind, string> {
@@ -176,6 +186,17 @@ export function clueKinds(l: TreasureLayout, s: Spot, sky: HuntSky): ClueKind[] 
   return [...clueTexts(l, s, sky).keys()];
 }
 
+export type Rated = Pick<Cache, "clues" | "difficulty" | "photo">;
+
+/**
+ * A clue list's identity. Two photos of one landmark read the same, so a
+ * photo's pose is part of it: they're different pictures.
+ */
+export function clueKey(c: { clues: string[]; photo: PhotoCam | null }): string {
+  const k = c.clues.join("\n");
+  return c.photo ? `${k}|${c.photo.x},${c.photo.z}` : k;
+}
+
 /**
  * These kinds' clues, easiest first, and the difficulty: the easiest kind,
  * but never 3 at a piece. Any area a bearing or relational clue draws holds
@@ -187,23 +208,27 @@ export function rateClues(
   kinds: ClueKind[],
   sky: HuntSky,
   lead?: ClueKind,
-): { clues: string[]; difficulty: 1 | 2 | 3 } {
+): Rated {
   const texts = clueTexts(l, s, sky);
-  // `lead` goes first whatever its difficulty: the light clue a quota spot was picked for.
+  // `lead` goes first whatever its difficulty: the light or photo clue a quota spot was picked for.
   const rank = (k: ClueKind) => (k === lead ? 0 : CLUE_DIFFICULTY[k]);
   const sorted = [...kinds].sort((a, b) => rank(a) - rank(b));
   const easiest = Math.min(...kinds.map((k) => CLUE_DIFFICULTY[k])) as 1 | 2 | 3;
-  return { clues: sorted.map((k) => texts.get(k)!), difficulty: atPiece(l, s) ? (Math.min(easiest, 2) as 1 | 2) : easiest };
+  return {
+    clues: sorted.map((k) => texts.get(k)!),
+    difficulty: atPiece(l, s) ? (Math.min(easiest, 2) as 1 | 2) : easiest,
+    photo: kinds.includes("photo") ? photoCam(l, s, sky) : null,
+  };
 }
 
-/** One clue, or two of different kinds (p = 0.4). With `lead`, that kind is always the first. */
+/** One clue, or two of different kinds (p = 0.4). With `lead`, that kind is always the first. A photo brings its pose. */
 export function cluesFor(
   l: TreasureLayout,
-  c: Omit<Cache, "clues" | "difficulty">,
+  c: Omit<Cache, "clues" | "difficulty" | "photo">,
   sky: HuntSky,
   r: Rng,
   lead?: ClueKind,
-): { clues: string[]; difficulty: 1 | 2 | 3 } {
+): Rated {
   const pool = clueKinds(l, c, sky);
   if (pool.length === 0) throw new Error(`no clue fits cache ${c.id}`);
   const count = pool.length > 1 && r() < SECOND_CLUE ? 2 : 1;

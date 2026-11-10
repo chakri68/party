@@ -214,4 +214,37 @@ describe("treasure hunt server", () => {
     expect(start("day", seededRandomInt(7)).sky.startMin).toBe(600);
     expect(start("dusk", seededRandomInt(7)).sky.startMin).toBe(1060);
   });
+
+  describe("photo poses", () => {
+    /** A made-up pose per cache, so every cache has one to leak. */
+    const posed = (st: THState): THState => ({
+      ...st,
+      caches: st.caches.map((c, i) => ({ ...c, photo: { x: i, z: -i, yaw: 0.5, pitch: 0.1, target: "p0" } })),
+    });
+    const poses = (st: THState, pid: string) => th.getPrivateState(st, pid).clues.map((c) => [c.id, c.photo]);
+
+    it("Timed: each team sees the poses of its own pool only", () => {
+      const t = started(make(2).state);
+      const st = posed(th.onTimer!(t.state, "countdown", ctx({ now: 93_000 })).state);
+      const [a, b] = st.teams;
+      expect(a!.id).not.toBe(b!.id);
+      expect(poses(st, "p0")).toEqual(a!.pool.map((id) => [id, st.caches.find((c) => c.id === id)!.photo]));
+      expect(poses(st, "p1")).toEqual(b!.pool.map((id) => [id, st.caches.find((c) => c.id === id)!.photo]));
+      // A cache with no photo clue shows null.
+      const bare = { ...st, caches: st.caches.map((c) => ({ ...c, photo: null })) };
+      expect(th.getPrivateState(bare, "p0").clues.every((c) => c.photo === null)).toBe(true);
+    });
+
+    it("Race: a cache not yet released shows no pose to anyone", () => {
+      const race = th.createGame(players(2), { ...DEFAULT_SETTINGS, mode: "race", target: 3 }, { roundNumber: 1, dealerSeat: 0 }, ctx());
+      const st = posed(th.onTimer!(started(race.state).state, "countdown", ctx({ now: 93_000 })).state);
+      const open = new Set(st.release!.slice(0, 3));
+      for (const pid of ["p0", "p1"]) {
+        const got = th.getPrivateState(st, pid).clues;
+        expect(got.map((c) => c.id).sort()).toEqual([...open].sort());
+        const seen = JSON.stringify(got);
+        for (const c of st.caches) if (!open.has(c.id)) expect(seen).not.toContain(`"x":${c.photo!.x},"z":${c.photo!.z},`);
+      }
+    });
+  });
 });

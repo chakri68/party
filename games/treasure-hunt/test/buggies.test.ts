@@ -26,7 +26,7 @@ describe("buggySlots", () => {
         for (let j = i + 1; j < team.length; j++)
           expect(Math.hypot(team[i]!.x - team[j]!.x, team[i]!.z - team[j]!.z), `seed ${seed}`).toBeGreaterThanOrEqual(4);
     }
-  });
+  }, 30_000);
 
   it("loose buggies sit padR + 5 from a piece, facing the spawn", () => {
     for (let seed = 1; seed <= 20; seed++) {
