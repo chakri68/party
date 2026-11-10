@@ -18,6 +18,8 @@ const fail = (state: THState, id: string, action: THAction, c = ctx()) => {
   const r = th.handleAction(state, id, action, c);
   return r.ok ? "ok" : r.error.code;
 };
+/** Just the public part of each team: the pools are tested in claim and team-timed. */
+const teamsOf = (s: THState) => s.teams.map(({ id, color }) => ({ id, color }));
 const teamOf = (s: THState, id: string) => s.players.find((p) => p.id === id)!.teamId;
 const readyAll = (s: THState) => s.players.reduce((st, p) => act(st, p.id, { type: "ready" }).state, s);
 
@@ -32,7 +34,7 @@ describe("teams phase", () => {
   it("solo game: one team, start → countdown", () => {
     let s = make(1);
     expect(s.phase).toBe("teams");
-    expect(s.teams).toEqual([{ id: 1, color: "orange" }]);
+    expect(teamsOf(s)).toEqual([{ id: 1, color: "orange" }]);
     expect(teamOf(s, "p0")).toBe(1);
     s = act(s, "p0", { type: "ready" }).state;
     // Ready alone never starts the round.
@@ -42,13 +44,13 @@ describe("teams phase", () => {
     expect(t.state.countdownEndsAt).toBe(4000 + 3000);
     expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
     const pub = th.getPublicState(t.state);
-    expect(pub.teams).toEqual([{ id: 1, color: "orange", foundCount: 0, poolSize: t.state.players[0]!.pool.length }]);
+    expect(pub.teams).toEqual([{ id: 1, color: "orange", foundCount: 0, poolSize: t.state.teams[0]!.pool.length }]);
     expect(pub.players[0]!.teamId).toBe(1);
   });
 
   it("every player starts on their own team, in colour order", () => {
     const s = make(3);
-    expect(s.teams).toEqual([
+    expect(teamsOf(s)).toEqual([
       { id: 1, color: "orange" },
       { id: 2, color: "sky" },
       { id: 3, color: "green" },
@@ -87,7 +89,7 @@ describe("teams phase", () => {
     expect(fail(s, "p1", { type: "team.assign", playerId: "p0", teamId: 2 })).toBe("not-host");
     s = act(s, "p0", { type: "team.assign", playerId: "p1", teamId: 1 }).state;
     expect(teamOf(s, "p1")).toBe(1);
-    expect(s.teams).toEqual([{ id: 1, color: "orange" }]);
+    expect(teamsOf(s)).toEqual([{ id: 1, color: "orange" }]);
     expect(fail(s, "p0", { type: "team.assign", playerId: "zz", teamId: 1 })).toBe("not-in-game");
     expect(act(s, "p0", { type: "start" }).state.phase).toBe("countdown");
   });
@@ -134,7 +136,7 @@ describe("teams phase", () => {
       { color: "sky", members: ["p2", "gone"] },
     ] };
     const next = make(4, carry);
-    expect(next.teams).toEqual([
+    expect(teamsOf(next)).toEqual([
       { id: 1, color: "purple" },
       { id: 2, color: "sky" },
       { id: 3, color: "orange" },
@@ -158,7 +160,7 @@ describe("teams phase", () => {
     s = t.state;
     expect(s.players.map((p) => p.spectator)).toEqual([false, true, true]);
     expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: ["p1", "p2"] }]);
-    expect(s.players.find((p) => p.id === "p1")!.pool).toEqual([]);
+    expect(s.teams.find((x) => x.id === 2)!.pool).toEqual([]);
     expect(th.getAwaitedPlayerIds(s)).toEqual([]);
     // p1's team has no hunters: it takes no part (no pool).
     expect(th.getPublicState(s).teams.find((x) => x.id === 2)!.poolSize).toBe(0);

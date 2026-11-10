@@ -41,10 +41,12 @@ describe("worldReadyFor", () => {
 // every reveal, every found id and the phase. Godot treats each as idempotent.
 describe("resync", () => {
   const priv: THPrivate = {
+    teamId: 1,
+    pins: [],
     clues: [
-      { id: "c1", clues: ["a"], difficulty: 1, found: true },
-      { id: "c2", clues: ["b"], difficulty: 2, found: false },
-      { id: "c3", clues: ["c"], difficulty: 3, found: false },
+      { id: "c1", clues: ["a"], difficulty: 1, found: true, taken: false },
+      { id: "c2", clues: ["b"], difficulty: 2, found: false, taken: false },
+      { id: "c3", clues: ["c"], difficulty: 3, found: false, taken: false },
     ],
     revealed: [
       { id: "c1", x: 10.5, z: -3, dy: 0 },
@@ -82,7 +84,9 @@ describe("resync", () => {
 // says ready, the state updates, and the server relays a reveal.
 describe("GodotFeed", () => {
   const priv = (revealed: THPrivate["revealed"] = []): THPrivate => ({
-    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false }, { id: "c4", clues: ["b"], difficulty: 2, found: false }],
+    teamId: 1,
+    pins: [],
+    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false, taken: false }, { id: "c4", clues: ["b"], difficulty: 2, found: false, taken: false }],
     revealed,
   });
   const setup = () => {
@@ -169,7 +173,9 @@ describe("claimError", () => {
 // cache now shows as found in private state.
 describe("ClaimLog", () => {
   const priv = (found: string[]): THPrivate => ({
-    clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id) })),
+    teamId: 1,
+    pins: [],
+    clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id), taken: false })),
     revealed: [],
   });
 

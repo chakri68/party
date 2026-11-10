@@ -47,11 +47,12 @@ describe("treasure hunt server", () => {
     let t = started(make(1).state);
     const p0 = t.state.players[0]!;
     expect(p0.spectator).toBe(false);
-    expect(p0.pool.length).toBeGreaterThan(0);
+    const pool = t.state.teams[0]!.pool;
+    expect(pool.length).toBeGreaterThan(0);
     expect(act(t.state, "p0", { type: "ready" }).state).toEqual(t.state);
     t = th.onTimer!(t.state, "countdown", ctx({ now: 93_000 }));
     expect(t.state.phase).toBe("hunting");
-    expect(th.getPrivateState(t.state, "p0").clues.length).toBe(p0.pool.length);
+    expect(th.getPrivateState(t.state, "p0").clues.length).toBe(pool.length);
   });
 
   it("a countdown with no hunters finishes at once", () => {
@@ -117,8 +118,8 @@ describe("treasure hunt server", () => {
     expect(th.getResult(t.state)).toEqual({
       winnerIds: [],
       standings: [
-        { playerId: "p0", value: 0, label: "0 found" },
-        { playerId: "p1", value: 0, label: "0 found" },
+        { playerId: "p0", value: 0, label: "0 found · Orange" },
+        { playerId: "p1", value: 0, label: "0 found · Sky" },
       ],
       headline: "Nobody found a cache.",
     });

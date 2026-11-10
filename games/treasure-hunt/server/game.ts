@@ -25,7 +25,7 @@ import {
   type THTeam,
   type TreasureLayout,
 } from "../shared/types.ts";
-import { isTeamColorKey, TEAM_COLORS, type TeamColorKey } from "../shared/teams.ts";
+import { isTeamColorKey, TEAM_COLORS, teamColor, type TeamColorKey } from "../shared/teams.ts";
 import {
   CLAIM_CHECK,
   COUNTDOWN_MS,
@@ -46,18 +46,23 @@ import { makeHunt } from "./hunt.ts";
 //               teams (up to MAX_TEAMS, one per colour); the host can move
 //               anyone. The host starts: whoever isn't ready yet becomes a
 //               spectator, and a team left with no hunters gets no pool.
-//               Pools are dealt here, and again on the way out, once the
-//               spectators are known.
+//               Pools are dealt per team here, and again on the way out,
+//               once the spectators are known.
 //   countdown   COUNTDOWN_MS. Positions stream in, nobody moves (R8).
 //   hunting     minutes × 60 000. Positions stream in and reveal pool caches
-//               within REVEAL_RADIUS to their owner only. Claims are checked
-//               against the last position. Ends on the timer, the host's end,
-//               or when every hunter has cleared their pool.
-//   finished    standings by found count, then difficulty, then who finished
-//               first.
+//               within REVEAL_RADIUS to the hunter's whole team. Any hunter on
+//               a team can claim its caches. Claims are checked against the
+//               claimer's last position. Ends on the timer, the host's end,
+//               or when every team in play has cleared its pool.
+//   finished    teams ranked by found count, then difficulty, then who
+//               finished first. Each player's row is their team's.
+//
+// "In play" means the team has a hunter: a member still here, not watching.
+// A team whose hunters all leave mid-round keeps its finds and its place in
+// the result. Spectators see their team's board and reveals, but never claim.
 //
 // Cache x/z never reach the public state. A player learns a cache's spot from
-// its reveal relay or their private state, and only for their own pool.
+// its reveal relay or their private state, and only for their team's pool.
 
 const COUNTDOWN_TIMER = "countdown";
 const ROUND_TIMER = "round";
@@ -71,12 +76,16 @@ export interface THPos {
   at: number;
 }
 
-export interface THServerPlayer extends THPlayer {
-  /** Cache ids. Same size and difficulty mix for every hunter; empty for spectators. */
+export interface THServerTeam extends THTeam {
+  /** Cache ids. Same size and difficulty mix for every team in play; empty for the rest. */
   pool: string[];
   found: string[];
+  /** Revealed to the team, by whichever member got close first. */
   revealed: string[];
   lastClaimAt: number | null;
+}
+
+export interface THServerPlayer extends THPlayer {
   pos: THPos | null;
   /** When the last too-fast move was seen. Claims wait JUMP_GRACE_MS after it. */
   jumpAt: number;
@@ -90,7 +99,7 @@ export interface THState {
   /** Server only. Never in public state. */
   caches: Cache[];
   /** In id order. Every player's teamId is one of these, until they leave in the teams phase. */
-  teams: THTeam[];
+  teams: THServerTeam[];
   players: THServerPlayer[];
   startedAt: number | null;
   endedAt: number | null;
@@ -113,15 +122,15 @@ const hunters = (s: THState) => s.players.filter((p) => !p.removed && !p.spectat
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
 /**
- * Deal pools: min(8, floor(caches / players)) each, no cache in two pools.
+ * Deal pools: min(8, floor(caches / teams)) each, no cache in two pools.
  * Caches are sorted by difficulty and the ones dealt are spread evenly over
  * that order, so a small table still gets the map's mix rather than its
  * easiest caches. Each round of n caches then goes out hardest first to the
  * lowest running total: snake order, steered by the totals, which keeps them
  * within 1 of each other on nearly every map.
  */
-export function dealPools(caches: Cache[], ids: string[]): Record<string, string[]> {
-  const pools: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
+export function dealPools(caches: Cache[], ids: number[]): Record<number, string[]> {
+  const pools: Record<number, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
   const n = ids.length;
   if (!n) return pools;
   const size = Math.min(MAX_POOL, Math.floor(caches.length / n));
@@ -140,10 +149,16 @@ export function dealPools(caches: Cache[], ids: string[]): Record<string, string
   return pools;
 }
 
+const members = (s: THState, teamId: number) => s.players.filter((p) => p.teamId === teamId);
+/** Has a hunter right now. */
+const inPlay = (s: THState, t: THTeam) => members(s, t.id).some((p) => !p.removed && !p.spectator);
+/** Had a hunter when the round started, even if they have all left since. */
+const ranked = (s: THState, t: THTeam) => members(s, t.id).some((p) => !p.spectator);
+const teamOf = (s: THState, p: THPlayer) => s.teams.find((t) => t.id === p.teamId);
+
 function deal(s: THState): void {
-  const ids = hunters(s).map((p) => p.id);
-  const pools = dealPools(s.caches, ids);
-  for (const p of s.players) p.pool = pools[p.id] ?? [];
+  const pools = dealPools(s.caches, s.teams.filter((t) => inPlay(s, t)).map((t) => t.id));
+  for (const t of s.teams) t.pool = pools[t.id] ?? [];
 }
 
 function finish(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
@@ -153,8 +168,8 @@ function finish(s: THState, ctx: GameContext, events: Events, timers: TimerReque
   events.push(pub({ type: "ended" }));
 }
 
-/** Every hunter still here has cleared their pool (or none is left). */
-const allDone = (s: THState) => hunters(s).every((p) => p.found.length >= p.pool.length);
+/** Every team in play has cleared its pool (or none is left). */
+const allDone = (s: THState) => s.teams.filter((t) => inPlay(s, t)).every((t) => t.found.length >= t.pool.length);
 
 // --- Teams -----------------------------------------------------------------
 
@@ -166,11 +181,11 @@ const freeId = (teams: THTeam[]): number => {
 };
 
 /** A new team in the first free colour, or null when all MAX_TEAMS are in use. */
-function newTeam(s: THState, color: TeamColorKey | null = null): THTeam | null {
+function newTeam(s: THState, color: TeamColorKey | null = null): THServerTeam | null {
   if (s.teams.length >= MAX_TEAMS) return null;
   const c = color && !s.teams.some((t) => t.color === color) ? color : freeColor(s.teams);
   if (!c) return null;
-  const team = { id: freeId(s.teams), color: c };
+  const team: THServerTeam = { id: freeId(s.teams), color: c, pool: [], found: [], revealed: [], lastClaimAt: null };
   s.teams.push(team);
   s.teams.sort((a, b) => a.id - b.id);
   return team;
@@ -210,8 +225,6 @@ function seatTeams(s: THState, carry: unknown): void {
   }
 }
 
-const members = (s: THState, teamId: number) => s.players.filter((p) => p.teamId === teamId);
-
 function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
   // Safety net: a round nobody can play is over before it starts.
   if (!hunters(s).length) return finish(s, ctx, events, timers);
@@ -250,9 +263,13 @@ function parsePos(data: unknown): Omit<THPos, "at"> | null {
 function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext): GameResult<THState, THEvent> {
   if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on.");
   const me = s.players.find((p) => p.id === playerId);
+  const team = me && teamOf(s, me);
   const cache = s.caches.find((c) => c.id === cacheId);
-  if (!me || me.removed || !cache || !me.pool.includes(cacheId)) return reject("not-yours", "That cache is not on your list.");
-  if (me.found.includes(cacheId)) return reject("already-found", "You already found this cache.");
+  // Spectators watch: their team's list is not theirs to claim from.
+  if (!me || me.removed || me.spectator || !team || !cache || !team.pool.includes(cacheId)) {
+    return reject("not-yours", "That cache is not on your team's list.");
+  }
+  if (team.found.includes(cacheId)) return reject("already-found", "Your team already found this cache.");
   const pos = me.pos;
   if (!pos || ctx.now - pos.at > POS_STALE_MS) return reject("no-position", "We lost your position. Try again.");
   if (!pos.foot) return reject("in-vehicle", "Get out of the buggy first.");
@@ -261,32 +278,42 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   if (ctx.now - me.jumpAt < JUMP_GRACE_MS) return reject("moved-too-fast", "You moved too fast. Wait a few seconds.");
 
   const next = clone(s);
-  const p = next.players.find((x) => x.id === playerId)!;
-  p.found.push(cacheId);
-  p.lastClaimAt = ctx.now;
-  const events: Events = [pub({ type: "claimed", playerId, foundCount: p.found.length })];
+  const t = next.teams.find((x) => x.id === team.id)!;
+  t.found.push(cacheId);
+  t.lastClaimAt = ctx.now;
+  const events: Events = [pub({ type: "claimed", playerId, foundCount: t.found.length })];
   const timers: TimerRequest[] = [];
   if (allDone(next)) finish(next, ctx, events, timers);
   return ok(next, events, timers);
 }
 
-function difficultyFound(s: THState, p: THServerPlayer): number {
-  return p.found.reduce((t, id) => t + (s.caches.find((c) => c.id === id)?.difficulty ?? 0), 0);
+function difficultyFound(s: THState, t: THServerTeam): number {
+  return t.found.reduce((n, id) => n + (s.caches.find((c) => c.id === id)?.difficulty ?? 0), 0);
 }
 
+const teamName = (t: THTeam) => teamColor(t.color).name;
+
 function result(s: THState): GameOutcome {
-  const rows = s.players
-    .filter((p) => !p.spectator)
-    .map((p) => ({ id: p.id, n: p.found.length, d: difficultyFound(s, p), last: p.lastClaimAt ?? Number.MAX_SAFE_INTEGER }));
+  // Spectators watched: they get no row. Hunters who left keep theirs.
+  const rows = s.teams
+    .filter((t) => ranked(s, t))
+    .map((t) => ({
+      team: t,
+      ids: members(s, t.id).filter((p) => !p.spectator).map((p) => p.id),
+      n: t.found.length,
+      d: difficultyFound(s, t),
+      last: t.lastClaimAt ?? Number.MAX_SAFE_INTEGER,
+    }));
   // Most found, then the hardest finds, then whoever claimed their last one first.
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) => b.n - a.n || b.d - a.d || a.last - b.last;
   rows.sort(cmp);
   const top = rows[0];
-  const winnerIds = top && top.n > 0 ? rows.filter((r) => cmp(r, top) === 0).map((r) => r.id) : [];
+  const winners = top && top.n > 0 ? rows.filter((r) => cmp(r, top) === 0) : [];
+  const headline = !winners.length ? "Nobody found a cache." : winners.length > 1 ? "It's a tie." : `Team ${teamName(winners[0]!.team)} wins`;
   return {
-    winnerIds,
-    standings: rows.map((r) => ({ playerId: r.id, value: r.n, label: `${r.n} found` })),
-    ...(winnerIds.length ? {} : { headline: "Nobody found a cache." }),
+    winnerIds: winners.flatMap((r) => r.ids),
+    standings: rows.flatMap((r) => r.ids.map((playerId) => ({ playerId, value: r.n, label: `${r.n} found · ${teamName(r.team)}` }))),
+    headline,
   };
 }
 
@@ -369,10 +396,6 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         spectator: false,
         removed: false,
         teamId: null,
-        pool: [],
-        found: [],
-        revealed: [],
-        lastClaimAt: null,
         pos: null,
         jumpAt: NEVER,
       })),
@@ -458,40 +481,34 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     }
 
     const relays: StreamRelay[] = [];
-    const revealed = [...me.revealed];
+    const team = teamOf(state, me);
+    const revealed = [...(team?.revealed ?? [])];
     // A jump, or the grace after one, reveals nothing: a spoofed sweep of the
     // map would otherwise hand over every cache in the pool.
     const jumping = now - jumpAt < JUMP_GRACE_MS;
-    for (const id of jumping ? [] : me.pool) {
+    // The whole team watches, spectators too.
+    const to = team ? members(state, team.id).filter((p) => !p.removed).map((p) => p.id) : [];
+    for (const id of jumping || !team ? [] : team.pool) {
       if (revealed.includes(id)) continue;
       const c = state.caches.find((x) => x.id === id);
       if (!c || Math.hypot(c.x - next.x, c.z - next.z) > REVEAL_RADIUS) continue;
       revealed.push(id);
       const data: THReveal = { t: "reveal", id, x: round1(c.x), z: round1(c.z), dy: c.dy };
-      relays.push({ to: [playerId], data });
+      relays.push({ to, data });
     }
 
-    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, revealed };
-    const s: THState = { ...state, players: state.players.map((p) => (p.id === playerId ? player : p)) };
-    return relays.length ? { state: s, relays } : { state: s, persist: false };
+    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt };
+    const players = state.players.map((p) => (p.id === playerId ? player : p));
+    if (!relays.length) return { state: { ...state, players }, persist: false };
+    const teams = state.teams.map((t) => (t === team ? { ...t, revealed } : t));
+    return { state: { ...state, players, teams }, relays };
   },
 
   getPublicState: (s) => ({
     phase: s.phase,
     seed: s.layout.seed,
-    teams: s.teams.map((t) => {
-      const on = members(s, t.id);
-      return { ...t, foundCount: on.reduce((n, p) => n + p.found.length, 0), poolSize: on.reduce((n, p) => n + p.pool.length, 0) };
-    }),
-    players: s.players.map((p) => ({
-      id: p.id,
-      ready: p.ready,
-      spectator: p.spectator,
-      removed: p.removed,
-      teamId: p.teamId,
-      foundCount: p.found.length,
-      poolSize: p.pool.length,
-    })),
+    teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: t.pool.length })),
+    players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),
     startedAt: s.startedAt,
     endsAt: s.endsAt,
     countdownEndsAt: s.countdownEndsAt,
@@ -499,17 +516,21 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   getPrivateState(s, playerId) {
     const me = s.players.find((p) => p.id === playerId);
-    if (!me || me.removed) return { clues: [], revealed: [] };
+    const team = me && !me.removed ? teamOf(s, me) : undefined;
+    if (!team) return { teamId: null, clues: [], revealed: [], pins: [] };
     const cache = (id: string) => s.caches.find((c) => c.id === id)!;
+    // Spectators get the same board: they watch, they can't claim.
     return {
-      clues: me.pool.map((id) => {
+      teamId: team.id,
+      clues: team.pool.map((id) => {
         const c = cache(id);
-        return { id, clues: c.clues, difficulty: c.difficulty, found: me.found.includes(id) };
+        return { id, clues: c.clues, difficulty: c.difficulty, found: team.found.includes(id), taken: false };
       }),
-      revealed: me.revealed.map((id) => {
+      revealed: team.revealed.map((id) => {
         const c = cache(id);
         return { id, x: round1(c.x), z: round1(c.z), dy: c.dy };
       }),
+      pins: [],
     };
   },
 

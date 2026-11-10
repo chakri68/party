@@ -302,11 +302,12 @@ export class TreasureHuntView implements GameView {
     if (!game) return;
     const now = this.api.serverNow();
     const me = game.players.find((p) => p.id === this.playerId);
+    const mine = me && game.teams.find((t) => t.id === me.teamId);
     const live = game.phase === "countdown" || game.phase === "hunting";
     this.hud.render({
       left: game.phase === "hunting" && game.endsAt !== null ? game.endsAt - now : null,
       countdown: game.phase === "countdown" && game.countdownEndsAt !== null ? game.countdownEndsAt - now : null,
-      score: live && me ? { found: me.foundCount, pool: me.poolSize } : null,
+      score: live && mine ? { found: mine.foundCount, pool: mine.poolSize } : null,
       priv: live ? this.priv : null,
     });
   }

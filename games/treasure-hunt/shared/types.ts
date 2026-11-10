@@ -69,17 +69,14 @@ export interface THPlayer {
   teamId: number | null;
 }
 
-/** What everyone sees of a player. Never their pool or position. */
-export interface THPublicPlayer extends THPlayer {
-  foundCount: number;
-  poolSize: number;
-}
+/** What everyone sees of a player. Never a pool or a position. Scores are the team's: see THPublic.teams. */
+export type THPublicPlayer = THPlayer;
 
 export interface THPublic {
   phase: Phase;
   /** The final layout seed. Clients rebuild the map with generateLayout. */
   seed: number;
-  /** Counts are the team's: until pools move to teams, the sum over its members. */
+  /** A team whose hunters all left mid-round stays listed, with no members. */
   teams: (THTeam & { foundCount: number; poolSize: number })[];
   players: THPublicPlayer[];
   startedAt: number | null;
@@ -89,11 +86,24 @@ export interface THPublic {
   countdownEndsAt: number | null;
 }
 
-/** One player's own clue board, and the caches they've come close to (R1). */
+/** A map pin. Seen by the pinner's team only. x and z rounded to 0.1. */
+export interface Pin {
+  id: string;
+  /** The player who dropped it. */
+  by: string;
+  x: number;
+  z: number;
+}
+
+/** A player's team's clue board, and the caches anyone on the team has come close to (R1). */
 export interface THPrivate {
-  clues: { id: string; clues: string[]; difficulty: number; found: boolean }[];
+  teamId: number | null;
+  /** taken: another team claimed it first. Race only; always false in Timed. */
+  clues: { id: string; clues: string[]; difficulty: number; found: boolean; taken: boolean }[];
   /** x and z rounded to 0.1. */
   revealed: { id: string; x: number; z: number; dy: number }[];
+  /** Empty until pins land (Task 7). */
+  pins: Pin[];
 }
 
 export type THAction =
@@ -114,12 +124,13 @@ export interface THCarry {
 
 /** Client → server, at POS_HZ in countdown and hunting. */
 export type THStreamIn = { t: "pos"; x: number; y: number; z: number; foot: boolean };
-/** Server → one player, the first time they come within REVEAL_RADIUS of a pool cache. */
+/** Server → a whole team, the first time any of its hunters comes within REVEAL_RADIUS of a pool cache. */
 export type THReveal = { t: "reveal"; id: string; x: number; z: number; dy: number };
 
 export type THEvent =
   | { type: "countdown"; spectators: string[] }
   | { type: "hunt-start" }
+  /** foundCount is the claimer's team's. */
   | { type: "claimed"; playerId: string; foundCount: number }
   | { type: "ended" }
   | { type: "player-removed"; playerId: string };

@@ -27,6 +27,8 @@ function hunting(n = 2, minutes: 15 | 30 | 60 = 30): THState {
 }
 
 const me = (s: THState, id: string) => s.players.find((p) => p.id === id)!;
+/** The player's team: pools, finds and reveals live there. */
+const team = (s: THState, id: string) => s.teams.find((t) => t.id === me(s, id).teamId)!;
 const cacheOf = (s: THState, id: string) => s.caches.find((c) => c.id === id)!;
 const groundAt = (s: THState, id: string) => {
   const c = cacheOf(s, id);
@@ -50,12 +52,12 @@ function claim(s: THState, pid: string, cacheId: string, now: number) {
 const code = (r: ReturnType<typeof claim>) => (r.ok ? "ok" : r.error.code);
 
 describe("pools", () => {
-  it("8 players and 20 caches: pools of 2, no overlap, difficulty totals within 1", () => {
+  it("8 teams and 20 caches: pools of 2, no overlap, difficulty totals within 1", () => {
     const { caches } = hunting(1);
     const twenty = caches.slice(0, 20);
-    const ids = players(8).map((p) => p.id);
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8];
     const pools = dealPools(twenty, ids);
-    expect(Object.keys(pools)).toEqual(ids);
+    expect(Object.keys(pools).map(Number)).toEqual(ids);
     const all = ids.flatMap((id) => pools[id]!);
     expect(ids.every((id) => pools[id]!.length === 2)).toBe(true);
     expect(new Set(all).size).toBe(16);
@@ -66,28 +68,28 @@ describe("pools", () => {
 
   it("caps pools at 8, and a solo pool keeps the map's mix", () => {
     const s = hunting(1);
-    const pool = me(s, "p0").pool;
+    const pool = team(s, "p0").pool;
     expect(pool.length).toBe(8);
     const ds = new Set(pool.map((id) => cacheOf(s, id).difficulty));
     expect(ds.size).toBeGreaterThan(1);
   });
 
-  it("deals again at the countdown: spectators get nothing", () => {
+  it("deals again at the countdown: spectators' teams get nothing", () => {
     let s = th.createGame(players(3), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-    expect(s.players.every((p) => p.pool.length > 0)).toBe(true);
+    expect(s.teams.every((t) => t.pool.length > 0)).toBe(true);
     s = start(s, 5000, ["p0"]).state;
     expect(s.phase).toBe("countdown");
     expect(me(s, "p1").spectator).toBe(true);
-    expect(me(s, "p1").pool).toEqual([]);
-    expect(me(s, "p2").pool).toEqual([]);
-    expect(me(s, "p0").pool.length).toBe(Math.min(8, s.caches.length));
+    expect(team(s, "p1").pool).toEqual([]);
+    expect(team(s, "p2").pool).toEqual([]);
+    expect(team(s, "p0").pool.length).toBe(Math.min(8, s.caches.length));
   });
 });
 
 describe("reveal", () => {
-  it("relays a near cache to its owner only, once, and keeps it in private state", () => {
+  it("relays a near cache to its owner's team only, once, and keeps it in private state", () => {
     let s = hunting(2);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     const c = cacheOf(s, cid);
     // Far away first: nothing.
     const far = pos(s, "p0", c.x + REVEAL_RADIUS + 5, 10, c.z, 11_000)!;
@@ -109,12 +111,12 @@ describe("reveal", () => {
 
   it("p1 standing on p0's cache reveals nothing to anyone", () => {
     const s = hunting(2);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     const c = cacheOf(s, cid);
     const r = pos(s, "p1", c.x, 10, c.z, 11_000)!;
     for (const x of r.relays ?? []) {
       expect(x.to).toEqual(["p1"]);
-      expect(me(s, "p1").pool).toContain((x.data as { id: string }).id);
+      expect(team(s, "p1").pool).toContain((x.data as { id: string }).id);
     }
   });
 
@@ -148,27 +150,27 @@ describe("reveal", () => {
 
   it("a jump reveals nothing, and the reveal comes once the grace is over", () => {
     let s = hunting(1);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     const c = cacheOf(s, cid);
     const ids = (r: { relays?: { data: unknown }[] }) => (r.relays ?? []).map((x) => (x.data as { id: string }).id);
     // Start far from every cache in the pool.
     let far = { x: c.x + 600, z: c.z };
     if (Math.abs(far.x) > 750) far = { x: c.x - 600, z: c.z };
     s = pos(s, "p0", far.x, 10, far.z, 20_000)!.state;
-    expect(me(s, "p0").revealed).not.toContain(cid);
+    expect(team(s, "p0").revealed).not.toContain(cid);
     // Teleport onto the cache: flagged as a jump, no reveal.
     const jump = pos(s, "p0", c.x, groundAt(s, cid), c.z, 20_250)!;
     expect(me(jump.state, "p0").jumpAt).toBe(20_250);
     expect(ids(jump)).not.toContain(cid);
-    expect(me(jump.state, "p0").revealed).not.toContain(cid);
+    expect(team(jump.state, "p0").revealed).not.toContain(cid);
     s = jump.state;
     // Still inside the grace, standing still: nothing yet.
     const wait = standOn(s, "p0", cid, 20_250 + JUMP_GRACE_MS - 250);
-    expect(me(wait, "p0").revealed).not.toContain(cid);
+    expect(team(wait, "p0").revealed).not.toContain(cid);
     // Grace over, still nearby: the reveal comes.
     const after = pos(wait, "p0", c.x + 1, groundAt(s, cid), c.z, 20_250 + JUMP_GRACE_MS)!;
     expect(ids(after)).toContain(cid);
-    expect(me(after.state, "p0").revealed).toContain(cid);
+    expect(team(after.state, "p0").revealed).toContain(cid);
   });
 
   it("accepts pos in the countdown", () => {
@@ -185,11 +187,11 @@ describe("claim", () => {
     // not-hunting: still in the countdown.
     let pre = th.createGame(players(1), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
     pre = start(pre, 2000).state;
-    expect(code(claim(pre, "p0", me(pre, "p0").pool[0]!, 2500))).toBe("not-hunting");
+    expect(code(claim(pre, "p0", team(pre, "p0").pool[0]!, 2500))).toBe("not-hunting");
 
     let s = hunting(2);
-    const mine = me(s, "p0").pool[0]!;
-    const theirs = me(s, "p1").pool[0]!;
+    const mine = team(s, "p0").pool[0]!;
+    const theirs = team(s, "p1").pool[0]!;
     const c = cacheOf(s, mine);
     // not-yours: someone else's cache, and an id that doesn't exist.
     expect(code(claim(standOn(s, "p0", theirs, 11_000), "p0", theirs, 11_000))).toBe("not-yours");
@@ -219,22 +221,22 @@ describe("claim", () => {
 
   it("a legal claim records the find and emits claimed", () => {
     let s = hunting(2);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     s = standOn(s, "p0", cid, 11_000);
     const r = claim(s, "p0", cid, 11_200);
     if (!r.ok) throw new Error(r.error.code);
     const t = r.transition;
-    expect(me(t.state, "p0").found).toEqual([cid]);
-    expect(me(t.state, "p0").lastClaimAt).toBe(11_200);
+    expect(team(t.state, "p0").found).toEqual([cid]);
+    expect(team(t.state, "p0").lastClaimAt).toBe(11_200);
     expect(t.events.map((e) => e.event)).toEqual([{ type: "claimed", playerId: "p0", foundCount: 1 }]);
     expect(t.state.phase).toBe("hunting");
     expect(th.getPrivateState(t.state, "p0").clues.find((c) => c.id === cid)!.found).toBe(true);
-    expect(th.getPublicState(t.state).players.find((p) => p.id === "p0")).toMatchObject({ foundCount: 1, poolSize: me(s, "p0").pool.length });
+    expect(th.getPublicState(t.state).teams.find((x) => x.id === me(s, "p0").teamId)).toMatchObject({ foundCount: 1, poolSize: team(s, "p0").pool.length });
   });
 
   it("a 300 m jump in 0.25 s blocks claims for 5 s", () => {
     let s = hunting(1);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     const c = cacheOf(s, cid);
     s = pos(s, "p0", c.x + 300, groundAt(s, cid), c.z, 20_000)!.state;
     expect(me(s, "p0").jumpAt).toBeLessThan(20_000);
@@ -258,7 +260,7 @@ describe("claim", () => {
 
   it("clearing your pool ends the round when everyone is done", () => {
     let s = hunting(1);
-    const pool = me(s, "p0").pool;
+    const pool = team(s, "p0").pool;
     let now = 20_000;
     for (const [i, cid] of pool.entries()) {
       s = standOn(s, "p0", cid, now);
@@ -276,12 +278,16 @@ describe("claim", () => {
       }
       now += 10_000;
     }
-    expect(th.getResult(s)).toMatchObject({ winnerIds: ["p0"], standings: [{ playerId: "p0", value: pool.length, label: `${pool.length} found` }] });
+    expect(th.getResult(s)).toEqual({
+      winnerIds: ["p0"],
+      standings: [{ playerId: "p0", value: pool.length, label: `${pool.length} found · Orange` }],
+      headline: "Team Orange wins",
+    });
   });
 
-  it("a player removed mid-hunt drops out of the all-done check", () => {
+  it("a team whose hunters left drops out of the all-done check", () => {
     let s = hunting(2);
-    const pool = me(s, "p0").pool;
+    const pool = team(s, "p0").pool;
     let now = 20_000;
     for (const cid of pool) {
       s = standOn(s, "p0", cid, now);
@@ -321,7 +327,7 @@ describe("timed round", () => {
     t = th.onTimer!(t.state, "round", ctx(5000 + 15 * 60_000));
     expect(t.state.phase).toBe("finished");
     expect(t.events.map((e) => e.event.type)).toEqual(["ended"]);
-    expect(th.getResult(t.state)).toEqual({ winnerIds: [], standings: [{ playerId: "p0", value: 0, label: "0 found" }], headline: "Nobody found a cache." });
+    expect(th.getResult(t.state)).toEqual({ winnerIds: [], standings: [{ playerId: "p0", value: 0, label: "0 found · Orange" }], headline: "Nobody found a cache." });
   });
 
   it("uses the minutes setting for the round timer", () => {
@@ -338,7 +344,7 @@ describe("timed round", () => {
     const of = (d: number) => s.caches.filter((c) => c.difficulty === d).map((c) => c.id);
     const [d1, d2, d3] = [of(1), of(2), of(3)];
     expect(d1.length >= 3 && d2.length >= 3 && d3.length >= 1).toBe(true);
-    const set = (id: string, found: string[], lastClaimAt: number | null) => Object.assign(me(s, id), { found, lastClaimAt });
+    const set = (id: string, found: string[], lastClaimAt: number | null) => Object.assign(team(s, id), { found, lastClaimAt });
     set("p0", [d1[0]!], 100); // 1 found
     set("p1", [d1[1]!, d3[0]!], 300); // 2 found, difficulty 4, later
     set("p2", [d1[2]!, d2[0]!], 50); // 2 found, difficulty 3
@@ -347,30 +353,30 @@ describe("timed round", () => {
     s.phase = "finished";
     const r = th.getResult(s)!;
     expect(r.standings.map((x) => x.playerId)).toEqual(["p3", "p1", "p2", "p0", "p4"]);
-    expect(r.standings.map((x) => x.label)).toEqual(["2 found", "2 found", "2 found", "1 found", "0 found"]);
+    // p0..p4 are Orange, Sky, Green, Purple, Yellow.
+    expect(r.standings.map((x) => x.label)).toEqual(["2 found · Purple", "2 found · Sky", "2 found · Green", "1 found · Orange", "0 found · Yellow"]);
     expect(r.standings.map((x) => x.value)).toEqual([2, 2, 2, 1, 0]);
     expect(r.winnerIds).toEqual(["p3"]);
-    expect(r.headline).toBeUndefined();
+    expect(r.headline).toBe("Team Purple wins");
   });
 
   it("winners are everyone level on all three keys", () => {
     const s = hunting(3);
     const [a, b] = s.caches.filter((c) => c.difficulty === 1).map((c) => c.id);
-    me(s, "p0").found = [a!];
-    me(s, "p0").lastClaimAt = 500;
-    me(s, "p1").found = [b!];
-    me(s, "p1").lastClaimAt = 500;
+    Object.assign(team(s, "p0"), { found: [a!], lastClaimAt: 500 });
+    Object.assign(team(s, "p1"), { found: [b!], lastClaimAt: 500 });
     s.phase = "finished";
     const r = th.getResult(s)!;
     expect(r.winnerIds.sort()).toEqual(["p0", "p1"]);
     expect(r.standings.map((x) => x.playerId)).toEqual(["p0", "p1", "p2"]);
+    expect(r.headline).toBe("It's a tie.");
   });
 });
 
 describe("secrecy", () => {
   it("public state never holds a cache's x, in any phase", () => {
     let s = hunting(3);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     s = standOn(s, "p0", cid, 11_000);
     const r = claim(s, "p0", cid, 11_000);
     if (!r.ok) throw new Error(r.error.code);
@@ -390,24 +396,26 @@ describe("secrecy", () => {
     }
   });
 
-  it("private state covers only that player's pool", () => {
+  it("private state covers only that player's team's pool", () => {
     const s = hunting(2);
     const priv = th.getPrivateState(s, "p0");
-    expect(priv.clues.map((c) => c.id)).toEqual(me(s, "p0").pool);
+    expect(priv.clues.map((c) => c.id)).toEqual(team(s, "p0").pool);
     for (const c of priv.clues) {
       const cache = cacheOf(s, c.id);
-      expect(c).toEqual({ id: c.id, clues: cache.clues, difficulty: cache.difficulty, found: false });
+      expect(c).toEqual({ id: c.id, clues: cache.clues, difficulty: cache.difficulty, found: false, taken: false });
     }
     expect(priv.revealed).toEqual([]);
-    expect(th.getPrivateState(s, "nobody")).toEqual({ clues: [], revealed: [] });
+    expect(priv.teamId).toBe(me(s, "p0").teamId);
+    expect(priv.pins).toEqual([]);
+    expect(th.getPrivateState(s, "nobody")).toEqual({ teamId: null, clues: [], revealed: [], pins: [] });
   });
 
   it("a removed player gets no private state", () => {
     let s = hunting(2);
-    const cid = me(s, "p0").pool[0]!;
+    const cid = team(s, "p0").pool[0]!;
     s = standOn(s, "p0", cid, 11_000);
     expect(th.getPrivateState(s, "p0").revealed.length).toBeGreaterThan(0);
     s = th.onPlayerRemoved!(s, "p0", ctx(12_000)).state;
-    expect(th.getPrivateState(s, "p0")).toEqual({ clues: [], revealed: [] });
+    expect(th.getPrivateState(s, "p0")).toEqual({ teamId: null, clues: [], revealed: [], pins: [] });
   });
 });

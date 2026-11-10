@@ -47,9 +47,11 @@ describe("countdownText", () => {
 
 describe("clueItems", () => {
   const priv: THPrivate = {
+    teamId: 1,
+    pins: [],
     clues: [
-      { id: "c1", clues: ["Under the red lighthouse."], difficulty: 1, found: false },
-      { id: "c2", clues: ["Between the old camp and the grey plane, nearer the old camp.", "About 100 m from the red lighthouse, at 90°."], difficulty: 2, found: true },
+      { id: "c1", clues: ["Under the red lighthouse."], difficulty: 1, found: false, taken: false },
+      { id: "c2", clues: ["Between the old camp and the grey plane, nearer the old camp.", "About 100 m from the red lighthouse, at 90°."], difficulty: 2, found: true, taken: false },
     ],
     revealed: [],
   };
