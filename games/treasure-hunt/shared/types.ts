@@ -70,7 +70,8 @@ export interface THPublicPlayer extends THPlayer {
 
 export interface THPublic {
   phase: Phase;
-  layout: TreasureLayout;
+  /** The final layout seed. Clients rebuild the map with generateLayout. */
+  seed: number;
   players: THPublicPlayer[];
   startedAt: number | null;
   /** When the round timer fires. Set in hunting. */

@@ -170,12 +170,11 @@ describe("treasure hunt server", () => {
     expect(th.getResult(t.state)).not.toBeNull();
   });
 
-  it("public state carries the layout", () => {
+  it("public state carries the seed, not the layout", () => {
     const t = make();
     const pub = th.getPublicState(t.state);
-    expect(pub.layout).toEqual(t.state.layout);
-    expect(pub.layout.macro.heights.length).toBe(61 * 61);
-    expect(pub).not.toHaveProperty("seed");
+    expect(pub.seed).toBe(t.state.layout.seed);
+    expect(pub).not.toHaveProperty("layout");
   });
 
   it("is deterministic for a given RNG", () => {

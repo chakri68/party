@@ -379,11 +379,11 @@ describe("secrecy", () => {
     if (!r.ok) throw new Error(r.error.code);
     s = r.transition.state;
     for (const st of [s, { ...s, phase: "finished" as const }]) {
-      // The layout is public by design, and a cache at a piece's centre shares
-      // that piece's x. So: the layout is the generated one, untouched, and
-      // nothing else in the public state holds a cache x.
-      const { layout, ...rest } = th.getPublicState(st);
-      expect(layout).toBe(st.layout);
+      // The seed is public by design (clients rebuild the layout from it), and
+      // a cache at a piece's centre shares that piece's x. So: the seed is the
+      // layout's, and nothing else in the public state holds a cache x.
+      const { seed, ...rest } = th.getPublicState(st);
+      expect(seed).toBe(st.layout.seed);
       const json = JSON.stringify(rest);
       const numbers = new Set((json.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi) ?? []).map(Number));
       for (const c of st.caches) expect(numbers.has(c.x)).toBe(false);

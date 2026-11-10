@@ -29,6 +29,29 @@ export const CLAIM_RANGE = 3;
 export const CLAIM_CHECK = 6;
 /** How often the client sends its position. */
 export const POS_HZ = 4;
+/** A route point is kept at most this often (ms)... */
+export const TRACK_MIN_MS = 1000;
+/** ...and only after moving this far (m). */
+export const TRACK_MIN_M = 5;
+/** Route points kept per player. */
+export const TRACK_CAP = 2000;
+/** Live pins per player. A 6th removes the oldest. */
+export const PIN_CAP = 5;
+/** Metres (XZ) from a player's last pos to a buggy seat. */
+export const SEAT_RANGE = 4;
+/** Other teams show on the minimap within this (m). */
+export const DOT_RANGE = 150;
+/** Name tags show within this (m). */
+export const NAME_RANGE = 50;
+/** Clues open at the start of a race. */
+export const RACE_OPEN_START = 3;
+/** Race-to-N choices. The default is 5. */
+export const RACE_TARGETS = [3, 4, 5, 6, 7, 8, 9, 10] as const;
+export const RACE_TARGET_DEFAULT = 5;
+/** One per team colour. */
+export const MAX_TEAMS = 8;
+/** Buggies parked loose in the world. */
+export const LOOSE_BUGGIES = 3;
 /** m/s. Faster than this between two positions is a jump. The buggy tops out at 15.3. */
 export const MAX_SPEED = 25;
 /** No claims for this long after a jump. */

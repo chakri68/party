@@ -376,7 +376,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   getPublicState: (s) => ({
     phase: s.phase,
-    layout: s.layout,
+    seed: s.layout.seed,
     players: s.players.map((p) => ({
       id: p.id,
       ready: p.ready,

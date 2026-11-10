@@ -3,6 +3,7 @@ import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
 import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
+import { layoutFor } from "./layout-cache.ts";
 
 // The whole game is the Godot map in an iframe; this file is the frame
 // around it and the only one that talks to the bridge.
@@ -206,7 +207,7 @@ export class TreasureHuntView implements GameView {
         this.loader.failed(why);
       },
       status: (s) => {
-        if (!this.game || !worldReadyFor(s, this.game.layout.seed)) return;
+        if (!this.game || !worldReadyFor(s, this.game.seed)) return;
         this.builtSeed = s.seed;
         this.render();
       },
@@ -256,9 +257,9 @@ export class TreasureHuntView implements GameView {
     this.priv = (props.private as THPrivate | null) ?? null;
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
-    this.feed.update(this.priv, this.game.phase, this.game.layout.seed);
-    this.claims.update(this.priv, this.game.layout.seed);
-    if (this.desktop) this.bridge.setSession({ layout: this.game.layout });
+    this.feed.update(this.priv, this.game.phase, this.game.seed);
+    this.claims.update(this.priv, this.game.seed);
+    if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();
   }
 
@@ -272,7 +273,7 @@ export class TreasureHuntView implements GameView {
   private render() {
     const game = this.game;
     if (!game) return;
-    const seed = game.layout.seed;
+    const seed = game.seed;
     // Phones are "ready" at once: there is nothing for them to load.
     const loaded = !this.desktop || this.builtSeed === seed;
     if (game.phase === "generating" && loaded && this.readySeed !== seed) {
