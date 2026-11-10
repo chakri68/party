@@ -1,6 +1,6 @@
 extends Node3D
 ## Puts a playable world together: terrain, sea, walls, the walker, the
-## buggy, the camera, and the hunt on top (caches, compass, the E prompt,
+## buggies (Fleet), the camera, and the hunt on top (caches, compass, the E prompt,
 ## the position stream). start_world() is the one way in. Locally (editor, desktop run,
 ## tests) _ready feeds it a fixture; on the web the bridge feeds it the
 ## session's layout, and hears world-ready back. Same seed twice does nothing, so a session that
@@ -21,7 +21,6 @@ const POS_HZ := 10
 
 @onready var walker: Walker = $Walker
 @onready var rig: RigCamera = $Rig
-@onready var buggy: Buggy = $Buggy
 @onready var avatar: PlayerAvatar = $Avatar
 @onready var _debug: Label = $UI/Debug
 @onready var bridge: WebBridge = $WebBridge
@@ -33,8 +32,17 @@ var minor: MinorPoints
 var world: Node3D ## everything built from the layout; rebuilt on a new seed
 ## What the streamer builds around: whichever body you're controlling.
 var focus: Node3D
-## Bodies the fall check watches.
+## Bodies the fall check watches: the walker and the local buggies (a
+## puppet or a parked one is wherever the server says).
 var watched: Array[Node3D] = []
+## Every buggy, by vehicle id. Before the first vehicles list, the one
+## standalone buggy, id "".
+var fleet: Fleet
+## The standalone buggy while there is one, else the one you're in.
+var buggy: Buggy:
+	get:
+		var b: Buggy = fleet.get_buggy("") if fleet else null
+		return b if b != null or avatar == null else avatar.buggy
 ## The round's phase, from setPhase. Walker and buggy take input only in
 ## hunting. Off-web there's no host to send one, so it starts as hunting and
 ## M1's free roam (and its tests) is unchanged; on the web it starts locked
@@ -57,13 +65,18 @@ var _pending_found: Array[String] = []
 
 func _ready() -> void:
 	_park(walker)
-	_park(buggy)
-	watched.append(walker)
-	watched.append(buggy)
+	fleet = Fleet.new()
+	fleet.name = "Fleet"
+	fleet.seaward = seaward.bind(SEA_DRIVE_DEPTH)
+	add_child(fleet)
 	walker.seaward = seaward.bind(SEA_WALK_DEPTH)
-	buggy.seaward = seaward.bind(SEA_DRIVE_DEPTH)
-	avatar.setup(walker, buggy, rig)
-	avatar.mode_changed.connect(func(m: StringName) -> void: focus = buggy if m == &"driving" else walker)
+	_watch()
+	avatar.setup(walker, fleet, rig)
+	# Riding, the walker sits in the seat: the streamer and the stream follow it.
+	avatar.mode_changed.connect(func(m: StringName) -> void: focus = avatar.buggy if m == &"driving" else walker)
+	avatar.seat_asked.connect(bridge.emit_seat)
+	avatar.unseated.connect(bridge.emit_unseat)
+	bridge.vehicles_set.connect(fleet.apply)
 	bridge.session_started.connect(_on_session)
 	bridge.cache_revealed.connect(reveal_cache)
 	bridge.cache_found.connect(found_cache)
@@ -73,7 +86,7 @@ func _ready() -> void:
 	remotes.name = "Remotes"
 	add_child(remotes)
 	bridge.roster_set.connect(remotes.set_roster)
-	bridge.remote_moved.connect(func(id: String, snap: Dictionary) -> void: remotes.upsert(id, snap, Remotes.now()))
+	bridge.remote_moved.connect(_on_remote)
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -182,9 +195,9 @@ func start_world(layout: Dictionary) -> void:
 	walker.process_mode = Node.PROCESS_MODE_INHERIT
 	walker.visible = true
 	focus = walker
-	_place(buggy, buggy_spawn(), field.spawn_yaw)
-	buggy.process_mode = Node.PROCESS_MODE_INHERIT
-	buggy.visible = true
+	fleet.set_field(field)
+	if not fleet.seen:
+		_place(fleet.get_buggy(""), buggy_spawn(), field.spawn_yaw)
 	rig.yaw = field.spawn_yaw
 	rig.follow(walker, &"walk")
 	rig.snap()
@@ -210,7 +223,14 @@ func set_phase(p: StringName) -> void:
 	phase = p
 	var lock := p != &"hunting"
 	walker.locked = lock
-	buggy.locked = lock
+	fleet.set_locked(lock)
+
+
+## Another player's snapshot: their capsule, and the buggy they drive.
+func _on_remote(id: String, snap: Dictionary) -> void:
+	remotes.upsert(id, snap, Remotes.now())
+	if snap.get("v") is String:
+		fleet.puppet_pose(snap.v, snap, id)
 
 
 ## Parked 6 m to your right, facing the same way, at the highest ground
@@ -219,11 +239,7 @@ func buggy_spawn() -> Vector3:
 	var fwd := Vector3(-sin(field.spawn_yaw), 0, -cos(field.spawn_yaw))
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var at := field.spawn + right * 6.0
-	at.y = -INF
-	for sx in [-0.5, 0.5]:
-		for sz in [-0.5, 0.5]:
-			var c: Vector3 = at + right * sx * Buggy.BOX.x + fwd * sz * Buggy.BOX.z
-			at.y = maxf(at.y, field.height_at(c.x, c.z))
+	at.y = Fleet.highest_corner(field, at.x, at.z, field.spawn_yaw)
 	return at
 
 
@@ -240,6 +256,7 @@ func _teardown() -> void:
 	caches = null
 	avatar.caches = null
 	field = null
+	fleet.set_field(null)
 
 
 ## Hidden and frozen until there's ground to stand on.
@@ -270,15 +287,17 @@ func _physics_process(_dt: float) -> void:
 	walker.look_yaw = rig.yaw
 	if focus:
 		streamer.ensure_around(focus.global_position)
+	_watch()
 	for b in watched:
 		_fall_check(b)
 	_pos_tick(_dt)
 
 
-## Where you are (the walker, or the buggy you're in), POS_HZ times a second,
-## while the round is counting down or on. yaw is that body's facing; v is
-## the vehicle you're in, null on foot. The one buggy has no id until the
-## fleet comes, so driving sends foot false with v null, which the server takes.
+## Where you are (the walker, the buggy you drive, or the seat you ride in),
+## POS_HZ times a second, while the round is counting down or on. yaw is
+## that body's facing, from its forward vector; v is the vehicle you're in,
+## null on foot. The standalone buggy has no id, so driving it sends foot
+## false with v null, which the server takes.
 func _pos_tick(dt: float) -> void:
 	if focus == null or (phase != &"countdown" and phase != &"hunting"):
 		_pos_accum = 0.0
@@ -288,7 +307,7 @@ func _pos_tick(dt: float) -> void:
 		return
 	_pos_accum = fmod(_pos_accum, 1.0 / POS_HZ)
 	var p := focus.global_position
-	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "yaw": snappedf(focus.global_rotation.y, 0.001), "foot": avatar.mode == &"foot", "v": null})
+	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "yaw": snappedf(Fleet.yaw_of(focus), 0.001), "foot": avatar.mode == &"foot", "v": avatar.vehicle_id()})
 
 
 ## The E prompt: shown while the round's on, you're on foot, and there's a
@@ -310,6 +329,10 @@ func seaward(p: Vector3, depth: float) -> Vector3:
 	var down := Vector3(field.height_at(p.x - S, p.z) - field.height_at(p.x + S, p.z), 0,
 		field.height_at(p.x, p.z - S) - field.height_at(p.x, p.z + S))
 	return down.normalized() if down.length_squared() > 1e-8 else Vector3.ZERO
+
+
+func _watch() -> void:
+	watched.assign([walker] + fleet.local_buggies())
 
 
 ## Under the ground by more than FALL_LIMIT: back on the surface, still.

@@ -13,6 +13,12 @@ extends CharacterBody3D
 ##
 ## Control is set_control(). The keyboard feeds it only while someone is in
 ## the driver's seat (and input_enabled, which tests turn off).
+##
+## M3 shares buggies, and the Fleet sets each one's mode: &"local" (I drive,
+## or it's the standalone one: all of the above), &"puppet" (someone else
+## drives: no collider and no physics, the fleet poses it from their stream)
+## or &"parked" (nobody drives: a collider, but no physics, so it can't
+## creep down a slope between the server's poses).
 
 ## Collision box, metres: the 4x4 body from wheel bottoms to roof, its floor
 ## 5 cm up like Blind Rally's. BOX_Y is the box's centre height.
@@ -55,6 +61,9 @@ const STUCK_SPEED := 0.5
 @export var impact_threshold := 2.0 ## m/s into the wall before it counts
 @export var impact_keep := 0.65 ## fraction of speed kept after a real hit
 
+## The vehicle id from the server's list; "" for the standalone buggy.
+var id := ""
+var mode: StringName = &"local"
 ## Who's in the driver's seat, or null.
 var driver: Node = null
 var input_enabled := true
@@ -79,6 +88,23 @@ func _init() -> void:
 	floor_max_angle = deg_to_rad(35.0)
 	collision_layer = 2 # not 1, so the camera's spring arm looks past it
 	collision_mask = 1
+
+
+## Local and parked keep the M2 collider (layer 2, the world under it). A
+## puppet has none: players pass through each other's buggies (§13.3).
+func set_mode(m: StringName) -> void:
+	assert(m in [&"local", &"puppet", &"parked"], "unknown buggy mode %s" % m)
+	if m == mode:
+		return
+	mode = m
+	collision_layer = 0 if m == &"puppet" else 2
+	collision_mask = 0 if m == &"puppet" else 1
+	velocity = Vector3.ZERO
+	forward_speed = 0.0
+	_steer = 0.0
+	_yaw_rate = 0.0
+	stuck_s = 0.0
+	set_control(0, 0, 0)
 
 
 func set_control(steer: float, throttle: float, brake: float) -> void:
@@ -121,6 +147,8 @@ static func _lean(up: Vector3, heading: Vector3) -> Basis:
 
 
 func _physics_process(dt: float) -> void:
+	if mode != &"local":
+		return
 	if driver != null and input_enabled:
 		set_control(Input.get_axis("move_left", "move_right"), Input.get_action_strength("move_forward"), Input.get_action_strength("move_back"))
 	if locked:

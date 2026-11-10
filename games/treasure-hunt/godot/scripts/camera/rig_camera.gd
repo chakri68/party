@@ -16,6 +16,9 @@ const DRIFT_RATE := 2.0 # 1/s, exponential
 const PROFILES := {
 	&"walk": {"length": 4.0, "pivot": 1.5, "pitch": -15.0},
 	&"drive": {"length": 7.0, "pivot": 2.0, "pitch": -12.0},
+	## The passenger: drive's framing, but the yaw is all yours (no swing
+	## back behind), since you're only looking around.
+	&"ride": {"length": 7.0, "pivot": 2.0, "pitch": -12.0},
 }
 
 var yaw := 0.0

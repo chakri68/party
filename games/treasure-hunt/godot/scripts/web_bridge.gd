@@ -12,10 +12,13 @@ extends Node
 ##   host.setPhase({phase})                input is on only in "hunting"
 ##   host.roster({me, players: [{id, name, color, team}]})   full list, every update
 ##   host.remotePos({id, x, y, z, yaw, foot, v})             another player, as relayed
+##   host.vehicles({me, list: [{id, x, y, z, yaw, driver, passenger}]})  full list, every update
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
 ##   host.emitClaim({id})                  E by a cache
+##   host.emitSeat({vehicleId, seat})      E by a buggy: "driver" or "passenger"
+##   host.emitUnseat({x, y, z, yaw})       got out; the buggy's pose
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Every inbound call
 ## has a receive_*_json seam and every outbound one a *_sent signal, so
@@ -31,9 +34,13 @@ signal phase_set(phase: StringName)
 signal roster_set(players: Array, me: String)
 ## Another player's snapshot: {x, y, z, yaw, foot, v}.
 signal remote_moved(id: String, snap: Dictionary)
+## The server's buggies (Fleet checks each one): [{id, x, y, z, yaw, driver, passenger}].
+signal vehicles_set(list: Array, me: String)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
+signal seat_sent(seat: Dictionary)
+signal unseat_sent(pose: Dictionary)
 
 const HOST_POLL_S := 0.25
 const HOST_POLL_GIVE_UP_S := 20.0
@@ -50,6 +57,7 @@ var _cb_found: JavaScriptObject
 var _cb_phase: JavaScriptObject
 var _cb_roster: JavaScriptObject
 var _cb_remote: JavaScriptObject
+var _cb_vehicles: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -96,6 +104,8 @@ func _try_attach() -> void:
 	_host.roster = _cb_roster
 	_cb_remote = JavaScriptBridge.create_callback(_on_js.bind(receive_remote_json))
 	_host.remotePos = _cb_remote
+	_cb_vehicles = JavaScriptBridge.create_callback(_on_js.bind(receive_vehicles_json))
+	_host.vehicles = _cb_vehicles
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -120,6 +130,20 @@ func emit_claim(id: String) -> void:
 	claim_sent.emit(claim)
 	if connected and _host.emitClaim:
 		_host.emitClaim(_json.parse(JSON.stringify(claim)))
+
+
+func emit_seat(vehicle_id: String, seat: String) -> void:
+	var d := {"vehicleId": vehicle_id, "seat": seat}
+	seat_sent.emit(d)
+	if connected and _host.emitSeat:
+		_host.emitSeat(_json.parse(JSON.stringify(d)))
+
+
+## {x, y, z, yaw}
+func emit_unseat(pose: Dictionary) -> void:
+	unseat_sent.emit(pose)
+	if connected and _host.emitUnseat:
+		_host.emitUnseat(_json.parse(JSON.stringify(pose)))
 
 
 ## The session as JSON text. Every number in it is a float now (JSON has no
@@ -165,6 +189,13 @@ func receive_remote_json(text: String) -> void:
 		return
 	var v: Variant = d.get("v")
 	remote_moved.emit(d.id, {"x": float(d.x), "y": float(d.y), "z": float(d.z), "yaw": float(d.yaw) if _num(d.get("yaw")) else 0.0, "foot": d.foot, "v": v if v is String else null})
+
+
+## {me, list}. Fleet checks each vehicle; this only checks the shape.
+func receive_vehicles_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and d.get("me") is String and d.get("list") is Array:
+		vehicles_set.emit(d.list, d.me)
 
 
 static func _num(v: Variant) -> bool:
