@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shouldSendSession, worldReadyFor, type BridgeCall } from "../client/godot/bridge.ts";
-import { GodotFeed, claimError, resync } from "../client/view.ts";
+import { ClaimLog, GodotFeed, claimError, resync } from "../client/view.ts";
 import type { THPrivate } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
@@ -161,5 +161,59 @@ describe("claimError", () => {
   it("falls back to the server's message for anything else", () => {
     expect(claimError("rate-limited", "Slow down.")).toBe("Slow down.");
     expect(claimError(undefined, "Slow down.")).toBe("Slow down.");
+  });
+});
+
+// N4: a claim's action id is kept only while it is out. The server sends no
+// ack for an accepted act, so "resolved without a rejection" means the
+// cache now shows as found in private state.
+describe("ClaimLog", () => {
+  const priv = (found: string[]): THPrivate => ({
+    clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id) })),
+    revealed: [],
+  });
+
+  it("keeps a claim until its rejection, which it reports once", () => {
+    const log = new ClaimLog();
+    log.add("a1", "c1");
+    expect(log.size).toBe(1);
+    expect(log.rejected("a1")).toBe(true);
+    expect(log.rejected("a1")).toBe(false);
+    expect(log.rejected("other")).toBe(false);
+    expect(log.size).toBe(0);
+  });
+
+  it("drops a claim once its cache shows as found", () => {
+    const log = new ClaimLog();
+    log.add("a1", "c1");
+    log.add("a2", "c4");
+    log.update(priv([]), 1);
+    expect(log.size).toBe(2);
+    log.update(priv(["c1"]), 1);
+    expect(log.size).toBe(1);
+    expect(log.rejected("a1")).toBe(false);
+    expect(log.rejected("a2")).toBe(true);
+  });
+
+  it("drops only the first of two claims on one cache: the second's rejection still counts", () => {
+    const log = new ClaimLog();
+    log.add("a1", "c1");
+    log.add("a2", "c1");
+    log.update(priv(["c1"]), 1);
+    log.update(priv(["c1"]), 1);
+    expect(log.size).toBe(1);
+    expect(log.rejected("a2")).toBe(true);
+  });
+
+  it("starts over on a new map", () => {
+    const log = new ClaimLog();
+    log.update(priv(["c1"]), 1);
+    log.add("a1", "c4");
+    log.update(priv([]), 2);
+    expect(log.size).toBe(0);
+    // c1 is not found on map 2: a claim on it stays out.
+    log.add("a2", "c1");
+    log.update(priv([]), 2);
+    expect(log.size).toBe(1);
   });
 });

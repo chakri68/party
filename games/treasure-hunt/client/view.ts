@@ -111,6 +111,50 @@ export class GodotFeed {
   }
 }
 
+/**
+ * Claims still out, so their rejections get the claim wording. The server
+ * sends no ack for an accepted act: a claim has resolved without a rejection
+ * once its cache shows as found, and then its id is dropped. Only the oldest
+ * claim per newly found cache goes, so a second claim on it keeps waiting for
+ * its "already found" rejection.
+ */
+export class ClaimLog {
+  /** Action id → cache id, oldest first. */
+  private out = new Map<string, string>();
+  private found = new Set<string>();
+  private seed: number | null = null;
+
+  get size() {
+    return this.out.size;
+  }
+
+  add(actionId: string, cacheId: string) {
+    this.out.set(actionId, cacheId);
+  }
+
+  /** True if this was one of our claims; it is no longer out either way. */
+  rejected(actionId: string): boolean {
+    return this.out.delete(actionId);
+  }
+
+  update(priv: THPrivate | null, seed: number) {
+    if (this.seed !== null && seed !== this.seed) {
+      this.out.clear();
+      this.found.clear();
+    }
+    this.seed = seed;
+    for (const c of priv?.clues ?? []) {
+      if (!c.found || this.found.has(c.id)) continue;
+      this.found.add(c.id);
+      for (const [actionId, cacheId] of this.out) {
+        if (cacheId !== c.id) continue;
+        this.out.delete(actionId);
+        break;
+      }
+    }
+  }
+}
+
 /** A touch screen with no mouse or trackpad to go with it. */
 function touchOnly(): boolean {
   return matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
@@ -143,8 +187,7 @@ export class TreasureHuntView implements GameView {
   private builtSeed: number | null = null;
   /** The seed we last sent act("ready") for. */
   private readySeed: number | null = null;
-  /** Claims still out, so their rejections get the claim wording. */
-  private claims = new Set<string>();
+  private claims = new ClaimLog();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
 
@@ -169,7 +212,7 @@ export class TreasureHuntView implements GameView {
       },
       pos: (p) => this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, foot: p.foot }),
       claim: (id) => {
-        this.claims.add(this.api.act({ type: "claim", cacheId: id }));
+        this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
     });
     this.feed = new GodotFeed((calls) => this.bridge.call(calls));
@@ -200,7 +243,7 @@ export class TreasureHuntView implements GameView {
   }
 
   rejected(clientActionId: string, message: string, code?: string) {
-    if (this.claims.delete(clientActionId)) this.showToast(claimError(code, message));
+    if (this.claims.rejected(clientActionId)) this.showToast(claimError(code, message));
     else this.msg.textContent = message;
   }
 
@@ -214,6 +257,7 @@ export class TreasureHuntView implements GameView {
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
     this.feed.update(this.priv, this.game.phase, this.game.layout.seed);
+    this.claims.update(this.priv, this.game.layout.seed);
     if (this.desktop) this.bridge.setSession({ layout: this.game.layout });
     this.render();
   }
