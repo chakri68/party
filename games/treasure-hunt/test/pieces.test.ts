@@ -1,4 +1,6 @@
 import { LAMP_REACH } from "../shared/sky.ts";
+import { START_MIN } from "../shared/index.ts";
+import { makeHunt } from "../server/hunt.ts";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -598,5 +600,42 @@ describe("quarry, cave, hot spring, frozen lake, siege camp", () => {
     }
     const share = Object.fromEntries(IDS.map((id) => [id, (maps[id] ?? 0) / 200]));
     for (const id of IDS) expect(share[id], `${id}: ${JSON.stringify(share)}`).toBeGreaterThanOrEqual(0.1);
+  }, 60_000);
+  it("200 seeds: every map has at least 9 distinct templates, and the mean is at least 10", () => {
+    let sum = 0;
+    let min = Infinity;
+    for (let seed = 1; seed <= 200; seed++) {
+      const n = new Set(generateLayout(seed).pieces.map((p) => p.template)).size;
+      expect(n, `seed ${seed}`).toBeGreaterThanOrEqual(9);
+      sum += n;
+      min = Math.min(min, n);
+    }
+    console.log(`distinct templates per map: min ${min}, mean ${(sum / 200).toFixed(2)}`);
+    expect(sum / 200).toBeGreaterThanOrEqual(10);
+  }, 60_000);
+
+  it("60 night seeds: at least one photo faces a windmill", () => {
+    // The garden is 2 m tall, under PHOTO_MIN_TOP, so it can never be a photo target.
+    let windmill = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const { layout, caches } = makeHunt(seed, { startMin: START_MIN.night, minutes: 30 });
+      const mills = new Set(layout.pieces.filter((p) => p.template === "windmill").map((p) => p.id));
+      windmill += caches.filter((c) => c.photo && mills.has(c.photo.target)).length;
+    }
+    expect(windmill).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("60 day seeds: shadow clues still turn up", () => {
+    // The short new pieces drop their shadow tips on their own pads, so the share fell a little.
+    let n = 0;
+    let shadow = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      for (const c of makeHunt(seed, { startMin: 600, minutes: 15 }).caches) {
+        n++;
+        if (c.clues.some((t) => /^Where the shadow of /.test(t))) shadow++;
+      }
+    }
+    console.log(`shadow clue share: ${shadow}/${n} = ${((shadow / n) * 100).toFixed(2)}%`);
+    expect(shadow).toBeGreaterThan(0);
   }, 60_000);
 });

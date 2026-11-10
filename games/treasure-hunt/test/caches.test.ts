@@ -132,3 +132,17 @@ describe("photo quota", () => {
     }
   }, 60_000);
 });
+
+describe("budget", () => {
+  // Kept here, in a worker the 200-seed pieces tests haven't fattened: the same loop ran 2x slower after them.
+  it("makeLayout plus makeHunt averages under 60 ms per seed over 50 seeds", () => {
+    const t0 = performance.now();
+    for (let seed = 1; seed <= 50; seed++) {
+      makeLayout(seed);
+      makeHunt(seed);
+    }
+    const ms = (performance.now() - t0) / 50;
+    console.log(`makeLayout + makeHunt: ${ms.toFixed(1)} ms per seed`);
+    expect(ms).toBeLessThan(60);
+  }, 60_000);
+});
