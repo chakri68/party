@@ -43,7 +43,8 @@ export const SHADOW_PAD_GAP = 1;
 
 /** Not on a piece's pad or at a minor point, where a cache would sit inside something. */
 function clearTip(l: TreasureLayout, t: { x: number; z: number }): boolean {
-  // Every piece, its own too: the tip is ≥ 10 m out, so that one never trips.
+  // Every piece, its own too: a short piece (a garden, a farm) casts its tip
+  // onto its own pad when the sun is high, and gives no shadow then.
   if (l.pieces.some((p) => Math.hypot(t.x - p.x, t.z - p.z) <= p.padR + SHADOW_PAD_GAP)) return false;
   return !l.minor.some((m) => Math.hypot(t.x - m.x, t.z - m.z) <= SHADOW_MINOR_GAP);
 }

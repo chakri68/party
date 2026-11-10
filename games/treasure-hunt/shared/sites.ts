@@ -57,6 +57,11 @@ const RULES: Record<TemplateId, (l: TreasureLayout, s: Site) => boolean> = {
   "radio-tower": (_, s) => s.peak,
   camp: (l, s) => s.biome === "forest" && padSpread(l, s.x, s.z, TEMPLATES.camp.padR) <= 3,
   plane: (l, s) => s.biome !== "forest" && s.biome !== "snowcap" && padSpread(l, s.x, s.z, TEMPLATES.plane.padR) <= 3,
+  windmill: (l, s) => (s.biome === "meadow" || s.biome === "rocky") && s.h >= 12 && padSpread(l, s.x, s.z, TEMPLATES.windmill.padR) <= 3,
+  farm: (l, s) => (s.biome === "meadow" || s.biome === "wetland") && padSpread(l, s.x, s.z, TEMPLATES.farm.padR) <= 2,
+  watchtower: (l, s) => s.biome !== "forest" && s.h >= 15 && padSpread(l, s.x, s.z, TEMPLATES.watchtower.padR) <= 3,
+  lookout: (l, s) => s.biome === "forest" && s.h >= 10 && padSpread(l, s.x, s.z, TEMPLATES.lookout.padR) <= 3,
+  garden: (l, s) => s.biome === "meadow" && padSpread(l, s.x, s.z, TEMPLATES.garden.padR) <= 2,
 };
 
 /** Every vertex that passes the rules shared by all pieces: bounds, land, away from spawn. */

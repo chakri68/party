@@ -14,6 +14,11 @@ const BUILDERS := {
 	"radio-tower": preload("res://scripts/pieces/radio_tower.gd"),
 	"camp": preload("res://scripts/pieces/camp.gd"),
 	"plane": preload("res://scripts/pieces/plane.gd"),
+	"windmill": preload("res://scripts/pieces/windmill.gd"),
+	"farm": preload("res://scripts/pieces/farm.gd"),
+	"watchtower": preload("res://scripts/pieces/watchtower.gd"),
+	"lookout": preload("res://scripts/pieces/lookout.gd"),
+	"garden": preload("res://scripts/pieces/garden.gd"),
 }
 
 ## TEMPLATES[t].labels, mirrored. piece_tests checks it against pieces.json.
@@ -24,6 +29,11 @@ const LABELS := {
 	"radio-tower": ["red", "white", "yellow"],
 	"camp": ["orange", "green", "blue"],
 	"plane": ["white", "yellow", "red"],
+	"windmill": ["white", "red", "brown"],
+	"farm": ["red", "white", "yellow"],
+	"watchtower": ["grey", "sandy", "dark"],
+	"lookout": ["green", "brown", "red"],
+	"garden": ["white", "sandy", "dark"],
 }
 
 const COLOURS := {
@@ -144,6 +154,18 @@ static func cylinder(parent: Node3D, top: float, bottom: float, h: float, pos: V
 	cm.radial_segments = 16
 	cm.rings = 1
 	return mesh(parent, cm, Transform3D(basis, pos), material)
+
+
+## A square pyramid, `half` from its middle to each side at the base and
+## `h` tall, its base at pos.y. Edges run along X and Z.
+static func pyramid(parent: Node3D, half: float, h: float, pos: Vector3, material: Material) -> MeshInstance3D:
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.0
+	cm.bottom_radius = half * sqrt(2.0)
+	cm.height = h
+	cm.radial_segments = 4
+	cm.rings = 1
+	return mesh(parent, cm, Transform3D(Basis(Vector3.UP, PI / 4), pos + Vector3(0, h * 0.5, 0)), material)
 
 
 ## A Kenney mesh stretched to fill `size`, standing at `pos` (its base at

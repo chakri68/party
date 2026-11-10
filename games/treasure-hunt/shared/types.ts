@@ -4,7 +4,18 @@ import type { Trail } from "./trails.ts";
 import { TIMES, type TimeSetting } from "./sky.ts";
 import { RACE_TARGET_DEFAULT, RACE_TARGETS, TIMED_MINUTES, type RingSide } from "./world.ts";
 
-export type TemplateId = "lighthouse" | "shipwreck" | "stone-circle" | "radio-tower" | "camp" | "plane";
+export type TemplateId =
+  | "lighthouse"
+  | "shipwreck"
+  | "stone-circle"
+  | "radio-tower"
+  | "camp"
+  | "plane"
+  | "windmill"
+  | "farm"
+  | "watchtower"
+  | "lookout"
+  | "garden";
 
 /** One placed set piece (layer 3). Built in Godot from its template and params. */
 export interface SetPiece {

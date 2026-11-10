@@ -377,7 +377,11 @@ describe("timed round", () => {
 describe("secrecy", () => {
   it("public state never holds a cache's x, in any phase", () => {
     let s = hunting(3);
-    const cid = team(s, "p0").pool[0]!;
+    // A route point is whole metres, and the claimer's own track ends on the
+    // cache by design. So claim one off the metre grid: a cache at a piece's
+    // centre (seed 3's camp since M4b) would show in that track.
+    const cid = team(s, "p0").pool.find((id) => !Number.isInteger(cacheOf(s, id).x))!;
+    expect(cid).toBeDefined();
     s = standOn(s, "p0", cid, 11_000);
     const r = claim(s, "p0", cid, 11_000);
     if (!r.ok) throw new Error(r.error.code);

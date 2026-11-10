@@ -121,7 +121,14 @@ func test_spawn() -> void:
 	var want := s + right * 6.0
 	var p := buggy.global_position
 	check(Vector2(p.x, p.z).distance_to(Vector2(want.x, want.z)) < 0.3, "buggy parks 6 m right of the spawn")
-	check(absf(p.y - _ground(p)) < 0.5, "and sits on the ground (%.2f m off)" % (p.y - _ground(p)))
+	# On the highest ground under it: since M4b, layout_1's trail east out of
+	# the spawn runs under the park spot, and the buggy bridges its dip.
+	var under := _ground(p)
+	for sx in [-0.5, 0.5]:
+		for sz in [-0.5, 0.5]:
+			var c := buggy.global_transform * Vector3(Buggy.BOX.x * sx, 0, Buggy.BOX.z * sz)
+			under = maxf(under, _ground(c))
+	check(absf(p.y - under) < 0.5, "and sits on the ground (%.2f m off)" % (p.y - under))
 	var fwd := -buggy.global_basis.z
 	check(absf(angle_difference(atan2(-fwd.x, -fwd.z), field.spawn_yaw)) < 0.05, "facing the way the walker does")
 	check(buggy.collision_layer == 2, "buggy is on layer 2")

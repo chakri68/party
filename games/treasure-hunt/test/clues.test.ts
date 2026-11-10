@@ -20,7 +20,7 @@ import {
 } from "../shared/index.ts";
 import { makeHunt, type HuntSky } from "../server/hunt.ts";
 import { cacheSpots, type Cache, type CacheSpot } from "../server/caches.ts";
-import { SHADOW_MINOR_GAP, clueTexts, groundTip, shadowSpots } from "../server/clues.ts";
+import { SHADOW_MINOR_GAP, SHADOW_PAD_GAP, clueTexts, groundTip, shadowSpots } from "../server/clues.ts";
 import { photoCam } from "../server/photos.ts";
 
 const LANDMARK_FILLER = /^[A-Z][^.]*\.$/;
@@ -190,10 +190,22 @@ describe("clues", () => {
 describe("shadow clues", () => {
   const { l, p } = withLighthouse(0);
 
-  it("by day: one spot per tall piece, at the tip, inside the window", () => {
+  it("by day: one spot per tall piece whose tip leaves its pad, at the tip, inside the window", () => {
     const spots = shadowSpots(l, DAY, rng(1));
     const tall = l.pieces.filter((q) => TEMPLATES[q.template].top);
-    expect(spots.map((s) => s.source)).toEqual(tall.map((q) => q.id));
+    // Seed 3 since M4b: the lighthouse (p0) and the radio tower (p2). The
+    // garden, watchtower, farm, fire lookout and windmill are all 12 m or
+    // less, and at 10 to 11 the sun is high enough that each tip stays on
+    // its own pad, every minute of the window.
+    expect(spots.map((s) => s.source)).toEqual(["p0", "p2"]);
+    expect(tall.map((q) => q.template)).toEqual(["lighthouse", "radio-tower", "garden", "watchtower", "farm", "lookout", "windmill"]);
+    for (const q of tall.filter((q) => !spots.some((s) => s.source === q.id))) {
+      const top = TEMPLATES[q.template].top!(q.params);
+      for (let m = DAY.startMin; m <= DAY.startMin + DAY.minutes; m += SHADOW_STEP) {
+        const tip = groundTip(l, q, top, m);
+        if (tip) expect(Math.hypot(tip.x - q.x, tip.z - q.z), `${q.id} at ${m}`).toBeLessThanOrEqual(q.padR + SHADOW_PAD_GAP);
+      }
+    }
     expect(spots.some((s) => s.source === p.id)).toBe(true);
     for (const s of spots) {
       expect(s.dy).toBe(0);

@@ -1,4 +1,7 @@
 import { LAMP_REACH } from "../shared/sky.ts";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   BIOMES,
@@ -26,9 +29,14 @@ const RANGES: Record<TemplateId, Record<string, [number, number]>> = {
   "radio-tower": { height: [20, 35], wires: [0, 1] },
   camp: { tents: [1, 3], firepit: [0, 1] },
   plane: { debris: [10, 30], heading: [0, 2 * Math.PI] },
+  windmill: { height: [9, 13], turning: [0, 1] },
+  farm: { buildings: [1, 3], ruin: [0, 2] },
+  watchtower: { floors: [1, 3], broken: [0, 1] },
+  lookout: { stilts: [4, 8] },
+  garden: { hedge: [1.2, 2] },
 };
-const BOOLS = new Set(["ruined", "wires", "firepit"]);
-const INTS = new Set(["stones", "fallen", "tents", "debris"]);
+const BOOLS = new Set(["ruined", "wires", "firepit", "turning", "broken"]);
+const INTS = new Set(["stones", "fallen", "tents", "debris", "buildings", "ruin", "floors"]);
 
 /** Macro vertices as [x, z, height m, biome name]. */
 function vertices(l: TreasureLayout): [number, number, number, string][] {
@@ -152,6 +160,29 @@ describe("placePieces", () => {
             expect(["forest", "snowcap"]).not.toContain(biomeAt(l, p.x, p.z));
             expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
             break;
+          case "windmill":
+            expect(["meadow", "rocky"]).toContain(biomeAt(l, p.x, p.z));
+            expect(h, where).toBeGreaterThanOrEqual(12);
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
+            break;
+          case "farm":
+            expect(["meadow", "wetland"]).toContain(biomeAt(l, p.x, p.z));
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
+            break;
+          case "watchtower":
+            expect(biomeAt(l, p.x, p.z), where).not.toBe("forest");
+            expect(h, where).toBeGreaterThanOrEqual(15);
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
+            break;
+          case "lookout":
+            expect(biomeAt(l, p.x, p.z), where).toBe("forest");
+            expect(h, where).toBeGreaterThanOrEqual(10);
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
+            break;
+          case "garden":
+            expect(biomeAt(l, p.x, p.z), where).toBe("meadow");
+            expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
+            break;
         }
       });
       // At most 3 of a kind, each with its own label.
@@ -268,4 +299,129 @@ describe("1000 seeds", () => {
       expect(l.pieces.length, `seed ${seed}`).toBeLessThanOrEqual(14);
     }
   }, 60_000);
+});
+
+// The M4b built templates: the values in the task-2 brief, word for word.
+describe("windmill, farm, watchtower, fire lookout, garden", () => {
+  type Want = { top: number; lamps?: object[]; slots: [number, number, number, string][] };
+  const WANT: Record<string, { rolls: Record<string, number>[]; want: (p: Record<string, number>) => Want }> = {
+    windmill: {
+      rolls: [{ height: 9, turning: 1 }, { height: 12.3, turning: 0 }],
+      want: (p) => ({
+        top: p.height! + 1.5,
+        lamps: [
+          { x: 0, y: 2.6, z: -2.75, clue: true },
+          { x: 0, y: p.height! - 1, z: -3.2, clue: false },
+        ],
+        slots: [
+          [0, -3.3, 0, "By the door of the {label}."],
+          [0, 3.3, 0, "Behind the {label}."],
+          [3.8, 0, 1, "On the crates beside the {label}."],
+        ],
+      }),
+    },
+    farm: {
+      rolls: [{ buildings: 1, ruin: 0 }, { buildings: 3, ruin: 2 }, { buildings: 2, ruin: 1 }],
+      want: (p) => ({
+        top: p.ruin! < 2 ? 5 : 3,
+        slots: [
+          [0, -5, 0, "Inside the barn of the {label}."],
+          [1.8, 4, 0, "Beside the cart at the {label}."],
+          [0, 9.2, 0, "By the broken fence of the {label}."],
+        ],
+      }),
+    },
+    watchtower: {
+      rolls: [{ floors: 1, broken: 1 }, { floors: 3, broken: 0 }],
+      want: (p) => ({
+        top: p.floors! * 4 + (p.broken ? 0 : 1.5),
+        slots: [
+          [0, -3.3, 0, "At the door of the {label}."],
+          [4.2, 0, 0.5, "On the fallen stones by the {label}."],
+          [0, 3.3, 0, "Behind the {label}."],
+        ],
+      }),
+    },
+    lookout: {
+      rolls: [{ stilts: 4 }, { stilts: 7.6 }],
+      want: (p) => ({
+        top: p.stilts! + 3.5,
+        slots: [
+          [0, 0, 0, "Under the {label}, between its legs."],
+          [0, 2.7, 0, "At the foot of the ladder of the {label}."],
+          [3.6, 0.3, 0, "Beside the wood pile at the {label}."],
+        ],
+      }),
+    },
+    garden: {
+      rolls: [{ hedge: 1.2 }, { hedge: 1.8 }],
+      want: () => ({
+        top: 2,
+        lamps: [
+          { x: -1.8, y: 2.2, z: -9.6, clue: true },
+          { x: 1.8, y: 2.2, z: -9.6, clue: false },
+        ],
+        slots: [
+          [0, 3, 0, "Behind the fountain in the {label}."],
+          [6.5, 6.5, 0, "In a corner of the {label}."],
+          [0, -9.5, 0, "Outside the gate of the {label}."],
+        ],
+      }),
+    },
+  };
+
+  it("names, labels and pad radii", () => {
+    const meta = (id: TemplateId) => [TEMPLATES[id].name, TEMPLATES[id].labels, TEMPLATES[id].padR];
+    expect(meta("windmill")).toEqual(["windmill", ["white", "red", "brown"], 10]);
+    expect(meta("farm")).toEqual(["farm", ["red", "white", "yellow"], 16]);
+    expect(meta("watchtower")).toEqual(["watchtower", ["grey", "sandy", "dark"], 10]);
+    expect(meta("lookout")).toEqual(["fire lookout", ["green", "brown", "red"], 8]);
+    expect(meta("garden")).toEqual(["garden", ["white", "sandy", "dark"], 14]);
+  });
+
+  for (const [id, { rolls, want }] of Object.entries(WANT)) {
+    it(`${id}: top, lamps and slots for each roll`, () => {
+      const t = TEMPLATES[id as TemplateId];
+      for (const p of rolls) {
+        const w = want(p);
+        expect(t.top!(p), JSON.stringify(p)).toBeCloseTo(w.top, 9);
+        if (w.lamps) {
+          const got = t.lamps!(p).map((l) => ({ ...l, y: Math.round(l.y * 1e9) / 1e9 }));
+          expect(got).toEqual(w.lamps);
+        } else expect(t.lamps).toBeUndefined();
+        const slots = t.slots(p);
+        expect(slots.map((s) => [s.x, s.z, s.dy, s.hint])).toEqual(w.slots);
+        for (const s of slots) expect(Math.hypot(s.x, s.z), `${id} ${s.hint}`).toBeLessThanOrEqual(t.padR - 1);
+        for (let i = 0; i < slots.length; i++) {
+          for (let j = 0; j < i; j++) {
+            const d = Math.hypot(slots[i]!.x - slots[j]!.x, slots[i]!.z - slots[j]!.z);
+            expect(d, `${id} slots ${j} and ${i}`).toBeGreaterThanOrEqual(1.5);
+          }
+        }
+      }
+    });
+  }
+
+  it("no hint says {label} twice or {label}'s", () => {
+    for (const id of IDS) {
+      const t = TEMPLATES[id];
+      for (const p of [0, 0.5, 1 - 1e-9].map((v) => t.roll(() => v))) {
+        for (const s of t.slots(p)) {
+          expect(s.hint.split("{label}").length - 1, s.hint).toBe(1);
+          expect(s.hint, s.hint).not.toContain("{label}'s");
+        }
+      }
+    }
+  });
+
+  it("pieces.json keeps the old six templates as they were at dbba03a", () => {
+    // sha256 of JSON.stringify([[id, entry], ...]) over the six, read from
+    // the fixture as committed before the five were added.
+    const file = join(import.meta.dirname, "../godot/tests/fixtures/pieces.json");
+    const fx = JSON.parse(readFileSync(file, "utf8"));
+    const old = ["lighthouse", "shipwreck", "stone-circle", "radio-tower", "camp", "plane"];
+    const hash = createHash("sha256").update(JSON.stringify(old.map((k) => [k, fx.templates[k]]))).digest("hex");
+    expect(hash).toBe("b5e42018e58bc6ff019ba5bbdf3e735d1bbbef9fca648d31e1d1bd680618331f");
+    expect(Object.keys(fx.templates).sort()).toEqual([...IDS].sort());
+  });
 });

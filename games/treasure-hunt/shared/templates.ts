@@ -202,6 +202,107 @@ export const TEMPLATES: Record<TemplateId, Template> = {
       return out;
     },
   },
+
+  // Tower: 5 × 5 m, centred, `height` tall, the door on −Z. A roof cap,
+  // tinted by the label, from height to height + 1.5. The sails turn on a
+  // hub at (0, height − 1, −2.8): 4 blades, each 0.45 · height long, so the
+  // lowest tip is 0.55 · height − 1 ≥ 3.95 m up. A stack of crates, 1 m high
+  // and 1.2 m square, centred at (3.8, 0).
+  windmill: {
+    id: "windmill",
+    name: "windmill",
+    labels: ["white", "red", "brown"],
+    padR: 10,
+    roll: (r) => ({ height: round(between(r, 9, 13), 0.1), turning: coin(r) }),
+    top: (p) => p.height! + 1.5,
+    // A lamp over the door, and one on the front of the hub.
+    lamps: (p) => [
+      { x: 0, y: 2.6, z: -2.75, clue: true },
+      { x: 0, y: p.height! - 1, z: -3.2, clue: false },
+    ],
+    slots: () => [
+      { x: 0, z: -3.3, dy: 0, hint: "By the door of the {label}." },
+      { x: 0, z: 3.3, dy: 0, hint: "Behind the {label}." },
+      { x: 3.8, z: 0, dy: 1, hint: "On the crates beside the {label}." },
+    ],
+  },
+
+  // Barn: 6 × 4 m (x −3..3, z −7..−3), walls 3 m, the label on its walls,
+  // a doorway 1.4 m wide and 2.4 m high in the middle of its +Z wall. Its
+  // gable roof peaks at 5 m. Ruin 1: half the roof is gone. Ruin 2: walls only.
+  // Building 2 at (−9, 3), building 3 at (9, 3): 4 × 4 m, walls 3 m, no door.
+  // A cart, 1.4 × 2.4 m along Z, at (0, 4). A broken fence along z = 10, x −6..6.
+  farm: {
+    id: "farm",
+    name: "farm",
+    labels: ["red", "white", "yellow"],
+    padR: 16,
+    roll: (r) => ({ buildings: int(r, 1, 3), ruin: int(r, 0, 2) }),
+    top: (p) => (p.ruin! < 2 ? 5 : 3),
+    slots: () => [
+      { x: 0, z: -5, dy: 0, hint: "Inside the barn of the {label}." },
+      { x: 1.8, z: 4, dy: 0, hint: "Beside the cart at the {label}." },
+      { x: 0, z: 9.2, dy: 0, hint: "By the broken fence of the {label}." },
+    ],
+  },
+
+  // Tower: 5 × 5 m, centred, floors · 4 m tall, a doorway on −Z, solid
+  // inside. A battlement cap 1.5 m high, unless broken. A rubble block
+  // 1.6 × 0.5 × 1.2 m centred at (4.2, 0); broken adds one at (−4.2, 1).
+  watchtower: {
+    id: "watchtower",
+    name: "watchtower",
+    labels: ["grey", "sandy", "dark"],
+    padR: 10,
+    roll: (r) => ({ floors: int(r, 1, 3), broken: coin(r) }),
+    top: (p) => p.floors! * 4 + (p.broken ? 0 : 1.5),
+    slots: () => [
+      { x: 0, z: -3.3, dy: 0, hint: "At the door of the {label}." },
+      { x: 4.2, z: 0, dy: 0.5, hint: "On the fallen stones by the {label}." },
+      { x: 0, z: 3.3, dy: 0, hint: "Behind the {label}." },
+    ],
+  },
+
+  // Four posts 0.25 m square at (±1.6, ±1.6), `stilts` tall. On them a cabin
+  // 4 × 4 × 2.5 m, the label on its walls, and a roof 1 m high. A ladder on
+  // the +Z face, x −0.4..0.4, z 1.6..2.0. A log stack 1.6 × 1 × 0.8 m
+  // centred at (3.6, −1).
+  lookout: {
+    id: "lookout",
+    name: "fire lookout",
+    labels: ["green", "brown", "red"],
+    padR: 8,
+    roll: (r) => ({ stilts: round(between(r, 4, 8), 0.1) }),
+    top: (p) => p.stilts! + 3.5,
+    slots: () => [
+      { x: 0, z: 0, dy: 0, hint: "Under the {label}, between its legs." },
+      { x: 0, z: 2.7, dy: 0, hint: "At the foot of the ladder of the {label}." },
+      { x: 3.6, z: 0.3, dy: 0, hint: "Beside the wood pile at the {label}." },
+    ],
+  },
+
+  // A square hedge ring, its centre line at x, z = ±8, 0.8 m thick and
+  // `hedge` tall, with 2 m gates in the middle of its −Z and +Z sides. A
+  // fountain at the centre, the label on its stone: radius 2, rim 0.6 m,
+  // a column to 1.6 m. Lantern posts, 0.1 m thick and with no collider, at
+  // (±1.8, −9.6), either side of the −Z gate.
+  garden: {
+    id: "garden",
+    name: "garden",
+    labels: ["white", "sandy", "dark"],
+    padR: 14,
+    roll: (r) => ({ hedge: round(between(r, 1.2, 2), 0.1) }),
+    top: () => 2,
+    lamps: () => [
+      { x: -1.8, y: 2.2, z: -9.6, clue: true },
+      { x: 1.8, y: 2.2, z: -9.6, clue: false },
+    ],
+    slots: () => [
+      { x: 0, z: 3, dy: 0, hint: "Behind the fountain in the {label}." },
+      { x: 6.5, z: 6.5, dy: 0, hint: "In a corner of the {label}." },
+      { x: 0, z: -9.5, dy: 0, hint: "Outside the gate of the {label}." },
+    ],
+  },
 };
 
 /** "red lighthouse". */
