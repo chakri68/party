@@ -30,10 +30,13 @@ func run() -> void:
 	await test_walk_and_run()
 	await test_jump()
 	await test_scramble()
+	await test_no_scramble_from_a_ditch()
+	await test_no_scramble_up_a_steep_slope()
 	await test_wall()
 	await test_fall()
 	await test_camera()
 	await test_start_world()
+	test_layout_arg()
 	main.queue_free()
 	await t.process_frame
 
@@ -175,6 +178,78 @@ func test_scramble() -> void:
 		box.queue_free()
 		(pad[0] as Node).queue_free()
 		await _frames(1)
+
+
+## Off a 3 m ledge and falling beside a 3.5 m wall, the wall's top is only
+## 0.5 m over the ledge we last stood on. Measured from there, that's a
+## scramble; measured from where we are, it's 2 m too tall. The walker
+## walks off for real (a teleport would reset the floor), lets go of the
+## keys so it drops straight into the 0.9 m gap, then pushes the wall
+## with jump held on the way down.
+func test_no_scramble_from_a_ditch() -> void:
+	var pad: Array = _pad()
+	var top: float = pad[1]
+	var s := field.spawn
+	var ledge := _box(Vector3(4, 3, 4), Vector3(s.x, top + 1.5, s.z + 3)) # z +1..+5
+	var wall := _box(Vector3(4, 3.5, 4), Vector3(s.x, top + 1.75, s.z - 1.9)) # face at z +0.1
+	rig.yaw = 0.0
+	_put(Vector3(s.x, top + 3.05, s.z + 1.6))
+	await _frames(20)
+	check(walker.is_on_floor() and absf(walker.global_position.y - top - 3.0) < 0.1, "stood on the 3 m ledge")
+	walker.set_move(Vector2(0, 1), false, false)
+	for i in 120:
+		await t.physics_frame
+		if not walker.is_on_floor():
+			break
+	walker.set_move(Vector2.ZERO, false, false)
+	for i in 120:
+		await t.physics_frame
+		if walker.global_position.y < top + 1.8:
+			break
+	var fell_to := walker.global_position.y - top
+	walker.set_move(Vector2(0, 1), false, true)
+	var peak := fell_to
+	for i in 120:
+		await t.physics_frame
+		peak = maxf(peak, walker.global_position.y - top)
+	walker.set_move(Vector2.ZERO, false, false)
+	await _frames(10)
+	var y := walker.global_position.y - top
+	check(fell_to > 1.0 and fell_to < 1.8, "walked off and fell into the gap (%.2f m up)" % fell_to)
+	check(y < 0.1 and peak <= fell_to + 0.01, "falling into a ditch, a 3.5 m wall isn't scrambled (ends %.2f m up, peak %.2f)" % [y, peak])
+	ledge.queue_free()
+	wall.queue_free()
+	(pad[0] as Node).queue_free()
+	await _frames(1)
+
+
+## A 50° ramp is a wall, not a ledge: forward + jump doesn't climb it.
+func test_no_scramble_up_a_steep_slope() -> void:
+	var pad: Array = _pad()
+	var top: float = pad[1]
+	var s := field.spawn
+	var a := deg_to_rad(50.0)
+	# 6 m long, rising towards -Z, its foot 1.5 m ahead of the walker.
+	var ramp := _box(Vector3(4, 0.4, 6), Vector3(s.x, top + 3.0 * sin(a), s.z - 1.5 - 3.0 * cos(a)))
+	ramp.rotation.x = a
+	rig.yaw = 0.0
+	_put(Vector3(s.x, top + 0.05, s.z))
+	await _frames(20)
+	walker.set_move(Vector2(0, 1), false, true)
+	await _frames(150)
+	walker.set_move(Vector2.ZERO, false, false)
+	await _frames(20)
+	var y := walker.global_position.y - top
+	check(y < 0.3, "a 50° slope isn't scrambled (%.2f m up)" % y)
+	ramp.queue_free()
+	(pad[0] as Node).queue_free()
+	await _frames(1)
+
+
+func test_layout_arg() -> void:
+	check(main.parse_layout_arg("3") == 3, "--layout=3 picks layout 3")
+	check(main.parse_layout_arg("abc") == 1, "--layout=abc falls back to layout 1")
+	check(main.parse_layout_arg("0") == 1 and main.parse_layout_arg("99") == 1, "--layout outside the fixtures falls back to layout 1")
 
 
 func test_wall() -> void:

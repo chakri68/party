@@ -37,18 +37,26 @@ func _ready() -> void:
 			start_world(layout)
 			return
 		push_error("main: %s isn't a layout" % path)
-	# Web without ?layout: wait for the host's session (start_world).
+	# Web: wait for the host's session (start_world).
 
 
-## --layout=<n> after `--`, or ?layout=<n> on the page. Off the web the
-## default is 1; on the web it's 0 (wait for the session).
+## --layout=<n> after `--`; 1 if there's none. On the web, 0: wait for the
+## session (fixtures aren't in the web export, so there's no ?layout).
 func _requested_layout() -> int:
+	if OS.has_feature("web"):
+		return 0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--layout="):
-			return a.trim_prefix("--layout=").to_int()
-	if OS.has_feature("web"):
-		var q: Variant = JavaScriptBridge.eval("new URLSearchParams(location.search).get('layout') || ''", true)
-		return q.to_int() if q is String else 0
+			return parse_layout_arg(a.trim_prefix("--layout="))
+	return 1
+
+
+## The n in --layout=<n>, or 1 (with a warning) if it isn't a fixture.
+func parse_layout_arg(v: String) -> int:
+	var n := v.to_int() if v.is_valid_int() else 0
+	if FileAccess.file_exists("res://tests/fixtures/layout_%d.json" % n):
+		return n
+	push_warning("main: --layout=%s isn't a fixture, using layout 1" % v)
 	return 1
 
 

@@ -130,21 +130,23 @@ func _wish_dir() -> Vector3:
 
 
 ## Looks down just past our front for a top we can stand on, between
-## SCRAMBLE_MIN and SCRAMBLE_HEIGHT over the ground we last stood on (not
-## over our feet, so a jump doesn't add to the reach), with room for the
-## whole capsule up there.
+## SCRAMBLE_MIN and SCRAMBLE_HEIGHT over a base height, with room for the
+## whole capsule up there. The base is the ground we last stood on, so a
+## jump doesn't add to the reach, or our feet if they're lower: off a ledge
+## and falling, the old floor is too high to measure from.
 func _try_scramble(dir: Vector3) -> void:
 	var space := get_world_3d().direct_space_state
 	var fwd := dir.normalized()
 	var probe := global_position + fwd * (RADIUS + SCRAMBLE_REACH)
-	var from := Vector3(probe.x, _ground_y + SCRAMBLE_HEIGHT + HEIGHT, probe.z)
-	var to := Vector3(probe.x, _ground_y + SCRAMBLE_MIN * 0.5, probe.z)
+	var base := minf(_ground_y, global_position.y)
+	var from := Vector3(probe.x, base + SCRAMBLE_HEIGHT + HEIGHT, probe.z)
+	var to := Vector3(probe.x, base + SCRAMBLE_MIN * 0.5, probe.z)
 	var q := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
 		return
 	var top: Vector3 = hit.position
-	var rise := top.y - _ground_y
+	var rise := top.y - base
 	if rise < SCRAMBLE_MIN or rise > SCRAMBLE_HEIGHT + 0.02:
 		return
 	# A steep face isn't a ledge, or you could climb any slope a metre at a time.
