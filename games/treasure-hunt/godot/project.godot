@@ -11,6 +11,7 @@ config/description="Treasure Hunt: walk and drive a map made from a seed."
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false
 boot_splash/bg_color=Color(0.11, 0.13, 0.12, 1)
+run/main_scene="res://scenes/main.tscn"
 
 [display]
 

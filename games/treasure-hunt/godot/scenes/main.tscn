@@ -1,0 +1,65 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/player/walker.gd" id="2_walker"]
+[ext_resource type="Script" path="res://scripts/camera/rig_camera.gd" id="3_rig"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_day"]
+sky_top_color = Color(0.3, 0.5, 0.78, 1)
+sky_horizon_color = Color(0.68, 0.78, 0.88, 1)
+ground_horizon_color = Color(0.68, 0.78, 0.88, 1)
+ground_bottom_color = Color(0.36, 0.42, 0.46, 1)
+sun_angle_max = 20.0
+
+[sub_resource type="Sky" id="Sky_day"]
+sky_material = SubResource("SkyMat_day")
+radiance_size = 1
+process_mode = 1
+
+[sub_resource type="Environment" id="Env_day"]
+background_mode = 2
+sky = SubResource("Sky_day")
+ambient_light_source = 3
+ambient_light_energy = 0.8
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.68, 0.78, 0.88, 1)
+fog_density = 1.0
+fog_sky_affect = 0.0
+fog_depth_begin = 300.0
+fog_depth_end = 1200.0
+fog_depth_curve = 1.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_debug"]
+font_size = 16
+outline_size = 4
+outline_color = Color(0, 0, 0, 0.8)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-50, 30, 0)
+light_color = Color(1, 0.97, 0.9, 1)
+shadow_enabled = true
+directional_shadow_mode = 1
+directional_shadow_max_distance = 120.0
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_day")
+
+[node name="Walker" type="CharacterBody3D" parent="."]
+script = ExtResource("2_walker")
+
+[node name="Rig" type="Node3D" parent="."]
+script = ExtResource("3_rig")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Debug" type="Label" parent="UI"]
+visible = false
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 320.0
+offset_bottom = 32.0
+label_settings = SubResource("LabelSettings_debug")
