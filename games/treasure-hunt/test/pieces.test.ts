@@ -86,6 +86,10 @@ describe("TEMPLATES", () => {
         for (const s of slots) {
           expect([0, 0.5, 1]).toContain(s.dy);
           expect(s.hint).toContain("{label}");
+          // Plain copy: no word of 4+ letters said twice, even inside
+          // another word ("Beside the side of ...").
+          const text = s.hint.replace("{label}", "").toLowerCase();
+          for (const w of text.match(/[a-z]{4,}/g) ?? []) expect(text.split(w).length - 1, s.hint).toBe(1);
           // On the pad, so the pad height holds under it.
           expect(Math.hypot(s.x, s.z)).toBeLessThan(t.padR);
         }

@@ -80,7 +80,7 @@ export const TEMPLATES: Record<TemplateId, Template> = {
       return [
         { x: 0, z: -(L / 2 + 1.5), dy: 0, hint: "At the front end of the {label}." },
         { x: 0, z: L / 2 + 1.5, dy: 0, hint: "At the back end of the {label}." },
-        { x: hullBeam(p) / 2 + 2.5, z: 0, dy: 0, hint: "Beside the side of the {label}." },
+        { x: hullBeam(p) / 2 + 2.5, z: 0, dy: 0, hint: "Along the side of the {label}." },
       ];
     },
   },
