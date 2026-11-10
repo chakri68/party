@@ -30,7 +30,8 @@
 .th-timer { color: var(--accent); font-size: 1.05rem; }
 .th-race { color: var(--muted); white-space: nowrap; }
 
-.th-view { position: relative; min-height: 0; background: var(--bg); }
+/* Row 2 always: with the bar hidden (the replay), auto-placement would drop it into the 0 px auto row. */
+.th-view { grid-row: 2; position: relative; min-height: 0; background: var(--bg); }
 .th-stage, .th-godot { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
 
 .th-stage[hidden] { display: none; }

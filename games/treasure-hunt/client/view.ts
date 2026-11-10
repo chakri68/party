@@ -103,7 +103,8 @@ export function resync(priv: THPrivate | null, phase: Phase, streamed: Iterable<
     seen.add(r.id);
     calls.push({ fn: "revealCache", arg: { id: r.id, x: r.x, z: r.z, dy: r.dy } });
   }
-  for (const c of priv?.clues ?? []) if (c.found) calls.push({ fn: "cacheFound", arg: { id: c.id } });
+  // Taken by another team is gone too: Godot hides the crate either way.
+  for (const c of priv?.clues ?? []) if (c.found || c.taken) calls.push({ fn: "cacheFound", arg: { id: c.id } });
   calls.push({ fn: "setPhase", arg: { phase } });
   return calls;
 }
@@ -165,6 +166,8 @@ export class GodotFeed {
   private roster: Roster | null = null;
   private vehicles: Vehicles | null = null;
   private pins: PinsCall | null = null;
+  /** The last pos Godot sent. */
+  private myPos: GodotPos | null = null;
   private send: (calls: BridgeCall[]) => void;
 
   constructor(send: (calls: BridgeCall[]) => void) {
@@ -181,6 +184,11 @@ export class GodotFeed {
     this.priv = priv;
     this.phase = phase;
     this.seed = seed;
+  }
+
+  /** Where Godot last said I am. */
+  mine(p: GodotPos) {
+    this.myPos = p;
   }
 
   /** A relay from the server: a reveal, or where someone in the roster is. */
@@ -204,9 +212,20 @@ export class GodotFeed {
     if (!this.phase) return;
     const calls = resync(this.priv, this.phase, this.streamed.values());
     if (this.pins) calls.unshift({ fn: "pins", arg: this.pins });
-    if (this.vehicles) calls.unshift({ fn: "vehicles", arg: this.vehicles });
+    if (this.vehicles) calls.unshift({ fn: "vehicles", arg: this.withMine(this.vehicles) });
     if (this.roster) calls.unshift({ fn: "roster", arg: this.roster });
     this.send(calls);
+  }
+
+  /**
+   * The list moves only on a commit, so the buggy I drive is listed where the
+   * last action left it. A reloaded Godot would put it back there; my last pos
+   * (in that buggy) is newer. A copy: the state's list stays as it came.
+   */
+  private withMine(vehicles: Vehicles): Vehicles {
+    const p = this.myPos;
+    if (!p || p.v === null || !vehicles.list.some((v) => v.id === p.v && v.driver === vehicles.me)) return vehicles;
+    return { ...vehicles, list: vehicles.list.map((v) => (v.id === p.v && v.driver === vehicles.me ? { ...v, x: p.x, y: p.y, z: p.z, yaw: p.yaw } : v)) };
   }
 }
 
@@ -341,7 +360,7 @@ export class TreasureHuntView implements GameView {
   private myPos: GodotPos | null = null;
   /** Everyone else's last pos relay, and when it came (performance.now()). */
   private others = new Map<string, { x: number; z: number; at: number }>();
-  /** Painted on first use, again for a new seed. */
+  /** Painted in the lobby once the world is built (or on first use), again for a new seed. */
   private base: MapCanvas | null = null;
   private mapOpen = false;
   /** The map is up: countdown or hunting, with the world built. */
@@ -370,6 +389,7 @@ export class TreasureHuntView implements GameView {
       keydown: (e) => this.onKey(e),
       pos: (p) => {
         this.myPos = p;
+        this.feed.mine(p);
         this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, yaw: p.yaw, foot: p.foot, v: p.v });
       },
       claim: (id) => {
@@ -477,6 +497,8 @@ export class TreasureHuntView implements GameView {
     if (game.phase === "finished") this.bridge.releasePointer();
     if (game.phase === "hunting" && loaded) this.msg.textContent = "";
     this.live = loaded && (game.phase === "countdown" || game.phase === "hunting");
+    // The base paint is ~330 ms of main thread. Pay it in the lobby, not in the countdown.
+    if (loaded && game.phase === "teams") this.paintBase(seed);
     this.mini.hidden = this.mapBtn.hidden = !this.live;
     if (!this.live && this.mapOpen) this.setMap(false);
     this.tick();
@@ -535,10 +557,15 @@ export class TreasureHuntView implements GameView {
     return out;
   }
 
+  /** Paints the minimap's base for this seed, unless it already has. */
+  private paintBase(seed: number) {
+    if (this.base?.seed !== seed) this.base = new MapCanvas(layoutFor(seed));
+  }
+
   private drawMaps() {
     const game = this.game;
     if (!game || !this.live) return;
-    if (this.base?.seed !== game.seed) this.base = new MapCanvas(layoutFor(game.seed));
+    this.paintBase(game.seed);
     const overlays = this.overlays(game);
     const spawn = layoutFor(game.seed).spawn;
     const c = this.myPos ?? spawn;

@@ -63,6 +63,14 @@ describe("resync", () => {
     ]);
   });
 
+  it("marks a cache another team took as found too, so its crate goes", () => {
+    const took: THPrivate = { ...priv, clues: [...priv.clues, { id: "c4", clues: ["d"], difficulty: 1, found: false, taken: true }] };
+    expect(resync(took, "hunting").filter((c) => c.fn === "cacheFound")).toEqual([
+      { fn: "cacheFound", arg: { id: "c1" } },
+      { fn: "cacheFound", arg: { id: "c4" } },
+    ]);
+  });
+
   it("still sends the phase with no private state", () => {
     expect(resync(null, "countdown")).toEqual([{ fn: "setPhase", arg: { phase: "countdown" } }]);
   });
@@ -220,6 +228,25 @@ describe("GodotFeed, the other players", () => {
     ]);
     expect(calls).toContainEqual({ fn: "revealCache", arg: { id: "c4", x: 12, z: -30, dy: 0.5 } });
     expect(calls[calls.length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
+  });
+
+  // M2: the list only moves on a commit, so a reload mid-drive would put the
+  // buggy back where the last action left it. Godot's own last pos is newer.
+  it("my driven buggy goes out at my last pos, not the list's", () => {
+    const { feed, sent } = setup();
+    const list = [
+      { id: "t0", x: 1, y: null, z: 2, yaw: 0, driver: "p1", passenger: null },
+      { id: "t1", x: 5, y: 3, z: 6, yaw: 1, driver: "p2", passenger: null },
+    ];
+    feed.update(priv, "hunting", 1, roster, { me: "p1", list });
+    feed.sync();
+    // No pos from Godot yet: as listed.
+    expect(sent[0]![1]).toEqual({ fn: "vehicles", arg: { me: "p1", list } });
+    feed.mine({ x: 300, y: 12, z: -40, yaw: 2.5, foot: false, v: "t0" });
+    feed.sync();
+    expect(sent[1]![1]).toEqual({ fn: "vehicles", arg: { me: "p1", list: [{ ...list[0]!, x: 300, y: 12, z: -40, yaw: 2.5 }, list[1]] } });
+    // The stored list is untouched.
+    expect(list[0]!.x).toBe(1);
   });
 });
 

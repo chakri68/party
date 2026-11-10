@@ -16,6 +16,12 @@ const ROUTE_PX = 3;
 const ROUTE_ALPHA = 0.9;
 const RING_PX = 7;
 
+/** The teams in the legend: only those with a track. A team of spectators never hunted. */
+export function legendTeams(teams: THPublic["teams"], replay: THReplay): THPublic["teams"] {
+  const played = new Set(replay.tracks.map((t) => t.teamId));
+  return teams.filter((t) => played.has(t.id));
+}
+
 /**
  * A route's [x, z] points up to time `t`: every point with s ≤ t, then one
  * more, interpolated along the next segment, so the line grows smoothly.
@@ -109,7 +115,7 @@ export class ReplayView {
       this.slider.value = String(this.t);
     }
     this.legend.replaceChildren(
-      ...game.teams.map((tm) => {
+      ...legendTeams(game.teams, replay).map((tm) => {
         const c = teamColor(tm.color);
         return h("li", { class: "th-replay-key" }, h("span", { class: "th-replay-swatch", style: `background:${c.hex}` }), c.name);
       }),
