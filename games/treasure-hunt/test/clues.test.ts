@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   LAMP_REACH,
+  SHADOW_MAX,
+  SHADOW_MIN_EL,
   SHADOW_STEP,
   START_MIN,
   TEMPLATES,
@@ -8,6 +10,7 @@ import {
   pieceLabel,
   rng,
   shadowTip,
+  sunAt,
   validateLayout,
   worldLamp,
   worldSlot,
@@ -16,7 +19,7 @@ import {
 } from "../shared/index.ts";
 import { makeHunt, type HuntSky } from "../server/hunt.ts";
 import { cacheSpots, type Cache, type CacheSpot } from "../server/caches.ts";
-import { clueTexts, shadowSpots } from "../server/clues.ts";
+import { SHADOW_MINOR_GAP, clueTexts, shadowSpots } from "../server/clues.ts";
 
 const LANDMARK_FILLER = /^[A-Z][^.]*\.$/;
 const RELATIONAL = /^Between the (.+) and the (.+), nearer the (.+)\.$/;
@@ -66,8 +69,10 @@ function checkClue(l: TreasureLayout, c: Cache, clue: string, sky: HuntSky): Kin
     expect(min).toBeGreaterThanOrEqual(sky.startMin);
     expect(min).toBeLessThanOrEqual(sky.startMin + sky.minutes);
     expect(`${sh[2]}:${sh[3]}`).toBe(`${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`);
+    expect(sunAt(min).el).toBeGreaterThanOrEqual(SHADOW_MIN_EL);
     const tip = shadowTip(p, TEMPLATES[p.template].top!(p.params), min)!;
     expect(Math.hypot(tip.x - c.x, tip.z - c.z)).toBeLessThan(1e-9);
+    expect(Math.hypot(c.x - p.x, c.z - p.z)).toBeLessThanOrEqual(SHADOW_MAX);
     return "shadow";
   }
   const lamp = LAMP.exec(clue);
@@ -195,6 +200,36 @@ describe("shadow clues", () => {
   it("none at night or before sunrise", () => {
     expect(shadowSpots(l, NIGHT, rng(1))).toEqual([]);
     expect(shadowSpots(l, { startMin: 200, minutes: 60 }, rng(1))).toEqual([]);
+  });
+
+  it("drops a tip that lands on another piece's pad or at a minor point", () => {
+    const one: HuntSky = { startMin: 600, minutes: 0 };
+    const tip = shadowTip(p, TEMPLATES.lighthouse.top!(p.params), 600)!;
+    expect(shadowSpots(l, one, rng(1)).some((s) => s.source === p.id)).toBe(true);
+    // Move another piece so its pad edge is just past the tip, inside the 1 m gap.
+    const other = l.pieces.find((q) => q.id !== p.id)!;
+    const dir = Math.atan2(other.x - tip.x, other.z - tip.z);
+    const d = other.padR + 0.5;
+    const onPad = structuredClone(l);
+    Object.assign(onPad.pieces.find((q) => q.id === other.id)!, { x: tip.x + Math.sin(dir) * d, z: tip.z + Math.cos(dir) * d });
+    expect(shadowSpots(onPad, one, rng(1)).some((s) => s.source === p.id)).toBe(false);
+    // Or a minor point 2 m from it.
+    const atMinor = structuredClone(l);
+    Object.assign(atMinor.minor[0]!, { x: tip.x + 2, z: tip.z });
+    expect(shadowSpots(atMinor, one, rng(1)).some((s) => s.source === p.id)).toBe(false);
+  });
+
+  it("200 seeds by day: no tip on a pad or at a minor point", () => {
+    let n = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const g = generateLayout(seed);
+      for (const s of shadowSpots(g, DAY, rng(seed))) {
+        n++;
+        for (const q of g.pieces) expect(Math.hypot(s.x - q.x, s.z - q.z)).toBeGreaterThan(q.padR);
+        for (const m of g.minor) expect(Math.hypot(s.x - m.x, s.z - m.z)).toBeGreaterThan(SHADOW_MINOR_GAP);
+      }
+    }
+    expect(n).toBeGreaterThan(100);
   });
 
   it("only a shadow spot takes a shadow clue", () => {

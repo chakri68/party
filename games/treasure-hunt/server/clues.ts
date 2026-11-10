@@ -33,10 +33,23 @@ type Spot = Pick<Cache, "x" | "z" | "dy" | "source" | "shadowMin">;
 /** A shadow tip has its piece as source but isn't at it. */
 const atPiece = (l: TreasureLayout, s: Spot) => s.shadowMin === undefined && l.pieces.some((p) => p.id === s.source);
 
+/** A shadow tip keeps this far (XZ) from every minor point. */
+export const SHADOW_MINOR_GAP = 3;
+/** …and this far beyond every piece's pad. */
+export const SHADOW_PAD_GAP = 1;
+
+/** Not on a piece's pad or at a minor point, where a cache would sit inside something. */
+function clearTip(l: TreasureLayout, t: { x: number; z: number }): boolean {
+  // Every piece, its own too: the tip is ≥ 10 m out, so that one never trips.
+  if (l.pieces.some((p) => Math.hypot(t.x - p.x, t.z - p.z) <= p.padR + SHADOW_PAD_GAP)) return false;
+  return !l.minor.some((m) => Math.hypot(t.x - m.x, t.z - m.z) <= SHADOW_MINOR_GAP);
+}
+
 /**
  * One spot per piece with a `top`: the tip of its shadow at a clock minute in
- * the window, a whole SHADOW_STEP, picked by `r`. A piece whose shadow is
- * never usable in the window (sun too low, shadow too long) gives nothing.
+ * the window, a whole SHADOW_STEP, picked by `r`. A minute whose tip lands on
+ * a pad or a minor point is skipped. A piece with no usable minute in the
+ * window (sun too low, shadow too long, tip blocked) gives nothing.
  */
 export function shadowSpots(l: TreasureLayout, sky: HuntSky, r: Rng): CacheSpot[] {
   const out: CacheSpot[] = [];
@@ -48,7 +61,7 @@ export function shadowSpots(l: TreasureLayout, sky: HuntSky, r: Rng): CacheSpot[
     for (let m = first; m <= sky.startMin + sky.minutes; m += SHADOW_STEP) {
       if (sunAt(m).el < SHADOW_MIN_EL) continue;
       const tip = shadowTip(p, top, m);
-      if (tip) ok.push({ m, ...tip });
+      if (tip && clearTip(l, tip)) ok.push({ m, ...tip });
     }
     if (ok.length === 0) continue;
     const pick = ok[Math.floor(r() * ok.length)]!;
