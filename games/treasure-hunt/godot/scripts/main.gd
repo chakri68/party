@@ -54,6 +54,8 @@ var prompt: PickupPrompt
 ## The other players. Not part of the world: a new seed keeps them, and
 ## their next snapshots move them onto it.
 var remotes: Remotes
+## My team's pins. Outside the world, like the fleet; the ground is set per world.
+var pins: Pins
 
 var _seed := 0
 var _pos_accum := 0.0
@@ -89,6 +91,10 @@ func _ready() -> void:
 	remotes.name = "Remotes"
 	add_child(remotes)
 	bridge.roster_set.connect(remotes.set_roster)
+	pins = Pins.new()
+	pins.name = "Pins"
+	add_child(pins)
+	bridge.pins_set.connect(pins.apply)
 	bridge.remote_moved.connect(_on_remote)
 	compass = Compass.new()
 	compass.name = "Compass"
@@ -199,6 +205,7 @@ func start_world(layout: Dictionary) -> void:
 	walker.visible = true
 	focus = walker
 	fleet.set_field(field)
+	pins.set_field(field)
 	if not fleet.seen:
 		_place(fleet.get_buggy(""), buggy_spawn(), field.spawn_yaw)
 	rig.yaw = field.spawn_yaw
@@ -262,6 +269,7 @@ func _teardown() -> void:
 	avatar.caches = null
 	field = null
 	fleet.set_field(null)
+	pins.set_field(null)
 
 
 ## Hidden and frozen until there's ground to stand on.
@@ -360,7 +368,23 @@ func _process(_dt: float) -> void:
 		_debug.text = "%d fps   %d chunks" % [Engine.get_frames_per_second(), streamer.loaded_count() if streamer else 0]
 
 
+## P: a pin where the camera's centre meets the ground. Only in countdown
+## and hunting; a miss (the sky, or too far) does nothing. On foot, riding
+## or driving alike. Whether the pointer is captured is for the key handler.
+func drop_pin() -> bool:
+	if field == null or (phase != &"countdown" and phase != &"hunting"):
+		return false
+	var cam := rig.camera
+	var hit: Variant = Pins.ray_hit(field, cam.global_position, -cam.global_basis.z)
+	if hit == null:
+		return false
+	bridge.emit_pin({"x": snappedf(hit.x, 0.1), "z": snappedf(hit.y, 0.1)})
+	return true
+
+
 func _unhandled_input(e: InputEvent) -> void:
+	if e.is_action_pressed("pin") and not e.is_echo() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		drop_pin()
 	# Not before the round's on: no head start in the buggy, and no
 	# resetting it either.
 	if field != null and phase == &"hunting" and e.is_action_pressed("interact"):

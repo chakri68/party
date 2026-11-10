@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { godotPos, godotSeat, godotUnseat, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
-import { ActLog, ClaimLog, GodotFeed, claimError, resync, rosterFor } from "../client/view.ts";
+import { godotPin, godotPos, godotSeat, godotUnseat, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
+import { ActLog, ClaimLog, GodotFeed, claimError, pinsFor, resync, rosterFor } from "../client/view.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
@@ -377,5 +377,58 @@ describe("ClaimLog", () => {
     log.add("a2", "c1");
     log.update(priv([]), 2);
     expect(log.size).toBe(1);
+  });
+});
+
+describe("pins", () => {
+  const pin = { id: "n1", by: "p1", x: 10.5, z: -3 };
+  const other = { id: "n2", by: "p2", x: 1, z: 2 };
+
+  it("emitPin becomes a pin action", () => {
+    expect(godotPin({ x: 12.3, z: -4.5 })).toEqual({ x: 12.3, z: -4.5 });
+    expect(godotPin({ x: 1, z: 2, extra: 1 })).toEqual({ x: 1, z: 2 });
+  });
+
+  it("emitPin takes finite numbers only", () => {
+    expect(godotPin({ x: "1", z: 2 })).toBeNull();
+    expect(godotPin({ x: 1 })).toBeNull();
+    expect(godotPin({ x: Infinity, z: 2 })).toBeNull();
+    expect(godotPin({ x: NaN, z: 2 })).toBeNull();
+    expect(godotPin(null)).toBeNull();
+  });
+
+  it("pinsFor: my team's colour on each, mine only where I dropped it", () => {
+    const game = { teams: [{ id: 1, color: "sky" }], players: [{ id: "p1", teamId: 1 }] } as unknown as THPublic;
+    const priv = { teamId: 1, pins: [pin, other], clues: [], revealed: [] } as THPrivate;
+    expect(pinsFor(game, priv, "p1")).toEqual({
+      list: [
+        { id: "n1", x: 10.5, z: -3, color: "#56b4e9", mine: true },
+        { id: "n2", x: 1, z: 2, color: "#56b4e9", mine: false },
+      ],
+    });
+  });
+
+  it("pinsFor: no pins when I have no team or no private state", () => {
+    const game = { teams: [{ id: 1, color: "sky" }], players: [{ id: "p1", teamId: null }] } as unknown as THPublic;
+    expect(pinsFor(game, null, "p1")).toEqual({ list: [] });
+    expect(pinsFor(game, { teamId: null, pins: [pin], clues: [], revealed: [] } as THPrivate, "p1")).toEqual({ list: [] });
+  });
+
+  it("GodotFeed: pins go on every sync, after the buggies", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((calls) => sent.push(calls));
+    const roster: Roster = { me: "p1", players: [] };
+    const vehicles: Vehicles = { me: "p1", list: [] };
+    const pins = { list: [{ id: "n1", x: 1, z: 2, color: "#56b4e9", mine: true }] };
+    feed.update({ teamId: 1, pins: [pin], clues: [], revealed: [] }, "hunting", 1, roster, vehicles, pins);
+    feed.sync();
+    feed.sync();
+    for (const calls of sent) {
+      expect(calls.slice(0, 3)).toEqual([
+        { fn: "roster", arg: roster },
+        { fn: "vehicles", arg: vehicles },
+        { fn: "pins", arg: pins },
+      ]);
+    }
   });
 });

@@ -68,6 +68,17 @@ export interface UnseatPose {
   yaw: number;
 }
 
+/** My team's pins, all of them, every time. `color` is the team's "#rrggbb"; `mine` is whether I dropped it. */
+export interface PinsCall {
+  list: { id: string; x: number; z: number; color: string; mine: boolean }[];
+}
+
+/** P: where on the ground Godot's camera was pointing. */
+export interface PinAsk {
+  x: number;
+  z: number;
+}
+
 /** Another player's pos relay, with who sent it. */
 export type RemotePos = GodotPos & { id: string };
 
@@ -78,7 +89,8 @@ export type BridgeCall =
   | { fn: "setPhase"; arg: { phase: Phase } }
   | { fn: "roster"; arg: Roster }
   | { fn: "remotePos"; arg: RemotePos }
-  | { fn: "vehicles"; arg: Vehicles };
+  | { fn: "vehicles"; arg: Vehicles }
+  | { fn: "pins"; arg: PinsCall };
 
 type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 
@@ -93,6 +105,8 @@ interface HostObject extends GodotFns {
   emitSeat(s: unknown): void;
   /** Checked with godotUnseat. */
   emitUnseat(p: unknown): void;
+  /** Checked with godotPin. */
+  emitPin(p: unknown): void;
   initSession?(config: SessionConfig): void;
 }
 
@@ -108,6 +122,8 @@ export interface BridgeHandlers {
   seat(s: SeatAsk): void;
   /** The player got out. */
   unseat(p: UnseatPose): void;
+  /** The player pressed P: a pin for this spot. */
+  pin(p: PinAsk): void;
   /** Bytes in so far, from Godot's own preloader. `total` is 0 when it doesn't know. */
   progress(loaded: number, total: number): void;
   /** The engine's downloaded and running; the scene's still coming up. */
@@ -166,6 +182,14 @@ export function godotUnseat(p: unknown): UnseatPose | null {
   const nums = [d.x, d.y, d.z, d.yaw];
   if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
   return { x: d.x as number, y: d.y as number, z: d.z as number, yaw: d.yaw as number };
+}
+
+/** What Godot's emitPin gave us, checked and copied, or null. */
+export function godotPin(p: unknown): PinAsk | null {
+  if (!p || typeof p !== "object") return null;
+  const d = p as Record<string, unknown>;
+  if (typeof d.x !== "number" || typeof d.z !== "number" || !Number.isFinite(d.x) || !Number.isFinite(d.z)) return null;
+  return { x: d.x, z: d.z };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
@@ -252,6 +276,10 @@ export class GodotBridge {
         const pose = godotUnseat(p);
         if (pose) this.handlers.unseat(pose);
       },
+      emitPin: (p) => {
+        const at = godotPin(p);
+        if (at) this.handlers.pin(at);
+      },
     };
     const iframe = document.createElement("iframe");
     iframe.className = "th-godot";
@@ -272,7 +300,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles"] as const) delete this.host[k];
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);

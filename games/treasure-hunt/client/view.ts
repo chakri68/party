@@ -1,7 +1,7 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -33,7 +33,7 @@ import { layoutFor } from "./layout-cache.ts";
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
 
-const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. 0° is north.";
+const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
 const PHONE = "Treasure Hunt needs a computer with a keyboard and mouse.";
 const TOAST_MS = 3000;
 
@@ -113,6 +113,15 @@ export function rosterFor(game: Pick<THPublic, "players" | "teams">, seats: read
   return { me, players };
 }
 
+/** My team's pins for Godot, in my team's colour. None without a team. */
+export function pinsFor(game: Pick<THPublic, "players" | "teams">, priv: THPrivate | null, me: string): PinsCall {
+  const teamId = game.players.find((p) => p.id === me)?.teamId ?? null;
+  const team = teamId === null ? undefined : game.teams.find((t) => t.id === teamId);
+  if (!team || !priv || priv.teamId !== team.id) return { list: [] };
+  const color = teamColor(team.color).hex;
+  return { list: priv.pins.map((p) => ({ id: p.id, x: p.x, z: p.z, color, mine: p.by === me })) };
+}
+
 /**
  * What Godot is owed, and the only path to it. The server relays a reveal
  * once and the relay brings no state update, so the feed keeps every
@@ -126,6 +135,7 @@ export class GodotFeed {
   private streamed = new Map<string, CacheReveal>();
   private roster: Roster | null = null;
   private vehicles: Vehicles | null = null;
+  private pins: PinsCall | null = null;
   private send: (calls: BridgeCall[]) => void;
 
   constructor(send: (calls: BridgeCall[]) => void) {
@@ -133,9 +143,10 @@ export class GodotFeed {
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
-  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null) {
+  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null, pins: PinsCall | null = null) {
     this.roster = roster;
     this.vehicles = vehicles;
+    this.pins = pins;
     // A new map's caches are new ones. (A relay before the first update is kept.)
     if (this.seed !== null && seed !== this.seed) this.streamed.clear();
     this.priv = priv;
@@ -157,12 +168,13 @@ export class GodotFeed {
   }
 
   /**
-   * Everything again: the roster, the buggies, then the rest. Cheap: a pool
+   * Everything again: the roster, the buggies, the pins, then the rest. Cheap: a pool
    * is a handful of caches, and Godot keeps capsules and buggies that didn't change.
    */
   sync() {
     if (!this.phase) return;
     const calls = resync(this.priv, this.phase, this.streamed.values());
+    if (this.pins) calls.unshift({ fn: "pins", arg: this.pins });
     if (this.vehicles) calls.unshift({ fn: "vehicles", arg: this.vehicles });
     if (this.roster) calls.unshift({ fn: "roster", arg: this.roster });
     this.send(calls);
@@ -272,6 +284,7 @@ export class TreasureHuntView implements GameView {
   /** The seed we last sent act("ready") for. */
   private readySeed: number | null = null;
   private claims = new ClaimLog();
+  /** Seat, unseat and pin acts: a rejection of any gets a toast. */
   private seats = new ActLog();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
@@ -300,6 +313,7 @@ export class TreasureHuntView implements GameView {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
       seat: (s) => this.seats.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
+      pin: (p) => this.seats.add(this.api.act({ type: "pin", x: p.x, z: p.z })),
       unseat: (p) => this.seats.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
     });
     this.feed = new GodotFeed((calls) => this.bridge.call(calls));
@@ -346,7 +360,7 @@ export class TreasureHuntView implements GameView {
     this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId), {
       me: this.playerId,
       list: this.game.vehicles,
-    });
+    }, pinsFor(this.game, this.priv, this.playerId));
     this.claims.update(this.priv, this.game.seed);
     if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();
