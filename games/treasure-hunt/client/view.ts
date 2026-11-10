@@ -9,7 +9,7 @@ import { StageLoader } from "./godot/loader.ts";
 //   generating  the map loads (StageLoader). Godot's ready() gets the
 //               session ({layout}); its world-ready gets act("ready"), once
 //               per seed. Then "Waiting for N players" until the round starts.
-//   exploring   the map fills the game area, under one strip: the help line
+//   hunting     the map fills the game area, under one strip: the help line
 //               (up as soon as the map is), and End round for the host.
 //   finished    the mouse is let go.
 //
@@ -113,8 +113,8 @@ export class TreasureHuntView implements GameView {
       this.wait.textContent = waitingText(n);
     }
     this.bar.hidden = !loaded;
-    this.end.hidden = game.phase !== "exploring" || this.hostId !== this.playerId;
+    this.end.hidden = game.phase !== "hunting" || this.hostId !== this.playerId;
     if (game.phase === "finished") this.bridge.releasePointer();
-    if (game.phase === "exploring" && loaded) this.msg.textContent = "";
+    if (game.phase === "hunting" && loaded) this.msg.textContent = "";
   }
 }

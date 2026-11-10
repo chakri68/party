@@ -18,3 +18,25 @@ export const BIOMES = ["meadow", "forest", "rocky", "wetland", "snowcap"] as con
 export type Biome = (typeof BIOMES)[number];
 
 export type RingSide = "mountain" | "sea";
+
+// The hunt (§6.4, R1, R8). Godot mirrors the ones it needs.
+
+/** A pool cache this close (XZ) is revealed to its owner. */
+export const REVEAL_RADIUS = 40;
+/** The client offers a claim this close. */
+export const CLAIM_RANGE = 3;
+/** The server accepts a claim this close (XZ): looser than CLAIM_RANGE, for lag. */
+export const CLAIM_CHECK = 6;
+/** How often the client sends its position. */
+export const POS_HZ = 4;
+/** m/s. Faster than this between two positions is a jump. The buggy tops out at 15.3. */
+export const MAX_SPEED = 25;
+/** No claims for this long after a jump. */
+export const JUMP_GRACE_MS = 5000;
+/** A position older than this can't back a claim. */
+export const POS_STALE_MS = 2000;
+/** Metres a claimer may be above or below the ground at the cache. */
+export const HEIGHT_TOL = 20;
+export const COUNTDOWN_MS = 3000;
+/** Timed round lengths. The default is 30. */
+export const TIMED_MINUTES = [15, 30, 60] as const;
