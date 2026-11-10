@@ -93,31 +93,50 @@ describe("photoList", () => {
 });
 
 describe("godotPhoto", () => {
-  it("accepts an id and base64 data", () => {
-    expect(godotPhoto({ id: "c1", data: "abc" })).toEqual({ id: "c1", data: "abc" });
+  const ok = { id: "c1", x: 10, z: 20, data: "abc" };
+
+  it("accepts an id, the pose's x and z, and base64 data", () => {
+    expect(godotPhoto(ok)).toEqual(ok);
   });
 
-  it("rejects a number, a missing id and oversized data", () => {
+  it("rejects a number, a missing id, a bad pose, and empty or oversized data", () => {
     expect(godotPhoto(5)).toBeNull();
-    expect(godotPhoto({ data: "abc" })).toBeNull();
-    expect(godotPhoto({ id: "c1", data: 5 })).toBeNull();
-    expect(godotPhoto({ id: "c1", data: "a".repeat(400_001) })).toBeNull();
-    expect(godotPhoto({ id: "c1", data: "a".repeat(400_000) })).not.toBeNull();
+    expect(godotPhoto({ ...ok, id: undefined })).toBeNull();
+    expect(godotPhoto({ ...ok, x: "10" })).toBeNull();
+    expect(godotPhoto({ ...ok, z: Infinity })).toBeNull();
+    expect(godotPhoto({ id: "c1", data: "abc" })).toBeNull();
+    expect(godotPhoto({ ...ok, data: 5 })).toBeNull();
+    expect(godotPhoto({ ...ok, data: "" })).toBeNull();
+    expect(godotPhoto({ ...ok, data: "a".repeat(400_001) })).toBeNull();
+    expect(godotPhoto({ ...ok, data: "a".repeat(400_000) })).not.toBeNull();
   });
 });
 
 describe("PhotoStore", () => {
   it("keys by id and pose, so a moved camera is a new photo", () => {
     const store = new PhotoStore();
-    store.put("c1", "abc", priv([cam(10, 20)]));
+    store.put({ id: "c1", x: 10, z: 20, data: "abc" });
     expect(store.get("c1", cam(10, 20))).toBe("data:image/jpeg;base64,abc");
     expect(store.get("c1", cam(11, 20))).toBeUndefined();
     expect(PhotoStore.key("c1", cam(10, 20))).toBe("c1|10,20");
   });
 
-  it("drops a photo for a clue that has no camera now", () => {
+  it("an image for an old pose doesn't show under the clue's new pose", () => {
     const store = new PhotoStore();
-    store.put("c9", "abc", priv([cam(10, 20)]));
+    // The board moved c1's camera to (11, 20) while (10, 20) was rendering.
+    store.put({ id: "c1", x: 10, z: 20, data: "old" });
+    expect(store.get("c1", cam(11, 20))).toBeUndefined();
+    store.put({ id: "c1", x: 11, z: 20, data: "new" });
+    expect(store.get("c1", cam(11, 20))).toBe("data:image/jpeg;base64,new");
+  });
+
+  it("a new map empties it; the same map keeps it", () => {
+    const store = new PhotoStore();
+    store.forSeed(1);
+    store.put({ id: "c1", x: 10, z: 20, data: "abc" });
+    store.forSeed(1);
+    expect(store.size).toBe(1);
+    store.forSeed(2);
     expect(store.size).toBe(0);
   });
 });

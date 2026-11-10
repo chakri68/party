@@ -2,7 +2,7 @@ import { h, type GameClientApi, type GameView, type GameViewProps } from "@games
 import { teamColor } from "../shared/teams.ts";
 import type { Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPhoto, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -45,14 +45,14 @@ import { TeamsPanel } from "./teams.ts";
 // centred on the last pos Godot sent, and the whole island on M or the Map
 // button. Others are their last pos relay, dropped after OTHERS_TTL_MS of
 // quiet. M is caught on the iframe's window (Godot has focus) and on ours (the
-// map does, once open).
+// map does, once open). A click on the island drops a pin there, or takes
+// back my own pin if it's within 12 px; both are acts, so a no gets a toast.
 //
 // The sky: every sync tells Godot the game minute (skyMinute) and whether it
 // runs, so a reload mid-round comes up at the right time, not the start.
 // Photo clues: the poses go to Godot when the clue board changes and on its
-// ready(); it renders each in the world and sends back a JPEG, kept in
-// `photos` by clue id and pose for the board. A click on the island drops a pin there, or takes
-// back my own pin if it's within 12 px; both are acts, so a no gets a toast.
+// ready(); it renders each in the world and sends back a JPEG with the pose
+// it was taken at, kept in `photos` by clue id and pose for the board.
 
 const HELP = "Click to look around. WASD to move. E to get in or out, or to pick up a cache. P to drop a pin. 0° is north.";
 const PHONE = "Treasure Hunt needs a computer with a keyboard and mouse.";
@@ -138,12 +138,14 @@ export function photoList(priv: THPrivate | null): PhotoPose[] {
 }
 
 /**
- * The photos Godot rendered, as data URLs, keyed `${id}|${x},${z}`: a clue
- * whose camera moved is a new photo, and one that went is never shown. Lives
- * as long as the view, so an iframe reload keeps them.
+ * The photos Godot rendered, as data URLs, keyed `${id}|${x},${z}` by the
+ * pose Godot rendered: a clue whose camera moved is a new photo, so an old
+ * render never shows under the new pose. Lives as long as the view, so an
+ * iframe reload keeps them; a new map empties it.
  */
 export class PhotoStore {
   private images = new Map<string, string>();
+  private seed: number | null = null;
 
   static key(id: string, cam: Pick<PhotoCam, "x" | "z">): string {
     return `${id}|${cam.x},${cam.z}`;
@@ -153,10 +155,15 @@ export class PhotoStore {
     return this.images.size;
   }
 
-  /** Godot names only the id: the pose is the one on the board now. No camera, no photo. */
-  put(id: string, data: string, priv: THPrivate | null) {
-    const cam = priv?.clues.find((c) => c.id === id)?.photo;
-    if (cam) this.images.set(PhotoStore.key(id, cam), `data:image/jpeg;base64,${data}`);
+  /** The map in play. A new seed's clues are new ones: the old photos go. */
+  forSeed(seed: number) {
+    if (this.seed !== null && seed !== this.seed) this.images.clear();
+    this.seed = seed;
+  }
+
+  /** Filed under the pose Godot rendered, which may not be the board's any more. */
+  put(p: GodotPhoto) {
+    this.images.set(PhotoStore.key(p.id, p), `data:image/jpeg;base64,${p.data}`);
   }
 
   /** The data URL for this clue at this pose, or undefined while it renders. */
@@ -472,7 +479,7 @@ export class TreasureHuntView implements GameView {
       seat: (s) => this.acts.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
       pin: (p) => this.acts.add(this.api.act({ type: "pin", x: p.x, z: p.z })),
       photo: (p) => {
-        this.photos.put(p.id, p.data, this.priv);
+        this.photos.put(p);
         this.tick();
       },
       unseat: (p) => this.acts.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
@@ -538,6 +545,7 @@ export class TreasureHuntView implements GameView {
       list: this.game.vehicles,
     }, pinsFor(this.game, this.priv, this.playerId), this.game);
     this.claims.update(this.priv, this.game.seed);
+    this.photos.forSeed(this.game.seed);
     if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();
   }

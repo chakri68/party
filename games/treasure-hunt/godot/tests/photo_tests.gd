@@ -30,6 +30,7 @@ func run() -> void:
 	print("photos")
 	await test_render_once_per_pose()
 	await test_before_world()
+	await test_queued_pose_replaced()
 	test_hold()
 	await test_blank_capture()
 	await test_main_wiring()
@@ -65,7 +66,7 @@ func test_render_once_per_pose() -> void:
 	t.root.add_child(p)
 	p.set_world(w.field, w.streamer)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, data: String) -> void: got.append([id, data]))
+	p.photo_ready.connect(func(id: String, x: float, z: float, data: String) -> void: got.append([id, data, x, z]))
 
 	p.set_list([_pose("c1", 10, 20), _pose("c2", -30, 40)])
 	await _until(got, 2)
@@ -81,6 +82,7 @@ func test_render_once_per_pose() -> void:
 	p.set_list([_pose("c1", 12, 20), _pose("c2", -30, 40)])
 	await _until(got, 4, 120)
 	check(got.size() == 3 and got[2][0] == "c1", "the same id with a new pose: once (%d)" % got.size())
+	check(got.size() == 3 and is_equal_approx(got[2][2], 12.0) and is_equal_approx(got[2][3], 20.0), "the photo names the pose it was rendered at")
 	check(not w.streamer.is_held(), "the streamer is let go after each photo")
 
 	p.queue_free()
@@ -92,7 +94,7 @@ func test_before_world() -> void:
 	var p := FakePhotos.new()
 	t.root.add_child(p)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, _data: String) -> void: got.append(id))
+	p.photo_ready.connect(func(id: String, _x: float, _z: float, _data: String) -> void: got.append(id))
 	p.set_list([_pose("c1", 10, 20)])
 	await _until(got, 1, 10)
 	check(got.is_empty(), "no world yet: queued, not rendered")
@@ -106,6 +108,27 @@ func test_before_world() -> void:
 	p.set_list([_pose("c1", 10, 20)])
 	await _until(got, 2)
 	check(got.size() == 2, "a new world renders the same pose again")
+	p.queue_free()
+	w.streamer.queue_free()
+	await t.process_frame
+
+
+## A new pose for an id still waiting in the queue takes its place: the old
+## pose never renders, and the queue keeps its order.
+func test_queued_pose_replaced() -> void:
+	var p := FakePhotos.new()
+	t.root.add_child(p)
+	var got: Array = []
+	p.photo_ready.connect(func(id: String, x: float, _z: float, _data: String) -> void: got.append([id, x]))
+	# No world yet, so all of it waits in the queue.
+	p.set_list([_pose("c1", 10, 20), _pose("c2", -30, 40)])
+	p.set_list([_pose("c1", 15, 20), _pose("c2", -30, 40)])
+	check(p.pending() == 2, "a queued pose is replaced, not added (%d queued)" % p.pending())
+	var w := _world()
+	p.set_world(w.field, w.streamer)
+	await _until(got, 2)
+	await _until(got, 3, 20)
+	check(got == [["c2", -30.0], ["c1", 15.0]], "only the new pose renders, after the rest (%s)" % [got])
 	p.queue_free()
 	w.streamer.queue_free()
 	await t.process_frame
@@ -132,7 +155,7 @@ func test_blank_capture() -> void:
 	t.root.add_child(p)
 	p.set_world(w.field, w.streamer)
 	var got: Array = []
-	p.photo_ready.connect(func(id: String, _data: String) -> void: got.append(id))
+	p.photo_ready.connect(func(id: String, _x: float, _z: float, _data: String) -> void: got.append(id))
 	p.set_list([_pose("c1", 10, 20)])
 	for i in 60:
 		await t.process_frame
@@ -161,8 +184,8 @@ func test_main_wiring() -> void:
 	bridge.photo_sent.connect(func(d: Dictionary) -> void: sent.append(d))
 	var photos: Photos = main.photos
 	check(photos != null and photos.pending() + (1 if photos.busy() else 0) == 1, "main hands the list to Photos")
-	photos.photo_ready.emit("c9", "abc")
-	check(sent == [{"id": "c9", "data": "abc"}], "a photo goes out as emitPhoto({id, data})")
+	photos.photo_ready.emit("c9", 1.5, -2.0, "abc")
+	check(sent == [{"id": "c9", "x": 1.5, "z": -2.0, "data": "abc"}], "a photo goes out as emitPhoto({id, x, z, data})")
 	# The real capture, headless: an empty frame, tried and dropped, quietly.
 	for i in 40:
 		await t.process_frame

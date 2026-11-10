@@ -23,7 +23,7 @@ extends Node
 ##   host.emitSeat({vehicleId, seat})      E by a buggy: "driver" or "passenger"
 ##   host.emitUnseat({x, y, z, yaw})       got out; the buggy's pose
 ##   host.emitPin({x, z})                  P: where the camera looks at the ground
-##   host.emitPhoto({id, data})            a photo clue, rendered: base64 JPEG
+##   host.emitPhoto({id, x, z, data})      a photo clue, rendered at x, z: base64 JPEG
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Every inbound call
 ## has a receive_*_json seam and every outbound one a *_sent signal, so
@@ -175,9 +175,10 @@ func emit_pin(at: Dictionary) -> void:
 		_host.emitPin(_json.parse(JSON.stringify(at)))
 
 
-## A rendered photo clue: {id, data}, data being base64 JPEG.
-func emit_photo(id: String, data: String) -> void:
-	var d := {"id": id, "data": data}
+## A rendered photo clue: {id, x, z, data}. x, z: the pose it was rendered
+## at; data: base64 JPEG.
+func emit_photo(id: String, x: float, z: float, data: String) -> void:
+	var d := {"id": id, "x": x, "z": z, "data": data}
 	photo_sent.emit(d)
 	if connected and _host.emitPhoto:
 		_host.emitPhoto(_json.parse(JSON.stringify(d)))

@@ -13,7 +13,8 @@ extends Node
 ## nothing): that pose goes to the back of the queue, and after MAX_TRIES
 ## it's dropped, unrendered, until a list names it again.
 
-signal photo_ready(id: String, data: String)
+## x and z: the pose it was rendered at, so the page files it under that.
+signal photo_ready(id: String, x: float, z: float, data: String)
 
 ## Copies of PHOTO_W, PHOTO_H, PHOTO_Q and PHOTO_EYE in shared/sky.ts.
 const PHOTO_W := 480
@@ -146,7 +147,7 @@ func _render(e: Dictionary) -> void:
 	if img.get_format() != Image.FORMAT_RGB8:
 		img.convert(Image.FORMAT_RGB8)
 	_done[e.id] = e.key
-	photo_ready.emit(e.id, Marshalls.raw_to_base64(img.save_jpg_to_buffer(PHOTO_Q)))
+	photo_ready.emit(e.id, e.x, e.z, Marshalls.raw_to_base64(img.save_jpg_to_buffer(PHOTO_Q)))
 	_pump.call_deferred()
 
 

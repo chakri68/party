@@ -99,9 +99,11 @@ export interface SkyClock {
   running: boolean;
 }
 
-/** A photo Godot rendered: base64 JPEG. */
+/** A photo Godot rendered: base64 JPEG, and the camera's x and z it was rendered at. */
 export interface GodotPhoto {
   id: string;
+  x: number;
+  z: number;
   data: string;
 }
 
@@ -233,8 +235,10 @@ export function godotPin(p: unknown): PinAsk | null {
 export function godotPhoto(p: unknown): GodotPhoto | null {
   if (!p || typeof p !== "object") return null;
   const d = p as Record<string, unknown>;
-  if (typeof d.id !== "string" || d.id.length < 1 || typeof d.data !== "string" || d.data.length > PHOTO_DATA_MAX) return null;
-  return { id: d.id, data: d.data };
+  if (typeof d.id !== "string" || d.id.length < 1) return null;
+  if (typeof d.x !== "number" || typeof d.z !== "number" || !Number.isFinite(d.x) || !Number.isFinite(d.z)) return null;
+  if (typeof d.data !== "string" || d.data.length < 1 || d.data.length > PHOTO_DATA_MAX) return null;
+  return { id: d.id, x: d.x, z: d.z, data: d.data };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
@@ -376,16 +380,6 @@ export class GodotBridge {
     const host = this.host;
     if (!host || !this.isReady) return;
     for (const c of calls) (host[c.fn] as ((arg: unknown) => void) | undefined)?.(c.arg);
-  }
-
-  /** The sky clock, if Godot is up. */
-  skyClock(min: number, running: boolean) {
-    this.call([{ fn: "skyClock", arg: { min, running } }]);
-  }
-
-  /** My team's photo clue poses, if Godot is up. */
-  photos(list: PhotoPose[]) {
-    this.call([{ fn: "photos", arg: { list } }]);
   }
 
   /** Tear the engine down and boot it again from scratch: the failed state's way out. */
