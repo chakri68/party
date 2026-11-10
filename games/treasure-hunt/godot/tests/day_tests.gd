@@ -136,7 +136,9 @@ func test_daylight() -> void:
 	check(h.r > h.b, "sunset: a warm horizon (%s)" % [h])
 	check(absf(sun.light_energy - 0.5) < 1e-3, "sunset: sun energy 0.5 (%.3f)" % sun.light_energy)
 	r.dl.apply(1090)
-	check(not sun.shadow_enabled and sun.light_energy > 0.0, "just after sunset: still some sun, but no shadows below the horizon")
+	check(not sun.shadow_enabled and sun.light_energy == 0.0, "just after sunset: the sun is below the horizon, so no energy and no shadows (%.3f)" % sun.light_energy)
+	r.dl.apply(1070)
+	check(sun.light_energy > 0.0 and sun.light_energy < 1.0, "before sunset: dusk sun still lights (%.3f)" % sun.light_energy)
 	_free(r)
 
 

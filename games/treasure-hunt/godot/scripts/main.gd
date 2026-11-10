@@ -62,6 +62,10 @@ var pins: Pins
 var day_clock: DayClock
 ## Sun, moon, ambient, sky and fog, from day_clock every frame.
 var daylight: Daylight
+## F: your torch. It only lights the world while on (a spot on the camera).
+var torch_on := false
+## The sky's darkness as last heard from day_clock.
+var dark := 0.0
 
 var _seed := 0
 var _pos_accum := 0.0
@@ -112,6 +116,9 @@ func _ready() -> void:
 	daylight.setup($Sun, $Moon, env, env.sky.sky_material)
 	daylight.apply(day_clock.minute())
 	bridge.sky_clock_set.connect(day_clock.set_clock)
+	# A listener that joins after the first frame misses the first dark_changed.
+	day_clock.dark_changed.connect(_on_dark)
+	_on_dark(DayClock.dark_at(day_clock.minute()))
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -197,6 +204,7 @@ func start_world(layout: Dictionary) -> void:
 	pieces.name = "Pieces"
 	world.add_child(pieces)
 	pieces.build_all(layout)
+	pieces.set_lamps(dark >= DayClock.LAMP_ON)
 	minor = MinorPoints.new()
 	minor.name = "MinorPoints"
 	minor.field = field
@@ -245,6 +253,19 @@ func found_cache(id: String) -> void:
 		_pending_found.append(id)
 	else:
 		caches.found(id)
+
+
+## Lamps and headlights follow the dark.
+func _on_dark(d: float) -> void:
+	dark = d
+	fleet.set_dark(d)
+	if pieces != null:
+		pieces.set_lamps(d >= DayClock.LAMP_ON)
+
+
+func set_torch(on: bool) -> void:
+	torch_on = on
+	rig.torch.visible = on
 
 
 func set_phase(p: StringName) -> void:
@@ -380,6 +401,8 @@ func _process(_dt: float) -> void:
 	if streamer and focus:
 		streamer.update(focus.global_position)
 	compass.set_yaw(rig.yaw)
+	if caches != null:
+		caches.glint(rig.camera.global_position, torch_on, dark)
 	prompt_tick()
 	if _debug.visible:
 		_debug.text = "%d fps   %d chunks" % [Engine.get_frames_per_second(), streamer.loaded_count() if streamer else 0]
@@ -404,6 +427,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		drop_pin()
 	# Not before the round's on: no head start in the buggy, and no
 	# resetting it either.
+	if e.is_action_pressed("torch") and not e.is_echo():
+		set_torch(not torch_on)
 	if field != null and phase == &"hunting" and e.is_action_pressed("interact"):
 		avatar.interact()
 	elif field != null and phase == &"hunting" and e.is_action_pressed("reset_vehicle"):

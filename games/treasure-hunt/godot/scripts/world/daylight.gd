@@ -82,7 +82,8 @@ func apply(m: float) -> void:
 	var dark := DayClock.dark_at(m)
 	var w := warmth(s.y) * WARM_PEAK
 	sun.basis = Basis.looking_at(-toward(s.x, s.y), Vector3.UP)
-	sun.light_energy = 1.0 - dark
+	# Nothing from below the horizon: the sun lights only while it is up.
+	sun.light_energy = (1.0 - dark) if s.y >= 0.0 else 0.0
 	sun.shadow_enabled = s.y > 0.0
 	sun.light_color = _day_sun.lerp(WARM, w / 3.0)
 	moon.light_energy = MOON_ENERGY * dark

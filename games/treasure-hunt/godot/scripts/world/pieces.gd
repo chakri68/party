@@ -23,3 +23,11 @@ func clear() -> void:
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
+
+
+## Lamps on or off: every Lamp<i> light in the pieces, and the glowing
+## materials. Pieces built later start in whichever state this left.
+func set_lamps(on: bool) -> void:
+	PieceKit.set_lamps_on(on)
+	for l: Node in find_children("Lamp*", "OmniLight3D", true, false):
+		(l as OmniLight3D).visible = on

@@ -27,6 +27,8 @@ var target: Node3D
 var profile: StringName = &"walk"
 var arm: SpringArm3D
 var camera: Camera3D
+## The torch: a spot on the camera, so it points where you look.
+var torch: SpotLight3D
 
 var _blend := 1.0 # 0..1, 1 = settled on the profile
 var _from_len := 4.0
@@ -55,6 +57,13 @@ func _init() -> void:
 	camera.far = 1500.0
 	camera.current = true
 	arm.add_child(camera)
+	torch = SpotLight3D.new()
+	torch.name = "Torch"
+	torch.spot_range = DayClock.TORCH_RANGE
+	torch.spot_angle = DayClock.TORCH_ANGLE
+	torch.light_energy = 2.0
+	torch.visible = false
+	camera.add_child(torch)
 
 
 ## Follow `t` with a profile. The first follow snaps; later ones blend from

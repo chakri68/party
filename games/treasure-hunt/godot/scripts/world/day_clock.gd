@@ -23,6 +23,14 @@ const SUN_MAX_EL := 55.0
 const DARK_LIGHT_EL := 6.0
 const DARK_FULL_EL := -6.0
 
+## Lights, copied from shared/sky.ts too.
+const LAMP_ON := 0.3
+const TORCH_RANGE := 18.0
+const TORCH_ANGLE := 35.0
+const HEAD_RANGE := 60.0
+const HEAD_ANGLE := 18.0
+const GLINT_RANGE := 8.0
+
 const DAY := 1440.0
 const DARK_EPS := 0.01
 

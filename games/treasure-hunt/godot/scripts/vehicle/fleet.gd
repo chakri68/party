@@ -30,6 +30,8 @@ var locked := false
 ## A vehicles list has come.
 var seen := false
 var me := ""
+## The sky's darkness, from main (dark_changed). Headlights follow it.
+var dark := 0.0
 
 ## id -> Buggy
 var _buggies: Dictionary = {}
@@ -49,8 +51,24 @@ func _ready() -> void:
 		_add("")
 
 
+## Headlights on for every buggy with a driver, once it is dark enough.
+func set_dark(d: float) -> void:
+	dark = d
+	_refresh_lights()
+
+
+func _refresh_lights() -> void:
+	for id in _buggies:
+		var b: Buggy = _buggies[id]
+		var on := dark >= DayClock.LAMP_ON and (b.driver != null or vehicle(id).get("driver") != null)
+		if on != b.lights_on:
+			b.set_lights(on)
+
+
 func _physics_process(dt: float) -> void:
 	_clock += dt
+	# A local driver gets in and out without a list, so look every tick.
+	_refresh_lights()
 	if field == null:
 		return
 	for id in _snaps:
@@ -142,6 +160,7 @@ func apply(list: Array, my_id: String) -> void:
 		if not next.has(id) and id != "":
 			_drop_later.append(id)
 	_list = next
+	_refresh_lights()
 	applied.emit()
 	for id in _drop_later:
 		_remove(id)

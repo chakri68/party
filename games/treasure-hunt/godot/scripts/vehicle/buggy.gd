@@ -80,6 +80,10 @@ var brake_input := 0.0
 ## Seconds of throttle held while going nowhere.
 var stuck_s := 0.0
 
+## Headlights, on while it has a driver in the dark (Fleet sets them).
+var lights_on := false
+var _heads: Array[SpotLight3D] = []
+
 var _steer := 0.0 # the wheel, after its wind-on rate
 var _yaw_rate := 0.0
 
@@ -88,6 +92,22 @@ func _init() -> void:
 	floor_max_angle = deg_to_rad(35.0)
 	collision_layer = 2 # not 1, so the camera's spring arm looks past it
 	collision_mask = 1
+	for sx in [-0.8, 0.8]:
+		var l := SpotLight3D.new()
+		l.name = "Head%s" % ("L" if sx < 0 else "R")
+		l.position = Vector3(sx, 0.9, -2.1)
+		l.spot_range = DayClock.HEAD_RANGE
+		l.spot_angle = DayClock.HEAD_ANGLE
+		l.light_energy = 4.0
+		l.visible = false
+		add_child(l)
+		_heads.append(l)
+
+
+func set_lights(on: bool) -> void:
+	lights_on = on
+	for l in _heads:
+		l.visible = on
 
 
 ## Local and parked keep the M2 collider (layer 2, the world under it). A

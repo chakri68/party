@@ -86,3 +86,11 @@ func count() -> int:
 
 func crate(id: String) -> Cache:
 	return _crates.get(id)
+
+
+## The strips catch the torch: lit on every cache still out, within
+## GLINT_RANGE of `from`, while the torch is on and it is dark enough.
+func glint(from: Vector3, torch_on: bool, dark: float) -> void:
+	var night := torch_on and dark >= DayClock.LAMP_ON
+	for c: Cache in _crates.values():
+		c.set_glint(night and c.visible and not c.found and c.global_position.distance_to(from) <= DayClock.GLINT_RANGE)
