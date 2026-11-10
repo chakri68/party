@@ -101,7 +101,7 @@ export const TEMPLATES: Record<TemplateId, Template> = {
         { ...polar(0, Rc + 1.2), dy: 0, hint: "Behind the tallest stone of the {label}." },
       ];
       if (p.fallen! > 0) {
-        out.push({ ...polar((2 * Math.PI * (n - 1)) / n, Rc + 1.5), dy: 0.5, hint: "On top of a fallen stone in the {label}." });
+        out.push({ ...polar((2 * Math.PI * (n - 1)) / n, Rc + 1.5), dy: 0.5, hint: "On top of a fallen stone by the {label}." });
       }
       return out;
     },
@@ -126,8 +126,11 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     },
   },
 
-  // Tent i at polar(2πi/tents, 5 m), door facing the centre. A fire pit,
-  // 0.8 m across, at the centre. A log seat, 0.5 m high, along Z at x = −2.2.
+  // Tent i at polar(2πi/tents, 5 m), door facing the centre, its footprint
+  // within 1.25 m of that point (2.5 m across at most). A fire pit, 0.8 m
+  // across, at the centre. A log seat, 0.5 m high and 0.4 m thick, at x = −2.2,
+  // running 2 m along Z (z −1..1). With 3 tents, the tent at (−4.33, 2.5) then
+  // keeps 1 m clear of the log.
   camp: {
     id: "camp",
     name: "camp",
@@ -143,9 +146,14 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     ],
   },
 
-  // Body along Z from −6 to 6, nose at −Z. Wings at z −2..0, x −7..7. The
-  // debris trail starts 9 m out along `heading` (radians, clockwise from −Z);
-  // with 20 or more bits, its biggest piece sits at 12 m.
+  // Body along Z from −6 to 6, nose at −Z. Wings at z −2..0, x −7..7.
+  // Careful: `heading` is radians clockwise from −Z (as in `polar`), while
+  // `yaw` is Godot's, counter-clockwise. Use polar(heading, d) for the trail.
+  // The debris trail runs out along `heading`. Each bit sits beyond 9 m plus
+  // its own size, and at least 1 m clear of every slot, the nose, tail and wing
+  // ones included. With 20 or more bits, the biggest piece sits at
+  // polar(heading, 13.5), its footprint under 0.8 m in radius, so the slot at
+  // 12 m stands just in front of it.
   plane: {
     id: "plane",
     name: "plane",

@@ -48,7 +48,11 @@ function biomeAt(l: TreasureLayout, x: number, z: number): string {
   return BIOMES[biomes[j * size + i]!]!;
 }
 
-/** Highest minus lowest macro height over the pad: its centre and 8 points on its rim. */
+/**
+ * Highest minus lowest macro height over the pad: its centre and 8 points on
+ * its rim. Re-derived here rather than imported from sites.ts, so the test
+ * checks the rule on its own terms.
+ */
 function padSpread(l: TreasureLayout, p: SetPiece): number {
   const hs = [macroHeight(l, p.x, p.z)];
   for (let k = 0; k < 8; k++) {
@@ -60,7 +64,7 @@ function padSpread(l: TreasureLayout, p: SetPiece): number {
 
 describe("TEMPLATES", () => {
   it("every template rolls params in range and gives 2–4 slots with 0 ≤ dy ≤ 1", () => {
-    expect(IDS.sort()).toEqual(Object.keys(RANGES).sort());
+    expect([...IDS].sort()).toEqual(Object.keys(RANGES).sort());
     for (const id of IDS) {
       const t = TEMPLATES[id];
       expect(t.id).toBe(id);
