@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { shouldSendSession, worldReadyFor, type BridgeCall } from "../client/godot/bridge.ts";
-import { ClaimLog, GodotFeed, claimError, resync } from "../client/view.ts";
-import type { THPrivate } from "../shared/types.ts";
+import { godotPos, shouldSendSession, worldReadyFor, type BridgeCall, type Roster } from "../client/godot/bridge.ts";
+import { ClaimLog, GodotFeed, claimError, resync, rosterFor } from "../client/view.ts";
+import type { THPrivate, THPublic } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
 // per layout seed, and again only when Godot itself came back up (an iframe
@@ -108,15 +108,15 @@ describe("GodotFeed", () => {
   it("relays a stream reveal at once", () => {
     const { feed, last } = setup();
     feed.update(priv(), "hunting", 1);
-    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
     expect(last()).toEqual([{ fn: "revealCache", arg: { id: "c4", x: 12, z: -30, dy: 0.5 } }]);
   });
 
   it("ignores stream data that is not a reveal", () => {
     const { feed, sent } = setup();
     feed.update(priv(), "hunting", 1);
-    feed.stream({ t: "pos", x: 1, y: 2, z: 3, foot: true });
-    feed.stream({ t: "reveal", id: 4, x: 1, z: 2 });
+    feed.stream("p2", { t: "pos", x: 1, y: 2, z: 3, foot: true });
+    feed.stream("p2", { t: "reveal", id: 4, x: 1, z: 2 });
     expect(sent).toEqual([]);
   });
 
@@ -126,7 +126,7 @@ describe("GodotFeed", () => {
     const { feed, last } = setup();
     feed.update(priv(), "hunting", 1);
     feed.sync();
-    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
     feed.sync(); // ready() from a reloaded iframe
     expect(reveals(last())).toEqual([{ id: "c4", x: 12, z: -30, dy: 0.5 }]);
     expect(last()[last().length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
@@ -135,7 +135,7 @@ describe("GodotFeed", () => {
   it("sends a reveal once when it is in both the stream and the state", () => {
     const { feed, last } = setup();
     feed.update(priv(), "hunting", 1);
-    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
     feed.update(priv([{ id: "c4", x: 12, z: -30, dy: 0.5 }]), "hunting", 1);
     feed.sync();
     expect(reveals(last())).toEqual([{ id: "c4", x: 12, z: -30, dy: 0.5 }]);
@@ -144,10 +144,105 @@ describe("GodotFeed", () => {
   it("forgets stream reveals on a new map", () => {
     const { feed, last } = setup();
     feed.update(priv(), "hunting", 1);
-    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
     feed.update(priv(), "teams", 2);
     feed.sync();
     expect(reveals(last())).toEqual([]);
+  });
+});
+
+// Bridge v3: the others. The roster goes on every sync, first; a pos relay
+// from someone in it goes straight on as remotePos, tagged with who sent it.
+describe("GodotFeed, the other players", () => {
+  const priv: THPrivate = { teamId: 1, pins: [], clues: [], revealed: [] };
+  const roster: Roster = {
+    me: "p1",
+    players: [
+      { id: "p1", name: "Asha", color: "#e69f00", team: 1 },
+      { id: "p2", name: "Ravi", color: "#56b4e9", team: 2 },
+    ],
+  };
+  const setup = () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((calls) => sent.push(calls));
+    feed.update(priv, "hunting", 1, roster);
+    return { feed, sent };
+  };
+  const pos = { t: "pos", x: 1.5, y: 2, z: -3, yaw: 0.25, foot: true, v: null };
+
+  it("pos relay from another player becomes a remotePos call", () => {
+    const { feed, sent } = setup();
+    feed.stream("p2", pos);
+    expect(sent).toEqual([[{ fn: "remotePos", arg: { id: "p2", x: 1.5, y: 2, z: -3, yaw: 0.25, foot: true, v: null } }]]);
+  });
+
+  it("keeps the buggy id of a driver", () => {
+    const { feed, sent } = setup();
+    feed.stream("p2", { ...pos, foot: false, v: "b1" });
+    expect(sent[0]![0]).toEqual({ fn: "remotePos", arg: { id: "p2", x: 1.5, y: 2, z: -3, yaw: 0.25, foot: false, v: "b1" } });
+  });
+
+  it("drops a pos from me, from someone not in the roster, or that is malformed", () => {
+    const { feed, sent } = setup();
+    feed.stream("p1", pos);
+    feed.stream("p9", pos);
+    feed.stream("p2", { ...pos, x: "1" });
+    feed.stream("p2", { ...pos, foot: "yes" });
+    expect(sent).toEqual([]);
+  });
+
+  it("sends the roster first on every sync", () => {
+    const { feed, sent } = setup();
+    feed.sync();
+    feed.sync();
+    expect(sent.map((calls) => calls[0])).toEqual([
+      { fn: "roster", arg: roster },
+      { fn: "roster", arg: roster },
+    ]);
+    expect(sent[0]![sent[0]!.length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
+  });
+});
+
+describe("rosterFor", () => {
+  const game = {
+    teams: [
+      { id: 1, color: "orange", foundCount: 0, poolSize: 3 },
+      { id: 2, color: "sky", foundCount: 0, poolSize: 3 },
+    ],
+    players: [
+      { id: "p1", ready: true, spectator: false, removed: false, teamId: 1 },
+      { id: "p2", ready: true, spectator: false, removed: false, teamId: 2 },
+      { id: "p3", ready: false, spectator: true, removed: false, teamId: 2 },
+      { id: "p4", ready: true, spectator: false, removed: true, teamId: 1 },
+      { id: "p5", ready: true, spectator: false, removed: false, teamId: null },
+    ],
+  } as unknown as THPublic;
+  const seats = [
+    { id: "p1", name: "Asha" },
+    { id: "p2", name: "Ravi" },
+  ];
+
+  it("lists every hunter, me included, with a seat name and the team colour", () => {
+    expect(rosterFor(game, seats, "p1")).toEqual({
+      me: "p1",
+      players: [
+        { id: "p1", name: "Asha", color: "#e69f00", team: 1 },
+        { id: "p2", name: "Ravi", color: "#56b4e9", team: 2 },
+      ],
+    });
+  });
+});
+
+describe("godotPos", () => {
+  it("takes x, y, z, yaw, foot and v", () => {
+    expect(godotPos({ x: 1, y: 2, z: 3, yaw: -1.5, foot: false, v: null })).toEqual({ x: 1, y: 2, z: 3, yaw: -1.5, foot: false, v: null });
+    expect(godotPos({ x: 1, y: 2, z: 3, yaw: 0, foot: false, v: "b1" })).toEqual({ x: 1, y: 2, z: 3, yaw: 0, foot: false, v: "b1" });
+  });
+
+  it("drops a pos with a bad yaw or v", () => {
+    expect(godotPos({ x: 1, y: 2, z: 3, yaw: Number.NaN, foot: true, v: null })).toBeNull();
+    expect(godotPos({ x: 1, y: 2, z: 3, yaw: 0, foot: true, v: 7 })).toBeNull();
+    expect(godotPos(null)).toBeNull();
   });
 });
 

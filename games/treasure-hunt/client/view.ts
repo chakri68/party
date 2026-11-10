@@ -1,6 +1,7 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { teamColor } from "../shared/teams.ts";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type RemotePos, type Roster } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -20,9 +21,11 @@ import { layoutFor } from "./layout-cache.ts";
 // Godot sends where the player is (→ api.stream) and E by a cache
 // (→ act claim). The server sends a reveal when a cache of ours is close; it
 // goes straight to Godot, and lands in private state too, but only at the
-// next real update (a relay doesn't bump the state). Every render and every
-// ready() sends it all again (resync): private state plus the reveals that
-// came over the stream since. A reveal can miss: it went to the old world
+// next real update (a relay doesn't bump the state). Another player's pos
+// relay goes straight on too, if they're in the roster: everyone Godot
+// should draw, with their name and colour. Every render and every ready()
+// sends it all again (the roster, then resync: private state plus the
+// reveals that came over the stream since). A reveal can miss: it went to the old world
 // just before a rebuild, or to an iframe that reloaded.
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
@@ -82,6 +85,32 @@ function parseReveal(data: unknown): CacheReveal | null {
   return { id: d.id, x: d.x, z: d.z, dy: typeof d.dy === "number" ? d.dy : 0 };
 }
 
+/** Another hunter's pos relay, tagged with who sent it, or null. */
+function parseRemote(from: string, data: unknown): RemotePos | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (d.t !== "pos" || ![d.x, d.y, d.z].every((n) => typeof n === "number" && Number.isFinite(n)) || typeof d.foot !== "boolean") return null;
+  // The server fills these in, but a missing one is cheap to read as the default.
+  const yaw = typeof d.yaw === "number" && Number.isFinite(d.yaw) ? d.yaw : 0;
+  const v = typeof d.v === "string" ? d.v : null;
+  return { id: from, x: d.x as number, y: d.y as number, z: d.z as number, yaw, foot: d.foot, v };
+}
+
+/**
+ * Who Godot draws: every hunter but spectators and the removed, `me`
+ * included (Godot skips it). Names come from the room's seats.
+ */
+export function rosterFor(game: Pick<THPublic, "players" | "teams">, seats: readonly { id: string; name: string }[], me: string): Roster {
+  const players: Roster["players"] = [];
+  for (const p of game.players) {
+    if (p.spectator || p.removed || p.teamId === null) continue;
+    const team = game.teams.find((t) => t.id === p.teamId);
+    if (!team) continue;
+    players.push({ id: p.id, name: seats.find((s) => s.id === p.id)?.name ?? "Someone", color: teamColor(team.color).hex, team: team.id });
+  }
+  return { me, players };
+}
+
 /**
  * What Godot is owed, and the only path to it. The server relays a reveal
  * once and the relay brings no state update, so the feed keeps every
@@ -93,6 +122,7 @@ export class GodotFeed {
   private phase: Phase | null = null;
   private seed: number | null = null;
   private streamed = new Map<string, CacheReveal>();
+  private roster: Roster | null = null;
   private send: (calls: BridgeCall[]) => void;
 
   constructor(send: (calls: BridgeCall[]) => void) {
@@ -100,7 +130,8 @@ export class GodotFeed {
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
-  update(priv: THPrivate | null, phase: Phase, seed: number) {
+  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null) {
+    this.roster = roster;
     // A new map's caches are new ones. (A relay before the first update is kept.)
     if (this.seed !== null && seed !== this.seed) this.streamed.clear();
     this.priv = priv;
@@ -108,17 +139,25 @@ export class GodotFeed {
     this.seed = seed;
   }
 
-  /** A relay from the server. Only reveals mean anything here. */
-  stream(data: unknown) {
+  /** A relay from the server: a reveal, or where someone in the roster is. */
+  stream(from: string, data: unknown) {
+    const pos = parseRemote(from, data);
+    if (pos) {
+      if (from !== this.roster?.me && this.roster?.players.some((p) => p.id === from)) this.send([{ fn: "remotePos", arg: pos }]);
+      return;
+    }
     const r = parseReveal(data);
     if (!r) return;
     this.streamed.set(r.id, r);
     this.send([{ fn: "revealCache", arg: r }]);
   }
 
-  /** Everything again. Cheap: a pool is a handful of caches. */
+  /** Everything again, the roster first. Cheap: a pool is a handful of caches, and Godot keeps capsules that didn't change. */
   sync() {
-    if (this.phase) this.send(resync(this.priv, this.phase, this.streamed.values()));
+    if (!this.phase) return;
+    const calls = resync(this.priv, this.phase, this.streamed.values());
+    if (this.roster) calls.unshift({ fn: "roster", arg: this.roster });
+    this.send(calls);
   }
 }
 
@@ -221,7 +260,7 @@ export class TreasureHuntView implements GameView {
         this.builtSeed = s.seed;
         this.render();
       },
-      pos: (p) => this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, foot: p.foot }),
+      pos: (p) => this.api.stream({ t: "pos", x: p.x, y: p.y, z: p.z, yaw: p.yaw, foot: p.foot, v: p.v }),
       claim: (id) => {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
@@ -258,8 +297,8 @@ export class TreasureHuntView implements GameView {
     else this.msg.textContent = message;
   }
 
-  stream(_from: string, data: unknown) {
-    this.feed.stream(data);
+  stream(from: string, data: unknown) {
+    this.feed.stream(from, data);
   }
 
   update(props: GameViewProps) {
@@ -267,7 +306,7 @@ export class TreasureHuntView implements GameView {
     this.priv = (props.private as THPrivate | null) ?? null;
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
-    this.feed.update(this.priv, this.game.phase, this.game.seed);
+    this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId));
     this.claims.update(this.priv, this.game.seed);
     if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
     this.render();

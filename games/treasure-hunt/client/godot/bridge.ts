@@ -35,14 +35,29 @@ export interface GodotPos {
   x: number;
   y: number;
   z: number;
+  /** The body's facing, radians, Godot style: the walker's, or the buggy's you're in. */
+  yaw: number;
   foot: boolean;
+  /** The vehicle you're in. null on foot, and while driving the one buggy, which has no id yet. */
+  v: string | null;
 }
 
-/** One call into Godot. All three are idempotent on Godot's side. */
+/** Everyone Godot should draw, plus who's us (Godot skips `me`). `color` is "#rrggbb". */
+export interface Roster {
+  me: string;
+  players: { id: string; name: string; color: string; team: number }[];
+}
+
+/** Another player's pos relay, with who sent it. */
+export type RemotePos = GodotPos & { id: string };
+
+/** One call into Godot. All are idempotent on Godot's side; roster is the full list. */
 export type BridgeCall =
   | { fn: "revealCache"; arg: CacheReveal }
   | { fn: "cacheFound"; arg: { id: string } }
-  | { fn: "setPhase"; arg: { phase: Phase } };
+  | { fn: "setPhase"; arg: { phase: Phase } }
+  | { fn: "roster"; arg: Roster }
+  | { fn: "remotePos"; arg: RemotePos };
 
 type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 
@@ -50,7 +65,8 @@ type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 interface HostObject extends GodotFns {
   emitStatus(s: GodotStatus): void;
   ready(): void;
-  emitPos(p: GodotPos): void;
+  /** Checked with godotPos: it comes from Godot's JSON, not from our types. */
+  emitPos(p: unknown): void;
   emitClaim(c: { id: string }): void;
   initSession?(config: SessionConfig): void;
 }
@@ -93,6 +109,16 @@ export const godotBuild = build as GodotBuild;
  */
 export function shouldSendSession(lastSentSeed: number | null, godotReloaded: boolean, layoutSeed: number): boolean {
   return godotReloaded || lastSentSeed !== layoutSeed;
+}
+
+/** What Godot's emitPos gave us, checked and copied, or null. */
+export function godotPos(p: unknown): GodotPos | null {
+  if (!p || typeof p !== "object") return null;
+  const d = p as Record<string, unknown>;
+  const nums = [d.x, d.y, d.z, d.yaw];
+  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  if (typeof d.foot !== "boolean" || !(d.v === null || typeof d.v === "string")) return null;
+  return { x: d.x as number, y: d.y as number, z: d.z as number, yaw: d.yaw as number, foot: d.foot, v: d.v };
 }
 
 /** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
@@ -165,7 +191,8 @@ export class GodotBridge {
         this.handlers.ready();
       },
       emitPos: (p) => {
-        if (p && [p.x, p.y, p.z].every(Number.isFinite) && typeof p.foot === "boolean") this.handlers.pos({ x: p.x, y: p.y, z: p.z, foot: p.foot });
+        const pos = godotPos(p);
+        if (pos) this.handlers.pos(pos);
       },
       emitClaim: (c) => {
         if (c && typeof c.id === "string") this.handlers.claim(c.id);
@@ -190,7 +217,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase"] as const) delete this.host[k];
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);

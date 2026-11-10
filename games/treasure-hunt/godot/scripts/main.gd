@@ -43,6 +43,9 @@ var phase: StringName = &"hunting"
 var caches: Caches ## per world, like pieces
 var compass: Compass
 var prompt: PickupPrompt
+## The other players. Not part of the world: a new seed keeps them, and
+## their next snapshots move them onto it.
+var remotes: Remotes
 
 var _seed := 0
 var _pos_accum := 0.0
@@ -66,6 +69,11 @@ func _ready() -> void:
 	bridge.cache_found.connect(found_cache)
 	bridge.phase_set.connect(set_phase)
 	avatar.claimed.connect(bridge.emit_claim)
+	remotes = Remotes.new()
+	remotes.name = "Remotes"
+	add_child(remotes)
+	bridge.roster_set.connect(remotes.set_roster)
+	bridge.remote_moved.connect(func(id: String, snap: Dictionary) -> void: remotes.upsert(id, snap, Remotes.now()))
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -268,7 +276,9 @@ func _physics_process(_dt: float) -> void:
 
 
 ## Where you are (the walker, or the buggy you're in), POS_HZ times a second,
-## while the round is counting down or on.
+## while the round is counting down or on. yaw is that body's facing; v is
+## the vehicle you're in, null on foot. The one buggy has no id until the
+## fleet comes, so driving sends foot false with v null, which the server takes.
 func _pos_tick(dt: float) -> void:
 	if focus == null or (phase != &"countdown" and phase != &"hunting"):
 		_pos_accum = 0.0
@@ -278,7 +288,7 @@ func _pos_tick(dt: float) -> void:
 		return
 	_pos_accum = fmod(_pos_accum, 1.0 / POS_HZ)
 	var p := focus.global_position
-	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "foot": avatar.mode == &"foot"})
+	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "yaw": snappedf(focus.global_rotation.y, 0.001), "foot": avatar.mode == &"foot", "v": null})
 
 
 ## The E prompt: shown while the round's on, you're on foot, and there's a

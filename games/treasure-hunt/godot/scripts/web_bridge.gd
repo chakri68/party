@@ -10,9 +10,11 @@ extends Node
 ##   host.revealCache({id, x, z, dy})      idempotent by id
 ##   host.cacheFound({id})
 ##   host.setPhase({phase})                input is on only in "hunting"
+##   host.roster({me, players: [{id, name, color, team}]})   full list, every update
+##   host.remotePos({id, x, y, z, yaw, foot, v})             another player, as relayed
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
-##   host.emitPos({x, y, z, foot})         POS_HZ, in countdown and hunting
+##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
 ##   host.emitClaim({id})                  E by a cache
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Every inbound call
@@ -25,6 +27,10 @@ signal status_sent(status: Dictionary)
 signal cache_revealed(reveal: Dictionary) ## {id: String, x, z, dy: float}
 signal cache_found(id: String)
 signal phase_set(phase: StringName)
+## Who to draw (`me` among them, to skip): [{id, name, color, team}].
+signal roster_set(players: Array, me: String)
+## Another player's snapshot: {x, y, z, yaw, foot, v}.
+signal remote_moved(id: String, snap: Dictionary)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
@@ -42,6 +48,8 @@ var _cb_init: JavaScriptObject
 var _cb_reveal: JavaScriptObject
 var _cb_found: JavaScriptObject
 var _cb_phase: JavaScriptObject
+var _cb_roster: JavaScriptObject
+var _cb_remote: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -84,6 +92,10 @@ func _try_attach() -> void:
 	_host.cacheFound = _cb_found
 	_cb_phase = JavaScriptBridge.create_callback(_on_js.bind(receive_phase_json))
 	_host.setPhase = _cb_phase
+	_cb_roster = JavaScriptBridge.create_callback(_on_js.bind(receive_roster_json))
+	_host.roster = _cb_roster
+	_cb_remote = JavaScriptBridge.create_callback(_on_js.bind(receive_remote_json))
+	_host.remotePos = _cb_remote
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -137,6 +149,22 @@ func receive_phase_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and d.get("phase") is String:
 		phase_set.emit(StringName(d.phase))
+
+
+## {me, players}. Remotes checks each player; this only checks the shape.
+func receive_roster_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and d.get("me") is String and d.get("players") is Array:
+		roster_set.emit(d.players, d.me)
+
+
+## {id, x, y, z, yaw, foot, v}. A missing yaw reads as 0; v is a string or null.
+func receive_remote_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if not (d is Dictionary and d.get("id") is String and _num(d.get("x")) and _num(d.get("y")) and _num(d.get("z")) and d.get("foot") is bool):
+		return
+	var v: Variant = d.get("v")
+	remote_moved.emit(d.id, {"x": float(d.x), "y": float(d.y), "z": float(d.z), "yaw": float(d.yaw) if _num(d.get("yaw")) else 0.0, "foot": d.foot, "v": v if v is String else null})
 
 
 static func _num(v: Variant) -> bool:
