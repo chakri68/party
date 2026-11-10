@@ -4,5 +4,7 @@ export * from "./noise.ts";
 export * from "./generate.ts";
 export * from "./templates.ts";
 export * from "./sites.ts";
+export * from "./trails.ts";
+export * from "./minor.ts";
 export { treasureHuntManifest } from "./manifest.ts";
 export { treasureHuntRules, treasureHuntSettingFields } from "./rules-text.ts";

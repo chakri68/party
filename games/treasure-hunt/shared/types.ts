@@ -1,3 +1,5 @@
+import type { MinorPoint } from "./minor.ts";
+import type { Trail } from "./trails.ts";
 import type { RingSide } from "./world.ts";
 
 export type TemplateId = "lighthouse" | "shipwreck" | "stone-circle" | "radio-tower" | "camp" | "plane";
@@ -41,6 +43,10 @@ export interface TreasureLayout {
   spawn: { x: number; z: number; yaw: number };
   /** Layer 3: 10–14 set pieces. */
   pieces: SetPiece[];
+  /** Layer 4: trails between the pieces and the spawn. */
+  trails: Trail[];
+  /** Layer 5: 40–80 minor points. */
+  minor: MinorPoint[];
 }
 
 /** How long the server waits for every client to load the world before it starts anyway. */

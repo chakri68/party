@@ -1,0 +1,120 @@
+import { describe, expect, it } from "vitest";
+import {
+  BIOMES,
+  MINOR_SLOT,
+  TRAIL_HALF_WIDTH,
+  generateLayout,
+  macroHeight,
+  makeLayout,
+  makeTrails,
+  placeMinor,
+  rng,
+  validateLayout,
+  type TreasureLayout,
+} from "../shared/index.ts";
+
+/** Distance from (x, z) to the nearest trail segment. */
+function trailDist(l: TreasureLayout, x: number, z: number): number {
+  let best = Infinity;
+  for (const t of l.trails) {
+    for (let i = 1; i < t.pts.length; i++) {
+      const [ax, az] = t.pts[i - 1]!;
+      const [bx, bz] = t.pts[i]!;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const len2 = dx * dx + dz * dz;
+      const u = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / len2));
+      best = Math.min(best, Math.hypot(x - (ax + dx * u), z - (az + dz * u)));
+    }
+  }
+  return best;
+}
+
+const nodes = (l: TreasureLayout) => [
+  { x: l.spawn.x, z: l.spawn.z, r: 0 },
+  ...l.pieces.map((p) => ({ x: p.x, z: p.z, r: p.padR })),
+];
+
+describe("trails and minor points", () => {
+  it("is deterministic, and layers 1–3 do not move", () => {
+    const a = generateLayout(7);
+    const b = generateLayout(7);
+    expect(a.trails).toEqual(b.trails);
+    expect(a.minor).toEqual(b.minor);
+    expect(makeTrails(a, rng(7 ^ 0x7a11))).toEqual(a.trails);
+    expect(placeMinor(a, rng(7 ^ 0x3140))).toEqual(a.minor);
+  });
+
+  it("has the exact slot hints", () => {
+    expect(MINOR_SLOT.rocks.hint).toBe("Beside a pile of rocks.");
+    expect(MINOR_SLOT.log.hint).toBe("Under a fallen log.");
+    expect(MINOR_SLOT.campfire.hint).toBe("Next to an old campfire.");
+    for (const s of Object.values(MINOR_SLOT)) expect(s.dy).toBe(0);
+    expect(TRAIL_HALF_WIDTH).toBe(2);
+  });
+
+  it("200 seeds: trails are on land, evenly spaced, and end at a pad edge", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const l = makeLayout(seed);
+      const ns = nodes(l);
+      for (const t of l.trails) {
+        const where = `seed ${seed}`;
+        expect(t.pts.length, where).toBeGreaterThanOrEqual(2);
+        for (const [x, z] of t.pts) {
+          expect(macroHeight(l, x, z), `${where} (${x}, ${z})`).toBeGreaterThanOrEqual(1);
+          expect(Math.round(x * 10) / 10).toBe(x);
+          expect(Math.round(z * 10) / 10).toBe(z);
+        }
+        for (let i = 1; i < t.pts.length; i++) {
+          const d = Math.hypot(t.pts[i]![0] - t.pts[i - 1]![0], t.pts[i]![1] - t.pts[i - 1]![1]);
+          expect(d, `${where} step ${i}`).toBeGreaterThanOrEqual(12);
+          expect(d, `${where} step ${i}`).toBeLessThanOrEqual(20);
+        }
+        for (const end of [t.pts[0]!, t.pts[t.pts.length - 1]!]) {
+          const ok = ns.some((n) => Math.hypot(end[0] - n.x, end[1] - n.z) <= n.r + 4);
+          expect(ok, `${where} end (${end})`).toBe(true);
+        }
+      }
+    }
+  }, 30_000);
+
+  it("200 seeds: minor points keep their spacing and sit on gentle land", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const l = makeLayout(seed);
+      l.minor.forEach((m, i) => {
+        const where = `seed ${seed} ${m.id}`;
+        expect(m.id).toBe(`m${i}`);
+        expect(Math.abs(m.x)).toBeLessThanOrEqual(720);
+        expect(Math.abs(m.z)).toBeLessThanOrEqual(720);
+        expect(macroHeight(l, m.x, m.z), where).toBeGreaterThanOrEqual(1);
+        for (const o of l.minor.slice(0, i)) expect(Math.hypot(m.x - o.x, m.z - o.z), where).toBeGreaterThanOrEqual(35);
+        for (const p of l.pieces) expect(Math.hypot(m.x - p.x, m.z - p.z), where).toBeGreaterThanOrEqual(p.padR + 20);
+        expect(trailDist(l, m.x, m.z), where).toBeGreaterThanOrEqual(6);
+      });
+    }
+  }, 30_000);
+
+  it("1000 seeds: 40–80 minor points, every near piece is on a trail, kinds follow biomes", () => {
+    for (let seed = 1; seed <= 1000; seed++) {
+      const l = makeLayout(seed);
+      expect(validateLayout(l), `seed ${seed}`).toEqual([]);
+      expect(l.minor.length, `seed ${seed}`).toBeGreaterThanOrEqual(40);
+      expect(l.minor.length, `seed ${seed}`).toBeLessThanOrEqual(80);
+      for (const p of l.pieces) {
+        if (!l.pieces.some((q) => q !== p && Math.hypot(p.x - q.x, p.z - q.z) <= 450)) continue;
+        const joined = l.trails.some((t) =>
+          [t.pts[0]!, t.pts[t.pts.length - 1]!].some((e) => Math.hypot(e[0] - p.x, e[1] - p.z) <= p.padR + 4),
+        );
+        expect(joined, `seed ${seed} ${p.id} has no trail`).toBe(true);
+      }
+      const { origin, cell, size, biomes } = l.macro;
+      for (const m of l.minor) {
+        const i = Math.round((m.x - origin) / cell);
+        const j = Math.round((m.z - origin) / cell);
+        const b = BIOMES[biomes[j * size + i]!];
+        if (b === "forest") expect(["log", "campfire"]).toContain(m.kind);
+        if (b === "rocky") expect(m.kind).toBe("rocks");
+      }
+    }
+  }, 30_000);
+});
