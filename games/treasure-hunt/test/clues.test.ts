@@ -194,14 +194,14 @@ describe("shadow clues", () => {
     const spots = shadowSpots(l, DAY, rng(1));
     // Every template has a top since M4b task 3.
     const tall = l.pieces;
-    // Seed 5 since M4b task 3: the windmill (p2, 12.1 m), the lighthouse
-    // (p6) and the radio tower (p10). The other nine are 9.6 m or less, and
-    // at 10 to 11 the sun is high enough that each tip stays on its own
-    // pad, every minute of the window.
-    expect(spots.map((s) => s.source)).toEqual(["p2", "p6", "p10"]);
+    // Seed 1 since M4b task 3's site rules: the fire lookout (p0, 11 m on
+    // an 8 m pad), the radio tower (p8) and the lighthouse (p13). The other
+    // eleven, the 11.9 m windmill on its 10 m pad among them, keep their
+    // tips on their own pads at 10 to 11, every minute of the window.
+    expect(spots.map((s) => s.source)).toEqual(["p0", "p8", "p13"]);
     expect(tall.map((q) => q.template)).toEqual([
-      "garden", "farm", "windmill", "stone-circle", "camp", "lookout",
-      "lighthouse", "plane", "hot-spring", "watchtower", "radio-tower", "siege-camp",
+      "lookout", "windmill", "siege-camp", "camp", "stone-circle", "watchtower", "frozen-lake",
+      "plane", "radio-tower", "farm", "garden", "hot-spring", "quarry", "lighthouse",
     ]);
     for (const q of tall.filter((q) => !spots.some((s) => s.source === q.id))) {
       const top = TEMPLATES[q.template].top(q.params);

@@ -84,6 +84,11 @@ function padSpread(l: TreasureLayout, p: SetPiece): number {
   return Math.max(...hs) - Math.min(...hs);
 }
 
+/** A rocky macro vertex within `d` of the piece. Re-derived from the grid, not from sites.ts. */
+function rockyWithin(l: TreasureLayout, p: SetPiece, d: number): boolean {
+  return vertices(l).some(([x, z, , b]) => b === "rocky" && Math.hypot(x - p.x, z - p.z) <= d);
+}
+
 describe("TEMPLATES", () => {
   it("every template rolls params in range and gives 2–4 slots with 0 ≤ dy ≤ 1", () => {
     expect([...IDS].sort()).toEqual(Object.keys(RANGES).sort());
@@ -197,23 +202,22 @@ describe("placePieces", () => {
             expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
             break;
           case "quarry":
-            expect(biomeAt(l, p.x, p.z), where).toBe("rocky");
+            expect(rockyWithin(l, p, 96), where).toBe(true);
             expect(padSpread(l, p), where).toBeLessThanOrEqual(4);
             break;
           case "cave":
-            expect(biomeAt(l, p.x, p.z), where).toBe("rocky");
+            expect(rockyWithin(l, p, 64), where).toBe(true);
             expect(padSpread(l, p), where).toBeLessThanOrEqual(6);
             break;
           case "hot-spring":
-            expect(["rocky", "wetland"]).toContain(biomeAt(l, p.x, p.z));
+            expect(biomeAt(l, p.x, p.z) === "wetland" || rockyWithin(l, p, 64), where).toBe(true);
             expect(padSpread(l, p), where).toBeLessThanOrEqual(2);
             break;
-          case "frozen-lake": {
-            const b = biomeAt(l, p.x, p.z);
-            expect(b === "snowcap" || (b === "rocky" && h >= 25), where).toBe(true);
+          case "frozen-lake":
+            expect(biomeAt(l, p.x, p.z), where).not.toBe("forest");
+            expect(h, where).toBeGreaterThanOrEqual(20);
             expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
             break;
-          }
           case "siege-camp":
             expect(["meadow", "rocky"]).toContain(biomeAt(l, p.x, p.z));
             expect(padSpread(l, p), where).toBeLessThanOrEqual(3);
@@ -586,4 +590,13 @@ describe("quarry, cave, hot spring, frozen lake, siege camp", () => {
     }
     expect([...seen].sort()).toEqual(["2/0", "2/1", "2/2", "3/0", "3/1", "3/2", "3/3"]);
   });
+
+  it("200 seeds: each of the 16 templates is placed on at least 10% of maps", () => {
+    const maps: Record<string, number> = {};
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const t of new Set(generateLayout(seed).pieces.map((p) => p.template))) maps[t] = (maps[t] ?? 0) + 1;
+    }
+    const share = Object.fromEntries(IDS.map((id) => [id, (maps[id] ?? 0) / 200]));
+    for (const id of IDS) expect(share[id], `${id}: ${JSON.stringify(share)}`).toBeGreaterThanOrEqual(0.1);
+  }, 60_000);
 });

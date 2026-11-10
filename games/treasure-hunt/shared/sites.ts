@@ -48,7 +48,15 @@ interface Site {
   sea: number;
   /** No vertex within 150 m is higher. */
   peak: boolean;
+  /** Distance to the nearest rocky vertex, out to ROCKY_REACH (else Infinity).
+   *  Rocky ground is steep by definition (slope ≥ 0.6), so a flat pad is never
+   *  on it, only near it. */
+  rocky: number;
 }
+
+/** How far `Site.rocky` looks. */
+export const ROCKY_REACH = 128;
+const ROCKY = BIOMES.indexOf("rocky");
 
 const RULES: Record<TemplateId, (l: TreasureLayout, s: Site) => boolean> = {
   lighthouse: (l, s) => l.ring.includes("sea") && s.sea <= 120 && s.h >= 8,
@@ -62,11 +70,10 @@ const RULES: Record<TemplateId, (l: TreasureLayout, s: Site) => boolean> = {
   watchtower: (l, s) => s.biome !== "forest" && s.h >= 15 && padSpread(l, s.x, s.z, TEMPLATES.watchtower.padR) <= 3,
   lookout: (l, s) => s.biome === "forest" && s.h >= 10 && padSpread(l, s.x, s.z, TEMPLATES.lookout.padR) <= 3,
   garden: (l, s) => s.biome === "meadow" && padSpread(l, s.x, s.z, TEMPLATES.garden.padR) <= 2,
-  quarry: (l, s) => s.biome === "rocky" && padSpread(l, s.x, s.z, TEMPLATES.quarry.padR) <= 4,
-  cave: (l, s) => s.biome === "rocky" && padSpread(l, s.x, s.z, TEMPLATES.cave.padR) <= 6,
-  "hot-spring": (l, s) => (s.biome === "rocky" || s.biome === "wetland") && padSpread(l, s.x, s.z, TEMPLATES["hot-spring"].padR) <= 2,
-  "frozen-lake": (l, s) =>
-    (s.biome === "snowcap" || (s.biome === "rocky" && s.h >= 25)) && padSpread(l, s.x, s.z, TEMPLATES["frozen-lake"].padR) <= 3,
+  quarry: (l, s) => s.rocky <= 96 && padSpread(l, s.x, s.z, TEMPLATES.quarry.padR) <= 4,
+  cave: (l, s) => s.rocky <= 64 && padSpread(l, s.x, s.z, TEMPLATES.cave.padR) <= 6,
+  "hot-spring": (l, s) => (s.biome === "wetland" || s.rocky <= 64) && padSpread(l, s.x, s.z, TEMPLATES["hot-spring"].padR) <= 2,
+  "frozen-lake": (l, s) => s.biome !== "forest" && s.h >= 20 && padSpread(l, s.x, s.z, TEMPLATES["frozen-lake"].padR) <= 3,
   "siege-camp": (l, s) => (s.biome === "meadow" || s.biome === "rocky") && padSpread(l, s.x, s.z, TEMPLATES["siege-camp"].padR) <= 3,
 };
 
@@ -86,6 +93,7 @@ function sites(l: TreasureLayout): Site[] {
       if (Math.hypot(x - l.spawn.x, z - l.spawn.z) < PIECE_SPAWN_GAP) continue;
       let sea = Infinity;
       let peak = true;
+      let rocky = Infinity;
       const k = reach(150);
       for (let b = Math.max(0, j - k); b <= Math.min(size - 1, j + k); b++) {
         for (let a = Math.max(0, i - k); a <= Math.min(size - 1, i + k); a++) {
@@ -94,9 +102,10 @@ function sites(l: TreasureLayout): Site[] {
           const v = H(a, b);
           if (v > h) peak = false;
           if (v < 0 && d <= 120) sea = Math.min(sea, d);
+          if (d <= ROCKY_REACH && d < rocky && biomes[b * size + a] === ROCKY) rocky = d;
         }
       }
-      out.push({ x, z, h, biome: BIOMES[biomes[j * size + i]!]!, sea, peak });
+      out.push({ x, z, h, biome: BIOMES[biomes[j * size + i]!]!, sea, peak, rocky });
     }
   }
   return out;

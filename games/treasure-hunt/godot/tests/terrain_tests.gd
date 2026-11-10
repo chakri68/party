@@ -691,7 +691,7 @@ func test_trail_colour() -> void:
 
 
 ## A wreck low by the sea, on the first fixture map that has one (since
-## M4b task 3, extra map 13, seed 110879: layout 4 lost its wreck when the
+## M4b task 3, extra map 18, seed 150474: layout 4 lost its wreck when the
 ## library grew). Its pad is land; the sand rule and the sea rule still
 ## hold around it.
 func test_wreck_by_the_sea() -> void:
