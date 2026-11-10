@@ -15,8 +15,8 @@ export const TRAIL_STEP = 16;
 export const TRAIL_MAX_EDGE = 450;
 export const TRAIL_MIN_HEIGHT = 1;
 const tan = (deg: number) => Math.tan((deg * Math.PI) / 180);
-/** Slope limits as rise per metre: 20° first, then 30°, 40° and 50° for what 20° left cut off. */
-export const TRAIL_SLOPES = [tan(20), tan(30), tan(40), tan(50)];
+/** Slope limits as rise per metre: 20° first, then 30° for what 20° left cut off. */
+export const TRAIL_SLOPES = [tan(20), tan(30)];
 const WOBBLE_MAX = 20;
 /** A trail may stop this far past the pad edge. The end check allows padR + 4. */
 const PULL_IN = 3.5;
@@ -69,7 +69,7 @@ function walk(l: TreasureLayout, a: Node, b: Node, roll: number, waves: number, 
  *
  * Slope: the brief's limit is 20°, but a radio tower sits on a peak, and
  * every way off a peak is steeper than that. So the pass runs at 20° first,
- * then again at 30°, 40° and 50° for the trees it left apart. Water is never relaxed.
+ * then again at 30° for the trees it left apart. A piece with no way out stays unjoined. Water is never relaxed.
  */
 export function makeTrails(l: TreasureLayout, r: Rng): Trail[] {
   const ns: Node[] = [
@@ -111,20 +111,16 @@ export function makeTrails(l: TreasureLayout, r: Rng): Trail[] {
   return out;
 }
 
-/**
- * What validateLayout checks about layer 4: a piece with another piece in
- * reach must have a trail ending at its pad. A shipwreck on a 0.6 m beach or
- * a radio tower on a sheer peak can fail that, and then the seed rerolls.
- */
-export function validateTrails(l: TreasureLayout): string[] {
-  const problems: string[] = [];
+/** Pieces with another piece within reach that no trail ends at. Not a validity rule. */
+export function unjoinedPieces(l: TreasureLayout): string[] {
+  const out: string[] = [];
   for (const p of l.pieces) {
     const reach = l.pieces.some((q) => q !== p && Math.hypot(p.x - q.x, p.z - q.z) <= TRAIL_MAX_EDGE);
     if (!reach) continue;
     const joined = l.trails.some((t) =>
       [t.pts[0]!, t.pts[t.pts.length - 1]!].some((e) => Math.hypot(e[0] - p.x, e[1] - p.z) <= p.padR + 4),
     );
-    if (!joined) problems.push(`trails: ${p.id} has no trail`);
+    if (!joined) out.push(p.id);
   }
-  return problems;
+  return out;
 }

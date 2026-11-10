@@ -1,3 +1,4 @@
+import { cellSlope } from "../shared/generate.ts";
 import { describe, expect, it } from "vitest";
 import {
   BIOMES,
@@ -7,6 +8,7 @@ import {
   macroHeight,
   makeLayout,
   makeTrails,
+  unjoinedPieces,
   placeMinor,
   rng,
   validateLayout,
@@ -69,6 +71,8 @@ describe("trails and minor points", () => {
           const d = Math.hypot(t.pts[i]![0] - t.pts[i - 1]![0], t.pts[i]![1] - t.pts[i - 1]![1]);
           expect(d, `${where} step ${i}`).toBeGreaterThanOrEqual(12);
           expect(d, `${where} step ${i}`).toBeLessThanOrEqual(20);
+          const rise = Math.abs(macroHeight(l, t.pts[i]![0], t.pts[i]![1]) - macroHeight(l, t.pts[i - 1]![0], t.pts[i - 1]![1]));
+          expect(rise / d, `${where} slope ${i}`).toBeLessThanOrEqual(Math.tan((30 * Math.PI) / 180) + 1e-9);
         }
         for (const end of [t.pts[0]!, t.pts[t.pts.length - 1]!]) {
           const ok = ns.some((n) => Math.hypot(end[0] - n.x, end[1] - n.z) <= n.r + 4);
@@ -90,23 +94,21 @@ describe("trails and minor points", () => {
         for (const o of l.minor.slice(0, i)) expect(Math.hypot(m.x - o.x, m.z - o.z), where).toBeGreaterThanOrEqual(35);
         for (const p of l.pieces) expect(Math.hypot(m.x - p.x, m.z - p.z), where).toBeGreaterThanOrEqual(p.padR + 20);
         expect(trailDist(l, m.x, m.z), where).toBeGreaterThanOrEqual(6);
+        expect(cellSlope(l, m.x, m.z), where).toBeLessThan(Math.tan((25 * Math.PI) / 180));
       });
     }
   }, 30_000);
 
-  it("1000 seeds: 40–80 minor points, every near piece is on a trail, kinds follow biomes", () => {
+  it("1000 seeds: 40–80 minor points, few pieces are unjoined, kinds follow biomes", () => {
+    let unjoined = 0;
     for (let seed = 1; seed <= 1000; seed++) {
       const l = makeLayout(seed);
       expect(validateLayout(l), `seed ${seed}`).toEqual([]);
       expect(l.minor.length, `seed ${seed}`).toBeGreaterThanOrEqual(40);
       expect(l.minor.length, `seed ${seed}`).toBeLessThanOrEqual(80);
-      for (const p of l.pieces) {
-        if (!l.pieces.some((q) => q !== p && Math.hypot(p.x - q.x, p.z - q.z) <= 450)) continue;
-        const joined = l.trails.some((t) =>
-          [t.pts[0]!, t.pts[t.pts.length - 1]!].some((e) => Math.hypot(e[0] - p.x, e[1] - p.z) <= p.padR + 4),
-        );
-        expect(joined, `seed ${seed} ${p.id} has no trail`).toBe(true);
-      }
+      const n = unjoinedPieces(l).length;
+      unjoined += n;
+      expect(n, `seed ${seed}`).toBeLessThanOrEqual(3);
       const { origin, cell, size, biomes } = l.macro;
       for (const m of l.minor) {
         const i = Math.round((m.x - origin) / cell);
@@ -116,5 +118,6 @@ describe("trails and minor points", () => {
         if (b === "rocky") expect(m.kind).toBe("rocks");
       }
     }
+    expect(unjoined / 1000).toBeLessThan(0.5);
   }, 30_000);
 });

@@ -16,7 +16,7 @@
 import { fbm2, rng } from "./noise.ts";
 import { placeMinor, validateMinor } from "./minor.ts";
 import { placePieces, validatePieces } from "./sites.ts";
-import { makeTrails, validateTrails } from "./trails.ts";
+import { makeTrails } from "./trails.ts";
 import type { TreasureLayout } from "./types.ts";
 import {
   BIOMES,
@@ -388,7 +388,6 @@ export function validateLayout(l: TreasureLayout): string[] {
   if (Math.hypot(x, z) > 0 && Math.abs(yaw - yawToCentre(x, z)) > 1e-9) problems.push("spawn does not face the centre");
   if (Math.hypot(x, z) === 0) problems.push("spawn is at the centre, with no direction to face");
   problems.push(...validatePieces(l));
-  problems.push(...validateTrails(l));
   problems.push(...validateMinor(l));
   return problems;
 }
