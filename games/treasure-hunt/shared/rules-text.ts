@@ -13,7 +13,7 @@ export const treasureHuntRules: string[] = [
   "Move with W, A, S and D. Move the mouse to look. Hold Shift to run. Press Space to jump.",
   "Press E to get in or out of the buggy. R puts the buggy back on its wheels if it flips or gets stuck.",
   "The round ends when the time runs out, or when everyone has found all their caches. The host can also end it early.",
-  "The player who finds the most caches wins. If two players find the same number, harder caches count more. If it is still a tie, the one who found their last cache first wins.",
+  "The player who finds the most caches wins. If two players find the same number, the one with the harder caches wins. If it is still a tie, the one who found their last cache first wins.",
 ];
 
 /** What the lobby shows (and the host can change) before a game. */

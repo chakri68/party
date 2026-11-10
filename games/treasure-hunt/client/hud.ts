@@ -4,8 +4,8 @@ import type { THPrivate } from "../shared/types.ts";
 // The HUD over the map: the timer and score (they sit in the strip above it),
 // the clue board down the right, and the 3-2-1 in the middle. The text comes
 // from the pure functions up top; the class below only puts it in the DOM.
-// None of it takes the mouse except the clue toggle, so a click on the map
-// still reaches Godot and locks the pointer.
+// Only the clue toggle and the clue panel (so it can scroll) take the mouse;
+// a click anywhere else on the map reaches Godot and locks the pointer.
 
 /** Time left as m:ss. A part second rounds up, so 0:00 means it's over. */
 export function formatLeft(ms: number): string {

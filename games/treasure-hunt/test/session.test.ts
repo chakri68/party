@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shouldSendSession, worldReadyFor, type BridgeCall } from "../client/godot/bridge.ts";
-import { claimError, resync } from "../client/view.ts";
+import { GodotFeed, claimError, resync } from "../client/view.ts";
 import type { THPrivate } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
@@ -65,20 +65,85 @@ describe("resync", () => {
     expect(resync(null, "countdown")).toEqual([{ fn: "setPhase", arg: { phase: "countdown" } }]);
   });
 
-  it("applied twice, gives the same world", () => {
-    // A stand-in for Godot: reveals and founds keyed by id, one phase.
-    const apply = (calls: BridgeCall[], w = { shown: new Map<string, unknown>(), found: new Set<string>(), phase: "" }) => {
-      for (const c of calls) {
-        if (c.fn === "revealCache") w.shown.set(c.arg.id, c.arg);
-        else if (c.fn === "cacheFound") w.found.add(c.arg.id);
-        else w.phase = c.arg.phase;
-      }
-      return w;
-    };
-    const once = apply(resync(priv, "hunting"));
-    const twice = apply(resync(priv, "hunting"), apply(resync(priv, "hunting")));
-    expect(twice).toEqual(once);
-    expect(resync(priv, "hunting")).toEqual(resync(priv, "hunting"));
+  it("adds reveals that came over the stream, once per id", () => {
+    const streamed = [
+      { id: "c2", x: -40, z: 200.1, dy: 0.6 },
+      { id: "c3", x: 5, z: 6, dy: 0 },
+    ];
+    expect(resync(priv, "hunting", streamed).filter((c) => c.fn === "revealCache")).toEqual([
+      { fn: "revealCache", arg: { id: "c1", x: 10.5, z: -3, dy: 0 } },
+      { fn: "revealCache", arg: { id: "c2", x: -40, z: 200.1, dy: 0.6 } },
+      { fn: "revealCache", arg: { id: "c3", x: 5, z: 6, dy: 0 } },
+    ]);
+  });
+});
+
+// The view's wiring, through GodotFeed: what reaches the bridge when Godot
+// says ready, the state updates, and the server relays a reveal.
+describe("GodotFeed", () => {
+  const priv = (revealed: THPrivate["revealed"] = []): THPrivate => ({
+    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false }, { id: "c4", clues: ["b"], difficulty: 2, found: false }],
+    revealed,
+  });
+  const setup = () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((calls) => sent.push(calls));
+    return { feed, sent, last: () => sent[sent.length - 1]! };
+  };
+  const reveals = (calls: BridgeCall[]) => calls.filter((c) => c.fn === "revealCache").map((c) => c.arg);
+
+  it("sends nothing before the first state, then the phase on ready", () => {
+    const { feed, sent, last } = setup();
+    feed.sync();
+    expect(sent).toEqual([]);
+    feed.update(priv(), "countdown", 1);
+    feed.sync();
+    expect(last()).toEqual([{ fn: "setPhase", arg: { phase: "countdown" } }]);
+  });
+
+  it("relays a stream reveal at once", () => {
+    const { feed, last } = setup();
+    feed.update(priv(), "hunting", 1);
+    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    expect(last()).toEqual([{ fn: "revealCache", arg: { id: "c4", x: 12, z: -30, dy: 0.5 } }]);
+  });
+
+  it("ignores stream data that is not a reveal", () => {
+    const { feed, sent } = setup();
+    feed.update(priv(), "hunting", 1);
+    feed.stream({ t: "pos", x: 1, y: 2, z: 3, foot: true });
+    feed.stream({ t: "reveal", id: 4, x: 1, z: 2 });
+    expect(sent).toEqual([]);
+  });
+
+  // I1: the server relays a reveal once, and a relay brings no state update.
+  // Godot reloading after it must still get the crate back.
+  it("re-sends a stream reveal when Godot comes up again with no update in between", () => {
+    const { feed, last } = setup();
+    feed.update(priv(), "hunting", 1);
+    feed.sync();
+    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.sync(); // ready() from a reloaded iframe
+    expect(reveals(last())).toEqual([{ id: "c4", x: 12, z: -30, dy: 0.5 }]);
+    expect(last()[last().length - 1]).toEqual({ fn: "setPhase", arg: { phase: "hunting" } });
+  });
+
+  it("sends a reveal once when it is in both the stream and the state", () => {
+    const { feed, last } = setup();
+    feed.update(priv(), "hunting", 1);
+    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.update(priv([{ id: "c4", x: 12, z: -30, dy: 0.5 }]), "hunting", 1);
+    feed.sync();
+    expect(reveals(last())).toEqual([{ id: "c4", x: 12, z: -30, dy: 0.5 }]);
+  });
+
+  it("forgets stream reveals on a new map", () => {
+    const { feed, last } = setup();
+    feed.update(priv(), "hunting", 1);
+    feed.stream({ t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.update(priv(), "generating", 2);
+    feed.sync();
+    expect(reveals(last())).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 
@@ -18,9 +18,11 @@ import { Hud } from "./hud.ts";
 //
 // Godot sends where the player is (→ api.stream) and E by a cache
 // (→ act claim). The server sends a reveal when a cache of ours is close; it
-// goes straight to Godot, and lands in private state too. Every render sends
-// the whole private state again (resync), because a reveal can miss: it went
-// to the old world just before a rebuild, or to an iframe that reloaded.
+// goes straight to Godot, and lands in private state too, but only at the
+// next real update (a relay doesn't bump the state). Every render and every
+// ready() sends it all again (resync): private state plus the reveals that
+// came over the stream since. A reveal can miss: it went to the old world
+// just before a rebuild, or to an iframe that reloaded.
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
@@ -48,20 +50,65 @@ export function claimError(code: string | undefined, message: string): string {
  * Review Focus 4: everything Godot should know, as calls. Each is idempotent
  * there, so sending the lot on every update is safe and heals a lost reveal.
  */
-export function resync(priv: THPrivate | null, phase: Phase): BridgeCall[] {
+export function resync(priv: THPrivate | null, phase: Phase, streamed: Iterable<CacheReveal> = []): BridgeCall[] {
   const calls: BridgeCall[] = [];
-  for (const r of priv?.revealed ?? []) calls.push({ fn: "revealCache", arg: { id: r.id, x: r.x, z: r.z, dy: r.dy } });
+  const seen = new Set<string>();
+  for (const r of [...(priv?.revealed ?? []), ...streamed]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    calls.push({ fn: "revealCache", arg: { id: r.id, x: r.x, z: r.z, dy: r.dy } });
+  }
   for (const c of priv?.clues ?? []) if (c.found) calls.push({ fn: "cacheFound", arg: { id: c.id } });
   calls.push({ fn: "setPhase", arg: { phase } });
   return calls;
 }
 
 /** The server's reveal relay, or null. */
-function parseReveal(data: unknown): { id: string; x: number; z: number; dy: number } | null {
+function parseReveal(data: unknown): CacheReveal | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
   if (d.t !== "reveal" || typeof d.id !== "string" || typeof d.x !== "number" || typeof d.z !== "number") return null;
   return { id: d.id, x: d.x, z: d.z, dy: typeof d.dy === "number" ? d.dy : 0 };
+}
+
+/**
+ * What Godot is owed, and the only path to it. The server relays a reveal
+ * once and the relay brings no state update, so the feed keeps every
+ * streamed reveal for this map: a reloaded or retried Godot gets them back
+ * on its ready(). No DOM, so the tests drive it the way the view does.
+ */
+export class GodotFeed {
+  private priv: THPrivate | null = null;
+  private phase: Phase | null = null;
+  private seed: number | null = null;
+  private streamed = new Map<string, CacheReveal>();
+  private send: (calls: BridgeCall[]) => void;
+
+  constructor(send: (calls: BridgeCall[]) => void) {
+    this.send = send;
+  }
+
+  /** A state update. Sends nothing; the render that follows calls sync(). */
+  update(priv: THPrivate | null, phase: Phase, seed: number) {
+    // A new map's caches are new ones. (A relay before the first update is kept.)
+    if (this.seed !== null && seed !== this.seed) this.streamed.clear();
+    this.priv = priv;
+    this.phase = phase;
+    this.seed = seed;
+  }
+
+  /** A relay from the server. Only reveals mean anything here. */
+  stream(data: unknown) {
+    const r = parseReveal(data);
+    if (!r) return;
+    this.streamed.set(r.id, r);
+    this.send([{ fn: "revealCache", arg: r }]);
+  }
+
+  /** Everything again. Cheap: a pool is a handful of caches. */
+  sync() {
+    if (this.phase) this.send(resync(this.priv, this.phase, this.streamed.values()));
+  }
 }
 
 /** A touch screen with no mouse or trackpad to go with it. */
@@ -80,6 +127,7 @@ export class TreasureHuntView implements GameView {
   private desktop = !touchOnly();
 
   private bridge: GodotBridge;
+  private feed: GodotFeed;
   private loader: StageLoader;
   private hud = new Hud();
   private stage = h("div", { class: "th-stage" });
@@ -106,7 +154,7 @@ export class TreasureHuntView implements GameView {
     this.bridge = new GodotBridge({
       ready: () => {
         this.loader.started();
-        this.sync();
+        this.feed.sync();
       },
       progress: (loaded, total) => this.loader.progress(loaded, total),
       started: () => this.loader.started(),
@@ -124,6 +172,7 @@ export class TreasureHuntView implements GameView {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }));
       },
     });
+    this.feed = new GodotFeed((calls) => this.bridge.call(calls));
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
     this.root = this.desktop
       ? h(
@@ -156,8 +205,7 @@ export class TreasureHuntView implements GameView {
   }
 
   stream(_from: string, data: unknown) {
-    const r = parseReveal(data);
-    if (r) this.bridge.call([{ fn: "revealCache", arg: r }]);
+    this.feed.stream(data);
   }
 
   update(props: GameViewProps) {
@@ -165,13 +213,9 @@ export class TreasureHuntView implements GameView {
     this.priv = (props.private as THPrivate | null) ?? null;
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
+    this.feed.update(this.priv, this.game.phase, this.game.layout.seed);
     if (this.desktop) this.bridge.setSession({ layout: this.game.layout });
     this.render();
-  }
-
-  /** Everything Godot should know, again. Cheap: a pool is a handful of caches. */
-  private sync() {
-    if (this.game) this.bridge.call(resync(this.priv, this.game.phase));
   }
 
   private showToast(text: string) {
@@ -193,7 +237,7 @@ export class TreasureHuntView implements GameView {
     }
     if (!this.desktop) return;
 
-    this.sync();
+    this.feed.sync();
     this.loader.el.hidden = loaded;
     const waiting = game.phase === "generating" && loaded;
     this.wait.hidden = !waiting;
