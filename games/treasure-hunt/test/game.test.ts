@@ -51,6 +51,50 @@ describe("treasure hunt server", () => {
     expect(t.state.countdownEndsAt).toBe(9000 + 3000);
   });
 
+  it("timeout with nobody ready keeps waiting and re-arms the timer", () => {
+    let t = make(2);
+    t = th.onTimer!(t.state, "ready-timeout", ctx({ now: 61_000 }));
+    expect(t.state.phase).toBe("generating");
+    expect(t.state.players.every((p) => !p.spectator)).toBe(true);
+    expect(t.events).toEqual([]);
+    expect(t.timers).toEqual([{ kind: "set", timerId: "ready-timeout", delayMs: READY_TIMEOUT_MS }]);
+    expect(th.getAwaitedPlayerIds(t.state)).toEqual(["p0", "p1"]);
+  });
+
+  it("solo slow load: the timer fires, then a late ready starts the round with that player hunting", () => {
+    let t = make(1);
+    t = th.onTimer!(t.state, "ready-timeout", ctx({ now: 61_000 }));
+    expect(t.state.phase).toBe("generating");
+    t = act(t.state, "p0", { type: "ready" }, ctx({ now: 90_000 }));
+    expect(t.state.phase).toBe("countdown");
+    const p0 = t.state.players[0]!;
+    expect(p0.spectator).toBe(false);
+    expect(p0.pool.length).toBeGreaterThan(0);
+    expect(t.events.map((e) => e.event)).toEqual([{ type: "countdown", spectators: [] }]);
+    t = th.onTimer!(t.state, "countdown", ctx({ now: 93_000 }));
+    expect(t.state.phase).toBe("hunting");
+    expect(th.getPrivateState(t.state, "p0").clues.length).toBe(p0.pool.length);
+  });
+
+  it("a countdown with no hunters finishes at once", () => {
+    // Only reachable through odd states: p0 is a ready spectator, p1 leaves.
+    const s0 = make(2).state;
+    const s = { ...s0, players: s0.players.map((p) => (p.id === "p0" ? { ...p, ready: true, spectator: true } : p)) };
+    const t = th.onPlayerRemoved!(s, "p1", ctx({ now: 4000 }));
+    expect(t.state.phase).toBe("finished");
+    expect(types(t)).toEqual(["player-removed", "ended"]);
+  });
+
+  it("a hunt with no hunters finishes at once", () => {
+    let t = act(make(1).state, "p0", { type: "ready" });
+    expect(t.state.phase).toBe("countdown");
+    const s = { ...t.state, players: t.state.players.map((p) => ({ ...p, spectator: true, pool: [] })) };
+    t = th.onTimer!(s, "countdown", ctx({ now: 7000 }));
+    expect(t.state.phase).toBe("finished");
+    expect(types(t)).toEqual(["ended"]);
+    expect(t.timers).not.toContainEqual(expect.objectContaining({ kind: "set", timerId: "round" }));
+  });
+
   it("ignores the timer outside generating", () => {
     let t = make(1);
     t = act(t.state, "p0", { type: "ready" });

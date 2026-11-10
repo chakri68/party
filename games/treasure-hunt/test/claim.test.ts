@@ -123,6 +123,48 @@ describe("reveal", () => {
     expect(pos(gone, "p1", 0, 0, 0, 11_500)).toBeNull();
   });
 
+  it("drops pos with any |x|, |y| or |z| over 2000", () => {
+    const s = hunting(1);
+    for (const [x, y, z] of [[2000.1, 0, 0], [0, -2001, 0], [0, 0, 1e9], [-2500, 0, 0]] as const) {
+      expect(th.onStream!(s, "p0", { t: "pos", x, y, z, foot: true }, ctx(11_000))).toBeNull();
+    }
+    expect(pos(s, "p0", 2000, -2000, 2000, 11_000)).not.toBeNull();
+  });
+
+  it("drops pos from a spectator", () => {
+    let s = th.createGame(players(2), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    s = (th.handleAction(s, "p0", { type: "ready" }, ctx(2000)) as { ok: true; transition: { state: THState } }).transition.state;
+    s = th.onTimer!(s, "ready-timeout", ctx(5000)).state;
+    s = th.onTimer!(s, "countdown", ctx(8000)).state;
+    expect(me(s, "p1").spectator).toBe(true);
+    expect(pos(s, "p1", 1, 2, 3, 9000)).toBeNull();
+  });
+
+  it("a jump reveals nothing, and the reveal comes once the grace is over", () => {
+    let s = hunting(1);
+    const cid = me(s, "p0").pool[0]!;
+    const c = cacheOf(s, cid);
+    const ids = (r: { relays?: { data: unknown }[] }) => (r.relays ?? []).map((x) => (x.data as { id: string }).id);
+    // Start far from every cache in the pool.
+    let far = { x: c.x + 600, z: c.z };
+    if (Math.abs(far.x) > 750) far = { x: c.x - 600, z: c.z };
+    s = pos(s, "p0", far.x, 10, far.z, 20_000)!.state;
+    expect(me(s, "p0").revealed).not.toContain(cid);
+    // Teleport onto the cache: flagged as a jump, no reveal.
+    const jump = pos(s, "p0", c.x, groundAt(s, cid), c.z, 20_250)!;
+    expect(me(jump.state, "p0").jumpAt).toBe(20_250);
+    expect(ids(jump)).not.toContain(cid);
+    expect(me(jump.state, "p0").revealed).not.toContain(cid);
+    s = jump.state;
+    // Still inside the grace, standing still: nothing yet.
+    const wait = standOn(s, "p0", cid, 20_250 + JUMP_GRACE_MS - 250);
+    expect(me(wait, "p0").revealed).not.toContain(cid);
+    // Grace over, still nearby: the reveal comes.
+    const after = pos(wait, "p0", c.x + 1, groundAt(s, cid), c.z, 20_250 + JUMP_GRACE_MS)!;
+    expect(ids(after)).toContain(cid);
+    expect(me(after.state, "p0").revealed).toContain(cid);
+  });
+
   it("accepts pos in the countdown", () => {
     const s = th.createGame(players(1), { minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
     const r = th.handleAction(s, "p0", { type: "ready" }, ctx(2000));
@@ -361,5 +403,14 @@ describe("secrecy", () => {
     }
     expect(priv.revealed).toEqual([]);
     expect(th.getPrivateState(s, "nobody")).toEqual({ clues: [], revealed: [] });
+  });
+
+  it("a removed player gets no private state", () => {
+    let s = hunting(2);
+    const cid = me(s, "p0").pool[0]!;
+    s = standOn(s, "p0", cid, 11_000);
+    expect(th.getPrivateState(s, "p0").revealed.length).toBeGreaterThan(0);
+    s = th.onPlayerRemoved!(s, "p0", ctx(12_000)).state;
+    expect(th.getPrivateState(s, "p0")).toEqual({ clues: [], revealed: [] });
   });
 });

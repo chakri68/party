@@ -39,9 +39,11 @@ import { makeHunt } from "./hunt.ts";
 
 // The Timed round (§3, §6.3–6.4, §8):
 //
-//   generating  every client builds the map and says ready (or the timeout
-//               makes it a spectator). Pools are dealt here, and again on
-//               the way out, once the spectators are known.
+//   generating  every client builds the map and says ready. At the timeout,
+//               if anyone is ready, the rest become spectators; if nobody
+//               is, the timer re-arms and the room keeps waiting. Pools are
+//               dealt here, and again on the way out, once the spectators
+//               are known.
 //   countdown   COUNTDOWN_MS. Positions stream in, nobody moves (R8).
 //   hunting     minutes × 60 000. Positions stream in and reveal pool caches
 //               within REVEAL_RADIUS to their owner only. Claims are checked
@@ -159,6 +161,8 @@ function startIfReady(s: THState, ctx: GameContext, events: Events, timers: Time
 }
 
 function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
+  // Safety net: a round nobody can play is over before it starts.
+  if (!hunters(s).length) return finish(s, ctx, events, timers);
   s.phase = "countdown";
   s.countdownEndsAt = ctx.now + COUNTDOWN_MS;
   deal(s);
@@ -167,6 +171,7 @@ function countdown(s: THState, ctx: GameContext, events: Events, timers: TimerRe
 }
 
 function hunt(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
+  if (!hunters(s).length) return finish(s, ctx, events, timers);
   const ms = s.settings.minutes * 60_000;
   s.phase = "hunting";
   s.startedAt = ctx.now;
@@ -178,12 +183,15 @@ function hunt(s: THState, ctx: GameContext, events: Events, timers: TimerRequest
 const out = (state: THState, events: Events, timers: TimerRequest[]): GameTransition<THState, THEvent> => ({ state, events, timers });
 const ok = (state: THState, events: Events, timers: TimerRequest[]): GameResult<THState, THEvent> => ({ ok: true, transition: out(state, events, timers) });
 
+/** Far past the edge ring (±950): anything bigger is junk, not a place. */
+const POS_LIMIT = 2000;
+
 function parsePos(data: unknown): Omit<THPos, "at"> | null {
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
   if (d.t !== "pos" || typeof d.foot !== "boolean") return null;
   const { x, y, z } = d;
-  if (![x, y, z].every((v) => typeof v === "number" && Number.isFinite(v))) return null;
+  if (![x, y, z].every((v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= POS_LIMIT)) return null;
   return { x: x as number, y: y as number, z: z as number, foot: d.foot };
 }
 
@@ -296,8 +304,17 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const events: Events = [];
     const timers: TimerRequest[] = [];
     if (timerId === READY_TIMER && s.phase === "generating") {
-      for (const p of s.players) if (!p.removed && !p.ready) p.spectator = true;
-      countdown(s, ctx, events, timers);
+      const here = active(s);
+      if (!here.length) {
+        finish(s, ctx, events, timers);
+      } else if (!here.some((p) => p.ready)) {
+        // Nobody has loaded yet (a slow first download): keep waiting rather
+        // than turn the whole table into spectators of an empty round.
+        timers.push({ kind: "set", timerId: READY_TIMER, delayMs: READY_TIMEOUT_MS });
+      } else {
+        for (const p of here) if (!p.ready) p.spectator = true;
+        countdown(s, ctx, events, timers);
+      }
     } else if (timerId === COUNTDOWN_TIMER && s.phase === "countdown") {
       hunt(s, ctx, events, timers);
     } else if (timerId === ROUND_TIMER && s.phase === "hunting") {
@@ -324,7 +341,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   onStream(state, playerId, data, ctx) {
     if (!ctx || (state.phase !== "countdown" && state.phase !== "hunting")) return null;
     const me = state.players.find((p) => p.id === playerId);
-    if (!me || me.removed) return null;
+    if (!me || me.removed || me.spectator) return null;
     const next = parsePos(data);
     if (!next) return null;
     const now = ctx.now;
@@ -340,7 +357,10 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
     const relays: StreamRelay[] = [];
     const revealed = [...me.revealed];
-    for (const id of me.pool) {
+    // A jump, or the grace after one, reveals nothing: a spoofed sweep of the
+    // map would otherwise hand over every cache in the pool.
+    const jumping = now - jumpAt < JUMP_GRACE_MS;
+    for (const id of jumping ? [] : me.pool) {
       if (revealed.includes(id)) continue;
       const c = state.caches.find((x) => x.id === id);
       if (!c || Math.hypot(c.x - next.x, c.z - next.z) > REVEAL_RADIUS) continue;
@@ -372,7 +392,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   getPrivateState(s, playerId) {
     const me = s.players.find((p) => p.id === playerId);
-    if (!me) return { clues: [], revealed: [] };
+    if (!me || me.removed) return { clues: [], revealed: [] };
     const cache = (id: string) => s.caches.find((c) => c.id === id)!;
     return {
       clues: me.pool.map((id) => {
