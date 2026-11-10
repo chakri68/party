@@ -155,6 +155,7 @@ func test_session_twice() -> void:
 	if statuses.size() == 1:
 		var st := statuses[0]
 		check(st.get("ms") is int and st.ms >= 0 and st.get("chunks") == main.streamer.loaded_count() and st.chunks > 0, "world-ready carries ms (%s) and the loaded chunk count (%s)" % [st.get("ms"), st.get("chunks")])
+		check(st.get("seed") is int and st.seed == seed2, "world-ready carries the seed it built (%s)" % st.get("seed"))
 	var world: Node = main.world
 	var ids := _chunk_ids(main)
 

@@ -17,9 +17,9 @@ Every round is a new 3D map. Walk around it, or drive the buggy. Hidden caches c
 1. **The map loads.** After the host starts the game, the map downloads and then builds. A bar shows how much has come in.
 2. **Wait for the others.** When your map is ready, you see "Waiting for N players". The round starts when everyone has the map.
 3. **Explore.** The map fills the screen. Click on it to look around with the mouse.
-4. **End.** The host presses **End** in the strip above the map. The round is over for everyone.
+4. **End.** The host presses **End round** in the strip above the map. The round is over for everyone.
 
-If someone's map does not load in 60 seconds, the round starts without them. They watch instead of playing that round.
+If someone's map does not load in 60 seconds, the round starts without them. When their map loads, they can still walk around.
 
 ## Controls
 
@@ -30,7 +30,7 @@ If someone's map does not load in 60 seconds, the round starts without them. The
 | Shift | Run |
 | Space | Jump |
 | E | Get in or out of the buggy |
-| R | Turn the buggy upright if it flips |
+| R | Put the buggy back on its wheels if it flips or gets stuck |
 | Esc | Free the mouse |
 
 ## Settings

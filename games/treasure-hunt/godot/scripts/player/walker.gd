@@ -25,6 +25,9 @@ const SCRAMBLE_REACH := 0.35
 
 var input_enabled := true
 var look_yaw := 0.0
+## main.seaward, bound to your wading depth: down the seabed where it's too
+## deep, else zero. Unset (tests on their own), there's no sea rule.
+var seaward := Callable()
 
 var _move := Vector2.ZERO # x right, y forward
 var _run := false
@@ -121,6 +124,9 @@ func _physics_process(dt: float) -> void:
 	var flat := Vector2(velocity.x, velocity.z).move_toward(Vector2(want.x, want.z), (ACCEL if on_floor else AIR_ACCEL) * dt)
 	velocity.x = flat.x
 	velocity.z = flat.y
+	if seaward.is_valid():
+		var down: Vector3 = seaward.call(global_position)
+		velocity -= down * maxf(0.0, velocity.dot(down))
 	move_and_slide()
 
 	if dir != Vector3.ZERO:

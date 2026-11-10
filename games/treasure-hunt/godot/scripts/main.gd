@@ -9,6 +9,11 @@ signal world_ready(ms: int)
 
 ## A body this far under the ground fell through: put it back on top.
 const FALL_LIMIT := 5.0
+## The sea is the edge (spec §4.4): ground this far under sea level is as
+## deep as you go: waist-deep on foot (the capsule's 1.8 m tall), and up to
+## the wheel hubs (0.48 m) in the buggy.
+const SEA_WALK_DEPTH := 1.0
+const SEA_DRIVE_DEPTH := 0.5
 
 @onready var walker: Walker = $Walker
 @onready var rig: RigCamera = $Rig
@@ -33,11 +38,13 @@ func _ready() -> void:
 	_park(buggy)
 	watched.append(walker)
 	watched.append(buggy)
+	walker.seaward = seaward.bind(SEA_WALK_DEPTH)
+	buggy.seaward = seaward.bind(SEA_DRIVE_DEPTH)
 	avatar.setup(walker, buggy, rig)
 	avatar.mode_changed.connect(func(m: StringName) -> void: focus = buggy if m == &"driving" else walker)
 	bridge.session_started.connect(_on_session)
 	world_ready.connect(func(ms: int) -> void:
-		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count()}))
+		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count(), "seed": _seed}))
 	var n := _requested_layout()
 	var path := "res://tests/fixtures/layout_%d.json" % n
 	if n > 0 and FileAccess.file_exists(path):
@@ -179,6 +186,21 @@ func _physics_process(_dt: float) -> void:
 		streamer.ensure_around(focus.global_position)
 	for b in watched:
 		_fall_check(b)
+
+
+## The deep-water rule. Where the ground at `p` is more than `depth` under
+## the sea, the flat unit vector down the seabed, else zero. The walker and
+## the buggy call it just before they move and drop the part of their
+## velocity along it, so you can go along the shore or back, never deeper.
+## (Here in main it would run before they set their velocity, and they'd
+## creep out a tick at a time.)
+func seaward(p: Vector3, depth: float) -> Vector3:
+	if field == null or field.height_at(p.x, p.z) >= TerrainField.SEA_LEVEL - depth:
+		return Vector3.ZERO
+	const S := 2.0
+	var down := Vector3(field.height_at(p.x - S, p.z) - field.height_at(p.x + S, p.z), 0,
+		field.height_at(p.x, p.z - S) - field.height_at(p.x, p.z + S))
+	return down.normalized() if down.length_squared() > 1e-8 else Vector3.ZERO
 
 
 ## Under the ground by more than FALL_LIMIT: back on the surface, still.

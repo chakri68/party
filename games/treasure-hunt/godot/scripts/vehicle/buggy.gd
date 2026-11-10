@@ -58,6 +58,9 @@ const STUCK_SPEED := 0.5
 ## Who's in the driver's seat, or null.
 var driver: Node = null
 var input_enabled := true
+## main.seaward, bound to the buggy's depth: down the seabed where it's too
+## deep, else zero. Unset, there's no sea rule.
+var seaward := Callable()
 ## Read-only state.
 var forward_speed := 0.0
 var steer_input := 0.0
@@ -127,6 +130,10 @@ func _physics_process(dt: float) -> void:
 	# A floor too steep to stand on: the wheels can't push, it slides back.
 	var throttle := throttle_input if on_floor or not _on_steep() else 0.0
 	var brake := brake_input
+	# Too deep: the engine won't push you further out. Pointing straight out
+	# cuts it all; side-on to the shore keeps it all.
+	var down: Vector3 = seaward.call(global_position) if seaward.is_valid() else Vector3.ZERO
+	throttle *= 1.0 - maxf(0.0, fwd.dot(down))
 
 	# Longitudinal: throttle forward, brake until stopped, then reverse. Thrust
 	# tapers near the top so the last few km/h take a moment.
@@ -177,6 +184,8 @@ func _physics_process(dt: float) -> void:
 	var vy := velocity.y - GRAVITY * dt if not on_floor else -0.5
 	var before := fwd * v_fwd + right * v_lat
 	velocity = before + Vector3.UP * vy
+	# And nothing else takes you there either: slope, slide or reverse.
+	velocity -= down * maxf(0.0, velocity.dot(down))
 	move_and_slide()
 	_handle_collisions(before)
 

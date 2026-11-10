@@ -1,6 +1,6 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { THPublic } from "../shared/types.ts";
-import { GodotBridge } from "./godot/bridge.ts";
+import { GodotBridge, worldReadyFor } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 
 // The whole game is the Godot map in an iframe; this file is the frame
@@ -9,8 +9,9 @@ import { StageLoader } from "./godot/loader.ts";
 //   generating  the map loads (StageLoader). Godot's ready() gets the
 //               session ({layout}); its world-ready gets act("ready"), once
 //               per seed. Then "Waiting for N players" until the round starts.
-//   exploring   the map fills the game area, under one strip: the help line,
-//               and End for the host.
+//   exploring   the map fills the game area, under one strip: the help line
+//               (up as soon as the map is), and End round for the host.
+//   finished    the mouse is let go.
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
@@ -36,7 +37,7 @@ export class TreasureHuntView implements GameView {
   private loader: StageLoader;
   private stage = h("div", { class: "th-stage" });
   private help = h("p", { class: "th-help" }, HELP);
-  private end = h("button", { type: "button", class: "th-end", hidden: true }, "End");
+  private end = h("button", { type: "button", class: "th-end", hidden: true }, "End round");
   private bar = h("div", { class: "th-bar", hidden: true }, this.help, this.end);
   private wait = h("p", { class: "th-wait", role: "status", "aria-live": "polite", hidden: true });
   private msg = h("p", { class: "th-msg", role: "alert" });
@@ -59,8 +60,8 @@ export class TreasureHuntView implements GameView {
         this.loader.failed(why);
       },
       status: (s) => {
-        if (s.kind !== "world-ready" || !this.game) return;
-        this.builtSeed = this.game.layout.seed;
+        if (!this.game || !worldReadyFor(s, this.game.layout.seed)) return;
+        this.builtSeed = s.seed;
         this.render();
       },
     });
@@ -111,8 +112,9 @@ export class TreasureHuntView implements GameView {
       const n = game.players.filter((p) => p.id !== this.playerId && !p.ready && !p.removed).length;
       this.wait.textContent = waitingText(n);
     }
-    this.bar.hidden = game.phase !== "exploring";
-    this.end.hidden = this.hostId !== this.playerId;
+    this.bar.hidden = !loaded;
+    this.end.hidden = game.phase !== "exploring" || this.hostId !== this.playerId;
+    if (game.phase === "finished") this.bridge.releasePointer();
     if (game.phase === "exploring" && loaded) this.msg.textContent = "";
   }
 }

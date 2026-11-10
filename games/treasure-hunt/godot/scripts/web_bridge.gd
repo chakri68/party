@@ -8,7 +8,7 @@ extends Node
 ## call `ready()`:
 ##   host.initSession({layout})            TS -> Godot
 ## and from our side:
-##   host.emitStatus({kind: "world-ready", ms, chunks})
+##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##
 ## Not on web, or no host: the JS half is a quiet no-op. Sessions can still
 ## come in through receive_session_json, and statuses still go out on

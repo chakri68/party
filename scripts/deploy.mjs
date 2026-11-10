@@ -8,9 +8,10 @@
 //    so the new worker never names a hash the bucket doesn't have; a hash
 //    that's already there is skipped.
 // 2. Builds the web app with VITE_BLIND_RALLY=1 so the lobby lists the game.
-// 3. Drops dist/blind-rally/godot: Vite copied it from public/, the .wasm is
-//    over the 25 MiB asset limit, and the worker serves that path from R2
-//    anyway (run_worker_first).
+// 3. Drops dist/blind-rally/godot and dist/treasure-hunt/godot: Vite copied
+//    them from public/, and each .wasm is over the 25 MiB asset limit. Blind
+//    Rally's is served from R2 anyway (run_worker_first); Treasure Hunt is
+//    dev-only in M1, so it doesn't ship at all.
 // 4. `wrangler deploy --var BLIND_RALLY:1`, so rooms can pick it.
 //
 // Self-hosting (scripts/host.mjs) goes nowhere near this, so it keeps both off.
@@ -36,4 +37,5 @@ function run(cmd, args, env = {}) {
 run(process.execPath, ["games/blind-rally/scripts/export-godot.mjs", "--upload", ...(dryRun ? ["--dry-run"] : [])]);
 run("pnpm", ["--filter", "@games/web", "build"], { VITE_BLIND_RALLY: "1" });
 rmSync(join(ROOT, "apps", "web", "dist", "blind-rally", "godot"), { recursive: true, force: true });
+rmSync(join(ROOT, "apps", "web", "dist", "treasure-hunt", "godot"), { recursive: true, force: true });
 run("pnpm", ["--filter", "@games/server", "exec", "wrangler", "deploy", "--var", "BLIND_RALLY:1", ...(dryRun ? ["--dry-run"] : [])]);

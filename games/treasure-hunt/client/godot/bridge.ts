@@ -22,8 +22,8 @@ export interface SessionConfig {
   layout: TreasureLayout;
 }
 
-/** What Godot reports. M1 has one kind. */
-export type GodotStatus = { kind: "world-ready"; ms: number; chunks: number };
+/** What Godot reports. M1 has one kind. `seed` is the layout Godot built. */
+export type GodotStatus = { kind: "world-ready"; ms: number; chunks: number; seed: number };
 
 /** The object both sides share. Godot fills in initSession. */
 interface HostObject {
@@ -68,6 +68,11 @@ export function shouldSendSession(lastSentSeed: number | null, godotReloaded: bo
   return godotReloaded || lastSentSeed !== layoutSeed;
 }
 
+/** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
+export function worldReadyFor(s: GodotStatus, seed: number): boolean {
+  return s.kind === "world-ready" && s.seed === seed;
+}
+
 export class GodotBridge {
   private iframe: HTMLIFrameElement | null = null;
   private host: HostObject | null = null;
@@ -93,7 +98,7 @@ export class GodotBridge {
       this.fail(m.message);
     }
   };
-  isReady = false;
+  private isReady = false;
 
   constructor(handlers: BridgeHandlers) {
     this.handlers = handlers;
@@ -144,10 +149,20 @@ export class GodotBridge {
       const w = iframe.contentWindow as (Window & { treasureHuntHost?: HostObject }) | null;
       if (w && this.host && w.treasureHuntHost !== this.host) w.treasureHuntHost = this.host;
     };
+    // A load is a new document, so any Godot we had is gone. Until the new
+    // one calls ready(), there's nobody to send to, and it'll need the session.
+    // (The first load is harmless: Godot boots off a 30 MB wasm fetch, so its
+    // ready() comes long after its page has loaded.)
+    const reloaded = () => {
+      this.isReady = false;
+      this.sentSeed = null;
+      if (this.host) delete this.host.initSession;
+      attach();
+    };
     addEventListener("message", this.onMessage);
     container.append(iframe);
     attach();
-    iframe.addEventListener("load", attach);
+    iframe.addEventListener("load", reloaded);
     this.watch();
   }
 
@@ -164,9 +179,9 @@ export class GodotBridge {
     if (container) void this.mount(container);
   }
 
-  /** Gives the map keyboard focus, so WASD goes to Godot after a click on the page. */
-  focus() {
-    this.iframe?.contentWindow?.focus();
+  /** Hands the mouse back (the round is over, there's nothing to look at). */
+  releasePointer() {
+    this.iframe?.contentDocument?.exitPointerLock();
   }
 
   dispose() {
