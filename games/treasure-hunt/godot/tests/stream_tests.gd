@@ -17,6 +17,7 @@ func run() -> void:
 	for n in range(1, t.FIXTURES + 1):
 		await test_fixture(n)
 	print("  load_initial ms per fixture: %s" % [load_ms])
+	await test_session_twice()
 
 
 func check(ok: bool, what: String) -> void:
@@ -116,4 +117,57 @@ func test_fixture(n: int) -> void:
 			nodes += 1
 	check(nodes == s.loaded_count(), "layout %d: freed chunks leave the tree" % n)
 	s.queue_free()
+	await t.process_frame
+
+
+## Instance ids of the chunks main's streamer holds, sorted.
+func _chunk_ids(main: Node) -> Array:
+	var ids := []
+	for c in main.streamer.get_children():
+		if c is TerrainChunk:
+			ids.append(c.get_instance_id())
+	ids.sort()
+	return ids
+
+
+## The session JSON the page sends: {layout}, as text, so JSON.parse_string
+## hands the bridge floats for every number, the way JS does.
+func _session_text(n: int) -> String:
+	return '{"layout": %s}' % FileAccess.get_file_as_string("res://tests/fixtures/layout_%d.json" % n)
+
+
+## Review Focus 3: the session arrives twice. Through the bridge, like the
+## page sends it: the same seed again does nothing, a new seed rebuilds.
+func test_session_twice() -> void:
+	var main: Node = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	t.root.add_child(main)
+	await t.process_frame
+	var bridge: WebBridge = main.bridge
+	var statuses: Array[Dictionary] = []
+	bridge.status_sent.connect(func(s: Dictionary) -> void: statuses.append(s))
+	# _ready built layout 1 from the fixture. Start from the bridge instead.
+	var sent: Dictionary = JSON.parse_string(_session_text(2))
+	check(typeof(sent.layout.seed) == TYPE_FLOAT and typeof(sent.layout.macro.heights[0]) == TYPE_FLOAT, "the session's numbers arrive as floats, like from JS")
+	bridge.receive_session_json(_session_text(2))
+	var seed2 := int(t.layout(2).seed)
+	check(main.field != null and main.field.seed == seed2, "a session through the bridge builds its layout (seed %d)" % seed2)
+	check(statuses.size() == 1 and statuses[0].get("kind") == "world-ready", "the bridge reports world-ready once")
+	if statuses.size() == 1:
+		var st := statuses[0]
+		check(st.get("ms") is int and st.ms >= 0 and st.get("chunks") == main.streamer.loaded_count() and st.chunks > 0, "world-ready carries ms (%s) and the loaded chunk count (%s)" % [st.get("ms"), st.get("chunks")])
+	var world: Node = main.world
+	var ids := _chunk_ids(main)
+
+	bridge.receive_session_json(_session_text(2))
+	check(main.world == world and _chunk_ids(main) == ids and statuses.size() == 1, "the same seed again: no rebuild, the same %d chunk nodes, no second world-ready" % ids.size())
+
+	bridge.receive_session_json(_session_text(3))
+	check(main.world != world and main.field.seed == int(t.layout(3).seed), "a new seed rebuilds the world")
+	var fresh := _chunk_ids(main)
+	var shared := fresh.filter(func(id: int) -> bool: return ids.has(id))
+	check(not fresh.is_empty() and shared.is_empty() and statuses.size() == 2, "the new world has new chunk nodes and says world-ready again")
+
+	bridge.receive_session_json('{"nope": 1}')
+	check(main.world != world and main.field.seed == int(t.layout(3).seed), "a session with no layout is ignored")
+	main.queue_free()
 	await t.process_frame

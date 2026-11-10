@@ -61,7 +61,7 @@ export class Room extends Server<Env> {
         isOwnerKey: (key) => isOwnerKey(this.env, key),
         ownerRequired: true,
       };
-      this.#runtime = new RoomRuntime(this.name, host, gamesFor({ blindRally: this.env.BLIND_RALLY === "1" }), "sevens");
+      this.#runtime = new RoomRuntime(this.name, host, gamesFor({ blindRally: this.env.BLIND_RALLY === "1", treasureHunt: this.env.TREASURE_HUNT === "1" }), "sevens");
     }
     return this.#runtime;
   }

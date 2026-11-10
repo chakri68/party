@@ -102,6 +102,9 @@ importers:
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
+      '@games/treasure-hunt':
+        specifier: workspace:*
+        version: link:../../games/treasure-hunt
       partyserver:
         specifier: ^0.5.10
         version: 0.5.10(@cloudflare/workers-types@5.20260924.1)
@@ -202,6 +205,9 @@ importers:
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
+      '@games/treasure-hunt':
+        specifier: workspace:*
+        version: link:../../games/treasure-hunt
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 8787 --var DEV_TOOLS:1 --var OWNER_KEY:dev --var BLIND_RALLY:1",
+    "dev": "wrangler dev --port 8787 --var DEV_TOOLS:1 --var OWNER_KEY:dev --var BLIND_RALLY:1 --var TREASURE_HUNT:1",
     "deploy": "wrangler deploy",
     "types": "wrangler types --strict-vars=false",
     "typecheck": "tsc -p ."
@@ -36,6 +36,7 @@
     "@games/sevens": "workspace:*",
     "@games/short-night": "workspace:*",
     "@games/thorns": "workspace:*",
+    "@games/treasure-hunt": "workspace:*",
     "partyserver": "^0.5.10"
   },
   "devDependencies": {

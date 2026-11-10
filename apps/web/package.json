@@ -39,6 +39,7 @@
     "@games/sevens": "workspace:*",
     "@games/short-night": "workspace:*",
     "@games/thorns": "workspace:*",
+    "@games/treasure-hunt": "workspace:*",
     "@games/ui": "workspace:*"
   },
   "devDependencies": {

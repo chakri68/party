@@ -1,0 +1,26 @@
+{
+  "hash": "59b69e5de4",
+  "base": "/treasure-hunt/godot/59b69e5de4/",
+  "files": [
+    "index.apple-touch-icon.png",
+    "index.audio.position.worklet.js",
+    "index.audio.worklet.js",
+    "index.html",
+    "index.icon.png",
+    "index.js",
+    "index.pck",
+    "index.png",
+    "index.wasm"
+  ],
+  "sizes": {
+    "index.apple-touch-icon.png": 11944,
+    "index.audio.position.worklet.js": 2973,
+    "index.audio.worklet.js": 7298,
+    "index.html": 2709,
+    "index.icon.png": 5700,
+    "index.js": 279815,
+    "index.pck": 166492,
+    "index.png": 21443,
+    "index.wasm": 39514754
+  }
+}

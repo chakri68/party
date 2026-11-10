@@ -27,6 +27,7 @@ import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scri
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
 import { thornsManifest, thornsRules, thornsSettingFields } from "@games/thorns/shared";
+import { treasureHuntManifest, treasureHuntRules, treasureHuntSettingFields } from "@games/treasure-hunt/shared";
 import type { GameClientModule } from "@games/ui";
 
 /** Headings in the host's game list, in the order they show. */
@@ -60,6 +61,13 @@ export interface GameEntry {
  * boots the same export, so it hangs off the same flag.
  */
 const BLIND_RALLY = import.meta.env.VITE_BLIND_RALLY === "1";
+
+/**
+ * Treasure Hunt has its own Godot export, also not in git. In M1 only dev
+ * serves it: `pnpm dev` sets VITE_TREASURE_HUNT=1, deploys and self-hosted
+ * builds don't. The server checks its own TREASURE_HUNT var.
+ */
+const TREASURE_HUNT = import.meta.env.VITE_TREASURE_HUNT === "1";
 
 export const games: Record<string, GameEntry> = {
   sevens: {
@@ -251,6 +259,15 @@ export const games: Record<string, GameEntry> = {
       rules: rallyRules,
       settingFields: rallySettingFields,
       loadClient: () => import("@games/blind-rally/client").then((m) => m.rally),
+    },
+  }),
+  ...(TREASURE_HUNT && {
+    "treasure-hunt": {
+      section: "racing",
+      manifest: treasureHuntManifest,
+      rules: treasureHuntRules,
+      settingFields: treasureHuntSettingFields,
+      loadClient: () => import("@games/treasure-hunt/client").then((m) => m.default),
     },
   }),
 };

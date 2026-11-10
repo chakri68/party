@@ -71,6 +71,15 @@ Blind Rally's Navigator runs a Godot export that isn't in git: a ~38 MiB `.wasm`
 
 To get the export into dev: `node games/blind-rally/scripts/export-godot.mjs` (needs Godot 4.7.2 and its web templates; `--no-export` republishes whatever's already in `games/blind-rally/build/web`). It copies the build into `apps/web/public/blind-rally/godot/<hash>/` and writes `games/blind-rally/client/navigator/godot-build.json`, which pins the client to that hash.
 
+### Treasure Hunt and its flag
+
+Treasure Hunt has its own Godot export, also not in git, and in M1 only dev serves it. Same pattern as Blind Rally, its own flag:
+
+- `VITE_TREASURE_HUNT=1` at build time lists it in the lobby. `TREASURE_HUNT=1` on the worker lets a room pick it.
+- `pnpm dev` sets both (`apps/web/.env.development`, `--var TREASURE_HUNT:1`). `pnpm run deploy` and `pnpm host` set neither, so nothing outside dev lists it.
+
+To get the export into dev: `node games/treasure-hunt/scripts/export-godot.mjs` (Godot 4.7.2 and its web templates again). It copies the build into `apps/web/public/treasure-hunt/godot/<hash>/` and writes `games/treasure-hunt/client/godot/godot-build.json`.
+
 ### Deploying it
 
 The `.wasm` is over Workers' 25 MiB static-asset limit, so deploys don't ship the export as assets. It lives in an R2 bucket (`party-games-blind-rally`, binding `BLIND_RALLY_GODOT`) and the worker serves it at the same path the client already asks for, `/blind-rally/godot/<hash>/<file>` (`apps/server/src/godot.ts`). Same origin matters: the Navigator's iframe bridge pokes `iframe.contentWindow`, which a bucket on its own domain wouldn't allow.

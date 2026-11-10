@@ -1,10 +1,11 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/player/walker.gd" id="2_walker"]
 [ext_resource type="Script" path="res://scripts/camera/rig_camera.gd" id="3_rig"]
 [ext_resource type="PackedScene" path="res://scenes/buggy.tscn" id="4_buggy"]
 [ext_resource type="Script" path="res://scripts/player/avatar.gd" id="5_avatar"]
+[ext_resource type="Script" path="res://scripts/web_bridge.gd" id="6_bridge"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_day"]
 sky_top_color = Color(0.3, 0.5, 0.78, 1)
@@ -60,6 +61,9 @@ script = ExtResource("5_avatar")
 
 [node name="Rig" type="Node3D" parent="."]
 script = ExtResource("3_rig")
+
+[node name="WebBridge" type="Node" parent="."]
+script = ExtResource("6_bridge")
 
 [node name="UI" type="CanvasLayer" parent="."]
 

@@ -24,6 +24,7 @@ import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
 import { shortNightGame } from "@games/short-night/server";
 import { thornsGame } from "@games/thorns/server";
+import { treasureHuntGame } from "@games/treasure-hunt/server";
 
 /** Server half of the game registry (§43). */
 const GAMES: Record<string, AnyGameDefinition> = {
@@ -63,8 +64,18 @@ export interface GameFlags {
    * so the one flag lists both.
    */
   blindRally: boolean;
+  /**
+   * Treasure Hunt has its own Godot export, also not in git, and in M1 only
+   * dev serves it. `pnpm dev` sets TREASURE_HUNT=1; deploys and self-hosted
+   * copies don't.
+   */
+  treasureHunt: boolean;
 }
 
 export function gamesFor(flags: GameFlags): Record<string, AnyGameDefinition> {
-  return flags.blindRally ? { ...GAMES, "blind-rally": blindRallyGame, rally: rallyGame } : GAMES;
+  return {
+    ...GAMES,
+    ...(flags.blindRally && { "blind-rally": blindRallyGame, rally: rallyGame }),
+    ...(flags.treasureHunt && { "treasure-hunt": treasureHuntGame }),
+  };
 }

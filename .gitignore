@@ -31,3 +31,5 @@ spec.md
 wrangler.selfhost.json
 # Blind Rally's Godot export, copied in by games/blind-rally/scripts/export-godot.mjs (map D1)
 apps/web/public/blind-rally/godot/
+# Treasure Hunt's, copied in by games/treasure-hunt/scripts/export-godot.mjs
+apps/web/public/treasure-hunt/godot/

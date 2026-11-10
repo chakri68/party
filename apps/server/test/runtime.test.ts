@@ -1049,18 +1049,18 @@ describe("the room host on ctx", () => {
 
 describe("game registry flags (map D1)", () => {
   it("lists Blind Rally (and Rally, same package) only when the build asks for it", () => {
-    expect(Object.keys(gamesFor({ blindRally: false }))).not.toContain("blind-rally");
-    expect(Object.keys(gamesFor({ blindRally: false }))).not.toContain("rally");
-    expect(gamesFor({ blindRally: true })["blind-rally"]).toBe(blindRallyGame);
-    expect(gamesFor({ blindRally: true }).rally?.manifest.id).toBe("rally");
+    expect(Object.keys(gamesFor({ blindRally: false, treasureHunt: false }))).not.toContain("blind-rally");
+    expect(Object.keys(gamesFor({ blindRally: false, treasureHunt: false }))).not.toContain("rally");
+    expect(gamesFor({ blindRally: true, treasureHunt: false })["blind-rally"]).toBe(blindRallyGame);
+    expect(gamesFor({ blindRally: true, treasureHunt: false }).rally?.manifest.id).toBe("rally");
     // Everything else is the same either way.
-    const off = Object.keys(gamesFor({ blindRally: false }));
-    expect(Object.keys(gamesFor({ blindRally: true })).filter((k) => k !== "blind-rally" && k !== "rally")).toEqual(off);
+    const off = Object.keys(gamesFor({ blindRally: false, treasureHunt: false }));
+    expect(Object.keys(gamesFor({ blindRally: true, treasureHunt: false })).filter((k) => k !== "blind-rally" && k !== "rally")).toEqual(off);
   });
 
   it("a room without the flag refuses to pick it", async () => {
     const world = new World();
-    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: false }), "sevens");
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: false, treasureHunt: false }), "sevens");
     await room.load();
     await room.claim();
     const a = await join(world, room, "Ana");
@@ -1076,7 +1076,7 @@ describe("Blind Rally through the room", () => {
   /** Host, Driver and Navigator seated in car 1, the race started and the stage open. */
   async function racingRoom() {
     const world = new World();
-    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true }), "blind-rally");
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true, treasureHunt: false }), "blind-rally");
     await room.load();
     await room.claim();
     const [host, drv, nav] = [await join(world, room, "Ana"), await join(world, room, "Ben"), await join(world, room, "Cy")];
@@ -1129,7 +1129,7 @@ describe("Blind Rally through the room", () => {
 
   it("seats a pair, counts down, and relays the Driver's input to their Navigator only, without a write", async () => {
     const world = new World();
-    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true }), "blind-rally");
+    const room = new RoomRuntime("K7DX", world.host(), gamesFor({ blindRally: true, treasureHunt: false }), "blind-rally");
     await room.load();
     await room.claim();
     const [host, drv, nav] = [await join(world, room, "Ana"), await join(world, room, "Ben"), await join(world, room, "Cy")];

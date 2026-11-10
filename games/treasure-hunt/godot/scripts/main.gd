@@ -1,8 +1,8 @@
 extends Node3D
 ## Puts a playable world together: terrain, sea, walls, the walker, the
 ## buggy and the camera. start_world() is the one way in. Locally (editor, desktop run,
-## tests) _ready feeds it a fixture; on the web the bridge (Task 6) feeds it
-## the session's layout. Same seed twice does nothing, so a session that
+## tests) _ready feeds it a fixture; on the web the bridge feeds it the
+## session's layout, and hears world-ready back. Same seed twice does nothing, so a session that
 ## arrives twice builds once.
 
 signal world_ready(ms: int)
@@ -15,6 +15,7 @@ const FALL_LIMIT := 5.0
 @onready var buggy: Buggy = $Buggy
 @onready var avatar: PlayerAvatar = $Avatar
 @onready var _debug: Label = $UI/Debug
+@onready var bridge: WebBridge = $WebBridge
 
 var field: TerrainField
 var streamer: ChunkStreamer
@@ -34,6 +35,9 @@ func _ready() -> void:
 	watched.append(buggy)
 	avatar.setup(walker, buggy, rig)
 	avatar.mode_changed.connect(func(m: StringName) -> void: focus = buggy if m == &"driving" else walker)
+	bridge.session_started.connect(_on_session)
+	world_ready.connect(func(ms: int) -> void:
+		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count()}))
 	var n := _requested_layout()
 	var path := "res://tests/fixtures/layout_%d.json" % n
 	if n > 0 and FileAccess.file_exists(path):
@@ -63,6 +67,15 @@ func parse_layout_arg(v: String) -> int:
 		return n
 	push_warning("main: --layout=%s isn't a fixture, using layout 1" % v)
 	return 1
+
+
+## {layout} from the page. The same seed again (a resend) does nothing.
+func _on_session(cfg: Dictionary) -> void:
+	var layout: Variant = cfg.get("layout")
+	if layout is Dictionary:
+		start_world(layout)
+	else:
+		push_warning("main: a session with no layout")
 
 
 ## Builds the world for `layout` (the server's layout JSON, parsed). A second
