@@ -178,8 +178,8 @@ export function pieceLabel(p: SetPiece): string {
   return `${t.labels[p.variant]} ${t.name}`;
 }
 
-/** A slot in world space. Godot's yaw turns +X towards −Z. */
-export function worldSlot(p: SetPiece, s: Slot): { x: number; z: number; dy: number } {
+/** A slot in world space. Godot's yaw turns +X towards −Z. Minor points use it too. */
+export function worldSlot(p: Pick<SetPiece, "x" | "z" | "yaw">, s: Slot): { x: number; z: number; dy: number } {
   const c = Math.cos(p.yaw);
   const n = Math.sin(p.yaw);
   return { x: p.x + s.x * c + s.z * n, z: p.z - s.x * n + s.z * c, dy: s.dy };

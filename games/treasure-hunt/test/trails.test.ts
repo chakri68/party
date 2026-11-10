@@ -49,7 +49,7 @@ describe("trails and minor points", () => {
 
   it("has the exact slot hints", () => {
     expect(MINOR_SLOT.rocks.hint).toBe("Beside a pile of rocks.");
-    expect(MINOR_SLOT.log.hint).toBe("Under a fallen log.");
+    expect(MINOR_SLOT.log.hint).toBe("Beside a fallen log.");
     expect(MINOR_SLOT.campfire.hint).toBe("Next to an old campfire.");
     for (const s of Object.values(MINOR_SLOT)) expect(s.dy).toBe(0);
     expect(TRAIL_HALF_WIDTH).toBe(2);

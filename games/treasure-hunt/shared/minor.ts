@@ -33,7 +33,7 @@ const TRIES = 6000;
  */
 export const MINOR_SLOT: Record<MinorKind, Slot> = {
   rocks: { x: 1.2, z: 0, dy: 0, hint: "Beside a pile of rocks." },
-  log: { x: 1.2, z: 0, dy: 0, hint: "Under a fallen log." },
+  log: { x: 1.2, z: 0, dy: 0, hint: "Beside a fallen log." },
   campfire: { x: 1.2, z: 0, dy: 0, hint: "Next to an old campfire." },
 };
 
