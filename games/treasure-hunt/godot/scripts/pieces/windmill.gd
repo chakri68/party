@@ -4,8 +4,10 @@ extends RefCounted
 ## The sails turn on a hub at (0, height − 1, −2.8): 4 blades, each
 ## 0.45 · height long, so the lowest tip is ≥ 3.95 m up. They're a child
 ## node, Sails, with no collider, turning about its own Z when `turning` is
-## 1. A stack of crates 1 m high and 1.2 m square at (3.8, 0). Lamps: one
-## over the door (Lamp0), one on the front of the hub (Lamp1).
+## 1. A stack of crates 1 m high and 1.2 m square at (4.2, 0), a barrel at
+## (4.0, 1.6): both at least 1 m from the tower. Lamps: one over the door
+## (Lamp0, 0.6 m wide), one on the front of the hub (Lamp1, 1.1 m wide, at
+## z −3.3, in front of the sails).
 
 const SIDE := 5.0
 const CRATE := Vector3(1.2, 0.5, 1.2)
@@ -46,9 +48,9 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	PieceKit.box_shape(b, Vector3(SIDE, h, SIDE), Vector3(0, h * 0.5, 0))
 
 	# Lamp0: a bulb on a short bracket over the door.
-	var door_lamp := Vector3(0, 2.6, -2.75)
-	PieceKit.box(root, Vector3(0.08, 0.08, 0.3), Vector3(0, 2.6, -2.6), metal)
-	PieceKit.cylinder(root, 0.12, 0.12, 0.24, door_lamp, bulb)
+	var door_lamp := Vector3(0, 2.6, -2.9)
+	PieceKit.box(root, Vector3(0.1, 0.1, 0.5), Vector3(0, 2.6, -2.75), metal)
+	PieceKit.cylinder(root, 0.3, 0.3, 0.5, door_lamp, bulb)
 	PieceKit.lamp_light(root, 0, door_lamp)
 
 	# The axle out of the wall, the sails on it, Lamp1 on its front.
@@ -61,16 +63,18 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	root.add_child(sails)
 	var R := 0.45 * h / TIP
 	PieceKit.kenney(sails, "town/windmill", Vector3(0, -R, 0), Vector3(0.3, R * 2, R * 2), PI / 2)
-	var hub_lamp := Vector3(0, hub.y, -3.2)
-	PieceKit.cylinder(root, 0.15, 0.15, 0.12, hub_lamp, bulb, Basis(Vector3.RIGHT, PI / 2))
+	# A big disc on the axle's end, all of it at z ≤ −3.0, so the sails turn
+	# behind it. Sized like the lighthouse lamp, so it reads from afar at night.
+	var hub_lamp := Vector3(0, hub.y, -3.3)
+	PieceKit.cylinder(root, 0.55, 0.55, 0.3, hub_lamp, bulb, Basis(Vector3.RIGHT, PI / 2))
 	PieceKit.lamp_light(root, 1, hub_lamp)
 
 	# Two crates, one on the other: 1 m, and a barrel beside them.
-	var spot := Vector3(3.8, 0, 0)
+	var spot := Vector3(4.2, 0, 0)
 	PieceKit.kenney(root, "survival/box-large", spot, CRATE)
 	PieceKit.kenney(root, "survival/box-large", spot + Vector3(0, CRATE.y, 0), CRATE, PI / 2)
 	PieceKit.box_shape(b, Vector3(CRATE.x, CRATE.y * 2, CRATE.z), spot + Vector3(0, CRATE.y, 0))
-	var barrel := Vector3(3.5, 0, 1.6)
+	var barrel := Vector3(4.0, 0, 1.6)
 	PieceKit.kenney(root, "survival/barrel", barrel, Vector3(0.6, 0.85, 0.6))
 	PieceKit.cylinder_shape(b, 0.3, 0.85, barrel + Vector3(0, 0.425, 0))
 	return root

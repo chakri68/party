@@ -14,9 +14,9 @@ const GATE := 2.0
 const BASIN := 2.0
 const RIM := 0.6
 const COLUMN := 1.6
-## The bulb hangs just under its light at 2.2 m, so the lanterns stay
-## within `top` (2 m) of the template.
-const BULB_Y := 2.0
+## The bulb, 0.56 m wide and 0.5 m tall, sits just under its light at 1.9 m,
+## so the lanterns stay within `top` (2 m) of the template.
+const BULB_Y := 1.7
 
 
 static func build(p: Dictionary, label: int) -> Node3D:
@@ -47,9 +47,9 @@ static func build(p: Dictionary, label: int) -> Node3D:
 	var bulb := PieceKit.lamp_mat(Color("#ffc870"))
 	for i in 2:
 		var at := Vector3(-1.8 if i == 0 else 1.8, 0, -9.6)
-		PieceKit.box(root, Vector3(0.1, BULB_Y - 0.14, 0.1), at + Vector3(0, (BULB_Y - 0.14) * 0.5, 0), post)
-		PieceKit.cylinder(root, 0.12, 0.12, 0.28, at + Vector3(0, BULB_Y, 0), bulb)
-		PieceKit.lamp_light(root, i, at + Vector3(0, 2.2, 0))
+		PieceKit.box(root, Vector3(0.1, BULB_Y - 0.25, 0.1), at + Vector3(0, (BULB_Y - 0.25) * 0.5, 0), post)
+		PieceKit.cylinder(root, 0.28, 0.28, 0.5, at + Vector3(0, BULB_Y, 0), bulb)
+		PieceKit.lamp_light(root, i, at + Vector3(0, 1.9, 0))
 	return root
 
 

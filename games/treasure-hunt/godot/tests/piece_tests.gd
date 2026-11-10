@@ -129,6 +129,7 @@ func test_sample(tid: String, i: int, s: Dictionary) -> void:
 		await _check_sails(what, piece, s)
 	if tid == "farm":
 		_check_doorway(what)
+		_check_fence_gap(what)
 	if tid == "cave":
 		_check_tunnel(what, int(s.params.chambers))
 	if tid == "hot-spring":
@@ -263,10 +264,32 @@ func _check_sails(what: String, piece: Node3D, s: Dictionary) -> void:
 	await t.physics_frame
 	for slot: Dictionary in s.slots:
 		_check_slot(what + " after 60 frames", slot)
+	# The lowest blade tip, off the mesh vertices at four forced angles (an
+	# AABB would undershoot: turned, its corner dips below the tips).
+	var h := float(s.params.height)
+	var saved := sails.rotation.z
+	var lowest := INF
+	for deg in [0.0, 22.5, 45.0, 67.5]:
+		sails.rotation.z = deg_to_rad(deg)
+		var low := _lowest_vertex(sails)
+		lowest = minf(lowest, low)
+		print("  %s: sails at %.1f deg, h %.1f: lowest tip %.3f m" % [what, deg, h, low])
+	sails.rotation.z = saved
+	check(lowest >= 3.9, "%s: the lowest blade tip stays %.2f m up at 0, 22.5, 45 and 67.5 deg (at least 3.9)" % [what, lowest])
+	check(lowest >= 0.55 * h - 1.0 - 0.05, "%s: and that is the 0.55 h - 1 the template says (%.2f)" % [what, 0.55 * h - 1.0])
+
+
+## The lowest world-space vertex of every mesh under `n`.
+func _lowest_vertex(n: Node3D) -> float:
 	var low := INF
-	for g: GeometryInstance3D in _geometry(sails):
-		low = minf(low, (g.global_transform * g.get_aabb()).position.y)
-	check(low >= 3.0, "%s: the sails stay %.2f m up (at least 3)" % [what, low])
+	for g: Node in _geometry(n):
+		var mi := g as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			for v: Vector3 in mi.mesh.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]:
+				low = minf(low, (mi.global_transform * v).y)
+	return low
 
 
 ## The barn's doorway, in the middle of its +Z wall (z −3.2..−3): room for
@@ -288,6 +311,26 @@ func _check_doorway(what: String) -> void:
 		pq.position = Vector3(x, 1.0, -3.1)
 		pq.collision_mask = 1
 		check(not _space.intersect_point(pq).is_empty(), "%s: the barn wall stands at x %.1f, beside the doorway" % [what, x])
+
+
+## The broken fence's gap, centred at x −1.5 on z = 10: the walker fits it,
+## and the fence stands either side, in the whole ends of the segment.
+func _check_fence_gap(what: String) -> void:
+	var cap := CapsuleShape3D.new()
+	cap.radius = RADIUS
+	cap.height = HEIGHT
+	var sq := PhysicsShapeQueryParameters3D.new()
+	sq.shape = cap
+	sq.collision_mask = 1
+	for x in [-1.5, -1.58, -1.42]:
+		sq.transform = Transform3D(Basis.IDENTITY, Vector3(x, LIFT + HEIGHT * 0.5, 10))
+		var hits := _space.intersect_shape(sq)
+		check(hits.is_empty(), "%s: the walker fits the broken fence's gap at x %.2f%s" % [what, x, _names(hits)])
+	for x in [-2.5, -0.5]:
+		var pq := PhysicsPointQueryParameters3D.new()
+		pq.position = Vector3(x, 0.5, 10)
+		pq.collision_mask = 1
+		check(not _space.intersect_point(pq).is_empty(), "%s: the broken fence stands at x %.1f" % [what, x])
 
 
 ## The cave's tunnel, x −1.25..1.25 and 2.5 m high, from its mouth at
@@ -425,10 +468,10 @@ func _geometry(n: Node) -> Array[Node]:
 
 ## Every model the M4b set-piece builders may use, as PieceKit.kenney names it.
 const KIT_MODELS := {
-	"town": ["windmill", "blade", "wall-wood", "wall-wood-broken", "wall-wood-doorway-square", "roof-gable", "fence", "fence-broken", "cart", "fountain-round", "hedge", "lantern", "pillar-wood", "planks", "stairs-wood"],
-	"castle": ["tower-square-base", "tower-square-mid", "tower-square-top", "wall-half", "rocks-large", "rocks-small", "siege-trebuchet", "siege-trebuchet-demolished", "siege-catapult", "siege-catapult-demolished", "siege-ballista", "siege-ballista-demolished", "flag-banner-long"],
-	"survival": ["box-large", "barrel", "structure-canvas", "structure", "campfire-fishing-stand", "signpost", "tool-pickaxe", "tool-shovel", "resource-stone-large", "bucket"],
-	"nature": ["cliff_block_rock", "cliff_blockHalf_rock", "cliff_cave_rock", "rock_smallFlatA", "rock_smallB", "log_stack"],
+	"town": ["windmill", "wall-wood", "fence", "fence-broken", "cart", "hedge"],
+	"castle": ["tower-square-base", "tower-square-mid", "tower-square-top", "rocks-large", "rocks-small", "siege-trebuchet", "siege-trebuchet-demolished", "siege-catapult", "siege-catapult-demolished", "siege-ballista", "siege-ballista-demolished", "flag-banner-long"],
+	"survival": ["box-large", "barrel", "structure-canvas", "structure", "campfire-fishing-stand", "signpost", "tool-pickaxe", "tool-shovel"],
+	"nature": ["cliff_block_rock", "cliff_blockHalf_rock", "log_stack"],
 }
 
 
@@ -455,7 +498,7 @@ func test_kits() -> void:
 					textured = textured or (m != null and m.albedo_texture != null)
 				if not textured or mi.material_override != null:
 					bad_mat.append(name)
-	check(n == 44, "test_kits covers 44 models (%d)" % n)
+	check(n == 29, "test_kits covers 29 models (%d)" % n)
 	check(bad_size.is_empty(), "every kit model loads with a mesh above 0.01 on each axis %s" % [bad_size])
 	check(bad_mat.is_empty(), "castle, town and survival models keep a textured material %s" % [bad_mat])
 	check(PieceKit.COLOURS.has("brown"), "COLOURS has brown")

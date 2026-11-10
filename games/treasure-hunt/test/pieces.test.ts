@@ -266,7 +266,7 @@ describe("lamps and heights", () => {
   it("lighthouse: top and lamps", () => {
     for (const p of samples("lighthouse")) {
       const t = TEMPLATES.lighthouse;
-      expect(t.top!(p)).toBeCloseTo(p.height! + (p.ruined ? 1.1 : 3.6), 9);
+      expect(t.top(p)).toBeCloseTo(p.height! + (p.ruined ? 1.1 : 3.6), 9);
       const R = 2.5 + p.height! * 0.1;
       expect(t.lamps!(p)).toEqual(
         p.ruined
@@ -283,7 +283,7 @@ describe("lamps and heights", () => {
     for (const p of samples("radio-tower")) {
       const t = TEMPLATES["radio-tower"];
       const b = 1 + p.height! * 0.03;
-      expect(t.top!(p)).toBeCloseTo(p.height! + 3.5, 9);
+      expect(t.top(p)).toBeCloseTo(p.height! + 3.5, 9);
       expect(t.lamps!(p)).toEqual([
         { x: 0, y: p.height! + 3.25, z: 0, clue: false },
         { x: b + 3.5, y: 2.6, z: -1.75, clue: true },
@@ -361,13 +361,13 @@ describe("windmill, farm, watchtower, fire lookout, garden", () => {
       want: (p) => ({
         top: p.height! + 1.5,
         lamps: [
-          { x: 0, y: 2.6, z: -2.75, clue: true },
-          { x: 0, y: p.height! - 1, z: -3.2, clue: false },
+          { x: 0, y: 2.6, z: -2.9, clue: true },
+          { x: 0, y: p.height! - 1, z: -3.3, clue: false },
         ],
         slots: [
           [0, -3.3, 0, "By the door of the {label}."],
           [0, 3.3, 0, "Behind the {label}."],
-          [3.8, 0, 1, "On the crates beside the {label}."],
+          [4.2, 0, 1, "On the crates beside the {label}."],
         ],
       }),
     },
@@ -409,8 +409,8 @@ describe("windmill, farm, watchtower, fire lookout, garden", () => {
       want: () => ({
         top: 2,
         lamps: [
-          { x: -1.8, y: 2.2, z: -9.6, clue: true },
-          { x: 1.8, y: 2.2, z: -9.6, clue: false },
+          { x: -1.8, y: 1.9, z: -9.6, clue: true },
+          { x: 1.8, y: 1.9, z: -9.6, clue: false },
         ],
         slots: [
           [0, 3, 0, "Behind the fountain in the {label}."],
@@ -435,7 +435,7 @@ describe("windmill, farm, watchtower, fire lookout, garden", () => {
       const t = TEMPLATES[id as TemplateId];
       for (const p of rolls) {
         const w = want(p);
-        expect(t.top!(p), JSON.stringify(p)).toBeCloseTo(w.top, 9);
+        expect(t.top(p), JSON.stringify(p)).toBeCloseTo(w.top, 9);
         if (w.lamps) {
           const got = t.lamps!(p).map((l) => ({ ...l, y: Math.round(l.y * 1e9) / 1e9 }));
           expect(got).toEqual(w.lamps);

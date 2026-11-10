@@ -73,7 +73,7 @@ function checkClue(l: TreasureLayout, c: Cache, clue: string, sky: HuntSky): Kin
     expect(min).toBeLessThanOrEqual(sky.startMin + sky.minutes);
     expect(`${sh[2]}:${sh[3]}`).toBe(`${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`);
     expect(sunAt(min).el).toBeGreaterThanOrEqual(SHADOW_MIN_EL);
-    const tip = groundTip(l, p, TEMPLATES[p.template].top!(p.params), min)!;
+    const tip = groundTip(l, p, TEMPLATES[p.template].top(p.params), min)!;
     expect(Math.hypot(tip.x - c.x, tip.z - c.z)).toBeLessThan(1e-9);
     expect(Math.hypot(c.x - p.x, c.z - p.z)).toBeLessThanOrEqual(SHADOW_MAX);
     return "shadow";
@@ -230,7 +230,7 @@ describe("shadow clues", () => {
 
   it("drops a tip that lands on another piece's pad or at a minor point", () => {
     const one: HuntSky = { startMin: 600, minutes: 0 };
-    const tip = groundTip(l, p, TEMPLATES.lighthouse.top!(p.params), 600)!;
+    const tip = groundTip(l, p, TEMPLATES.lighthouse.top(p.params), 600)!;
     expect(shadowSpots(l, one, rng(1)).some((s) => s.source === p.id)).toBe(true);
     // Move another piece so its pad edge is just past the tip, inside the 1 m gap.
     const other = l.pieces.find((q) => q.id !== p.id)!;
@@ -267,7 +267,7 @@ describe("shadow clues", () => {
     expect(tips.length).toBeGreaterThan(0);
     for (const s of tips) {
       const q = l.pieces.find((x) => x.id === s.source)!;
-      const tip = groundTip(l, q, TEMPLATES[q.template].top!(q.params), s.shadowMin!)!;
+      const tip = groundTip(l, q, TEMPLATES[q.template].top(q.params), s.shadowMin!)!;
       expect(Math.hypot(tip.x - s.x, tip.z - s.z)).toBeLessThan(1e-9);
     }
   });
@@ -281,7 +281,7 @@ describe("shadow clues", () => {
       for (const s of shadowSpots(g, DAY, rng(seed))) {
         n++;
         const p = g.pieces.find((q) => q.id === s.source)!;
-        const top = TEMPLATES[p.template].top!(p.params);
+        const top = TEMPLATES[p.template].top(p.params);
         const { el } = sunAt(s.shadowMin!);
         const len = Math.hypot(s.x - p.x, s.z - p.z);
         const ray = p.padY + top - len * Math.tan((el * Math.PI) / 180);
@@ -297,7 +297,7 @@ describe("shadow clues", () => {
   });
 
   it("no tip when the ground climbs over the ray", () => {
-    const top = TEMPLATES.lighthouse.top!(p.params);
+    const top = TEMPLATES.lighthouse.top(p.params);
     expect(groundTip(l, p, top, 600)).not.toBeNull();
     const hill = structuredClone(l);
     hill.macro.heights = hill.macro.heights.map(() => Math.round((p.padY + top + 20) * 10));

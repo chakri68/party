@@ -155,7 +155,7 @@ describe("photoCam", () => {
   it("the lens frames the target's top at PHOTO_FILL of the height, clamped", () => {
     const cam = photoCam(l, s, DAY)!;
     const t = l.pieces[0]!;
-    const top = TEMPLATES[t.template].top!(t.params);
+    const top = TEMPLATES[t.template].top(t.params);
     const len = Math.hypot(t.x - cam.x, t.z - cam.z);
     // tan(fov/2) is half the frame's height at the target's distance.
     const fill = top / (2 * len * Math.tan((cam.fov * Math.PI) / 360));

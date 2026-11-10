@@ -4,7 +4,8 @@ extends RefCounted
 ## its +Z wall. Ruin 0: a gable roof peaking at 5 m. Ruin 1: only its −Z half
 ## and bare rafters. Ruin 2: walls only. Building 2 at (−9, 3) and building
 ## 3 at (9, 3): 4 × 4 m, walls 3 m, no door, roofed to 4.5 m unless ruin 2. A
-## cart 1.4 × 2.4 m along Z at (0, 4). A broken fence along z = 10, x −6..6.
+## cart 1.4 × 2.4 m along Z at (0, 4). A broken fence along z = 10, x −6..6: its second segment is open 0.9 m
+## wide in the middle, where the model dips to the ground.
 ##
 ## Each barn wall is its own mesh: one mesh round the inside slot would put
 ## that slot inside its box.
@@ -75,7 +76,14 @@ static func build(p: Dictionary, label: int) -> Node3D:
 			continue
 		var at := Vector3(-6 + FENCE * (k + 0.5), 0, 10)
 		PieceKit.kenney(root, kinds[k], at, Vector3(0.15, 1.0, FENCE), PI / 2)
-		PieceKit.box_shape(b, Vector3(FENCE, 1.0, 0.2), at + Vector3(0, 0.5, 0))
+		if kinds[k] == "town/fence-broken":
+			# The model's middle dips to the ground: leave that 0.9 m open, with
+			# a collider on each whole end.
+			var end := FENCE * 0.35
+			for sgn in [-1, 1]:
+				PieceKit.box_shape(b, Vector3(end, 1.0, 0.2), at + Vector3(sgn * (FENCE * 0.15 + end * 0.5), 0.5, 0))
+		else:
+			PieceKit.box_shape(b, Vector3(FENCE, 1.0, 0.2), at + Vector3(0, 0.5, 0))
 	return root
 
 

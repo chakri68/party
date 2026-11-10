@@ -215,7 +215,7 @@ export const TEMPLATES: Record<TemplateId, Template> = {
   // tinted by the label, from height to height + 1.5. The sails turn on a
   // hub at (0, height − 1, −2.8): 4 blades, each 0.45 · height long, so the
   // lowest tip is 0.55 · height − 1 ≥ 3.95 m up. A stack of crates, 1 m high
-  // and 1.2 m square, centred at (3.8, 0).
+  // and 1.2 m square, centred at (4.2, 0), and a barrel at (4.0, 1.6), both at least 1 m from the tower.
   windmill: {
     id: "windmill",
     name: "windmill",
@@ -223,15 +223,15 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     padR: 10,
     roll: (r) => ({ height: round(between(r, 9, 13), 0.1), turning: coin(r) }),
     top: (p) => p.height! + 1.5,
-    // A lamp over the door, and one on the front of the hub.
+    // A lamp over the door, and a big one on the front of the hub, in front of the sails.
     lamps: (p) => [
-      { x: 0, y: 2.6, z: -2.75, clue: true },
-      { x: 0, y: p.height! - 1, z: -3.2, clue: false },
+      { x: 0, y: 2.6, z: -2.9, clue: true },
+      { x: 0, y: p.height! - 1, z: -3.3, clue: false },
     ],
     slots: () => [
       { x: 0, z: -3.3, dy: 0, hint: "By the door of the {label}." },
       { x: 0, z: 3.3, dy: 0, hint: "Behind the {label}." },
-      { x: 3.8, z: 0, dy: 1, hint: "On the crates beside the {label}." },
+      { x: 4.2, z: 0, dy: 1, hint: "On the crates beside the {label}." },
     ],
   },
 
@@ -302,8 +302,8 @@ export const TEMPLATES: Record<TemplateId, Template> = {
     roll: (r) => ({ hedge: round(between(r, 1.2, 2), 0.1) }),
     top: () => 2,
     lamps: () => [
-      { x: -1.8, y: 2.2, z: -9.6, clue: true },
-      { x: 1.8, y: 2.2, z: -9.6, clue: false },
+      { x: -1.8, y: 1.9, z: -9.6, clue: true },
+      { x: 1.8, y: 1.9, z: -9.6, clue: false },
     ],
     slots: () => [
       { x: 0, z: 3, dy: 0, hint: "Behind the fountain in the {label}." },
