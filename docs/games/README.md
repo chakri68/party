@@ -56,7 +56,7 @@ Only on builds that ship the 3D engine. The hosted site has them; self-hosted co
 | --- | --- | --- |
 | [Blind Rally](blind-rally.md) | 2–12 | The Driver can't see the road. The Navigator can. |
 | [Rally](rally.md) | 1–12 | Plain rally, everyone drives. |
-| [Treasure Hunt](treasure-hunt.md) | 1–8 | Find hidden caches on a new 3D map every round, from clues. |
+| [Treasure Hunt](treasure-hunt.md) | 1–8 | Find hidden caches on a new 3D map every round, from clues. In teams, Timed or Race. |
 
 ## Strategy
 

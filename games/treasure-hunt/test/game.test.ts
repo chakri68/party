@@ -173,8 +173,8 @@ describe("treasure hunt server", () => {
     for (const bad of [5, [], { minutes: 20 }, { minutes: "30" }]) expect(th.parseSettings(bad)).toBeNull();
   });
 
-  it("setting fields: one Round length select", () => {
-    const f = treasureHuntSettingFields({ minutes: 60 }, 3);
+  it("setting fields: a Round length select after Mode", () => {
+    const f = treasureHuntSettingFields({ minutes: 60 }, 3).filter((x) => x.key === "minutes");
     expect(f).toEqual([
       {
         key: "minutes",
@@ -187,7 +187,7 @@ describe("treasure hunt server", () => {
         ],
       },
     ]);
-    expect(treasureHuntSettingFields(undefined, 1)[0]!.selected).toBe(1);
-    expect(treasureHuntSettingFields("junk", 1)[0]!.selected).toBe(1);
+    expect(treasureHuntSettingFields(undefined, 1)[1]!.selected).toBe(1);
+    expect(treasureHuntSettingFields("junk", 1)[1]!.selected).toBe(1);
   });
 });

@@ -28,15 +28,11 @@
 .th-bar [hidden] { display: none; }
 .th-timer, .th-score { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .th-timer { color: var(--accent); font-size: 1.05rem; }
+.th-race { color: var(--muted); white-space: nowrap; }
 
 .th-view { position: relative; min-height: 0; background: var(--bg); }
 .th-stage, .th-godot { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
 
-.th-wait {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2;
-  margin: 0; padding: 6px 14px; max-width: calc(100% - 24px); width: max-content;
-  border-radius: 10px; background: rgb(14 14 12 / 0.8); font-weight: 600; pointer-events: none;
-}
 .th-msg {
   position: absolute; left: 10px; bottom: 10px; z-index: 2; margin: 0; padding: 4px 10px;
   max-width: calc(100% - 20px); border-radius: 10px; background: rgb(14 14 12 / 0.8);
@@ -64,6 +60,13 @@
 .th-clue-mark { color: var(--accent); font-weight: 700; }
 .th-clue-found { color: var(--muted); }
 .th-clue-found span:last-child { text-decoration: line-through; text-decoration-color: rgb(156 152 136 / 0.6); }
+/* Another team got it first (Race). Struck and greyed; the tag stays unstruck. */
+.th-clue-taken { color: var(--muted); }
+.th-clue-taken > span:last-child { text-decoration: line-through; text-decoration-color: rgb(156 152 136 / 0.6); }
+.th-clue-tag {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px;
+  background: var(--surface-2); font-size: 0.72rem; font-weight: 700; text-decoration: none; vertical-align: 1px;
+}
 
 .th-count {
   position: absolute; inset: 0; z-index: 2; margin: 0; display: grid; place-items: center; pointer-events: none;
@@ -78,6 +81,8 @@
   border: 1.5px solid var(--line); border-radius: 10px; background: rgb(14 14 12 / 0.88);
   font-weight: 600; pointer-events: none;
 }
+/* Over the loader and the teams panel too: a turned-down team pick lands here. */
+.th-toast { z-index: 5; }
 .th-toast[hidden] { display: none; }
 
 /* ---- phones: no map, one plain line ---------------------------------------- */
@@ -107,3 +112,39 @@
 @media (prefers-reduced-motion: reduce) {
   .th-boot:is([data-state="unknown"], [data-state="starting"]) .th-load-fill { animation: none; width: 100%; opacity: 0.35; }
 }
+
+/* ---- the teams panel --------------------------------------------------------
+   Down the left, over the loader and the map: Godot keeps loading under it.
+   The loader's bar moves right to stay in view. */
+
+.th-teams {
+  position: absolute; top: 10px; left: 10px; bottom: 10px; z-index: 4;
+  width: min(380px, calc(100% - 20px)); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface);
+}
+.th-teams[hidden] { display: none; }
+@media (min-width: 760px) {
+  .th-view:has(.th-teams:not([hidden])) .th-boot { padding-left: 400px; }
+}
+.th-teams-title { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
+.th-team-list, .th-members { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.th-team { padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); display: grid; gap: 6px; }
+/* Your team: its own colour round the edge. */
+.th-team.mine { border-color: color-mix(in srgb, var(--th-team) 70%, var(--line)); }
+.th-team-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.th-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; background: var(--th-team); }
+.th-team-name { font-weight: 700; }
+.th-team-shape { color: var(--muted); font-size: 0.85rem; }
+.th-join { margin-left: auto; min-height: 32px; padding: 0 12px; }
+.th-members { gap: 4px; }
+.th-member { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 32px; color: var(--muted); }
+.th-member.ready { color: var(--ink); }
+.th-member-text { flex: 1 1 8em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The host's team picker: the shell's select, kept narrow. */
+.th-move { flex: 0 1 8rem; min-width: 6rem; min-height: 32px; font-size: 0.85rem; }
+.th-new { align-self: flex-start; }
+.th-start-row { display: grid; gap: 6px; margin-top: auto; }
+.th-start { justify-self: start; }
+.th-start-note { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.th-teams > .th-start-note { margin-top: auto; }

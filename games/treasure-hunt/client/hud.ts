@@ -1,5 +1,5 @@
 import { h } from "@games/ui";
-import type { THPrivate } from "../shared/types.ts";
+import type { THMode, THPrivate } from "../shared/types.ts";
 
 // The HUD over the map: the timer and score (they sit in the strip above it),
 // the clue board down the right, and the 3-2-1 in the middle. The text comes
@@ -13,18 +13,22 @@ export function formatLeft(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function scoreText(found: number, pool: number): string {
-  return `${found} of ${pool} found`;
+/** Timed: "3 of 6 found". Race: "2 of 5", where 5 is the target. */
+export function scoreText(found: number, pool: number, mode: THMode = "timed"): string {
+  return mode === "race" ? `${found} of ${pool}` : `${found} of ${pool} found`;
 }
+
+/** Shown once beside the Race score, so "2 of 5" has a meaning. */
+export const raceText = (target: number) => `Race to ${target}`;
 
 /** "3", "2", "1", then nothing. */
 export function countdownText(ms: number): string {
   return ms > 0 ? String(Math.ceil(ms / 1000)) : "";
 }
 
-/** One line per cache in the pool, in pool order. */
-export function clueItems(priv: THPrivate | null): { text: string; found: boolean }[] {
-  return (priv?.clues ?? []).map((c) => ({ text: c.clues.join(" "), found: c.found }));
+/** One line per cache on the board, in board order. taken: another team got it first (Race). */
+export function clueItems(priv: THPrivate | null): { text: string; found: boolean; taken: boolean }[] {
+  return (priv?.clues ?? []).map((c) => ({ text: c.clues.join(" "), found: c.found, taken: c.taken }));
 }
 
 export interface HudState {
@@ -32,13 +36,15 @@ export interface HudState {
   left: number | null;
   /** Ms left on the countdown, or null outside it. */
   countdown: number | null;
-  score: { found: number; pool: number } | null;
+  /** pool is the target in Race. */
+  score: { found: number; pool: number; mode: THMode } | null;
   priv: THPrivate | null;
 }
 
 export class Hud {
   readonly timer = h("span", { class: "th-timer", role: "timer", hidden: true });
   readonly score = h("span", { class: "th-score", hidden: true });
+  readonly race = h("span", { class: "th-race", hidden: true });
   readonly toggle = h("button", { type: "button", class: "th-clue-toggle", "aria-controls": "th-clues", hidden: true }, "Clues");
   private list = h("ol", { class: "th-clue-list" });
   readonly board = h("aside", { class: "th-clues", id: "th-clues", "aria-label": "Your clues", hidden: true }, h("h2", { class: "th-clues-title" }, "Your caches"), this.list);
@@ -61,7 +67,9 @@ export class Hud {
     if (s.left !== null) this.timer.textContent = formatLeft(s.left);
 
     this.score.hidden = !s.score || s.score.pool === 0;
-    if (s.score) this.score.textContent = scoreText(s.score.found, s.score.pool);
+    if (s.score) this.score.textContent = scoreText(s.score.found, s.score.pool, s.score.mode);
+    this.race.hidden = this.score.hidden || s.score?.mode !== "race";
+    if (!this.race.hidden && s.score) this.race.textContent = raceText(s.score.pool);
 
     const c = s.countdown === null ? "" : countdownText(s.countdown);
     this.count.hidden = c === "";
@@ -75,7 +83,12 @@ export class Hud {
     this.lastClues = key;
     this.list.replaceChildren(
       ...items.map((it) =>
-        h("li", { class: it.found ? "th-clue th-clue-found" : "th-clue" }, h("span", { class: "th-clue-mark" }, it.found ? "✓" : ""), h("span", {}, it.text)),
+        h(
+          "li",
+          { class: it.found ? "th-clue th-clue-found" : it.taken ? "th-clue th-clue-taken" : "th-clue" },
+          h("span", { class: "th-clue-mark" }, it.found ? "✓" : ""),
+          h("span", {}, it.text, it.taken ? h("span", { class: "th-clue-tag" }, "Taken") : null),
+        ),
       ),
     );
   }

@@ -58,8 +58,8 @@ describe("clueItems", () => {
 
   it("gives one line per cache in pool order, with its found flag", () => {
     expect(clueItems(priv)).toEqual([
-      { text: "Under the red lighthouse.", found: false },
-      { text: "Between the old camp and the grey plane, nearer the old camp. About 100 m from the red lighthouse, at 90°.", found: true },
+      { text: "Under the red lighthouse.", found: false, taken: false },
+      { text: "Between the old camp and the grey plane, nearer the old camp. About 100 m from the red lighthouse, at 90°.", found: true, taken: false },
     ]);
   });
 

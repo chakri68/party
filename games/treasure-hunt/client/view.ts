@@ -1,17 +1,20 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
 import type { Phase, THPrivate, THPublic } from "../shared/types.ts";
+import { MAX_TEAMS } from "../shared/world.ts";
 import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
+import { TeamsPanel } from "./teams.ts";
 
 // The whole game is the Godot map in an iframe; this file is the frame
 // around it and the only one that talks to the bridge.
 //
 //   teams       the map loads (StageLoader). Godot's ready() gets the
 //               session ({layout}); its world-ready gets act("ready"), once
-//               per seed. Then "Waiting for N players" until the host starts.
+//               per seed. The teams panel sits over all of it: pick a team,
+//               and the host starts once anyone is ready.
 //   countdown   3, 2, 1 over the map. Godot keeps everyone still.
 //   hunting     the map fills the game area, under one strip: the help line,
 //               the timer, the score and End round for the host. The clue
@@ -27,8 +30,9 @@ import { layoutFor } from "./layout-cache.ts";
 // sends it all again (the roster, the buggies, then resync: private state
 // plus the reveals that came over the stream since). E by a buggy is Godot
 // asking for a seat (→ act seat); getting out is act unseat. A turned-down
-// seat gets a toast; Godot just lets its ask time out. A reveal can miss: it went to the old world
-// just before a rebuild, or to an iframe that reloaded.
+// seat, pin or team pick gets a toast; Godot just lets its ask time out. A
+// reveal can miss: it went to the old world just before a rebuild, or to an
+// iframe that reloaded.
 //
 // Phones and tablets (a coarse pointer and no fine one) never boot Godot.
 // They get a plain message and still send ready, so nobody waits on them.
@@ -55,6 +59,13 @@ const CLAIM_ERRORS: Record<string, string> = {
   "bad-pin": "You can't put a pin there.",
   "no-pin": "That pin is gone.",
   "not-your-pin": "You can only remove your own pins.",
+  // Teams.
+  "too-many-teams": `There are already ${MAX_TEAMS} teams.`,
+  "nobody-ready": "Wait until someone has loaded the map.",
+  "not-host": "Only the host can do that.",
+  "wrong-phase": "The round has started. Teams cannot change now.",
+  "no-such-team": "That team is gone.",
+  "already-there": "You are already on that team.",
 };
 
 /** What to tell the player when a claim is turned down. */
@@ -226,7 +237,7 @@ export class ClaimLog {
 }
 
 /**
- * Acts whose rejection gets a toast (seats). An accepted act never hears
+ * Acts whose rejection gets a toast (seats, pins, teams). An accepted act never hears
  * back, so only the latest `cap` are kept.
  */
 export class ActLog {
@@ -251,18 +262,20 @@ export class ActLog {
   }
 }
 
+/** Seat id → name, for the teams panel. */
+const seatNames = (seats: readonly { id: string; name: string }[]) => Object.fromEntries(seats.map((s) => [s.id, s.name]));
+
 /** A touch screen with no mouse or trackpad to go with it. */
 function touchOnly(): boolean {
   return matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
 }
-
-const waitingText = (n: number) => (n === 0 ? "Starting the round" : `Waiting for ${n} ${n === 1 ? "player" : "players"}`);
 
 export class TreasureHuntView implements GameView {
   private api: GameClientApi;
   private game: THPublic | null = null;
   private priv: THPrivate | null = null;
   private playerId = "";
+  private names: Record<string, string> = {};
   private hostId: string | null = null;
   private desktop = !touchOnly();
 
@@ -270,11 +283,11 @@ export class TreasureHuntView implements GameView {
   private feed: GodotFeed;
   private loader: StageLoader;
   private hud = new Hud();
+  private teams = new TeamsPanel((a) => this.acts.add(this.api.act(a)));
   private stage = h("div", { class: "th-stage" });
   private help = h("p", { class: "th-help" }, HELP);
   private end = h("button", { type: "button", class: "th-end", hidden: true }, "End round");
-  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.score, this.hud.timer, this.hud.toggle, this.end));
-  private wait = h("p", { class: "th-wait", role: "status", "aria-live": "polite", hidden: true });
+  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.score, this.hud.race, this.hud.timer, this.hud.toggle, this.end));
   private msg = h("p", { class: "th-msg", role: "alert" });
   private toast = h("p", { class: "th-toast", role: "status", "aria-live": "polite", hidden: true });
   private root: HTMLElement;
@@ -284,8 +297,8 @@ export class TreasureHuntView implements GameView {
   /** The seed we last sent act("ready") for. */
   private readySeed: number | null = null;
   private claims = new ClaimLog();
-  /** Seat, unseat and pin acts: a rejection of any gets a toast. */
-  private seats = new ActLog();
+  /** Seat, unseat, pin and team acts: a rejection of any gets a toast. */
+  private acts = new ActLog();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
 
@@ -312,9 +325,9 @@ export class TreasureHuntView implements GameView {
       claim: (id) => {
         this.claims.add(this.api.act({ type: "claim", cacheId: id }), id);
       },
-      seat: (s) => this.seats.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
-      pin: (p) => this.seats.add(this.api.act({ type: "pin", x: p.x, z: p.z })),
-      unseat: (p) => this.seats.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
+      seat: (s) => this.acts.add(this.api.act({ type: "seat", vehicleId: s.vehicleId, seat: s.seat })),
+      pin: (p) => this.acts.add(this.api.act({ type: "pin", x: p.x, z: p.z })),
+      unseat: (p) => this.acts.add(this.api.act({ type: "unseat", x: p.x, y: p.y, z: p.z, yaw: p.yaw })),
     });
     this.feed = new GodotFeed((calls) => this.bridge.call(calls));
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
@@ -323,7 +336,7 @@ export class TreasureHuntView implements GameView {
           "div",
           { class: "treasure-hunt" },
           this.bar,
-          h("div", { class: "th-view" }, this.stage, this.hud.board, this.hud.count, this.toast, this.loader.el, this.wait, this.msg),
+          h("div", { class: "th-view" }, this.stage, this.hud.board, this.hud.count, this.toast, this.loader.el, this.teams.el, this.msg),
         )
       : h("div", { class: "treasure-hunt th-phone" }, h("p", { class: "th-phone-text" }, PHONE), this.msg);
   }
@@ -344,7 +357,7 @@ export class TreasureHuntView implements GameView {
   }
 
   rejected(clientActionId: string, message: string, code?: string) {
-    if (this.claims.rejected(clientActionId) || this.seats.rejected(clientActionId)) this.showToast(claimError(code, message));
+    if (this.claims.rejected(clientActionId) || this.acts.rejected(clientActionId)) this.showToast(claimError(code, message));
     else this.msg.textContent = message;
   }
 
@@ -357,6 +370,7 @@ export class TreasureHuntView implements GameView {
     this.priv = (props.private as THPrivate | null) ?? null;
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
+    this.names = seatNames(props.room.seats);
     this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId), {
       me: this.playerId,
       list: this.game.vehicles,
@@ -387,12 +401,8 @@ export class TreasureHuntView implements GameView {
 
     this.feed.sync();
     this.loader.el.hidden = loaded;
-    const waiting = game.phase === "teams" && loaded;
-    this.wait.hidden = !waiting;
-    if (waiting) {
-      const n = game.players.filter((p) => p.id !== this.playerId && !p.ready && !p.removed).length;
-      this.wait.textContent = waitingText(n);
-    }
+    // Over the loader and the map alike: Godot keeps loading under it.
+    this.teams.update(game, this.names, this.playerId, this.hostId === this.playerId);
     this.bar.hidden = !loaded;
     this.end.hidden = game.phase !== "hunting" || this.hostId !== this.playerId;
     if (game.phase === "finished") this.bridge.releasePointer();
@@ -410,7 +420,7 @@ export class TreasureHuntView implements GameView {
     this.hud.render({
       left: game.phase === "hunting" && game.endsAt !== null ? game.endsAt - now : null,
       countdown: game.phase === "countdown" && game.countdownEndsAt !== null ? game.countdownEndsAt - now : null,
-      score: live && mine ? { found: mine.foundCount, pool: mine.poolSize } : null,
+      score: live && mine ? { found: mine.foundCount, pool: game.mode === "race" ? game.target : mine.poolSize, mode: game.mode } : null,
       priv: live ? this.priv : null,
     });
   }

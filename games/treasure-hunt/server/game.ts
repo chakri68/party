@@ -735,6 +735,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   getPublicState: (s) => ({
     phase: s.phase,
+    mode: s.settings.mode,
+    target: s.settings.target,
     seed: s.layout.seed,
     teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: race(s) ? s.settings.target : t.pool.length })),
     players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),

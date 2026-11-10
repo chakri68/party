@@ -74,6 +74,10 @@ export type THPublicPlayer = THPlayer;
 
 export interface THPublic {
   phase: Phase;
+  /** From the settings, so the HUD can word the score. */
+  mode: THMode;
+  /** Race: caches to win. Also each team's poolSize in Race. */
+  target: number;
   /** The final layout seed. Clients rebuild the map with generateLayout. */
   seed: number;
   /** A team whose hunters all left mid-round stays listed, with no members. */
