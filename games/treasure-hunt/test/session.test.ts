@@ -157,8 +157,8 @@ describe("claimError", () => {
     expect(claimError("too-far", "x")).toBe("Go closer to the cache.");
     expect(claimError("no-position", "x")).toBe("Wait a moment and try again.");
     expect(claimError("moved-too-fast", "x")).toBe("Wait a moment and try again.");
-    expect(claimError("already-found", "x")).toBe("You already found this cache.");
-    expect(claimError("not-yours", "x")).toBe("This cache is not on your list.");
+    expect(claimError("already-found", "x")).toBe("Your team already found this cache.");
+    expect(claimError("not-yours", "x")).toBe("This cache is not on your team's list.");
     expect(claimError("not-hunting", "x")).toBe("The hunt has not started.");
   });
 

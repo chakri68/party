@@ -37,8 +37,8 @@ const CLAIM_ERRORS: Record<string, string> = {
   "too-far": "Go closer to the cache.",
   "no-position": "Wait a moment and try again.",
   "moved-too-fast": "Wait a moment and try again.",
-  "already-found": "You already found this cache.",
-  "not-yours": "This cache is not on your list.",
+  "already-found": "Your team already found this cache.",
+  "not-yours": "This cache is not on your team's list.",
   "not-hunting": "The hunt has not started.",
 };
 

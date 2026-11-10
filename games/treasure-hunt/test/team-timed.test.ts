@@ -59,6 +59,31 @@ describe("timed mode by team", () => {
     expect(th.getPrivateState(s, "p0")).toMatchObject({ teamId: 1, pins: [] });
   });
 
+  it("no clues before the hunt starts: a lobby team switch shows nothing", () => {
+    let s = th.createGame(players(4), DEFAULT_SETTINGS, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    s = act(s, "p1", { type: "team.join", teamId: 1 });
+    s = act(s, "p3", { type: "team.join", teamId: 3 });
+    // p1 peeks at Green in the lobby, then goes back to Orange.
+    s = act(s, "p1", { type: "team.join", teamId: 3 });
+    expect(s.teams.every((t) => t.pool.length === 0)).toBe(true);
+    expect(th.getPrivateState(s, "p1")).toEqual({ teamId: 3, clues: [], revealed: [], pins: [] });
+    expect(th.getPublicState(s).teams.every((t) => t.poolSize === 0)).toBe(true);
+    s = act(s, "p1", { type: "team.join", teamId: 1 });
+    for (const id of ["p0", "p1", "p2", "p3"]) s = act(s, id, { type: "ready" });
+    s = act(s, "p0", { type: "start" }, 2000);
+    const board = th.getPrivateState(s, "p1").clues.map((c) => c.id);
+    expect(board).toEqual(team(s, 1).pool);
+    expect(board.length).toBeGreaterThan(0);
+    expect(board.some((id) => team(s, 3).pool.includes(id))).toBe(false);
+  });
+
+  it("a spectator's claim gets not-yours", () => {
+    const s = hunting(true);
+    const cid = team(s, 1).pool[0]!;
+    const r = th.handleAction(s, "p3", { type: "claim", cacheId: cid }, ctx(11_000));
+    expect(r.ok ? "ok" : r.error.code).toBe("not-yours");
+  });
+
   it("either teammate can claim; foundCount is the team's", () => {
     let s = hunting();
     const [a, b] = team(s, 1).pool as [string, string];

@@ -74,9 +74,9 @@ describe("pools", () => {
     expect(ds.size).toBeGreaterThan(1);
   });
 
-  it("deals again at the countdown: spectators' teams get nothing", () => {
+  it("deals at the countdown: spectators' teams get nothing", () => {
     let s = th.createGame(players(3), { ...DEFAULT_SETTINGS, minutes: 30 }, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
-    expect(s.teams.every((t) => t.pool.length > 0)).toBe(true);
+    expect(s.teams.every((t) => t.pool.length === 0)).toBe(true);
     s = start(s, 5000, ["p0"]).state;
     expect(s.phase).toBe("countdown");
     expect(me(s, "p1").spectator).toBe(true);

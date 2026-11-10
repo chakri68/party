@@ -46,7 +46,7 @@ import { makeHunt } from "./hunt.ts";
 //               teams (up to MAX_TEAMS, one per colour); the host can move
 //               anyone. The host starts: whoever isn't ready yet becomes a
 //               spectator, and a team left with no hunters gets no pool.
-//               Pools are dealt per team here, and again on the way out,
+//               Every pool is empty here: they're dealt per team at start,
 //               once the spectators are known.
 //   countdown   COUNTDOWN_MS. Positions stream in, nobody moves (R8).
 //   hunting     minutes × 60 000. Positions stream in and reveal pool caches
@@ -404,8 +404,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       endsAt: null,
       countdownEndsAt: null,
     };
+    // No deal yet: pools are dealt at start, so a lobby team switch can't show a rival's clues.
     seatTeams(state, match.carry);
-    deal(state);
     return out(state, [], []);
   },
 
