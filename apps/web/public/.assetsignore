@@ -1,5 +1,5 @@
-# Wrangler skips these when uploading dist/ as static assets. The Godot
-# exports have .wasm files (Blind Rally's ~38 MiB), past the 25 MiB per-file limit; deploys
-# serve it from R2 through the Worker instead (map D2). Vite still serves it in dev.
+# Wrangler skips these when uploading dist/ as static assets. Each Godot
+# export's .wasm (~38 MiB) is past the 25 MiB per-file limit, so deploys
+# serve both from R2 through the Worker (map D2). Vite still serves them in dev.
 blind-rally/godot/
 treasure-hunt/godot/

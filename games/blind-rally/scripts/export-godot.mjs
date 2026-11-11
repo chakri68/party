@@ -16,15 +16,8 @@
 //    The navigator chunk imports it, so one JS build names exactly one export
 //    and a stale .pck can't meet a fresh .wasm.
 //
-// --upload (map D2, scripts/godot-upload.mjs) skips all of the above and puts the dir godot-build.json
-// names into the R2 bucket the Worker serves it from (apps/server/src/godot.ts),
-// under the same path: blind-rally/godot/<hash>/<file>. The .wasm, .pck, .js
-// and .html go up brotli-11 with Content-Encoding: br, so the ~38 MiB wasm
-// crosses the wire at ~7. A .uploaded marker goes last; if it's there the hash
-// is skipped whole, since a content-hashed dir can't have changed. That makes
-// it idempotent and a rerun after a half-finished upload just redoes it.
-// --remote by default (`pnpm deploy` calls this); --local targets wrangler
-// dev's simulated bucket, --dry-run prints the puts without making them.
+// --upload (map D2) skips all of the above and puts the dir godot-build.json
+// names into R2 under blind-rally/godot/<hash>/ (see scripts/godot-upload.mjs).
 // Dev never needs it: Vite serves apps/web/public directly.
 //
 // GODOT_BIN overrides the binary; otherwise `godot` on PATH, then ~/.local/bin/godot.

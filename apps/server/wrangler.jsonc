@@ -15,7 +15,7 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // /room/* too, so room links get their own preview title (see roomPage).
-    // /blind-rally/godot/* and /treasure-hunt/godot/* come from R2 (godot.ts), never from assets.
+    // Both Godot exports come from R2 (godot.ts), never from assets.
     "run_worker_first": ["/api/*", "/parties/*", "/room/*", "/blind-rally/godot/*", "/treasure-hunt/godot/*"]
   },
   // Dev-only debug messages (§41). `pnpm dev` passes --var DEV_TOOLS:1; deploys never do.

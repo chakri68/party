@@ -2,7 +2,8 @@
 // `pnpm deploy`: ship party-games.chakri.me with Blind Rally and Treasure Hunt switched on.
 //
 //   pnpm deploy              (upload, build, deploy)
-//   pnpm deploy -- --dry-run (prints the uploads, builds, `wrangler deploy --dry-run`)
+//   pnpm deploy -- --dry-run (prints the uploads and runs `wrangler deploy --dry-run`,
+//                             but the web build and the dist cleanup still happen for real)
 //
 // 1. Uploads both Godot exports (Blind Rally, then Treasure Hunt) to R2, each
 //    as the godot-build.json beside it names. Goes first so the new worker
@@ -20,7 +21,7 @@
 // The steps live in deploySteps() so a test can read them without running them.
 
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { realpathSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,8 +45,10 @@ export function deploySteps(dryRun) {
   ];
 }
 
+// realpath on both sides: run through a symlinked path, argv[1] isn't the real
+// file, and a plain compare would skip the deploy and exit 0 in silence.
 function isMain() {
-  return process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+  return process.argv[1] !== undefined && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(process.argv[1]));
 }
 
 function run(cmd, args, env = {}) {

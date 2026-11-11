@@ -12,7 +12,7 @@
 // --dry-run prints the puts without making them.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants as zc } from 'node:zlib';
@@ -93,9 +93,12 @@ export function uploadGodot({ manifestPath, publicRoot, stagingRoot, keyRoot, ar
       if (!dryRun) {
         if (!existsSync(file)) {
           const raw = readFileSync(src);
-          writeFileSync(file, brotliCompressSync(raw, {
+          // Written aside and renamed in, so a crash mid-write can't leave a
+          // truncated .br that a rerun would upload with a year of caching.
+          writeFileSync(`${file}.tmp`, brotliCompressSync(raw, {
             params: { [zc.BROTLI_PARAM_QUALITY]: 11, [zc.BROTLI_PARAM_SIZE_HINT]: raw.length },
           }));
+          renameSync(`${file}.tmp`, file);
         }
         size = statSync(file).size;
       }
