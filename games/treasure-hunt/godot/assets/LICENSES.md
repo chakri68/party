@@ -7,6 +7,7 @@
 | Castle Kit | Kenney (kenney.nl) | https://kenney.nl/assets/castle-kit | CC0 1.0 | 2.0 |
 | Fantasy Town Kit | Kenney (kenney.nl) | https://kenney.nl/assets/fantasy-town-kit | CC0 1.0 | 2.0 |
 | Survival Kit | Kenney (kenney.nl) | https://kenney.nl/assets/survival-kit | CC0 1.0 | 2.0 |
+| Mini Characters | Kenney (kenney.nl) | https://kenney.nl/assets/mini-characters | CC0 1.0 | 2.0 |
 
 CC0 means credit isn't required. It's given anyway.
 
@@ -75,3 +76,16 @@ These came from the kit's `Models/GLTF format/` folder.
 | `signpost.glb` | M4b set pieces |
 | `tool-pickaxe.glb` | M4b set pieces |
 | `tool-shovel.glb` | M4b set pieces |
+
+**Kenney Mini Characters (CC0)** → `kenney_mini-characters/`, from the pack's `Models/GLB format/`, with `License.txt`. The models share one colormap, `Textures/colormap.png` (16 columns by 4 rows of cells, 32 x 128 px each; the top row is unused). `CharacterModel` loads them by id and recolours one cell, the shirt, with `shaders/shirt_tint.gdshader`.
+
+| File | Used for |
+| --- | --- |
+| `character-female-a.glb` | player and remote avatars (M5b) |
+| `character-female-b.glb` | player and remote avatars (M5b) |
+| `character-female-c.glb` | player and remote avatars (M5b) |
+| `character-female-d.glb` | player and remote avatars (M5b) |
+| `character-male-a.glb` | player and remote avatars (M5b) |
+| `character-male-b.glb` | player and remote avatars (M5b) |
+| `character-male-c.glb` | player and remote avatars (M5b) |
+| `character-male-d.glb` | player and remote avatars (M5b) |
