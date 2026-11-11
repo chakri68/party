@@ -28,11 +28,20 @@ const BIRDS_MIX := 0.5
 const CRICKETS_MIX := 0.3
 const GRAVEL_MIX := 0.5
 const STEP_MIX := 0.5
+const PING_MIX := 0.6
+const BEEP_MIX := 0.4
+## The beep's base note; each level lifts it a semitone.
+const BEEP_HZ := 880.0
 
 var started := false
 var built := false
-## The meter level, -1..3. The beep rides on it (Task 5).
+## The meter level, -1..3. The beep rides on it.
 var hot_level := -1
+
+## A one-shot was asked for (played only once started). For tests and the like.
+signal pinged(kind: StringName)
+## The hot/cold beep fired at this level.
+signal beeped(level: int)
 
 var _engine: AudioStreamPlayer
 var _gravel: AudioStreamPlayer
@@ -40,6 +49,10 @@ var _steps: AudioStreamPlayer
 var _wind: AudioStreamPlayer
 var _birds: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
+var _reveal: AudioStreamPlayer
+var _claim: AudioStreamPlayer
+var _beep: AudioStreamPlayer
+var _beep_t := 0.0
 var _rpm := 0.0
 var _step_t := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -91,6 +104,10 @@ func prepare() -> void:
 	_wind = _player("Wind", Synth.wind(14))
 	_birds = _player("Birds", Synth.birds(15))
 	_crickets = _player("Crickets", Synth.crickets(16))
+	# Rising two notes (A5, E6); a major arpeggio (C5, E5, G5); one short A5.
+	_reveal = _player("Reveal", Synth.notes([880.0, 1318.5], 0.11, 0.25))
+	_claim = _player("Claim", Synth.notes([523.25, 659.25, 784.0], 0.1, 0.4))
+	_beep = _player("Beep", Synth.notes([BEEP_HZ], 0.09, 0.03))
 
 
 ## The first gesture: the ambient comes up (tick sets its level).
@@ -107,12 +124,26 @@ func set_sound(muted: bool, volume: float) -> void:
 
 func set_hot_cold(level: int) -> void:
 	hot_level = clampi(level, -1, 3)
+	_beep_t = minf(_beep_t, beep_interval(hot_level))
 
 
-## A one-shot: &"reveal", &"claim" or &"beep". Nothing yet; the sounds come
-## with the events.
-func ping(_kind: StringName) -> void:
-	pass
+## A one-shot: &"reveal" (a cache showed up) or &"claim" (my team found one).
+## Silent until start().
+func ping(kind: StringName) -> void:
+	pinged.emit(kind)
+	if not started:
+		return
+	var p := _reveal if kind == &"reveal" else (_claim if kind == &"claim" else null)
+	if p != null:
+		p.volume_db = _db(PING_MIX)
+		p.play()
+
+
+func _beep_now() -> void:
+	beeped.emit(hot_level)
+	_beep.pitch_scale = pow(2.0, hot_level / 12.0)
+	_beep.volume_db = _db(BEEP_MIX)
+	_beep.play()
 
 
 ## Every frame. buggy_speed is m/s along the buggy (signed), driving whether
@@ -136,6 +167,14 @@ func tick(dt: float, buggy_speed: float, driving: bool, walk_speed: float, on_fl
 		_rpm = 0.0
 		_drive(_engine, SILENT_DB)
 		_drive(_gravel, SILENT_DB)
+	var every := beep_interval(hot_level)
+	if every < INF:
+		_beep_t += dt
+		while _beep_t >= every:
+			_beep_t -= every
+			_beep_now()
+	else:
+		_beep_t = 0.0
 	var gap := step_interval(walk_speed)
 	if on_floor and not driving and gap < INF:
 		_step_t += dt

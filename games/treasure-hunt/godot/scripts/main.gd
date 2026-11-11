@@ -71,6 +71,9 @@ var torch_on := false
 var dark := 0.0
 ## Engine, steps and the ambient bed. Quiet until the first key or click.
 var hunt_audio: HuntAudio
+## Ids already pinged, so the page's resends stay quiet.
+var _pinged_reveals := {}
+var _pinged_claims := {}
 ## The lamps' state as last set: set_lamps only runs when it flips.
 var _lamps_lit := false
 
@@ -136,6 +139,16 @@ func _ready() -> void:
 	add_child(hunt_audio)
 	hunt_audio.prepare() # at load, behind the loader: synthesis is 100 ms or so of GDScript
 	bridge.sound_set.connect(hunt_audio.set_sound)
+	bridge.hot_cold_set.connect(hunt_audio.set_hot_cold)
+	bridge.cache_revealed.connect(func(r: Dictionary) -> void:
+		if not _pinged_reveals.has(r.id):
+			_pinged_reveals[r.id] = true
+			hunt_audio.ping(&"reveal"))
+	# The page only sends cacheFound for my team's finds.
+	bridge.cache_found.connect(func(id: String) -> void:
+		if not _pinged_claims.has(id):
+			_pinged_claims[id] = true
+			hunt_audio.ping(&"claim"))
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)

@@ -149,6 +149,23 @@ static func step(seed_: int) -> AudioStreamWAV:
 	return wav(s, false)
 
 
+## One-shot: sine notes back to back, `note` seconds each, the last one ringing
+## on for `tail` more. Each note has a 5 ms attack and decays to nothing, so
+## nothing clicks.
+static func notes(freqs: Array, note: float, tail: float) -> AudioStreamWAV:
+	var per := int(note * RATE)
+	var ring := int(tail * RATE)
+	var s := PackedFloat32Array()
+	s.resize(per * freqs.size() + ring)
+	for n in freqs.size():
+		var len_ := per + (ring if n == freqs.size() - 1 else 0)
+		for i in len_:
+			var t := float(i) / RATE
+			var env := minf(1.0, t / 0.005) * exp(-t * 14.0 / maxf(note + (tail if n == freqs.size() - 1 else 0.0), 0.01) * 2.0)
+			s[n * per + i] += sin(TAU * float(freqs[n]) * t) * env * 0.6
+	return wav(s, false)
+
+
 static func _crossfade(s: PackedFloat32Array) -> PackedFloat32Array:
 	var count := s.size()
 	var fade := int(0.05 * RATE)

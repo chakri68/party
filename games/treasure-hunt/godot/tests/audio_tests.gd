@@ -19,6 +19,9 @@ func run() -> void:
 	test_sound_settings()
 	test_bridge()
 	test_tick_drives_players()
+	test_hot_cold_bridge()
+	test_beep()
+	test_one_shots()
 	await test_main_wiring()
 
 
@@ -156,6 +159,69 @@ func test_tick_drives_players() -> void:
 	a.queue_free()
 
 
+func test_hot_cold_bridge() -> void:
+	var b := WebBridge.new()
+	var got: Array = []
+	b.hot_cold_set.connect(func(l: int) -> void: got.append(l))
+	b.receive_hot_cold_json('{"level":2}')
+	b.receive_hot_cold_json('{"level":2.0}')
+	b.receive_hot_cold_json('{"level":-1}')
+	b.receive_hot_cold_json('{"level":0}')
+	check(got == [2, 2, -1, 0], "hotCold emits ints for -1..3, floats like 2.0 included")
+	for bad in ['{"level":4}', '{"level":-2}', '{"level":"2"}', '{"level":2.5}', '{"level":null}', '{}', 'junk', '[2]']:
+		b.receive_hot_cold_json(bad)
+	check(got.size() == 4, "out of range, non-number and junk are dropped")
+	b.free()
+
+
+func test_beep() -> void:
+	var a := _audio()
+	a.prepare()
+	a.start()
+	var n := [0]
+	a.beeped.connect(func(_l: int) -> void: n[0] += 1)
+	a.set_hot_cold(3)
+	a.tick(1.0, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 4, "level 3 beeps 4 times in 1 s (got %d)" % n[0])
+	a.set_hot_cold(-1)
+	n[0] = 0
+	a.tick(5.0, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 0, "no meter, no beep")
+	a.set_hot_cold(0)
+	a.tick(1.9, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 0, "level 0 waits its 2 s")
+	a.tick(0.2, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 1, "then beeps")
+	var bp := a.get_node("Beep") as AudioStreamPlayer
+	a.set_hot_cold(3)
+	a.tick(0.25, 0.0, false, 0.0, true, 0.0)
+	check(near(bp.pitch_scale, pow(2.0, 3.0 / 12.0), 0.001), "level 3 is three semitones up")
+	var cold := _audio()
+	cold.prepare()
+	var m := [0]
+	cold.beeped.connect(func(_l: int) -> void: m[0] += 1)
+	cold.set_hot_cold(3)
+	cold.tick(1.0, 0.0, false, 0.0, true, 0.0)
+	check(m[0] == 0, "no beep before start()")
+	a.queue_free()
+	cold.queue_free()
+
+
+func test_one_shots() -> void:
+	var a := _audio()
+	a.prepare()
+	var got: Array = []
+	a.pinged.connect(func(k: StringName) -> void: got.append(k))
+	a.ping(&"reveal")
+	check((a.get_node("Reveal") as AudioStreamPlayer).stream is AudioStreamWAV and not (a.get_node("Reveal") as AudioStreamPlayer).playing, "built silent")
+	a.start()
+	a.ping(&"reveal")
+	a.ping(&"claim")
+	check((a.get_node("Reveal") as AudioStreamPlayer).playing and (a.get_node("Claim") as AudioStreamPlayer).playing, "started: both play")
+	check(got == [&"reveal", &"reveal", &"claim"], "pings are reported")
+	a.queue_free()
+
+
 func test_main_wiring() -> void:
 	var main: Node3D = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	t.root.add_child(main)
@@ -169,5 +235,18 @@ func test_main_wiring() -> void:
 	main.bridge.receive_sound_json('{"muted":true,"volume":0.5}')
 	check(AudioServer.is_bus_mute(0), "the bridge's sound call reaches the audio")
 	main.bridge.receive_sound_json('{"muted":false,"volume":1}')
+	var pings: Array = []
+	a.pinged.connect(func(kind: StringName) -> void: pings.append(kind))
+	var rv := {"id": "c1", "x": 1.0, "z": 2.0, "dy": 0.0}
+	main.bridge.cache_revealed.emit(rv)
+	main.bridge.cache_revealed.emit(rv)
+	main.bridge.cache_revealed.emit({"id": "c2", "x": 1.0, "z": 2.0, "dy": 0.0})
+	check(pings == [&"reveal", &"reveal"], "reveal pings once per new id")
+	main.bridge.cache_found.emit("c1")
+	main.bridge.cache_found.emit("c1")
+	check(pings == [&"reveal", &"reveal", &"claim"], "a find pings the claim chime once")
+	main.bridge.receive_hot_cold_json('{"level":3}')
+	check(a.hot_level == 3, "the bridge's hotCold reaches the audio")
+	main.bridge.receive_hot_cold_json('{"level":-1}')
 	main.queue_free()
 	await t.process_frame

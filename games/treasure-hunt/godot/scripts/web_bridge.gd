@@ -17,6 +17,7 @@ extends Node
 ##   host.skyClock({min, running})          game minutes after midnight; DayClock carries it on
 ##   host.photos({list: [{id, x, z, yaw, pitch, fov}]})  my team's photo clue poses; Photos renders new ones
 ##   host.sound({muted, volume})            the page's sound settings; volume 0..1
+##   host.hotCold({level})                  the hot/cold meter, -1 (none) to 3 (hottest)
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
@@ -50,6 +51,8 @@ signal sky_clock_set(min: float, running: bool)
 signal photos_set(list: Array)
 ## The page's sound settings: muted, and 0..1 volume.
 signal sound_set(muted: bool, volume: float)
+## The hot/cold meter level, -1..3.
+signal hot_cold_set(level: int)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
@@ -78,6 +81,7 @@ var _cb_pins: JavaScriptObject
 var _cb_sky_clock: JavaScriptObject
 var _cb_photos: JavaScriptObject
 var _cb_sound: JavaScriptObject
+var _cb_hot_cold: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -134,6 +138,8 @@ func _try_attach() -> void:
 	_host.photos = _cb_photos
 	_cb_sound = JavaScriptBridge.create_callback(_on_js.bind(receive_sound_json))
 	_host.sound = _cb_sound
+	_cb_hot_cold = JavaScriptBridge.create_callback(_on_js.bind(receive_hot_cold_json))
+	_host.hotCold = _cb_hot_cold
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -269,6 +275,16 @@ func receive_sound_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and d.get("muted") is bool and _num(d.get("volume")):
 		sound_set.emit(d.muted, clampf(float(d.volume), 0.0, 1.0))
+
+
+## {level}. A non-number, or a level outside -1..3, is dropped. JSON numbers
+## arrive as floats, so 2.0 counts; 2.5 does not.
+func receive_hot_cold_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and _num(d.get("level")):
+		var f := float(d.level)
+		if f == floorf(f) and f >= -1.0 and f <= 3.0:
+			hot_cold_set.emit(int(f))
 
 
 static func _num(v: Variant) -> bool:
