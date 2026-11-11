@@ -24,27 +24,47 @@ export function fakeD1(): Db {
     sqlite.exec(readFileSync(join(dir, f), "utf8"));
   }
 
-  const prepare = (sql: string, args: SqlValue[] = []) => ({
-    bind: (...a: unknown[]) => prepare(sql, a as SqlValue[]),
-    async first<T>() {
-      return (sqlite.prepare(sql).get(...args) as T | undefined) ?? null;
-    },
-    async all<T>() {
-      return { results: sqlite.prepare(sql).all(...args) as T[], success: true, meta: {} };
-    },
-    async run() {
-      const r = sqlite.prepare(sql).run(...args);
-      return { success: true, results: [], meta: { changes: Number(r.changes) } };
-    },
-  });
+  type Stmt = {
+    bind(...a: unknown[]): Stmt;
+    first<T>(): Promise<T | null>;
+    all<T>(): Promise<{ results: T[]; success: boolean; meta: object }>;
+    run(): Promise<{ success: boolean; results: never[]; meta: { changes: number } }>;
+    runSync(): { success: boolean; results: unknown[]; meta: { changes: number } };
+  };
+
+  const prepare = (sql: string, args: SqlValue[] = []): Stmt => {
+    // Synchronous core, so batch can run without yielding to the event loop.
+    const runSync = () => {
+      const st = sqlite.prepare(sql);
+      if (/^\s*(select|with|pragma)\b/i.test(sql)) {
+        return { success: true, results: st.all(...args) as unknown[], meta: { changes: 0 } };
+      }
+      const r = st.run(...args);
+      return { success: true, results: [] as unknown[], meta: { changes: Number(r.changes) } };
+    };
+    return {
+      bind: (...a) => prepare(sql, a as SqlValue[]),
+      async first<T>() {
+        return (sqlite.prepare(sql).get(...args) as T | undefined) ?? null;
+      },
+      async all<T>() {
+        return { results: sqlite.prepare(sql).all(...args) as T[], success: true, meta: {} };
+      },
+      async run() {
+        const r = sqlite.prepare(sql).run(...args);
+        return { success: true, results: [], meta: { changes: Number(r.changes) } };
+      },
+      runSync,
+    };
+  };
 
   return {
     prepare: prepare as unknown as Db["prepare"],
-    async batch(stmts: { run(): Promise<unknown> }[]) {
+    // Atomic like D1: BEGIN..COMMIT in one tick, nothing can interleave.
+    async batch(stmts: Stmt[]) {
       sqlite.exec("BEGIN");
       try {
-        const out = [];
-        for (const s of stmts) out.push(await s.run());
+        const out = stmts.map((s) => s.runSync());
         sqlite.exec("COMMIT");
         return out;
       } catch (e) {
