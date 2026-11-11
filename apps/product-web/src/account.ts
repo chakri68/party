@@ -2,6 +2,7 @@
 
 import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, startEmailSignIn, type Me } from "./api.ts";
 import { getTurnstileToken } from "./turnstile.ts";
+import { morph, rollText } from "./motion.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -52,8 +53,10 @@ function signedOut(next: string, error: string | null): void {
     if (!c.googleEnabled) return;
     const google = $("[data-google]") as HTMLAnchorElement;
     google.href = `/api/auth/google?next=${encodeURIComponent(next)}`;
-    google.hidden = false;
-    $("[data-or]").hidden = false;
+    morph(google.parentElement!, () => {
+      google.hidden = false;
+      $("[data-or]").hidden = false;
+    });
   }).catch(() => {});
 
   const form = $("[data-email-form]") as HTMLFormElement;
@@ -82,9 +85,11 @@ function signedOut(next: string, error: string | null): void {
     button.disabled = false;
     button.textContent = "Email me a link";
     if (r.ok) {
-      form.hidden = true;
-      status.dataset.tone = "good";
-      say(status, `Check your email. We sent a sign-in link to ${email}. It works for 15 minutes.`);
+      morph(form.parentElement!, () => {
+        form.hidden = true;
+        status.dataset.tone = "good";
+        say(status, `Check your email. We sent a sign-in link to ${email}. It works for 15 minutes.`);
+      });
     } else {
       status.dataset.tone = "bad";
       say(status, r.error);
@@ -97,7 +102,7 @@ function signedIn(m: Me): void {
   $("[data-email]").textContent = m.email ?? "";
   const plan = $("[data-plan]");
   const show = (who: Me) => {
-    plan.textContent = planLine(who);
+    rollText(plan, planLine(who));
     plan.dataset.tier = who.tier;
   };
   show(m);
@@ -149,8 +154,10 @@ function signedIn(m: Me): void {
     yes.disabled = true;
     const r = await deleteAccount();
     if (r.ok) {
-      showView("in", false);
-      showView("deleted", true);
+      morph($("main"), () => {
+        showView("in", false);
+        showView("deleted", true);
+      });
       return;
     }
     yes.disabled = false;
@@ -182,7 +189,9 @@ export async function mountAccount(): Promise<void> {
     $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";
     return;
   }
-  showView("loading", false);
-  if (m.email === null) signedOut(next, error);
-  else signedIn(m);
+  morph($("main"), () => {
+    showView("loading", false);
+    if (m.email === null) signedOut(next, error);
+    else signedIn(m);
+  });
 }

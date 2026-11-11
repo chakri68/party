@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- The HTML ships rupees. Hide the numbers until landing.ts knows the
+         currency, so nobody watches ₹ turn into $. Inline because the
+         stylesheet loads too late for this. No script: shown anyway after 1.2s. -->
+    <script>document.documentElement.classList.add("js")</script>
+    <style>
+      html.js [data-prices] .price-amount { opacity: 0; animation: price-fallback 0s 1.2s forwards; }
+      @keyframes price-fallback { to { opacity: 1; } }
+    </style>
     <title>Host Pass pricing - CouchParty</title>
     <meta name="description" content="Host Pass opens all CouchParty games for your whole room. Day, month or year. Only the host pays. Players never pay." />
     <link rel="canonical" href="https://couchpartygames.com/pricing" />

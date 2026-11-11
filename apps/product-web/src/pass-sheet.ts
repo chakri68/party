@@ -1,6 +1,7 @@
 import { h } from "@games/ui";
 import { me, redeem, upgradeRoom } from "./api.ts";
 import { hostKeyFor } from "./host-keys.ts";
+import { swapIn } from "./motion.ts";
 
 const NOT_HOST = "Only the host can do this. Ask the person who made the room.";
 
@@ -47,9 +48,9 @@ export function openPassSheet(_gameId: string, code: string): void {
   void me().then((m) => {
     if (m.email === null) {
       const next = encodeURIComponent(`/room/${code}?upgrade=1`);
-      body.replaceChildren(h("a", { class: "cp-link-btn primary", href: `/account?next=${next}` }, "Sign in"));
+      swapIn(body, h("a", { class: "cp-link-btn primary", href: `/account?next=${next}` }, "Sign in"));
     } else if (m.tier === "pass") {
-      body.replaceChildren(useButton("Use my Host Pass here"));
+      swapIn(body, useButton("Use my Host Pass here"));
     } else {
       const input = h("input", { name: "code", placeholder: "Enter code", autocomplete: "off", autocapitalize: "characters", required: true });
       const submit = h("button", { type: "submit", class: "primary" }, "Use code");
@@ -66,7 +67,7 @@ export function openPassSheet(_gameId: string, code: string): void {
           submit.disabled = false;
         } else dlg.close();
       });
-      body.replaceChildren(form);
+      swapIn(body, form);
     }
   });
 }

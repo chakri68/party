@@ -4,6 +4,7 @@
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
 import { loadConfig } from "./api.ts";
+import { riseIn, rollText } from "./motion.ts";
 
 overrideGameNames(PRODUCT_NAMES);
 
@@ -95,16 +96,53 @@ function renderGallery(root: HTMLElement): void {
   );
 }
 
-function renderPrices(country: string | null): void {
+function renderPrices(country: string | null, roll: boolean): void {
+  const table = priceTable(country);
   for (const root of document.querySelectorAll<HTMLElement>("[data-prices]")) {
+    const amounts = [...root.querySelectorAll<HTMLElement>(".price-amount")];
+    // Same three plans as the HTML: change the numbers in place so they can roll.
+    if (amounts.length === table.length) {
+      table.forEach((p, i) => {
+        if (roll) rollText(amounts[i]!, p.price, 60 * i);
+        else amounts[i]!.textContent = p.price;
+      });
+      continue;
+    }
     root.replaceChildren(
-      ...priceTable(country).map((p) => {
+      ...table.map((p) => {
         const li = el("li", "price");
         li.append(el("span", "price-plan", p.plan), el("span", "price-amount", p.price), el("span", "price-length", p.length));
         return li;
       }),
     );
   }
+}
+
+/**
+ * The HTML ships rupees. Hold the numbers back for a moment so a visitor
+ * outside India doesn't watch ₹ turn into $: they rise in once, already
+ * right. A config call slower than that rolls them over instead.
+ */
+function showPrices(): void {
+  const amounts = [...document.querySelectorAll<HTMLElement>("[data-prices] .price-amount")];
+  let shown = false;
+  const reveal = () => {
+    if (shown) return;
+    shown = true;
+    amounts.forEach((a, i) => {
+      a.style.opacity = "1";
+      riseIn(a, 60 * i);
+    });
+  };
+  const timer = setTimeout(reveal, 400);
+  loadConfig()
+    .then((c) => {
+      renderPrices(c.country ?? null, shown);
+      clearTimeout(timer);
+      reveal();
+    })
+    .catch(() => {})
+    .finally(reveal);
 }
 
 function fillFreeCap(): void {
@@ -117,9 +155,5 @@ export function boot(): void {
   const gallery = document.querySelector<HTMLElement>("[data-gallery]");
   if (gallery) renderGallery(gallery);
   // The HTML ships the rupee table, so a slow or failed config call still shows prices.
-  if (document.querySelector("[data-prices]")) {
-    loadConfig()
-      .then((c) => renderPrices(c.country ?? null))
-      .catch(() => {});
-  }
+  if (document.querySelector("[data-prices]")) showPrices();
 }

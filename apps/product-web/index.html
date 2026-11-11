@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- The HTML ships rupees. Hide the numbers until landing.ts knows the
+         currency, so nobody watches ₹ turn into $. Inline because the
+         stylesheet loads too late for this. No script: shown anyway after 1.2s. -->
+    <script>document.documentElement.classList.add("js")</script>
+    <style>
+      html.js [data-prices] .price-amount { opacity: 0; animation: price-fallback 0s 1.2s forwards; }
+      @keyframes price-fallback { to { opacity: 1; } }
+    </style>
     <title>CouchParty: party games for your group chat</title>
     <meta name="description" content="Free party games you play on your phones. Start a room, send the link in your group chat, and play. No app. No sign-up for players." />
     <link rel="canonical" href="https://couchpartygames.com/" />
