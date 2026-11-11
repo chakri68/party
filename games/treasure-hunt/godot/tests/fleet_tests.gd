@@ -148,6 +148,7 @@ func test_my_model() -> void:
 	check(m.global_position.distance_to(b.to_global(PlayerAvatar.SEAT)) < 0.15 and m.can_process(), "driving: at the seat, and animating")
 	avatar.interact()
 	check(avatar.mode == &"foot" and walker.visible and m.get_parent() == walker, "out: my model is the walker's again")
+	check(m.process_mode == Node.PROCESS_MODE_INHERIT, "out: my model's process mode is back to inherit")
 	await _frames(3)
 	check(m.state() != &"drive", "out: motion states again (%s)" % m.state())
 	_vehicles([_t0("p2")])
@@ -158,6 +159,18 @@ func test_my_model() -> void:
 	_vehicles([_t0()])
 	await _frames(3)
 	check(avatar.mode == &"foot" and m.state() != &"sit", "on foot again, no longer sitting (%s)" % m.state())
+	# Entering as the passenger: the very first snap is to the passenger's seat.
+	_vehicles([_t0("p2")])
+	await _to_door(b)
+	avatar.interact()
+	var v := _t0("p2")
+	v.passenger = "me"
+	_vehicles([v])
+	check(avatar.mode == &"riding" and walker.global_position.distance_to(b.to_global(PlayerAvatar.RIDE_SEAT)) < 0.01, "right after entering as passenger, the walker is at the passenger seat (%s)" % walker.global_position)
+	# on_foot() while seated (a new world): the model processes with its parent again.
+	avatar.on_foot()
+	check(avatar.mode == &"foot" and m.process_mode == Node.PROCESS_MODE_INHERIT, "on_foot() while seated: my model's process mode is back to inherit")
+	_vehicles([_t0()])
 
 
 func test_exit() -> void:
@@ -188,6 +201,7 @@ func test_lost_seat() -> void:
 	unseats.clear()
 	_vehicles([_t0("p2")])
 	check(avatar.mode == &"foot" and walker.visible and walker.process_mode != Node.PROCESS_MODE_DISABLED, "a list without me in my seat puts me out")
+	check(walker.model.process_mode == Node.PROCESS_MODE_INHERIT, "and a forced exit gives my model its process mode back")
 	check(unseats.is_empty(), "and sends no unseat: the server did it")
 	_vehicles([_t0()])
 

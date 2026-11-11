@@ -364,7 +364,7 @@ func _on_roster(list: Array, me: String) -> void:
 	remotes.set_roster(list, me)
 	for p in list:
 		if p is Dictionary and p.get("id") == me and p.get("color") is String and Color.html_is_valid(p.color):
-			walker.set_character(String(p.get("character", "")) if p.get("character") is String else "", Color.html(p.color))
+			walker.set_character(CharacterModel.id_or_default(p.get("character")), Color.html(p.color))
 
 
 ## Another player's snapshot: their model, and the buggy they drive.

@@ -79,7 +79,7 @@ func set_roster(list: Array, me: String) -> void:
 	for p in list:
 		if not (p is Dictionary and p.get("id") is String and p.get("color") is String and Color.html_is_valid(p.color)):
 			continue
-		var ch: String = p.character if p.get("character") is String and CharacterModel.IDS.has(p.character) else CharacterModel.IDS[0]
+		var ch := CharacterModel.id_or_default(p.get("character"))
 		next[p.id] = {"character": ch, "name": String(p.get("name", "")) if p.get("name") is String else "", "color": Color.html(p.color), "team": int(p.team) if (p.get("team") is float or p.get("team") is int) else 0}
 	_roster = next
 	for id in _remotes.keys():
@@ -116,10 +116,15 @@ func upsert(id: String, snap: Dictionary, now_s: float) -> void:
 		var pose := r.pose_at(now_s)
 		r.from_pos = pose[0]
 		r.from_yaw = pose[1]
-		r.speed = Vector2(at.x - r.to_pos.x, at.z - r.to_pos.z).length() / maxf(now_s - r.t0, 0.01)
+		# Over at least one snapshot gap, so a late snapshot doesn't read as a sprint.
+		r.speed = Vector2(at.x - r.to_pos.x, at.z - r.to_pos.z).length() / maxf(now_s - r.t0, LERP_S)
+	var v: Variant = snap.get("v") if snap.get("v") is String else null
+	# Getting out of a buggy: the jump from seat to ground isn't walking.
+	if r.v is String and v == null:
+		r.speed = 0.0
+	r.v = v
 	r.to_pos = at
 	r.to_yaw = yaw
-	r.v = snap.get("v") if snap.get("v") is String else null
 	r.t0 = now_s
 
 
@@ -161,7 +166,10 @@ func tick(now_s: float) -> void:
 			r.body.rotation = Vector3(0, pose[1], 0)
 		var near := not viewer.is_valid() or r.body.global_position.distance_to(viewer.call()) <= ANIMATE_RANGE
 		r.model.set_animating(near)
-		r.model.play(CharacterModel.state_for(r.speed if now_s - r.t0 <= STILL_AFTER_S else 0.0, true, 0.0, seat))
+		# A seated snapshot's speed is the buggy's. Without a matched seat (not in the
+		# fleet yet, or the vehicles list lags) it isn't the player's: stand.
+		var moving := r.speed if (now_s - r.t0 <= STILL_AFTER_S and not r.v is String) else 0.0
+		r.model.play(CharacterModel.state_for(moving, true, 0.0, seat))
 
 
 func count() -> int:

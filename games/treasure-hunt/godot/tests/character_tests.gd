@@ -127,7 +127,7 @@ func test_shirt_cell() -> void:
 	check(votes, "every model's shirt vote counts torso vertices (the torso bind is found)")
 	# The upper torso, not the belt band at the waist (which has more
 	# vertices but sits in the bottom quarter of the torso).
-	var want := {"female-a": Vector2i(5, 1), "female-b": Vector2i(1, 3), "male-a": Vector2i(9, 2), "male-b": Vector2i(15, 2)}
+	var want := {"female-a": Vector2i(5, 1), "female-b": Vector2i(1, 3), "female-c": Vector2i(1, 1), "female-d": Vector2i(3, 3), "male-a": Vector2i(9, 2), "male-b": Vector2i(15, 2), "male-c": Vector2i(1, 1), "male-d": Vector2i(7, 3)}
 	for id: String in want:
 		var m := make(id)
 		check(m.shirt_cell == want[id], "%s: the shirt is %s, not the belt (got %s)" % [id, want[id], m.shirt_cell])

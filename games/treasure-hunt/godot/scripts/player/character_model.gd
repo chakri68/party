@@ -27,6 +27,10 @@ const RUN_FROM := 2.55
 const CELL_EPS := 1e-4
 const LOOPING: Array[StringName] = [&"idle", &"walk", &"sprint", &"drive", &"sit"]
 
+## id -> {scene: PackedScene, cell: Vector2i, votes: int}. The glb loads and
+## the shirt vote runs once per id, not once per build.
+static var _cache := {}
+
 var id := ""
 var shirt_cell := Vector2i.ZERO
 
@@ -84,6 +88,11 @@ static func state_for(speed: float, on_floor: bool, vy: float, seat: StringName)
 	if speed < MOVING:
 		return &"idle"
 	return &"walk" if speed < RUN_FROM else &"sprint"
+
+
+## `v` if it's a known character id, else the first.
+static func id_or_default(v: Variant) -> String:
+	return v if v is String and IDS.has(v) else IDS[0]
 
 
 ## The colormap cell of a uv.
@@ -173,14 +182,21 @@ func _build(new_id: String) -> void:
 	_material = null
 	_state = &""
 	id = new_id
-	_model = (load(DIR + "character-%s.glb" % id) as PackedScene).instantiate()
+	var known: Dictionary = _cache.get(id, {})
+	if known.is_empty():
+		known = {"scene": load(DIR + "character-%s.glb" % id) as PackedScene}
+	_model = (known.scene as PackedScene).instantiate()
 	add_child(_model)
 
-	var skeleton: Skeleton3D = _model.find_child("Skeleton3D", true, false)
 	var body: MeshInstance3D = _model.find_child("body-mesh", true, false)
-	if torso_vertex_count(body.mesh, body.skin, skeleton) == 0:
-		push_warning("CharacterModel: no torso vertices in %s, shirt cell is a guess" % id)
-	shirt_cell = shirt_cell_of(body.mesh, body.skin, skeleton)
+	if not known.has("cell"):
+		var vote := _vote(body.mesh, body.skin, _model.find_child("Skeleton3D", true, false))
+		if vote.votes == 0:
+			push_warning("CharacterModel: no torso vertices in %s, shirt cell is a guess" % id)
+		known.cell = vote.cell
+		known.votes = vote.votes
+		_cache[id] = known
+	shirt_cell = known.cell
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
 	_material.set_shader_parameter("albedo_tex", COLORMAP)
@@ -195,9 +211,14 @@ func _build(new_id: String) -> void:
 		for i in mi.mesh.get_surface_count():
 			var own := mi.mesh.surface_get_material(i) as BaseMaterial3D
 			if own:
-				var mat := own.duplicate() as BaseMaterial3D
-				mat.albedo_texture = COLORMAP
-				mi.set_surface_override_material(i, mat)
+				# One retextured copy per surface, shared by every model of this id.
+				var heads: Dictionary = known.get_or_add("heads", {})
+				var slot := "%s/%d" % [mi.name, i]
+				if not heads.has(slot):
+					var mat := own.duplicate() as BaseMaterial3D
+					mat.albedo_texture = COLORMAP
+					heads[slot] = mat
+				mi.set_surface_override_material(i, heads[slot])
 
 	_player = _model.find_child("AnimationPlayer", true, false)
 	# The animations are shared resources of the imported scene. The same

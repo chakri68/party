@@ -116,28 +116,26 @@ func _by_door() -> Buggy:
 	return best
 
 
-## Into `b`'s seat. The walker's out of physics either way, but its model
-## stays up, sitting (drive or sit, which the walker's own _animate, off
-## with the rest of it, doesn't touch); driving puts the keys on the buggy, riding only the camera.
+## Into `b`'s seat. The walker leaves physics (disabled also takes it out of
+## the world, so nothing bumps a sitting walker) but its model stays up,
+## sitting. Disabled stops the model's AnimationPlayer too, so the model
+## alone keeps processing. Driving puts the keys on the buggy; riding only
+## the camera.
 func _enter(b: Buggy, seat: StringName) -> void:
 	pending_seat = {}
 	buggy = b
-	# Disabled also takes it out of physics (disable_mode REMOVE), so nothing
-	# bumps into a walker that's sitting in the seat.
 	walker.set_move(Vector2.ZERO, false, false)
 	walker.cancel_scramble()
 	walker.process_mode = Node.PROCESS_MODE_DISABLED
-	# Disabled stops the model's AnimationPlayer too; this one keeps going.
 	walker.model.process_mode = Node.PROCESS_MODE_ALWAYS
-	walker.visible = true
 	walker.model.play(&"drive" if seat == &"driver" else &"sit")
 	if seat == &"driver":
 		buggy.driver = walker
-		_snap_to_seat()
+		_snap_to_seat(false)
 		camera.follow(buggy, &"drive")
 		_set_mode(&"driving")
 	else:
-		_snap_to_seat()
+		_snap_to_seat(true)
 		camera.follow(buggy, &"ride")
 		_set_mode(&"riding")
 
@@ -252,8 +250,9 @@ func _physics_process(dt: float) -> void:
 			_leaving = ""
 
 
-func _snap_to_seat() -> void:
-	walker.global_transform = buggy.global_transform * Transform3D(Basis.IDENTITY, RIDE_SEAT if mode == &"riding" else SEAT)
+## The mode isn't set yet when _enter first snaps, so the seat is passed.
+func _snap_to_seat(riding: bool = mode == &"riding") -> void:
+	walker.global_transform = buggy.global_transform * Transform3D(Basis.IDENTITY, RIDE_SEAT if riding else SEAT)
 
 
 ## Out at the first clear spot. `forced` (the server took the seat away):

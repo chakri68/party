@@ -217,13 +217,15 @@ func test_seats() -> void:
 	check(r.body("p2").global_position.distance_to(Vector3(1, 0, 1)) < 0.01 and d.state() == &"idle", "v null: back at the relayed pos, idle (%s)" % d.state())
 	check(absf(r.body("p2").rotation.x) < 0.001 and absf(r.body("p2").rotation.z) < 0.001, "and upright")
 	# v set but not in a fleet vehicle (or not in the list's seats): relayed pos, idle.
-	r.upsert("p3", _snap(2, 0, 2, 0, "ghost"), 0.3)
+	# The snapshot moves 1.5 m between upserts (5 m/s over 0.3 s): without the
+	# fix the buggy's speed would play sprint here.
+	r.upsert("p3", _snap(3.5, 0, 2, 0, "ghost"), 0.3)
 	r.tick(0.4)
-	check(r.body("p3").global_position.distance_to(Vector3(2, 0, 2)) < 0.01 and p.state() == &"idle", "a vehicle not in the fleet: relayed pos, idle (%s)" % p.state())
-	r.upsert("p3", _snap(2, 0, 2, 0, "t0"), 0.5)
+	check(r.body("p3").global_position.distance_to(Vector3(3.5, 0, 2)) < 0.01 and p.state() == &"idle", "a vehicle not in the fleet: relayed pos, idle (%s)" % p.state())
+	r.upsert("p3", _snap(5.0, 0, 2, 0, "t0"), 0.5)
 	r.set_seats([_veh("t0", "p2", null)])
 	r.tick(0.6)
-	check(r.body("p3").global_position.distance_to(Vector3(2, 0, 2)) < 0.01 and p.state() == &"idle", "v set but not in the vehicle's seats: relayed pos, idle")
+	check(r.body("p3").global_position.distance_to(Vector3(5, 0, 2)) < 0.01 and p.state() == &"idle", "v set but not in the vehicle's seats: relayed pos, idle (%s)" % p.state())
 	r.set_seats([{"id": 5}, "junk", {"id": "t0", "driver": 3, "passenger": null}])
 	r.tick(0.7)
 	check(r.count() == 2, "a bad seats list is skipped without errors")
