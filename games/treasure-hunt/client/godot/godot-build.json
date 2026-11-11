@@ -1,6 +1,6 @@
 {
-  "hash": "120cff97b2",
-  "base": "/treasure-hunt/godot/120cff97b2/",
+  "hash": "b48896d979",
+  "base": "/treasure-hunt/godot/b48896d979/",
   "files": [
     "index.apple-touch-icon.png",
     "index.audio.position.worklet.js",
@@ -19,7 +19,7 @@
     "index.html": 2709,
     "index.icon.png": 5700,
     "index.js": 279815,
-    "index.pck": 631684,
+    "index.pck": 643800,
     "index.png": 21443,
     "index.wasm": 39514754
   }
