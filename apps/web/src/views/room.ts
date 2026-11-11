@@ -699,7 +699,6 @@ export class RoomView implements View {
     const empty = h("p", { class: "muted center", hidden: true }, "No games match.");
     const refreshers: ((room: RoomPublicState) => void)[] = [];
 
-    let rowIndex = 0;
     const rows = all.map(([id, entry]) => {
       const { name, description, minPlayers, maxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
@@ -765,7 +764,6 @@ export class RoomView implements View {
         h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted" }, description), meta, want),
       );
       const row = h("li", {}, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
-      row.style.setProperty("--i", String(rowIndex++)); // entrance stagger (style.css)
       return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
 
@@ -780,6 +778,8 @@ export class RoomView implements View {
       );
       return { el, rows: mine };
     }).filter((s) => s.rows.length);
+    // Entrance stagger (style.css), counted top to bottom as they show.
+    sections.flatMap((s) => s.rows).forEach((r, i) => r.row.style.setProperty("--i", String(i)));
 
     search?.addEventListener("input", () => {
       const q = search.value.trim().toLowerCase();
