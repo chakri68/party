@@ -1,6 +1,6 @@
 class_name Walker
 extends CharacterBody3D
-## You, on foot: a capsule with a head, until a character pack lands.
+## You, on foot: a Kenney Mini Character inside a capsule collider.
 ## Walks, runs, jumps, and scrambles up ledges about 1 m high (spec §7.1).
 ## Moves relative to look_yaw, which main copies from the camera each tick.
 ## Origin is at the feet.
@@ -23,6 +23,10 @@ const SCRAMBLE_MIN := 0.3
 ## How far past the capsule's front we look for the ledge's top.
 const SCRAMBLE_REACH := 0.35
 
+const DEFAULT_COLOR := Color(0.85, 0.42, 0.18)
+## The pick-up pose plays this long, then the motion state takes over.
+const PICK_UP_S := 0.5
+
 var input_enabled := true
 ## Out of the hunting phase (main sets it): no moving from any input, the
 ## keyboard or set_move. Gravity still works, so you stay on the ground.
@@ -31,6 +35,9 @@ var look_yaw := 0.0
 ## main.seaward, bound to your wading depth: down the seabed where it's too
 ## deep, else zero. Unset (tests on their own), there's no sea rule.
 var seaward := Callable()
+
+## What you look like. main sets it from the roster; before that, a default.
+var model: CharacterModel
 
 var _move := Vector2.ZERO # x right, y forward
 var _run := false
@@ -42,6 +49,7 @@ var _shape: CapsuleShape3D
 var _scramble_t := -1.0 # 0..1 while scrambling, -1 otherwise
 var _scramble_from := Vector3.ZERO
 var _scramble_to := Vector3.ZERO
+var _pick_left := 0.0
 
 
 func _init() -> void:
@@ -58,31 +66,21 @@ func _init() -> void:
 	cs.position.y = HEIGHT * 0.5
 	add_child(cs)
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.85, 0.42, 0.18)
-	mat.roughness = 0.8
-	var body := MeshInstance3D.new()
-	body.name = "Body"
-	var cm := CapsuleMesh.new()
-	cm.radius = RADIUS
-	cm.height = HEIGHT
-	body.mesh = cm
-	body.position.y = HEIGHT * 0.5
-	body.material_override = mat
-	add_child(body)
+	model = CharacterModel.new()
+	model.name = "Model"
+	model.setup(CharacterModel.IDS[0], DEFAULT_COLOR)
+	add_child(model)
 
-	# Out the front, so you can see which way it faces.
-	var head := MeshInstance3D.new()
-	head.name = "Head"
-	var sm := SphereMesh.new()
-	sm.radius = 0.14
-	sm.height = 0.28
-	head.mesh = sm
-	head.position = Vector3(0, HEIGHT - 0.3, -RADIUS + 0.05)
-	var hm := StandardMaterial3D.new()
-	hm.albedo_color = Color(0.95, 0.85, 0.7)
-	head.material_override = hm
-	add_child(head)
+
+## Looks like `id` in `color` (unknown ids get the model's fallback).
+func set_character(id: String, color: Color) -> void:
+	model.setup(id, color)
+
+
+## Plays the pick-up pose for PICK_UP_S.
+func pick_up() -> void:
+	_pick_left = PICK_UP_S
+	model.play(&"pick-up")
 
 
 ## Tests drive the walker with this (and input_enabled = false). Real input
@@ -112,6 +110,7 @@ func _physics_process(dt: float) -> void:
 
 	if is_scrambling():
 		_step_scramble(dt)
+		_animate(dt, true)
 		return
 
 	var jump_pressed := _jump and not _jump_was
@@ -138,6 +137,16 @@ func _physics_process(dt: float) -> void:
 		rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), 1.0 - exp(-TURN_RATE * dt))
 		if _jump and is_on_wall():
 			_try_scramble(dir)
+	_animate(dt, false)
+
+
+## The pose from what the body is doing; a pick-up holds it for a moment.
+func _animate(dt: float, climbing: bool) -> void:
+	_pick_left = maxf(0.0, _pick_left - dt)
+	if _pick_left > 0.0:
+		return
+	var speed := Vector2(velocity.x, velocity.z).length()
+	model.play(&"jump" if climbing else CharacterModel.state_for(speed, is_on_floor(), velocity.y, &""))
 
 
 ## Input turned into a world direction: forward at yaw θ is (−sin θ, 0, −cos θ).

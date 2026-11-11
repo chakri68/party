@@ -29,6 +29,7 @@ func run() -> void:
 	await test_spawn()
 	await test_walk_and_run()
 	await test_jump()
+	await test_pose()
 	await test_scramble()
 	await test_no_scramble_from_a_ditch()
 	await test_no_scramble_up_a_steep_slope()
@@ -151,6 +152,47 @@ func test_jump() -> void:
 			break
 	check(left and peak - y0 > 0.3, "a jump leaves the ground (peak %.2f m)" % (peak - y0))
 	check(landed and absf(walker.global_position.y - y0) < 0.05, "and lands again")
+	(pad[0] as Node).queue_free()
+
+
+func test_pose() -> void:
+	var pad: Array = _pad()
+	var top: float = pad[1]
+	check(walker.model != null and walker.model.get_parent() == walker and walker.get_node("Shape") != null, "the walker wears a CharacterModel over its collider")
+	_put(Vector3(field.spawn.x, top + 0.05, field.spawn.z))
+	await _frames(20)
+	check(walker.model.state() == &"idle", "standing: idle (%s)" % walker.model.state())
+	walker.set_move(Vector2(0, 1), false, false)
+	await _frames(40)
+	check(walker.model.state() == &"walk", "walking: walk (%s)" % walker.model.state())
+	walker.set_move(Vector2(0, 1), true, false)
+	await _frames(40)
+	check(walker.model.state() == &"sprint", "running: sprint (%s)" % walker.model.state())
+	walker.set_move(Vector2.ZERO, false, false)
+	await _frames(60)
+	walker.set_move(Vector2.ZERO, false, true)
+	await _frames(2)
+	walker.set_move(Vector2.ZERO, false, false)
+	check(walker.model.state() == &"jump", "going up: jump (%s)" % walker.model.state())
+	var fell := false
+	for i in 60:
+		await t.physics_frame
+		if walker.model.state() == &"fall":
+			fell = true
+	check(fell, "coming down: fall")
+	await _frames(30)
+	walker.set_move(Vector2(0, 1), false, false)
+	walker.pick_up()
+	check(walker.model.state() == &"pick-up", "a claim plays pick-up")
+	await _frames(15)
+	check(walker.model.state() == &"pick-up", "and holds it a moment")
+	await _frames(25)
+	check(walker.model.state() == &"walk", "then back to the motion state within 0.7 s (%s)" % walker.model.state())
+	walker.set_move(Vector2.ZERO, false, false)
+	walker.set_character("male-d", Color("#112233"))
+	check(walker.model.id == "male-d", "set_character swaps the model")
+	walker.set_character("junk", Color("#112233"))
+	check(walker.model.id == CharacterModel.IDS[0], "an unknown id falls back")
 	(pad[0] as Node).queue_free()
 
 

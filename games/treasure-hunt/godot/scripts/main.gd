@@ -116,7 +116,9 @@ func _ready() -> void:
 	remotes = Remotes.new()
 	remotes.name = "Remotes"
 	add_child(remotes)
-	bridge.roster_set.connect(remotes.set_roster)
+	remotes.viewer = func() -> Vector3: return (focus if focus else walker).global_position
+	bridge.roster_set.connect(_on_roster)
+	avatar.claimed.connect(func(_id: String) -> void: walker.pick_up())
 	pins = Pins.new()
 	pins.name = "Pins"
 	add_child(pins)
@@ -355,7 +357,15 @@ func set_phase(p: StringName) -> void:
 	fleet.set_locked(lock)
 
 
-## Another player's snapshot: their capsule, and the buggy they drive.
+## The roster: the others to remotes, and my own look to the walker.
+func _on_roster(list: Array, me: String) -> void:
+	remotes.set_roster(list, me)
+	for p in list:
+		if p is Dictionary and p.get("id") == me and p.get("color") is String and Color.html_is_valid(p.color):
+			walker.set_character(String(p.get("character", "")) if p.get("character") is String else "", Color.html(p.color))
+
+
+## Another player's snapshot: their model, and the buggy they drive.
 func _on_remote(id: String, snap: Dictionary) -> void:
 	remotes.upsert(id, snap, Remotes.now())
 	if snap.get("v") is String:

@@ -1,11 +1,11 @@
 class_name Remotes
 extends Node3D
-## The other players: a team-tinted capsule with a name tag each (spec §7.5;
-## the character pack is M5). The view sends the roster on every update and
+## The other players: a team-tinted Kenney Mini Character with a name tag
+## each (spec §7.5). The view sends the roster on every update and
 ## each pos relay as it lands; both are idempotent, so a repeat changes
-## nothing and a capsule is only built once.
+## nothing and a model is only built once.
 ##
-## A capsule shows up on its player's first snapshot, eases from where it
+## A model shows up on its player's first snapshot, eases from where it
 ## was drawn to the latest one over LERP_S, and goes when a roster drops
 ## its player or after STALE_S with no snapshot. In a vehicle (v set) it
 ## still shows: the server relays a seated player's pos as their seat, and
@@ -17,14 +17,19 @@ const NAME_RANGE := 50.0
 ## One snapshot gap at POS_HZ.
 const LERP_S := 0.1
 const STALE_S := 5.0
-const RADIUS := 0.35
-const HEIGHT := 1.8
-## The streamed y is the walker's origin, which is its feet.
-const CENTRE_Y := HEIGHT * 0.5
-const TAG_UP := 1.2
+## The streamed y is the walker's origin, which is its feet; the model
+## stands on it and the tag floats this far over its head.
+const TAG_UP := CharacterModel.HEIGHT + 0.4
+## Past this many metres from the viewer a model stops animating.
+const ANIMATE_RANGE := 150.0
+## No snapshot for this long and a remote has stopped.
+const STILL_AFTER_S := 0.35
 
 ## Off in tests, which drive tick() with their own clock.
 var auto_tick := true
+
+## Where the viewer is, for the animate range: returns a Vector3. Unset, everyone animates.
+var viewer := Callable()
 
 var _me := ""
 ## id -> {name, color: Color, team: int}
@@ -35,13 +40,14 @@ var _remotes: Dictionary = {}
 
 class Remote:
 	var body: Node3D
-	var capsule: MeshInstance3D
+	var model: CharacterModel
 	var label: Label3D
 	var from_pos: Vector3
 	var from_yaw: float
 	var to_pos: Vector3
 	var to_yaw: float
 	var t0: float ## when the latest snapshot came
+	var speed := 0.0 ## m/s on the ground between the last two snapshots
 
 	func pose_at(now_s: float) -> Array:
 		var a := clampf((now_s - t0) / LERP_S, 0.0, 1.0)
@@ -58,16 +64,18 @@ func _process(_dt: float) -> void:
 		tick(now())
 
 
-## Everyone to draw, `me` included (skipped). [{id, name, color: "#rrggbb", team}]
-## Anyone not in it goes now; anyone still in it keeps their capsule, with
-## its colour and name brought up to date.
+## Everyone to draw, `me` included (skipped). [{id, name, color: "#rrggbb", team, character}]
+## Anyone not in it goes now; anyone still in it keeps their model, with
+## its colour, character and name brought up to date. An unknown character
+## is the model's fallback.
 func set_roster(list: Array, me: String) -> void:
 	_me = me
 	var next := {}
 	for p in list:
 		if not (p is Dictionary and p.get("id") is String and p.get("color") is String and Color.html_is_valid(p.color)):
 			continue
-		next[p.id] = {"name": String(p.get("name", "")) if p.get("name") is String else "", "color": Color.html(p.color), "team": int(p.team) if (p.get("team") is float or p.get("team") is int) else 0}
+		var ch: String = p.character if p.get("character") is String and CharacterModel.IDS.has(p.character) else CharacterModel.IDS[0]
+		next[p.id] = {"character": ch, "name": String(p.get("name", "")) if p.get("name") is String else "", "color": Color.html(p.color), "team": int(p.team) if (p.get("team") is float or p.get("team") is int) else 0}
 	_roster = next
 	for id in _remotes.keys():
 		if id == _me or not _roster.has(id):
@@ -75,9 +83,10 @@ func set_roster(list: Array, me: String) -> void:
 			continue
 		var r: Remote = _remotes[id]
 		var want: Dictionary = _roster[id]
-		var mat := r.capsule.material_override as StandardMaterial3D
-		if not mat.albedo_color.is_equal_approx(want.color):
-			mat.albedo_color = want.color
+		if r.model.id != want.character:
+			r.model.setup(want.character, want.color)
+		else:
+			r.model.set_color(want.color)
 		if r.label.text != want.name:
 			r.label.text = want.name
 
@@ -94,6 +103,7 @@ func upsert(id: String, snap: Dictionary, now_s: float) -> void:
 		r = _build(id)
 		r.from_pos = at
 		r.from_yaw = yaw
+		r.speed = 0.0
 		r.body.position = at
 		r.body.rotation.y = yaw
 	else:
@@ -101,6 +111,7 @@ func upsert(id: String, snap: Dictionary, now_s: float) -> void:
 		var pose := r.pose_at(now_s)
 		r.from_pos = pose[0]
 		r.from_yaw = pose[1]
+		r.speed = Vector2(at.x - r.to_pos.x, at.z - r.to_pos.z).length() / maxf(now_s - r.t0, 0.01)
 	r.to_pos = at
 	r.to_yaw = yaw
 	r.t0 = now_s
@@ -116,6 +127,9 @@ func tick(now_s: float) -> void:
 		var pose := r.pose_at(now_s)
 		r.body.position = pose[0]
 		r.body.rotation.y = pose[1]
+		var near := not viewer.is_valid() or r.body.position.distance_to(viewer.call()) <= ANIMATE_RANGE
+		r.model.set_animating(near)
+		r.model.play(CharacterModel.state_for(r.speed if now_s - r.t0 <= STILL_AFTER_S else 0.0, true, 0.0, &""))
 
 
 func count() -> int:
@@ -127,9 +141,9 @@ func body(id: String) -> Node3D:
 	return r.body if r else null
 
 
-func capsule(id: String) -> MeshInstance3D:
+func model(id: String) -> CharacterModel:
 	var r: Remote = _remotes.get(id)
-	return r.capsule if r else null
+	return r.model if r else null
 
 
 func label(id: String) -> Label3D:
@@ -142,23 +156,16 @@ func _build(id: String) -> Remote:
 	var r := Remote.new()
 	r.body = Node3D.new()
 	r.body.name = "Remote_" + id.validate_node_name()
-	var cm := CapsuleMesh.new()
-	cm.radius = RADIUS
-	cm.height = HEIGHT
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = want.color
-	r.capsule = MeshInstance3D.new()
-	r.capsule.mesh = cm
-	r.capsule.material_override = mat
-	r.capsule.position.y = CENTRE_Y
-	r.body.add_child(r.capsule)
+	r.model = CharacterModel.new()
+	r.model.setup(want.character, want.color)
+	r.body.add_child(r.model)
 	r.label = Label3D.new()
 	r.label.text = want.name
 	r.label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	r.label.visibility_range_end = NAME_RANGE
 	r.label.font_size = 48
 	r.label.outline_size = 12
-	r.label.position.y = CENTRE_Y + TAG_UP
+	r.label.position.y = TAG_UP
 	r.body.add_child(r.label)
 	add_child(r.body)
 	_remotes[id] = r

@@ -1,5 +1,5 @@
 extends RefCounted
-## M3's other players: Remotes on its own (capsules, tags, interpolation,
+## M3's other players: Remotes on its own (models, tags, interpolation,
 ## lifetime), then through main and the bridge seams, and the yaw and v
 ## our own pos now carries.
 ## Run from run_tests.gd, with its helpers and its pass/fail count.
@@ -8,8 +8,8 @@ var t ## the runner (run_tests.gd)
 
 const ROSTER := [
 	{"id": "me", "name": "Asha", "color": "#e69f00", "team": 1.0},
-	{"id": "p2", "name": "Ravi", "color": "#56b4e9", "team": 2.0},
-	{"id": "p3", "name": "Meena", "color": "#009e73", "team": 3.0},
+	{"id": "p2", "name": "Ravi", "color": "#56b4e9", "team": 2.0, "character": "male-b"},
+	{"id": "p3", "name": "Meena", "color": "#009e73", "team": 3.0, "character": "nobody-knows"},
 ]
 
 
@@ -25,6 +25,8 @@ func run() -> void:
 	await test_vehicle()
 	await test_label()
 	await test_interpolation()
+	await test_models()
+	await test_animation()
 	await test_bridge()
 
 
@@ -53,19 +55,18 @@ func test_upsert() -> void:
 	var r := _remotes()
 	r.upsert("p2", _snap(1, 2, 3), 0.0)
 	r.upsert("p2", _snap(1.5, 2, 3), 0.1)
-	check(r.count() == 1, "upsert twice → one capsule (%d)" % r.count())
-	var cap := r.capsule("p2")
-	var mesh := cap.mesh as CapsuleMesh if cap else null
-	check(mesh != null and is_equal_approx(mesh.radius, 0.35) and is_equal_approx(mesh.height, 1.8), "a capsule 0.35 m by 1.8 m")
-	var mat := cap.material_override as StandardMaterial3D if cap else null
-	check(mat != null and mat.albedo_color.is_equal_approx(Color("#56b4e9")), "the capsule is tinted the team colour")
+	check(r.count() == 1, "upsert twice → one model (%d)" % r.count())
+	var m := r.model("p2")
+	check(m != null and m.id == "male-b", "a remote shows the roster's character")
+	var mat := m.find_child("body-mesh", true, false).get_surface_override_material(0) as ShaderMaterial if m else null
+	check(mat != null and (mat.get_shader_parameter("team_color") as Color).is_equal_approx(Color("#56b4e9")), "the shirt is the team colour")
 	var body := r.body("p2")
 	check(body != null and body.find_children("*", "CollisionObject3D", true, false).is_empty(), "a remote has no collider")
 	r.tick(1.0)
-	check(body != null and absf(cap.global_position.y - (2.0 + 0.9)) < 0.01, "the capsule's centre is 0.9 m over the streamed feet")
+	check(body != null and absf(m.global_position.y - 2.0) < 0.01, "the model stands on the streamed feet")
 	r.upsert("me", _snap(0, 0, 0), 0.2)
 	r.upsert("nobody", _snap(0, 0, 0), 0.2)
-	check(r.count() == 1, "me and players not in the roster get no capsule")
+	check(r.count() == 1, "me and players not in the roster get no model")
 	await _done(r)
 
 
@@ -75,13 +76,12 @@ func test_roster() -> void:
 	r.upsert("p3", _snap(5, 0, 0), 0.0)
 	var before := r.body("p2")
 	r.set_roster(ROSTER, "me")
-	check(r.body("p2") == before, "the same roster again keeps the capsule")
+	check(r.body("p2") == before, "the same roster again keeps the model")
 	var recoloured := ROSTER.duplicate(true)
 	recoloured[1].color = "#d55e00"
 	recoloured[1].name = "Ravi K"
 	r.set_roster(recoloured, "me")
-	var mat := r.capsule("p2").material_override as StandardMaterial3D
-	check(r.body("p2") == before and mat.albedo_color.is_equal_approx(Color("#d55e00")) and r.label("p2").text == "Ravi K", "a new colour or name changes the capsule in place")
+	check(r.body("p2") == before and r.label("p2").text == "Ravi K", "a new name changes the tag in place")
 	r.set_roster([ROSTER[0], ROSTER[1]], "me")
 	check(r.count() == 1 and r.body("p3") == null, "a roster that drops a player removes them at once")
 	await _done(r)
@@ -101,11 +101,11 @@ func test_vehicle() -> void:
 	var r := _remotes()
 	r.upsert("p2", _snap(0, 0, 0), 0.0)
 	r.tick(0.0)
-	check(r.body("p2").visible, "on foot, the capsule shows")
+	check(r.body("p2").visible, "on foot, the model shows")
 	# In a buggy they're still drawn: the streamed pos is already the seat.
 	r.upsert("p2", _snap(3, 1, 4, 0.0, "b1"), 0.1)
 	r.tick(0.2)
-	check(r.body("p2").visible and r.capsule("p2").visible and r.label("p2").visible, "v set → capsule and tag still show")
+	check(r.body("p2").visible and r.model("p2").visible and r.label("p2").visible, "v set → model and tag still show")
 	check(r.body("p2").position.is_equal_approx(Vector3(3, 1, 4)), "drawn at the streamed seat")
 	r.upsert("p2", _snap(0, 0, 0), 0.3)
 	r.tick(0.3)
@@ -120,8 +120,60 @@ func test_label() -> void:
 	var l := r.label("p2")
 	check(l != null and is_equal_approx(l.visibility_range_end, 50.0) and Remotes.NAME_RANGE == 50.0, "name label range is 50")
 	check(l != null and l.billboard == BaseMaterial3D.BILLBOARD_ENABLED and l.text == "Ravi", "the tag is a billboard with the seat name")
-	var cap := r.capsule("p2")
-	check(l != null and absf(l.global_position.y - (cap.global_position.y + 1.2)) < 0.01, "the tag sits 1.2 m over the capsule's centre")
+	check(l != null and absf(l.position.y - (CharacterModel.HEIGHT + 0.4)) < 0.001, "the tag sits 0.4 m over the model's head")
+	await _done(r)
+
+
+func test_models() -> void:
+	var r := _remotes()
+	r.upsert("p2", _snap(0, 0, 0), 0.0)
+	r.upsert("p3", _snap(5, 0, 0), 0.0)
+	var m := r.model("p2")
+	check(r.model("p3").id == CharacterModel.IDS[0], "an unknown character falls back, no crash")
+	var teamed := ROSTER.duplicate(true)
+	teamed[1].color = "#d55e00"
+	r.set_roster(teamed, "me")
+	var mat := m.find_child("body-mesh", true, false).get_surface_override_material(0) as ShaderMaterial
+	check(r.model("p2") == m and m.id == "male-b" and (mat.get_shader_parameter("team_color") as Color).is_equal_approx(Color("#d55e00")), "a team colour change keeps the model and moves the tint")
+	var swapped := teamed.duplicate(true)
+	swapped[1].character = "female-c"
+	r.set_roster(swapped, "me")
+	check(r.model("p2") == m and m.id == "female-c" and r.body("p2").find_children("*", "CharacterModel", true, false).size() == 1, "a character change leaves one model with the new id")
+	var mat2 := m.find_child("body-mesh", true, false).get_surface_override_material(0) as ShaderMaterial
+	check((mat2.get_shader_parameter("team_color") as Color).is_equal_approx(Color("#d55e00")), "and keeps the colour")
+	await _done(r)
+
+
+func test_animation() -> void:
+	var r := _remotes()
+	var m: CharacterModel
+	r.upsert("p2", _snap(0, 0, 0), 0.0)
+	r.upsert("p2", _snap(0.17, 0, 0), 0.1)
+	r.tick(0.1)
+	m = r.model("p2")
+	check(m.state() == &"walk", "1.7 m/s between snapshots: walk (%s)" % m.state())
+	r.upsert("p2", _snap(0.67, 0, 0), 0.2)
+	r.tick(0.2)
+	check(m.state() == &"sprint", "5 m/s: sprint (%s)" % m.state())
+	r.upsert("p2", _snap(0.67, 0, 0), 0.3)
+	r.tick(0.3)
+	check(m.state() == &"idle", "still between snapshots: idle (%s)" % m.state())
+	r.upsert("p2", _snap(0.97, 0, 0), 0.4)
+	r.tick(0.4)
+	r.tick(1.0)
+	check(m.state() == &"idle", "no snapshot for a while: idle")
+	# Beyond 150 m the animation stops; back within it, it runs.
+	var viewer := [Vector3(0, 0, 0)]
+	r.viewer = func() -> Vector3: return viewer[0]
+	var ap: AnimationPlayer = m.find_child("AnimationPlayer", true, false)
+	r.tick(1.0)
+	check(ap.active, "within 150 m: animating")
+	viewer[0] = Vector3(200, 0, 0)
+	r.tick(1.0)
+	check(not ap.active, "beyond 150 m: frozen")
+	viewer[0] = Vector3(100, 0, 0)
+	r.tick(1.0)
+	check(ap.active, "back within 150 m: animating again")
 	await _done(r)
 
 
@@ -153,7 +205,7 @@ func test_bridge() -> void:
 	bridge.receive_roster_json(JSON.stringify({"me": "me", "players": ROSTER}))
 	bridge.receive_remote_json(JSON.stringify({"id": "p2", "x": 4.0, "y": 1.0, "z": 2.0, "yaw": 0.5, "foot": true, "v": null}))
 	bridge.receive_remote_json(JSON.stringify({"id": "p3", "x": "4", "y": 1.0, "z": 2.0, "yaw": 0.5, "foot": true, "v": null}))
-	check(remotes.count() == 1 and remotes.body("p2") != null, "roster and remotePos through the bridge seams make a capsule")
+	check(remotes.count() == 1 and remotes.body("p2") != null, "roster and remotePos through the bridge seams make a model")
 	bridge.receive_roster_json(JSON.stringify({"me": "me", "players": [ROSTER[0]]}))
 	check(remotes.count() == 0, "a roster through the bridge drops a player")
 

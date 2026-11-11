@@ -57,6 +57,11 @@ func play(state: StringName) -> void:
 	_player.play(state, FADE)
 
 
+## The state last asked for.
+func state() -> StringName:
+	return _state
+
+
 ## Off freezes the pose. Far-off remotes aren't worth animating.
 func set_animating(on: bool) -> void:
 	if _player:
