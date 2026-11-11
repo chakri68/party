@@ -9,7 +9,8 @@
 // changed. That makes it idempotent and a rerun after a half-finished upload
 // just redoes it.
 // --remote by default; --local targets wrangler dev's simulated bucket,
-// --dry-run prints the puts without making them.
+// --dry-run prints the puts without making them. --bucket <name> picks a
+// different bucket (the product Worker's), default party-games-blind-rally.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants as zc } from 'node:zlib';
 
 const MiB = 1024 * 1024;
-const BUCKET = 'party-games-blind-rally'; // apps/server/wrangler.jsonc r2_buckets
+const DEFAULT_BUCKET = 'party-games-blind-rally'; // apps/server/wrangler.jsonc r2_buckets
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const MARKER = '.uploaded';
 const CONTENT_TYPES = {
@@ -48,6 +49,7 @@ export function uploadGodot({ manifestPath, publicRoot, stagingRoot, keyRoot, ar
     const i = argv.indexOf(name);
     return i === -1 ? undefined : argv[i + 1];
   };
+  const BUCKET = argValue('--bucket') ?? DEFAULT_BUCKET;
   const dryRun = argv.includes('--dry-run');
   const where = argv.includes('--local') ? ['--local'] : ['--remote'];
   const persist = argValue('--persist-to');
