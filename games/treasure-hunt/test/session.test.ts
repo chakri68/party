@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { godotPin, godotPos, godotSeat, godotUnseat, roundKey, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
+import { defaultCharacter } from "../shared/characters.ts";
 import { ActLog, ClaimLog, GodotFeed, parseHotCold, claimError, pinsFor, resync, rosterFor } from "../client/view.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
@@ -304,6 +305,16 @@ describe("rosterFor", () => {
         { id: "p2", name: "Ravi", color: "#56b4e9", team: 2, character: "female-c" },
       ],
     });
+  });
+});
+
+describe("rosterFor without a character", () => {
+  it("falls back to the stable default", () => {
+    const game = {
+      teams: [{ id: 1, color: "orange", foundCount: 0, poolSize: 3 }],
+      players: [{ id: "p1", ready: true, spectator: false, removed: false, teamId: 1 }],
+    } as unknown as THPublic;
+    expect(rosterFor(game, [], "p1").players[0]!.character).toBe(defaultCharacter("p1"));
   });
 });
 

@@ -77,3 +77,29 @@ describe("the character picker", () => {
     expect(pickers).toHaveLength(0);
   });
 });
+
+describe("re-rendering", () => {
+  const rebuild = async (change: (g: THPublic) => void) => {
+    const { TeamsPanel } = await import("../client/teams.ts");
+    const p = new TeamsPanel(() => {});
+    const names = { me: "Asha", p2: "Ravi" };
+    const buttons = () => (p.el as unknown as FakeNode).all().filter((n) => n.getAttribute("class") === "th-char");
+    p.update(game("teams"), names, "me", false);
+    const first = buttons();
+    const g2 = game("teams");
+    change(g2);
+    p.update(g2, names, "me", false);
+    return { first, second: buttons() };
+  };
+
+  it("keeps the same button nodes when nothing changed", async () => {
+    const { first, second } = await rebuild(() => {});
+    expect(second).toHaveLength(8);
+    expect(second.every((b, i) => b === first[i])).toBe(true);
+  });
+
+  it("redraws when my character changes", async () => {
+    const { second } = await rebuild((g) => { g.players[0]!.character = "female-d"; });
+    expect(second.map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false", "false", "true", "false", "false", "false", "false"]);
+  });
+});

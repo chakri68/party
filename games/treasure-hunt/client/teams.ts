@@ -89,6 +89,8 @@ type TeamAct = Extract<THAction, { type: "team.join" | "team.new" | "team.assign
 export class TeamsPanel {
   readonly el = h("section", { class: "th-teams", "aria-label": "Teams", hidden: true });
   private act: (a: TeamAct) => void;
+  /** What the last render drew; the same inputs keep the same nodes (and the keyboard's focus). */
+  private key = "";
 
   constructor(act: (a: TeamAct) => void) {
     this.act = act;
@@ -98,6 +100,10 @@ export class TeamsPanel {
     this.el.hidden = game.phase !== "teams";
     if (this.el.hidden) return;
     const rows = teamRows(game, names, me);
+    const note = isHost ? startNote(game) : null;
+    const key = JSON.stringify([rows, isHost, note, canStart(game), game.teams.length, pickerItems(game, me).find((c) => c.chosen)?.id]);
+    if (key === this.key) return;
+    this.key = key;
 
     // The host's one control for anyone: a team picker by their name.
     const mover = (m: Member, teamId: number) => {
@@ -150,7 +156,6 @@ export class TeamsPanel {
         ),
       );
 
-    const note = isHost ? startNote(game) : null;
     replaceChildren(
       this.el,
       h("h2", { class: "th-teams-title" }, "Teams"),

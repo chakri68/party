@@ -10,6 +10,7 @@ import { layoutFor } from "./layout-cache.ts";
 import { ReplayView } from "./replay.ts";
 import { MapCanvas } from "./map/map-canvas.ts";
 import { clickAction, islandView, visibleDots, type Overlay } from "./map/overlays.ts";
+import { defaultCharacter } from "../shared/characters.ts";
 import { TeamsPanel } from "./teams.ts";
 
 // The whole game is the Godot map in an iframe; this file is the frame
@@ -223,7 +224,7 @@ export function rosterFor(game: Pick<THPublic, "players" | "teams">, seats: read
     if (p.spectator || p.removed || p.teamId === null) continue;
     const team = game.teams.find((t) => t.id === p.teamId);
     if (!team) continue;
-    players.push({ id: p.id, name: seats.find((s) => s.id === p.id)?.name ?? "Someone", color: teamColor(team.color).hex, team: team.id, character: p.character });
+    players.push({ id: p.id, name: seats.find((s) => s.id === p.id)?.name ?? "Someone", color: teamColor(team.color).hex, team: team.id, character: p.character ?? defaultCharacter(p.id) });
   }
   return { me, players };
 }
