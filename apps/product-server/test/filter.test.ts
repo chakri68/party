@@ -10,7 +10,7 @@ describe("maskProfanity", () => {
     expect(maskProfanity(s)).toHaveLength(s.length);
   });
   it("leaves words that merely contain a listed word", () => {
-    for (const s of ["class", "Scunthorpe", "assassin", "Hello there", "bass", "cocktail", "shitake"]) {
+    for (const s of ["class", "Scunthorpe", "assassin", "Hello there", "bass", "cocktail", "shitake", "hijra", "Hijra", "HIJRA"]) {
       expect(maskProfanity(s)).toBe(s);
     }
   });

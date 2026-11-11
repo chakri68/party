@@ -5,5 +5,5 @@ export const FILTER_WORDS = [
   "dick", "cunt", "slut", "whore", "pussy", "cock", "wanker", "twat", "nigger", "nigga", "faggot",
   "retard", "bhenchod", "behenchod", "bhosdike", "bhosdi", "madarchod", "maderchod", "chutiya",
   "chutiye", "chut", "gandu", "gaandu", "lund", "lauda", "randi", "harami", "haramzada",
-  "kutta", "kutti", "kamina", "kamine", "saala", "bhosda", "hijra",
+  "kutta", "kutti", "kamina", "kamine", "saala", "bhosda",
 ];

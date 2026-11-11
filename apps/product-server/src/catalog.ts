@@ -1,12 +1,7 @@
 import type { AnyGameDefinition } from "@games/game-core";
+import type { TierLimits } from "@games/server/policy";
 import { gamesFor, type GameFlags } from "@games/server/games";
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "./catalog-data.ts";
-
-// Same shape as the server runtime's TierLimits (structural; the shared package doesn't export the type).
-export interface TierLimits {
-  premiumGameIds: string[];
-  freeMaxPlayers: number;
-}
 
 export const PRODUCT_LIMITS: TierLimits = { premiumGameIds: PREMIUM_GAME_IDS, freeMaxPlayers: FREE_MAX_PLAYERS };
 
