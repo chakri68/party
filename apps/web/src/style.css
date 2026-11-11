@@ -225,7 +225,7 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 .big-code { font-size: 3.4rem; font-weight: 700; letter-spacing: 0.2em; line-height: 1; margin-right: -0.2em; }
 .invite-url { font-size: 0.85rem; color: var(--muted); word-break: break-all; text-align: center; }
 .invite button { margin-top: 8px; min-width: 180px; }
-.game-card { display: flex; align-items: center; gap: 14px; }
+.game-card { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .game-card h2 { margin: 0; font-size: 1.2rem; letter-spacing: -0.02em; }
 .game-card p { font-size: 0.9rem; }
 .game-card-text { flex: 1; min-width: 0; }
@@ -375,6 +375,16 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .game-option-text .muted { font-size: 0.88rem; }
 .game-option-meta { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .game-option-meta.warn { color: var(--danger); }
+.game-option-want { font-size: 0.78rem; font-weight: 700; color: var(--accent); }
+.game-option.readonly { border: 1.5px solid var(--line); border-radius: 14px; }
+.game-option.readonly[aria-current="true"] { border-color: var(--accent); }
+.game-option-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 2px 4px 0; }
+.game-option-actions:has(> :only-child) { padding: 0 4px; }
+.game-option-actions button.small { min-height: 36px; padding: 0 14px; font-size: 0.85rem; }
+.game-option-actions button.link.small { min-height: 36px; padding: 0 6px; }
+.game-option-actions button.small[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.suggestion-line { flex-basis: 100%; margin: -4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.9rem; }
+.suggestion-line button.link { min-height: 32px; padding: 0 4px; color: var(--accent); }
 .dialog h2 { margin: 0 0 10px; font-size: 1.25rem; letter-spacing: -0.02em; }
 .dialog form { margin-top: 16px; display: flex; justify-content: flex-end; }
 .rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }

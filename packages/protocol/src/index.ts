@@ -86,6 +86,8 @@ export interface SeatPublic {
   ready: boolean;
   presence: Presence;
   joinedAt: number;
+  /** The game this player wants next, if any. Cleared when a game starts. */
+  suggestion?: string;
 }
 
 /** What a room may do. Rooms without a paywall are always "pass". */
@@ -120,6 +122,8 @@ export interface RoomPublicState {
   tier: RoomTier;
   /** Game ids this room can't select at its tier. Empty on master. */
   lockedGameIds: string[];
+  /** How many seats the selected game has here: its max, or less in a free room. */
+  maxSeats: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +135,8 @@ export type ClientMessage =
   | { type: "join"; name: string; avatarSeed: string; resumeToken?: string; ownerKey?: string }
   | { type: "ready"; ready: boolean }
   | { type: "select-game"; gameId: string }
+  /** Anyone: back a game for the host to pick. Null takes it back. */
+  | { type: "suggest-game"; gameId: string | null }
   /** A partial patch; the room merges it over the current settings. */
   | { type: "update-settings"; settings: unknown }
   | { type: "start-game" }
@@ -254,6 +260,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return typeof m.ready === "boolean" ? { type: "ready", ready: m.ready } : null;
     case "select-game":
       return isStr(m.gameId, 64) ? { type: "select-game", gameId: m.gameId } : null;
+    case "suggest-game":
+      return m.gameId === null || isStr(m.gameId, 64) ? { type: "suggest-game", gameId: m.gameId } : null;
     case "update-settings":
       return { type: "update-settings", settings: m.settings };
     case "game-action":
