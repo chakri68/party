@@ -2,6 +2,11 @@
   "name": "@games/web",
   "private": true,
   "type": "module",
+  "exports": {
+    "./shell": "./src/shell.ts",
+    "./games": "./src/games.ts",
+    "./style.css": "./src/style.css"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -p . && vite build",

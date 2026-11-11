@@ -1,9 +1,10 @@
 import { isValidRoomCode, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode } from "@games/protocol";
 import { avatar, h, replaceChildren, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
-import { getIdentity, getOwnerKey, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } from "../identity.ts";
+import { getIdentity, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } from "../identity.ts";
 import { randomName } from "../names.ts";
 import { navigate } from "../router.ts";
+import { shellConfig } from "../shell.ts";
 
 export function nameInput(value: string) {
   return h("input", {
@@ -137,18 +138,16 @@ export class HomeView implements View {
     btn.disabled = true;
     this.error.textContent = "";
     try {
-      const res = await fetch("/api/rooms", {
-        method: "POST",
-        headers: { authorization: `Bearer ${getOwnerKey() ?? ""}` },
-      });
-      const body = (await res.json()) as { code?: string; error?: string };
-      if (res.status === 403) {
+      const res = await shellConfig().createRoom();
+      if ("error" in res) {
         // Wrong or rotated key: forget it so the unlock form comes back.
-        setOwnerKey(null);
-        this.render();
+        if (res.forgetKey) {
+          setOwnerKey(null);
+          this.render();
+        }
+        throw new Error(res.error);
       }
-      if (!res.ok || !body.code) throw new Error(body.error ?? "Couldn't create a room.");
-      navigate(`/room/${body.code}`);
+      navigate(`/room/${res.code}`);
     } catch (e) {
       this.error.textContent = e instanceof Error && e.message ? e.message : "Couldn't create a room.";
       btn.disabled = false;
@@ -156,7 +155,7 @@ export class HomeView implements View {
   }
 
   private render() {
-    const isOwner = !!getOwnerKey();
+    const isOwner = shellConfig().canCreate();
     const pitch = !isOwner && !SELF_HOSTED;
 
     const joinForm = h("form", { class: "join" }, this.code, h("button", { type: "submit", class: isOwner ? "" : "primary" }, "Join"));

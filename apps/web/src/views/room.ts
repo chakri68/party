@@ -11,8 +11,9 @@ import { RoomClient, type RoomUpdate } from "@games/room-client";
 import { avatar, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
 import { GAME_SECTIONS, games } from "../games.ts";
-import { getIdentity, getOwnerKey, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
-import { APP_TITLE, navigate } from "../router.ts";
+import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
+import { appTitle, navigate } from "../router.ts";
+import { shellConfig } from "../shell.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
 import { resultHeadline } from "./headline.ts";
@@ -83,7 +84,7 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
-  private turn = new TurnSignal(() => `${this.code} · ${APP_TITLE}`);
+  private turn = new TurnSignal(() => `${this.code} · ${appTitle()}`);
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
@@ -102,7 +103,7 @@ export class RoomView implements View {
       // Tidy lower-case links to the canonical URL.
       history.replaceState(null, "", location.pathname.replace(/[^/]+$/, this.code) + location.search);
     }
-    document.title = `${this.code} · ${APP_TITLE}`;
+    document.title = `${this.code} · ${appTitle()}`;
     this.renderHeader();
     if (getIdentity().displayName) this.connect();
     else this.askName();
@@ -166,7 +167,7 @@ export class RoomView implements View {
       name: me.displayName,
       avatarSeed: me.avatarSeed,
       getResumeToken: () => getResumeToken(this.code),
-      getOwnerKey,
+      getOwnerKey: () => shellConfig().hostKeyFor(this.code),
     });
     this.client = client;
 
@@ -555,7 +556,7 @@ export class RoomView implements View {
           "div",
           { class: "game-card-links" },
           isHost && Object.keys(games).length > 1
-            ? h("button", { type: "button", class: "link", onclick: () => this.openGameList(room.gameId, seats.length) }, "Change")
+            ? h("button", { type: "button", class: "link", onclick: () => this.openGameList(room.gameId, seats.length, room.lockedGameIds) }, "Change")
             : null,
           rules,
         ),
@@ -619,7 +620,7 @@ export class RoomView implements View {
    * one, and games that can't seat everyone here say so instead of failing at
    * "Start game".
    */
-  private openGameList(current: string, players: number) {
+  private openGameList(current: string, players: number, lockedIds: string[]) {
     const all = Object.entries(games);
     const search = all.length > 6
       ? h("input", { type: "search", class: "game-search", placeholder: "Search games", "aria-label": "Search games", autocomplete: "off" })
@@ -630,6 +631,7 @@ export class RoomView implements View {
       const { name, description, minPlayers, maxPlayers } = entry.manifest;
       const tooMany = players > maxPlayers;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
+      const locked = lockedIds.includes(id);
       const row = h(
         "li",
         {},
@@ -637,10 +639,15 @@ export class RoomView implements View {
           "button",
           {
             type: "button",
-            class: "game-option",
+            class: locked ? "game-option locked" : "game-option",
             "aria-current": id === current ? "true" : undefined,
-            disabled: tooMany && id !== current,
+            disabled: tooMany && id !== current && !locked,
             onclick: () => {
+              if (locked) {
+                dlg.close();
+                shellConfig().onLockedGame(id, this.code);
+                return;
+              }
               if (id !== current) this.client?.send({ type: "select-game", gameId: id });
               dlg.close();
             },
@@ -649,7 +656,7 @@ export class RoomView implements View {
           h(
             "span",
             { class: "game-option-text" },
-            h("span", { class: "game-option-name" }, name, id === current ? h("span", { class: "tag" }, "current") : null),
+            h("span", { class: "game-option-name" }, name, id === current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null),
             h("span", { class: "muted" }, description),
             h("span", { class: `game-option-meta${tooMany ? " warn" : ""}` }, tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range),
           ),
