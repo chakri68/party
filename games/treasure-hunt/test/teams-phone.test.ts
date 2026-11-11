@@ -51,6 +51,7 @@ const game = (ready: boolean) =>
     target: 5,
     sky: { startMin: 600 },
     seed: 1,
+    round: 1,
     teams: [{ id: 1, color: "orange", foundCount: 0, poolSize: 0 }],
     players: [
       { id: "host", teamId: 1, ready: false, removed: false, spectator: false },

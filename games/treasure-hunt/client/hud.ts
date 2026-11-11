@@ -18,16 +18,17 @@ export interface HotColdView {
  * The Hot or cold meter and button, from the private state. `streamed` is the
  * latest relayed level for the active cache and wins over `active.level`.
  * `hunting` is the phase check, passed in (the private state has no phase).
+ * A spectator sees their team's board but can't use it: no button, no lock line.
  */
-export function hotColdView(priv: THPrivate | null, now: number, streamed: 0 | 1 | 2 | 3 | null, hunting = true): HotColdView {
+export function hotColdView(priv: THPrivate | null, now: number, streamed: 0 | 1 | 2 | 3 | null, hunting = true, spectator = false): HotColdView {
   const hc = priv?.hotcold;
   if (!hc) return { meter: null, leftMs: 0, canUse: false, opensInMs: null };
   const live = hc.active && hc.active.until > now ? hc.active : null;
-  const opensInMs = !hc.used && hc.unlockAt !== null && hc.unlockAt > now ? hc.unlockAt - now : null;
+  const opensInMs = !spectator && !hc.used && hc.unlockAt !== null && hc.unlockAt > now ? hc.unlockAt - now : null;
   return {
     meter: live ? (streamed ?? live.level) : null,
     leftMs: live ? live.until - now : 0,
-    canUse: hunting && !hc.used && hc.unlockAt !== null && opensInMs === null,
+    canUse: hunting && !spectator && !hc.used && hc.unlockAt !== null && opensInMs === null,
     opensInMs,
   };
 }
@@ -137,33 +138,34 @@ export class Hud {
     this.syncToggle();
   }
 
+  /** Runs every 250 ms tick, so text is only written when it changed. */
   render(s: HudState) {
     this.timer.hidden = s.left === null;
-    if (s.left !== null) this.timer.textContent = formatLeft(s.left);
+    if (s.left !== null) setText(this.timer, formatLeft(s.left));
 
     const clock = clockLabel(s.clock);
     this.clock.hidden = clock === "";
-    this.clock.textContent = clock;
+    setText(this.clock, clock);
 
     this.score.hidden = !s.score || s.score.pool === 0;
-    if (s.score) this.score.textContent = scoreText(s.score.found, s.score.pool, s.score.mode);
+    if (s.score) setText(this.score, scoreText(s.score.found, s.score.pool, s.score.mode));
     this.race.hidden = this.score.hidden || s.score?.mode !== "race";
-    if (!this.race.hidden && s.score) this.race.textContent = raceText(s.score.pool);
+    if (!this.race.hidden && s.score) setText(this.race, raceText(s.score.pool));
 
     const c = s.countdown === null ? "" : countdownText(s.countdown);
     this.count.hidden = c === "";
-    if (this.count.textContent !== c) this.count.textContent = c;
+    setText(this.count, c);
 
     const hot = s.hot;
     const meter = hot?.meter ?? null;
     this.meter.hidden = meter === null;
     if (hot && meter !== null) {
-      this.meter.dataset.level = String(meter);
-      (this.meter.lastElementChild as HTMLElement).textContent = formatLeft(hot.leftMs);
+      if (this.meter.dataset.level !== String(meter)) this.meter.dataset.level = String(meter);
+      setText(this.meter.lastElementChild as HTMLElement, formatLeft(hot.leftMs));
     }
     const opens = hot?.opensInMs ?? null;
     this.opens.hidden = opens === null;
-    if (opens !== null) this.opens.textContent = hotColdOpensText(opens);
+    if (opens !== null) setText(this.opens, hotColdOpensText(opens));
 
     const items = clueItems(s.priv, this.photoFor);
     this.board.hidden = this.toggle.hidden = items.length === 0;
@@ -201,6 +203,10 @@ export class Hud {
     this.toggle.setAttribute("aria-expanded", String(this.open));
     this.toggle.textContent = this.open ? "Hide clues" : "Show clues";
   }
+}
+
+function setText(el: HTMLElement, t: string) {
+  if (el.textContent !== t) el.textContent = t;
 }
 
 function photoNode(v: ReturnType<typeof photoView>) {

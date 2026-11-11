@@ -160,6 +160,9 @@ describe("hotColdView", () => {
     const open = withHot({ used: false, unlockAt: NOW - 1, active: null });
     expect(hotColdView(open, NOW, null).canUse).toBe(true);
     expect(hotColdView(open, NOW, null, false).canUse).toBe(false);
+    // A spectator watches the board but can't use it.
+    expect(hotColdView(open, NOW, null, true, true).canUse).toBe(false);
+    expect(hotColdView(withHot({ used: false, unlockAt: NOW + 65_000, active: null }), NOW, null, true, true).opensInMs).toBeNull();
     expect(hotColdView(withHot({ used: true, unlockAt: NOW - 1, active: null }), NOW, null).canUse).toBe(false);
     expect(hotColdView(withHot({ used: false, unlockAt: NOW + 1, active: null }), NOW, null).canUse).toBe(false);
     expect(hotColdView(withHot({ used: false, unlockAt: null, active: null }), NOW, null).canUse).toBe(false);

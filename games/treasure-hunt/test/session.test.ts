@@ -1,38 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { godotPin, godotPos, godotSeat, godotUnseat, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
+import { godotPin, godotPos, godotSeat, godotUnseat, roundKey, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
 import { ActLog, ClaimLog, GodotFeed, parseHotCold, claimError, pinsFor, resync, rosterFor } from "../client/view.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
-// per layout seed, and again only when Godot itself came back up (an iframe
-// reload: a fresh engine with no world).
+// per round (seed and round), and again only when Godot itself came back up
+// (an iframe reload: a fresh engine with no world).
 describe("shouldSendSession", () => {
+  const k = roundKey(12345, 1);
   it("sends the first session", () => {
-    expect(shouldSendSession(null, false, 12345)).toBe(true);
+    expect(shouldSendSession(null, false, k)).toBe(true);
   });
 
-  it("does not send the same seed twice", () => {
-    expect(shouldSendSession(12345, false, 12345)).toBe(false);
+  it("does not send the same round twice", () => {
+    expect(shouldSendSession(k, false, roundKey(12345, 1))).toBe(false);
   });
 
   it("sends a new seed", () => {
-    expect(shouldSendSession(12345, false, 777)).toBe(true);
+    expect(shouldSendSession(k, false, roundKey(777, 1))).toBe(true);
   });
 
-  it("sends the same seed again after Godot reloads", () => {
-    expect(shouldSendSession(12345, true, 12345)).toBe(true);
+  it("sends the same seed in a new round (Same map again)", () => {
+    expect(shouldSendSession(k, false, roundKey(12345, 2))).toBe(true);
+  });
+
+  it("sends the same round again after Godot reloads", () => {
+    expect(shouldSendSession(k, true, k)).toBe(true);
   });
 });
 
-// A world-ready says which seed Godot built. One left over from an older
-// layout (the host started a new round mid-build) must not count.
+// A world-ready says which seed and round Godot built. One left over from an
+// older layout or round (the host started a new round mid-build) must not count.
 describe("worldReadyFor", () => {
-  it("counts a world-ready for this layout's seed", () => {
-    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 12345 }, 12345)).toBe(true);
+  it("counts a world-ready for this round", () => {
+    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 12345, round: 2 }, 12345, 2)).toBe(true);
   });
 
   it("ignores a world-ready for another seed", () => {
-    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 777 }, 12345)).toBe(false);
+    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 777, round: 2 }, 12345, 2)).toBe(false);
+  });
+
+  it("ignores the same seed's world-ready from the last round", () => {
+    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 12345, round: 1 }, 12345, 2)).toBe(false);
+  });
+
+  it("reads a world-ready with no round as round 0", () => {
+    expect(worldReadyFor({ kind: "world-ready", ms: 40, chunks: 9, seed: 12345 }, 12345, 0)).toBe(true);
   });
 });
 
@@ -156,6 +169,18 @@ describe("GodotFeed", () => {
     feed.update(priv(), "hunting", 1);
     feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
     feed.update(priv(), "teams", 2);
+    feed.sync();
+    expect(reveals(last())).toEqual([]);
+  });
+
+  it("forgets stream reveals on a new round of the same map", () => {
+    const { feed, last } = setup();
+    feed.update(priv(), "hunting", roundKey(5, 1));
+    feed.stream("p2", { t: "reveal", id: "c4", x: 12, z: -30, dy: 0.5 });
+    feed.update(priv(), "hunting", roundKey(5, 1));
+    feed.sync();
+    expect(reveals(last())).toHaveLength(1);
+    feed.update(priv(), "teams", roundKey(5, 2));
     feed.sync();
     expect(reveals(last())).toEqual([]);
   });
@@ -408,6 +433,16 @@ describe("ClaimLog", () => {
     log.update(priv([]), 2);
     expect(log.size).toBe(1);
   });
+
+  it("starts over on a new round of the same map: round 1's finds are not round 2's", () => {
+    const log = new ClaimLog();
+    log.update(priv(["c1"]), roundKey(5, 1));
+    log.update(priv([]), roundKey(5, 2));
+    log.add("a1", "c1");
+    log.update(priv(["c1"]), roundKey(5, 2));
+    expect(log.size).toBe(0);
+    expect(log.rejected("a1")).toBe(false);
+  });
 });
 
 describe("pins", () => {
@@ -505,7 +540,40 @@ describe("hot or cold relay", () => {
     const feed = new GodotFeed((c) => sent.push(c), () => NOW);
     feed.update(priv({ id: "c1", until: NOW + 9000, level: 1 }), "hunting", 1);
     feed.stream("p0", { t: "hotcold", id: "zz", level: 3 });
+    expect(hotCalls(sent)).toEqual([]);
     feed.sync();
-    expect(hotCalls(sent).pop()).toEqual({ level: 1 });
+    expect(hotCalls(sent)).toEqual([{ level: 1 }]);
+  });
+
+  it("a relay before its signal is known waits for the state, then counts", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((c) => sent.push(c), () => NOW);
+    feed.update(priv(null), "hunting", 1);
+    feed.stream("p0", { t: "hotcold", id: "c1", level: 2 });
+    expect(hotCalls(sent)).toEqual([]);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: null }), "hunting", 1);
+    feed.sync();
+    expect(hotCalls(sent)).toEqual([{ level: 2 }]);
+  });
+
+  it("an ended signal drops its level: a later signal on the same id starts unknown", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((c) => sent.push(c), () => NOW);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: null }), "hunting", 1);
+    feed.stream("p0", { t: "hotcold", id: "c1", level: 3 });
+    feed.update(priv(null), "hunting", 1);
+    expect(feed.hotLevel()).toBeNull();
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: null }), "hunting", 1);
+    expect(feed.hotLevel()).toBeNull();
+  });
+
+  it("a new round of the same map drops the level", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((c) => sent.push(c), () => NOW);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: null }), "hunting", roundKey(5, 1));
+    feed.stream("p0", { t: "hotcold", id: "c1", level: 3 });
+    expect(feed.hotLevel()).toBe(3);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: 1 }), "hunting", roundKey(5, 2));
+    expect(feed.hotLevel()).toBeNull();
   });
 });

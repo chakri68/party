@@ -8,7 +8,8 @@ extends Node
 ## until start(), which main.gd calls on the first key or mouse press
 ## (browsers hold audio until a gesture). Kept quiet on purpose: MAX_DB.
 ## Everything plays on the "Hunt" bus under Master; the page's mute and
-## volume land on Master.
+## volume land on Master. On the web, Master stays muted until the page's
+## first sound call (hold_for_page), so a muted player never hears a blip.
 
 const MAX_DB := -8.0
 ## Below this a player is off: stopped, not just quiet.
@@ -37,6 +38,8 @@ var started := false
 var built := false
 ## The meter level, -1..3. The beep rides on it.
 var hot_level := -1
+## Master is muted until the page's first set_sound.
+var held := false
 
 ## A one-shot was asked for (played only once started). For tests and the like.
 signal pinged(kind: StringName)
@@ -116,8 +119,17 @@ func start() -> void:
 	started = true
 
 
+## Mutes Master until the first set_sound: the page hasn't said yet whether
+## this player has sound off. main.gd calls it on the web only; off-web
+## there's no page to ask.
+func hold_for_page() -> void:
+	held = true
+	AudioServer.set_bus_mute(0, true)
+
+
 ## The page's mute and volume (0..1). On Master, so it covers everything.
 func set_sound(muted: bool, volume: float) -> void:
+	held = false
 	AudioServer.set_bus_mute(0, muted)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.0001)))
 
@@ -169,8 +181,9 @@ func tick(dt: float, buggy_speed: float, driving: bool, walk_speed: float, on_fl
 		_drive(_gravel, SILENT_DB)
 	var every := beep_interval(hot_level)
 	if every < INF:
-		_beep_t += dt
-		while _beep_t >= every:
+		# Clamped: a long frame (a tab back from the background) is one beep, not a burst.
+		_beep_t = minf(_beep_t + dt, every)
+		if _beep_t >= every:
 			_beep_t -= every
 			_beep_now()
 	else:

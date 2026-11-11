@@ -152,6 +152,8 @@ export interface THFind {
 export interface THState {
   phase: Phase;
   seed: number;
+  /** The room's round number (match.roundNumber). "Same map again" keeps the seed, so a round is (seed, round). `?? 0`: rooms saved before it. */
+  round: number;
   settings: THSettings;
   /** Resolved once at createGame, so "random" is the same for everyone. */
   sky: { startMin: number };
@@ -653,6 +655,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const state: THState = {
       phase: "teams",
       seed: layout.seed,
+      round: match.roundNumber,
       settings: parsed,
       sky: { startMin },
       layout,
@@ -847,6 +850,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     target: s.settings.target,
     sky: { startMin: s.sky.startMin },
     seed: s.layout.seed,
+    round: s.round ?? 0,
     teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: race(s) ? s.settings.target : t.pool.length })),
     players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),
     startedAt: s.startedAt,

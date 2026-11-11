@@ -20,10 +20,17 @@ export interface GodotBuild {
 
 export interface SessionConfig {
   layout: TreasureLayout;
+  /** THPublic.round. "Same map again" keeps the seed, so a new round alone tells Godot to build again. */
+  round: number;
 }
 
-/** What Godot reports. M1 has one kind. `seed` is the layout Godot built. */
-export type GodotStatus = { kind: "world-ready"; ms: number; chunks: number; seed: number };
+/** What Godot reports. M1 has one kind. `seed` and `round` are the session Godot built. `round` is missing from builds before it. */
+export type GodotStatus = { kind: "world-ready"; ms: number; chunks: number; seed: number; round?: number };
+
+/** A round's identity on the page: the seed alone repeats with "Same map again". */
+export function roundKey(seed: number, round: number): string {
+  return `${seed}:${round}`;
+}
 
 export interface CacheReveal {
   id: string;
@@ -194,12 +201,12 @@ const STALL_MS = 30_000;
 export const godotBuild = build as GodotBuild;
 
 /**
- * Review Focus 3: send the session once per layout seed, and again only when
- * Godot came back up on its own (an iframe reload is a fresh engine with no
- * world). Godot ignores a repeat seed anyway; this keeps the wire quiet.
+ * Review Focus 3: send the session once per round (roundKey), and again only
+ * when Godot came back up on its own (an iframe reload is a fresh engine with
+ * no world). Godot ignores a repeat round anyway; this keeps the wire quiet.
  */
-export function shouldSendSession(lastSentSeed: number | null, godotReloaded: boolean, layoutSeed: number): boolean {
-  return godotReloaded || lastSentSeed !== layoutSeed;
+export function shouldSendSession(lastSentKey: string | null, godotReloaded: boolean, key: string): boolean {
+  return godotReloaded || lastSentKey !== key;
 }
 
 /** What Godot's emitPos gave us, checked and copied, or null. */
@@ -249,9 +256,9 @@ export function godotPhoto(p: unknown): GodotPhoto | null {
   return { id: d.id, x: d.x, z: d.z, yaw: d.yaw, pitch: d.pitch, fov: d.fov, data: d.data };
 }
 
-/** Is this status Godot saying the world for `seed` is built? A late one from an older layout isn't. */
-export function worldReadyFor(s: GodotStatus, seed: number): boolean {
-  return s.kind === "world-ready" && s.seed === seed;
+/** Is this status Godot saying the world for this round is built? A late one from an older round isn't. */
+export function worldReadyFor(s: GodotStatus, seed: number, round: number): boolean {
+  return s.kind === "world-ready" && s.seed === seed && (s.round ?? 0) === round;
 }
 
 export class GodotBridge {
@@ -262,7 +269,7 @@ export class GodotBridge {
   private disposed = false;
   private stall: ReturnType<typeof setTimeout> | undefined;
   private session: SessionConfig | null = null;
-  private sentSeed: number | null = null;
+  private sentKey: string | null = null;
   private onMessage = (e: MessageEvent) => {
     if (!this.iframe || e.source !== this.iframe.contentWindow || e.origin !== location.origin) return;
     const m = e.data as BootMessage | null;
@@ -363,7 +370,7 @@ export class GodotBridge {
     // ready() comes long after its page has loaded.)
     const reloaded = () => {
       this.isReady = false;
-      this.sentSeed = null;
+      this.sentKey = null;
       if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins", "skyClock", "photos", "hotCold", "sound"] as const) delete this.host[k];
       attach();
     };
@@ -410,8 +417,9 @@ export class GodotBridge {
   private send(reloaded: boolean) {
     const s = this.session;
     if (!s || !this.isReady || !this.host?.initSession) return;
-    if (!shouldSendSession(this.sentSeed, reloaded, s.layout.seed)) return;
-    this.sentSeed = s.layout.seed;
+    const key = roundKey(s.layout.seed, s.round);
+    if (!shouldSendSession(this.sentKey, reloaded, key)) return;
+    this.sentKey = key;
     this.host.initSession(s);
   }
 
@@ -430,7 +438,7 @@ export class GodotBridge {
     this.disposed = true;
     this.isReady = false;
     // The next mount is a fresh Godot: it needs the session again.
-    this.sentSeed = null;
+    this.sentKey = null;
     clearTimeout(this.stall);
     removeEventListener("message", this.onMessage);
     this.iframe?.remove();

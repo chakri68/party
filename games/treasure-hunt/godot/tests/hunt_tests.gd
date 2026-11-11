@@ -46,6 +46,7 @@ func run() -> void:
 	await test_compass()
 	await test_pos_stream()
 	await test_reveal_before_world()
+	test_same_seed_new_round()
 	main.queue_free()
 	await t.process_frame
 
@@ -295,3 +296,35 @@ func test_reveal_before_world() -> void:
 	var crate: Node3D = caches.crate("early") if caches else null
 	check(crate != null and absf(crate.global_position.y - main.field.height_at(x, z)) <= 0.05, "a reveal before the world waits, then sits on the new ground")
 	check(caches != null and caches.count() == 2 and caches.nearest_claimable(Vector3(x + 5.0, main.field.height_at(x + 5.0, z), z)) == "", "a found before the world applies too")
+
+
+## "Same map again": the seed repeats, the round doesn't. A new round builds
+## from scratch, so round 1's caches and finds are gone; the same round again
+## is a resend and does nothing.
+func test_same_seed_new_round() -> void:
+	var l2: Dictionary = t.layout(2)
+	var statuses: Array = []
+	var on_status := func(d: Dictionary) -> void: statuses.append(d)
+	bridge.status_sent.connect(on_status)
+	bridge.receive_session_json(JSON.stringify({"layout": l2, "round": 4}))
+	var f: TerrainField = main.field
+	var x := f.spawn.x + 15.0
+	var z := f.spawn.z
+	bridge.receive_reveal_json(JSON.stringify({"id": "c1", "x": x, "z": z, "dy": 0.0}))
+	bridge.receive_found_json(JSON.stringify({"id": "c1"}))
+	var at := Vector3(x, f.height_at(x, z), z)
+	var world: Node = main.world
+	var caches: Caches = main.caches
+	statuses.clear()
+	bridge.receive_session_json(JSON.stringify({"layout": l2, "round": 4}))
+	check(main.world == world and main.caches == caches and statuses.is_empty(), "the same seed and round again does nothing")
+	check(caches.count() >= 1 and caches.nearest_claimable(at) == "", "round 4: c1 is found")
+	main._pinged_reveals["c1"] = true
+	bridge.receive_session_json(JSON.stringify({"layout": l2, "round": 5}))
+	check(main.world != world and main.caches != caches and main.field.seed == int(l2.seed), "the same seed in a new round rebuilds")
+	check(main.caches.count() == 0 and main._pending_reveals.is_empty() and main._pending_found.is_empty(), "the new round has no caches and nothing pending")
+	check(main._pinged_reveals.is_empty(), "and its ping memory starts over")
+	check(statuses.size() == 1 and statuses[0].get("seed") == int(l2.seed) and statuses[0].get("round") == 5, "world-ready goes again, with the round (%s)" % [statuses])
+	bridge.receive_reveal_json(JSON.stringify({"id": "c1", "x": x, "z": z, "dy": 0.0}))
+	check(main.caches.count() == 1 and main.caches.nearest_claimable(at) == "c1", "round 5's c1 can be claimed")
+	bridge.status_sent.disconnect(on_status)

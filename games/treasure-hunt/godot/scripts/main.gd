@@ -3,8 +3,9 @@ extends Node3D
 ## buggies (Fleet), the camera, and the hunt on top (caches, compass, the E prompt,
 ## the position stream). start_world() is the one way in. Locally (editor, desktop run,
 ## tests) _ready feeds it a fixture; on the web the bridge feeds it the
-## session's layout, and hears world-ready back. Same seed twice does nothing, so a session that
-## arrives twice builds once.
+## session's layout, and hears world-ready back. The same (seed, round) twice does nothing, so a
+## session that arrives twice builds once. "Same map again" repeats the seed with a new round,
+## and that builds again from scratch: the old round's caches and finds must not carry over.
 
 signal world_ready(ms: int)
 
@@ -81,6 +82,8 @@ var _pinged_claims := {}
 var _lamps_lit := false
 
 var _seed := 0
+## The room's round (the session's `round`, 0 off-web and from older pages).
+var _round := 0
 var _pos_accum := 0.0
 ## Reveals and founds that came before there was ground to put them on (an
 ## iframe reload: the view re-sends them as soon as we say ready).
@@ -141,6 +144,8 @@ func _ready() -> void:
 	hunt_audio.name = "HuntAudio"
 	add_child(hunt_audio)
 	hunt_audio.prepare() # at load, behind the loader: synthesis is 100 ms or so of GDScript
+	if OS.has_feature("web"):
+		hunt_audio.hold_for_page()
 	bridge.sound_set.connect(hunt_audio.set_sound)
 	bridge.hot_cold_set.connect(hunt_audio.set_hot_cold)
 	bridge.cache_revealed.connect(func(r: Dictionary) -> void:
@@ -163,7 +168,7 @@ func _ready() -> void:
 	set_phase(&"generating" if OS.has_feature("web") else &"hunting")
 	world_ready.connect(func(ms: int) -> void:
 		_world_ready_at = Time.get_ticks_msec()
-		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count(), "seed": _seed}))
+		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count(), "seed": _seed, "round": _round}))
 	var n := _requested_layout()
 	var path := "res://tests/fixtures/layout_%d.json" % n
 	if n > 0 and FileAccess.file_exists(path):
@@ -195,29 +200,37 @@ func parse_layout_arg(v: String) -> int:
 	return 1
 
 
-## {layout} from the page. The same seed again (a resend) does nothing.
+## {layout, round} from the page. The same seed and round again (a resend) does nothing.
 func _on_session(cfg: Dictionary) -> void:
 	var layout: Variant = cfg.get("layout")
+	var r: Variant = cfg.get("round", 0)
 	if layout is Dictionary:
-		start_world(layout)
+		start_world(layout, int(r) if r is float or r is int else 0)
 	else:
 		push_warning("main: a session with no layout")
 
 
-## Builds the world for `layout` (the server's layout JSON, parsed). A second
-## call with the same seed does nothing; a new seed tears down and rebuilds.
-func start_world(layout: Dictionary) -> void:
+## Builds the world for `layout` (the server's layout JSON, parsed) in round `round_no`.
+## A second call with the same seed and round does nothing; a new seed or a new
+## round tears down and rebuilds, caches and all.
+func start_world(layout: Dictionary, round_no := 0) -> void:
 	if not layout.has("seed") or not layout.has("macro"):
 		push_error("main: start_world needs a layout with seed and macro")
 		return
 	var s := int(layout.seed)
-	if world != null and s == _seed:
+	if world != null and s == _seed and round_no == _round:
 		return
 	var t0 := Time.get_ticks_msec()
 	_new_round_pings()
 	_world_ready_at = -1 # the old stamp must not count while this world builds
+	if world != null:
+		# With a world up, reveals and finds go straight to it, so anything
+		# pending is stale. Before the first world (an iframe reload) it's this round's.
+		_pending_reveals.clear()
+		_pending_found.clear()
 	_teardown()
 	_seed = s
+	_round = round_no
 	field = TerrainField.from_layout(layout)
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/ground.gdshader")
@@ -331,9 +344,9 @@ func _new_round_pings() -> void:
 
 
 func set_phase(p: StringName) -> void:
-	# "Same map again" keeps the seed, so start_world may not run: a countdown
-	# reached from another phase is the round boundary. A reload mid-hunt
-	# arrives as "hunting" and keeps its settle window.
+	# A new round rebuilds in start_world, which clears the ping memory too.
+	# This stays as a second boundary (harmless): a countdown reached from
+	# another phase. A reload mid-hunt arrives as "hunting" and keeps its settle window.
 	if p == &"countdown" and phase != &"countdown":
 		_new_round_pings()
 	phase = p

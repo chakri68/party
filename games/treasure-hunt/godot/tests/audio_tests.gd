@@ -17,6 +17,7 @@ func run() -> void:
 	test_synth()
 	test_silent_until_start()
 	test_sound_settings()
+	test_held_for_page()
 	test_bridge()
 	test_tick_drives_players()
 	test_hot_cold_bridge()
@@ -44,9 +45,9 @@ func test_step_interval() -> void:
 func test_ambient_mix() -> void:
 	var day := HuntAudio.ambient_mix(0.0)
 	var night := HuntAudio.ambient_mix(1.0)
-	check(day.x > 0.0 and day.y == 1.0 and day.z == 0.0, "day: wind and birds, no crickets")
-	check(night.x > 0.0 and night.y == 0.0 and night.z == 1.0, "night: wind and crickets, no birds")
-	check(HuntAudio.ambient_mix(0.3).y == 1.0 and HuntAudio.ambient_mix(0.7).y == 0.0, "birds fade out between dark 0.3 and 0.7")
+	check(day.x > 0.0 and near(day.y, 1.0, 1e-6) and near(day.z, 0.0, 1e-6), "day: wind and birds, no crickets")
+	check(night.x > 0.0 and near(night.y, 0.0, 1e-6) and near(night.z, 1.0, 1e-6), "night: wind and crickets, no birds")
+	check(near(HuntAudio.ambient_mix(0.3).y, 1.0, 1e-6) and near(HuntAudio.ambient_mix(0.7).y, 0.0, 1e-6), "birds fade out between dark 0.3 and 0.7")
 	var mid := HuntAudio.ambient_mix(0.5)
 	check(near(mid.y, 0.5) and near(mid.z, 0.5), "halfway at dark 0.5")
 	var ok := true
@@ -117,6 +118,24 @@ func test_sound_settings() -> void:
 	a.queue_free()
 
 
+## On the web, Master is muted from load until the page's first sound call.
+func test_held_for_page() -> void:
+	var a := _audio()
+	a.prepare()
+	a.hold_for_page()
+	check(a.held and AudioServer.is_bus_mute(0), "held: master is muted before the page says anything")
+	a.start()
+	a.tick(0.1, 0.0, false, 0.0, true, 0.0)
+	check(AudioServer.is_bus_mute(0), "a key press does not unmute it")
+	a.set_sound(true, 0.5)
+	check(not a.held and AudioServer.is_bus_mute(0), "a muted player stays muted")
+	a.hold_for_page()
+	a.set_sound(false, 0.5)
+	check(not a.held and not AudioServer.is_bus_mute(0), "sound on: the first call unmutes it")
+	a.set_sound(false, 1.0)
+	a.queue_free()
+
+
 func test_bridge() -> void:
 	var b := WebBridge.new()
 	var got: Array = []
@@ -182,8 +201,14 @@ func test_beep() -> void:
 	var n := [0]
 	a.beeped.connect(func(_l: int) -> void: n[0] += 1)
 	a.set_hot_cold(3)
-	a.tick(1.0, 0.0, false, 0.0, true, 0.0)
+	for i in 4:
+		a.tick(0.25, 0.0, false, 0.0, true, 0.0)
 	check(n[0] == 4, "level 3 beeps 4 times in 1 s (got %d)" % n[0])
+	n[0] = 0
+	a.tick(5.0, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 1, "a 5 s frame is one beep, not a burst (got %d)" % n[0])
+	a.tick(0.1, 0.0, false, 0.0, true, 0.0)
+	check(n[0] == 1, "and the next beep waits its full gap")
 	a.set_hot_cold(-1)
 	n[0] = 0
 	a.tick(5.0, 0.0, false, 0.0, true, 0.0)

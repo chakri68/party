@@ -99,6 +99,8 @@ export interface THPublic {
   sky: { startMin: number };
   /** The final layout seed. Clients rebuild the map with generateLayout. */
   seed: number;
+  /** The room's round number. With "Same map again" the seed repeats, so the page keys a round on (seed, round). */
+  round: number;
   /** A team whose hunters all left mid-round stays listed, with no members. */
   teams: (THTeam & { foundCount: number; poolSize: number })[];
   players: THPublicPlayer[];

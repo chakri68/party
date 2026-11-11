@@ -3,7 +3,7 @@ import { h, type GameClientApi, type GameView, type GameViewProps } from "@games
 import { teamColor } from "../shared/teams.ts";
 import type { HotColdLevel, Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
-import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPhoto, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
+import { GodotBridge, roundKey, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPhoto, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
 import { Hud, hotColdView } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
@@ -16,8 +16,9 @@ import { TeamsPanel } from "./teams.ts";
 // around it and the only one that talks to the bridge.
 //
 //   teams       the map loads (StageLoader). Godot's ready() gets the
-//               session ({layout}); its world-ready gets act("ready"), once
-//               per seed. The teams panel sits over all of it: pick a team,
+//               session ({layout, round}); its world-ready gets act("ready"),
+//               once per round (seed and round: "Same map again" repeats the
+//               seed, and the view stays mounted from results to the next round). The teams panel sits over all of it: pick a team,
 //               and the host starts once anyone is ready.
 //   countdown   3, 2, 1 over the map. Godot keeps everyone still.
 //   hunting     the map fills the game area, under one strip: the help line,
@@ -245,7 +246,8 @@ export function pinsFor(game: Pick<THPublic, "players" | "teams">, priv: THPriva
 export class GodotFeed {
   private priv: THPrivate | null = null;
   private phase: Phase | null = null;
-  private seed: number | null = null;
+  /** The round in play: roundKey(seed, round) in the view, any distinct value in tests. */
+  private round: string | number | null = null;
   private streamed = new Map<string, CacheReveal>();
   private roster: Roster | null = null;
   private vehicles: Vehicles | null = null;
@@ -271,16 +273,21 @@ export class GodotFeed {
   }
 
   /** A state update. Sends nothing; the render that follows calls sync(). */
-  update(priv: THPrivate | null, phase: Phase, seed: number, roster: Roster | null = null, vehicles: Vehicles | null = null, pins: PinsCall | null = null, sky: SkyState | null = null) {
+  update(priv: THPrivate | null, phase: Phase, round: string | number, roster: Roster | null = null, vehicles: Vehicles | null = null, pins: PinsCall | null = null, sky: SkyState | null = null) {
     this.roster = roster;
     this.vehicles = vehicles;
     this.pins = pins;
     this.sky = sky;
-    // A new map's caches are new ones. (A relay before the first update is kept.)
-    if (this.seed !== null && seed !== this.seed) this.streamed.clear();
+    // A new round's caches are new ones, even on the same map. (A relay before the first update is kept.)
+    if (this.round !== null && round !== this.round) {
+      this.streamed.clear();
+      this.hot = null;
+    }
+    // A signal that ended takes its level with it: a new one starts unknown.
+    if (!priv?.hotcold.active) this.hot = null;
     this.priv = priv;
     this.phase = phase;
-    this.seed = seed;
+    this.round = round;
   }
 
   /** The relayed level for the active cache, or null. */
@@ -304,8 +311,11 @@ export class GodotFeed {
     const hc = parseHotCold(data);
     if (hc) {
       this.hot = hc;
-      this.hotSent = hc.level;
-      this.send([{ fn: "hotCold", arg: { level: hc.level } }]);
+      // Only for the live signal. One the page hasn't heard of yet goes on the next sync, if it turns out live.
+      if (this.priv?.hotcold.active?.id === hc.id) {
+        this.hotSent = hc.level;
+        this.send([{ fn: "hotCold", arg: { level: hc.level } }]);
+      }
       return;
     }
     const r = parseReveal(data);
@@ -368,7 +378,8 @@ export class ClaimLog {
   /** Action id → cache id, oldest first. */
   private out = new Map<string, string>();
   private found = new Set<string>();
-  private seed: number | null = null;
+  /** roundKey in the view: a same-map round reuses cache ids. */
+  private round: string | number | null = null;
 
   get size() {
     return this.out.size;
@@ -383,12 +394,12 @@ export class ClaimLog {
     return this.out.delete(actionId);
   }
 
-  update(priv: THPrivate | null, seed: number) {
-    if (this.seed !== null && seed !== this.seed) {
+  update(priv: THPrivate | null, round: string | number) {
+    if (this.round !== null && round !== this.round) {
       this.out.clear();
       this.found.clear();
     }
-    this.seed = seed;
+    this.round = round;
     for (const c of priv?.clues ?? []) {
       if (!c.found || this.found.has(c.id)) continue;
       this.found.add(c.id);
@@ -516,10 +527,10 @@ export class TreasureHuntView implements GameView {
   private replay = new ReplayView();
   private root: HTMLElement;
 
-  /** The seed Godot last said world-ready for. */
-  private builtSeed: number | null = null;
-  /** The seed we last sent act("ready") for. */
-  private readySeed: number | null = null;
+  /** The round (roundKey) Godot last said world-ready for. */
+  private builtKey: string | null = null;
+  /** The round (roundKey) we last sent act("ready") for. */
+  private readyKey: string | null = null;
   private claims = new ClaimLog();
   /** Seat, unseat, pin and team acts: a rejection of any gets a toast. */
   private acts = new ActLog();
@@ -554,8 +565,8 @@ export class TreasureHuntView implements GameView {
         this.loader.failed(why);
       },
       status: (s) => {
-        if (!this.game || !worldReadyFor(s, this.game.seed)) return;
-        this.builtSeed = s.seed;
+        if (!this.game || !worldReadyFor(s, this.game.seed, this.round())) return;
+        this.builtKey = roundKey(s.seed, s.round ?? 0);
         this.render();
       },
       keydown: (e) => this.onKey(e),
@@ -641,14 +652,20 @@ export class TreasureHuntView implements GameView {
     this.playerId = props.playerId;
     this.hostId = props.room.hostId;
     this.names = seatNames(props.room.seats);
-    this.feed.update(this.priv, this.game.phase, this.game.seed, rosterFor(this.game, props.room.seats, this.playerId), {
+    const key = roundKey(this.game.seed, this.round());
+    this.feed.update(this.priv, this.game.phase, key, rosterFor(this.game, props.room.seats, this.playerId), {
       me: this.playerId,
       list: this.game.vehicles,
     }, pinsFor(this.game, this.priv, this.playerId), this.game);
-    this.claims.update(this.priv, this.game.seed);
+    this.claims.update(this.priv, key);
     this.photos.forSeed(this.game.seed);
-    if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed) });
+    if (this.desktop) this.bridge.setSession({ layout: layoutFor(this.game.seed), round: this.round() });
     this.render();
+  }
+
+  /** `?? 0`: a room saved before rounds were public. */
+  private round(): number {
+    return this.game?.round ?? 0;
   }
 
   private showToast(text: string) {
@@ -662,10 +679,11 @@ export class TreasureHuntView implements GameView {
     const game = this.game;
     if (!game) return;
     const seed = game.seed;
+    const key = roundKey(seed, this.round());
     // Phones are "ready" at once: there is nothing for them to load.
-    const loaded = !this.desktop || this.builtSeed === seed;
-    if (game.phase === "teams" && loaded && this.readySeed !== seed) {
-      this.readySeed = seed;
+    const loaded = !this.desktop || this.builtKey === key;
+    if (game.phase === "teams" && loaded && this.readyKey !== key) {
+      this.readyKey = key;
       this.api.act({ type: "ready" });
     }
     // Over the loader and the map alike: Godot keeps loading under it. On a
@@ -775,7 +793,7 @@ export class TreasureHuntView implements GameView {
       countdown: game.phase === "countdown" && game.countdownEndsAt !== null ? game.countdownEndsAt - now : null,
       score: live && mine ? { found: mine.foundCount, pool: game.mode === "race" ? game.target : mine.poolSize, mode: game.mode } : null,
       priv: live ? this.priv : null,
-      hot: live ? hotColdView(this.priv, now, this.feed.hotLevel(), game.phase === "hunting") : undefined,
+      hot: live ? hotColdView(this.priv, now, this.feed.hotLevel(), game.phase === "hunting", me?.spectator ?? false) : undefined,
       // The end time stays up once the round is over.
       clock: live || game.phase === "finished" ? skyMinute(game, now) : null,
     });

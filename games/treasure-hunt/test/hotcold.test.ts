@@ -153,15 +153,53 @@ describe("hot or cold: stream", () => {
     expect(hot(c)).toEqual([{ to: ["p0"], data: { t: "hotcold", id, level: 2 } }]);
   });
 
-  it("teammates each get their own level; the other team gets none", () => {
+  it("teammates each get their own level", () => {
     const { s, id } = live();
     const a = at(s, "p0", id, 10, NOW + 1000);
     const b = at(a.state, "p1", id, 400, NOW + 1050);
-    const o = at(b.state, "p2", id, 10, NOW + 1100);
     expect(hot(a)).toEqual([{ to: ["p0"], data: { t: "hotcold", id, level: 3 } }]);
     expect(hot(b)).toEqual([{ to: ["p1"], data: { t: "hotcold", id, level: 0 } }]);
+  });
+
+  // Race: both teams hunt the same list, so the other team stands by the same
+  // cache while our signal is live. Their stream must never carry our level.
+  it("the other team, standing by the cache, gets no relay (race)", () => {
+    const s0 = hunting(RACE);
+    const now = T0 + HOTCOLD_RACE_UNLOCK_MS;
+    const id = boardOf(s0, "p0")[0]!;
+    expect(boardOf(s0, "p2")).toContain(id);
+    const s = act(s0, "p0", { type: "hotcold", cacheId: id }, now);
+    const o = at(s, "p2", id, 10, now + 1000);
     expect(hot(o)).toEqual([]);
-    for (const r of [a, b, o]) for (const x of hot(r)) expect(x.to).not.toContain("p2");
+    expect(th.getPrivateState(o.state, "p2").hotcold.active).toBeNull();
+    // Their own signal on the same cache: each relay goes to its own streamer, at their own distance.
+    const both = act(o.state, "p2", { type: "hotcold", cacheId: id }, now + 1500);
+    const a = at(both, "p0", id, 400, now + 2000);
+    const b = at(a.state, "p2", id, 20, now + 2050);
+    expect(hot(a)).toEqual([{ to: ["p0"], data: { t: "hotcold", id, level: 0 } }]);
+    expect(hot(b)).toEqual([{ to: ["p2"], data: { t: "hotcold", id, level: 3 } }]);
+  });
+
+  // M5: rooms saved before hot or cold have none of its fields.
+  it("a state saved without the hot or cold fields still streams, claims and reads", () => {
+    const s = hunting();
+    for (const t of s.teams) {
+      delete (t as Partial<typeof t>).hotcold;
+      delete (t as Partial<typeof t>).hotcoldUsed;
+    }
+    for (const p of s.players) delete (p as Partial<typeof p>).hcLevel;
+    delete (s as Partial<THState>).round;
+    const id = boardOf(s, "p0")[0]!;
+    expect(th.getPrivateState(s, "p0").hotcold).toEqual({ used: false, unlockAt: T0 + HALF, active: null });
+    expect(th.getPublicState(s).round).toBe(0);
+    const near = at(s, "p0", id, 10, NOW);
+    expect(hot(near)).toEqual([]);
+    const t = claim(near.state, "p0", id, NOW + 1000);
+    expect(th.getPrivateState(t.state, "p0").clues.find((c) => c.id === id)!.found).toBe(true);
+    const other = boardOf(s, "p0")[1]!;
+    const on = act(t.state, "p1", { type: "hotcold", cacheId: other }, NOW + 2000);
+    expect(th.getPrivateState(on, "p1").hotcold).toMatchObject({ used: true, active: { id: other, level: null } });
+    expect(hot(at(on, "p1", other, 10, NOW + 3000))).toEqual([{ to: ["p1"], data: { t: "hotcold", id: other, level: 3 } }]);
   });
 
   it("nothing inside the jump grace", () => {

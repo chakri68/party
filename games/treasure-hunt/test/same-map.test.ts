@@ -32,6 +32,14 @@ describe("same map again", () => {
     expect(s.caches.map((c) => [c.id, c.x, c.z])).toEqual(fresh.caches.map((c) => [c.id, c.x, c.z]));
   });
 
+  it("the round is public: same seed, new round", () => {
+    const settings = { ...DEFAULT_SETTINGS, map: "same" as const };
+    const r2 = th.createGame(players, settings, match({ teams: [], seed: S }), ctx()).state;
+    const r3 = th.createGame(players, settings, { roundNumber: 3, dealerSeat: 0, carry: th.carryOver!(r2) }, ctx()).state;
+    expect([th.getPublicState(r2).seed, th.getPublicState(r2).round]).toEqual([S, 2]);
+    expect([th.getPublicState(r3).seed, th.getPublicState(r3).round]).toEqual([S, 3]);
+  });
+
   it("new ignores the carried seed", () => {
     const s = th.createGame(players, DEFAULT_SETTINGS, match({ teams: [], seed: S }), ctx(4242)).state;
     expect(s.layout.seed).toBe(4242);
@@ -51,6 +59,7 @@ describe("same map again", () => {
     expect(f.selected).toBe(1);
     expect(f.hint).toBe("Uses the map from the last round. If there was none, you get a new map.");
     expect(treasureHuntSettingFields({ map: "new" }, 2).find((x) => x.key === "map")!.hint).toBe("A new map every round.");
-    expect(treasureHuntRules).toContain("Map: pick Same map again to play the last round's map one more time.");
+    expect(treasureHuntRules).toContain("Every round is a new map, unless the host picks Same map again. Everyone starts at the same place.");
+    expect(treasureHuntRules).not.toContain("Every round is a new map. Everyone starts at the same place.");
   });
 });
