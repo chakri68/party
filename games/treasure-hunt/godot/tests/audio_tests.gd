@@ -22,6 +22,7 @@ func run() -> void:
 	test_hot_cold_bridge()
 	test_beep()
 	test_one_shots()
+	await test_rounds()
 	await test_main_wiring()
 
 
@@ -220,6 +221,53 @@ func test_one_shots() -> void:
 	check((a.get_node("Reveal") as AudioStreamPlayer).playing and (a.get_node("Claim") as AudioStreamPlayer).playing, "started: both play")
 	check(got == [&"reveal", &"reveal", &"claim"], "pings are reported")
 	a.queue_free()
+
+
+## Cache ids repeat across rounds; each round must ping again, after its settle.
+func test_rounds() -> void:
+	var main: Node3D = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	t.root.add_child(main)
+	var a: HuntAudio = main.hunt_audio
+	var pings: Array = []
+	a.pinged.connect(func(kind: StringName) -> void: pings.append(kind))
+	var settle := int(main.PING_SETTLE_S * 1000.0) + 100
+	var rv := {"id": "c1", "x": 1.0, "z": 2.0, "dy": 0.0}
+	# Round 1, a rebuilt world: silent until settled, then a new id pings.
+	var lay: Dictionary = t.layout(1).duplicate(true)
+	lay.seed = int(lay.seed) + 11
+	main.start_world(lay)
+	check(main._world_ready_at >= 0, "world_ready stamps the clock")
+	main.bridge.cache_revealed.emit(rv)
+	check(pings.is_empty(), "round 1, before settle: silent")
+	main._world_ready_at -= settle
+	main.bridge.cache_revealed.emit({"id": "c2", "x": 1.0, "z": 2.0, "dy": 0.0})
+	check(pings == [&"reveal"], "round 1, after settle: pings")
+	# Round 2, a new world, same ids.
+	lay = lay.duplicate(true)
+	lay.seed = int(lay.seed) + 1
+	pings.clear()
+	main.start_world(lay)
+	main.bridge.cache_revealed.emit(rv)
+	main.bridge.cache_revealed.emit({"id": "c2", "x": 1.0, "z": 2.0, "dy": 0.0})
+	check(pings.is_empty(), "round 2, before settle: silent")
+	main._world_ready_at -= settle
+	main.bridge.cache_revealed.emit({"id": "c3", "x": 1.0, "z": 2.0, "dy": 0.0})
+	check(pings == [&"reveal"], "round 2, after settle: pings")
+	# Round 3, same seed (no rebuild): the countdown is the boundary.
+	pings.clear()
+	main.start_world(lay)
+	main.set_phase(&"hunting")
+	main.bridge.receive_found_json('{"id":"c1"}')
+	check(pings == [&"claim"], "settled: a find chimes")
+	main.bridge.receive_found_json('{"id":"c1"}')
+	check(pings == [&"claim"], "same round: once")
+	main.set_phase(&"countdown")
+	main.set_phase(&"countdown")
+	main.set_phase(&"hunting")
+	main.bridge.receive_found_json('{"id":"c1"}')
+	check(pings == [&"claim", &"claim"], "after a countdown, the same id chimes again")
+	main.queue_free()
+	await t.process_frame
 
 
 func test_main_wiring() -> void:

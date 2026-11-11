@@ -71,10 +71,10 @@ var torch_on := false
 var dark := 0.0
 ## Engine, steps and the ambient bed. Quiet until the first key or click.
 var hunt_audio: HuntAudio
-## Ids already pinged, so the page's resends stay quiet.
 ## Replays after a reload or late join stay quiet for this long after world-ready.
 const PING_SETTLE_S := 2.0
 var _world_ready_at := -1
+## Ids already pinged, so the page's resends stay quiet. Cleared per round.
 var _pinged_reveals := {}
 var _pinged_claims := {}
 ## The lamps' state as last set: set_lamps only runs when it flips.
@@ -214,6 +214,8 @@ func start_world(layout: Dictionary) -> void:
 	if world != null and s == _seed:
 		return
 	var t0 := Time.get_ticks_msec()
+	_new_round_pings()
+	_world_ready_at = -1 # the old stamp must not count while this world builds
 	_teardown()
 	_seed = s
 	field = TerrainField.from_layout(layout)
@@ -322,7 +324,18 @@ func set_torch(on: bool) -> void:
 	rig.torch.visible = on
 
 
+## A new round reuses cache ids ("c1"), so the ping memory starts over.
+func _new_round_pings() -> void:
+	_pinged_reveals.clear()
+	_pinged_claims.clear()
+
+
 func set_phase(p: StringName) -> void:
+	# "Same map again" keeps the seed, so start_world may not run: a countdown
+	# reached from another phase is the round boundary. A reload mid-hunt
+	# arrives as "hunting" and keeps its settle window.
+	if p == &"countdown" and phase != &"countdown":
+		_new_round_pings()
 	phase = p
 	var lock := p != &"hunting"
 	walker.locked = lock
