@@ -65,9 +65,8 @@ export interface GameFlags {
    */
   blindRally: boolean;
   /**
-   * Treasure Hunt has its own Godot export, also not in git, and in M1 only
-   * dev serves it. `pnpm dev` sets TREASURE_HUNT=1; deploys and self-hosted
-   * copies don't.
+   * Treasure Hunt has its own Godot export, also not in git. `pnpm dev` and
+   * the deploy set TREASURE_HUNT=1; self-hosted copies don't.
    */
   treasureHunt: boolean;
 }

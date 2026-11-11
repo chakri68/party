@@ -63,9 +63,9 @@ export interface GameEntry {
 const BLIND_RALLY = import.meta.env.VITE_BLIND_RALLY === "1";
 
 /**
- * Treasure Hunt has its own Godot export, also not in git. In M1 only dev
- * serves it: `pnpm dev` sets VITE_TREASURE_HUNT=1, deploys and self-hosted
- * builds don't. The server checks its own TREASURE_HUNT var.
+ * Treasure Hunt has its own Godot export, also not in git. `pnpm dev` and the
+ * deploy set VITE_TREASURE_HUNT=1, self-hosted builds don't. The server checks
+ * its own TREASURE_HUNT var.
  */
 const TREASURE_HUNT = import.meta.env.VITE_TREASURE_HUNT === "1";
 

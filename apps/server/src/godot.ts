@@ -1,4 +1,5 @@
-// Blind Rally's Godot export, served from R2 at the same origin (map D2).
+// Blind Rally's and Treasure Hunt's Godot exports, served from R2 at the same
+// origin (map D2). Both share one bucket, split by key prefix.
 //
 // The iframe bridge touches iframe.contentWindow, so the export has to live on
 // this origin, and its .wasm is over the 25 MiB static-asset limit, so it
@@ -16,11 +17,21 @@ export type GodotBucket = Pick<R2Bucket, "get" | "head">;
 
 export interface GodotEnv {
   BLIND_RALLY?: string;
+  TREASURE_HUNT?: string;
   BLIND_RALLY_GODOT?: GodotBucket;
 }
 
+/**
+ * One entry per game: its URL prefix is also its R2 key prefix, and its flag
+ * decides whether the deploy has it at all.
+ */
+const GAMES = [
+  { prefix: "/blind-rally/godot/", flag: "BLIND_RALLY" },
+  { prefix: "/treasure-hunt/godot/", flag: "TREASURE_HUNT" },
+] as const;
+
 /** Hash from export-godot.mjs (10 hex), then one plain file name. Anything else is a 404. */
-const PATH = /^\/blind-rally\/godot\/([0-9a-f]{10})\/([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*)$/;
+const REST = /^([0-9a-f]{10})\/([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*)$/;
 
 const TYPES: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -38,17 +49,18 @@ const notFound = () => new Response("Not Found", { status: 404, headers: { "cont
 /** null when the path isn't ours, so the caller carries on routing. */
 export async function serveGodot(request: Request, env: GodotEnv): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith("/blind-rally/godot/")) return null;
+  const game = GAMES.find((g) => url.pathname.startsWith(g.prefix));
+  if (!game) return null;
   // Self-hosted copies and flag-off deploys: the game doesn't exist, nor does its engine.
-  if (env.BLIND_RALLY !== "1" || !env.BLIND_RALLY_GODOT) return notFound();
-  const m = PATH.exec(url.pathname);
+  if (env[game.flag] !== "1" || !env.BLIND_RALLY_GODOT) return notFound();
+  const m = REST.exec(url.pathname.slice(game.prefix.length));
   if (!m) return notFound();
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, HEAD" } });
   }
 
   const [, hash, file] = m as unknown as [string, string, string];
-  const key = `blind-rally/godot/${hash}/${file}`;
+  const key = `${game.prefix.slice(1)}${hash}/${file}`;
   const bucket = env.BLIND_RALLY_GODOT;
 
   if (request.method === "HEAD") {

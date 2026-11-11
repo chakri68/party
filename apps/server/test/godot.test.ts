@@ -215,3 +215,71 @@ describe("parseRange", () => {
     expect(parseRange("bytes=-", 10)).toBeNull();
   });
 });
+
+describe("Treasure Hunt's export", () => {
+  const th = `https://party-games.chakri.me/treasure-hunt/godot/${HASH}`;
+  function thSetup(overrides: Partial<GodotEnv> = {}) {
+    const bucket = new FakeBucket({
+      [`treasure-hunt/godot/${HASH}/index.wasm`]: { bytes: bytes("th-wasm"), contentEncoding: "br" },
+      [`treasure-hunt/godot/${HASH}/index.pck`]: { bytes: bytes("th-pck") },
+      [`treasure-hunt/godot/${HASH}/.uploaded`]: { bytes: bytes("") },
+      [`blind-rally/godot/${HASH}/index.wasm`]: { bytes: bytes("br-wasm"), contentEncoding: "br" },
+    });
+    const env: GodotEnv = { TREASURE_HUNT: "1", BLIND_RALLY_GODOT: bucket as unknown as GodotBucket, ...overrides };
+    return { bucket, env };
+  }
+
+  it("serves /treasure-hunt/godot/<hash>/index.wasm from treasure-hunt/godot/<hash>/index.wasm with TREASURE_HUNT=1", async () => {
+    const { env, bucket } = thSetup();
+    const res = (await serveGodot(get(`${th}/index.wasm`), env))!;
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-encoding")).toBe("br");
+    expect(res.headers.get("content-type")).toBe("application/wasm");
+    expect(bucket.gets).toEqual([`treasure-hunt/godot/${HASH}/index.wasm`]);
+  });
+
+  it("404s it with TREASURE_HUNT off, even with BLIND_RALLY on, without touching R2", async () => {
+    const { env, bucket } = thSetup({ TREASURE_HUNT: "0", BLIND_RALLY: "1" });
+    const res = (await serveGodot(get(`${th}/index.wasm`), env))!;
+    expect(res.status).toBe(404);
+    expect(bucket.gets).toEqual([]);
+  });
+
+  it("404s Blind Rally's paths with only TREASURE_HUNT on", async () => {
+    const { env, bucket } = thSetup();
+    const res = (await serveGodot(get(`${base}/index.wasm`), env))!;
+    expect(res.status).toBe(404);
+    expect(bucket.gets).toEqual([]);
+  });
+
+  it("404s with no bucket bound", async () => {
+    const { env } = thSetup({ BLIND_RALLY_GODOT: undefined });
+    const res = (await serveGodot(get(`${th}/index.wasm`), env))!;
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects traversal, odd hashes and dotfiles on the new prefix", async () => {
+    const { env, bucket } = thSetup();
+    for (const path of [
+      `/treasure-hunt/godot/${HASH}/%2e%2e%2fsecret`,
+      `/treasure-hunt/godot/${HASH}/..%2Findex.wasm`,
+      `/treasure-hunt/godot/${HASH}/a/index.wasm`,
+      `/treasure-hunt/godot/${HASH}/.uploaded`,
+      `/treasure-hunt/godot/${HASH}/index.wasm%00`,
+      `/treasure-hunt/godot/11EA73D729/index.wasm`,
+      `/treasure-hunt/godot/../godot/${HASH}/index.wasm/..`,
+      `/treasure-hunt/godot/${HASH}`,
+    ]) {
+      const res = (await serveGodot(get(`https://x${path}`), env))!;
+      expect(res.status, path).toBe(404);
+    }
+    expect(bucket.gets).toEqual([]);
+  });
+
+  it("doesn't serve a Treasure Hunt key under the Blind Rally prefix", async () => {
+    const bucket = new FakeBucket({ [`treasure-hunt/godot/${HASH}/index.pck`]: { bytes: bytes("th-pck") } });
+    const env: GodotEnv = { BLIND_RALLY: "1", TREASURE_HUNT: "1", BLIND_RALLY_GODOT: bucket as unknown as GodotBucket };
+    const res = (await serveGodot(get(`${base}/index.pck`), env))!;
+    expect(res.status).toBe(404);
+  });
+});
