@@ -86,6 +86,8 @@ export interface RoomHost {
   ownerRequired: boolean;
   /** Absent = nothing locked, no cap. */
   tierLimits?: TierLimits;
+  /** Optional text filter (e.g. profanity) for names and chat. Absent = identity. */
+  filterText?: (text: string) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,9 +357,13 @@ export class RoomRuntime {
     conn.setState({ hello: true, playerId: conn.state?.playerId ?? null });
   }
 
+  private filterText(text: string): string {
+    return this.host.filterText ? this.host.filterText(text) : text;
+  }
+
   private async onJoin(conn: Conn, msg: Extract<ClientMessage, { type: "join" }>): Promise<void> {
     const data = this.data!;
-    const name = normalizeName(msg.name);
+    const name = this.filterText(normalizeName(msg.name));
     if (!name) return this.error(conn, "invalid-name", "Enter your name first.");
 
     let seat = msg.resumeToken
@@ -504,7 +510,7 @@ export class RoomRuntime {
       }
 
       case "chat": {
-        const text = cleanChatText(msg.text);
+        const text = this.filterText(cleanChatText(msg.text));
         if (!text) return;
         // Otherwise the room's chat is a way to hand out the game's answers.
         if (data.phase === "playing" && data.game && this.games[data.game.gameId]!.manifest.ownChat) {

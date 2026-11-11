@@ -47,6 +47,8 @@ export class World {
   ownerRequired = false;
   /** Absent by default: nothing locked, no cap. */
   tierLimits: TierLimits | undefined = undefined;
+  /** Absent by default: text goes through untouched. */
+  filterText?: (s: string) => string = undefined;
   errors: unknown[] = [];
   private nextId = 0;
   private rng = seededRandomInt(42);
@@ -79,6 +81,7 @@ export class World {
       isOwnerKey: (key) => key === OWNER_KEY,
       ownerRequired: this.ownerRequired,
       tierLimits: this.tierLimits,
+      filterText: this.filterText,
     };
   }
 

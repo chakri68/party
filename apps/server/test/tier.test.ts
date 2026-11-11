@@ -88,4 +88,14 @@ describe("room tiers", () => {
     const a = await join(world, again, "Asha");
     expect(roomOf(a).tier).toBe("pass");
   });
+
+  it("filterText masks names and chat", async () => {
+    world.filterText = (s) => s.replace(/darn/gi, "****");
+    room = world.runtime(games);
+    await room.claim({ tier: "pass", hostKey: "hk" });
+    const a = await join(world, room, "darn it");
+    expect(roomOf(a).seats[0]!.name).toBe("**** it");
+    await send(room, a, { type: "chat", text: "oh darn" });
+    expect(a.last("chat")).toMatchObject({ messages: [{ text: "oh ****" }] });
+  });
 });
