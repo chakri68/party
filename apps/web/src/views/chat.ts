@@ -39,7 +39,7 @@ export class RoomChat {
   private log = h("ol", { class: "chat-log", "aria-live": "polite" });
   private input = h("input", { class: "chat-input", placeholder: "Say something…", "aria-label": "Message", autocomplete: "off", enterkeyhint: "send" });
   private sendBtn = h("button", { type: "submit", class: "primary chat-send" }, "Send");
-  private empty = h("p", { class: "muted chat-empty" }, "Nothing yet. Say hi 👋");
+  private empty = h("p", { class: "muted chat-empty" }, "Nothing yet. Say hi.");
   private messages: ChatMessage[] = [];
   private lines = new Map<number, HTMLLIElement>();
   private unread = 0;

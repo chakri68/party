@@ -61,7 +61,7 @@ function suggestionCounts(room: RoomPublicState): Map<string, number> {
 }
 
 function wantLabel(n: number): string {
-  return n === 1 ? "👍 1 wants this" : `👍 ${n} want this`;
+  return n === 1 ? "1 wants this" : `${n} want this`;
 }
 
 function setupProblem(room: RoomPublicState, style?: string): HTMLElement | null {
@@ -542,7 +542,7 @@ export class RoomView implements View {
           await nav.share!({ title: "Join my game", text: `Join room ${room.code}`, url });
         } else {
           await navigator.clipboard.writeText(url);
-          share.textContent = "Copied ✓";
+          share.replaceChildren(icon("check"), "Copied");
           setTimeout(() => (share.textContent = copyLabel), 1500);
         }
       } catch {
@@ -605,14 +605,14 @@ export class RoomView implements View {
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? "ready ✓" : "not ready"),
+            h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
             isHost && s.id !== me
               ? h("button", {
                   type: "button",
                   class: "kick",
                   "aria-label": `Remove ${s.name}`,
                   onclick: () => confirm(`Remove ${s.name} from the room?`) && this.client?.send({ type: "remove-player", playerId: s.id }),
-                }, "✕")
+                }, icon("close"))
               : null,
           ),
         ),
@@ -670,7 +670,8 @@ export class RoomView implements View {
     return h(
       "p",
       { class: "suggestion-line" },
-      `👍 ${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`,
+      icon("thumbs-up"),
+      `${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`,
       h("button", {
         type: "button",
         class: "link",
@@ -727,11 +728,11 @@ export class RoomView implements View {
         replaceChildren(nameLine, [name, current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null]);
         meta.className = `game-option-meta${tooMany ? " warn" : ""}`;
         meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
-        want.textContent = n ? wantLabel(n) : "";
+        replaceChildren(want, n ? [icon("thumbs-up"), wantLabel(n)] : []);
         want.hidden = !n;
         if (suggest) {
           const mine = room.seats.find((s) => s.id === me)?.suggestion === id;
-          suggest.textContent = mine ? "Suggested ✓" : locked ? "Ask host to unlock" : "Suggest";
+          replaceChildren(suggest, mine ? [icon("check"), "Suggested"] : locked ? "Ask host to unlock" : "Suggest");
           suggest.setAttribute("aria-pressed", String(mine));
           suggest.hidden = current;
           suggest.onclick = () => this.client?.send({ type: "suggest-game", gameId: mine ? null : id });
