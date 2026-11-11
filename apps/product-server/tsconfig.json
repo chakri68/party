@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Workers types come from worker-configuration.d.ts (`pnpm types`); node is for the test D1 fake.
+    "types": ["node"]
+  },
+  "include": ["src", "test", "worker-configuration.d.ts"]
+}
