@@ -1,3 +1,4 @@
+import type { CharacterId } from "./characters.ts";
 import type { MinorPoint } from "./minor.ts";
 import type { TeamColorKey } from "./teams.ts";
 import type { Trail } from "./trails.ts";
@@ -84,6 +85,8 @@ export interface THPlayer {
   removed: boolean;
   /** null only once they've left in the teams phase. */
   teamId: number | null;
+  /** The model they wear. Picked in the teams phase. */
+  character: CharacterId;
 }
 
 /** What everyone sees of a player. Never a pool or a position. Scores are the team's: see THPublic.teams. */
@@ -177,6 +180,8 @@ export type THAction =
   | { type: "claim"; cacheId: string }
   | { type: "team.join"; teamId: number }
   | { type: "team.new" }
+  /** Teams phase only. */
+  | { type: "character"; id: CharacterId }
   /** Host only. */
   | { type: "team.assign"; playerId: string; teamId: number }
   /** Host only. */
@@ -193,6 +198,8 @@ export interface THCarry {
   teams: { color: TeamColorKey; members: string[] }[];
   /** The finished round's map seed, for "Same map again". */
   seed?: number;
+  /** Each player's pick, so a rematch keeps it. */
+  characters?: Record<string, CharacterId>;
 }
 
 /** Client → server, at POS_HZ in countdown and hunting. */

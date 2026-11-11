@@ -9,7 +9,7 @@ const pub = (players: THPublic["players"], teams: THPublic["teams"] = [
   { id: 2, color: "sky", foundCount: 0, poolSize: 0 },
 ]) => ({ phase: "teams", teams, players }) as unknown as THPublic;
 
-const p = (id: string, teamId: number | null, ready = false, removed = false) => ({ id, teamId, ready, removed, spectator: false });
+const p = (id: string, teamId: number | null, ready = false, removed = false) => ({ id, teamId, ready, removed, spectator: false, character: "female-a" as const });
 
 describe("teamRows", () => {
   const game = pub([p("p1", 1, true), p("p2", 2), p("p3", 1), p("p4", 1, true, true), p("p5", null)]);

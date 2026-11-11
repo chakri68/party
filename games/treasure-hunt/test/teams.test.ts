@@ -1,6 +1,7 @@
 import { seededRandomInt, type GameContext, type MatchContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
+import { defaultCharacter } from "../shared/characters.ts";
 import { TEAM_COLORS, teamColor } from "../shared/teams.ts";
 import { DEFAULT_SETTINGS, type THAction } from "../shared/types.ts";
 
@@ -125,7 +126,7 @@ describe("teams phase", () => {
     s = th.onTimer!(s, "countdown", ctx({ now: 5000 })).state;
     s = th.onTimer!(s, "round", ctx({ now: 9000 })).state;
     expect(s.phase).toBe("finished");
-    expect(th.carryOver!(s)).toEqual({ seed: s.layout.seed, teams: [
+    expect(th.carryOver!(s)).toEqual({ seed: s.layout.seed, characters: { p0: defaultCharacter("p0"), p1: defaultCharacter("p1"), p2: defaultCharacter("p2") }, teams: [
       { color: "orange", members: ["p0", "p1"] },
       { color: "green", members: ["p2"] },
     ] });

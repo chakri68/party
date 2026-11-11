@@ -69,7 +69,7 @@ const game = (round: number, phase: THPublic["phase"]): THPublic => ({
   seed: SEED,
   round,
   teams: [{ id: 1, color: "orange", foundCount: 0, poolSize: 2 }],
-  players: [{ id: "p1", teamId: 1, ready: false, removed: false, spectator: false }],
+  players: [{ id: "p1", teamId: 1, ready: false, removed: false, spectator: false, character: "female-a" }],
   startedAt: phase === "hunting" ? 0 : null,
   endsAt: phase === "hunting" ? 600_000 : null,
   countdownEndsAt: null,

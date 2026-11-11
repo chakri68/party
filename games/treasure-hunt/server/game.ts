@@ -8,6 +8,7 @@ import type {
   StreamRelay,
   TimerRequest,
 } from "@games/game-core";
+import { defaultCharacter, isCharacterId, type CharacterId } from "../shared/characters.ts";
 import { buggySlots } from "../shared/buggies.ts";
 import { macroHeight } from "../shared/generate.ts";
 import { treasureHuntManifest } from "../shared/manifest.ts";
@@ -307,6 +308,12 @@ function move(s: THState, playerId: string, teamId: number): void {
 }
 
 /** Back to the carried teams; anyone the carry doesn't place gets a team of their own. */
+/** A valid carried pick, else the default. */
+function carriedCharacter(carry: unknown, id: string): CharacterId {
+  const pick = (carry as Partial<THCarry> | null | undefined)?.characters?.[id];
+  return isCharacterId(pick) ? pick : defaultCharacter(id);
+}
+
 function seatTeams(s: THState, carry: unknown): void {
   const c = carry as Partial<THCarry> | null | undefined;
   const placed = new Set<string>();
@@ -629,6 +636,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     const a = input as Record<string, unknown>;
     if (a.type === "ready" || a.type === "end") return { type: a.type };
     if (a.type === "claim" && typeof a.cacheId === "string" && a.cacheId.length <= 16) return { type: "claim", cacheId: a.cacheId };
+    if (a.type === "character" && isCharacterId(a.id)) return { type: "character", id: a.id };
     if (a.type === "team.new" || a.type === "start") return { type: a.type };
     if (a.type === "team.join" && isTeamId(a.teamId)) return { type: "team.join", teamId: a.teamId };
     if (a.type === "team.assign" && isTeamId(a.teamId) && typeof a.playerId === "string" && a.playerId.length <= 64)
@@ -668,6 +676,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         spectator: false,
         removed: false,
         teamId: null,
+        character: carriedCharacter(match.carry, p.id),
         pos: null,
         jumpAt: NEVER,
         route: [],
@@ -709,6 +718,13 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       if (ctx.hostId !== playerId) return reject("not-host", "Only the host can end the round.");
       if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on yet.");
       finish(s, ctx, events, timers);
+      return ok(s, events, timers);
+    }
+    if (action.type === "character") {
+      const me = s.players.find((p) => p.id === playerId);
+      if (!me || me.removed) return reject("not-in-game", "You are not in this game.");
+      if (s.phase !== "teams") return reject("wrong-phase", "You can pick a character only before the round starts.");
+      me.character = action.id;
       return ok(s, events, timers);
     }
     return teamAction(s, playerId, action, ctx);
@@ -852,7 +868,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     seed: s.layout.seed,
     round: s.round ?? 0,
     teams: s.teams.map((t) => ({ id: t.id, color: t.color, foundCount: t.found.length, poolSize: race(s) ? s.settings.target : t.pool.length })),
-    players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId })),
+    players: s.players.map((p) => ({ id: p.id, ready: p.ready, spectator: p.spectator, removed: p.removed, teamId: p.teamId, character: p.character ?? defaultCharacter(p.id) })),
     startedAt: s.startedAt,
     endsAt: s.endsAt,
     countdownEndsAt: s.countdownEndsAt,
@@ -896,6 +912,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   carryOver: (s): THCarry => ({
     seed: s.layout.seed,
+    characters: Object.fromEntries(s.players.filter((p) => !p.removed).map((p) => [p.id, p.character ?? defaultCharacter(p.id)])),
     teams: s.teams
       .map((t) => ({ color: t.color, members: members(s, t.id).filter((p) => !p.removed).map((p) => p.id) }))
       .filter((t) => t.members.length),

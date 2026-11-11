@@ -10,3 +10,4 @@ export * from "./buggies.ts";
 export { treasureHuntManifest } from "./manifest.ts";
 export { treasureHuntRules, treasureHuntSettingFields } from "./rules-text.ts";
 export * from "./sky.ts";
+export * from "./characters.ts";

@@ -54,8 +54,8 @@ const game = (ready: boolean) =>
     round: 1,
     teams: [{ id: 1, color: "orange", foundCount: 0, poolSize: 0 }],
     players: [
-      { id: "host", teamId: 1, ready: false, removed: false, spectator: false },
-      { id: "p2", teamId: 1, ready, removed: false, spectator: false },
+      { id: "host", teamId: 1, ready: false, removed: false, spectator: false, character: "female-a" },
+      { id: "p2", teamId: 1, ready, removed: false, spectator: false, character: "female-a" },
     ],
     startedAt: null,
     endsAt: null,
