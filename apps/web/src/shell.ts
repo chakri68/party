@@ -2,7 +2,7 @@
 // `main.ts` calls `startShell({})`; another app imports `@games/web/shell` and
 // passes its own options. Nothing here touches `document` until startShell runs.
 
-import { games } from "./games.ts";
+import { overrideGameNames } from "./games.ts";
 import { claimOwnerKeyFromUrl, getOwnerKey } from "./identity.ts";
 import { watchKeyboard } from "./keyboard.ts";
 import { register, start } from "./router.ts";
@@ -56,14 +56,6 @@ export function configure(opts: ShellOptions): void {
   config = { ...defaults, ...set };
 }
 
-/** Swaps display names without touching the shared manifest objects. */
-export function overrideGameNames(map: Record<string, string>): void {
-  for (const [id, name] of Object.entries(map)) {
-    const entry = games[id];
-    if (entry) entry.manifest = { ...entry.manifest, name };
-  }
-}
-
 export function startShell(opts: ShellOptions): void {
   configure(opts);
   if (opts.nameOverrides) overrideGameNames(opts.nameOverrides);
@@ -75,3 +67,5 @@ export function startShell(opts: ShellOptions): void {
   opts.beforeStart?.(outlet);
   start(outlet);
 }
+
+export { overrideGameNames };

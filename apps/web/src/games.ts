@@ -271,3 +271,11 @@ export const games: Record<string, GameEntry> = {
     },
   }),
 };
+
+/** Swaps display names without touching the shared manifest objects. */
+export function overrideGameNames(map: Record<string, string>): void {
+  for (const [id, name] of Object.entries(map)) {
+    const entry = games[id];
+    if (entry) entry.manifest = { ...entry.manifest, name };
+  }
+}
