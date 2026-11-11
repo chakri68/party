@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { clockLabel, clueItems, clueListKey, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
+import { hotColdView, hotColdOpensText, clockLabel, clueItems, clueListKey, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
 import type { THPrivate } from "../shared/types.ts";
 
 describe("formatLeft", () => {
@@ -137,5 +137,37 @@ describe("clock", () => {
 
   it("shows nothing with no clock", () => {
     expect(clockLabel(null)).toBe("");
+  });
+});
+
+describe("hotColdView", () => {
+  const withHot = (hotcold: THPrivate["hotcold"]): THPrivate => ({ teamId: 1, pins: [], clues: [], revealed: [], hotcold });
+  const NOW = 100_000;
+
+  it("has no meter without an active signal", () => {
+    expect(hotColdView(withHot({ used: false, unlockAt: null, active: null }), NOW, null).meter).toBeNull();
+    expect(hotColdView(null, NOW, 2).meter).toBeNull();
+  });
+
+  it("uses active.level when nothing was streamed, and the stream when there is", () => {
+    const p = withHot({ used: true, unlockAt: 0, active: { id: "c1", until: NOW + 5000, level: 1 } });
+    expect(hotColdView(p, NOW, null)).toMatchObject({ meter: 1, leftMs: 5000 });
+    expect(hotColdView(p, NOW, 3).meter).toBe(3);
+    expect(hotColdView(withHot({ used: true, unlockAt: 0, active: { id: "c1", until: NOW + 1, level: null } }), NOW, null).meter).toBeNull();
+  });
+
+  it("canUse is false when used, locked or not hunting", () => {
+    const open = withHot({ used: false, unlockAt: NOW - 1, active: null });
+    expect(hotColdView(open, NOW, null).canUse).toBe(true);
+    expect(hotColdView(open, NOW, null, false).canUse).toBe(false);
+    expect(hotColdView(withHot({ used: true, unlockAt: NOW - 1, active: null }), NOW, null).canUse).toBe(false);
+    expect(hotColdView(withHot({ used: false, unlockAt: NOW + 1, active: null }), NOW, null).canUse).toBe(false);
+    expect(hotColdView(withHot({ used: false, unlockAt: null, active: null }), NOW, null).canUse).toBe(false);
+  });
+
+  it("opensInMs counts down to unlockAt while locked", () => {
+    expect(hotColdView(withHot({ used: false, unlockAt: NOW + 65_000, active: null }), NOW, null).opensInMs).toBe(65_000);
+    expect(hotColdView(withHot({ used: false, unlockAt: NOW, active: null }), NOW, null).opensInMs).toBeNull();
+    expect(hotColdOpensText(65_000)).toBe("Hot or cold opens in 1:05.");
   });
 });

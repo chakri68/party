@@ -23,6 +23,7 @@ export const treasureHuntRules: string[] = [
   "Press P to drop a pin where you are looking, or click on the map. You can have 5 pins. A 6th pin removes your oldest one. Only your team sees your pins.",
   "The minimap shows your team all the time. It shows other teams only when they are near you. Press M to open the full map.",
   "Every player has a name tag. Players and buggies pass through each other.",
+  "Once in a round, your team can use Hot or cold on one clue. For 3 minutes, a meter shows how close each of you is to that cache. It opens halfway through a timed round, or 10 minutes into a race.",
   "The round ends when the time runs out, or when the hunt is over. The host can also end it early.",
   "If two teams find the same number, the team with the harder caches wins. If it is still a tie, the team that found its last cache first wins.",
   "After the round, a replay shows where every team went and where they found each cache.",

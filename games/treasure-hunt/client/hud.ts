@@ -2,6 +2,36 @@ import { h } from "@games/ui";
 import { clockText } from "../shared/sky.ts";
 import type { PhotoCam, THMode, THPrivate } from "../shared/types.ts";
 
+export const HOTCOLD_LABEL = "Hot or cold";
+export const hotColdOpensText = (ms: number) => `Hot or cold opens in ${formatLeft(ms)}.`;
+
+export interface HotColdView {
+  /** 0 (cold) to 3 (hot), or null with no signal. */
+  meter: 0 | 1 | 2 | 3 | null;
+  leftMs: number;
+  canUse: boolean;
+  /** Ms until it opens, while it is locked; else null. */
+  opensInMs: number | null;
+}
+
+/**
+ * The Hot or cold meter and button, from the private state. `streamed` is the
+ * latest relayed level for the active cache and wins over `active.level`.
+ * `hunting` is the phase check, passed in (the private state has no phase).
+ */
+export function hotColdView(priv: THPrivate | null, now: number, streamed: 0 | 1 | 2 | 3 | null, hunting = true): HotColdView {
+  const hc = priv?.hotcold;
+  if (!hc) return { meter: null, leftMs: 0, canUse: false, opensInMs: null };
+  const live = hc.active && hc.active.until > now ? hc.active : null;
+  const opensInMs = !hc.used && hc.unlockAt !== null && hc.unlockAt > now ? hc.unlockAt - now : null;
+  return {
+    meter: live ? (streamed ?? live.level) : null,
+    leftMs: live ? live.until - now : 0,
+    canUse: hunting && !hc.used && hc.unlockAt !== null && opensInMs === null,
+    opensInMs,
+  };
+}
+
 // The HUD over the map: the timer and score (they sit in the strip above it),
 // the clue board down the right, and the 3-2-1 in the middle. The text comes
 // from the pure functions up top; the class below only puts it in the DOM.
@@ -43,13 +73,13 @@ export function clueItems(
  * and whether (and how long) its image is, not the ~40 KB data URL, since
  * render runs every tick.
  */
-export function clueListKey(priv: THPrivate | null, items: ReturnType<typeof clueItems>): string {
+export function clueListKey(priv: THPrivate | null, items: ReturnType<typeof clueItems>, canHot = false): string {
   const clues = priv?.clues ?? [];
   return items
     .map((it, i) => {
       const cam = clues[i]?.photo;
       const photo = it.photo && cam ? `${cam.x},${cam.z},${cam.yaw},${cam.pitch},${cam.fov}:${it.photo.src?.length ?? 0}` : "";
-      return `${it.found ? 1 : 0}${it.taken ? 1 : 0}|${photo}|${it.text}`;
+      return `${it.found ? 1 : 0}${it.taken ? 1 : 0}${canHot ? 1 : 0}|${photo}|${it.text}`;
     })
     .join("\n");
 }
@@ -76,6 +106,7 @@ export interface HudState {
   priv: THPrivate | null;
   /** The game minute after midnight, or null when there's no clock to show. */
   clock?: number | null;
+  hot?: HotColdView;
 }
 
 export class Hud {
@@ -85,15 +116,19 @@ export class Hud {
   readonly race = h("span", { class: "th-race", hidden: true });
   readonly toggle = h("button", { type: "button", class: "th-clue-toggle", "aria-controls": "th-clues", hidden: true }, "Clues");
   private list = h("ol", { class: "th-clue-list" });
-  readonly board = h("aside", { class: "th-clues", id: "th-clues", "aria-label": "Your clues", hidden: true }, h("h2", { class: "th-clues-title" }, "Your caches"), this.list);
+  private opens = h("p", { class: "th-hot-opens", hidden: true });
+  readonly board = h("aside", { class: "th-clues", id: "th-clues", "aria-label": "Your clues", hidden: true }, h("h2", { class: "th-clues-title" }, "Your caches"), this.opens, this.list);
+  readonly meter = h("span", { class: "th-meter", role: "img", "aria-label": HOTCOLD_LABEL, hidden: true }, ...[0, 1, 2, 3].map((i) => h("i", { class: `th-meter-bar th-meter-${i}` })), h("span", { class: "th-meter-left" }));
   readonly count = h("p", { class: "th-count", "aria-live": "assertive", hidden: true });
 
   private photoFor: ((id: string, cam: PhotoCam) => string | undefined) | undefined;
   private open = true;
   private lastClues = "";
+  private onHot: ((cacheId: string) => void) | undefined;
 
-  constructor(photoFor?: (id: string, cam: PhotoCam) => string | undefined) {
+  constructor(photoFor?: (id: string, cam: PhotoCam) => string | undefined, onHot?: (cacheId: string) => void) {
     this.photoFor = photoFor;
+    this.onHot = onHot;
     this.toggle.addEventListener("click", () => {
       this.open = !this.open;
       this.board.classList.toggle("th-clues-shut", !this.open);
@@ -119,14 +154,26 @@ export class Hud {
     this.count.hidden = c === "";
     if (this.count.textContent !== c) this.count.textContent = c;
 
+    const hot = s.hot;
+    const meter = hot?.meter ?? null;
+    this.meter.hidden = meter === null;
+    if (hot && meter !== null) {
+      this.meter.dataset.level = String(meter);
+      (this.meter.lastElementChild as HTMLElement).textContent = formatLeft(hot.leftMs);
+    }
+    const opens = hot?.opensInMs ?? null;
+    this.opens.hidden = opens === null;
+    if (opens !== null) this.opens.textContent = hotColdOpensText(opens);
+
     const items = clueItems(s.priv, this.photoFor);
     this.board.hidden = this.toggle.hidden = items.length === 0;
     // Called on every tick for the clocks; only touch the list when it changed.
-    const key = clueListKey(s.priv, items);
+    const key = clueListKey(s.priv, items, hot?.canUse ?? false);
     if (key === this.lastClues) return;
     this.lastClues = key;
+    const canHot = hot?.canUse ?? false;
     this.list.replaceChildren(
-      ...items.map((it) =>
+      ...items.map((it, i) =>
         h(
           "li",
           { class: it.found ? "th-clue th-clue-found" : it.taken ? "th-clue th-clue-taken" : "th-clue" },
@@ -137,10 +184,17 @@ export class Hud {
             it.text,
             it.taken ? h("span", { class: "th-clue-tag" }, "Taken") : null,
             photoNode(photoView(it.photo)),
+            canHot && !it.found && !it.taken ? this.hotButton(s.priv?.clues[i]?.id) : null,
           ),
         ),
       ),
     );
+  }
+
+  private hotButton(id: string | undefined) {
+    const b = h("button", { type: "button", class: "th-hot-btn" }, HOTCOLD_LABEL);
+    b.addEventListener("click", () => id && this.onHot?.(id));
+    return b;
   }
 
   private syncToggle() {

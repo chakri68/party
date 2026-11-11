@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { godotPin, godotPos, godotSeat, godotUnseat, shouldSendSession, worldReadyFor, type BridgeCall, type Roster, type Vehicles } from "../client/godot/bridge.ts";
-import { ActLog, ClaimLog, GodotFeed, claimError, pinsFor, resync, rosterFor } from "../client/view.ts";
+import { ActLog, ClaimLog, GodotFeed, parseHotCold, claimError, pinsFor, resync, rosterFor } from "../client/view.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
 
 // Review Focus 3: the session can reach Godot twice. The bridge sends it once
@@ -460,5 +460,52 @@ describe("pins", () => {
         { fn: "pins", arg: pins },
       ]);
     }
+  });
+});
+
+describe("hot or cold relay", () => {
+  it("parses a level 0 to 3 with an id, and nothing else", () => {
+    expect(parseHotCold({ t: "hotcold", id: "c1", level: 2 })).toEqual({ id: "c1", level: 2 });
+    expect(parseHotCold({ t: "hotcold", id: "c1", level: 0 })).toEqual({ id: "c1", level: 0 });
+    expect(parseHotCold({ t: "hotcold", id: "c1", level: 4 })).toBeNull();
+    expect(parseHotCold({ t: "hotcold", id: "c1", level: "2" })).toBeNull();
+    expect(parseHotCold({ t: "hotcold", level: 2 })).toBeNull();
+    expect(parseHotCold({ t: "reveal", id: "c1", level: 2 })).toBeNull();
+  });
+
+  const NOW = 50_000;
+  const priv = (active: THPrivate["hotcold"]["active"]): THPrivate => ({
+    teamId: 1,
+    pins: [],
+    hotcold: { used: active !== null, unlockAt: 0, active },
+    clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false, taken: false, photo: null }],
+    revealed: [],
+  });
+  const hotCalls = (sent: BridgeCall[][]) => sent.flat().filter((c) => c.fn === "hotCold").map((c) => c.arg);
+
+  it("sends the level when it changes, and -1 when the signal ends", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((c) => sent.push(c), () => NOW);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: null }), "hunting", 1);
+    feed.sync();
+    expect(hotCalls(sent)).toEqual([]);
+    feed.stream("p0", { t: "hotcold", id: "c1", level: 2 });
+    expect(hotCalls(sent)).toEqual([{ level: 2 }]);
+    feed.sync();
+    expect(hotCalls(sent)).toEqual([{ level: 2 }]);
+    feed.update(priv(null), "hunting", 1);
+    feed.sync();
+    expect(hotCalls(sent)).toEqual([{ level: 2 }, { level: -1 }]);
+    feed.sync();
+    expect(hotCalls(sent)).toHaveLength(2);
+  });
+
+  it("a relay for another cache does not drive the meter", () => {
+    const sent: BridgeCall[][] = [];
+    const feed = new GodotFeed((c) => sent.push(c), () => NOW);
+    feed.update(priv({ id: "c1", until: NOW + 9000, level: 1 }), "hunting", 1);
+    feed.stream("p0", { t: "hotcold", id: "zz", level: 3 });
+    feed.sync();
+    expect(hotCalls(sent).pop()).toEqual({ level: 1 });
   });
 });

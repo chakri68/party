@@ -1,10 +1,10 @@
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
-import type { Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
+import type { HotColdLevel, Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
 import { GodotBridge, worldReadyFor, type BridgeCall, type CacheReveal, type GodotPhoto, type GodotPos, type PhotoPose, type PinsCall, type RemotePos, type Roster, type Vehicles } from "./godot/bridge.ts";
 import { StageLoader } from "./godot/loader.ts";
-import { Hud } from "./hud.ts";
+import { Hud, hotColdView } from "./hud.ts";
 import { layoutFor } from "./layout-cache.ts";
 import { ReplayView } from "./replay.ts";
 import { MapCanvas } from "./map/map-canvas.ts";
@@ -76,6 +76,8 @@ const CLAIM_ERRORS: Record<string, string> = {
   "already-found": "Your team already found this cache.",
   "not-yours": "This cache is not on your team's list.",
   "not-hunting": "The hunt has not started.",
+  "hotcold-locked": "Hot or cold has not opened yet.",
+  "hotcold-used": "Your team already used Hot or cold.",
   // Seats. "in-vehicle" above reads right for a seat too.
   "seat-taken": "Someone is already in that seat.",
   "too-far-seat": "Go closer to the buggy.",
@@ -189,6 +191,15 @@ function parseReveal(data: unknown): CacheReveal | null {
   return { id: d.id, x: d.x, z: d.z, dy: typeof d.dy === "number" ? d.dy : 0 };
 }
 
+/** The server's hot-or-cold relay, or null. */
+export function parseHotCold(data: unknown): { id: string; level: HotColdLevel } | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (d.t !== "hotcold" || typeof d.id !== "string" || d.id === "") return null;
+  if (d.level !== 0 && d.level !== 1 && d.level !== 2 && d.level !== 3) return null;
+  return { id: d.id, level: d.level };
+}
+
 /** Another hunter's pos relay, tagged with who sent it, or null. */
 function parseRemote(from: string, data: unknown): RemotePos | null {
   if (!data || typeof data !== "object") return null;
@@ -238,6 +249,10 @@ export class GodotFeed {
   private roster: Roster | null = null;
   private vehicles: Vehicles | null = null;
   private pins: PinsCall | null = null;
+  /** The latest hot-or-cold relay. It counts only while it is for the active cache. */
+  private hot: { id: string; level: HotColdLevel } | null = null;
+  /** The level Godot was last told: -1 is off. */
+  private hotSent = -1;
   private sky: SkyState | null = null;
   /** The photo poses last sent, as JSON: "[]" sends nothing. */
   private photosSent = "[]";
@@ -267,6 +282,12 @@ export class GodotFeed {
     this.seed = seed;
   }
 
+  /** The relayed level for the active cache, or null. */
+  hotLevel(): HotColdLevel | null {
+    const active = this.priv?.hotcold.active;
+    return active && this.hot?.id === active.id ? this.hot.level : null;
+  }
+
   /** Where Godot last said I am. */
   mine(p: GodotPos) {
     this.myPos = p;
@@ -277,6 +298,13 @@ export class GodotFeed {
     const pos = parseRemote(from, data);
     if (pos) {
       if (from !== this.roster?.me && this.roster?.players.some((p) => p.id === from)) this.send([{ fn: "remotePos", arg: pos }]);
+      return;
+    }
+    const hc = parseHotCold(data);
+    if (hc) {
+      this.hot = hc;
+      this.hotSent = hc.level;
+      this.send([{ fn: "hotCold", arg: { level: hc.level } }]);
       return;
     }
     const r = parseReveal(data);
@@ -301,6 +329,13 @@ export class GodotFeed {
       this.photosSent = key;
       const list = photos.filter((p) => !this.held(p));
       if (list.length > 0) calls.unshift({ fn: "photos", arg: { list } });
+    }
+    // The meter level, or -1 for none. Only on a change; a fresh Godot (ready) is off already, so only a live level is resent.
+    const view = hotColdView(this.priv, this.now(), this.hotLevel(), this.phase === "hunting");
+    const level = view.meter ?? -1;
+    if (level !== this.hotSent || (ready && level !== -1)) {
+      this.hotSent = level;
+      calls.unshift({ fn: "hotCold", arg: { level } });
     }
     if (this.sky) calls.unshift({ fn: "skyClock", arg: { min: skyMinute(this.sky, this.now()), running: this.sky.phase === "hunting" } });
     if (this.pins) calls.unshift({ fn: "pins", arg: this.pins });
@@ -424,13 +459,16 @@ export class TreasureHuntView implements GameView {
   /** Photo clues Godot rendered, for the clue board: photos.get(id, cam). */
   readonly photos = new PhotoStore();
   private loader: StageLoader;
-  private hud = new Hud((id, cam) => this.photos.get(id, cam));
+  private hud = new Hud(
+    (id, cam) => this.photos.get(id, cam),
+    (id) => this.acts.add(this.api.act({ type: "hotcold", cacheId: id })),
+  );
   private teams = new TeamsPanel((a) => this.acts.add(this.api.act(a)));
   private stage = h("div", { class: "th-stage" });
   private help = h("p", { class: "th-help" }, HELP);
   private end = h("button", { type: "button", class: "th-end", hidden: true }, "End round");
   private mapBtn = h("button", { type: "button", class: "th-map-toggle", "aria-pressed": "false", hidden: true }, "Map");
-  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.score, this.hud.race, this.hud.clock, this.hud.timer, this.mapBtn, this.hud.toggle, this.end));
+  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.meter, this.hud.score, this.hud.race, this.hud.clock, this.hud.timer, this.mapBtn, this.hud.toggle, this.end));
   private msg = h("p", { class: "th-msg", role: "alert" });
   private toast = h("p", { class: "th-toast", role: "status", "aria-live": "polite", hidden: true });
   private mini = h("canvas", { class: "th-minimap", "aria-hidden": "true", hidden: true });
@@ -691,6 +729,7 @@ export class TreasureHuntView implements GameView {
       countdown: game.phase === "countdown" && game.countdownEndsAt !== null ? game.countdownEndsAt - now : null,
       score: live && mine ? { found: mine.foundCount, pool: game.mode === "race" ? game.target : mine.poolSize, mode: game.mode } : null,
       priv: live ? this.priv : null,
+      hot: live ? hotColdView(this.priv, now, this.feed.hotLevel(), game.phase === "hunting") : undefined,
       // The end time stays up once the round is over.
       clock: live || game.phase === "finished" ? skyMinute(game, now) : null,
     });
