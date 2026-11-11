@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Headless Web export of Treasure Hunt. Blind Rally's script, trimmed: no
-// tracks step, no probe, no R2 upload. M1 is dev-only, so Vite serving
-// apps/web/public is the whole story.
+// tracks step, no probe. Dev is Vite serving apps/web/public; --upload puts
+// the same export in R2 for the Worker.
 //
 //   node games/treasure-hunt/scripts/export-godot.mjs [--no-export]
+//   node games/treasure-hunt/scripts/export-godot.mjs --upload [--dry-run] [--local [--persist-to <dir>]]
 //
 // 1. Exports into games/treasure-hunt/build/web/ (gitignored) and prints every
 //    file's size. --no-export skips this and publishes whatever's there.
@@ -15,6 +16,11 @@
 //    client imports it, so one JS build names exactly one export and a stale
 //    .pck can't meet a fresh .wasm.
 //
+// --upload skips all of the above and puts the dir godot-build.json names into
+// R2 under treasure-hunt/godot/<hash>/, brotli-11 on html/js/wasm/pck. The
+// logic is shared with Blind Rally: scripts/godot-upload.mjs. Staging (the .br
+// copies and the .uploaded marker) goes to games/treasure-hunt/build/r2/<hash>.
+//
 // GODOT_BIN overrides the binary; otherwise `godot` on PATH, then ~/.local/bin/godot.
 
 import { spawnSync } from 'node:child_process';
@@ -23,6 +29,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync, readFileSync, cop
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { uploadGodot } from '../../../scripts/godot-upload.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, '..');
@@ -102,5 +109,9 @@ function publish() {
   console.log(`wrote ${manifestPath}`);
 }
 
-if (!skipExport) exportWeb();
-publish();
+if (process.argv.includes('--upload')) {
+  uploadGodot({ manifestPath, publicRoot, stagingRoot: join(pkg, 'build', 'r2'), keyRoot: 'treasure-hunt/godot', argv: process.argv });
+} else {
+  if (!skipExport) exportWeb();
+  publish();
+}
