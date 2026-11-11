@@ -125,6 +125,13 @@ func test_shirt_cell() -> void:
 			check(c != head_cell(m), "%s: the shirt cell isn't the head's commonest cell" % id)
 		m.queue_free()
 	check(votes, "every model's shirt vote counts torso vertices (the torso bind is found)")
+	# The upper torso, not the belt band at the waist (which has more
+	# vertices but sits in the bottom quarter of the torso).
+	var want := {"female-a": Vector2i(5, 1), "female-b": Vector2i(1, 3), "male-a": Vector2i(9, 2), "male-b": Vector2i(15, 2)}
+	for id: String in want:
+		var m := make(id)
+		check(m.shirt_cell == want[id], "%s: the shirt is %s, not the belt (got %s)" % [id, want[id], m.shirt_cell])
+		m.queue_free()
 	check(single, "every body-mesh has exactly one surface")
 	check(ok, "every shirt cell is inside the 16 x 4 grid")
 

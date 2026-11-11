@@ -94,15 +94,17 @@ static func cell_of(uv: Vector2) -> Vector2i:
 	return Vector2i(floori(c.x), floori(c.y))
 
 
-## The cell most of the torso's vertices sample: the shirt. A vertex counts
-## as torso when the torso bone has the most weight on it. Ties go to the
-## lowest cell. Only surface 0 is read: body-mesh has a single surface.
+## The shirt: the cell that covers the most surface on the upper half of
+## the torso. A triangle is torso when the torso bone has the most weight on
+## its first vertex. Upper half, by area, because the belt band at the waist
+## has more vertices than the shirt on several models. Ties go to the lowest
+## cell. Only surface 0 is read: body-mesh has a single surface.
 static func shirt_cell_of(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Vector2i:
 	return _vote(mesh, skin, skeleton).cell
 
 
-## How many vertices voted in shirt_cell_of. 0 means the torso bind wasn't
-## found, and the cell is a meaningless (0, 0).
+## How many torso triangles voted in shirt_cell_of. 0 means the torso bind
+## wasn't found, and the cell is a meaningless (0, 0).
 static func torso_vertex_count(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> int:
 	return _vote(mesh, skin, skeleton).votes
 
@@ -113,7 +115,9 @@ static func _vote(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Dictionary:
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
-	if uvs.is_empty() or bones.is_empty():
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	if uvs.is_empty() or bones.is_empty() or index.is_empty():
 		return out
 	var torso := -1
 	for i in skin.get_bind_count():
@@ -125,26 +129,39 @@ static func _vote(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Dictionary:
 	if torso < 0:
 		return out
 	var stride := bones.size() / uvs.size()
-	var count := {}
-	var total := 0
-	for v in uvs.size():
+	var tris: Array[int] = []
+	var lo := INF
+	var hi := -INF
+	for t in range(0, index.size(), 3):
+		var v := index[t]
 		var best := 0
 		for k in stride:
 			if weights[v * stride + k] > weights[v * stride + best]:
 				best = k
 		if bones[v * stride + best] != torso:
 			continue
-		var c := cell_of(uvs[v])
-		count[c] = count.get(c, 0) + 1
-		total += 1
+		tris.append(t)
+		var y := (verts[index[t]].y + verts[index[t + 1]].y + verts[index[t + 2]].y) / 3.0
+		lo = minf(lo, y)
+		hi = maxf(hi, y)
+	var mid := (lo + hi) * 0.5
+	var area := {}
+	for t in tris:
+		var a := verts[index[t]]
+		var b := verts[index[t + 1]]
+		var c := verts[index[t + 2]]
+		if (a.y + b.y + c.y) / 3.0 < mid:
+			continue
+		var cell := cell_of((uvs[index[t]] + uvs[index[t + 1]] + uvs[index[t + 2]]) / 3.0)
+		area[cell] = area.get(cell, 0.0) + (b - a).cross(c - a).length() * 0.5
 	var pick := Vector2i.ZERO
-	var most := 0
-	for c: Vector2i in count:
-		if count[c] > most or (count[c] == most and (c.y < pick.y or (c.y == pick.y and c.x < pick.x))):
-			most = count[c]
+	var most := 0.0
+	for c: Vector2i in area:
+		if area[c] > most or (area[c] == most and (c.y < pick.y or (c.y == pick.y and c.x < pick.x))):
+			most = area[c]
 			pick = c
 	out.cell = pick
-	out.votes = total
+	out.votes = tris.size()
 	return out
 
 
