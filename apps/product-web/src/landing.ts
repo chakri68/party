@@ -4,7 +4,7 @@
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
 import { loadConfig } from "./api.ts";
-import { riseIn, rollText } from "./motion.ts";
+import { riseIn, rollText, whenSettled } from "./motion.ts";
 
 overrideGameNames(PRODUCT_NAMES);
 
@@ -129,10 +129,12 @@ function showPrices(): void {
   const reveal = () => {
     if (shown) return;
     shown = true;
-    amounts.forEach((a, i) => {
-      a.style.opacity = "1";
-      riseIn(a, 60 * i);
-    });
+    whenSettled(() =>
+      amounts.forEach((a, i) => {
+        a.style.opacity = "1";
+        riseIn(a, 60 * i);
+      }),
+    );
   };
   const timer = setTimeout(reveal, 400);
   loadConfig()

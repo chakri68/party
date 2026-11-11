@@ -7,6 +7,17 @@ function reduced(): boolean {
   return matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/**
+ * Runs `fn` once any page transition has played out, right away if none is.
+ * Arriving by link, the whole new page fades in (public/page-motion.css);
+ * an entrance started under that fade is lost in it, so it waits its turn.
+ */
+export function whenSettled(fn: () => void): void {
+  const vt = (document as Document & { activeViewTransition?: ViewTransition | null }).activeViewTransition;
+  if (!vt) return fn();
+  void vt.finished.then(fn, fn);
+}
+
 function shown(box: HTMLElement): Element[] {
   return [...box.children].filter((c) => !(c instanceof HTMLElement && c.hidden));
 }
@@ -17,6 +28,10 @@ function shown(box: HTMLElement): Element[] {
  * in late (after a fetch) slides into place instead of shoving the page.
  */
 export function morph(box: HTMLElement, change: () => void): void {
+  whenSettled(() => morphNow(box, change));
+}
+
+function morphNow(box: HTMLElement, change: () => void): void {
   const before = new Set(shown(box));
   const from = box.getBoundingClientRect().height;
   change();
@@ -51,6 +66,10 @@ export function swapIn(box: HTMLElement, ...children: (Node | string)[]): void {
  * one rises in. `delay` staggers a row of them. Same text, nothing moves.
  */
 export function rollText(el: HTMLElement, text: string, delay = 0): void {
+  whenSettled(() => rollNow(el, text, delay));
+}
+
+function rollNow(el: HTMLElement, text: string, delay: number): void {
   if (el.textContent === text) return;
   if (reduced()) {
     el.textContent = text;
