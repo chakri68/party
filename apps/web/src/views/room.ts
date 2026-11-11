@@ -51,6 +51,19 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
  * The game's word on why this table can't start (a role deck one card short).
  * It explains a disabled Start, so it sits where the host is looking.
  */
+/** How many players back each game, from the seats still here. */
+function suggestionCounts(room: RoomPublicState): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const s of room.seats) {
+    if (s.suggestion && s.presence !== "left") counts.set(s.suggestion, (counts.get(s.suggestion) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function wantLabel(n: number): string {
+  return n === 1 ? "👍 1 wants this" : `👍 ${n} want this`;
+}
+
 function setupProblem(room: RoomPublicState, style?: string): HTMLElement | null {
   return room.setupProblem ? h("p", { class: "setting-problem", role: "status", style }, room.setupProblem) : null;
 }
@@ -64,6 +77,8 @@ export class RoomView implements View {
 
   private client: RoomClient | null = null;
   private last: RoomUpdate | null = null;
+  /** Keeps an open game list in step with the room while it's up. */
+  private refreshGameList: ((room: RoomPublicState) => void) | null = null;
   private gameView: GameView | null = null;
   private gameViewFor: string | null = null;
   /** The view has had its first update, so stream data has something to land on. */
@@ -217,8 +232,15 @@ export class RoomView implements View {
         this.showToast("You're the host now.");
       } else if (prev?.room.phase === "playing" && u.room.phase === "lobby" && u.room.hostId !== client.playerId) {
         this.showToast(`${seatName(u.room, u.room.hostId)} ended the game.`);
+      } else if (prev && u.room.hostId === client.playerId) {
+        // The host hears about new suggestions; everyone else sees the counts.
+        const fresh = u.room.seats.filter((s) =>
+          s.id !== client.playerId && s.suggestion && s.suggestion !== prev.room.seats.find((p) => p.id === s.id)?.suggestion);
+        const last = fresh.at(-1);
+        if (last?.suggestion) this.showToast(`${last.name} wants ${games[last.suggestion]?.manifest.name ?? last.suggestion}.`);
       }
       this.render();
+      this.refreshGameList?.(u.room);
     });
     client.on("stream", (m) => {
       if (this.gameView && this.gameViewFed) this.gameView.stream?.(m.from, m.data);
@@ -506,7 +528,8 @@ export class RoomView implements View {
     const seats = room.seats.filter((s) => s.presence !== "left");
     const connected = seats.filter((s) => s.presence === "connected").length;
     const min = entry?.manifest.minPlayers ?? 2;
-    const max = entry?.manifest.maxPlayers ?? 8;
+    // The room's cap, not the game's: a free room seats fewer than some games allow.
+    const max = room.maxSeats || (entry?.manifest.maxPlayers ?? 8);
     const url = `${location.origin}/room/${room.code}`;
 
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
@@ -560,11 +583,12 @@ export class RoomView implements View {
         h(
           "div",
           { class: "game-card-links" },
-          isHost && Object.keys(games).length > 1
-            ? h("button", { type: "button", class: "link", onclick: () => this.openGameList(room.gameId, seats.length, room.lockedGameIds) }, "Change")
+          Object.keys(games).length > 1
+            ? h("button", { type: "button", class: "link", onclick: () => this.openGameList() }, isHost ? "Change" : "See all games")
             : null,
           rules,
         ),
+        this.suggestionLine(room, me, isHost),
       ),
       // The deal skips seats that aren't connected, and so does the server's
       // setupProblem: hints built for the same count agree with its line.
@@ -620,53 +644,119 @@ export class RoomView implements View {
   }
 
   /**
-   * Host-only: pick the room's game from a list. Built to grow: games sit under
-   * section headings, a search box shows up once there are enough games to need
-   * one, and games that can't seat everyone here say so instead of failing at
-   * "Start game".
+   * The top pick for the host (tap to choose it), or your own pick for
+   * everyone else (tap to take it back). Nothing when nobody has suggested.
    */
-  private openGameList(current: string, players: number, lockedIds: string[]) {
+  private suggestionLine(room: RoomPublicState, me: string, isHost: boolean): HTMLElement | null {
+    const nameOf = (id: string) => games[id]?.manifest.name ?? id;
+    if (!isHost) {
+      const mine = room.seats.find((s) => s.id === me)?.suggestion;
+      if (!mine) return null;
+      return h(
+        "p",
+        { class: "suggestion-line" },
+        `You suggested ${nameOf(mine)}.`,
+        h("button", { type: "button", class: "link", onclick: () => this.client?.send({ type: "suggest-game", gameId: null }) }, "Undo"),
+      );
+    }
+    let top: [string, number] | null = null;
+    for (const [id, n] of suggestionCounts(room)) {
+      if (id !== room.gameId && games[id] && (!top || n > top[1])) top = [id, n];
+    }
+    if (!top) return null;
+    const [id, n] = top;
+    const who = n === 1 ? room.seats.find((s) => s.suggestion === id)!.name : `${n} players`;
+    const locked = room.lockedGameIds.includes(id);
+    return h(
+      "p",
+      { class: "suggestion-line" },
+      `👍 ${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`,
+      h("button", {
+        type: "button",
+        class: "link",
+        onclick: () => locked ? shellConfig().onLockedGame(id, this.code) : this.client?.send({ type: "select-game", gameId: id }),
+      }, locked ? "Unlock" : "Play it"),
+    );
+  }
+
+  /**
+   * Everyone can open the game list. The host picks from it; everyone else
+   * reads the rules and suggests. Built to grow: games sit under section
+   * headings, a search box shows up once there are enough games to need one,
+   * and games that can't seat everyone here say so instead of failing at
+   * "Start game". Counts and buttons follow the room while it's open.
+   */
+  private openGameList() {
+    const room0 = this.last?.room;
+    const me = this.client?.playerId;
+    if (!room0 || !me) return;
+    const isHost = room0.hostId === me;
     const all = Object.entries(games);
     const search = all.length > 6
       ? h("input", { type: "search", class: "game-search", placeholder: "Search games", "aria-label": "Search games", autocomplete: "off" })
       : null;
     const empty = h("p", { class: "muted center", hidden: true }, "No games match.");
+    const refreshers: ((room: RoomPublicState) => void)[] = [];
 
     const rows = all.map(([id, entry]) => {
       const { name, description, minPlayers, maxPlayers } = entry.manifest;
-      const tooMany = players > maxPlayers;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
-      const locked = lockedIds.includes(id);
-      const row = h(
-        "li",
-        {},
-        h(
-          "button",
-          {
-            type: "button",
-            class: locked ? "game-option locked" : "game-option",
-            "aria-current": id === current ? "true" : undefined,
-            disabled: tooMany && id !== current && !locked,
-            onclick: () => {
-              if (locked) {
-                dlg.close();
-                shellConfig().onLockedGame(id, this.code);
-                return;
-              }
-              if (id !== current) this.client?.send({ type: "select-game", gameId: id });
-              dlg.close();
-            },
-          },
-          brandMark("mark game-icon"),
-          h(
-            "span",
-            { class: "game-option-text" },
-            h("span", { class: "game-option-name" }, name, id === current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null),
-            h("span", { class: "muted" }, description),
-            h("span", { class: `game-option-meta${tooMany ? " warn" : ""}` }, tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range),
-          ),
-        ),
+      // Only the host's rows pick, so only theirs are buttons.
+      const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option readonly" });
+      const meta = h("span", { class: "game-option-meta" });
+      const want = h("span", { class: "game-option-want" });
+      const nameLine = h("span", { class: "game-option-name" });
+      const suggest = isHost ? null : h("button", { type: "button", class: "small" });
+      const rulesBtn = h("button", {
+        type: "button",
+        class: "link small",
+        onclick: () => openDialog(`How to play ${name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
+      }, "Rules");
+
+      const refresh = (room: RoomPublicState) => {
+        const players = room.seats.filter((s) => s.presence !== "left").length;
+        const current = id === room.gameId;
+        const locked = room.lockedGameIds.includes(id);
+        const tooMany = players > maxPlayers;
+        const n = suggestionCounts(room).get(id) ?? 0;
+        option.classList.toggle("locked", locked);
+        if (current) option.setAttribute("aria-current", "true");
+        else option.removeAttribute("aria-current");
+        // The host's rows disable when the game can't seat everyone.
+        if (option instanceof HTMLButtonElement) option.disabled = tooMany && !current && !locked;
+        replaceChildren(nameLine, [name, current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null]);
+        meta.className = `game-option-meta${tooMany ? " warn" : ""}`;
+        meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
+        want.textContent = n ? wantLabel(n) : "";
+        want.hidden = !n;
+        if (suggest) {
+          const mine = room.seats.find((s) => s.id === me)?.suggestion === id;
+          suggest.textContent = mine ? "Suggested ✓" : locked ? "Ask host to unlock" : "Suggest";
+          suggest.setAttribute("aria-pressed", String(mine));
+          suggest.hidden = current;
+          suggest.onclick = () => this.client?.send({ type: "suggest-game", gameId: mine ? null : id });
+        }
+      };
+      refreshers.push(refresh);
+      refresh(room0);
+
+      if (isHost) {
+        option.onclick = () => {
+          const room = this.last?.room ?? room0;
+          if (room.lockedGameIds.includes(id)) {
+            dlg.close();
+            shellConfig().onLockedGame(id, this.code);
+            return;
+          }
+          if (id !== room.gameId) this.client?.send({ type: "select-game", gameId: id });
+          dlg.close();
+        };
+      }
+      option.append(
+        brandMark("mark game-icon"),
+        h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted" }, description), meta, want),
       );
+      const row = h("li", {}, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
       return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
 
@@ -692,19 +782,28 @@ export class RoomView implements View {
 
     const dlg = h(
       "dialog",
-      { class: "dialog game-list", "aria-label": "Choose a game" },
-      h("h2", {}, "Choose a game"),
+      { class: "dialog game-list", "aria-label": isHost ? "Choose a game" : "All games" },
+      h("h2", {}, isHost ? "Choose a game" : "All games"),
+      isHost ? null : h("p", { class: "muted" }, "The host picks the game. Suggest the one you want."),
       search,
       sections.map((s) => s.el),
       empty,
       h("form", { method: "dialog" }, h("button", {}, "Close")),
     );
-    dlg.addEventListener("close", () => dlg.remove());
+    this.refreshGameList = (room) => {
+      // A new host, or the game started: this list is out of date, so it goes.
+      if (room.phase !== "lobby" || (room.hostId === me) !== isHost) return dlg.close();
+      for (const r of refreshers) r(room);
+    };
+    dlg.addEventListener("close", () => {
+      this.refreshGameList = null;
+      dlg.remove();
+    });
     closeOnBackdrop(dlg);
     document.body.append(dlg);
     dlg.showModal();
     // Start on the current game, not the search box: on phones that'd pop the keyboard.
-    (dlg.querySelector<HTMLButtonElement>('.game-option[aria-current="true"]') ?? dlg.querySelector("button"))?.focus();
+    (dlg.querySelector<HTMLButtonElement>('button.game-option[aria-current="true"]') ?? dlg.querySelector<HTMLButtonElement>(".game-option-actions button"))?.focus();
   }
 
   /** The game's own settings, rendered from its field descriptions (host edits, others read). */

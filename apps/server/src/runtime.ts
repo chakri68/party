@@ -103,6 +103,7 @@ interface SeatData {
   presence: Presence;
   joinedAt: number;
   owner: boolean;
+  suggestion?: string;
 }
 
 interface RoomData {
@@ -396,8 +397,7 @@ export class RoomRuntime {
       if (late && !def.manifest.lateJoin) {
         return this.fatal(conn, "game-in-progress", "A game is already going on. Try again after this round.");
       }
-      const freeCap = this.tier() === "free" ? this.host.tierLimits?.freeMaxPlayers ?? Infinity : Infinity;
-      if (this.activeSeats().length >= Math.min(def.manifest.maxPlayers, freeCap)) {
+      if (this.activeSeats().length >= this.maxSeats(def)) {
         return this.fatal(conn, "room-full", "This room is full.");
       }
       seat = {
@@ -447,6 +447,16 @@ export class RoomRuntime {
         if (this.lockedGameIds().includes(msg.gameId)) return this.needsPass(conn);
         data.gameId = msg.gameId;
         data.settings = def.defaultSettings;
+        return this.commit([]);
+      }
+
+      case "suggest-game": {
+        if (!inPhase("lobby", "results")) return;
+        if (msg.gameId !== null && !this.games[msg.gameId]) return this.error(conn, "unknown-game", "That game does not exist.");
+        if ((seat.suggestion ?? null) === msg.gameId) return;
+        if (!this.allow("suggest", seat.id, EMOTE_LIMIT)) return this.error(conn, "rate-limited", "You are sending too fast. Wait a second.");
+        if (msg.gameId === null) delete seat.suggestion;
+        else seat.suggestion = msg.gameId;
         return this.commit([]);
       }
 
@@ -694,6 +704,8 @@ export class RoomRuntime {
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
     this.resetReady();
+    // Suggestions are for the next pick; once a game starts they've done their job.
+    for (const s of data.seats) delete s.suggestion;
     const events = this.applyTransition(transition, true);
     return this.commit(events);
   }
@@ -896,7 +908,14 @@ export class RoomRuntime {
       setupProblem: this.setupProblem(),
       tier: this.tier(),
       lockedGameIds: this.lockedGameIds(),
+      maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
     };
+  }
+
+  /** The selected game's seat count, cut to the free cap in a free room. */
+  private maxSeats(def: AnyGameDefinition): number {
+    const freeCap = this.tier() === "free" ? this.host.tierLimits?.freeMaxPlayers ?? Infinity : Infinity;
+    return Math.min(def.manifest.maxPlayers, freeCap);
   }
 
   private tier(): RoomTier {
