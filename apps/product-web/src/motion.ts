@@ -74,7 +74,9 @@ export function rollText(el: HTMLElement, text: string, delay = 0): void {
 
 function rollNow(el: HTMLElement, text: string, delay: number): void {
   if (el.textContent === text) return;
-  if (reduced()) {
+  // A first fill has nothing to roll out: set it now, so whatever measures
+  // the layout next (morph) sees the real height.
+  if (reduced() || !el.textContent) {
     el.textContent = text;
     return;
   }
