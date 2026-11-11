@@ -116,6 +116,8 @@ func _ready() -> void:
 	remotes = Remotes.new()
 	remotes.name = "Remotes"
 	add_child(remotes)
+	remotes.fleet = fleet
+	bridge.vehicles_set.connect(func(list: Array, _me: String) -> void: remotes.set_seats(list))
 	remotes.viewer = func() -> Vector3: return (focus if focus else walker).global_position
 	bridge.roster_set.connect(_on_roster)
 	avatar.claimed.connect(func(_id: String) -> void: walker.pick_up())

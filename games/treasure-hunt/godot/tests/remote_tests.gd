@@ -27,6 +27,7 @@ func run() -> void:
 	await test_interpolation()
 	await test_models()
 	await test_animation()
+	await test_seats()
 	await test_bridge()
 
 
@@ -174,6 +175,59 @@ func test_animation() -> void:
 	viewer[0] = Vector3(100, 0, 0)
 	r.tick(1.0)
 	check(ap.active, "back within 150 m: animating again")
+	await _done(r)
+
+
+func _veh(id: String, driver: Variant, passenger: Variant, x := 0.0, z := 0.0) -> Dictionary:
+	return {"id": id, "x": x, "y": 0.0, "z": z, "yaw": 0.0, "driver": driver, "passenger": passenger}
+
+
+func test_seats() -> void:
+	var r := _remotes()
+	var fleet := Fleet.new()
+	t.root.add_child(fleet)
+	r.fleet = fleet
+	var list := [_veh("t0", "p2", "p3", 10, 20)]
+	fleet.apply(list, "me")
+	var b := fleet.get_buggy("t0")
+	b.global_transform = Transform3D(Basis(Vector3.UP, 0.7), Vector3(10, 5, 20))
+	r.set_seats(list)
+	r.upsert("p2", _snap(1, 0, 1, 0, "t0"), 0.0)
+	r.upsert("p3", _snap(2, 0, 2, 0, "t0"), 0.0)
+	r.tick(0.05)
+	var d := r.model("p2")
+	var p := r.model("p3")
+	check(d.global_position.distance_to(b.to_global(PlayerAvatar.SEAT)) < 0.05, "the driver sits at the driver's seat (%s)" % d.global_position)
+	check(p.global_position.distance_to(b.to_global(PlayerAvatar.RIDE_SEAT)) < 0.05, "the passenger sits at the other seat")
+	check(d.global_position.distance_to(p.global_position) >= 0.8, "two in one buggy are at least 0.8 m apart")
+	check(d.state() == &"drive" and p.state() == &"sit", "they drive and sit (%s, %s)" % [d.state(), p.state()])
+	check((-d.global_basis.z).distance_to(-b.global_basis.z) < 0.01, "a seated model faces the buggy's forward")
+	b.global_transform = Transform3D(Basis(Vector3.UP, -1.2), Vector3(30, 6, -4))
+	r.tick(0.06)
+	check(d.global_position.distance_to(b.to_global(PlayerAvatar.SEAT)) < 0.05 and p.global_position.distance_to(b.to_global(PlayerAvatar.RIDE_SEAT)) < 0.05, "both follow the buggy when it moves")
+	# Far away: the animation freezes, the seat still follows.
+	r.viewer = func() -> Vector3: return Vector3(1000, 0, 0)
+	r.tick(0.07)
+	var ap: AnimationPlayer = d.find_child("AnimationPlayer", true, false)
+	check(not ap.active, "a seated remote beyond 150 m is frozen")
+	r.viewer = Callable()
+	# Getting out: v null, back on the relayed pos, motion states.
+	r.upsert("p2", _snap(1, 0, 1, 0.3, null), 0.1)
+	r.tick(0.2)
+	check(r.body("p2").global_position.distance_to(Vector3(1, 0, 1)) < 0.01 and d.state() == &"idle", "v null: back at the relayed pos, idle (%s)" % d.state())
+	check(absf(r.body("p2").rotation.x) < 0.001 and absf(r.body("p2").rotation.z) < 0.001, "and upright")
+	# v set but not in a fleet vehicle (or not in the list's seats): relayed pos, idle.
+	r.upsert("p3", _snap(2, 0, 2, 0, "ghost"), 0.3)
+	r.tick(0.4)
+	check(r.body("p3").global_position.distance_to(Vector3(2, 0, 2)) < 0.01 and p.state() == &"idle", "a vehicle not in the fleet: relayed pos, idle (%s)" % p.state())
+	r.upsert("p3", _snap(2, 0, 2, 0, "t0"), 0.5)
+	r.set_seats([_veh("t0", "p2", null)])
+	r.tick(0.6)
+	check(r.body("p3").global_position.distance_to(Vector3(2, 0, 2)) < 0.01 and p.state() == &"idle", "v set but not in the vehicle's seats: relayed pos, idle")
+	r.set_seats([{"id": 5}, "junk", {"id": "t0", "driver": 3, "passenger": null}])
+	r.tick(0.7)
+	check(r.count() == 2, "a bad seats list is skipped without errors")
+	fleet.queue_free()
 	await _done(r)
 
 

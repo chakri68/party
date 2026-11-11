@@ -222,7 +222,7 @@ func test_enter() -> void:
 	_put_walker(Vector3(door.x - 2.0, top + 0.05, door.z))
 	await _frames(2)
 	check(avatar.interact(), "interact 2 m from the door gets in")
-	check(avatar.mode == &"driving" and not walker.visible, "now driving, the walker hidden")
+	check(avatar.mode == &"driving" and walker.model.state() == &"drive", "now driving, the walker's model in the drive pose")
 	check(buggy.driver == walker and main.focus == buggy, "the buggy has a driver, and the streamer follows it")
 	await _frames(30)
 	check(rig.target == buggy and absf(rig.arm.spring_length - RigCamera.PROFILES[&"drive"].length) < 0.01,
@@ -308,7 +308,7 @@ func test_exit_nowhere() -> void:
 	var walls := _hemmed_in(top)
 	walls.append(_box(Vector3(12, 1, 12), Vector3(buggy.global_position.x, top + Buggy.BOX_Y + Buggy.BOX.y * 0.5 + 1.0, buggy.global_position.z)))
 	await _frames(5)
-	check(not avatar.interact() and avatar.mode == &"driving" and not walker.visible, "no clear spot at all: you stay in")
+	check(not avatar.interact() and avatar.mode == &"driving" and walker.model.state() == &"drive", "no clear spot at all: you stay in")
 	for b in walls:
 		(b as Node).queue_free()
 	await _frames(2)

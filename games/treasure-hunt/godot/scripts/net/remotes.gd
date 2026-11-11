@@ -30,12 +30,16 @@ var auto_tick := true
 
 ## Where the viewer is, for the animate range: returns a Vector3. Unset, everyone animates.
 var viewer := Callable()
+## Where the seated sit: a seated remote rides its buggy from here. main sets it.
+var fleet: Fleet
 
 var _me := ""
 ## id -> {name, color: Color, team: int}
 var _roster: Dictionary = {}
 ## id -> Remote
 var _remotes: Dictionary = {}
+## player id -> {v: vehicle id, seat: &"driver" or &"passenger"}, from the vehicles list.
+var _seats: Dictionary = {}
 
 
 class Remote:
@@ -48,6 +52,7 @@ class Remote:
 	var to_yaw: float
 	var t0: float ## when the latest snapshot came
 	var speed := 0.0 ## m/s on the ground between the last two snapshots
+	var v: Variant = null ## the vehicle id the latest snapshot says, or null
 
 	func pose_at(now_s: float) -> Array:
 		var a := clampf((now_s - t0) / LERP_S, 0.0, 1.0)
@@ -114,7 +119,22 @@ func upsert(id: String, snap: Dictionary, now_s: float) -> void:
 		r.speed = Vector2(at.x - r.to_pos.x, at.z - r.to_pos.z).length() / maxf(now_s - r.t0, 0.01)
 	r.to_pos = at
 	r.to_yaw = yaw
+	r.v = snap.get("v") if snap.get("v") is String else null
 	r.t0 = now_s
+
+
+## The vehicles list [{id, driver, passenger, ...}]: who sits where. A remote
+## sits only when this names them in the vehicle their snapshot says (v), and
+## the fleet has that buggy. Anyone else keeps the relayed pos.
+func set_seats(list: Array) -> void:
+	_seats = {}
+	for e in list:
+		if not (e is Dictionary and e.get("id") is String):
+			continue
+		for seat in [&"driver", &"passenger"]:
+			var who: Variant = e.get(String(seat))
+			if who is String:
+				_seats[who] = {"v": e.id, "seat": seat}
 
 
 ## Moves everyone to where they are at `now_s`, and drops the stale.
@@ -124,12 +144,24 @@ func tick(now_s: float) -> void:
 		if now_s - r.t0 > STALE_S:
 			_remove(id)
 			continue
-		var pose := r.pose_at(now_s)
-		r.body.position = pose[0]
-		r.body.rotation.y = pose[1]
-		var near := not viewer.is_valid() or r.body.position.distance_to(viewer.call()) <= ANIMATE_RANGE
+		var seat := &""
+		var b: Buggy = null
+		var s: Dictionary = _seats.get(id, {})
+		if fleet != null and r.v is String and s.get("v") == r.v:
+			b = fleet.get_buggy(r.v)
+			if b != null:
+				seat = s.seat
+		if b != null:
+			# Rides the buggy as it is now, not as the last snapshot had it.
+			var basis := b.global_basis.orthonormalized()
+			r.body.global_transform = Transform3D(basis, b.global_transform * (PlayerAvatar.SEAT if seat == &"driver" else PlayerAvatar.RIDE_SEAT))
+		else:
+			var pose := r.pose_at(now_s)
+			r.body.position = pose[0]
+			r.body.rotation = Vector3(0, pose[1], 0)
+		var near := not viewer.is_valid() or r.body.global_position.distance_to(viewer.call()) <= ANIMATE_RANGE
 		r.model.set_animating(near)
-		r.model.play(CharacterModel.state_for(r.speed if now_s - r.t0 <= STILL_AFTER_S else 0.0, true, 0.0, &""))
+		r.model.play(CharacterModel.state_for(r.speed if now_s - r.t0 <= STILL_AFTER_S else 0.0, true, 0.0, seat))
 
 
 func count() -> int:

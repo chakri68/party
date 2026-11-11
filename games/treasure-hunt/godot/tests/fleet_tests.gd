@@ -47,6 +47,7 @@ func run() -> void:
 	await test_ask_then_confirm()
 	await test_exit()
 	await test_lost_seat()
+	await test_my_model()
 	await test_puppet()
 	await test_ride()
 	await test_full()
@@ -127,7 +128,7 @@ func test_ask_then_confirm() -> void:
 	_vehicles([_t0()]) # the same list again: a resync, not an answer
 	check(avatar.mode == &"foot" and not avatar.pending_seat.is_empty(), "a repeat list that doesn't name me changes nothing")
 	_vehicles([_t0("me")])
-	check(avatar.mode == &"driving" and b.driver == walker and not walker.visible, "confirm as driver: in, with M2's enter")
+	check(avatar.mode == &"driving" and b.driver == walker and walker.model.state() == &"drive", "confirm as driver: in, with M2's enter")
 	check(b.mode == &"local" and b.collision_layer == 2 and b.collision_mask == 1, "confirm as driver → local mode, collider on")
 	check(rig.target == b and rig.profile == &"drive" and main.focus == b, "the camera and streamer follow t0")
 	check(avatar.pending_seat.is_empty(), "the ask is answered")
@@ -135,6 +136,28 @@ func test_ask_then_confirm() -> void:
 	await _frames(15)
 	var p: Dictionary = positions[-1] if positions.size() > 0 else {}
 	check(p.get("v") == "t0" and p.get("foot") == false and absf(float(p.get("yaw", 99.0)) - snappedf(_yaw_of(b), 0.001)) < 0.002, "driving t0, a pos carries v t0, foot false and the forward yaw (%s)" % p)
+
+
+## Me seated: the model shows at the seat, driving or sitting; on foot it's back on the walker.
+func test_my_model() -> void:
+	_vehicles([_t0()])
+	await _seat_in_t0("driver")
+	var b := fleet.get_buggy("t0")
+	var m := walker.model
+	check(avatar.mode == &"driving" and walker.visible and m.is_visible_in_tree() and m.state() == &"drive", "driving: my model is up, in the drive pose")
+	check(m.global_position.distance_to(b.to_global(PlayerAvatar.SEAT)) < 0.15 and m.can_process(), "driving: at the seat, and animating")
+	avatar.interact()
+	check(avatar.mode == &"foot" and walker.visible and m.get_parent() == walker, "out: my model is the walker's again")
+	await _frames(3)
+	check(m.state() != &"drive", "out: motion states again (%s)" % m.state())
+	_vehicles([_t0("p2")])
+	await _seat_in_t0("passenger", {"driver": "p2"})
+	check(avatar.mode == &"riding" and m.is_visible_in_tree() and m.state() == &"sit", "riding: sitting (%s, %s)" % [avatar.mode, m.state()])
+	check(m.global_position.distance_to(b.to_global(PlayerAvatar.RIDE_SEAT)) < 0.15, "riding: at the passenger seat")
+	avatar.interact()
+	_vehicles([_t0()])
+	await _frames(3)
+	check(avatar.mode == &"foot" and m.state() != &"sit", "on foot again, no longer sitting (%s)" % m.state())
 
 
 func test_exit() -> void:
@@ -207,7 +230,7 @@ func test_ride() -> void:
 	check(seats.size() == 1 and seats[0] == {"vehicleId": "t0", "seat": "passenger"}, "driver taken: E asks for the passenger seat (%s)" % [seats])
 	check(avatar.mode == &"foot", "still on foot until the list says so")
 	_vehicles([_t0("p2", "me")])
-	check(avatar.mode == &"riding" and not walker.visible and walker.process_mode == Node.PROCESS_MODE_DISABLED, "named passenger: riding, the walker hidden and off")
+	check(avatar.mode == &"riding" and walker.process_mode == Node.PROCESS_MODE_DISABLED and walker.model.state() == &"sit", "named passenger: riding, the walker off and sitting")
 	check(rig.target == b and rig.profile == &"ride", "the camera rides along, free look")
 	check(b.mode == &"puppet" and b.driver == null, "the buggy is still p2's puppet")
 	var seat := PlayerAvatar.SEAT + Vector3(0.9, 0, 0)

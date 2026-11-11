@@ -116,8 +116,9 @@ func _by_door() -> Buggy:
 	return best
 
 
-## Into `b`'s seat. The walker's hidden and out of physics either way;
-## driving puts the keys on the buggy, riding only the camera.
+## Into `b`'s seat. The walker's out of physics either way, but its model
+## stays up, sitting (drive or sit, which the walker's own _animate, off
+## with the rest of it, doesn't touch); driving puts the keys on the buggy, riding only the camera.
 func _enter(b: Buggy, seat: StringName) -> void:
 	pending_seat = {}
 	buggy = b
@@ -126,7 +127,10 @@ func _enter(b: Buggy, seat: StringName) -> void:
 	walker.set_move(Vector2.ZERO, false, false)
 	walker.cancel_scramble()
 	walker.process_mode = Node.PROCESS_MODE_DISABLED
-	walker.visible = false
+	# Disabled stops the model's AnimationPlayer too; this one keeps going.
+	walker.model.process_mode = Node.PROCESS_MODE_ALWAYS
+	walker.visible = true
+	walker.model.play(&"drive" if seat == &"driver" else &"sit")
 	if seat == &"driver":
 		buggy.driver = walker
 		_snap_to_seat()
@@ -229,6 +233,7 @@ func on_foot() -> void:
 		buggy.driver = null
 		buggy.set_control(0, 0, 0)
 	buggy = null
+	walker.model.process_mode = Node.PROCESS_MODE_INHERIT
 	pending_seat = {}
 	_leaving = ""
 	_set_mode(&"foot")
@@ -264,6 +269,7 @@ func _get_out(forced := false) -> bool:
 	walker.velocity = Vector3.ZERO
 	walker.reset_physics_interpolation()
 	walker.process_mode = Node.PROCESS_MODE_INHERIT
+	walker.model.process_mode = Node.PROCESS_MODE_INHERIT
 	walker.visible = true
 	if mode == &"driving":
 		buggy.driver = null
