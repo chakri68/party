@@ -2,12 +2,87 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Account - CouchParty</title>
+    <title>Your account - CouchParty</title>
+    <meta name="description" content="Sign in to CouchParty to use Host Pass, redeem a code, or delete your account. Only hosts need an account." />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="https://couchpartygames.com/account" />
+    <meta property="og:title" content="Your account - CouchParty" />
+    <meta property="og:description" content="Only hosts need an account. Players never sign up." />
+    <meta property="og:url" content="https://couchpartygames.com/account" />
+    <!--site:head-->
   </head>
   <body>
-    <h1>Account</h1>
-    <p>This page is coming soon.</p>
-    <p><a href="/play">Play now</a></p>
+    <!--site:header-->
+    <main id="main" class="account">
+      <p data-view="loading" class="muted">Loading your account…</p>
+
+      <div data-view="out" hidden>
+        <h1>Sign in</h1>
+        <p class="account-lead">Only hosts need an account. Your friends never sign up.</p>
+      </div>
+      <p data-out-error class="alert" role="alert" hidden></p>
+      <div data-view="out" hidden class="panel">
+        <a data-google class="btn btn-google" href="/api/auth/google" hidden>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#ea4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.2C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285f4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.4 5.7c4.3-4 6.9-9.9 6.9-17.2z"/><path fill="#fbbc05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.6 10.8l7.9-6.2z"/><path fill="#34a853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>
+          Sign in with Google
+        </a>
+        <p data-or class="or" hidden>or</p>
+        <form data-email-form class="stack" novalidate>
+          <label class="field">
+            <span>Email</span>
+            <input class="input" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required />
+          </label>
+          <button class="btn btn-wide" type="submit">Email me a link</button>
+        </form>
+        <p data-email-status class="status" role="status" hidden></p>
+      </div>
+
+      <div data-view="in" hidden>
+        <h1>Your account</h1>
+        <div class="who account-lead">
+          <span class="who-email" data-email></span>
+          <span class="plan-line" data-plan></span>
+        </div>
+      </div>
+      <form data-view="in" hidden data-redeem class="panel">
+        <h2>Have a code?</h2>
+        <div class="row">
+          <label class="field">
+            <span>Code</span>
+            <input class="input input-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-1234" required />
+          </label>
+          <button class="btn" type="submit">Use code</button>
+        </div>
+        <p data-redeem-status class="status" role="status" hidden></p>
+      </form>
+      <div data-view="in" hidden class="panel">
+        <h2>Buy Host Pass</h2>
+        <p class="muted">Buying opens soon. See the plans on the <a href="/pricing">pricing page</a>.</p>
+      </div>
+      <div data-view="in" hidden class="danger-zone">
+        <button type="button" class="btn btn-quiet btn-wide" data-logout>Sign out</button>
+        <button type="button" class="text-btn text-btn-danger" data-delete>Delete account</button>
+        <div class="confirm" data-delete-confirm hidden>
+          <p><strong>Delete your account?</strong></p>
+          <p class="muted">This removes your email, your plan and your codes. You cannot undo this.</p>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-danger" data-delete-yes>Yes, delete my account</button>
+            <button type="button" class="btn btn-quiet" data-delete-no>Keep my account</button>
+          </div>
+          <p class="status" data-tone="bad" data-delete-status role="alert" hidden></p>
+        </div>
+      </div>
+
+      <div data-view="deleted" hidden>
+        <h1>Account deleted</h1>
+        <p class="account-lead">Your account is gone. You can still start free rooms at any time.</p>
+        <p class="after-delete"><a class="btn" href="/play">Start a room</a></p>
+      </div>
+    </main>
+    <!--site:footer-->
+    <script type="module">
+      import { mountAccount } from "/src/account.ts";
+      void mountAccount();
+    </script>
   </body>
 </html>

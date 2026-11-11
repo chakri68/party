@@ -1,5 +1,6 @@
-export type Me = { email: string | null; tier: "free" | "pass"; plan?: unknown };
-export type Config = { turnstileSiteKey: string; googleEnabled: boolean };
+export type Plan = { source: string; endsAt: number | null };
+export type Me = { email: string | null; tier: "free" | "pass"; plan?: Plan | null };
+export type Config = { turnstileSiteKey: string; googleEnabled: boolean; country: string | null };
 export type Result = { ok: true } | { ok: false; error: string };
 
 const FAIL = "Something went wrong. Please try again.";

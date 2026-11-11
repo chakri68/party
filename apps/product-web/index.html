@@ -2,12 +2,179 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CouchParty - CouchParty</title>
+    <title>CouchParty: party games for your group chat</title>
+    <meta name="description" content="Free party games you play on your phones. Start a room, send the link in your group chat, and play. No app. No sign-up for players." />
+    <link rel="canonical" href="https://couchpartygames.com/" />
+    <meta property="og:title" content="CouchParty: party games for your group chat" />
+    <meta property="og:description" content="Start a room, send the link in your group chat, and play on your phones. No app. No sign-up for players." />
+    <meta property="og:url" content="https://couchpartygames.com/" />
+    <!--site:head-->
   </head>
   <body>
-    <h1>CouchParty</h1>
-    <p>This page is coming soon.</p>
-    <p><a href="/play">Play now</a></p>
+    <!--site:header-->
+    <main id="main">
+      <section class="wrap hero" aria-labelledby="hero-title">
+        <div>
+          <h1 id="hero-title">Party games for your group chat<span class="dot">.</span></h1>
+          <p class="hero-lead">Cards, words, drawing and more. Everyone plays on their own phone.</p>
+          <div class="hero-cta">
+            <a class="btn" href="/play">Start a room</a>
+            <p class="muted">No app. No sign-up for players.</p>
+          </div>
+        </div>
+
+        <figure class="chat" aria-label="A group chat where a friend shares a room link and others join.">
+          <div class="chat-top" aria-hidden="true">
+            <span class="chat-avatar">FN</span>
+            <div>
+              <div class="chat-title">Friday night</div>
+              <div class="chat-sub">Priya, Sam, Arjun, Mei, you</div>
+            </div>
+          </div>
+          <ol>
+            <li class="msg">
+              <span class="msg-who">Priya</span>
+              <p>Anyone free to play something?</p>
+            </li>
+            <li class="msg msg-me msg-link">
+              <p>
+                <span class="link-card">
+                  <svg viewBox="0 0 64 64" aria-hidden="true"><g transform="rotate(-14 32 36)"><rect x="11" y="10" width="30" height="42" rx="5" fill="#0e0e0c"/></g><g transform="rotate(10 32 36)"><rect x="23" y="12" width="30" height="42" rx="5" fill="#fffdf8"/><path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#0e0e0c"/></g></svg>
+                  <span><strong>Join my room on CouchParty</strong><span>Tap the link and type your name.</span></span>
+                </span>
+                <span class="link-text">couchpartygames.com/<wbr />room/KQ7P</span>
+              </p>
+            </li>
+            <li class="msg">
+              <span class="msg-who">Sam</span>
+              <p>In!</p>
+            </li>
+            <li class="msg">
+              <span class="msg-who">Arjun</span>
+              <p>Joining now</p>
+            </li>
+            <li class="msg">
+              <span class="msg-who">Mei</span>
+              <p>Me too. Pick Doodle Dash.</p>
+            </li>
+          </ol>
+        </figure>
+      </section>
+
+      <hr class="rule" />
+
+      <section class="wrap block" id="how" aria-labelledby="how-title">
+        <div class="block-head">
+          <h2 id="how-title">How it works</h2>
+          <p>It takes about a minute.</p>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <h3>Start a room.</h3>
+            <p>Tap Start a room and pick a game. You do not need an account.</p>
+          </li>
+          <li class="step">
+            <h3>Send the link in your group chat.</h3>
+            <p>Each room has a short link and a code. Your friends tap it to join.</p>
+          </li>
+          <li class="step">
+            <h3>Everyone plays on their phone.</h3>
+            <p>Sit together on the couch or play over a video call.</p>
+          </li>
+        </ol>
+      </section>
+
+      <hr class="rule" />
+
+      <section class="wrap block" id="games" aria-labelledby="games-title">
+        <div class="block-head">
+          <h2 id="games-title">Games</h2>
+          <p><span data-game-count>25</span> games, and more on the way. You pick one in the room.</p>
+        </div>
+        <div data-gallery>
+          <noscript><p>Turn on JavaScript to see the full list of games.</p></noscript>
+        </div>
+        <p class="gallery-note">Games with the Host Pass tag need Host Pass. All other games are free.</p>
+      </section>
+
+      <section class="band" id="host-pass" aria-labelledby="pass-title">
+        <div class="wrap block">
+          <div class="block-head">
+            <h2 id="pass-title">Host Pass</h2>
+            <p>Host Pass opens all games for your whole room. Only the host pays. Your friends do not need to pay or sign up.</p>
+          </div>
+          <div class="compare">
+            <div class="plan-col">
+              <h3>Free</h3>
+              <p>For anyone. No account.</p>
+              <ul class="ticks">
+                <li>Cards, dice, words and drawing, and hidden role games</li>
+                <li>Up to <span data-free-cap>8</span> players in a room</li>
+                <li>Default word and prompt packs</li>
+              </ul>
+            </div>
+            <div class="plan-col plan-col-pass">
+              <h3>Host Pass</h3>
+              <p>For the host. Sign in with Google or email.</p>
+              <ul class="ticks">
+                <li>Everything in Free</li>
+                <li>Blind Rally, Rally, Treasure Hunt and Frontier</li>
+                <li>Up to 16 players, when the game allows it</li>
+                <li>Covers everyone in your room</li>
+                <li class="soon">Your own word packs <span class="soon-tag">Coming soon</span></li>
+                <li class="soon">Saved game history <span class="soon-tag">Coming soon</span></li>
+                <li class="soon">Room themes and extra emotes <span class="soon-tag">Coming soon</span></li>
+              </ul>
+            </div>
+          </div>
+          <ul class="prices" data-prices aria-label="Host Pass prices">
+            <li class="price"><span class="price-plan">Day</span><span class="price-amount">₹49</span><span class="price-length">24 hours</span></li>
+            <li class="price"><span class="price-plan">Month</span><span class="price-amount">₹149</span><span class="price-length">30 days</span></li>
+            <li class="price"><span class="price-plan">Year</span><span class="price-amount">₹999</span><span class="price-length">365 days</span></li>
+          </ul>
+          <p class="prices-note">Buying opens soon. Have a code? Redeem it on your <a href="/account">account page</a>.</p>
+        </div>
+      </section>
+
+      <section class="wrap block" id="faq" aria-labelledby="faq-title">
+        <div class="block-head">
+          <h2 id="faq-title">Questions</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Do my friends need an account?</summary>
+            <p>No. They open your link, type a name, and play. Only a host with Host Pass signs in.</p>
+          </details>
+          <details>
+            <summary>Do I need to download anything?</summary>
+            <p>No. CouchParty works in the web browser on any phone, tablet or computer.</p>
+          </details>
+          <details>
+            <summary>How many people can play?</summary>
+            <p>It depends on the game. Free rooms take up to <span data-free-cap>8</span> players. With Host Pass, some games take up to 16.</p>
+          </details>
+          <details>
+            <summary>What is Host Pass?</summary>
+            <p>Host Pass is a plan for the host. It opens the big games and bigger rooms for everyone in your room. Players never pay.</p>
+          </details>
+          <details>
+            <summary>Is it free?</summary>
+            <p>Yes. Most games are free, and you do not need an account. Host Pass is only for the extra games and features.</p>
+          </details>
+        </div>
+      </section>
+
+      <hr class="rule" />
+
+      <section class="wrap block closer" aria-labelledby="closer-title">
+        <h2 id="closer-title">Ready to play?</h2>
+        <a class="btn" href="/play">Start a room</a>
+      </section>
+    </main>
+    <!--site:footer-->
+    <script type="module">
+      import { boot } from "/src/landing.ts";
+      boot();
+    </script>
   </body>
 </html>

@@ -1,0 +1,8 @@
+# Rooms are short-lived and private; the public pages are worth indexing.
+User-agent: *
+Disallow: /room/
+Disallow: /api/
+Disallow: /parties/
+Disallow: /account
+
+Sitemap: https://couchpartygames.com/sitemap.xml

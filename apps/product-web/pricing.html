@@ -2,12 +2,89 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pricing - CouchParty</title>
+    <title>Host Pass pricing - CouchParty</title>
+    <meta name="description" content="Host Pass opens all CouchParty games for your whole room. Day, month or year. Only the host pays. Players never pay." />
+    <link rel="canonical" href="https://couchpartygames.com/pricing" />
+    <meta property="og:title" content="Host Pass pricing - CouchParty" />
+    <meta property="og:description" content="One host pays, and the whole room gets every game. Day, month or year." />
+    <meta property="og:url" content="https://couchpartygames.com/pricing" />
+    <!--site:head-->
   </head>
   <body>
-    <h1>Pricing</h1>
-    <p>This page is coming soon.</p>
-    <p><a href="/play">Play now</a></p>
+    <!--site:header-->
+    <main id="main">
+      <div class="wrap page-head">
+        <h1>Host Pass</h1>
+        <p>Most games are free. Host Pass opens the rest for your whole room. Only the host pays.</p>
+      </div>
+
+      <section class="wrap block block-plans" aria-label="Plans and prices">
+        <div class="band band-card">
+          <ul class="prices prices-top" data-prices aria-label="Host Pass prices">
+            <li class="price"><span class="price-plan">Day</span><span class="price-amount">₹49</span><span class="price-length">24 hours</span></li>
+            <li class="price"><span class="price-plan">Month</span><span class="price-amount">₹149</span><span class="price-length">30 days</span></li>
+            <li class="price"><span class="price-plan">Year</span><span class="price-amount">₹999</span><span class="price-length">365 days</span></li>
+          </ul>
+          <p class="prices-note">Buying opens soon. Have a code? Redeem it on your <a href="/account">account page</a>.</p>
+          <div class="compare compare-after">
+            <div class="plan-col">
+              <h3>Free</h3>
+              <p>For anyone. No account.</p>
+              <ul class="ticks">
+                <li>Cards, dice, words and drawing, and hidden role games</li>
+                <li>Up to <span data-free-cap>8</span> players in a room</li>
+                <li>Default word and prompt packs</li>
+              </ul>
+            </div>
+            <div class="plan-col plan-col-pass">
+              <h3>Host Pass</h3>
+              <p>For the host. Sign in with Google or email.</p>
+              <ul class="ticks">
+                <li>Everything in Free</li>
+                <li>Blind Rally, Rally, Treasure Hunt and Frontier</li>
+                <li>Up to 16 players, when the game allows it</li>
+                <li>Covers everyone in your room</li>
+                <li class="soon">Your own word packs <span class="soon-tag">Coming soon</span></li>
+                <li class="soon">Saved game history <span class="soon-tag">Coming soon</span></li>
+                <li class="soon">Room themes and extra emotes <span class="soon-tag">Coming soon</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap block block-after" aria-labelledby="faq-title">
+        <div class="block-head">
+          <h2 id="faq-title">Questions</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Who needs to pay?</summary>
+            <p>Only the host. When you have Host Pass, every room you start gets it. Your friends just open the link and play.</p>
+          </details>
+          <details>
+            <summary>What happens when my pass ends?</summary>
+            <p>A game that is already running keeps going. New rooms you start after that are free rooms.</p>
+          </details>
+          <details>
+            <summary>Do plans renew on their own?</summary>
+            <p>Buying opens soon. We will show how renewal works on this page before you can buy.</p>
+          </details>
+          <details>
+            <summary>Can I get a refund?</summary>
+            <p>Refunds will follow the rules of the payment provider. See the <a href="/terms">terms</a>.</p>
+          </details>
+          <details>
+            <summary>I have a code. What do I do?</summary>
+            <p>Sign in on the <a href="/account">account page</a> and type the code. Your Host Pass starts at once.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <!--site:footer-->
+    <script type="module">
+      import { boot } from "/src/landing.ts";
+      boot();
+    </script>
   </body>
 </html>
