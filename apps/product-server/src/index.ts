@@ -30,14 +30,12 @@ export default {
     if (admin) return admin;
     const upgrade = await handleUpgrade(request, env, realUpgradeDeps);
     if (upgrade) return upgrade;
-    if (new URL(request.url).pathname === "/play") {
-      return env.ASSETS.fetch(new Request(new URL("/play.html", request.url), request));
-    }
     return createFetch({
       policy: productPolicy(realRoomDeps),
       brand: "CouchParty",
-      shellPath: "/play.html",
-      onRoomCreated: recordRoom(env.DB),
+      // Not "/play.html": assets answer that with a 307 to /play (html_handling).
+      shellPath: "/play",
+      onRoomCreated: recordRoom(env.DB, env.IP_HASH_KEY),
     })(request, env);
   },
   // wrangler.jsonc "triggers.crons": hourly cleanup of old rows.

@@ -12,9 +12,9 @@
     "directory": "../product-web/dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/parties/*", "/room/*", "/play", "/blind-rally/godot/*", "/treasure-hunt/godot/*"]
+    "run_worker_first": ["/api/*", "/parties/*", "/room/*", "/blind-rally/godot/*", "/treasure-hunt/godot/*"]
   },
-  // Secrets (wrangler secret put): RESEND_API_KEY, GOOGLE_CLIENT_SECRET, TURNSTILE_SECRET, ADMIN_KEY.
+  // Secrets (wrangler secret put): RESEND_API_KEY, GOOGLE_CLIENT_SECRET, TURNSTILE_SECRET, ADMIN_KEY, IP_HASH_KEY.
   "vars": {
     "DEV_TOOLS": "0",
     "BLIND_RALLY": "1",
