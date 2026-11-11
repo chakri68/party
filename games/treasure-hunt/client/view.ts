@@ -223,7 +223,7 @@ export function rosterFor(game: Pick<THPublic, "players" | "teams">, seats: read
     if (p.spectator || p.removed || p.teamId === null) continue;
     const team = game.teams.find((t) => t.id === p.teamId);
     if (!team) continue;
-    players.push({ id: p.id, name: seats.find((s) => s.id === p.id)?.name ?? "Someone", color: teamColor(team.color).hex, team: team.id });
+    players.push({ id: p.id, name: seats.find((s) => s.id === p.id)?.name ?? "Someone", color: teamColor(team.color).hex, team: team.id, character: p.character });
   }
   return { me, players };
 }

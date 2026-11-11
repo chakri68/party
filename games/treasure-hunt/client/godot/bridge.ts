@@ -1,3 +1,4 @@
+import type { CharacterId } from "../../shared/characters.ts";
 import type { Phase, Seat, TreasureLayout, Vehicle } from "../../shared/types.ts";
 import build from "./godot-build.json";
 
@@ -52,7 +53,7 @@ export interface GodotPos {
 /** Everyone Godot should draw, plus who's us (Godot skips `me`). `color` is "#rrggbb". */
 export interface Roster {
   me: string;
-  players: { id: string; name: string; color: string; team: number }[];
+  players: { id: string; name: string; color: string; team: number; character: CharacterId }[];
 }
 
 /** Every buggy, as the server has them, plus who's us (Godot drives the ones naming `me`). */

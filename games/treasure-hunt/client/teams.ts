@@ -1,7 +1,16 @@
 import { h, replaceChildren } from "@games/ui";
+import { CHARACTERS, CHARACTER_LABELS, defaultCharacter, type CharacterId } from "../shared/characters.ts";
 import { teamColor, type TeamColorKey } from "../shared/teams.ts";
 import type { THAction, THPublic } from "../shared/types.ts";
 import { MAX_TEAMS } from "../shared/world.ts";
+import femaleA from "./characters/female-a.png";
+import femaleB from "./characters/female-b.png";
+import femaleC from "./characters/female-c.png";
+import femaleD from "./characters/female-d.png";
+import maleA from "./characters/male-a.png";
+import maleB from "./characters/male-b.png";
+import maleC from "./characters/male-c.png";
+import maleD from "./characters/male-d.png";
 
 // The teams phase: a panel over the stage while Godot loads under it. Pick a
 // team, make a new one, and the host moves people and starts. Solo is a team
@@ -58,7 +67,24 @@ export function startNote(game: Game): string | null {
   return present(game).some((p) => !p.ready) ? "Players still loading will watch this round." : null;
 }
 
-type TeamAct = Extract<THAction, { type: "team.join" | "team.new" | "team.assign" | "start" }>;
+const CHARACTER_SRC: Record<CharacterId, string> = {
+  "female-a": femaleA,
+  "female-b": femaleB,
+  "female-c": femaleC,
+  "female-d": femaleD,
+  "male-a": maleA,
+  "male-b": maleB,
+  "male-c": maleC,
+  "male-d": maleD,
+};
+
+/** The eight characters in order, with the one I wear marked. */
+export function pickerItems(game: Pick<THPublic, "players">, me: string): { id: CharacterId; label: string; src: string; chosen: boolean }[] {
+  const mine = game.players.find((p) => p.id === me)?.character ?? defaultCharacter(me);
+  return CHARACTERS.map((id) => ({ id, label: CHARACTER_LABELS[id], src: CHARACTER_SRC[id], chosen: id === mine }));
+}
+
+type TeamAct = Extract<THAction, { type: "team.join" | "team.new" | "team.assign" | "start" | "character" }>;
 
 export class TeamsPanel {
   readonly el = h("section", { class: "th-teams", "aria-label": "Teams", hidden: true });
@@ -86,6 +112,25 @@ export class TeamsPanel {
       return select;
     };
 
+    // Under my own name only: eight small faces, the one I wear pressed.
+    const picker = () =>
+      h(
+        "div",
+        { class: "th-picker" },
+        h("span", { class: "th-picker-title" }, "Your character"),
+        h(
+          "div",
+          { class: "th-picker-row" },
+          pickerItems(game, me).map((c) =>
+            h(
+              "button",
+              { type: "button", class: "th-char", "aria-label": c.label, title: c.label, "aria-pressed": String(c.chosen), onclick: () => this.act({ type: "character", id: c.id }) },
+              h("img", { src: c.src, alt: "", width: "48", height: "48" }),
+            ),
+          ),
+        ),
+      );
+
     const row = (r: Row) =>
       h(
         "li",
@@ -101,7 +146,7 @@ export class TeamsPanel {
         h(
           "ul",
           { class: "th-members" },
-          r.members.map((m) => h("li", { class: `th-member${m.ready ? " ready" : ""}` }, h("span", { class: "th-member-text" }, memberText(m)), mover(m, r.id))),
+          r.members.map((m) => h("li", { class: `th-member${m.ready ? " ready" : ""}` }, h("span", { class: "th-member-text" }, memberText(m)), mover(m, r.id), m.you ? picker() : null)),
         ),
       );
 

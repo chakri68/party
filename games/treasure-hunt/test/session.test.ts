@@ -193,8 +193,8 @@ describe("GodotFeed, the other players", () => {
   const roster: Roster = {
     me: "p1",
     players: [
-      { id: "p1", name: "Asha", color: "#e69f00", team: 1 },
-      { id: "p2", name: "Ravi", color: "#56b4e9", team: 2 },
+      { id: "p1", name: "Asha", color: "#e69f00", team: 1, character: "male-a" },
+      { id: "p2", name: "Ravi", color: "#56b4e9", team: 2, character: "female-c" },
     ],
   };
   const setup = () => {
@@ -284,8 +284,8 @@ describe("rosterFor", () => {
       { id: 2, color: "sky", foundCount: 0, poolSize: 3 },
     ],
     players: [
-      { id: "p1", ready: true, spectator: false, removed: false, teamId: 1 },
-      { id: "p2", ready: true, spectator: false, removed: false, teamId: 2 },
+      { id: "p1", ready: true, spectator: false, removed: false, teamId: 1, character: "male-a" },
+      { id: "p2", ready: true, spectator: false, removed: false, teamId: 2, character: "female-c" },
       { id: "p3", ready: false, spectator: true, removed: false, teamId: 2 },
       { id: "p4", ready: true, spectator: false, removed: true, teamId: 1 },
       { id: "p5", ready: true, spectator: false, removed: false, teamId: null },
@@ -296,12 +296,12 @@ describe("rosterFor", () => {
     { id: "p2", name: "Ravi" },
   ];
 
-  it("lists every hunter, me included, with a seat name and the team colour", () => {
+  it("lists every hunter, me included, with a seat name, the team colour and the character", () => {
     expect(rosterFor(game, seats, "p1")).toEqual({
       me: "p1",
       players: [
-        { id: "p1", name: "Asha", color: "#e69f00", team: 1 },
-        { id: "p2", name: "Ravi", color: "#56b4e9", team: 2 },
+        { id: "p1", name: "Asha", color: "#e69f00", team: 1, character: "male-a" },
+        { id: "p2", name: "Ravi", color: "#56b4e9", team: 2, character: "female-c" },
       ],
     });
   });

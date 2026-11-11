@@ -219,3 +219,10 @@
 .th-hot-opens { margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); }
 .th-hot-opens[hidden] { display: none; }
 .th-hot-btn { display: block; margin-top: 6px; font-size: 0.8rem; }
+/* The character picker: eight 48px faces in a wrapping row, mine outlined. */
+.th-picker { flex: 1 1 100%; display: grid; gap: 4px; padding: 4px 0; }
+.th-picker-title { color: var(--muted); font-size: 0.85rem; }
+.th-picker-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.th-char { width: 48px; height: 48px; padding: 0; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); overflow: hidden; line-height: 0; }
+.th-char img { width: 100%; height: 100%; object-fit: cover; }
+.th-char[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }

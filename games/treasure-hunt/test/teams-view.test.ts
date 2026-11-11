@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canStart, memberText, startNote, teamRows } from "../client/teams.ts";
+import { canStart, memberText, pickerItems, startNote, teamRows } from "../client/teams.ts";
 import { clueItems, raceText, scoreText } from "../client/hud.ts";
 import { treasureHuntRules, treasureHuntSettingFields } from "../shared/rules-text.ts";
 import type { THPrivate, THPublic } from "../shared/types.ts";
@@ -144,6 +144,11 @@ describe("treasureHuntSettingFields", () => {
     expect(treasureHuntSettingFields({ time: "random" }, 4).find((x) => x.key === "time")!.hint).toBe("A surprise. Everyone gets the same one.");
   });
 
+  it("rules put the character line right after the teams line", () => {
+    const i = treasureHuntRules.findIndex((r) => r.startsWith("You play in teams."));
+    expect(treasureHuntRules[i + 1]).toBe("Pick your character before the round starts. Your team colour shows on its shirt.");
+  });
+
   it("rules carry the sky lines", () => {
     expect(treasureHuntRules).toContain(
       "A clue names a place on the map, says the cache is between two places, gives a distance and a direction, shows a photo taken near the cache, or says where a shadow ends or a lamp shines.",
@@ -151,5 +156,21 @@ describe("treasureHuntSettingFields", () => {
     expect(treasureHuntRules).toContain("The clock at the top shows the time in the game. It moves 1 minute for every real minute. A shadow clue needs that time.");
     expect(treasureHuntRules.some((r) => r.startsWith("At night, press F to turn your torch on or off."))).toBe(true);
     expect(treasureHuntRules.some((r) => r.startsWith("A clue names a place on the map, says the cache is between two places, or"))).toBe(false);
+  });
+});
+
+describe("pickerItems", () => {
+  const game = pub([{ ...p("p1", 1), character: "male-b" as const }, p("p2", 2)]);
+
+  it("lists the eight in order with their labels and an image each", () => {
+    const items = pickerItems(game, "p1");
+    expect(items.map((i) => i.id)).toEqual(["female-a", "female-b", "female-c", "female-d", "male-a", "male-b", "male-c", "male-d"]);
+    expect(items.map((i) => i.label)).toEqual(["Woman 1", "Woman 2", "Woman 3", "Woman 4", "Man 1", "Man 2", "Man 3", "Man 4"]);
+    expect(items.every((i) => typeof i.src === "string" && i.src.length > 0)).toBe(true);
+  });
+
+  it("marks exactly my public character as chosen", () => {
+    expect(pickerItems(game, "p1").filter((i) => i.chosen).map((i) => i.id)).toEqual(["male-b"]);
+    expect(pickerItems(game, "p2").filter((i) => i.chosen).map((i) => i.id)).toEqual(["female-a"]);
   });
 });

@@ -7,6 +7,7 @@ import { RACE_TARGETS, TIMED_MINUTES } from "./world.ts";
 export const treasureHuntRules: string[] = [
   "You need a computer with a keyboard. It does not work on phones.",
   "You play in teams. Pick a team or make a new one while the map loads. If you play alone, you are a team of one.",
+  "Pick your character before the round starts. Your team colour shows on its shirt.",
   "The host starts the game. Players whose map is still loading watch this round.",
   "Every round is a new map, unless the host picks Same map again. Everyone starts at the same place.",
   "Your team gets a list of clues. Each clue points to one hidden cache.",
