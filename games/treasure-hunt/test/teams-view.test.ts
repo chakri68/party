@@ -89,6 +89,7 @@ describe("clueItems taken", () => {
     const priv: THPrivate = {
       teamId: 1,
       pins: [],
+      hotcold: { used: false, unlockAt: null, active: null },
       revealed: [],
       clues: [
         { id: "c1", clues: ["A."], difficulty: 1, found: false, taken: true, photo: null },

@@ -51,6 +51,7 @@ describe("clueItems", () => {
   const priv: THPrivate = {
     teamId: 1,
     pins: [],
+    hotcold: { used: false, unlockAt: null, active: null },
     clues: [
       { id: "c1", clues: ["Under the red lighthouse."], difficulty: 1, found: false, taken: false, photo: null },
       { id: "c2", clues: ["Between the old camp and the grey plane, nearer the old camp.", "About 100 m from the red lighthouse, at 90°."], difficulty: 2, found: true, taken: false, photo: null },
@@ -75,6 +76,7 @@ describe("photo clues", () => {
   const withPhoto: THPrivate = {
     teamId: 1,
     pins: [],
+    hotcold: { used: false, unlockAt: null, active: null },
     clues: [{ id: "p1", clues: ["A photo."], difficulty: 2, found: false, taken: false, photo: cam }],
     revealed: [],
   };

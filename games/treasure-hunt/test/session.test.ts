@@ -43,6 +43,7 @@ describe("resync", () => {
   const priv: THPrivate = {
     teamId: 1,
     pins: [],
+    hotcold: { used: false, unlockAt: null, active: null },
     clues: [
       { id: "c1", clues: ["a"], difficulty: 1, found: true, taken: false, photo: null },
       { id: "c2", clues: ["b"], difficulty: 2, found: false, taken: false, photo: null },
@@ -94,6 +95,7 @@ describe("GodotFeed", () => {
   const priv = (revealed: THPrivate["revealed"] = []): THPrivate => ({
     teamId: 1,
     pins: [],
+    hotcold: { used: false, unlockAt: null, active: null },
     clues: [{ id: "c1", clues: ["a"], difficulty: 1, found: false, taken: false, photo: null }, { id: "c4", clues: ["b"], difficulty: 2, found: false, taken: false, photo: null }],
     revealed,
   });
@@ -162,7 +164,7 @@ describe("GodotFeed", () => {
 // Bridge v3: the others. The roster goes on every sync, first; a pos relay
 // from someone in it goes straight on as remotePos, tagged with who sent it.
 describe("GodotFeed, the other players", () => {
-  const priv: THPrivate = { teamId: 1, pins: [], clues: [], revealed: [] };
+  const priv: THPrivate = { teamId: 1, pins: [], clues: [], revealed: [], hotcold: { used: false, unlockAt: null, active: null } };
   const roster: Roster = {
     me: "p1",
     players: [
@@ -358,6 +360,7 @@ describe("ClaimLog", () => {
   const priv = (found: string[]): THPrivate => ({
     teamId: 1,
     pins: [],
+    hotcold: { used: false, unlockAt: null, active: null },
     clues: ["c1", "c4"].map((id) => ({ id, clues: ["a"], difficulty: 1, found: found.includes(id), taken: false, photo: null })),
     revealed: [],
   });
@@ -426,7 +429,7 @@ describe("pins", () => {
 
   it("pinsFor: my team's colour on each, mine only where I dropped it", () => {
     const game = { teams: [{ id: 1, color: "sky" }], players: [{ id: "p1", teamId: 1 }] } as unknown as THPublic;
-    const priv = { teamId: 1, pins: [pin, other], clues: [], revealed: [] } as THPrivate;
+    const priv = { teamId: 1, pins: [pin, other], clues: [], revealed: [], hotcold: { used: false, unlockAt: null, active: null } } as THPrivate;
     expect(pinsFor(game, priv, "p1")).toEqual({
       list: [
         { id: "n1", x: 10.5, z: -3, color: "#56b4e9", mine: true },
@@ -438,7 +441,7 @@ describe("pins", () => {
   it("pinsFor: no pins when I have no team or no private state", () => {
     const game = { teams: [{ id: 1, color: "sky" }], players: [{ id: "p1", teamId: null }] } as unknown as THPublic;
     expect(pinsFor(game, null, "p1")).toEqual({ list: [] });
-    expect(pinsFor(game, { teamId: null, pins: [pin], clues: [], revealed: [] } as THPrivate, "p1")).toEqual({ list: [] });
+    expect(pinsFor(game, { teamId: null, pins: [pin], clues: [], revealed: [], hotcold: { used: false, unlockAt: null, active: null } } as THPrivate, "p1")).toEqual({ list: [] });
   });
 
   it("GodotFeed: pins go on every sync, after the buggies", () => {
@@ -447,7 +450,7 @@ describe("pins", () => {
     const roster: Roster = { me: "p1", players: [] };
     const vehicles: Vehicles = { me: "p1", list: [] };
     const pins = { list: [{ id: "n1", x: 1, z: 2, color: "#56b4e9", mine: true }] };
-    feed.update({ teamId: 1, pins: [pin], clues: [], revealed: [] }, "hunting", 1, roster, vehicles, pins);
+    feed.update({ teamId: 1, pins: [pin], clues: [], revealed: [], hotcold: { used: false, unlockAt: null, active: null } }, "hunting", 1, roster, vehicles, pins);
     feed.sync();
     feed.sync();
     for (const calls of sent) {

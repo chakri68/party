@@ -66,7 +66,7 @@ describe("timed mode by team", () => {
     // p1 peeks at Green in the lobby, then goes back to Orange.
     s = act(s, "p1", { type: "team.join", teamId: 3 });
     expect(s.teams.every((t) => t.pool.length === 0)).toBe(true);
-    expect(th.getPrivateState(s, "p1")).toEqual({ teamId: 3, clues: [], revealed: [], pins: [] });
+    expect(th.getPrivateState(s, "p1")).toEqual({ teamId: 3, clues: [], revealed: [], pins: [], hotcold: { used: false, unlockAt: null, active: null } });
     expect(th.getPublicState(s).teams.every((t) => t.poolSize === 0)).toBe(true);
     s = act(s, "p1", { type: "team.join", teamId: 1 });
     for (const id of ["p0", "p1", "p2", "p3"]) s = act(s, id, { type: "ready" });

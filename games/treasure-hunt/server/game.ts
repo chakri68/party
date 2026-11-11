@@ -28,7 +28,9 @@ import {
   type THSettings,
   type THTeam,
   type TreasureLayout,
+  type HotColdLevel,
   type Seat,
+  type THHotCold,
   type Vehicle,
 } from "../shared/types.ts";
 import { isTeamColorKey, TEAM_COLORS, teamColor, type TeamColorKey } from "../shared/teams.ts";
@@ -36,6 +38,9 @@ import {
   CLAIM_CHECK,
   COUNTDOWN_MS,
   HEIGHT_TOL,
+  HOTCOLD_MS,
+  HOTCOLD_RACE_UNLOCK_MS,
+  hotColdLevel,
   JUMP_GRACE_MS,
   MAX_SPEED,
   MAX_TEAMS,
@@ -111,6 +116,10 @@ export interface THServerTeam extends THTeam {
   /** Revealed to the team, by whichever member got close first. */
   revealed: string[];
   lastClaimAt: number | null;
+  /** The live Hot or cold signal. `?? null` on rooms saved before it. */
+  hotcold: { id: string; until: number } | null;
+  /** The team's one use is spent. `?? false` on old rooms. */
+  hotcoldUsed: boolean;
 }
 
 export interface THServerPlayer extends THPlayer {
@@ -123,6 +132,8 @@ export interface THServerPlayer extends THPlayer {
   routeLast: { at: number; x: number; z: number } | null;
   /** Points are kept TRACK_MIN_MS × this apart. Doubles each time the route hits TRACK_CAP. `?? 1` on old rooms. */
   routeStep: number;
+  /** The last Hot or cold level relayed to this player. In memory. `?? null` on old rooms. */
+  hcLevel: HotColdLevel | null;
 }
 
 /** A claim, kept for the replay. */
@@ -275,7 +286,7 @@ function newTeam(s: THState, color: TeamColorKey | null = null): THServerTeam | 
   if (s.teams.length >= MAX_TEAMS) return null;
   const c = color && !s.teams.some((t) => t.color === color) ? color : freeColor(s.teams);
   if (!c) return null;
-  const team: THServerTeam = { id: freeId(s.teams), color: c, pool: [], found: [], revealed: [], lastClaimAt: null };
+  const team: THServerTeam = { id: freeId(s.teams), color: c, pool: [], found: [], revealed: [], lastClaimAt: null, hotcold: null, hotcoldUsed: false };
   s.teams.push(team);
   s.teams.sort((a, b) => a.id - b.id);
   return team;
@@ -403,6 +414,40 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   const timers: TimerRequest[] = [];
   if (allDone(next)) finish(next, ctx, events, timers);
   return ok(next, events, timers);
+}
+
+/** When Hot or cold opens, in server ms. Timed: halfway. Race: HOTCOLD_RACE_UNLOCK_MS in. null before hunting. */
+const hotcoldUnlockAt = (s: THState): number | null =>
+  s.startedAt === null || s.endsAt === null ? null : race(s) ? s.startedAt + HOTCOLD_RACE_UNLOCK_MS : s.startedAt + (s.endsAt - s.startedAt) / 2;
+
+/** The team's live signal: not run out, and its cache still unclaimed. No timer; read it when needed. */
+function liveHotcold(s: THState, team: THServerTeam, now: number): { id: string; until: number } | null {
+  const h = team.hotcold ?? null;
+  return h && now < h.until && !claimedBy(s, h.id) ? h : null;
+}
+
+/** getPrivateState has no ctx. The newest position any player streamed is the server's last known time. */
+const clockOf = (s: THState): number => s.players.reduce((m, p) => Math.max(m, p.pos?.at ?? NEVER), s.startedAt ?? NEVER);
+
+function hotcold(s: THState, playerId: string, cacheId: string, ctx: GameContext): GameResult<THState, THEvent> {
+  if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on.");
+  const me = s.players.find((p) => p.id === playerId);
+  const team = me && teamOf(s, me);
+  if (!me || me.removed || me.spectator || !team || !s.caches.some((c) => c.id === cacheId) || !board(s, team).includes(cacheId)) {
+    return reject("not-yours", "That cache is not on your team's list.");
+  }
+  const by = claimedBy(s, cacheId);
+  if (by && by.id !== team.id) return reject("taken", "Another team found this cache first.");
+  if (team.found.includes(cacheId)) return reject("already-found", "Your team already found this cache.");
+  const unlockAt = hotcoldUnlockAt(s);
+  if (unlockAt === null || ctx.now < unlockAt) return reject("hotcold-locked", "Hot or cold opens later.");
+  if (team.hotcoldUsed ?? false) return reject("hotcold-used", "Your team already used Hot or cold.");
+  const next = clone(s);
+  const t = next.teams.find((x) => x.id === team.id)!;
+  t.hotcold = { id: cacheId, until: ctx.now + HOTCOLD_MS };
+  t.hotcoldUsed = true;
+  for (const p of members(next, team.id)) p.hcLevel = null;
+  return ok(next, [], []);
 }
 
 const PIN_LIMIT = 950;
@@ -584,6 +629,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
     if (a.type === "seat" && typeof a.vehicleId === "string" && a.vehicleId.length >= 1 && a.vehicleId.length <= 8 && (a.seat === "driver" || a.seat === "passenger"))
       return { type: "seat", vehicleId: a.vehicleId, seat: a.seat };
     if (a.type === "pin" && typeof a.x === "number" && typeof a.z === "number") return { type: "pin", x: a.x, z: a.z };
+    if (a.type === "hotcold" && typeof a.cacheId === "string" && a.cacheId.length <= 16) return { type: "hotcold", cacheId: a.cacheId };
     if (a.type === "unpin" && typeof a.pinId === "string" && a.pinId.length <= 8) return { type: "unpin", pinId: a.pinId };
     if (a.type === "unseat") {
       const { x, y, z, yaw } = a;
@@ -619,6 +665,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         route: [],
         routeLast: null,
         routeStep: 1,
+        hcLevel: null,
       })),
       finds: [],
       vehicles: [],
@@ -636,6 +683,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   handleAction(state, playerId, action, ctx) {
     if (action.type === "claim") return claim(state, playerId, action.cacheId, ctx);
+    if (action.type === "hotcold") return hotcold(state, playerId, action.cacheId, ctx);
     if (action.type === "pin" || action.type === "unpin") return pinAction(state, playerId, action);
     if (action.type === "seat" || action.type === "unseat") return seatAction(state, playerId, action, ctx);
     const s = clone(state);
@@ -736,6 +784,20 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       relays.push({ to, data });
     }
 
+    // Hot or cold goes to the one hunter who is near, and only when their level moves.
+    // Not during a jump: a spoofed sweep would otherwise find the cache.
+    let hcLevel = me.hcLevel ?? null;
+    const live = team && !jumping ? liveHotcold(state, team, now) : null;
+    const target = live && state.caches.find((c) => c.id === live.id);
+    if (live && target) {
+      const level = hotColdLevel(Math.hypot(target.x - next.x, target.z - next.z));
+      if (level !== hcLevel) {
+        hcLevel = level;
+        const data: THHotCold = { t: "hotcold", id: live.id, level };
+        relays.push({ to: [playerId], data });
+      }
+    }
+
     // A route point: at most one per TRACK_MIN_MS × routeStep, and only after TRACK_MIN_M of walking.
     // At TRACK_CAP every other point goes (both ends stay) and the step doubles, so a long
     // round keeps its whole route at a lower rate. `?? []`, `?? 1`: rooms saved before these.
@@ -754,10 +816,10 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       }
     }
 
-    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, route, routeLast, routeStep };
+    const player: THServerPlayer = { ...me, pos: { ...next, at: now }, jumpAt, route, routeLast, routeStep, hcLevel };
     const players = state.players.map((p) => (p.id === playerId ? player : p));
     const relay: THPosRelay = { t: "pos", x: round2(snap.x), y: round2(snap.y), z: round2(snap.z), yaw: round2(snap.yaw), foot: !held, v: held?.v.id ?? null };
-    const teams = relays.length ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
+    const teams = revealed.length !== (team?.revealed.length ?? 0) ? state.teams.map((t) => (t === team ? { ...t, revealed } : t)) : state.teams;
     // The driver's snapshot is the buggy's pose. In memory, like everything here, until the next write.
     const vehicles =
       held?.seat !== "driver" ? state.vehicles : state.vehicles.map((v) => (v === held.v ? { ...v, x: relay.x, y: relay.y, z: relay.z, yaw: relay.yaw } : v));
@@ -789,7 +851,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   getPrivateState(s, playerId) {
     const me = s.players.find((p) => p.id === playerId);
     const team = me && !me.removed ? teamOf(s, me) : undefined;
-    if (!team) return { teamId: null, clues: [], revealed: [], pins: [] };
+    if (!team) return { teamId: null, clues: [], revealed: [], pins: [], hotcold: { used: false, unlockAt: null, active: null } };
     const cache = (id: string) => s.caches.find((c) => c.id === id)!;
     // Spectators get the same board: they watch, they can't claim.
     return {
@@ -805,6 +867,14 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         return { id, x: round1(c.x), z: round1(c.z), dy: c.dy };
       }),
       pins: (s.pins ?? []).filter((p) => p.team === team.id).map(({ id, by, x, z }) => ({ id, by, x, z })),
+      hotcold: {
+        used: team.hotcoldUsed ?? false,
+        unlockAt: hotcoldUnlockAt(s),
+        active: (() => {
+          const h = team.hotcold ?? null;
+          return h && s.phase === "hunting" && !claimedBy(s, h.id) && clockOf(s) < h.until ? { id: h.id, until: h.until, level: me!.hcLevel ?? null } : null;
+        })(),
+      },
     };
   },
 

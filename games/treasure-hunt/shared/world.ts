@@ -67,3 +67,17 @@ export const HEIGHT_TOL = 20;
 export const COUNTDOWN_MS = 3000;
 /** Timed round lengths. The default is 30. */
 export const TIMED_MINUTES = [15, 30, 60] as const;
+
+/** How long a Hot or cold signal runs (ms). */
+export const HOTCOLD_MS = 180_000;
+/** Race: Hot or cold opens this long after the hunt starts (ms). Timed opens at the halfway point. */
+export const HOTCOLD_RACE_UNLOCK_MS = 600_000;
+/** Metres. Under the first is hottest; at the last or beyond is coldest. */
+export const HOTCOLD_BANDS = [50, 150, 300] as const;
+/** 3 is hottest, 0 is coldest. */
+export function hotColdLevel(dist: number): 0 | 1 | 2 | 3 {
+  if (dist < HOTCOLD_BANDS[0]) return 3;
+  if (dist < HOTCOLD_BANDS[1]) return 2;
+  if (dist < HOTCOLD_BANDS[2]) return 1;
+  return 0;
+}

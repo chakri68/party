@@ -163,7 +163,11 @@ export interface THPrivate {
   revealed: { id: string; x: number; z: number; dy: number }[];
   /** My team's pins, oldest first. */
   pins: Pin[];
+  /** Hot or cold: one use a team. unlockAt is server ms, null before hunting. level is my last relayed level, or null. */
+  hotcold: { used: boolean; unlockAt: number | null; active: { id: string; until: number; level: HotColdLevel | null } | null };
 }
+
+export type HotColdLevel = 0 | 1 | 2 | 3;
 
 export type THAction =
   | { type: "ready" }
@@ -178,6 +182,7 @@ export type THAction =
   | { type: "seat"; vehicleId: string; seat: Seat }
   | { type: "pin"; x: number; z: number }
   | { type: "unpin"; pinId: string }
+  | { type: "hotcold"; cacheId: string }
   /** Where you got out. A driver's buggy rests here, clamped near its last streamed pose. */
   | { type: "unseat"; x: number; y: number; z: number; yaw: number };
 
@@ -211,6 +216,9 @@ export interface THReplay {
 }
 /** Server → a whole team, the first time any of its hunters comes within REVEAL_RADIUS of a pool cache. */
 export type THReveal = { t: "reveal"; id: string; x: number; z: number; dy: number };
+
+/** Server → one hunter, when their Hot or cold level changes. */
+export type THHotCold = { t: "hotcold"; id: string; level: HotColdLevel };
 
 export type THEvent =
   | { type: "countdown"; spectators: string[] }

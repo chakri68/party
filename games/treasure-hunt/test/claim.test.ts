@@ -412,7 +412,7 @@ describe("secrecy", () => {
     expect(priv.revealed).toEqual([]);
     expect(priv.teamId).toBe(me(s, "p0").teamId);
     expect(priv.pins).toEqual([]);
-    expect(th.getPrivateState(s, "nobody")).toEqual({ teamId: null, clues: [], revealed: [], pins: [] });
+    expect(th.getPrivateState(s, "nobody")).toEqual({ teamId: null, clues: [], revealed: [], pins: [], hotcold: { used: false, unlockAt: null, active: null } });
   });
 
   it("a removed player gets no private state", () => {
@@ -421,6 +421,6 @@ describe("secrecy", () => {
     s = standOn(s, "p0", cid, 11_000);
     expect(th.getPrivateState(s, "p0").revealed.length).toBeGreaterThan(0);
     s = th.onPlayerRemoved!(s, "p0", ctx(12_000)).state;
-    expect(th.getPrivateState(s, "p0")).toEqual({ teamId: null, clues: [], revealed: [], pins: [] });
+    expect(th.getPrivateState(s, "p0")).toEqual({ teamId: null, clues: [], revealed: [], pins: [], hotcold: { used: false, unlockAt: null, active: null } });
   });
 });

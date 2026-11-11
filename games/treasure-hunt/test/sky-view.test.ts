@@ -12,6 +12,7 @@ const cam = (x: number, z: number): PhotoCam => ({ x, z, yaw: 0.5, pitch: 0.1, f
 const priv = (photos: (PhotoCam | null)[]): THPrivate => ({
   teamId: 1,
   pins: [],
+  hotcold: { used: false, unlockAt: null, active: null },
   revealed: [],
   clues: photos.map((photo, i) => ({ id: `c${i + 1}`, clues: ["a"], difficulty: 2, found: false, taken: false, photo })),
 });
