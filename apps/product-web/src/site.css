@@ -427,20 +427,41 @@ img, svg { display: block; }
 .who-email { font-weight: 700; font-size: 1.125rem; word-break: break-all; }
 /* Account: the plan card. Host Pass gets the accent edge, like its column on the pricing page. */
 .plan-card { gap: 6px; }
-/* An active pass is the green card: a flat deep lime-green (white text needs
-   the depth; on the bright lime it would be unreadable) with the bright
-   lime kept for the bar and the dot, and a soft lime glow. */
+/* An active pass is a real card: credit-card shape, ink black, two flat
+   circles for card art, lime for the bits that say "on". No gradients. */
 .plan-card[data-tier="pass"] {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: #3d6209;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  aspect-ratio: 1.586;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 22px 24px;
+  border: 0;
+  border-radius: 18px;
+  background: #0e0e0c;
   color: #fff;
-  box-shadow: 0 10px 40px -12px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.12), 0 18px 36px -18px rgb(0 0 0 / 0.45);
 }
-.plan-card[data-tier="pass"] :is(.plan-kind, .plan-perks) { color: rgb(255 255 255 / 0.72); }
+.plan-card[data-tier="pass"]::before,
+.plan-card[data-tier="pass"]::after { content: ""; position: absolute; z-index: -1; border-radius: 50%; aspect-ratio: 1; }
+.plan-card[data-tier="pass"]::before { width: 78%; right: -30%; top: -46%; background: #1c1c19; }
+.plan-card[data-tier="pass"]::after { width: 56%; right: -16%; bottom: -40%; background: #262622; }
+.plan-card[data-tier="pass"] .plan-kind { margin-top: auto; padding-top: 20px; font-size: 0.75rem; letter-spacing: 0.14em; color: rgb(255 255 255 / 0.68); }
+.plan-card[data-tier="pass"] .plan-left { margin-top: 2px; }
 .plan-card[data-tier="pass"] .plan-status { color: #fff; }
-.plan-card[data-tier="pass"] .plan-status::before { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 10px var(--accent); }
-.plan-card[data-tier="pass"] .plan-bar { background: rgb(255 255 255 / 0.18); }
-.plan-card[data-tier="pass"] .plan-bar-fill { background: var(--accent); }
+.plan-card[data-tier="pass"] .plan-bar { height: 6px; margin: 12px 0 10px; background: rgb(255 255 255 / 0.16); }
+.plan-card[data-tier="pass"] :is(.plan-ends, .plan-perks) { font-size: 0.875rem; color: rgb(255 255 255 / 0.68); }
+/* On the dark page the ink card would melt into the page: lift it a step. */
+@media (prefers-color-scheme: dark) {
+  .plan-card[data-tier="pass"] { background: #1e1e1a; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), 0 18px 36px -18px rgb(0 0 0 / 0.8); }
+  .plan-card[data-tier="pass"]::before { background: #272722; }
+  .plan-card[data-tier="pass"]::after { background: #30302a; }
+}
+.plan-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; }
+.plan-brand svg { width: 28px; height: 28px; }
+.plan-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; }
 .plan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .plan-kind { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .plan-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }

@@ -132,8 +132,8 @@ function renderPlan(card: HTMLElement, f: PlanFacts): void {
     return;
   }
   const head = el("div", "plan-top");
-  head.append(el("p", "plan-kind", "Host Pass"), el("span", "plan-status", "Active"));
-  const parts: Node[] = [head, el("p", "plan-left", f.headline)];
+  head.append(brand(), el("span", "plan-status", "Active"));
+  const parts: Node[] = [head, el("p", "plan-kind", "Host Pass"), el("p", "plan-left", f.headline)];
   if (f.left !== null) {
     const bar = el("div", "plan-bar");
     bar.setAttribute("role", "img");
@@ -144,9 +144,22 @@ function renderPlan(card: HTMLElement, f: PlanFacts): void {
     parts.push(bar);
     growBar(fillEl);
   }
-  if (f.ends) parts.push(el("p", "plan-ends", f.ends));
-  parts.push(el("p", "plan-perks", "All games. Up to 16 players."));
+  const foot = el("div", "plan-foot");
+  if (f.ends) foot.append(el("p", "plan-ends", f.ends));
+  foot.append(el("p", "plan-perks", "All games, 16 players"));
+  parts.push(foot);
   card.replaceChildren(...parts);
+}
+
+// The header's two-card mark, so the pass reads like a card we issued.
+const MARK =
+  '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="rotate(-14 32 36)"><rect x="11" y="10" width="30" height="42" rx="5" fill="#c6f432"/></g><g transform="rotate(10 32 36)"><rect x="23" y="12" width="30" height="42" rx="5" fill="#fffdf8"/><path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#0e0e0c"/></g></svg>';
+
+function brand(): HTMLElement {
+  const b = el("span", "plan-brand");
+  b.innerHTML = MARK;
+  b.append("CouchParty");
+  return b;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K] {
