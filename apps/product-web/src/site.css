@@ -425,9 +425,20 @@ img, svg { display: block; }
 .alert { padding: 12px 14px; border: 1px solid currentColor; border-radius: 12px; font-weight: 500; }
 .who { display: grid; gap: 4px; }
 .who-email { font-weight: 700; font-size: 1.125rem; word-break: break-all; }
-.plan-line { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
-.plan-line[data-tier="pass"] { color: var(--ink); font-weight: 500; }
-.plan-line[data-tier="pass"]::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--accent-ink) inset; }
+/* Account: the plan card. Host Pass gets the accent edge, like its column on the pricing page. */
+.plan-card { gap: 6px; }
+.plan-card[data-tier="pass"] { border-color: var(--accent); }
+.plan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plan-kind { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.plan-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
+.plan-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.plan-left { margin-top: 6px; font-size: clamp(1.75rem, 6vw, 2.25rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.plan-bar { height: 8px; margin: 8px 0 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.plan-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--accent); transform-origin: left center; }
+.plan-ends { font-weight: 500; }
+.plan-perks { color: var(--muted); font-size: 0.9375rem; }
+.plan-cta { margin-top: 6px; font-weight: 600; color: var(--ink); text-underline-offset: 3px; }
+.plan-cta::after { content: " →"; }
 .danger-zone { display: grid; gap: 12px; padding-top: 8px; }
 .confirm { display: grid; gap: 12px; padding: 18px; border: 1.5px solid var(--bad); border-radius: 16px; }
 .confirm-actions { display: flex; flex-wrap: wrap; gap: 10px; }

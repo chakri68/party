@@ -40,7 +40,13 @@ describe("entitlements", () => {
     const db = await withUser();
     await grant(db, "u1", { source: "grant", plan: "day", days: 1, ref: "a" }, now);
     await grant(db, "u1", { source: "comp", plan: "forever", days: null, ref: "b" }, now);
-    expect(await activePlan(db, "u1", now)).toEqual({ source: "comp", endsAt: null });
+    expect(await activePlan(db, "u1", now)).toEqual({ source: "comp", startsAt: now, endsAt: null });
     expect(await activePlan(db, "nobody", now)).toBeNull();
+  });
+
+  it("activePlan gives the row's start and end, for the account page's bar", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "comp", plan: "comp", days: 30, ref: "c" }, now);
+    expect(await activePlan(db, "u1", now + 1000)).toEqual({ source: "comp", startsAt: now, endsAt: now + 30 * 86_400_000 });
   });
 });

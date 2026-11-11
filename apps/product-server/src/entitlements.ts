@@ -33,13 +33,13 @@ export async function activePlan(
   db: Db,
   userId: string,
   now: number,
-): Promise<{ source: EntitlementSource; endsAt: number | null } | null> {
+): Promise<{ source: EntitlementSource; startsAt: number; endsAt: number | null } | null> {
   const row = await db
     .prepare(
-      `SELECT source, ends_at FROM entitlements WHERE ${ACTIVE}
+      `SELECT source, starts_at, ends_at FROM entitlements WHERE ${ACTIVE}
        ORDER BY ends_at IS NULL DESC, ends_at DESC LIMIT 1`,
     )
     .bind(userId, now, now)
-    .first<{ source: EntitlementSource; ends_at: number | null }>();
-  return row ? { source: row.source, endsAt: row.ends_at } : null;
+    .first<{ source: EntitlementSource; starts_at: number; ends_at: number | null }>();
+  return row ? { source: row.source, startsAt: row.starts_at, endsAt: row.ends_at } : null;
 }

@@ -105,3 +105,9 @@ export function fadeIn(el: Element): void {
   if (reduced()) return;
   el.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: EASE });
 }
+
+/** A progress fill growing out from its left edge to the width it was given. */
+export function growBar(el: HTMLElement): void {
+  if (reduced()) return;
+  el.animate([{ transform: "scaleX(0)" }, { transform: "none" }], { duration: 700, delay: 120, easing: EASE, fill: "backwards" });
+}

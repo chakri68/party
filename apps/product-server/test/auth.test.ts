@@ -307,7 +307,7 @@ describe("session", () => {
     expect(await (await s.call("GET", "/api/me", { cookie })).json()).toEqual({
       email: "a@x.com",
       tier: "pass",
-      plan: { source: "grant", endsAt: null },
+      plan: { source: "grant", startsAt: T0, endsAt: null },
     });
   });
 

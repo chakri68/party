@@ -2,17 +2,41 @@
 
 import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, startEmailSignIn, type Me } from "./api.ts";
 import { getTurnstileToken } from "./turnstile.ts";
-import { morph, rollText } from "./motion.ts";
+import { FREE_MAX_PLAYERS } from "@games/product-server/catalog-data";
+import { growBar, morph } from "./motion.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "Host Pass until 12 Dec 2026", "Host Pass, no end date" or "Free". Local date. */
-export function planLine(m: Me): string {
-  if (m.tier !== "pass") return "Free";
+const DAY = 86_400_000;
+
+export type PlanFacts =
+  | { tier: "free" }
+  | {
+      tier: "pass";
+      /** Big line: "31 days left", "1 day left", or "No end date". */
+      headline: string;
+      /** "Ends 12 Dec 2026", or null when it doesn't end. */
+      ends: string | null;
+      /** Share of the pass still left, 0–1, or null with no end or no start. */
+      left: number | null;
+    };
+
+/** What the account page's plan card says. Pure, so it's tested without a page. */
+export function planFacts(m: Me, now: number): PlanFacts {
+  if (m.tier !== "pass") return { tier: "free" };
   const end = m.plan?.endsAt ?? null;
-  if (end === null) return "Host Pass, no end date";
+  if (end === null) return { tier: "pass", headline: "No end date", ends: null, left: null };
+  const days = Math.max(1, Math.ceil((end - now) / DAY));
   const d = new Date(end);
-  return `Host Pass until ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const start = m.plan?.startsAt;
+  const left = start !== undefined && end > start ? Math.min(1, Math.max(0, (end - now) / (end - start))) : null;
+  return {
+    tier: "pass",
+    headline: days === 1 ? "1 day left" : `${days} days left`,
+    ends: `Ends ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+    left,
+  };
 }
 
 /** Only same-site paths. Anything else goes back to this page. */
@@ -97,13 +121,52 @@ function signedOut(next: string, error: string | null): void {
   });
 }
 
+function renderPlan(card: HTMLElement, f: PlanFacts): void {
+  card.dataset.tier = f.tier;
+  if (f.tier === "free") {
+    card.replaceChildren(
+      el("p", "plan-kind", "Free"),
+      el("p", "plan-perks", `Up to ${FREE_MAX_PLAYERS} players. Most games.`),
+      Object.assign(el("a", "plan-cta", "Get Host Pass"), { href: "/pricing" }),
+    );
+    return;
+  }
+  const head = el("div", "plan-top");
+  head.append(el("p", "plan-kind", "Host Pass"), el("span", "plan-status", "Active"));
+  const parts: Node[] = [head, el("p", "plan-left", f.headline)];
+  if (f.left !== null) {
+    const bar = el("div", "plan-bar");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", `${Math.round(f.left * 100)}% of your pass is left`);
+    const fillEl = el("span", "plan-bar-fill");
+    fillEl.style.width = `${(f.left * 100).toFixed(1)}%`;
+    bar.append(fillEl);
+    parts.push(bar);
+    growBar(fillEl);
+  }
+  if (f.ends) parts.push(el("p", "plan-ends", f.ends));
+  parts.push(el("p", "plan-perks", "All games. Up to 16 players."));
+  card.replaceChildren(...parts);
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 function signedIn(m: Me): void {
   showView("in", true);
   $("[data-email]").textContent = m.email ?? "";
-  const plan = $("[data-plan]");
+  const card = $("[data-plan]");
+  let first = true;
   const show = (who: Me) => {
-    rollText(plan, planLine(who));
-    plan.dataset.tier = who.tier;
+    const fill = () => renderPlan(card, planFacts(who, Date.now()));
+    // First time it rides the page's own reveal; after a redeem it eases to its new size.
+    if (first) fill();
+    else morph(card, fill);
+    first = false;
   };
   show(m);
 

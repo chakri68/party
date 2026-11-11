@@ -1,6 +1,6 @@
 import { GAME_SECTIONS } from "@games/web/games";
 import { describe, expect, it } from "vitest";
-import { outErrorMessage, planLine } from "../src/account.ts";
+import { outErrorMessage, planFacts } from "../src/account.ts";
 import { galleryModel, priceTable } from "../src/landing.ts";
 
 describe("galleryModel", () => {
@@ -34,11 +34,31 @@ describe("priceTable", () => {
   });
 });
 
-describe("planLine", () => {
-  it("names the plan and its end date", () => {
-    expect(planLine({ email: "a@b.c", tier: "pass", plan: { source: "comp", endsAt: Date.UTC(2026, 11, 12, 10) } })).toBe("Host Pass until 12 Dec 2026");
-    expect(planLine({ email: "a@b.c", tier: "pass", plan: { source: "grant", endsAt: null } })).toBe("Host Pass, no end date");
-    expect(planLine({ email: "a@b.c", tier: "free", plan: null })).toBe("Free");
+describe("planFacts", () => {
+  const DAY = 86_400_000;
+  const end = Date.UTC(2026, 11, 12, 10);
+  const pass = (plan: { startsAt?: number; endsAt: number | null }) => ({ email: "a@b.c", tier: "pass" as const, plan: { source: "comp", ...plan } });
+
+  it("counts days left, names the end date, and how much is left", () => {
+    expect(planFacts(pass({ startsAt: end - 30 * DAY, endsAt: end }), end - 10 * DAY)).toEqual({
+      tier: "pass",
+      headline: "10 days left",
+      ends: "Ends 12 Dec 2026",
+      left: 10 / 30,
+    });
+  });
+
+  it("rounds a part day up, and never says 0 days while the pass is on", () => {
+    expect(planFacts(pass({ endsAt: end }), end - 2 * 3_600_000)).toMatchObject({ headline: "1 day left", left: null });
+    expect(planFacts(pass({ endsAt: end }), end - DAY - 1)).toMatchObject({ headline: "2 days left" });
+  });
+
+  it("has no date or bar for a pass with no end", () => {
+    expect(planFacts(pass({ endsAt: null }), end)).toEqual({ tier: "pass", headline: "No end date", ends: null, left: null });
+  });
+
+  it("free is free", () => {
+    expect(planFacts({ email: "a@b.c", tier: "free", plan: null }, end)).toEqual({ tier: "free" });
   });
 });
 
