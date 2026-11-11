@@ -1,7 +1,7 @@
 import { isValidRoomCode } from "@games/protocol";
 import { json, type HostPolicy } from "@games/server/policy";
 import { getServerByName } from "partyserver";
-import { newId, sha256Hex, type Db } from "./db.ts";
+import { hmacHex, newId, type Db } from "./db.ts";
 import { tierFor } from "./entitlements.ts";
 import type { ProductEnv } from "./env.ts";
 import { clientIp } from "./http.ts";
@@ -12,6 +12,15 @@ const WINDOW_MS = 6 * 3_600_000;
 const MAX_FREE_PER_IP = 5;
 const MAX_FREE_TOTAL = 2000;
 const TOO_MANY = "Too many rooms right now. Please try again later.";
+
+/**
+ * The IP as stored in `rooms`: keyed, so a leaked table can't be reversed by
+ * hashing every IPv4. No key means no room, never an unkeyed hash.
+ */
+export function ipHash(key: string | undefined, ip: string): Promise<string> {
+  if (!key) throw new Error("IP_HASH_KEY is not set (wrangler secret put IP_HASH_KEY)");
+  return hmacHex(key, ip);
+}
 
 export interface RoomDeps {
   now(): number;
@@ -32,6 +41,8 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
 
       const user = await userFromRequest(env.DB, request, now);
       if (user && (await tierFor(env.DB, user.id, now)) === "pass") {
+        // No Turnstile and no caps for Host Pass, but a runaway script still gets slowed.
+        if (!(await env.CREATE_LIMIT.limit({ key: `user:${user.id}` })).success) return { ok: false, response: json({ error: TOO_MANY }, 429) };
         return { ok: true, grant: { tier: "pass", hostKey }, extra: { hostKey } };
       }
 
@@ -41,9 +52,8 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
       if (!(await env.CREATE_LIMIT.limit({ key: ip })).success) return { ok: false, response: json({ error: TOO_MANY }, 429) };
 
       const since = now - WINDOW_MS;
-      const ipHash = await sha256Hex(ip);
       const mine = await env.DB.prepare("SELECT COUNT(*) AS n FROM rooms WHERE tier = 'free' AND ip_hash = ? AND created_at > ?")
-        .bind(ipHash, since)
+        .bind(await ipHash(env.IP_HASH_KEY, ip), since)
         .first<{ n: number }>();
       const all = await env.DB.prepare("SELECT COUNT(*) AS n FROM rooms WHERE tier = 'free' AND created_at > ?")
         .bind(since)
@@ -56,12 +66,12 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
   };
 }
 
-/** The `onRoomCreated` hook: one row per room, for the abuse caps. Only a hash of the IP is kept. */
-export function recordRoom(db: Db, now: () => number = Date.now) {
+/** The `onRoomCreated` hook: one row per room, for the abuse caps. Only a keyed hash of the IP is kept. */
+export function recordRoom(db: Db, ipHashKey: string | undefined, now: () => number = Date.now) {
   return async (code: string, grant: { tier: string }, request: Request): Promise<void> => {
     await db
       .prepare("INSERT INTO rooms (code, tier, ip_hash, created_at) VALUES (?, ?, ?, ?)")
-      .bind(code, grant.tier, await sha256Hex(clientIp(request)), now())
+      .bind(code, grant.tier, await ipHash(ipHashKey, clientIp(request)), now())
       .run();
   };
 }

@@ -5,5 +5,6 @@ interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   TURNSTILE_SECRET?: string;
   ADMIN_KEY?: string;
-  OWNER_KEY?: string;
+  /** HMAC key for the IP hash in `rooms` (src/rooms.ts). */
+  IP_HASH_KEY?: string;
 }

@@ -14,6 +14,7 @@ Run everything from the repo root, on the `product` branch, logged in to the rig
 | `GOOGLE_CLIENT_SECRET` | the "Sign in with Google" client secret | Google Cloud console, Credentials |
 | `TURNSTILE_SECRET` | server side of the bot check on sign-in and room creation | Cloudflare dashboard, Turnstile |
 | `ADMIN_KEY` | bearer key for `pnpm admin` (codes, grants). Make one up | `openssl rand -base64 24` |
+| `IP_HASH_KEY` | HMAC key for the IP hash in room records. Without it no free room can be made | `openssl rand -base64 32` |
 | `TURNSTILE_SITE_KEY` | public half of Turnstile. A var, not a secret | `wrangler.jsonc` |
 | `GOOGLE_CLIENT_ID` | public half of the Google client. A var | `wrangler.jsonc` |
 
@@ -74,7 +75,7 @@ Secrets go in with `wrangler secret put` and never into git. The two vars go in 
 
     `!pnpm --filter @games/product-server exec wrangler secret put RESEND_API_KEY`
 
-## 6. Admin key and analytics
+## 6. Admin key, IP hash key and analytics
 
 12. Make the admin key, store it, and keep a copy for `pnpm admin`:
 
@@ -83,6 +84,12 @@ Secrets go in with `wrangler secret put` and never into git. The two vars go in 
     `!pnpm --filter @games/product-server exec wrangler secret put ADMIN_KEY`
 
     Then in your shell profile (not in the repo): `export COUCHPARTY_ADMIN_KEY=<the same value>`.
+
+    The IP hash key. Nobody needs a copy; changing it later only resets the per-IP room counts:
+
+    `!openssl rand -base64 32`
+
+    `!pnpm --filter @games/product-server exec wrangler secret put IP_HASH_KEY`
 
     Web Analytics: dashboard, Analytics and Logs, Web Analytics, Add a site, `couchpartygames.com`. Copy the beacon token. It's optional; leave it out and the pages ship without the beacon. To include it, prefix the deploy in step 13:
 
@@ -116,7 +123,7 @@ On the live site, phone and laptop:
 - [ ] Picking a locked game (Blind Rally, Rally, Treasure Hunt, Frontier) shows the upgrade sheet instead of starting.
 - [ ] Sign in by email: the magic link arrives within a minute and lands you signed in. Check spam once; if it's there, recheck the DNS records.
 - [ ] Sign in with Google works.
-- [ ] Redeem the comp code in Account. The open room upgrades in place: the locked games unlock and the seat cap lifts, nobody rejoins.
+- [ ] In the open room, tap a locked game, and redeem the comp code in the upgrade sheet. The room upgrades in place: the locked games unlock on both phones and the seat cap lifts, nobody rejoins.
 - [ ] `!pnpm admin code list` shows 1 use on the code.
 - [ ] Account, Delete account: signed out, signing in again makes a fresh account with no pass.
 

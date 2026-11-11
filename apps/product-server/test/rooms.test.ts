@@ -8,7 +8,7 @@ vi.mock("partyserver", () => ({
 }));
 import { grant } from "../src/entitlements.ts";
 import type { ProductEnv } from "../src/env.ts";
-import { newId, sha256Hex, type Db } from "../src/db.ts";
+import { hmacHex, newId, sha256Hex, type Db } from "../src/db.ts";
 import { productGames, PRODUCT_LIMITS } from "../src/catalog.ts";
 import { handleUpgrade, productPolicy, recordRoom } from "../src/rooms.ts";
 import { gamesFor } from "@games/server/games";
@@ -18,21 +18,28 @@ import { fakeD1 } from "./d1.ts";
 const T0 = 1_800_000_000_000;
 const HOUR = 3_600_000;
 const ORIGIN = "https://couchpartygames.com";
+const KEY = "test-ip-key";
 
-function setup(opts: { turnstile?: boolean; createLimit?: boolean; claim?: boolean | ((hostKey: string) => boolean) } = {}) {
+function setup(opts: { turnstile?: boolean; createLimit?: boolean | ((key: string) => boolean); ipHashKey?: string | null; claim?: boolean | ((hostKey: string) => boolean) } = {}) {
   const db = fakeD1();
   const clock = { t: T0 };
   const claims: Array<unknown> = [];
+  const limitKeys: string[] = [];
   const upgrades: Array<{ code: string; hostKey: string }> = [];
   const env = {
     DB: db,
-    CREATE_LIMIT: { limit: async () => ({ success: opts.createLimit ?? true }) },
+    CREATE_LIMIT: {
+      limit: async ({ key }: { key: string }) => (
+        limitKeys.push(key), { success: typeof opts.createLimit === "function" ? opts.createLimit(key) : (opts.createLimit ?? true) }
+      ),
+    },
+    IP_HASH_KEY: opts.ipHashKey === null ? undefined : (opts.ipHashKey ?? KEY),
   } as unknown as ProductEnv;
   const deps = { now: () => clock.t, verifyTurnstile: async () => opts.turnstile ?? true };
   const getRoom = async () => ({
     claim: async (g?: unknown) => (claims.push(g), true),
   });
-  const fetchRooms = createFetch({ policy: productPolicy(deps), brand: "CouchParty", onRoomCreated: recordRoom(db, deps.now), getRoom });
+  const fetchRooms = createFetch({ policy: productPolicy(deps), brand: "CouchParty", onRoomCreated: recordRoom(db, env.IP_HASH_KEY, deps.now), getRoom });
   const create = (init: { cookie?: string; token?: string; ip?: string } = {}) =>
     fetchRooms(
       new Request(ORIGIN + "/api/rooms", {
@@ -69,7 +76,7 @@ function setup(opts: { turnstile?: boolean; createLimit?: boolean; claim?: boole
     if (pass) await grant(db, id, { source: "comp", plan: "pass", days: 1, ref: "x" }, T0);
     return `cp_session=${token}`;
   };
-  return { db, clock, claims, upgrades, create, upgrade, user };
+  return { db, clock, claims, limitKeys, upgrades, create, upgrade, user };
 }
 
 const rows = async (db: Db) =>
@@ -93,7 +100,22 @@ describe("room creation policy", () => {
     expect(body.hostKey.length).toBeGreaterThanOrEqual(24);
     expect(s.claims[0]).toEqual({ tier: "free", hostKey: body.hostKey });
     const [row] = await rows(s.db);
-    expect(row).toEqual({ code: body.code, tier: "free", ip_hash: await sha256Hex("1.2.3.4") });
+    expect(row).toEqual({ code: body.code, tier: "free", ip_hash: await hmacHex(KEY, "1.2.3.4") });
+  });
+
+  it("the stored IP hash is keyed: not a plain SHA-256, and another key gives another hash", async () => {
+    const s = setup();
+    await s.create({ token: "t" });
+    const [row] = await rows(s.db);
+    expect(row!.ip_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(row!.ip_hash).not.toBe(await sha256Hex("1.2.3.4"));
+    expect(row!.ip_hash).not.toBe(await hmacHex("other", "1.2.3.4"));
+  });
+
+  it("no IP_HASH_KEY means no free room, rather than an unkeyed hash", async () => {
+    const s = setup({ ipHashKey: null });
+    await expect(s.create({ token: "t" })).rejects.toThrow("IP_HASH_KEY is not set");
+    expect(await rows(s.db)).toEqual([]);
   });
 
   it("sixth free room from one IP in 6 hours gets 429; another IP or later is fine", async () => {
@@ -132,6 +154,18 @@ describe("room creation policy", () => {
     }
     expect(s.claims[0]).toMatchObject({ tier: "pass" });
     expect((await rows(s.db)).every((r) => r.tier === "pass")).toBe(true);
+    expect(s.limitKeys.every((k) => /^user:[\w-]+$/.test(k))).toBe(true);
+  });
+
+  it("pass users are rate limited per user, not per IP", async () => {
+    const s = setup({ createLimit: (key) => !key.startsWith("user:") });
+    const cookie = await s.user(true);
+    const r = await s.create({ cookie });
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ error: "Too many rooms right now. Please try again later." });
+    expect(await rows(s.db)).toEqual([]);
+    // The same IP, signed out, has its own budget.
+    expect((await s.create({ token: "t" })).status).toBe(200);
   });
 
   it("a signed-in free user is treated as anonymous", async () => {
