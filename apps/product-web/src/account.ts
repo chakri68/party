@@ -152,7 +152,13 @@ export async function mountAccount(): Promise<void> {
   const url = new URL(location.href);
   const next = safeNext(url.searchParams.get("next"));
   const error = url.searchParams.get("error");
-  const m = await me();
+  let m: Me;
+  try {
+    m = await me();
+  } catch {
+    $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";
+    return;
+  }
   showView("loading", false);
   if (m.email === null) signedOut(next, error);
   else signedIn(m);

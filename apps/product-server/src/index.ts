@@ -4,6 +4,7 @@ import { handleAuth, realDeps } from "./auth.ts";
 import { PRODUCT_LIMITS, productGames } from "./catalog.ts";
 import { handleConfig } from "./config.ts";
 import { maskProfanity } from "./filter.ts";
+import { prune } from "./prune.ts";
 import { handleUpgrade, productPolicy, realRoomDeps, realUpgradeDeps, recordRoom } from "./rooms.ts";
 
 export class Room extends RoomBase {
@@ -38,5 +39,9 @@ export default {
       shellPath: "/play.html",
       onRoomCreated: recordRoom(env.DB),
     })(request, env);
+  },
+  // wrangler.jsonc "triggers.crons": hourly cleanup of old rows.
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(prune(env.DB, Date.now()));
   },
 } satisfies ExportedHandler<Env>;

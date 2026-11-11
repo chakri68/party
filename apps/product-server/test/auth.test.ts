@@ -272,6 +272,17 @@ describe("session", () => {
     for (const t of ["users", "sessions", "entitlements"]) expect(await count(s.db, t)).toBe(0);
   });
 
+  it("DELETE /api/account also deletes that email's sign-in links, and only those", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    await s.requestLink("  A@X.com "); // a second, unused link for the same account
+    await s.requestLink("b@x.com");
+    expect(await count(s.db, "login_tokens")).toBe(3);
+    expect((await s.call("DELETE", "/api/account", { cookie })).status).toBe(200);
+    const left = await s.db.prepare("SELECT email FROM login_tokens").all<{ email: string }>();
+    expect(left.results.map((r) => r.email)).toEqual(["b@x.com"]);
+  });
+
   it("DELETE /api/account signed out is 401", async () => {
     expect((await setup().call("DELETE", "/api/account")).status).toBe(401);
   });

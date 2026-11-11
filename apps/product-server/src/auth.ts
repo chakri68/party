@@ -206,7 +206,12 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
     case "DELETE /api/account": {
       const user = await userFromRequest(env.DB, request, deps.now());
       if (!user) return json({ error: "Sign in first." }, 401);
-      await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id).run();
+      // Sessions and entitlements cascade from users. Sign-in links are keyed by
+      // email (stored normalised), so they go in the same batch.
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
+        env.DB.prepare("DELETE FROM login_tokens WHERE email = ?").bind(normalizeEmail(user.email)),
+      ]);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { "content-type": "application/json", "set-cookie": clearCookie(SESSION_COOKIE) },
       });
