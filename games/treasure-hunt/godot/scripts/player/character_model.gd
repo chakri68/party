@@ -17,9 +17,10 @@ const SHADER := preload("res://shaders/shirt_tint.gdshader")
 ## The colormap: 16 columns by 4 rows (32 x 128 px cells) on the full image.
 const GRID := Vector2(16.0, 4.0)
 ## Below this speed (m/s) you're standing; above RUN_FROM you're sprinting.
-## The walker walks at 1.7 and runs at 3.4.
+## The walker walks at 1.7 and runs at 3.4; this is halfway between.
 const MOVING := 0.5
-const RUN_FROM := 3.2
+const RUN_FROM := 2.55
+const CELL_EPS := 1e-4
 const LOOPING: Array[StringName] = [&"idle", &"walk", &"sprint", &"drive", &"sit"]
 
 var id := ""
@@ -77,20 +78,34 @@ static func state_for(speed: float, on_floor: bool, vy: float, seat: StringName)
 
 
 ## The colormap cell of a uv.
+## A uv a hair under a cell edge (float noise from the glb) counts as on the
+## edge, so it lands in the cell it was authored for, not the one below.
 static func cell_of(uv: Vector2) -> Vector2i:
-	return Vector2i(floori(uv.x * GRID.x), floori(uv.y * GRID.y))
+	var c := uv * GRID + Vector2(CELL_EPS, CELL_EPS)
+	return Vector2i(floori(c.x), floori(c.y))
 
 
 ## The cell most of the torso's vertices sample: the shirt. A vertex counts
 ## as torso when the torso bone has the most weight on it. Ties go to the
-## lowest cell.
+## lowest cell. Only surface 0 is read: body-mesh has a single surface.
 static func shirt_cell_of(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Vector2i:
+	return _vote(mesh, skin, skeleton).cell
+
+
+## How many vertices voted in shirt_cell_of. 0 means the torso bind wasn't
+## found, and the cell is a meaningless (0, 0).
+static func torso_vertex_count(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> int:
+	return _vote(mesh, skin, skeleton).votes
+
+
+static func _vote(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Dictionary:
+	var out := {"cell": Vector2i.ZERO, "votes": 0}
 	var arrays := mesh.surface_get_arrays(0)
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
 	if uvs.is_empty() or bones.is_empty():
-		return Vector2i.ZERO
+		return out
 	var torso := -1
 	for i in skin.get_bind_count():
 		var bone_name := skin.get_bind_name(i)
@@ -98,8 +113,11 @@ static func shirt_cell_of(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Vecto
 			bone_name = skeleton.get_bone_name(skin.get_bind_bone(i))
 		if bone_name == "torso":
 			torso = i
+	if torso < 0:
+		return out
 	var stride := bones.size() / uvs.size()
 	var count := {}
+	var total := 0
 	for v in uvs.size():
 		var best := 0
 		for k in stride:
@@ -109,13 +127,16 @@ static func shirt_cell_of(mesh: Mesh, skin: Skin, skeleton: Skeleton3D) -> Vecto
 			continue
 		var c := cell_of(uvs[v])
 		count[c] = count.get(c, 0) + 1
+		total += 1
 	var pick := Vector2i.ZERO
 	var most := 0
 	for c: Vector2i in count:
 		if count[c] > most or (count[c] == most and (c.y < pick.y or (c.y == pick.y and c.x < pick.x))):
 			most = count[c]
 			pick = c
-	return pick
+	out.cell = pick
+	out.votes = total
+	return out
 
 
 func _build(new_id: String) -> void:
@@ -131,6 +152,8 @@ func _build(new_id: String) -> void:
 
 	var skeleton: Skeleton3D = _model.find_child("Skeleton3D", true, false)
 	var body: MeshInstance3D = _model.find_child("body-mesh", true, false)
+	if torso_vertex_count(body.mesh, body.skin, skeleton) == 0:
+		push_warning("CharacterModel: no torso vertices in %s, shirt cell is a guess" % id)
 	shirt_cell = shirt_cell_of(body.mesh, body.skin, skeleton)
 	var original := body.mesh.surface_get_material(0) as BaseMaterial3D
 	_material = ShaderMaterial.new()

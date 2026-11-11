@@ -48,7 +48,8 @@ func height_of(m: Node3D) -> float:
 func test_state_for() -> void:
 	var s := CharacterModel.state_for
 	check(s.call(0.0, true, 0.0, &"") == &"idle", "still on the ground: idle")
-	check(s.call(3.0, true, 0.0, &"") == &"walk", "3 m/s: walk")
+	check(s.call(2.0, true, 0.0, &"") == &"walk", "2 m/s: walk")
+	check(s.call(2.6, true, 0.0, &"") == &"sprint", "2.6 m/s: sprint")
 	check(s.call(6.0, true, 0.0, &"") == &"sprint", "6 m/s: sprint")
 	check(s.call(3.0, false, 2.0, &"") == &"jump", "in the air going up: jump")
 	check(s.call(3.0, false, -2.0, &"") == &"fall", "in the air going down: fall")
@@ -110,13 +111,21 @@ func head_cell(m: Node) -> Vector2i:
 
 func test_shirt_cell() -> void:
 	var ok := true
+	var votes := true
+	var single := true
 	for id in CharacterModel.IDS:
 		var m := make(id)
 		var c := m.shirt_cell
+		var body: MeshInstance3D = m.find_child("body-mesh", true, false)
+		var sk: Skeleton3D = m.find_child("Skeleton3D", true, false)
+		votes = votes and CharacterModel.torso_vertex_count(body.mesh, body.skin, sk) > 0
+		single = single and body.mesh.get_surface_count() == 1
 		ok = ok and c.x >= 0 and c.x <= 15 and c.y >= 0 and c.y <= 3
 		if id == "female-a" or id == "male-a":
 			check(c != head_cell(m), "%s: the shirt cell isn't the head's commonest cell" % id)
 		m.queue_free()
+	check(votes, "every model's shirt vote counts torso vertices (the torso bind is found)")
+	check(single, "every body-mesh has exactly one surface")
 	check(ok, "every shirt cell is inside the 16 x 4 grid")
 
 
