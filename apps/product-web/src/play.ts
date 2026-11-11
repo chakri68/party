@@ -3,6 +3,7 @@ import { startShell } from "@games/web/shell";
 import "@games/web/style.css";
 import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
 import { mountHeader } from "./header.ts";
+import { fadeIn } from "./motion.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
 import { openPassSheet } from "./pass-sheet.ts";
 import { finishUpgrade } from "./upgrade-return.ts";
@@ -42,6 +43,9 @@ startShell({
     // The shell's views append into #app, so the HTML's loader goes by hand.
     outlet.querySelector(".cp-loader")?.remove();
     mountHeader(outlet);
+    // The shell draws its first screen after the page has already faded in
+    // empty; fade the content up too so it doesn't just appear.
+    fadeIn(outlet);
   },
 });
 if (notUpgraded) openPassSheet("", notUpgraded);

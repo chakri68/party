@@ -5,8 +5,10 @@
 
 @view-transition { navigation: auto; }
 
-/* The page colour from the first frame, so a fade never passes through white. */
-html { background: #0e0e0c; }
+/* The page colour from the first frame, so a fade never dips through the
+   wrong one. light-dark() follows each page's color-scheme meta: the
+   marketing pages go with the system, /play is always dark. */
+html { background: light-dark(#fffdf8, #0e0e0c); }
 
 @keyframes cp-page-out { to { opacity: 0; } }
 @keyframes cp-page-in { from { opacity: 0; transform: translateY(6px); } }

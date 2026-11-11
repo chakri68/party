@@ -94,3 +94,9 @@ export function riseIn(el: Element, delay = 0): void {
     { duration: 260, delay, easing: EASE, fill: "backwards" },
   );
 }
+
+/** Fades an element up from nothing, starting now. */
+export function fadeIn(el: Element): void {
+  if (reduced()) return;
+  el.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: EASE });
+}
