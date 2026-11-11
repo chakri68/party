@@ -36,7 +36,10 @@ export function canTransition(): boolean {
  * backlog of animations.
  */
 export function transition(kind: TransitionKind, update: Update): void {
-  if (!canTransition()) {
+  // Named lobby blocks animate on a layer above the whole page, top-layer
+  // dialogs included: with a modal open they'd flash over it on every join.
+  // The modal keeps its own content current, so the update just lands.
+  if (!canTransition() || (kind === "lobby" && document.querySelector("dialog[open]"))) {
     void update();
     return;
   }
