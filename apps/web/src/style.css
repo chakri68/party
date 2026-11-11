@@ -370,7 +370,18 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 400;
   background: var(--bg);
 }
-.game-option .game-icon { width: 36px; height: 36px; }
+.game-option .game-icon { width: 36px; height: 36px; transition: transform 260ms cubic-bezier(.2, .9, .3, 1.4); }
+@media (hover: hover) and (pointer: fine) {
+  button.game-option:hover:not(:disabled) .game-icon { transform: rotate(-8deg) scale(1.08); }
+}
+/* The list comes in a row at a time behind the dialog's pop (capped, so a
+   long list doesn't keep you waiting). Fresh dialog each open, so it plays
+   once; a row coming back from a search filter just rises in again. */
+@media (prefers-reduced-motion: no-preference) {
+  .game-list[open] .game-section h3 { animation: fade-in 260ms ease 80ms backwards; }
+  .game-list[open] .game-options > li { animation: row-in 340ms cubic-bezier(.2, .8, .2, 1) calc(90ms + min(var(--i, 0), 12) * 28ms) backwards; }
+}
+@keyframes row-in { from { opacity: 0; transform: translateY(8px); } }
 .game-option[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .game-option.locked { opacity: 0.6; }
 .game-option.locked .tag { background: var(--line); color: var(--muted); }

@@ -699,6 +699,7 @@ export class RoomView implements View {
     const empty = h("p", { class: "muted center", hidden: true }, "No games match.");
     const refreshers: ((room: RoomPublicState) => void)[] = [];
 
+    let rowIndex = 0;
     const rows = all.map(([id, entry]) => {
       const { name, description, minPlayers, maxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
@@ -714,6 +715,7 @@ export class RoomView implements View {
         onclick: () => openDialog(`How to play ${name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
       }, "Rules");
 
+      let shownWants = Infinity; // no bounce on the first fill
       const refresh = (room: RoomPublicState) => {
         const players = room.seats.filter((s) => s.presence !== "left").length;
         const current = id === room.gameId;
@@ -730,6 +732,11 @@ export class RoomView implements View {
         meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
         replaceChildren(want, n ? [icon("thumbs-up"), wantLabel(n)] : []);
         want.hidden = !n;
+        // Someone just suggested it: the count gives a little bounce.
+        if (n > shownWants && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          want.animate([{ transform: "scale(1)" }, { transform: "scale(1.18)" }, { transform: "scale(1)" }], { duration: 320, easing: "cubic-bezier(.2, .9, .3, 1.4)" });
+        }
+        shownWants = n;
         if (suggest) {
           const mine = room.seats.find((s) => s.id === me)?.suggestion === id;
           replaceChildren(suggest, mine ? [icon("check"), "Suggested"] : locked ? "Ask host to unlock" : "Suggest");
@@ -758,6 +765,7 @@ export class RoomView implements View {
         h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted" }, description), meta, want),
       );
       const row = h("li", {}, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
+      row.style.setProperty("--i", String(rowIndex++)); // entrance stagger (style.css)
       return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
 
