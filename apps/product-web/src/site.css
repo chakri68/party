@@ -427,7 +427,13 @@ img, svg { display: block; }
 .who-email { font-weight: 700; font-size: 1.125rem; word-break: break-all; }
 /* Account: the plan card. Host Pass gets the accent edge, like its column on the pricing page. */
 .plan-card { gap: 6px; }
-.plan-card[data-tier="pass"] { border-color: var(--accent); }
+/* An active pass is the lime card: dark text on the accent, in both themes. */
+.plan-card[data-tier="pass"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.plan-card[data-tier="pass"] :is(.plan-kind, .plan-perks) { color: color-mix(in srgb, var(--accent-ink) 68%, transparent); }
+.plan-card[data-tier="pass"] .plan-status { color: var(--accent-ink); }
+.plan-card[data-tier="pass"] .plan-status::before { background: var(--accent-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-ink) 18%, transparent); }
+.plan-card[data-tier="pass"] .plan-bar { background: color-mix(in srgb, var(--accent-ink) 16%, transparent); }
+.plan-card[data-tier="pass"] .plan-bar-fill { background: var(--accent-ink); }
 .plan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .plan-kind { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .plan-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
