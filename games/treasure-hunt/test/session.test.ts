@@ -59,7 +59,7 @@ describe("resync", () => {
     expect(resync(priv, "hunting")).toEqual([
       { fn: "revealCache", arg: { id: "c1", x: 10.5, z: -3, dy: 0 } },
       { fn: "revealCache", arg: { id: "c2", x: -40, z: 200.1, dy: 0.6 } },
-      { fn: "cacheFound", arg: { id: "c1" } },
+      { fn: "cacheFound", arg: { id: "c1", mine: true } },
       { fn: "setPhase", arg: { phase: "hunting" } },
     ]);
   });
@@ -67,8 +67,8 @@ describe("resync", () => {
   it("marks a cache another team took as found too, so its crate goes", () => {
     const took: THPrivate = { ...priv, clues: [...priv.clues, { id: "c4", clues: ["d"], difficulty: 1, found: false, taken: true, photo: null }] };
     expect(resync(took, "hunting").filter((c) => c.fn === "cacheFound")).toEqual([
-      { fn: "cacheFound", arg: { id: "c1" } },
-      { fn: "cacheFound", arg: { id: "c4" } },
+      { fn: "cacheFound", arg: { id: "c1", mine: true } },
+      { fn: "cacheFound", arg: { id: "c4", mine: false } },
     ]);
   });
 

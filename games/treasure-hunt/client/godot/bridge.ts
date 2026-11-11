@@ -121,7 +121,7 @@ export type RemotePos = GodotPos & { id: string };
 /** One call into Godot. All are idempotent on Godot's side; roster is the full list. */
 export type BridgeCall =
   | { fn: "revealCache"; arg: CacheReveal }
-  | { fn: "cacheFound"; arg: { id: string } }
+  | { fn: "cacheFound"; arg: { id: string; mine: boolean } }
   | { fn: "setPhase"; arg: { phase: Phase } }
   | { fn: "roster"; arg: Roster }
   | { fn: "remotePos"; arg: RemotePos }

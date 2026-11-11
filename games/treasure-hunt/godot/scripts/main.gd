@@ -72,6 +72,9 @@ var dark := 0.0
 ## Engine, steps and the ambient bed. Quiet until the first key or click.
 var hunt_audio: HuntAudio
 ## Ids already pinged, so the page's resends stay quiet.
+## Replays after a reload or late join stay quiet for this long after world-ready.
+const PING_SETTLE_S := 2.0
+var _world_ready_at := -1
 var _pinged_reveals := {}
 var _pinged_claims := {}
 ## The lamps' state as last set: set_lamps only runs when it flips.
@@ -143,12 +146,14 @@ func _ready() -> void:
 	bridge.cache_revealed.connect(func(r: Dictionary) -> void:
 		if not _pinged_reveals.has(r.id):
 			_pinged_reveals[r.id] = true
-			hunt_audio.ping(&"reveal"))
-	# The page only sends cacheFound for my team's finds.
-	bridge.cache_found.connect(func(id: String) -> void:
+			if _ping_settled():
+				hunt_audio.ping(&"reveal"))
+	# Only my team's finds chime; a taken cache still hides its crate, silently.
+	bridge.cache_found_by.connect(func(id: String, mine: bool) -> void:
 		if not _pinged_claims.has(id):
 			_pinged_claims[id] = true
-			hunt_audio.ping(&"claim"))
+			if mine and _ping_settled():
+				hunt_audio.ping(&"claim"))
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -157,6 +162,7 @@ func _ready() -> void:
 	$UI.add_child(prompt)
 	set_phase(&"generating" if OS.has_feature("web") else &"hunting")
 	world_ready.connect(func(ms: int) -> void:
+		_world_ready_at = Time.get_ticks_msec()
 		bridge.emit_status({"kind": "world-ready", "ms": ms, "chunks": streamer.loaded_count(), "seed": _seed}))
 	var n := _requested_layout()
 	var path := "res://tests/fixtures/layout_%d.json" % n
@@ -278,6 +284,12 @@ func reveal_cache(r: Dictionary) -> void:
 		_pending_reveals.append(r)
 	else:
 		caches.reveal(r.id, r.x, r.z, r.dy)
+
+
+## True once the world has been ready for PING_SETTLE_S: before that the page
+## is still replaying what we already knew.
+func _ping_settled() -> bool:
+	return _world_ready_at >= 0 and Time.get_ticks_msec() - _world_ready_at >= int(PING_SETTLE_S * 1000.0)
 
 
 func found_cache(id: String) -> void:

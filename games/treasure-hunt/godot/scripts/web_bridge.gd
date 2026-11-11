@@ -8,7 +8,7 @@ extends Node
 ## object, and only then call `ready()` (the page answers at once):
 ##   host.initSession({layout})            TS -> Godot
 ##   host.revealCache({id, x, z, dy})      idempotent by id
-##   host.cacheFound({id})
+##   host.cacheFound({id, mine})           mine: false when another team took it
 ##   host.setPhase({phase})                input is on only in "hunting"
 ##   host.roster({me, players: [{id, name, color, team}]})   full list, every update
 ##   host.remotePos({id, x, y, z, yaw, foot, v})             another player, as relayed
@@ -36,6 +36,8 @@ signal session_started(config: Dictionary)
 signal status_sent(status: Dictionary)
 signal cache_revealed(reveal: Dictionary) ## {id: String, x, z, dy: float}
 signal cache_found(id: String)
+## Alongside cache_found: whether my team found it (false: another team took it).
+signal cache_found_by(id: String, mine: bool)
 signal phase_set(phase: StringName)
 ## Who to draw (`me` among them, to skip): [{id, name, color, team}].
 signal roster_set(players: Array, me: String)
@@ -211,11 +213,12 @@ func receive_reveal_json(text: String) -> void:
 		cache_revealed.emit({"id": d.id, "x": float(d.x), "z": float(d.z), "dy": float(d.dy) if _num(d.get("dy")) else 0.0})
 
 
-## {id}
+## {id, mine}. mine is a bool and defaults to true when missing.
 func receive_found_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and d.get("id") is String:
 		cache_found.emit(d.id)
+		cache_found_by.emit(d.id, d.mine if d.get("mine") is bool else true)
 
 
 ## {phase}: "generating", "countdown", "hunting" or "finished".

@@ -114,8 +114,8 @@ export function resync(priv: THPrivate | null, phase: Phase, streamed: Iterable<
     seen.add(r.id);
     calls.push({ fn: "revealCache", arg: { id: r.id, x: r.x, z: r.z, dy: r.dy } });
   }
-  // Taken by another team is gone too: Godot hides the crate either way.
-  for (const c of priv?.clues ?? []) if (c.found || c.taken) calls.push({ fn: "cacheFound", arg: { id: c.id } });
+  // Taken by another team is gone too: Godot hides the crate either way. mine tells the chime apart.
+  for (const c of priv?.clues ?? []) if (c.found || c.taken) calls.push({ fn: "cacheFound", arg: { id: c.id, mine: c.found } });
   calls.push({ fn: "setPhase", arg: { phase } });
   return calls;
 }
