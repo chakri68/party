@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "pnpm -r --parallel typecheck",
     "host": "node scripts/host.mjs",
-    "admin": "node scripts/admin.mjs"
+    "admin": "node scripts/admin.mjs",
+    "deploy:product": "node scripts/deploy-product.mjs"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
