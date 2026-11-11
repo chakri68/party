@@ -1,6 +1,7 @@
 import { json } from "@games/server/policy";
 import type { HostPolicy } from "@games/server/policy";
 import { createFetch, RoomBase } from "@games/server/worker";
+import { handleAuth, realDeps } from "./auth.ts";
 
 export class Room extends RoomBase {}
 
@@ -11,6 +12,10 @@ const denyAll: HostPolicy = {
   },
 };
 
+const rooms = createFetch({ policy: denyAll, brand: "CouchParty" });
+
 export default {
-  fetch: createFetch({ policy: denyAll, brand: "CouchParty" }),
+  async fetch(request, env) {
+    return (await handleAuth(request, env, realDeps(env))) ?? rooms(request, env);
+  },
 } satisfies ExportedHandler<Env>;
