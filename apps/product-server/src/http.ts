@@ -23,11 +23,15 @@ export function clientIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
-/** Only same-site paths: starts with one "/", never "//" or "/\" (browsers read both as another host). */
+/**
+ * Only same-site paths: starts with one "/", never "//" or "/\" (browsers read
+ * both as another host). Printable ASCII only, so no spaces, control bytes or
+ * look-alike letters.
+ */
 export function safeNext(next: unknown): string {
   if (typeof next !== "string" || next.length > 500) return "/account";
   if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/account";
-  if (/[\u0000-\u001f\u007f]/.test(next)) return "/account";
+  if (/[^\x21-\x7e]/.test(next)) return "/account";
   return next;
 }
 

@@ -1,6 +1,6 @@
 import { GAME_SECTIONS } from "@games/web/games";
 import { describe, expect, it } from "vitest";
-import { planLine } from "../src/account.ts";
+import { outErrorMessage, planLine } from "../src/account.ts";
 import { galleryModel, priceTable } from "../src/landing.ts";
 
 describe("galleryModel", () => {
@@ -39,5 +39,16 @@ describe("planLine", () => {
     expect(planLine({ email: "a@b.c", tier: "pass", plan: { source: "comp", endsAt: Date.UTC(2026, 11, 12, 10) } })).toBe("Host Pass until 12 Dec 2026");
     expect(planLine({ email: "a@b.c", tier: "pass", plan: { source: "grant", endsAt: null } })).toBe("Host Pass, no end date");
     expect(planLine({ email: "a@b.c", tier: "free", plan: null })).toBe("Free");
+  });
+});
+
+describe("outErrorMessage", () => {
+  it("says what went wrong for a bad link or a failed Google sign-in", () => {
+    expect(outErrorMessage("link")).toBe("That link did not work. Ask for a new one.");
+    expect(outErrorMessage("google")).toBe("Google sign-in did not work. Please try again.");
+  });
+  it("says nothing for no error or an unknown one", () => {
+    expect(outErrorMessage(null)).toBe("");
+    expect(outErrorMessage("toString")).toBe("");
   });
 });

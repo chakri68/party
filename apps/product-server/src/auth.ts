@@ -38,7 +38,8 @@ export async function userFromRequest(db: Db, request: Request, now: number): Pr
     .first<{ id: string; email: string }>();
 }
 
-async function startSession(db: Db, email: string, next: string, now: number, extraCookies: string[] = []): Promise<Response> {
+/** Makes the user if new, opens a session, and returns its Set-Cookie value. */
+async function startSession(db: Db, email: string, now: number): Promise<string> {
   await db
     .prepare("INSERT INTO users (id, email, created_at) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING")
     .bind(newId(), email, now)
@@ -49,11 +50,11 @@ async function startSession(db: Db, email: string, next: string, now: number, ex
     .prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
     .bind(await sha256Hex(token), user!.id, now + SESSION_MS)
     .run();
-  return redirect(next, [setCookie(SESSION_COOKIE, token, SESSION_MS / 1000), ...extraCookies]);
+  return setCookie(SESSION_COOKIE, token, SESSION_MS / 1000);
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DENIED = { error: "Could not sign in." };
+const LINK_FAILED = "That link did not work. Ask for a new one.";
 
 function linkEmail(link: string): string {
   return `<p>Click the button to sign in to CouchParty.</p>
@@ -82,9 +83,28 @@ async function postEmail(request: Request, env: ProductEnv, deps: AuthDeps): Pro
   return json({ ok: true });
 }
 
+/**
+ * The link in the email. Mail scanners open links to check them, so this
+ * only looks: a good token goes on to /account, which spends it with a POST.
+ */
 async function getVerify(url: URL, env: ProductEnv, deps: AuthDeps): Promise<Response> {
   const bad = redirect("/account?error=link");
   const token = url.searchParams.get("token");
+  if (!token) return bad;
+  const row = await env.DB
+    .prepare("SELECT next FROM login_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?")
+    .bind(await sha256Hex(token), deps.now())
+    .first<{ next: string | null }>();
+  if (!row) return bad;
+  const params = new URLSearchParams({ token, next: safeNext(row.next) });
+  return redirect(`/account?${params}`);
+}
+
+/** `POST /api/auth/verify { token }`: spends the link, sets the session cookie, says where to go. */
+async function postVerify(request: Request, env: ProductEnv, deps: AuthDeps): Promise<Response> {
+  const bad = json({ error: LINK_FAILED }, 400);
+  const body = (await request.json().catch(() => null)) as { token?: unknown } | null;
+  const token = typeof body?.token === "string" ? body.token : "";
   if (!token) return bad;
   const now = deps.now();
   const hash = await sha256Hex(token);
@@ -96,7 +116,10 @@ async function getVerify(url: URL, env: ProductEnv, deps: AuthDeps): Promise<Res
   if (took.meta.changes !== 1) return bad;
   const row = await env.DB.prepare("SELECT email, next FROM login_tokens WHERE token_hash = ?").bind(hash).first<{ email: string; next: string | null }>();
   if (!row) return bad;
-  return startSession(env.DB, row.email, safeNext(row.next), now);
+  const cookie = await startSession(env.DB, row.email, now);
+  return new Response(JSON.stringify({ next: safeNext(row.next) }), {
+    headers: { "content-type": "application/json", "set-cookie": cookie },
+  });
 }
 
 function googleStart(url: URL, env: ProductEnv): Response {
@@ -126,35 +149,48 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Google sends the browser back here. Every way it can go wrong, including the
+ * user pressing Cancel (`?error=access_denied`, no code), lands on /account with
+ * a message, and the oauth cookie goes either way.
+ */
 async function googleCallback(request: Request, url: URL, env: ProductEnv, deps: AuthDeps): Promise<Response> {
+  const clearOauth = clearCookie(OAUTH_COOKIE, GOOGLE_PATH);
+  const failed = redirect("/account?error=google", [clearOauth]);
   const cookie = readCookie(request, OAUTH_COOKIE);
   const sep = cookie ? cookie.indexOf("|") : -1;
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  if (!cookie || sep < 1 || !state || !code || cookie.slice(0, sep) !== state) return json(DENIED, 400);
+  if (!cookie || sep < 1 || !state || !code || cookie.slice(0, sep) !== state) return failed;
   let next = "/account";
   try {
     next = safeNext(decodeURIComponent(cookie.slice(sep + 1)));
   } catch {}
 
-  const res = await deps.fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    body: new URLSearchParams({
-      code,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET ?? "",
-      redirect_uri: `${env.APP_ORIGIN}${GOOGLE_PATH}/callback`,
-      grant_type: "authorization_code",
-    }),
-  });
-  if (!res.ok) return json(DENIED, 400);
-  const tokens = (await res.json().catch(() => null)) as { id_token?: string } | null;
+  let tokens: { id_token?: string } | null;
+  try {
+    const res = await deps.fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      body: new URLSearchParams({
+        code,
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET ?? "",
+        redirect_uri: `${env.APP_ORIGIN}${GOOGLE_PATH}/callback`,
+        grant_type: "authorization_code",
+      }),
+    });
+    if (!res.ok) return failed;
+    tokens = (await res.json().catch(() => null)) as { id_token?: string } | null;
+  } catch {
+    return failed;
+  }
   // Trusted without signature check: fetched directly from Google over TLS in this request.
   const claims = tokens?.id_token ? decodeJwtPayload(tokens.id_token) : null;
-  if (!claims || claims.aud !== env.GOOGLE_CLIENT_ID) return json(DENIED, 400);
-  if (claims.email_verified !== true && claims.email_verified !== "true") return json(DENIED, 400);
-  if (typeof claims.email !== "string" || !claims.email) return json(DENIED, 400);
-  return startSession(env.DB, normalizeEmail(claims.email), next, deps.now(), [clearCookie(OAUTH_COOKIE, GOOGLE_PATH)]);
+  if (!claims || claims.aud !== env.GOOGLE_CLIENT_ID) return failed;
+  if (claims.email_verified !== true && claims.email_verified !== "true") return failed;
+  if (typeof claims.email !== "string" || !claims.email) return failed;
+  const session = await startSession(env.DB, normalizeEmail(claims.email), deps.now());
+  return redirect(next, [session, clearOauth]);
 }
 
 const REDEEM_MESSAGES = {
@@ -186,6 +222,8 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
       return postEmail(request, env, deps);
     case "GET /api/auth/verify":
       return getVerify(url, env, deps);
+    case "POST /api/auth/verify":
+      return postVerify(request, env, deps);
     case `GET ${GOOGLE_PATH}`:
       return googleStart(url, env);
     case `GET ${GOOGLE_PATH}/callback`:

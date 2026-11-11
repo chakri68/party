@@ -82,6 +82,18 @@ export async function deleteAccount(): Promise<Result> {
   }
 }
 
+/** Spends a sign-in link's token. The server sets the session cookie and says where to go next. */
+export async function spendLink(token: string): Promise<{ next: string } | { error: string }> {
+  try {
+    const res = await post("/api/auth/verify", { token });
+    const body = (await res.json().catch(() => null)) as { next?: string; error?: string } | null;
+    if (res.ok && typeof body?.next === "string") return { next: body.next };
+    return { error: body?.error ?? FAIL };
+  } catch {
+    return { error: FAIL };
+  }
+}
+
 export async function startEmailSignIn(email: string, next: string, turnstileToken: string): Promise<Result> {
   try {
     return await result(await post("/api/auth/email", { email, next, turnstileToken }));

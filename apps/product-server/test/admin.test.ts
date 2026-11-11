@@ -39,7 +39,8 @@ function setup(adminKey: string | null = "k3y") {
       deps,
     );
     const link = /href="([^"]+)"/.exec(sent.at(-1)!)![1]!.replace(ORIGIN, "");
-    const v = (await handleAuth(new Request(ORIGIN + link), env, deps))!;
+    const token = new URL(ORIGIN + link).searchParams.get("token");
+    const v = (await handleAuth(new Request(ORIGIN + "/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) }), env, deps))!;
     const cookie = `cp_session=${/cp_session=([^;]+)/.exec(v.headers.get("set-cookie")!)![1]}`;
     const r = (await handleAuth(new Request(ORIGIN + "/api/me", { headers: { cookie } }), env, deps))!;
     return (await r.json()) as { email: string; tier: string };

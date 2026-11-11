@@ -1,6 +1,6 @@
 // /account: sign in when signed out; plan, codes, sign out and delete when signed in.
 
-import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, startEmailSignIn, type Me } from "./api.ts";
+import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, startEmailSignIn, type Me } from "./api.ts";
 import { getTurnstileToken } from "./turnstile.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -17,6 +17,16 @@ export function planLine(m: Me): string {
 /** Only same-site paths. Anything else goes back to this page. */
 export function safeNext(raw: string | null): string {
   return raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\") ? raw : "/account";
+}
+
+const OUT_ERRORS: Record<string, string> = {
+  link: "That link did not work. Ask for a new one.",
+  google: "Google sign-in did not work. Please try again.",
+};
+
+/** The message for ?error= on the signed-out view, or "" for none or an unknown one. */
+export function outErrorMessage(error: string | null): string {
+  return error && Object.hasOwn(OUT_ERRORS, error) ? OUT_ERRORS[error]! : "";
 }
 
 function $(sel: string): HTMLElement {
@@ -36,7 +46,7 @@ function say(node: HTMLElement, text: string): void {
 
 function signedOut(next: string, error: string | null): void {
   showView("out", true);
-  if (error === "link") say($("[data-out-error]"), "That link did not work. Ask for a new one.");
+  say($("[data-out-error]"), outErrorMessage(error));
 
   void loadConfig().then((c) => {
     if (!c.googleEnabled) return;
@@ -151,7 +161,22 @@ function signedIn(m: Me): void {
 export async function mountAccount(): Promise<void> {
   const url = new URL(location.href);
   const next = safeNext(url.searchParams.get("next"));
-  const error = url.searchParams.get("error");
+  let error = url.searchParams.get("error");
+
+  // Back from the email link: spend the token here, with a POST, so a mail
+  // scanner that opened the link first did not use it up.
+  const token = url.searchParams.get("token");
+  if (token) {
+    url.searchParams.delete("token");
+    history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    const r = await spendLink(token);
+    if ("next" in r) {
+      location.replace(safeNext(r.next));
+      return;
+    }
+    error = "link";
+  }
+
   const m = await meOrNull();
   if (m === null) {
     $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";

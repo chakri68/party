@@ -45,12 +45,15 @@ function setup(opts: { limit?: (key: string) => boolean; turnstile?: boolean; go
     return { r, path: link ? link.replace(ORIGIN, "") : "" };
   };
   const cookieOf = (r: Response) => /cp_session=([^;]+)/.exec(r.headers.get("set-cookie") ?? "")?.[1];
+  const tokenOf = (path: string) => new URL(ORIGIN + path).searchParams.get("token")!;
+  /** What the account page does with ?token=: POST it. */
+  const spend = (token: string) => call("POST", "/api/auth/verify", { body: { token } });
   const signIn = async (email: string) => {
     const { path } = await requestLink(email);
-    const r = await call("GET", path);
+    const r = await spend(tokenOf(path));
     return `cp_session=${cookieOf(r)}`;
   };
-  return { db, clock, sent, env, deps, call, requestLink, cookieOf, signIn, limitKeys };
+  return { db, clock, sent, env, deps, call, requestLink, cookieOf, tokenOf, spend, signIn, limitKeys };
 }
 
 const count = async (db: ReturnType<typeof fakeD1>, table: string) =>
@@ -66,9 +69,9 @@ describe("magic link", () => {
     expect(path).toMatch(/^\/api\/auth\/verify\?token=[\w-]{24}$/);
     expect(s.sent[0]!.html).toContain("This link works for 15 minutes. If you did not ask for it, ignore this email.");
 
-    const v = await s.call("GET", path);
-    expect(v.status).toBe(302);
-    expect(v.headers.get("location")).toBe("/account");
+    const v = await s.spend(s.tokenOf(path));
+    expect(v.status).toBe(200);
+    expect(await v.json()).toEqual({ next: "/account" });
     const setCookie = v.headers.get("set-cookie")!;
     expect(setCookie).toMatch(/^cp_session=[\w-]+; HttpOnly; Secure; SameSite=Lax; Path=\/; Max-Age=2592000$/);
 
@@ -79,8 +82,8 @@ describe("magic link", () => {
   it("stores only hashes of the login and session tokens", async () => {
     const s = setup();
     const { path } = await s.requestLink("a@x.com");
-    const token = path.split("token=")[1]!;
-    const v = await s.call("GET", path);
+    const token = s.tokenOf(path);
+    const v = await s.spend(token);
     const dump = JSON.stringify([
       (await s.db.prepare("SELECT * FROM login_tokens").all()).results,
       (await s.db.prepare("SELECT * FROM sessions").all()).results,
@@ -89,32 +92,63 @@ describe("magic link", () => {
     expect(dump).not.toContain(s.cookieOf(v)!);
   });
 
-  it("reused token redirects with error=link and makes no second session", async () => {
+  it("opening the link spends nothing: it sends the token on to /account", async () => {
+    const s = setup();
+    const { path } = await s.requestLink("a@x.com", "/room/ABCD?upgrade=1");
+    const token = s.tokenOf(path);
+    // A mail scanner opening it twice, then the person.
+    for (let i = 0; i < 3; i++) {
+      const r = await s.call("GET", path);
+      expect(r.status).toBe(302);
+      expect(r.headers.get("set-cookie")).toBeNull();
+      const loc = new URL(ORIGIN + r.headers.get("location"));
+      expect(loc.pathname).toBe("/account");
+      expect(Object.fromEntries(loc.searchParams)).toEqual({ token, next: "/room/ABCD?upgrade=1" });
+    }
+    expect(await count(s.db, "sessions")).toBe(0);
+    expect((await s.db.prepare("SELECT used_at FROM login_tokens").first<{ used_at: number | null }>())!.used_at).toBeNull();
+    expect(await (await s.spend(token)).json()).toEqual({ next: "/room/ABCD?upgrade=1" });
+  });
+
+  it("opening a used, expired, unknown or missing link goes to error=link", async () => {
     const s = setup();
     const { path } = await s.requestLink("a@x.com");
-    await s.call("GET", path);
-    const again = await s.call("GET", path);
-    expect(again.headers.get("location")).toBe("/account?error=link");
+    await s.spend(s.tokenOf(path));
+    expect((await s.call("GET", path)).headers.get("location")).toBe("/account?error=link");
+    const { path: late } = await s.requestLink("a@x.com");
+    s.clock.t += 16 * MIN;
+    expect((await s.call("GET", late)).headers.get("location")).toBe("/account?error=link");
+    expect((await s.call("GET", "/api/auth/verify?token=nope")).headers.get("location")).toBe("/account?error=link");
+    expect((await s.call("GET", "/api/auth/verify")).headers.get("location")).toBe("/account?error=link");
+  });
+
+  it("a reused token is 400 with the link message and makes no second session", async () => {
+    const s = setup();
+    const { path } = await s.requestLink("a@x.com");
+    await s.spend(s.tokenOf(path));
+    const again = await s.spend(s.tokenOf(path));
+    expect(again.status).toBe(400);
+    expect(await again.json()).toEqual({ error: "That link did not work. Ask for a new one." });
     expect(again.headers.get("set-cookie")).toBeNull();
     expect(await count(s.db, "sessions")).toBe(1);
   });
 
-  it("expired token (16 min) redirects with error=link", async () => {
+  it("an expired token (16 min) is 400", async () => {
     const s = setup();
     const { path } = await s.requestLink("a@x.com");
     s.clock.t += 16 * MIN;
-    const r = await s.call("GET", path);
-    expect(r.headers.get("location")).toBe("/account?error=link");
+    expect((await s.spend(s.tokenOf(path))).status).toBe(400);
     expect(await count(s.db, "sessions")).toBe(0);
   });
 
-  it("14 minutes is still fine; unknown and missing tokens fail", async () => {
+  it("14 minutes is still fine; unknown, missing and junk tokens are 400", async () => {
     const s = setup();
     const { path } = await s.requestLink("a@x.com");
     s.clock.t += 14 * MIN;
-    expect((await s.call("GET", path)).headers.get("set-cookie")).not.toBeNull();
-    expect((await s.call("GET", "/api/auth/verify?token=nope")).headers.get("location")).toBe("/account?error=link");
-    expect((await s.call("GET", "/api/auth/verify")).headers.get("location")).toBe("/account?error=link");
+    expect((await s.spend(s.tokenOf(path))).headers.get("set-cookie")).not.toBeNull();
+    expect((await s.spend("nope")).status).toBe(400);
+    expect((await s.call("POST", "/api/auth/verify", { body: {} })).status).toBe(400);
+    expect((await s.call("POST", "/api/auth/verify", { body: { token: 5 } })).status).toBe(400);
   });
 
   it("case and spaces make one account", async () => {
@@ -127,12 +161,13 @@ describe("magic link", () => {
 
   it("next must be a same-site path", async () => {
     const s = setup();
-    for (const bad of ["//evil.com", "https://evil.com", "/\\evil.com", "evil"]) {
+    const nextOf = async (r: Response) => ((await r.json()) as { next: string }).next;
+    for (const bad of ["//evil.com", "https://evil.com", "/\\evil.com", "evil", "/a b", "/caf\u00e9", "/x\u0007"]) {
       const { path } = await s.requestLink("a@x.com", bad);
-      expect((await s.call("GET", path)).headers.get("location")).toBe("/account");
+      expect(await nextOf(await s.spend(s.tokenOf(path)))).toBe("/account");
     }
     const { path } = await s.requestLink("a@x.com", "/play?x=1");
-    expect((await s.call("GET", path)).headers.get("location")).toBe("/play?x=1");
+    expect(await nextOf(await s.spend(s.tokenOf(path)))).toBe("/play?x=1");
   });
 
   it("unknown and known emails both get { ok: true }", async () => {
@@ -185,25 +220,49 @@ describe("google", () => {
     expect(r.headers.get("set-cookie")).toContain("Max-Age=600");
   });
 
-  it("mismatched or missing state is 400", async () => {
+  /** Back to /account with error=google, and the oauth cookie cleared. */
+  const expectFailed = (r: Response) => {
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toBe("/account?error=google");
+    expect(r.headers.getSetCookie()).toEqual(["cp_oauth=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth/google; Max-Age=0"]);
+  };
+
+  it("mismatched or missing state fails back to /account", async () => {
     const s = setup();
     const { cookie } = await start(s);
-    expect((await s.call("GET", "/api/auth/google/callback?code=c&state=wrong", { cookie })).status).toBe(400);
-    expect((await s.call("GET", "/api/auth/google/callback?code=c&state=x")).status).toBe(400);
+    expectFailed(await s.call("GET", "/api/auth/google/callback?code=c&state=wrong", { cookie }));
+    expectFailed(await s.call("GET", "/api/auth/google/callback?code=c&state=x"));
     expect(await count(s.db, "sessions")).toBe(0);
   });
 
-  it("email_verified false is 400", async () => {
+  it("Cancel on Google's page (error, no code) fails back to /account", async () => {
+    const s = setup();
+    const { cookie, state } = await start(s);
+    expectFailed(await s.call("GET", `/api/auth/google/callback?error=access_denied&state=${state}`, { cookie }));
+  });
+
+  it("a failed or unreachable token endpoint fails back to /account", async () => {
+    const s = setup();
+    const { cookie, state } = await start(s);
+    s.deps.fetch = (async () => new Response("no", { status: 500 })) as typeof fetch;
+    expectFailed(await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie }));
+    s.deps.fetch = (async () => {
+      throw new TypeError("network");
+    }) as typeof fetch;
+    expectFailed(await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie }));
+  });
+
+  it("email_verified false fails back to /account", async () => {
     const s = setup({ googleClaims: { email_verified: false } });
     const { cookie, state } = await start(s);
-    expect((await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie })).status).toBe(400);
+    expectFailed(await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie }));
     expect(await count(s.db, "users")).toBe(0);
   });
 
-  it("wrong audience is 400", async () => {
+  it("wrong audience fails back to /account", async () => {
     const s = setup({ googleClaims: { aud: "other" } });
     const { cookie, state } = await start(s);
-    expect((await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie })).status).toBe(400);
+    expectFailed(await s.call("GET", `/api/auth/google/callback?code=c&state=${state}`, { cookie }));
   });
 
   it("happy path: session, next honoured, oauth cookie cleared", async () => {
