@@ -427,12 +427,12 @@ img, svg { display: block; }
 .who-email { font-weight: 700; font-size: 1.125rem; word-break: break-all; }
 /* Account: the plan card. Host Pass gets the accent edge, like its column on the pricing page. */
 .plan-card { gap: 6px; }
-/* An active pass is the green card: a deep lime-green (white text needs
+/* An active pass is the green card: a flat deep lime-green (white text needs
    the depth; on the bright lime it would be unreadable) with the bright
    lime kept for the bar and the dot, and a soft lime glow. */
 .plan-card[data-tier="pass"] {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: linear-gradient(140deg, #4f7a0c, #26400a);
+  background: #3d6209;
   color: #fff;
   box-shadow: 0 10px 40px -12px color-mix(in srgb, var(--accent) 45%, transparent);
 }
