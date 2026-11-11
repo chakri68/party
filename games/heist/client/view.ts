@@ -217,7 +217,7 @@ export class HeistView implements GameView {
       const label = done
         ? `Job ${k + 1}: ${done.winner === "crew" ? "done" : done.heat ? "lost to heat" : "failed"}`
         : `Job ${k + 1}: team of ${game.sizes[k]}`;
-      return h("li", { class: cls, "aria-label": label, "aria-current": now ? "step" : null }, done ? (done.winner === "crew" ? "✓" : done.heat ? "♨" : "✗") : String(game.sizes[k]));
+      return h("li", { class: cls, "aria-label": label, "aria-current": now ? "step" : null }, done ? (done.winner === "crew" ? "✓" : done.heat ? "♨\uFE0E" : "✗") : String(game.sizes[k]));
     });
     const heat = Array.from({ length: MAX_HEAT }, (_, i) => h("span", { class: i < game.heat ? "hz-heat-dot on" : "hz-heat-dot" }));
     replaceChildren(
