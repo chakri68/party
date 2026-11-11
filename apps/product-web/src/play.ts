@@ -38,6 +38,10 @@ startShell({
   hostKeyFor,
   onLockedGame: openPassSheet,
   nameOverrides: PRODUCT_NAMES,
-  beforeStart: mountHeader,
+  beforeStart: (outlet) => {
+    // The shell's views append into #app, so the HTML's loader goes by hand.
+    outlet.querySelector(".cp-loader")?.remove();
+    mountHeader(outlet);
+  },
 });
 if (notUpgraded) openPassSheet("", notUpgraded);

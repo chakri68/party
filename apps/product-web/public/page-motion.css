@@ -1,0 +1,38 @@
+/* Linked in every page's <head>, before anything draws: a page-to-page
+   fade has to be switched on by both the page you leave and the one you
+   land on, and the main stylesheet arrives too late for that. Browsers
+   without cross-document view transitions just load the page. */
+
+@view-transition { navigation: auto; }
+
+/* The page colour from the first frame, so a fade never passes through white. */
+html { background: #0e0e0c; }
+
+@keyframes cp-page-out { to { opacity: 0; } }
+@keyframes cp-page-in { from { opacity: 0; transform: translateY(6px); } }
+
+::view-transition-old(root) { animation: cp-page-out 140ms ease-in both; }
+::view-transition-new(root) { animation: cp-page-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
+
+/* /play and room links: the mark, pulsing, while the shell's script loads.
+   Waits 300ms before showing so a fast load never flashes it. play.ts
+   takes it out when the shell starts. */
+.cp-loader {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.cp-loader svg {
+  width: 56px;
+  height: 56px;
+  animation: cp-loader-in 200ms ease-out 300ms both, cp-loader-pulse 1.1s ease-in-out 500ms infinite;
+}
+@keyframes cp-loader-in { from { opacity: 0; transform: scale(0.9); } }
+@keyframes cp-loader-pulse { 50% { opacity: 0.45; transform: scale(0.94); } }
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  .cp-loader svg { animation: cp-loader-in 1ms linear 300ms both; }
+}
