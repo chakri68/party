@@ -427,13 +427,20 @@ img, svg { display: block; }
 .who-email { font-weight: 700; font-size: 1.125rem; word-break: break-all; }
 /* Account: the plan card. Host Pass gets the accent edge, like its column on the pricing page. */
 .plan-card { gap: 6px; }
-/* An active pass is the lime card: dark text on the accent, in both themes. */
-.plan-card[data-tier="pass"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
-.plan-card[data-tier="pass"] :is(.plan-kind, .plan-perks) { color: color-mix(in srgb, var(--accent-ink) 68%, transparent); }
-.plan-card[data-tier="pass"] .plan-status { color: var(--accent-ink); }
-.plan-card[data-tier="pass"] .plan-status::before { background: var(--accent-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-ink) 18%, transparent); }
-.plan-card[data-tier="pass"] .plan-bar { background: color-mix(in srgb, var(--accent-ink) 16%, transparent); }
-.plan-card[data-tier="pass"] .plan-bar-fill { background: var(--accent-ink); }
+/* An active pass is the green card: a deep lime-green (white text needs
+   the depth; on the bright lime it would be unreadable) with the bright
+   lime kept for the bar and the dot, and a soft lime glow. */
+.plan-card[data-tier="pass"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(140deg, #4f7a0c, #26400a);
+  color: #fff;
+  box-shadow: 0 10px 40px -12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.plan-card[data-tier="pass"] :is(.plan-kind, .plan-perks) { color: rgb(255 255 255 / 0.72); }
+.plan-card[data-tier="pass"] .plan-status { color: #fff; }
+.plan-card[data-tier="pass"] .plan-status::before { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 10px var(--accent); }
+.plan-card[data-tier="pass"] .plan-bar { background: rgb(255 255 255 / 0.18); }
+.plan-card[data-tier="pass"] .plan-bar-fill { background: var(--accent); }
 .plan-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .plan-kind { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .plan-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
