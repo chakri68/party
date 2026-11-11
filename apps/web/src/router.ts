@@ -2,6 +2,7 @@
 
 import type { View } from "@games/ui";
 import { devAs } from "./identity.ts";
+import { shellConfig } from "./shell.ts";
 import { transition } from "./transition.ts";
 
 type Params = Record<string, string>;
@@ -32,13 +33,13 @@ function match(path: string): { factory: Factory; params: Params } | null {
   return null;
 }
 
-export const APP_TITLE = "Party Games";
+export const appTitle = () => shellConfig().appTitle;
 
 function render() {
   const found = match(location.pathname);
-  if (!found) return navigate("/", { replace: true });
+  if (!found) return navigate(shellConfig().homePath, { replace: true });
   current?.destroy();
-  document.title = APP_TITLE; // views may refine it
+  document.title = appTitle(); // views may refine it
   current = found.factory(found.params);
   current.mount(outlet);
   window.scrollTo(0, 0);

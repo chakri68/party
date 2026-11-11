@@ -10,7 +10,7 @@ export interface LocalIdentity {
  * Dev only: `?as=p2` gives a tab its own identity and tokens, so one browser can
  * be four players. Production builds ignore it (the branch is dead-code-eliminated).
  */
-export const devAs: string | null = import.meta.env.DEV ? new URLSearchParams(location.search).get("as") : null;
+export const devAs: string | null = import.meta.env.DEV && typeof location !== "undefined" ? new URLSearchParams(location.search).get("as") : null;
 
 const key = (k: string) => (devAs ? `pg:${devAs}:${k}` : `pg:${k}`);
 

@@ -19,12 +19,14 @@ import {
   NUDGE_COOLDOWN_MS,
   parseClientMessage,
   PROTOCOL_VERSION,
+  safeEqual,
   type ChatMessage,
   type ClientMessage,
   type ErrorCode,
   type Presence,
   type RoomPhase,
   type RoomPublicState,
+  type RoomTier,
   type ServerMessage,
   SKIP_AFTER_MS,
 } from "@games/protocol";
@@ -55,6 +57,18 @@ export interface RoomStorage {
   deleteAlarm(): Promise<void>;
 }
 
+/** What a free room can't do. A host without these has no paywall. */
+export interface TierLimits {
+  premiumGameIds: string[];
+  freeMaxPlayers: number;
+}
+
+export interface RoomGrant {
+  tier: RoomTier;
+  /** Per-room secret that seats its holder as owner, like the global owner key. */
+  hostKey: string | null;
+}
+
 export interface RoomHost {
   storage: RoomStorage;
   connections(): Iterable<Conn>;
@@ -70,6 +84,10 @@ export interface RoomHost {
   isOwnerKey(key: string): boolean;
   /** Games only start with an owner seated (on in prod; tests may turn it off). */
   ownerRequired: boolean;
+  /** Absent = nothing locked, no cap. */
+  tierLimits?: TierLimits;
+  /** Optional text filter (e.g. profanity) for names and chat. Absent = identity. */
+  filterText?: (text: string) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +125,9 @@ interface RoomData {
   timers: Record<string, number>;
   /** Optional: rooms stored before chat existed don't have it. */
   chat?: { nextId: number; messages: ChatMessage[] };
+  /** Optional: rooms stored before tiers existed are "pass" with no host key. */
+  tier?: RoomTier;
+  hostKey?: string | null;
 }
 
 const STORAGE_KEY = "room";
@@ -183,7 +204,7 @@ export class RoomRuntime {
   }
 
   /** Claims this room code. False if it's already taken (§10). */
-  claim(): Promise<boolean> {
+  claim(grant: RoomGrant = { tier: "pass", hostKey: null }): Promise<boolean> {
     return this.run(async () => {
       if (this.data) return false;
       const def = this.games[this.defaultGameId]!;
@@ -202,12 +223,29 @@ export class RoomRuntime {
         awaitingSince: null,
         lastNudgeAt: 0,
         timers: {},
+        tier: grant.tier,
+        hostKey: grant.hostKey,
       };
       // Covers the room nobody ever joins.
       this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
       await this.persist();
       return true;
     });
+  }
+
+  /** free → pass, in place. Never the other way: a lapsed pass can't close an open room. */
+  upgrade(): Promise<void> {
+    return this.run(async () => {
+      if (!this.data || this.tier() === "pass") return;
+      this.data.tier = "pass";
+      await this.commit([]);
+    });
+  }
+
+  /** Constant-time. False when the room has no host key. */
+  hostKeyMatches(key: string): boolean {
+    const hk = this.data?.hostKey;
+    return !!hk && safeEqual(key, hk);
   }
 
   onConnect(conn: Conn): Promise<void> {
@@ -319,9 +357,13 @@ export class RoomRuntime {
     conn.setState({ hello: true, playerId: conn.state?.playerId ?? null });
   }
 
+  private filterText(text: string): string {
+    return this.host.filterText ? this.host.filterText(text) : text;
+  }
+
   private async onJoin(conn: Conn, msg: Extract<ClientMessage, { type: "join" }>): Promise<void> {
     const data = this.data!;
-    const name = normalizeName(msg.name);
+    const name = this.filterText(normalizeName(msg.name));
     if (!name) return this.error(conn, "invalid-name", "Enter your name first.");
 
     let seat = msg.resumeToken
@@ -329,7 +371,7 @@ export class RoomRuntime {
       : undefined;
     let events: GameEventEnvelope<unknown>[] = [];
     // Re-checked on every join, so the flag can't outlive the key it came from.
-    const owner = !!msg.ownerKey && this.host.isOwnerKey(msg.ownerKey);
+    const owner = !!msg.ownerKey && (this.host.isOwnerKey(msg.ownerKey) || this.hostKeyMatches(msg.ownerKey));
 
     if (seat) {
       // Newest connection wins (§11). The old one is told not to come back.
@@ -354,7 +396,8 @@ export class RoomRuntime {
       if (late && !def.manifest.lateJoin) {
         return this.fatal(conn, "game-in-progress", "A game is already going on. Try again after this round.");
       }
-      if (this.activeSeats().length >= def.manifest.maxPlayers) {
+      const freeCap = this.tier() === "free" ? this.host.tierLimits?.freeMaxPlayers ?? Infinity : Infinity;
+      if (this.activeSeats().length >= Math.min(def.manifest.maxPlayers, freeCap)) {
         return this.fatal(conn, "room-full", "This room is full.");
       }
       seat = {
@@ -401,6 +444,7 @@ export class RoomRuntime {
         if (!hostOnly() || !inPhase("lobby", "results")) return;
         const def = this.games[msg.gameId];
         if (!def) return this.error(conn, "unknown-game", "That game does not exist.");
+        if (this.lockedGameIds().includes(msg.gameId)) return this.needsPass(conn);
         data.gameId = msg.gameId;
         data.settings = def.defaultSettings;
         return this.commit([]);
@@ -466,7 +510,7 @@ export class RoomRuntime {
       }
 
       case "chat": {
-        const text = cleanChatText(msg.text);
+        const text = this.filterText(cleanChatText(msg.text));
         if (!text) return;
         // Otherwise the room's chat is a way to hand out the game's answers.
         if (data.phase === "playing" && data.game && this.games[data.game.gameId]!.manifest.ownChat) {
@@ -595,6 +639,7 @@ export class RoomRuntime {
   private async startGame(conn: Conn, debug?: { seed?: number; deck?: string[] }): Promise<void> {
     const data = this.data!;
     const def = this.games[data.gameId]!;
+    if (this.lockedGameIds().includes(data.gameId)) return this.needsPass(conn);
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
     data.seats = data.seats.filter((s) => s.presence === "connected");
@@ -849,7 +894,23 @@ export class RoomRuntime {
       result: def ? def.getResult(data.game!.state) : null,
       canStart: this.ownerHere(),
       setupProblem: this.setupProblem(),
+      tier: this.tier(),
+      lockedGameIds: this.lockedGameIds(),
     };
+  }
+
+  private tier(): RoomTier {
+    return this.data?.tier ?? "pass";
+  }
+
+  private lockedGameIds(): string[] {
+    const limits = this.host.tierLimits;
+    if (!limits || this.tier() !== "free") return [];
+    return limits.premiumGameIds.filter((id) => id in this.games);
+  }
+
+  private needsPass(conn: Conn): void {
+    this.error(conn, "needs-pass", "This game needs Host Pass.");
   }
 
   /**
