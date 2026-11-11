@@ -7,6 +7,14 @@ describe("the shell seam", () => {
   it("defaults to the Party Games setup", () => {
     expect(shellConfig().homePath).toBe("/");
     expect(shellConfig().appTitle).toBe("Party Games");
+    expect(shellConfig().brand).toEqual({ wordmark: "party games", homeHref: "/", label: "Party Games home" });
+  });
+
+  it("takes a host app's brand", () => {
+    configure({ brand: { wordmark: "CouchParty", homeHref: "/", label: "CouchParty home" } });
+    expect(shellConfig().brand.wordmark).toBe("CouchParty");
+    configure({});
+    expect(shellConfig().brand.wordmark).toBe("party games");
   });
 
   it("takes options over the defaults and ignores undefined ones", () => {

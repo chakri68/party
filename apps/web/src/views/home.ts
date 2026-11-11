@@ -94,7 +94,12 @@ function hero(tagline: string) {
     "header",
     { class: "hero" },
     brandMark(),
-    h("h1", { "aria-label": "Party Games" }, "party", h("br"), "games", h("span", { class: "dot", "aria-hidden": "true" }, ".")),
+    h(
+      "h1",
+      { "aria-label": shellConfig().appTitle },
+      shellConfig().brand.wordmark.split(" ").flatMap((w, i) => (i ? [h("br"), w] : [w])),
+      h("span", { class: "dot", "aria-hidden": "true" }, "."),
+    ),
     h("p", { class: "tagline" }, tagline),
   );
 }
