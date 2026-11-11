@@ -88,6 +88,9 @@ export interface SeatPublic {
   joinedAt: number;
 }
 
+/** What a room may do. Rooms without a paywall are always "pass". */
+export type RoomTier = "free" | "pass";
+
 export interface RoomPublicState {
   code: string;
   phase: RoomPhase;
@@ -114,6 +117,9 @@ export interface RoomPublicState {
    * it has none or doesn't check.
    */
   setupProblem: string | null;
+  tier: RoomTier;
+  /** Game ids this room can't select at its tier. Empty on master. */
+  lockedGameIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +199,8 @@ export type ErrorCode =
   | "rate-limited"
   | "not-available"
   | "server-error"
-  | "cannot-start";
+  | "cannot-start"
+  | "needs-pass";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([

@@ -4,7 +4,7 @@
 import { seededRandomInt, type AnyGameDefinition } from "@games/game-core";
 import { PROTOCOL_VERSION, type ServerMessage } from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
-import { RoomRuntime, type Conn, type ConnState, type RoomHost } from "../src/runtime.ts";
+import { RoomRuntime, type Conn, type ConnState, type RoomHost, type TierLimits } from "../src/runtime.ts";
 
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,8 @@ export class World {
   devTools = false;
   /** Off by default so older tests don't all need an owner; the gate has its own tests. */
   ownerRequired = false;
+  /** Absent by default: nothing locked, no cap. */
+  tierLimits: TierLimits | undefined = undefined;
   errors: unknown[] = [];
   private nextId = 0;
   private rng = seededRandomInt(42);
@@ -76,6 +78,7 @@ export class World {
       logError: (err) => void this.errors.push(err),
       isOwnerKey: (key) => key === OWNER_KEY,
       ownerRequired: this.ownerRequired,
+      tierLimits: this.tierLimits,
     };
   }
 
