@@ -9,6 +9,7 @@ export const treasureHuntRules: string[] = [
   "You play in teams. Pick a team or make a new one while the map loads. If you play alone, you are a team of one.",
   "The host starts the game. Players whose map is still loading watch this round.",
   "Every round is a new map. Everyone starts at the same place.",
+  "Map: pick Same map again to play the last round's map one more time.",
   "Your team gets a list of clues. Each clue points to one hidden cache.",
   "Timed: each team has its own list. The team with the most caches when the time ends wins.",
   "Race: all teams share the same list. 3 clues are open at the start, and 1 more opens each time any team finds a cache. A cache one team finds is gone for the others. The first team to find the set number wins.",
@@ -63,5 +64,15 @@ export function treasureHuntSettingFields(raw: unknown, _players: number): Setti
       options: RACE_TARGETS.map((n) => ({ label: String(n), patch: { target: n } })),
     });
   }
+  fields.push({
+    key: "map",
+    label: "Map",
+    selected: s.map === "same" ? 1 : 0,
+    options: [
+      { label: "New map", patch: { map: "new" } },
+      { label: "Same map again", patch: { map: "same" } },
+    ],
+    hint: s.map === "same" ? "Uses the map from the last round. If there was none, you get a new map." : "A new map every round.",
+  });
   return fields;
 }

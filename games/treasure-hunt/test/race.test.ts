@@ -7,7 +7,7 @@ import { RACE_OPEN_START, REVEAL_RADIUS } from "../shared/world.ts";
 
 const ctx = (now = 1000, seed = 7): GameContext => ({ now, randomInt: seededRandomInt(seed), hostId: "p0" });
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
-const RACE: THSettings = { mode: "race", minutes: 30, time: "day", target: 3 };
+const RACE: THSettings = { mode: "race", minutes: 30, time: "day", target: 3, map: "new" };
 
 function act(s: THState, id: string, action: THAction, now = 1000): THState {
   const r = th.handleAction(s, id, action, ctx(now));

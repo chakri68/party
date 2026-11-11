@@ -184,6 +184,8 @@ export type THAction =
 /** Handed from a finished game to the rematch's createGame. */
 export interface THCarry {
   teams: { color: TeamColorKey; members: string[] }[];
+  /** The finished round's map seed, for "Same map again". */
+  seed?: number;
 }
 
 /** Client → server, at POS_HZ in countdown and hunting. */
@@ -228,18 +230,21 @@ export interface THSettings {
   time: TimeSetting;
   /** Race only: caches to win. */
   target: number;
+  /** "same" replays the last round's map, when there was one. */
+  map: "new" | "same";
 }
 
-export const DEFAULT_SETTINGS: THSettings = { mode: "timed", minutes: 30, time: "day", target: RACE_TARGET_DEFAULT };
+export const DEFAULT_SETTINGS: THSettings = { mode: "timed", minutes: 30, time: "day", target: RACE_TARGET_DEFAULT, map: "new" };
 
 /** Missing or empty means the default, field by field; anything present must be a known value. */
 export function parseTHSettings(input: unknown): THSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
-  const { mode = DEFAULT_SETTINGS.mode, minutes = DEFAULT_SETTINGS.minutes, time = DEFAULT_SETTINGS.time, target = DEFAULT_SETTINGS.target } = input as Record<string, unknown>;
+  const { mode = DEFAULT_SETTINGS.mode, minutes = DEFAULT_SETTINGS.minutes, time = DEFAULT_SETTINGS.time, target = DEFAULT_SETTINGS.target, map = DEFAULT_SETTINGS.map } = input as Record<string, unknown>;
   if (mode !== "timed" && mode !== "race") return null;
   if (!(TIMED_MINUTES as readonly unknown[]).includes(minutes)) return null;
   if (!(TIMES as readonly unknown[]).includes(time)) return null;
   if (!(RACE_TARGETS as readonly unknown[]).includes(target)) return null;
-  return { mode, minutes: minutes as THMinutes, time: time as TimeSetting, target: target as number };
+  if (map !== "new" && map !== "same") return null;
+  return { mode, minutes: minutes as THMinutes, time: time as TimeSetting, target: target as number, map };
 }

@@ -58,11 +58,12 @@ export function formatClock(s: number): string {
 export class ReplayView {
   readonly el: HTMLElement;
   private canvas = h("canvas", { class: "th-replay-canvas", "aria-label": "Map of the round" });
+  private mapNo = h("p", { class: "th-replay-map" });
   private legend = h("ul", { class: "th-replay-legend" });
   private slider = h("input", { type: "range", class: "th-replay-slider", min: "0", max: "0", step: "1", value: "0", "aria-label": "Replay time" }) as HTMLInputElement;
   private play = h("button", { type: "button", class: "th-replay-play" }, "Play");
   private clock = h("span", { class: "th-replay-clock" });
-  private body = h("div", { class: "th-replay-body" }, h("h2", { class: "th-replay-title" }, "Replay"), this.canvas, this.legend, h("div", { class: "th-replay-controls" }, this.play, this.slider, this.clock));
+  private body = h("div", { class: "th-replay-body" }, h("h2", { class: "th-replay-title" }, "Replay"), this.mapNo, this.canvas, this.legend, h("div", { class: "th-replay-controls" }, this.play, this.slider, this.clock));
   private none = h("p", { class: "th-replay-none" }, "No replay for this round.");
   private game: THPublic | null = null;
   private replay: THReplay | null = null;
@@ -107,6 +108,7 @@ export class ReplayView {
     this.none.hidden = has;
     if (!has) return;
     if (this.base?.seed !== layout.seed) this.base = new MapCanvas(layout);
+    this.mapNo.textContent = `Map ${layout.seed}`;
     this.slider.max = String(replay.durationS);
     if (fresh || this.forSeed !== game.seed) {
       this.forSeed = game.seed;

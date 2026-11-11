@@ -167,7 +167,7 @@ describe("treasure hunt server", () => {
   });
 
   it("parseSettings defaults to Timed, 30 minutes, and rejects junk", () => {
-    const d = { mode: "timed", minutes: 30, time: "day", target: 5 };
+    const d = { mode: "timed", minutes: 30, time: "day", target: 5, map: "new" };
     expect(th.parseSettings(undefined)).toEqual(d);
     expect(th.parseSettings({})).toEqual(d);
     for (const m of [15, 30, 60]) expect(th.parseSettings({ minutes: m })).toEqual({ ...d, minutes: m });

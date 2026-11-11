@@ -125,7 +125,7 @@ describe("teams phase", () => {
     s = th.onTimer!(s, "countdown", ctx({ now: 5000 })).state;
     s = th.onTimer!(s, "round", ctx({ now: 9000 })).state;
     expect(s.phase).toBe("finished");
-    expect(th.carryOver!(s)).toEqual({ teams: [
+    expect(th.carryOver!(s)).toEqual({ seed: s.layout.seed, teams: [
       { color: "orange", members: ["p0", "p1"] },
       { color: "green", members: ["p2"] },
     ] });
@@ -176,10 +176,10 @@ describe("teams phase", () => {
   });
 
   it("settings: mode, minutes and target, with defaults", () => {
-    expect(th.defaultSettings).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5 });
-    expect(th.parseSettings(undefined)).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5 });
-    expect(th.parseSettings({ minutes: 15 })).toEqual({ mode: "timed", minutes: 15, time: "day", target: 5 });
-    expect(th.parseSettings({ mode: "race", minutes: 60, target: 10 })).toEqual({ mode: "race", minutes: 60, time: "day", target: 10 });
+    expect(th.defaultSettings).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5, map: "new" });
+    expect(th.parseSettings(undefined)).toEqual({ mode: "timed", minutes: 30, time: "day", target: 5, map: "new" });
+    expect(th.parseSettings({ minutes: 15 })).toEqual({ mode: "timed", minutes: 15, time: "day", target: 5, map: "new" });
+    expect(th.parseSettings({ mode: "race", minutes: 60, target: 10 })).toEqual({ mode: "race", minutes: 60, time: "day", target: 10, map: "new" });
     for (const bad of [{ mode: "solo" }, { target: 2 }, { target: 11 }, { target: "5" }, { minutes: 20 }]) expect(th.parseSettings(bad)).toBeNull();
   });
 });

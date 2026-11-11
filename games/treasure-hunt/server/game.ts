@@ -595,7 +595,8 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
 
   createGame(players, settings, match, ctx) {
     const parsed = parseTHSettings(settings) ?? DEFAULT_SETTINGS;
-    const s = ctx.randomInt(2 ** 31);
+    const carried = (match.carry as Partial<THCarry> | null | undefined)?.seed;
+    const s = parsed.map === "same" && typeof carried === "number" && Number.isInteger(carried) ? carried : ctx.randomInt(2 ** 31);
     const startMin = startMinOf(parsed.time, s);
     const { layout, caches } = makeHunt(s, { startMin, minutes: parsed.minutes, race: parsed.mode === "race" });
     const state: THState = {
@@ -812,6 +813,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
   getResult: (s) => (s.phase === "finished" ? result(s) : null),
 
   carryOver: (s): THCarry => ({
+    seed: s.layout.seed,
     teams: s.teams
       .map((t) => ({ color: t.color, members: members(s, t.id).filter((p) => !p.removed).map((p) => p.id) }))
       .filter((t) => t.members.length),

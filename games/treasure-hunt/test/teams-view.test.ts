@@ -106,13 +106,13 @@ describe("treasureHuntSettingFields", () => {
   const keys = (raw: unknown) => treasureHuntSettingFields(raw, 4).map((f) => f.key);
 
   it("hides Caches to win in Timed", () => {
-    expect(keys({ mode: "timed" })).toEqual(["mode", "minutes", "time"]);
-    expect(keys(undefined)).toEqual(["mode", "minutes", "time"]);
+    expect(keys({ mode: "timed" })).toEqual(["mode", "minutes", "time", "map"]);
+    expect(keys(undefined)).toEqual(["mode", "minutes", "time", "map"]);
   });
 
   it("shows Caches to win, 3 to 10, in Race", () => {
     const fields = treasureHuntSettingFields({ mode: "race", target: 7 }, 4);
-    expect(fields.map((f) => f.key)).toEqual(["mode", "minutes", "time", "target"]);
+    expect(fields.map((f) => f.key)).toEqual(["mode", "minutes", "time", "target", "map"]);
     const target = fields[3]!;
     expect(target.label).toBe("Caches to win");
     expect(target.options.map((o) => o.patch)).toEqual([3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ target: n })));
