@@ -129,6 +129,8 @@ export interface RoomStub {
 export interface WorkerOptions {
   policy: HostPolicy;
   brand: string;
+  /** Path of the SPA shell the room preview page rewrites. Defaults to "/". */
+  shellPath?: string;
   onRoomCreated?(code: string, grant: RoomGrant, request: Request): Promise<void>;
   /** Defaults to `getServerByName(env.Room, code)`. */
   getRoom?(env: ServerEnv, code: string): Promise<RoomStub>;
@@ -169,7 +171,7 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
     if (godot) return godot;
 
     const room = /^\/room\/([^/]+)\/?$/.exec(url.pathname);
-    if (room) return roomPage(request, env, room[1]!.toUpperCase(), opts.brand);
+    if (room) return roomPage(request, env, room[1]!.toUpperCase(), opts.brand, opts.shellPath ?? "/");
 
     return new Response("Not Found", { status: 404 });
   };
@@ -186,8 +188,8 @@ function canonical(request: Request, path: string): string {
  * The SPA shell, with link-preview tags naming the room. Chat apps don't run
  * JS, so this is the only way "Join room K7DX" shows up in a group chat.
  */
-async function roomPage(request: Request, env: ServerEnv, code: string, brand: string): Promise<Response> {
-  const shell = await env.ASSETS.fetch(new Request(new URL("/", request.url), request));
+async function roomPage(request: Request, env: ServerEnv, code: string, brand: string, shellPath: string): Promise<Response> {
+  const shell = await env.ASSETS.fetch(new Request(new URL(shellPath, request.url), request));
   if (!isValidRoomCode(code)) return shell;
   const title = `Join room ${code} · ${brand}`;
   const description = "Tap to join the game. You only need a name.";
