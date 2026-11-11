@@ -4,7 +4,7 @@ import { getServerByName, routePartykitRequest, Server, type Connection } from "
 import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
-import { isOwnerKey, type HostPolicy, type ServerEnv } from "./policy.ts";
+import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { RoomRuntime, type Conn, type ConnState, type RoomGrant, type RoomHost, type TierLimits } from "./runtime.ts";
 import type { AnyGameDefinition } from "@games/game-core";
 
@@ -37,19 +37,15 @@ function wrap(conn: Connection<ConnState>): Conn {
   };
 }
 
-/**
- * One Durable Object per room, addressed by room code.
- *
- * partyserver wants the generated global `Env` here (it constrains on
- * Cloudflare.Env), and that Env has to satisfy ServerEnv, which is how a
- * product Worker's own generated Env plugs in.
- */
+// Server<Env> is the only global-Env use: partyserver constrains on Cloudflare.Env. Everything else reads ServerEnv.
+/** One Durable Object per room, addressed by room code. */
 export class RoomBase extends Server<Env> {
   static options = { hibernate: true };
 
   /** The games this deploy offers. Override to change the set. */
   protected games(): Record<string, AnyGameDefinition> {
-    return gamesFor({ blindRally: this.env.BLIND_RALLY === "1", treasureHunt: this.env.TREASURE_HUNT === "1" });
+    const env = this.env as ServerEnv;
+    return gamesFor({ blindRally: env.BLIND_RALLY === "1", treasureHunt: env.TREASURE_HUNT === "1" });
   }
 
   /** Seat cap and premium games for free rooms. None by default: every room is unrestricted. */
@@ -79,7 +75,7 @@ export class RoomBase extends Server<Env> {
         now: () => Date.now(),
         randomInt: secureRandomInt,
         randomToken,
-        devTools: this.env.DEV_TOOLS === "1",
+        devTools: (this.env as ServerEnv).DEV_TOOLS === "1",
         logError: (err) => console.error(`room ${this.name}:`, err),
         isOwnerKey: (key) => isOwnerKey(this.env as ServerEnv, key),
         ownerRequired: true,
@@ -124,9 +120,6 @@ export class RoomBase extends Server<Env> {
     return this.runtime.onAlarm();
   }
 }
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** What createFetch needs from a room stub; tests fake it. */
 export interface RoomStub {

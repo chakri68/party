@@ -1,16 +1,13 @@
 import { safeEqual } from "@games/protocol";
-import type { GodotBucket } from "./godot.ts";
+import type { GodotEnv } from "./godot.ts";
 import type { RoomGrant } from "./runtime.ts";
 
 /** What the shared Worker needs from its bindings. A product Worker's generated `Env` satisfies it. */
-export interface ServerEnv {
+export interface ServerEnv extends GodotEnv {
   Room: DurableObjectNamespace;
   ASSETS: Fetcher;
   OWNER_KEY?: string;
   DEV_TOOLS?: string;
-  BLIND_RALLY?: string;
-  TREASURE_HUNT?: string;
-  BLIND_RALLY_GODOT?: GodotBucket;
 }
 
 export type CreateDecision =
@@ -22,7 +19,7 @@ export interface HostPolicy {
   canCreate(request: Request, env: ServerEnv): Promise<CreateDecision>;
 }
 
-const json = (body: unknown, status = 200) =>
+export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** No secret set means nobody is the owner: fail closed, never open. */
