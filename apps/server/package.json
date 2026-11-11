@@ -2,6 +2,11 @@
   "name": "@games/server",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts",
+    "./games": "./src/games.ts"
+  },
   "scripts": {
     "dev": "wrangler dev --port 8787 --var DEV_TOOLS:1 --var OWNER_KEY:dev --var BLIND_RALLY:1 --var TREASURE_HUNT:1",
     "deploy": "wrangler deploy",
