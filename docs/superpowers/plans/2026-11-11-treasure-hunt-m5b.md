@@ -106,7 +106,7 @@
   - `CHARACTERS` (the 8 ids, `as const`) and `type CharacterId`;
   - `CHARACTER_LABELS: Record<CharacterId, string>`;
   - `isCharacterId(v: unknown): v is CharacterId`;
-  - `defaultCharacter(playerId: string): CharacterId`, which uses the existing `stableHash` (find it in shared; don't add a second hash).
+  - `defaultCharacter(playerId: string): CharacterId`, which uses `stableHash` from `@games/game-core` (don't add a second hash).
 - `THPlayer.character: CharacterId`, which is public.
 - Action `{ type: "character"; id: CharacterId }`.
 - `THCarry.characters?: Record<string, CharacterId>`.
