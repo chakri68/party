@@ -2,6 +2,7 @@ import { createFetch, RoomBase } from "@games/server/worker";
 import { handleAdmin } from "./admin.ts";
 import { handleAuth, realDeps } from "./auth.ts";
 import { PRODUCT_LIMITS, productGames } from "./catalog.ts";
+import { handleConfig } from "./config.ts";
 import { maskProfanity } from "./filter.ts";
 import { handleUpgrade, productPolicy, realRoomDeps, realUpgradeDeps, recordRoom } from "./rooms.ts";
 
@@ -22,6 +23,8 @@ export default {
   async fetch(request, env) {
     const auth = await handleAuth(request, env, realDeps(env));
     if (auth) return auth;
+    const config = handleConfig(request, env);
+    if (config) return config;
     const admin = await handleAdmin(request, env);
     if (admin) return admin;
     const upgrade = await handleUpgrade(request, env, realUpgradeDeps);

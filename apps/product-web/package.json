@@ -1,0 +1,20 @@
+{
+  "name": "@games/product-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "VITE_BLIND_RALLY=1 VITE_TREASURE_HUNT=1 vite",
+    "build": "tsc -p . && VITE_BLIND_RALLY=1 VITE_TREASURE_HUNT=1 vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@games/product-server": "workspace:*",
+    "@games/ui": "workspace:*",
+    "@games/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "vite": "^8.3.0"
+  }
+}

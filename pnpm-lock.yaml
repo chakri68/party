@@ -41,6 +41,25 @@ importers:
         specifier: ^4.137.0
         version: 4.137.0(@cloudflare/workers-types@5.20260924.1)(@types/node@26.6.5)
 
+  apps/product-web:
+    dependencies:
+      '@games/product-server':
+        specifier: workspace:*
+        version: link:../product-server
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@games/web':
+        specifier: workspace:*
+        version: link:../web
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@26.6.5)(esbuild@0.28.1)
+
   apps/server:
     dependencies:
       '@games/blind-rally':

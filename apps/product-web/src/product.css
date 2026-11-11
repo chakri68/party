@@ -1,0 +1,50 @@
+/* Product chrome on top of the shell stylesheet. Uses the shell's tokens. */
+.cp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.cp-wordmark { color: var(--ink); font-weight: 700; text-decoration: none; letter-spacing: 0.01em; }
+.cp-bar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cp-signin, .cp-email { color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-signin:hover, .cp-email:hover { color: var(--ink); }
+.cp-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cp-sheet {
+  width: min(92vw, 420px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+.cp-sheet::backdrop { background: rgb(0 0 0 / 0.6); }
+.cp-sheet h2 { margin: 0 0 8px; font-size: 20px; }
+.cp-sheet p { margin: 0 0 14px; }
+.cp-sheet-body { margin-bottom: 14px; }
+.cp-sheet .cp-muted { color: var(--muted); font-size: 14px; }
+.cp-sheet-error { color: var(--danger); min-height: 0; }
+.cp-sheet-error:empty { display: none; }
+.cp-redeem { display: flex; gap: 8px; align-items: flex-end; }
+.cp-redeem .field { flex: 1; }
+.cp-link-btn {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
