@@ -111,3 +111,50 @@ export function growBar(el: HTMLElement): void {
   if (reduced()) return;
   el.animate([{ transform: "scaleX(0)" }, { transform: "none" }], { duration: 700, delay: 120, easing: EASE, fill: "backwards" });
 }
+
+/**
+ * Makes `<details>` open and close with a slide instead of a snap. The
+ * summary click is taken over: the height eases between the summary alone
+ * and the whole thing, and `open` flips at the right end (set first when
+ * opening, so the answer is there to slide into; cleared last when closing,
+ * so it stays visible while it slides away). Clicking again mid-way turns
+ * it around from wherever it is. Without JS or with reduced motion, the
+ * browser's own snap is still there.
+ */
+export function slideDetails(root: ParentNode = document): void {
+  for (const d of root.querySelectorAll<HTMLDetailsElement>("details")) {
+    const summary = d.querySelector("summary");
+    if (!summary) continue;
+    let anim: Animation | null = null;
+    let want = d.open;
+
+    summary.addEventListener("click", (e) => {
+      if (reduced()) return;
+      e.preventDefault();
+      const from = d.getBoundingClientRect().height;
+      if (anim) {
+        anim.onfinish = null;
+        anim.cancel();
+      }
+      want = !want;
+      d.classList.toggle("closing", !want);
+      if (want) d.open = true;
+      // Closed height: the summary plus the details' own borders.
+      const to = want ? d.getBoundingClientRect().height : summary.getBoundingClientRect().height + (d.offsetHeight - d.clientHeight);
+      d.style.overflow = "hidden";
+      anim = d.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: want ? 280 : 220, easing: EASE });
+      if (want) {
+        for (const kid of d.children) {
+          if (kid === summary) continue;
+          kid.animate([{ opacity: 0, transform: "translateY(-4px)" }, { opacity: 1, transform: "none" }], { duration: 260, delay: 40, easing: EASE, fill: "backwards" });
+        }
+      }
+      anim.onfinish = () => {
+        if (!want) d.open = false;
+        d.classList.remove("closing");
+        d.style.overflow = "";
+        anim = null;
+      };
+    });
+  }
+}

@@ -360,9 +360,10 @@ img, svg { display: block; }
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(45deg) translateY(-3px);
-  transition: transform 160ms ease;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
 }
-.faq details[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
+/* .closing: still [open] while it slides shut, but the arrow turns back at the start. */
+.faq details[open]:not(.closing) summary::after { transform: rotate(-135deg) translateY(-3px); }
 .faq details p { padding: 0 0 22px; color: var(--muted); max-width: 60ch; }
 
 /* Closing call */
