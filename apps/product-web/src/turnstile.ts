@@ -29,6 +29,18 @@ function loadScript(): Promise<TurnstileApi> {
   return loading;
 }
 
+/** Documented options only. interaction-only shows the widget when a visitor must act. */
+export function renderOptions(sitekey: string, callbacks: { ok(t: string): void; fail(): void }): Record<string, unknown> {
+  return {
+    sitekey,
+    execution: "execute",
+    appearance: "interaction-only",
+    callback: callbacks.ok,
+    "error-callback": callbacks.fail,
+    "timeout-callback": callbacks.fail,
+  };
+}
+
 let widget: string | null = null;
 let pending: { ok(t: string): void; fail(e: Error): void; timer: ReturnType<typeof setTimeout> } | null = null;
 
@@ -50,15 +62,16 @@ export async function getTurnstileToken(): Promise<string> {
     pending = { ok, fail, timer };
     if (widget === null) {
       const host = document.createElement("div");
+      // Fixed in a corner: an interactive challenge stays visible without moving the page.
+      host.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647";
       document.body.append(host);
-      widget = api.render(host, {
-        sitekey: cfg.turnstileSiteKey,
-        size: "invisible",
-        execution: "execute",
-        callback: (t: string) => settle((p) => p.ok(t)),
-        "error-callback": () => settle((p) => p.fail(new Error("turnstile error"))),
-        "timeout-callback": () => settle((p) => p.fail(new Error("turnstile timeout"))),
-      });
+      widget = api.render(
+        host,
+        renderOptions(cfg.turnstileSiteKey, {
+          ok: (t) => settle((p) => p.ok(t)),
+          fail: () => settle((p) => p.fail(new Error("turnstile failed"))),
+        }),
+      );
     } else {
       api.reset(widget);
     }

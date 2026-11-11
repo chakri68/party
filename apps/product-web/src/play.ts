@@ -29,7 +29,10 @@ async function finishUpgrade(): Promise<void> {
   if (url.searchParams.get("upgrade") !== "1") return;
   const code = /^\/room\/([^/]+)\/?$/.exec(url.pathname)?.[1];
   const key = code ? hostKeyFor(code) : null;
-  if (code && key) await upgradeRoom(code, key).catch(() => {});
+  if (code && key) {
+    const r = await upgradeRoom(code, key);
+    if (!r.ok) console.warn("Room upgrade failed:", r.error);
+  }
   url.searchParams.delete("upgrade");
   history.replaceState(history.state, "", url.pathname + url.search + url.hash);
 }

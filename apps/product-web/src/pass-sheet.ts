@@ -2,9 +2,11 @@ import { h } from "@games/ui";
 import { me, redeem, upgradeRoom } from "./api.ts";
 import { hostKeyFor } from "./host-keys.ts";
 
+const NOT_HOST = "Only the host can do this. Ask the person who made the room.";
+
 async function upgradeHere(code: string): Promise<string | null> {
   const key = hostKeyFor(code);
-  if (!key) return "Only the host can do this. Use the device that made the room.";
+  if (!key) return NOT_HOST;
   const r = await upgradeRoom(code, key);
   return r.ok ? null : r.error;
 }
@@ -55,6 +57,7 @@ export function openPassSheet(_gameId: string, code: string): void {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         fail(null);
+        if (!hostKeyFor(code)) return fail(NOT_HOST); // do not spend the code
         submit.disabled = true;
         const r = await redeem(input.value.trim());
         const err = r.ok ? await upgradeHere(code) : r.error;
