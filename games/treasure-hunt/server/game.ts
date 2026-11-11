@@ -99,6 +99,8 @@ import { makeHunt } from "./hunt.ts";
 
 const COUNTDOWN_TIMER = "countdown";
 const ROUND_TIMER = "round";
+const HOTCOLD_PREFIX = "hotcold:";
+const hotcoldTimer = (teamId: number) => `${HOTCOLD_PREFIX}${teamId}`;
 
 /** The last position a player streamed. In memory: it persists with the next real write. */
 export interface THPos {
@@ -257,7 +259,7 @@ function deal(s: THState): void {
 function finish(s: THState, ctx: GameContext, events: Events, timers: TimerRequest[]): void {
   s.phase = "finished";
   s.endedAt = ctx.now;
-  for (const timerId of [COUNTDOWN_TIMER, ROUND_TIMER]) timers.push({ kind: "cancel", timerId });
+  for (const timerId of [COUNTDOWN_TIMER, ROUND_TIMER, ...s.teams.map((t) => hotcoldTimer(t.id))]) timers.push({ kind: "cancel", timerId });
   events.push(pub({ type: "ended" }));
 }
 
@@ -412,6 +414,12 @@ function claim(s: THState, playerId: string, cacheId: string, ctx: GameContext):
   (next.finds ??= []).push({ cacheId, teamId: team.id, playerId, t: Math.round((ctx.now - (s.startedAt ?? ctx.now)) / 1000), x: Math.round(cache.x), z: Math.round(cache.z) });
   const events: Events = [pub({ type: "claimed", playerId, foundCount: t.found.length })];
   const timers: TimerRequest[] = [];
+  // A claimed cache ends any team's Hot or cold on it.
+  for (const o of next.teams) {
+    if (o.hotcold?.id !== cacheId) continue;
+    o.hotcold = null;
+    timers.push({ kind: "cancel", timerId: hotcoldTimer(o.id) });
+  }
   if (allDone(next)) finish(next, ctx, events, timers);
   return ok(next, events, timers);
 }
@@ -426,14 +434,11 @@ function liveHotcold(s: THState, team: THServerTeam, now: number): { id: string;
   return h && now < h.until && !claimedBy(s, h.id) ? h : null;
 }
 
-/** getPrivateState has no ctx. The newest position any player streamed is the server's last known time. */
-const clockOf = (s: THState): number => s.players.reduce((m, p) => Math.max(m, p.pos?.at ?? NEVER), s.startedAt ?? NEVER);
-
 function hotcold(s: THState, playerId: string, cacheId: string, ctx: GameContext): GameResult<THState, THEvent> {
   if (s.phase !== "hunting") return reject("not-hunting", "The hunt is not on.");
   const me = s.players.find((p) => p.id === playerId);
   const team = me && teamOf(s, me);
-  if (!me || me.removed || me.spectator || !team || !s.caches.some((c) => c.id === cacheId) || !board(s, team).includes(cacheId)) {
+  if (!me || me.removed || me.spectator || !team || !board(s, team).includes(cacheId)) {
     return reject("not-yours", "That cache is not on your team's list.");
   }
   const by = claimedBy(s, cacheId);
@@ -447,7 +452,7 @@ function hotcold(s: THState, playerId: string, cacheId: string, ctx: GameContext
   t.hotcold = { id: cacheId, until: ctx.now + HOTCOLD_MS };
   t.hotcoldUsed = true;
   for (const p of members(next, team.id)) p.hcLevel = null;
-  return ok(next, [], []);
+  return ok(next, [], [{ kind: "set", timerId: hotcoldTimer(team.id), delayMs: HOTCOLD_MS }]);
 }
 
 const PIN_LIMIT = 950;
@@ -714,6 +719,9 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
       hunt(s, ctx, events, timers);
     } else if (timerId === ROUND_TIMER && s.phase === "hunting") {
       finish(s, ctx, events, timers);
+    } else if (timerId.startsWith(HOTCOLD_PREFIX) && s.phase === "hunting") {
+      const t = s.teams.find((x) => x.id === Number(timerId.slice(HOTCOLD_PREFIX.length)));
+      if (t) t.hotcold = null;
     }
     return out(s, events, timers);
   },
@@ -872,7 +880,7 @@ export const treasureHuntGame: GameDefinition<THState, THAction, THPublic, THPri
         unlockAt: hotcoldUnlockAt(s),
         active: (() => {
           const h = team.hotcold ?? null;
-          return h && s.phase === "hunting" && !claimedBy(s, h.id) && clockOf(s) < h.until ? { id: h.id, until: h.until, level: me!.hcLevel ?? null } : null;
+          return h && s.phase === "hunting" && !claimedBy(s, h.id) ? { id: h.id, until: h.until, level: me!.hcLevel ?? null } : null;
         })(),
       },
     };

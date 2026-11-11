@@ -1,6 +1,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { treasureHuntGame as th, type THState } from "../server/game.ts";
+import { macroHeight } from "../shared/generate.ts";
 import { DEFAULT_SETTINGS, type THAction, type THSettings } from "../shared/types.ts";
 import { HOTCOLD_MS, HOTCOLD_RACE_UNLOCK_MS, JUMP_GRACE_MS, hotColdLevel } from "../shared/world.ts";
 
@@ -33,6 +34,15 @@ const teamOf = (s: THState, pid: string) => s.teams.find((t) => t.id === s.playe
 const boardOf = (s: THState, pid: string) => th.getPrivateState(s, pid).clues.map((c) => c.id);
 const cache = (s: THState, id: string) => s.caches.find((c) => c.id === id)!;
 const HALF = 15 * 60_000;
+
+/** Stand on a cache, then claim it. */
+function claim(s: THState, pid: string, cid: string, now: number) {
+  const c = cache(s, cid);
+  const st = th.onStream!(s, pid, { t: "pos", x: c.x, y: macroHeight(s.layout, c.x, c.z) + c.dy, z: c.z, foot: true }, ctx(now))!.state;
+  const r = th.handleAction(st, pid, { type: "claim", cacheId: cid }, ctx(now));
+  if (!r.ok) throw new Error(r.error.code);
+  return r.transition;
+}
 
 /** Stream a player `d` metres east of a cache. */
 function at(s: THState, pid: string, cid: string, d: number, now: number) {
@@ -139,6 +149,7 @@ describe("hot or cold: stream", () => {
     const b = at(a.state, "p0", id, 155, NOW + 2000);
     expect(hot(b)).toEqual([]);
     const c = at(b.state, "p0", id, 145, NOW + 3000);
+    expect(c.persist).toBe(true);
     expect(hot(c)).toEqual([{ to: ["p0"], data: { t: "hotcold", id, level: 2 } }]);
   });
 
@@ -164,21 +175,37 @@ describe("hot or cold: stream", () => {
     expect(hot(after).map((x) => (x.data as { level: number }).level)).toEqual([3]);
   });
 
-  it("the signal ends at until", () => {
+  it("the action sets a timer for the team", () => {
+    const s0 = hunting();
+    const id = boardOf(s0, "p0")[0]!;
+    const r = th.handleAction(s0, "p0", { type: "hotcold", cacheId: id }, ctx(NOW));
+    expect(r.ok && r.transition.timers).toEqual([{ kind: "set", timerId: `hotcold:${teamOf(s0, "p0").id}`, delayMs: HOTCOLD_MS }]);
+  });
+
+  it("the signal ends at until, even if nobody streams after", () => {
     const { s, id } = live();
     const a = at(s, "p0", id, 100, NOW + 1000);
-    const late = at(a.state, "p0", id, 10, NOW + HOTCOLD_MS);
-    expect(hot(late)).toEqual([]);
-    expect(th.getPrivateState(late.state, "p0").hotcold).toMatchObject({ used: true, active: null });
+    expect(th.getPrivateState(a.state, "p0").hotcold.active).not.toBeNull();
+    const fired = th.onTimer!(a.state, `hotcold:${teamOf(s, "p0").id}`, ctx(NOW + HOTCOLD_MS)).state;
+    expect(th.getPrivateState(fired, "p0").hotcold).toMatchObject({ used: true, active: null });
+    // A stream at or after until also relays nothing.
+    expect(hot(at(a.state, "p0", id, 10, NOW + HOTCOLD_MS))).toEqual([]);
+  });
+
+  it("the round ending cancels every team's timer", () => {
+    const { s } = live();
+    const r = th.handleAction(s, "p0", { type: "end" }, ctx(NOW + 1000));
+    const timers = r.ok ? r.transition.timers : [];
+    for (const t of s.teams) expect(timers).toContainEqual({ kind: "cancel", timerId: `hotcold:${t.id}` });
   });
 
   it("a team claim ends it", () => {
     const { s, id } = live();
     const a = at(s, "p0", id, 100, NOW + 1000);
-    const st = structuredClone(a.state);
-    teamOf(st, "p0").found.push(id);
-    expect(hot(at(st, "p0", id, 10, NOW + 1200))).toEqual([]);
-    expect(th.getPrivateState(st, "p0").hotcold).toMatchObject({ used: true, active: null });
+    const t = claim(a.state, "p0", id, NOW + 20_000);
+    expect(t.timers).toContainEqual({ kind: "cancel", timerId: `hotcold:${teamOf(s, "p0").id}` });
+    expect(hot(at(t.state, "p1", id, 10, NOW + 21_000))).toEqual([]);
+    expect(th.getPrivateState(t.state, "p1").hotcold).toMatchObject({ used: true, active: null });
   });
 
   it("another team's claim ends it (race)", () => {
@@ -187,10 +214,10 @@ describe("hot or cold: stream", () => {
     const s = act(s0, "p0", { type: "hotcold", cacheId: id }, T0 + HOTCOLD_RACE_UNLOCK_MS);
     const now = T0 + HOTCOLD_RACE_UNLOCK_MS;
     const a = at(s, "p0", id, 100, now + 1000);
-    const st = structuredClone(a.state);
-    teamOf(st, "p2").found.push(id);
-    expect(hot(at(st, "p0", id, 10, now + 1200))).toEqual([]);
-    expect(th.getPrivateState(st, "p0").hotcold).toMatchObject({ used: true, active: null });
+    const t = claim(a.state, "p2", id, now + 20_000);
+    expect(t.timers).toContainEqual({ kind: "cancel", timerId: `hotcold:${teamOf(s, "p0").id}` });
+    expect(hot(at(t.state, "p0", id, 10, now + 21_000))).toEqual([]);
+    expect(th.getPrivateState(t.state, "p0").hotcold).toMatchObject({ used: true, active: null });
   });
 
   it("private active carries the last relayed level", () => {
