@@ -2,6 +2,8 @@ import { safeEqual } from "@games/protocol";
 import type { GodotEnv } from "./godot.ts";
 import type { RoomGrant } from "./runtime.ts";
 
+export type { TierLimits } from "./runtime.ts";
+
 /** What the shared Worker needs from its bindings. A product Worker's generated `Env` satisfies it. */
 export interface ServerEnv extends GodotEnv {
   Room: DurableObjectNamespace;
