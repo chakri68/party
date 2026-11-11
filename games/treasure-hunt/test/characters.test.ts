@@ -61,6 +61,14 @@ describe("character choice", () => {
       }
     }
   });
+  it("is rejected, without throwing, from someone who isn't in the game", () => {
+    const s = make(2);
+    const r = th.handleAction(s, "stranger", { type: "character", id: "male-a" }, ctx());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe("not-in-game");
+    expect(s.players.map((p) => p.id)).toEqual(["p0", "p1"]);
+  });
+
   it("parseAction drops unknown ids", () => {
     expect(th.parseAction({ type: "character", id: "robot" })).toBeNull();
     expect(th.parseAction({ type: "character" })).toBeNull();

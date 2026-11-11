@@ -15,7 +15,16 @@ class FakeNode {
   value = "";
   addEventListener(t: string, f: (e: unknown) => void) { this.listeners.set(t, [...(this.listeners.get(t) ?? []), f]); }
   append(...c: (FakeNode | string)[]) { this.children.push(...c); }
-  replaceChildren(...c: (FakeNode | string)[]) { this.children = []; this.append(...c); }
+  replaceChildren(...c: (FakeNode | string)[]) {
+    // Like the browser: removing the focused node drops focus to the body.
+    const active = (globalThis as { document: { activeElement: FakeNode | null } }).document.activeElement;
+    if (active && this.all().includes(active)) (globalThis as { document: { activeElement: FakeNode | null } }).document.activeElement = null;
+    this.children = [];
+    this.append(...c);
+  }
+  contains(n: FakeNode | null): boolean { return n === this || (n !== null && this.all().includes(n)); }
+  querySelectorAll<T>(sel: string): T[] { return this.all().filter((n) => n.getAttribute("class") === sel.slice(1)) as unknown as T[]; }
+  focus() { (globalThis as { document: { activeElement: FakeNode | null } }).document.activeElement = this; }
   all(): FakeNode[] { return this.children.flatMap((c) => (c instanceof FakeNode ? [c, ...c.all()] : [])); }
   click() { for (const f of this.listeners.get("click") ?? []) f({}); }
 }
@@ -24,7 +33,7 @@ const g = globalThis as Record<string, unknown>;
 const saved = { Node: g.Node, document: g.document };
 beforeAll(() => {
   g.Node = FakeNode;
-  g.document = { createElement: (tag: string) => new FakeNode(tag) };
+  g.document = { createElement: (tag: string) => new FakeNode(tag), activeElement: null };
 });
 afterAll(() => Object.assign(g, saved));
 
@@ -101,5 +110,34 @@ describe("re-rendering", () => {
   it("redraws when my character changes", async () => {
     const { second } = await rebuild((g) => { g.players[0]!.character = "female-d"; });
     expect(second.map((b) => b.getAttribute("aria-pressed"))).toEqual(["false", "false", "false", "true", "false", "false", "false", "false"]);
+  });
+});
+
+describe("focus", () => {
+  it("stays on the character picked by keyboard after the panel rebuilds", async () => {
+    const { TeamsPanel } = await import("../client/teams.ts");
+    const p = new TeamsPanel(() => {});
+    const names = { me: "Asha", p2: "Ravi" };
+    const buttons = () => (p.el as unknown as FakeNode).all().filter((n) => n.getAttribute("class") === "th-char");
+    p.update(game("teams"), names, "me", false);
+    const pick = buttons()[3]!;
+    pick.focus();
+    const g2 = game("teams");
+    g2.players[0]!.character = "female-d"; // the server's answer: the pick is mine now
+    p.update(g2, names, "me", false);
+    const now = buttons()[3]!;
+    expect(now).not.toBe(pick);
+    expect((globalThis as { document: { activeElement: unknown } }).document.activeElement).toBe(now);
+  });
+
+  it("leaves focus alone when it wasn't on a picker button", async () => {
+    const { TeamsPanel } = await import("../client/teams.ts");
+    const p = new TeamsPanel(() => {});
+    p.update(game("teams"), { me: "Asha", p2: "Ravi" }, "me", false);
+    (globalThis as { document: { activeElement: unknown } }).document.activeElement = null;
+    const g2 = game("teams");
+    g2.players[0]!.character = "female-d";
+    p.update(g2, { me: "Asha", p2: "Ravi" }, "me", false);
+    expect((globalThis as { document: { activeElement: unknown } }).document.activeElement).toBeNull();
   });
 });

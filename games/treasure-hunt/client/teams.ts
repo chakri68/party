@@ -130,7 +130,7 @@ export class TeamsPanel {
           pickerItems(game, me).map((c) =>
             h(
               "button",
-              { type: "button", class: "th-char", "aria-label": c.label, title: c.label, "aria-pressed": String(c.chosen), onclick: () => this.act({ type: "character", id: c.id }) },
+              { type: "button", class: "th-char", "aria-label": c.label, title: c.label, "aria-pressed": String(c.chosen), "data-char": c.id, onclick: () => this.act({ type: "character", id: c.id }) },
               h("img", { src: c.src, alt: "", width: "48", height: "48" }),
             ),
           ),
@@ -156,6 +156,10 @@ export class TeamsPanel {
         ),
       );
 
+    // A rebuild drops the focused node: note which character button had focus.
+    const active = document.activeElement;
+    const focused = active && this.el.contains(active) ? active.getAttribute("data-char") : null;
+
     replaceChildren(
       this.el,
       h("h2", { class: "th-teams-title" }, "Teams"),
@@ -170,5 +174,10 @@ export class TeamsPanel {
           )
         : h("p", { class: "th-start-note" }, "The host will start the game."),
     );
+
+    // Picking by keyboard changes the key, so the button it was on is gone: focus its twin.
+    if (focused) {
+      for (const b of this.el.querySelectorAll<HTMLElement>(".th-char")) if (b.getAttribute("data-char") === focused) b.focus();
+    }
   }
 }

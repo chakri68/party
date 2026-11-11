@@ -307,13 +307,13 @@ function move(s: THState, playerId: string, teamId: number): void {
   prune(s);
 }
 
-/** Back to the carried teams; anyone the carry doesn't place gets a team of their own. */
 /** A valid carried pick, else the default. */
 function carriedCharacter(carry: unknown, id: string): CharacterId {
   const pick = (carry as Partial<THCarry> | null | undefined)?.characters?.[id];
   return isCharacterId(pick) ? pick : defaultCharacter(id);
 }
 
+/** Back to the carried teams; anyone the carry doesn't place gets a team of their own. */
 function seatTeams(s: THState, carry: unknown): void {
   const c = carry as Partial<THCarry> | null | undefined;
   const placed = new Set<string>();
