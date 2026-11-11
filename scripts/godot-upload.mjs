@@ -41,14 +41,26 @@ function wrangler(args, opts = {}) {
 }
 
 /**
+ * The value after `name` in argv, or undefined when the flag is absent. A
+ * flag with nothing after it (or another flag after it) throws, so
+ * `--bucket --local` can't quietly upload to a bucket called "--local".
+ * @param {string[]} argv
+ * @param {string} name
+ */
+export function flagValue(argv, name) {
+  const i = argv.indexOf(name);
+  if (i === -1) return undefined;
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith('--')) throw new Error(`${name} needs a value`);
+  return v;
+}
+
+/**
  * @param {{ manifestPath: string, publicRoot: string, stagingRoot: string, keyRoot: string, argv: string[] }} o
  *   stagingRoot holds the brotli copies, one dir per hash; keyRoot is the R2 key prefix.
  */
 export function uploadGodot({ manifestPath, publicRoot, stagingRoot, keyRoot, argv }) {
-  const argValue = (name) => {
-    const i = argv.indexOf(name);
-    return i === -1 ? undefined : argv[i + 1];
-  };
+  const argValue = (name) => flagValue(argv, name);
   const BUCKET = argValue('--bucket') ?? DEFAULT_BUCKET;
   const dryRun = argv.includes('--dry-run');
   const where = argv.includes('--local') ? ['--local'] : ['--remote'];
