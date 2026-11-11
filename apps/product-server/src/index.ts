@@ -1,4 +1,5 @@
 import { createFetch, RoomBase } from "@games/server/worker";
+import { handleAdmin } from "./admin.ts";
 import { handleAuth, realDeps } from "./auth.ts";
 import { PRODUCT_LIMITS, productGames } from "./catalog.ts";
 import { maskProfanity } from "./filter.ts";
@@ -21,7 +22,8 @@ export default {
   async fetch(request, env) {
     const auth = await handleAuth(request, env, realDeps(env));
     if (auth) return auth;
-    // Admin routes (B5) slot in here.
+    const admin = await handleAdmin(request, env);
+    if (admin) return admin;
     const upgrade = await handleUpgrade(request, env, realUpgradeDeps);
     if (upgrade) return upgrade;
     if (new URL(request.url).pathname === "/play") {
