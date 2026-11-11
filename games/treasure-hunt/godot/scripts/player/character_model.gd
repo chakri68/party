@@ -14,6 +14,10 @@ const HEIGHT := 1.7
 const FADE := 0.15
 const DIR := "res://assets/kenney_mini-characters/"
 const SHADER := preload("res://shaders/shirt_tint.gdshader")
+## All eight share this one texture. Loaded directly, because the web export
+## drops it from the GLBs' imported materials (albedo_texture comes out null
+## and the model renders white).
+const COLORMAP := preload("res://assets/kenney_mini-characters/Textures/colormap.png")
 ## The colormap: 16 columns by 4 rows (32 x 128 px cells) on the full image.
 const GRID := Vector2(16.0, 4.0)
 ## Below this speed (m/s) you're standing; above RUN_FROM you're sprinting.
@@ -160,13 +164,23 @@ func _build(new_id: String) -> void:
 	if torso_vertex_count(body.mesh, body.skin, skeleton) == 0:
 		push_warning("CharacterModel: no torso vertices in %s, shirt cell is a guess" % id)
 	shirt_cell = shirt_cell_of(body.mesh, body.skin, skeleton)
-	var original := body.mesh.surface_get_material(0) as BaseMaterial3D
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
-	_material.set_shader_parameter("albedo_tex", original.albedo_texture)
+	_material.set_shader_parameter("albedo_tex", COLORMAP)
 	_material.set_shader_parameter("cell", shirt_cell)
 	_material.set_shader_parameter("team_color", _color)
 	body.set_surface_override_material(0, _material)
+	# The other meshes (the head) keep their look, but get the colormap back.
+	for n in _model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi == body:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var own := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if own:
+				var mat := own.duplicate() as BaseMaterial3D
+				mat.albedo_texture = COLORMAP
+				mi.set_surface_override_material(i, mat)
 
 	_player = _model.find_child("AnimationPlayer", true, false)
 	# The animations are shared resources of the imported scene. The same

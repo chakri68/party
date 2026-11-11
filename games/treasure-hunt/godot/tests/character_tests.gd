@@ -143,7 +143,11 @@ func test_colour() -> void:
 	check(team_color_of(m) == Color.RED, "set_color changes the team_color uniform")
 	check(m.get_child(0) == before and m.get_child_count() == 1, "set_color doesn't rebuild")
 	var head: MeshInstance3D = m.find_child("head-mesh", true, false)
-	check(head.get_surface_override_material(0) == null, "the head keeps its own material")
+	var head_mat := head.get_surface_override_material(0) as BaseMaterial3D
+	check(head_mat != null and head_mat.albedo_texture == CharacterModel.COLORMAP, "the head is untinted, with the colormap set directly")
+	var body: MeshInstance3D = m.find_child("body-mesh", true, false)
+	var body_mat := body.get_surface_override_material(0) as ShaderMaterial
+	check(body_mat.get_shader_parameter("albedo_tex") == CharacterModel.COLORMAP, "the body samples the colormap set directly (the web export drops the GLB's)")
 	m.queue_free()
 
 
