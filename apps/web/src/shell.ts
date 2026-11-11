@@ -10,8 +10,18 @@ import { HomeView } from "./views/home.ts";
 import { RoomView } from "./views/room.ts";
 import "./style.css";
 
+/** The wordmark in the home hero and the room header, and where the header's links. */
+export interface ShellBrand {
+  /** Lowercase words; the hero breaks the line at each space. */
+  wordmark: string;
+  homeHref: string;
+  /** The room header link's accessible name. */
+  label: string;
+}
+
 export interface ShellOptions {
   homePath?: string;
+  brand?: ShellBrand;
   appTitle?: string;
   canCreate?: () => boolean;
   createRoom?: () => Promise<{ code: string } | { error: string; forgetKey?: boolean }>;
@@ -38,6 +48,7 @@ async function defaultCreateRoom(): Promise<{ code: string } | { error: string; 
 const defaults: Config = {
   homePath: "/",
   appTitle: "Party Games",
+  brand: { wordmark: "party games", homeHref: "/", label: "Party Games home" },
   canCreate: () => !!getOwnerKey(),
   createRoom: defaultCreateRoom,
   hostKeyFor: () => getOwnerKey(),

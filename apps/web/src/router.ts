@@ -66,11 +66,23 @@ export function navigate(path: string, { replace = false } = {}) {
   transition(replace ? "phase" : "forward", render);
 }
 
+type LinkLike = Pick<HTMLAnchorElement, "target" | "origin" | "pathname" | "hasAttribute">;
+
+/**
+ * Whether a click on this link stays in-app. Only paths a registered route
+ * answers: anything else (a host app's /account?next=…, its own landing page)
+ * is a real page load, so the browser keeps the query and the server answers.
+ */
+export function shouldIntercept(a: LinkLike, origin: string): boolean {
+  if (a.target || a.origin !== origin || a.hasAttribute("download")) return false;
+  return match(a.pathname) !== null;
+}
+
 /** Plain same-origin <a href="/…"> links navigate in-app; no per-link wiring needed. */
 function onLinkClick(e: MouseEvent) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   const a = (e.target as Element).closest("a");
-  if (!a || a.target || a.origin !== location.origin || a.hasAttribute("download")) return;
+  if (!a || !shouldIntercept(a, location.origin)) return;
   e.preventDefault();
   if (a.pathname !== location.pathname) navigate(a.pathname);
 }

@@ -292,7 +292,12 @@ export class RoomView implements View {
     const status = this.client?.status;
     replaceChildren(
       this.header,
-      h("a", { href: "/", class: "brand", "aria-label": "Party Games home" }, brandMark(), h("span", {}, "party games", h("span", { class: "dot" }, "."))),
+      h(
+        "a",
+        { href: shellConfig().brand.homeHref, class: "brand", "aria-label": shellConfig().brand.label },
+        brandMark(),
+        h("span", {}, shellConfig().brand.wordmark, h("span", { class: "dot" }, ".")),
+      ),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       // Once seated: before that there's nobody to talk as.
