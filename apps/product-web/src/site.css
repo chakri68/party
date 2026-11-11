@@ -336,6 +336,36 @@ img, svg { display: block; }
 .prices-note { margin-top: 16px; color: var(--band-muted); }
 .prices-note a { color: var(--band-ink); text-underline-offset: 3px; }
 
+/* Host Pass band, small motions. Hover ones only where there is a real
+   pointer; the scroll-in only with JS (html.js) and motion allowed. */
+.plan-col { transition: transform 220ms cubic-bezier(.2, .8, .2, 1), border-color 220ms ease, box-shadow 220ms ease; }
+.ticks li::before { transition: transform 220ms cubic-bezier(.2, .9, .3, 1.4); }
+.price { transition: background-color 180ms ease; }
+.price-amount { transition: transform 220ms cubic-bezier(.2, .9, .3, 1.4); }
+@media (hover: hover) and (pointer: fine) {
+  .plan-col:hover { transform: translateY(-3px); border-color: var(--band-muted); }
+  .plan-col-pass:hover { border-color: var(--accent); box-shadow: 0 14px 40px -18px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .ticks li:not(.soon):hover::before { transform: translateY(-3px) rotate(-45deg) scale(1.25); }
+  .ticks li.soon:hover::before { border-style: dashed; border-color: var(--accent); animation: soon-spin 2.4s linear infinite; }
+  .price:hover { background: color-mix(in srgb, var(--band-ink) 5%, transparent); }
+  .price:hover .price-amount { transform: translateY(-2px) scale(1.04); }
+}
+@keyframes soon-spin { to { transform: rotate(1turn); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Waiting below the fold: cards down and faded, ticks undrawn. */
+  html.js [data-reveal]:not(.in) .plan-col { opacity: 0; transform: translateY(18px); }
+  html.js [data-reveal]:not(.in) .ticks li { opacity: 0; }
+  html.js [data-reveal]:not(.in) .ticks li:not(.soon)::before { clip-path: inset(0 100% 0 0); }
+  html.js [data-reveal].in .plan-col { animation: col-in 520ms cubic-bezier(.2, .8, .2, 1) calc(var(--col, 0) * 110ms) backwards; }
+  html.js [data-reveal].in .ticks li { animation: tick-row 360ms ease calc(var(--col, 0) * 110ms + 180ms + var(--i, 0) * 60ms) backwards; }
+  /* The check draws itself: clipped from the right, the short stroke shows first, then the long one. */
+  html.js [data-reveal].in .ticks li:not(.soon)::before { animation: tick-draw 300ms ease-out calc(var(--col, 0) * 110ms + 260ms + var(--i, 0) * 60ms) backwards; }
+  @keyframes col-in { from { opacity: 0; transform: translateY(18px); } }
+  @keyframes tick-row { from { opacity: 0; } }
+  @keyframes tick-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+}
+
 /* FAQ */
 .faq { display: grid; max-width: 760px; }
 .faq details { border-top: 1px solid var(--line); }

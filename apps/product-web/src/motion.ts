@@ -158,3 +158,31 @@ export function slideDetails(root: ParentNode = document): void {
     });
   }
 }
+
+/**
+ * Plays a section's entrance (CSS, keyed on `.in`) the first time it scrolls
+ * into view. Sets --col on each card and --i on each list row so the CSS can
+ * stagger them.
+ */
+export function revealOnScroll(root: ParentNode = document): void {
+  const boxes = [...root.querySelectorAll<HTMLElement>("[data-reveal]")];
+  for (const box of boxes) {
+    [...box.children].forEach((col, c) => {
+      (col as HTMLElement).style.setProperty("--col", String(c));
+      col.querySelectorAll<HTMLElement>("li").forEach((li, i) => li.style.setProperty("--i", String(i)));
+    });
+  }
+  if (!("IntersectionObserver" in window)) return void boxes.forEach((b) => b.classList.add("in"));
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        e.target.classList.add("in");
+        io.unobserve(e.target);
+      }
+    },
+    { threshold: 0.15 },
+  );
+  // Not under the page fade, or the entrance plays where nobody can see it.
+  whenSettled(() => boxes.forEach((b) => io.observe(b)));
+}

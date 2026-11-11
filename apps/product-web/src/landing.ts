@@ -4,7 +4,7 @@
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
 import { loadConfig } from "./api.ts";
-import { riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
+import { revealOnScroll, riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
 
 overrideGameNames(PRODUCT_NAMES);
 
@@ -159,4 +159,5 @@ export function boot(): void {
   // The HTML ships the rupee table, so a slow or failed config call still shows prices.
   if (document.querySelector("[data-prices]")) showPrices();
   slideDetails();
+  revealOnScroll();
 }
