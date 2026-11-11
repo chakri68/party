@@ -5,6 +5,7 @@ import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
 import { mountHeader } from "./header.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
 import { openPassSheet } from "./pass-sheet.ts";
+import { finishUpgrade } from "./upgrade-return.ts";
 import "./product.css";
 import { getTurnstileToken } from "./turnstile.ts";
 
@@ -23,24 +24,15 @@ async function createRoom(): Promise<{ code: string } | { error: string; forgetK
   return { code: r.code };
 }
 
-/** Back from sign-in with ?upgrade=1: lift this room, then clean the URL. */
-async function finishUpgrade(): Promise<void> {
-  const url = new URL(location.href);
-  if (url.searchParams.get("upgrade") !== "1") return;
-  const code = /^\/room\/([^/]+)\/?$/.exec(url.pathname)?.[1];
-  const key = code ? hostKeyFor(code) : null;
-  if (code && key) {
-    const r = await upgradeRoom(code, key);
-    if (!r.ok) console.warn("Room upgrade failed:", r.error);
-  }
-  url.searchParams.delete("upgrade");
-  history.replaceState(history.state, "", url.pathname + url.search + url.hash);
-}
-
-await finishUpgrade();
+const notUpgraded = await finishUpgrade(new URL(location.href), {
+  hostKeyFor,
+  upgradeRoom,
+  replaceUrl: (path) => history.replaceState(history.state, "", path),
+});
 startShell({
   homePath: "/play",
   appTitle: "CouchParty",
+  brand: { wordmark: "CouchParty", homeHref: "/", label: "CouchParty home" },
   canCreate: () => true,
   createRoom,
   hostKeyFor,
@@ -48,3 +40,4 @@ startShell({
   nameOverrides: PRODUCT_NAMES,
   beforeStart: mountHeader,
 });
+if (notUpgraded) openPassSheet("", notUpgraded);
