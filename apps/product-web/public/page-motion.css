@@ -11,10 +11,10 @@
 html { background: light-dark(#fffdf8, #0e0e0c); }
 
 @keyframes cp-page-out { to { opacity: 0; } }
-@keyframes cp-page-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes cp-page-in { from { opacity: 0; transform: translateY(12px); } }
 
-::view-transition-old(root) { animation: cp-page-out 140ms ease-in both; }
-::view-transition-new(root) { animation: cp-page-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
+::view-transition-old(root) { animation: cp-page-out 160ms ease-in both; }
+::view-transition-new(root) { animation: cp-page-in 320ms cubic-bezier(.2, .8, .2, 1) 60ms both; }
 
 /* /play and room links: the mark, pulsing, while the shell's script loads.
    Waits 300ms before showing so a fast load never flashes it. play.ts

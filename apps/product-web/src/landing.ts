@@ -103,7 +103,7 @@ function renderPrices(country: string | null, roll: boolean): void {
     // Same three plans as the HTML: change the numbers in place so they can roll.
     if (amounts.length === table.length) {
       table.forEach((p, i) => {
-        if (roll) rollText(amounts[i]!, p.price, 60 * i);
+        if (roll) rollText(amounts[i]!, p.price, 90 * i);
         else amounts[i]!.textContent = p.price;
       });
       continue;
@@ -132,7 +132,7 @@ function showPrices(): void {
     whenSettled(() =>
       amounts.forEach((a, i) => {
         a.style.opacity = "1";
-        riseIn(a, 60 * i);
+        riseIn(a, 90 * i);
       }),
     );
   };

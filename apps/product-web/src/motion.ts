@@ -13,7 +13,10 @@ function reduced(): boolean {
  * an entrance started under that fade is lost in it, so it waits its turn.
  */
 export function whenSettled(fn: () => void): void {
-  const vt = (document as Document & { activeViewTransition?: ViewTransition | null }).activeViewTransition;
+  const vt =
+    (document as Document & { activeViewTransition?: ViewTransition | null }).activeViewTransition ??
+    // Set by public/page-motion.js from pagereveal, for browsers without the property.
+    (window as Window & { __pageTransition?: ViewTransition | null }).__pageTransition;
   if (!vt) return fn();
   void vt.finished.then(fn, fn);
 }
@@ -90,8 +93,8 @@ function rollNow(el: HTMLElement, text: string, delay: number): void {
 export function riseIn(el: Element, delay = 0): void {
   if (reduced()) return;
   el.animate(
-    [{ opacity: 0, transform: "translateY(35%)" }, { opacity: 1, transform: "none" }],
-    { duration: 260, delay, easing: EASE, fill: "backwards" },
+    [{ opacity: 0, transform: "translateY(60%) scale(0.96)" }, { opacity: 1, transform: "none" }],
+    { duration: 420, delay, easing: EASE, fill: "backwards" },
   );
 }
 
