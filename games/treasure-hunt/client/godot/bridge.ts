@@ -129,7 +129,8 @@ export type BridgeCall =
   | { fn: "pins"; arg: PinsCall }
   | { fn: "skyClock"; arg: SkyClock }
   | { fn: "photos"; arg: PhotosCall }
-  | { fn: "hotCold"; arg: { level: number } };
+  | { fn: "hotCold"; arg: { level: number } }
+  | { fn: "sound"; arg: { muted: boolean; volume: number } };
 
 type GodotFns = { [C in BridgeCall as C["fn"]]?: (arg: C["arg"]) => void };
 
@@ -363,7 +364,7 @@ export class GodotBridge {
     const reloaded = () => {
       this.isReady = false;
       this.sentSeed = null;
-      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins", "skyClock", "photos", "hotCold"] as const) delete this.host[k];
+      if (this.host) for (const k of ["initSession", "revealCache", "cacheFound", "setPhase", "roster", "remotePos", "vehicles", "pins", "skyClock", "photos", "hotCold", "sound"] as const) delete this.host[k];
       attach();
     };
     addEventListener("message", this.onMessage);

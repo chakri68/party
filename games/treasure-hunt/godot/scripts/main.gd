@@ -69,6 +69,8 @@ var daylight: Daylight
 var torch_on := false
 ## The sky's darkness as last heard from day_clock.
 var dark := 0.0
+## Engine, steps and the ambient bed. Quiet until the first key or click.
+var hunt_audio: HuntAudio
 ## The lamps' state as last set: set_lamps only runs when it flips.
 var _lamps_lit := false
 
@@ -129,6 +131,11 @@ func _ready() -> void:
 	# A listener that joins after the first frame misses the first dark_changed.
 	day_clock.dark_changed.connect(_on_dark)
 	_on_dark(DayClock.dark_at(day_clock.minute()))
+	hunt_audio = HuntAudio.new()
+	hunt_audio.name = "HuntAudio"
+	add_child(hunt_audio)
+	hunt_audio.prepare() # at load, behind the loader: synthesis is 100 ms or so of GDScript
+	bridge.sound_set.connect(hunt_audio.set_sound)
 	compass = Compass.new()
 	compass.name = "Compass"
 	$UI.add_child(compass)
@@ -383,6 +390,18 @@ func _pos_tick(dt: float) -> void:
 	bridge.emit_pos({"x": snappedf(p.x, 0.01), "y": snappedf(p.y, 0.01), "z": snappedf(p.z, 0.01), "yaw": snappedf(Fleet.yaw_of(focus), 0.001), "foot": avatar.mode == &"foot", "v": avatar.vehicle_id()})
 
 
+## Feeds HuntAudio. The engine is for the buggy you drive; steps for you on
+## foot while the round is on (the walker is parked otherwise, and a rider's
+## walker is snapped to the seat); a passenger or anyone else hears the ambient.
+func audio_tick(dt: float) -> void:
+	var driving: bool = avatar.mode == &"driving" and avatar.buggy != null
+	var speed: float = avatar.buggy.forward_speed if driving else 0.0
+	var walk := 0.0
+	if avatar.mode == &"foot" and phase == &"hunting":
+		walk = Vector2(walker.velocity.x, walker.velocity.z).length()
+	hunt_audio.tick(dt, speed, driving, walk, walker.is_on_floor(), dark)
+
+
 ## The E prompt: shown while the round's on, you're on foot, and there's a
 ## cache to pick up.
 func prompt_tick() -> void:
@@ -426,6 +445,7 @@ func _process(_dt: float) -> void:
 	compass.set_yaw(rig.yaw)
 	glint_tick()
 	prompt_tick()
+	audio_tick(_dt)
 	if _debug.visible:
 		_debug.text = "%d fps   %d chunks" % [Engine.get_frames_per_second(), streamer.loaded_count() if streamer else 0]
 
@@ -445,6 +465,9 @@ func drop_pin() -> bool:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	# Browsers hold audio until a gesture: the first key or click starts it.
+	if not hunt_audio.started and ((e is InputEventKey and e.pressed) or (e is InputEventMouseButton and e.pressed)):
+		hunt_audio.start()
 	if e.is_action_pressed("pin") and not e.is_echo() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		drop_pin()
 	if e.is_action_pressed("torch") and not e.is_echo():

@@ -16,6 +16,7 @@ extends Node
 ##   host.pins({list: [{id, x, z, color, mine}]})   my team's pins, full list, every update
 ##   host.skyClock({min, running})          game minutes after midnight; DayClock carries it on
 ##   host.photos({list: [{id, x, z, yaw, pitch, fov}]})  my team's photo clue poses; Photos renders new ones
+##   host.sound({muted, volume})            the page's sound settings; volume 0..1
 ## and from our side:
 ##   host.emitStatus({kind: "world-ready", ms, chunks, seed})   seed: the one built
 ##   host.emitPos({x, y, z, yaw, foot, v})  POS_HZ, in countdown and hunting
@@ -47,6 +48,8 @@ signal pins_set(list: Array)
 signal sky_clock_set(min: float, running: bool)
 ## Photo clue poses: [{id, x, z, yaw, pitch, fov}]. Photos checks each one.
 signal photos_set(list: Array)
+## The page's sound settings: muted, and 0..1 volume.
+signal sound_set(muted: bool, volume: float)
 ## Outbound, sent to the host or not (tests listen here).
 signal pos_sent(pos: Dictionary)
 signal claim_sent(claim: Dictionary)
@@ -74,6 +77,7 @@ var _cb_vehicles: JavaScriptObject
 var _cb_pins: JavaScriptObject
 var _cb_sky_clock: JavaScriptObject
 var _cb_photos: JavaScriptObject
+var _cb_sound: JavaScriptObject
 var _poll_accum := 0.0
 var _poll_total := 0.0
 
@@ -128,6 +132,8 @@ func _try_attach() -> void:
 	_host.skyClock = _cb_sky_clock
 	_cb_photos = JavaScriptBridge.create_callback(_on_js.bind(receive_photos_json))
 	_host.photos = _cb_photos
+	_cb_sound = JavaScriptBridge.create_callback(_on_js.bind(receive_sound_json))
+	_host.sound = _cb_sound
 	connected = true
 	set_process(false)
 	if _host.ready:
@@ -255,6 +261,14 @@ func receive_photos_json(text: String) -> void:
 	var d: Variant = JSON.parse_string(text)
 	if d is Dictionary and d.get("list") is Array:
 		photos_set.emit(d.list)
+
+
+## {muted, volume}. A non-bool muted or a non-numeric volume is dropped;
+## volume is clamped to 0..1.
+func receive_sound_json(text: String) -> void:
+	var d: Variant = JSON.parse_string(text)
+	if d is Dictionary and d.get("muted") is bool and _num(d.get("volume")):
+		sound_set.emit(d.muted, clampf(float(d.volume), 0.0, 1.0))
 
 
 static func _num(v: Variant) -> bool:

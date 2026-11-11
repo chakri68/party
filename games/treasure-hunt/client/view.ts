@@ -1,3 +1,4 @@
+import { audio } from "@games/audio";
 import { h, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { teamColor } from "../shared/teams.ts";
 import type { HotColdLevel, Phase, PhotoCam, THPrivate, THPublic } from "../shared/types.ts";
@@ -445,6 +446,42 @@ function touchOnly(): boolean {
   return matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
 }
 
+/**
+ * Tells Godot the page's sound settings (the shared Settings toggle and
+ * volume): once on its ready(), then whenever either changes. The page
+ * polls, because the settings live in a store that has no change event.
+ * Nothing goes before ready(); a bridge call then would be dropped, and the
+ * change gate would swallow it.
+ */
+export class SoundFeed {
+  private live = false;
+  private sent = "";
+
+  private send: (calls: BridgeCall[]) => void;
+  private read: () => { sound: boolean; volume: number };
+
+  constructor(send: (calls: BridgeCall[]) => void, read: () => { sound: boolean; volume: number }) {
+    this.send = send;
+    this.read = read;
+  }
+
+  /** Godot is up (a second call is a fresh Godot): send everything. */
+  ready() {
+    this.live = true;
+    this.sent = "";
+    this.poll();
+  }
+
+  poll() {
+    if (!this.live) return;
+    const { sound, volume } = this.read();
+    const key = `${sound}/${volume}`;
+    if (key === this.sent) return;
+    this.sent = key;
+    this.send([{ fn: "sound", arg: { muted: !sound, volume } }]);
+  }
+}
+
 export class TreasureHuntView implements GameView {
   private api: GameClientApi;
   private game: THPublic | null = null;
@@ -456,6 +493,7 @@ export class TreasureHuntView implements GameView {
 
   private bridge: GodotBridge;
   private feed: GodotFeed;
+  private soundFeed: SoundFeed;
   /** Photo clues Godot rendered, for the clue board: photos.get(id, cam). */
   readonly photos = new PhotoStore();
   private loader: StageLoader;
@@ -488,6 +526,7 @@ export class TreasureHuntView implements GameView {
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   private ticker: ReturnType<typeof setInterval> | undefined;
   private mapTicker: ReturnType<typeof setInterval> | undefined;
+  private soundTicker: ReturnType<typeof setInterval> | undefined;
   /** The last pos Godot sent: my own spot on the map. */
   private myPos: GodotPos | null = null;
   /** Everyone else's last pos relay, and when it came (performance.now()). */
@@ -506,6 +545,7 @@ export class TreasureHuntView implements GameView {
       ready: () => {
         this.loader.started();
         this.feed.sync(true);
+        this.soundFeed.ready();
       },
       progress: (loaded, total) => this.loader.progress(loaded, total),
       started: () => this.loader.started(),
@@ -540,6 +580,10 @@ export class TreasureHuntView implements GameView {
       () => this.api.serverNow(),
       (p) => this.photos.has(p.id, p),
     );
+    this.soundFeed = new SoundFeed(
+      (calls) => this.bridge.call(calls),
+      () => audio.settings,
+    );
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
     this.mapBtn.addEventListener("click", () => this.setMap(!this.mapOpen));
     // The dimmed edge closes it; the island takes the click as a pin.
@@ -565,12 +609,14 @@ export class TreasureHuntView implements GameView {
     // The clocks. Four times a second keeps m:ss from skipping a beat.
     this.ticker = setInterval(() => this.tick(), 250);
     this.mapTicker = setInterval(() => this.drawMaps(), MAP_REDRAW_MS);
+    this.soundTicker = setInterval(() => this.soundFeed.poll(), 1000);
     document.addEventListener("keydown", this.onDocKey);
   }
 
   destroy() {
     clearInterval(this.ticker);
     clearInterval(this.mapTicker);
+    clearInterval(this.soundTicker);
     document.removeEventListener("keydown", this.onDocKey);
     clearTimeout(this.toastTimer);
     this.replay.destroy();
