@@ -1,6 +1,6 @@
 // /account: sign in when signed out; plan, codes, sign out and delete when signed in.
 
-import { deleteAccount, loadConfig, logout, me, redeem, startEmailSignIn, type Me } from "./api.ts";
+import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, startEmailSignIn, type Me } from "./api.ts";
 import { getTurnstileToken } from "./turnstile.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -152,10 +152,8 @@ export async function mountAccount(): Promise<void> {
   const url = new URL(location.href);
   const next = safeNext(url.searchParams.get("next"));
   const error = url.searchParams.get("error");
-  let m: Me;
-  try {
-    m = await me();
-  } catch {
+  const m = await meOrNull();
+  if (m === null) {
     $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";
     return;
   }

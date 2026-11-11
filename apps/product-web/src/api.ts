@@ -27,6 +27,15 @@ export async function me(): Promise<Me> {
   return { email: null, tier: "free" };
 }
 
+/** Like me(), but null when the call fails, so the account page can tell "signed out" from "could not load". */
+export async function meOrNull(): Promise<Me | null> {
+  try {
+    const res = await fetch("/api/me");
+    if (res.ok) return (await res.json()) as Me;
+  } catch {}
+  return null;
+}
+
 let config: Promise<Config> | null = null;
 export function loadConfig(): Promise<Config> {
   config ??= fetch("/api/config").then((r) => r.json() as Promise<Config>);
