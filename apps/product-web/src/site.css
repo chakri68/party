@@ -547,6 +547,27 @@ img, svg { display: block; }
 .prices-top { margin-top: 0; }
 .compare-after { margin-top: 32px; }
 .stack { display: grid; gap: 12px; }
+/* Gallery, small motions: same feel as the Host Pass band. */
+.shelf-icon { transition: transform 280ms cubic-bezier(.2, .9, .3, 1.4); }
+.game { transition: transform 220ms cubic-bezier(.2, .8, .2, 1); }
+.game-name { transition: color 180ms ease; }
+.tag-pass { display: inline-block; transition: transform 240ms cubic-bezier(.2, .9, .3, 1.4); }
+@media (hover: hover) and (pointer: fine) {
+  .shelf:hover .shelf-icon { transform: rotate(-10deg) scale(1.12); }
+  .game:hover { transform: translateY(-2px); }
+  .game:hover .game-name { color: var(--accent-text); }
+  .game-pass:hover .tag-pass { transform: rotate(-4deg) scale(1.08); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Each shelf, the first time it scrolls in: the icon pops, the heading
+     rises, then the games come in one by one (capped, so big shelves don't drag). */
+  html.js .shelf[data-reveal]:not(.in) :is(.shelf-head, .game) { opacity: 0; }
+  html.js .shelf[data-reveal].in .shelf-head { animation: col-in 480ms cubic-bezier(.2, .8, .2, 1) backwards; }
+  html.js .shelf[data-reveal].in .shelf-icon { animation: icon-pop 520ms cubic-bezier(.2, .9, .3, 1.4) 80ms backwards; }
+  html.js .shelf[data-reveal].in .game { animation: col-in 440ms cubic-bezier(.2, .8, .2, 1) calc(140ms + min(var(--i, 0), 9) * 45ms) backwards; }
+  @keyframes icon-pop { from { opacity: 0; transform: scale(0.5) rotate(-25deg); } }
+}
+
 .after-delete { margin-top: 20px; }
 
 /* Narrow-screen fixes */

@@ -75,6 +75,7 @@ function renderGallery(root: HTMLElement): void {
   root.replaceChildren(
     ...model.map((s) => {
       const section = el("section", "shelf");
+      section.dataset.reveal = ""; // scroll-in, see revealOnScroll
       section.setAttribute("aria-labelledby", `shelf-${s.id}`);
       const head = el("h3", "shelf-head");
       head.id = `shelf-${s.id}`;
