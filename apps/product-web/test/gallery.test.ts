@@ -1,7 +1,8 @@
 import { GAME_SECTIONS } from "@games/web/games";
 import { describe, expect, it } from "vitest";
 import { outErrorMessage, planFacts } from "../src/account.ts";
-import { galleryModel, priceTable } from "../src/landing.ts";
+import { galleryHtml, galleryModel } from "../src/gallery.ts";
+import { priceTable } from "../src/landing.ts";
 
 describe("galleryModel", () => {
   const model = galleryModel();
