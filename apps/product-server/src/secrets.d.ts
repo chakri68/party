@@ -7,4 +7,10 @@ interface Env {
   ADMIN_KEY?: string;
   /** HMAC key for the IP hash in `rooms` (src/rooms.ts). */
   IP_HASH_KEY?: string;
+  /** Razorpay (src/billing/razorpay.ts). */
+  RAZORPAY_KEY_SECRET?: string;
+  RAZORPAY_WEBHOOK_SECRET?: string;
+  // Vars, not secrets. Declared here until Task 5 moves them into wrangler.jsonc.
+  BILLING?: string;
+  RAZORPAY_KEY_ID?: string;
 }
