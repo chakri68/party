@@ -20,7 +20,7 @@
     "BLIND_RALLY": "1",
     "TREASURE_HUNT": "1",
     "APP_ORIGIN": "https://couchpartygames.com",
-    "TURNSTILE_SITE_KEY": "<set at setup>",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAF-FEgF2zeol-dh5",
     "GOOGLE_CLIENT_ID": "<set at setup>"
   },
   "d1_databases": [
