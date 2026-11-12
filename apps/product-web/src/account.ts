@@ -174,11 +174,19 @@ function signedIn(m: Me): void {
   $("[data-email]").textContent = m.email ?? "";
   const card = $("[data-plan]");
   let first = true;
+  const buy = $("[data-buy]");
   const show = (who: Me) => {
     const fill = () => renderPlan(card, planFacts(who, Date.now()));
+    // Already has a pass: no "Buy Host Pass" box under it.
+    const hasPass = who.tier === "pass";
     // First time it rides the page's own reveal; after a redeem it eases to its new size.
-    if (first) fill();
-    else morph(card, fill);
+    if (first) {
+      fill();
+      buy.hidden = hasPass;
+    } else {
+      morph(card, fill);
+      if (buy.hidden !== hasPass) morph($("main"), () => void (buy.hidden = hasPass));
+    }
     first = false;
   };
   show(m);
