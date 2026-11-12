@@ -24,7 +24,7 @@
     "GOOGLE_CLIENT_ID": "<set at setup>"
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "couchparty", "database_id": "<from wrangler d1 create>", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "couchparty", "database_id": "16a56246-c8d0-4ed3-a571-8997915e0e00", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "BLIND_RALLY_GODOT", "bucket_name": "couchparty-godot" }],
   "ratelimits": [
