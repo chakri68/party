@@ -21,7 +21,7 @@
     "TREASURE_HUNT": "1",
     "APP_ORIGIN": "https://couchpartygames.com",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAF-FEgF2zeol-dh5",
-    "GOOGLE_CLIENT_ID": "<set at setup>"
+    "GOOGLE_CLIENT_ID": "457178137263-akfeq9bds8qhpvjcip8vaa7n1hnhpm6c.apps.googleusercontent.com"
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "couchparty", "database_id": "16a56246-c8d0-4ed3-a571-8997915e0e00", "migrations_dir": "migrations" }
