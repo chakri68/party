@@ -162,6 +162,27 @@ describe("confirm", () => {
     s.stock(s.payment({ status: "failed" }));
     expect((await s.call(P, { user: "u1", body: await s.confirmBody() })).status).toBe(400);
   });
+  it("502 when the payment fetch is 401, so the key is wrong, not the payment", async () => {
+    const s = await setup();
+    s.stock();
+    s.replies["GET /v1/payments/pay_1"] = { status: 401, body: {} };
+    const r = await s.call(P, { user: "u1", body: await s.confirmBody() });
+    expect(r.status).toBe(502);
+    expect(await r.json()).toEqual({ error: "Payments are not working right now. Please try again." });
+    expect(await s.n("purchases")).toBe(0);
+  });
+  it("502 when the order fetch is 429", async () => {
+    const s = await setup();
+    s.stock();
+    s.replies["GET /v1/orders/order_1"] = { status: 429, body: {} };
+    expect((await s.call(P, { user: "u1", body: await s.confirmBody() })).status).toBe(502);
+  });
+  it("400 when the payment is not found", async () => {
+    const s = await setup();
+    s.stock();
+    s.replies["GET /v1/payments/pay_1"] = { status: 404, body: {} };
+    expect((await s.call(P, { user: "u1", body: await s.confirmBody() })).status).toBe(400);
+  });
 });
 
 describe("webhook", () => {
@@ -208,6 +229,21 @@ describe("webhook", () => {
     const s = await setup();
     s.replies["GET /v1/orders/order_1"] = { status: 503, body: {} };
     expect((await s.hook("payment.captured", s.payment())).status).toBe(500);
+  });
+  for (const status of [401, 403, 429]) {
+    it(`500 when the order fetch is ${status}, so a captured payment is not dropped`, async () => {
+      const s = await setup();
+      s.replies["GET /v1/orders/order_1"] = { status, body: {} };
+      expect((await s.hook("payment.captured", s.payment())).status).toBe(500);
+      expect(await s.n("purchases")).toBe(0);
+    });
+  }
+  it("200 and nothing recorded when the order is not found", async () => {
+    const s = await setup();
+    s.replies["GET /v1/orders/order_1"] = { status: 404, body: {} };
+    expect((await s.hook("payment.captured", s.payment())).status).toBe(200);
+    expect(await s.n("purchases")).toBe(0);
+    expect(await s.n("entitlements")).toBe(0);
   });
   it("refund.processed takes the pass away", async () => {
     const s = await setup();

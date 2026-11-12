@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { deploySteps as masterSteps } from "../../../scripts/deploy.mjs";
-import { BILLING_SECRETS, deploySteps, missingSecrets, REQUIRED_SECRETS, requiredSecrets } from "../../../scripts/deploy-product.mjs";
+import { BILLING_SECRETS, billingProblems, deploySteps, missingSecrets, REQUIRED_SECRETS, requiredSecrets } from "../../../scripts/deploy-product.mjs";
 
 type Run = { cmd: string; args: string[]; env?: Record<string, string> };
-type Step = Run | { rm: string } | { say: string } | { secrets: string[]; dryRun: boolean };
+type Step = Run | { rm: string } | { say: string } | { secrets: string[]; dryRun: boolean } | { billing: string[]; dryRun: boolean };
 const steps = (dry: boolean) => deploySteps(dry) as Step[];
 const isRun = (s: Step): s is Run => "cmd" in s;
 const line = (s: Step) =>
-  isRun(s) ? `${s.cmd} ${s.args.join(" ")}` : "rm" in s ? `rm ${s.rm.replace(/\\/g, "/")}` : "secrets" in s ? `check secrets ${s.secrets.join(",")}` : s.say;
+  isRun(s) ? `${s.cmd} ${s.args.join(" ")}` : "rm" in s ? `rm ${s.rm.replace(/\\/g, "/")}` : "secrets" in s ? `check secrets ${s.secrets.join(",")}` : "billing" in s ? "check billing vars" : s.say;
 
 describe("deploySteps (product)", () => {
   it("runs secret check, uploads, build, cleanup, migrations, deploy in that order", () => {
@@ -15,6 +15,7 @@ describe("deploySteps (product)", () => {
     const at = (needle: string) => l.findIndex((x) => x.includes(needle));
     const order = [
       "check secrets",
+      "check billing vars",
       "games/blind-rally/scripts/export-godot.mjs",
       "games/treasure-hunt/scripts/export-godot.mjs",
       "--filter @games/product-web build",
@@ -25,7 +26,7 @@ describe("deploySteps (product)", () => {
     ].map(at);
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(l).toHaveLength(8);
+    expect(l).toHaveLength(9);
   });
 
   it("uploads both exports to couchparty-godot", () => {
@@ -99,6 +100,60 @@ describe("deploySteps (product)", () => {
       "vars": { "BILLING": "1", /* on */ },
     }`;
     expect(requiredSecrets(text)).toEqual([...REQUIRED_SECRETS, ...BILLING_SECRETS]);
+  });
+
+  it("checks the billing vars second, with the dry-run flag", () => {
+    for (const dry of [false, true]) expect(steps(dry)[1]).toEqual({ billing: expect.any(Array), dryRun: dry });
+  });
+
+  const LIVE = {
+    BILLING: "1",
+    RAZORPAY_KEY_ID: "rzp_live_abc",
+    PADDLE_ENV: "production",
+    PADDLE_CLIENT_TOKEN: "live_abc",
+    PADDLE_PRICE_MONTH: "pri_01month",
+    PADDLE_PRICE_YEAR: "pri_01year",
+  };
+  const cfg = (vars: Record<string, string | undefined>) => JSON.stringify({ vars });
+
+  it("billingProblems is empty with billing off, whatever the vars say", () => {
+    expect(billingProblems(cfg({ BILLING: "0", PADDLE_ENV: "sandbox", RAZORPAY_KEY_ID: "<set at setup>" }))).toEqual([]);
+    expect(billingProblems("{}")).toEqual([]);
+  });
+
+  it("billingProblems is empty for a live config", () => {
+    expect(billingProblems(cfg(LIVE))).toEqual([]);
+  });
+
+  it("billingProblems catches the sandbox Paddle env", () => {
+    const p = billingProblems(cfg({ ...LIVE, PADDLE_ENV: "sandbox" }));
+    expect(p).toHaveLength(1);
+    expect(p[0]).toContain("PADDLE_ENV");
+  });
+
+  it("billingProblems catches a test Paddle token", () => {
+    const p = billingProblems(cfg({ ...LIVE, PADDLE_CLIENT_TOKEN: "test_abc" }));
+    expect(p).toHaveLength(1);
+    expect(p[0]).toContain("PADDLE_CLIENT_TOKEN");
+  });
+
+  it("billingProblems catches a Razorpay test key", () => {
+    const p = billingProblems(cfg({ ...LIVE, RAZORPAY_KEY_ID: "rzp_test_abc" }));
+    expect(p).toHaveLength(1);
+    expect(p[0]).toContain("RAZORPAY_KEY_ID");
+  });
+
+  it("billingProblems catches placeholders and missing vars", () => {
+    const p = billingProblems(cfg({ ...LIVE, PADDLE_PRICE_MONTH: "<set at setup>", PADDLE_PRICE_YEAR: undefined }));
+    expect(p.some((x) => x.includes("PADDLE_PRICE_MONTH"))).toBe(true);
+    expect(p.some((x) => x.includes("PADDLE_PRICE_YEAR"))).toBe(true);
+  });
+
+  it("billingProblems lists every problem at once", () => {
+    const p = billingProblems(cfg({ BILLING: "1", PADDLE_ENV: "sandbox", RAZORPAY_KEY_ID: "rzp_test_x", PADDLE_CLIENT_TOKEN: "<set at setup>", PADDLE_PRICE_MONTH: "pri_m", PADDLE_PRICE_YEAR: "pri_y" }));
+    expect(p.join("\n")).toMatch(/PADDLE_ENV/);
+    expect(p.join("\n")).toMatch(/RAZORPAY_KEY_ID/);
+    expect(p.join("\n")).toMatch(/PADDLE_CLIENT_TOKEN/);
   });
 
   it("leaves the master deploy on its own bucket", () => {

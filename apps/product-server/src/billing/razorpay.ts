@@ -36,6 +36,8 @@ export function realRazorpayDeps(env: ProductEnv): RazorpayDeps {
 }
 
 const down = () => json({ error: DOWN }, 502);
+/** 200 is an answer and 404 is a final "no". Anything else (401, 429, 5xx) is us or them failing. */
+const failed = (status: number) => status !== 200 && status !== 404;
 const bad = (error: string) => json({ error }, 400);
 
 /** The payment is for this order, at the plan's price, in rupees. Returns the plan, or null. */
@@ -77,9 +79,9 @@ export async function handleRazorpay(request: Request, env: ProductEnv, deps: Ra
   if (!(await verifyHmacHex(env.RAZORPAY_KEY_SECRET, `${orderId}|${paymentId}`, signature))) return bad("Payment could not be checked.");
   // Don't trust the browser: ask Razorpay what was paid.
   const pay = await deps.api("GET", `/v1/payments/${encodeURIComponent(paymentId)}`);
-  if (pay.status >= 500) return down();
+  if (failed(pay.status)) return down();
   const ord = await deps.api("GET", `/v1/orders/${encodeURIComponent(orderId)}`);
-  if (ord.status >= 500) return down();
+  if (failed(ord.status)) return down();
   if (pay.status !== 200 || ord.status !== 200) return bad("Payment could not be checked.");
   const plan = planIfValid(pay.body, ord.body, orderId);
   if (!plan || ord.body.notes.userId !== user.id) return bad("Payment could not be checked.");
@@ -126,8 +128,12 @@ async function webhook(request: Request, env: ProductEnv, deps: RazorpayDeps): P
       return ok;
     }
     const ord = await deps.api("GET", `/v1/orders/${encodeURIComponent(orderId)}`);
-    // 5xx: let Razorpay retry. Anything else will not get better.
-    if (ord.status >= 500) return json({ error: DOWN }, 500);
+    // The money is taken. Only a 404 order or a failed check below is final;
+    // a 401, 429 or 5xx gets a 500 so Razorpay retries instead of us dropping it.
+    if (failed(ord.status)) {
+      console.warn("razorpay webhook: order fetch failed, will retry", event, paymentId, orderId, ord.status);
+      return json({ error: DOWN }, 500);
+    }
     const plan = ord.status === 200 ? planIfValid(pay, ord.body, orderId) : null;
     const userId = ord.body?.notes?.userId;
     if (!plan || typeof userId !== "string") {

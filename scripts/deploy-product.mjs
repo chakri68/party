@@ -10,7 +10,9 @@
 //
 // 0. Checks the Worker has the secrets it can't run without (`wrangler secret
 //    list`; the billing four only when wrangler.jsonc has BILLING "1"). A missing one stops the deploy before anything ships; on a dry run
-//    it only warns.
+//    it only warns. Then, with BILLING "1", checks the public billing vars are
+//    live ones (Paddle "production", live_ token, no rzp_test_ key, no <...>
+//    placeholders). Same rule: stop for real, warn on a dry run.
 // 1. Uploads both Godot exports to the couchparty-godot bucket. First, so the
 //    new worker never names a hash the bucket doesn't have; a hash that's
 //    already there is skipped.
@@ -74,6 +76,38 @@ export function requiredSecrets(wranglerJsoncText) {
   return on ? [...REQUIRED_SECRETS, ...BILLING_SECRETS] : [...REQUIRED_SECRETS];
 }
 
+/** The public billing vars in wrangler.jsonc. Each one must be a real value before billing goes live. */
+export const BILLING_VARS = ["RAZORPAY_KEY_ID", "PADDLE_ENV", "PADDLE_CLIENT_TOKEN", "PADDLE_PRICE_MONTH", "PADDLE_PRICE_YEAR"];
+
+/**
+ * Why this config must not go live, one line per problem; empty when it may.
+ * Only checked with BILLING "1". A sandbox Paddle env or a test key would take
+ * real people to a checkout that never charges, so they never get a pass.
+ */
+export function billingProblems(wranglerJsoncText) {
+  const vars = parseJsonc(wranglerJsoncText).vars ?? {};
+  if (vars.BILLING !== "1") return [];
+  const problems = [];
+  const bad = new Set();
+  for (const name of BILLING_VARS) {
+    const v = vars[name];
+    if (typeof v !== "string" || !v.trim() || /^<.*>$/.test(v.trim())) {
+      problems.push(`${name} is not set (it is ${v === undefined ? "missing" : JSON.stringify(v)}).`);
+      bad.add(name);
+    }
+  }
+  if (!bad.has("PADDLE_ENV") && vars.PADDLE_ENV !== "production") {
+    problems.push(`PADDLE_ENV is ${JSON.stringify(vars.PADDLE_ENV)}. It must be "production".`);
+  }
+  if (!bad.has("PADDLE_CLIENT_TOKEN") && !vars.PADDLE_CLIENT_TOKEN.startsWith("live_")) {
+    problems.push("PADDLE_CLIENT_TOKEN is not a live token. It must start with live_.");
+  }
+  if (!bad.has("RAZORPAY_KEY_ID") && vars.RAZORPAY_KEY_ID.startsWith("rzp_test_")) {
+    problems.push("RAZORPAY_KEY_ID is a test key. Use the live key id (rzp_live_...).");
+  }
+  return problems;
+}
+
 /** Which of `required` aren't in `wrangler secret list --format json` output. */
 export function missingSecrets(listOutput, required) {
   const start = listOutput.indexOf("[");
@@ -86,13 +120,18 @@ export function missingSecrets(listOutput, required) {
   return required.filter((n) => !names.includes(n));
 }
 
-/** The deploy as data, in order: `{ cmd, args, env? }` runs, `{ rm }` deletes, `{ say }` prints, `{ secrets }` checks. */
+/**
+ * The deploy as data, in order: `{ cmd, args, env? }` runs, `{ rm }` deletes, `{ say }` prints,
+ * `{ secrets }` checks the secrets, `{ billing }` holds the billing var problems found.
+ */
 export function deploySteps(dryRun) {
   const dry = dryRun ? ["--dry-run"] : [];
   const dist = (...p) => join(ROOT, "apps", "product-web", "dist", ...p);
   const wrangler = (...a) => ["--filter", "@games/product-server", "exec", "wrangler", ...a];
+  const config = readFileSync(join(ROOT, "apps", "product-server", "wrangler.jsonc"), "utf8");
   return [
-    { secrets: requiredSecrets(readFileSync(join(ROOT, "apps", "product-server", "wrangler.jsonc"), "utf8")), dryRun },
+    { secrets: requiredSecrets(config), dryRun },
+    { billing: billingProblems(config), dryRun },
     { cmd: process.execPath, args: ["games/blind-rally/scripts/export-godot.mjs", "--upload", "--bucket", BUCKET, ...dry] },
     { cmd: process.execPath, args: ["games/treasure-hunt/scripts/export-godot.mjs", "--upload", "--bucket", BUCKET, ...dry] },
     { cmd: "pnpm", args: ["--filter", "@games/product-web", "build"], env: { VITE_BLIND_RALLY: "1", VITE_TREASURE_HUNT: "1" } },
@@ -135,9 +174,18 @@ function checkSecrets(required, dryRun) {
   process.exit(1);
 }
 
+function checkBilling(problems, dryRun) {
+  if (!problems.length) return;
+  const msg = `BILLING is "1" but wrangler.jsonc is not ready to take real money:\n${problems.map((p) => `  - ${p}`).join("\n")}\nFix the vars (docs/couchparty.md, Billing, going live).`;
+  if (dryRun) return console.warn(`\n[dry run] ${msg}`);
+  console.error(`\n${msg}\nNothing was deployed.`);
+  process.exit(1);
+}
+
 if (isMain()) {
   for (const step of deploySteps(process.argv.includes("--dry-run"))) {
     if ("secrets" in step) checkSecrets(step.secrets, step.dryRun);
+    else if ("billing" in step) checkBilling(step.billing, step.dryRun);
     else if ("rm" in step) rmSync(step.rm, { recursive: true, force: true });
     else if ("say" in step) console.log(`\n${step.say}`);
     else run(step.cmd, step.args, step.env);
