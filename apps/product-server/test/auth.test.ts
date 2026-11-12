@@ -235,10 +235,29 @@ describe("google", () => {
     expect(await count(s.db, "sessions")).toBe(0);
   });
 
-  it("Cancel on Google's page (error, no code) fails back to /account", async () => {
+  it("Cancel on Google's page (error, no code) goes back to /account with no error", async () => {
     const s = setup();
     const { cookie, state } = await start(s);
-    expectFailed(await s.call("GET", `/api/auth/google/callback?error=access_denied&state=${state}`, { cookie }));
+    const r = await s.call("GET", `/api/auth/google/callback?error=access_denied&state=${state}`, { cookie });
+    expect(r.headers.get("location")).toBe("/account");
+    expect(r.headers.getSetCookie()).toEqual(["cp_oauth=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth/google; Max-Age=0"]);
+    expect(await count(s.db, "sessions")).toBe(0);
+  });
+
+  it("Cancel or a failure keeps next, so the next try still goes back to the room", async () => {
+    const s = setup();
+    const { cookie, state } = await start(s, "/room/ABCD?upgrade=1");
+    const cancel = await s.call("GET", `/api/auth/google/callback?error=access_denied&state=${state}`, { cookie });
+    expect(cancel.headers.get("location")).toBe(`/account?next=${encodeURIComponent("/room/ABCD?upgrade=1")}`);
+    const fail = await s.call("GET", "/api/auth/google/callback?code=c&state=wrong", { cookie });
+    expect(fail.headers.get("location")).toBe(`/account?error=google&next=${encodeURIComponent("/room/ABCD?upgrade=1")}`);
+  });
+
+  it("an evil next in the oauth cookie is dropped on failure too", async () => {
+    const s = setup();
+    const { state } = await start(s);
+    const cookie = `cp_oauth=${state}|${encodeURIComponent("//evil.com")}`;
+    expectFailed(await s.call("GET", `/api/auth/google/callback?code=c&state=wrong`, { cookie }));
   });
 
   it("a failed or unreachable token endpoint fails back to /account", async () => {

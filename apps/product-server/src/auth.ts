@@ -150,22 +150,33 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
 }
 
 /**
- * Google sends the browser back here. Every way it can go wrong, including the
- * user pressing Cancel (`?error=access_denied`, no code), lands on /account with
- * a message, and the oauth cookie goes either way.
+ * Google sends the browser back here. Every way it can go wrong lands on
+ * /account with error=google, keeping the `next` from the oauth cookie so the
+ * next try still goes back where they started. Cancel on Google's page
+ * (`?error=access_denied`, no code) isn't an error: the same trip, no message.
+ * The oauth cookie goes either way.
  */
 async function googleCallback(request: Request, url: URL, env: ProductEnv, deps: AuthDeps): Promise<Response> {
   const clearOauth = clearCookie(OAUTH_COOKIE, GOOGLE_PATH);
-  const failed = redirect("/account?error=google", [clearOauth]);
   const cookie = readCookie(request, OAUTH_COOKIE);
   const sep = cookie ? cookie.indexOf("|") : -1;
+  let next = "/account";
+  if (cookie && sep > 0) {
+    try {
+      next = safeNext(decodeURIComponent(cookie.slice(sep + 1)));
+    } catch {}
+  }
+  const back = (error: string | null) => {
+    const q = new URLSearchParams();
+    if (error) q.set("error", error);
+    if (next !== "/account") q.set("next", next);
+    return redirect(q.size ? `/account?${q}` : "/account", [clearOauth]);
+  };
+  const failed = back("google");
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
+  if (url.searchParams.get("error") === "access_denied" && !code) return back(null);
   if (!cookie || sep < 1 || !state || !code || cookie.slice(0, sep) !== state) return failed;
-  let next = "/account";
-  try {
-    next = safeNext(decodeURIComponent(cookie.slice(sep + 1)));
-  } catch {}
 
   let tokens: { id_token?: string } | null;
   try {
