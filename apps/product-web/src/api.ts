@@ -1,6 +1,16 @@
+import type { PlanId, Provider } from "@games/product-server/billing-plans";
+
 export type Plan = { source: string; startsAt?: number; endsAt: number | null };
-export type Me = { email: string | null; tier: "free" | "pass"; plan?: Plan | null };
-export type Config = { turnstileSiteKey: string; googleEnabled: boolean; country: string | null };
+export type Purchase = { plan: string; amount: number; currency: string; status: string; createdAt: number };
+/** Signed out, only email (null) and tier come back. */
+export type Me = { id?: string; email: string | null; tier: "free" | "pass"; plan?: Plan | null; purchases?: Purchase[] };
+/** Public ids for checkout. Null on /api/config when billing is off or not set up. */
+export type Billing = {
+  provider: Provider;
+  razorpayKeyId: string;
+  paddle: { env: string; token: string; prices: { month: string; year: string } };
+};
+export type Config = { turnstileSiteKey: string; googleEnabled: boolean; country: string | null; billing: Billing | null };
 export type Result = { ok: true } | { ok: false; error: string };
 
 const FAIL = "Something went wrong. Please try again.";
@@ -100,4 +110,39 @@ export async function startEmailSignIn(email: string, next: string, turnstileTok
   } catch {
     return { ok: false, error: FAIL };
   }
+}
+
+export type Order = { orderId: string; keyId: string; amount: number; currency: string; email: string };
+/** What a confirm call says: paid, not settled yet, or an error. */
+export type Confirm = { ok: true; plan: PlanId } | { pending: true } | { error: string };
+
+export async function razorpayOrder(plan: PlanId): Promise<Order | { error: string }> {
+  try {
+    const res = await post("/api/billing/razorpay/order", { plan });
+    const body = (await res.json().catch(() => null)) as (Order & { error?: string }) | null;
+    if (res.ok && body?.orderId) return body;
+    return { error: body?.error ?? FAIL };
+  } catch {
+    return { error: FAIL };
+  }
+}
+
+async function confirm(path: string, payload: unknown): Promise<Confirm> {
+  try {
+    const res = await post(path, payload);
+    const body = (await res.json().catch(() => null)) as { ok?: boolean; plan?: PlanId; pending?: boolean; error?: string } | null;
+    if (res.status === 200 && body?.ok && body.plan) return { ok: true, plan: body.plan };
+    if (res.status === 202 || body?.pending) return { pending: true };
+    return { error: body?.error ?? FAIL };
+  } catch {
+    return { error: FAIL };
+  }
+}
+
+export function razorpayConfirm(p: { orderId: string; paymentId: string; signature: string }): Promise<Confirm> {
+  return confirm("/api/billing/razorpay/confirm", p);
+}
+
+export function paddleConfirm(transactionId: string): Promise<Confirm> {
+  return confirm("/api/billing/paddle/confirm", { transactionId });
 }

@@ -37,6 +37,11 @@
 .cp-sheet .cp-muted { color: var(--muted); font-size: 14px; }
 .cp-sheet-error { color: var(--danger); min-height: 0; }
 .cp-sheet-error:empty { display: none; }
+/* Plan buttons: stacked, so "24 hours · ₹49" fits on a 360 px phone. */
+.cp-plans { margin-bottom: 14px; }
+.cp-plans .cp-muted { margin: 0; }
+.plan-btns { display: grid; gap: 8px; }
+.plan-btn { width: 100%; }
 .cp-redeem { display: flex; gap: 8px; align-items: flex-end; }
 .cp-redeem .field { flex: 1; }
 .cp-link-btn {

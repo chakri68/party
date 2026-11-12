@@ -76,7 +76,7 @@ describe("magic link", () => {
     expect(setCookie).toMatch(/^cp_session=[\w-]+; HttpOnly; Secure; SameSite=Lax; Path=\/; Max-Age=2592000$/);
 
     const me = await (await s.call("GET", "/api/me", { cookie: `cp_session=${s.cookieOf(v)}` })).json();
-    expect(me).toEqual({ email: "a@x.com", tier: "free", plan: null, purchases: [] });
+    expect(me).toEqual({ id: expect.any(String), email: "a@x.com", tier: "free", plan: null, purchases: [] });
   });
 
   it("stores only hashes of the login and session tokens", async () => {
@@ -336,6 +336,7 @@ describe("session", () => {
     const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
     await grant(s.db, u.id, { source: "grant", plan: "x", days: null, ref: null }, T0);
     expect(await (await s.call("GET", "/api/me", { cookie })).json()).toEqual({
+      id: u.id,
       email: "a@x.com",
       tier: "pass",
       plan: { source: "grant", startsAt: T0, endsAt: null },

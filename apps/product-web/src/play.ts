@@ -2,6 +2,7 @@ import { PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { startShell } from "@games/web/shell";
 import "@games/web/style.css";
 import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
+import { takeBuyParam } from "./buy.ts";
 import { mountHeader } from "./header.ts";
 import { fadeIn } from "./motion.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
@@ -25,6 +26,9 @@ async function createRoom(): Promise<{ code: string } | { error: string; forgetK
   return { code: r.code };
 }
 
+// Back from sign-in with ?buy=<plan>: take it out of the address first, so
+// a reload can't start a second checkout. The sheet starts it once, below.
+const buyPlan = takeBuyParam(new URL(location.href));
 const notUpgraded = await finishUpgrade(new URL(location.href), {
   hostKeyFor,
   upgradeRoom,
@@ -48,4 +52,5 @@ startShell({
     fadeIn(outlet);
   },
 });
-if (notUpgraded) openPassSheet("", notUpgraded);
+// Only when the room is still free: a host who already had a pass is done.
+if (notUpgraded) openPassSheet("", notUpgraded, buyPlan ? { buy: buyPlan } : {});

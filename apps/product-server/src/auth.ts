@@ -252,6 +252,7 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
       const user = await userFromRequest(env.DB, request, now);
       if (!user) return json({ email: null, tier: "free" });
       return json({
+        id: user.id,
         email: user.email,
         tier: await tierFor(env.DB, user.id, now),
         plan: await activePlan(env.DB, user.id, now),

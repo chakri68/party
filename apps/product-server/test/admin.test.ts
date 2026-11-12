@@ -81,7 +81,7 @@ describe("grants", () => {
     const s = setup();
     const g = await s.admin("POST", "/api/admin/grant", { email: "  New@X.com ", days: 30 });
     expect(g.status).toBe(200);
-    expect(await s.me("new@x.com")).toEqual({ email: "new@x.com", tier: "pass", plan: expect.anything(), purchases: [] });
+    expect(await s.me("new@x.com")).toEqual({ id: expect.any(String), email: "new@x.com", tier: "pass", plan: expect.anything(), purchases: [] });
     const r = await s.admin("POST", "/api/admin/revoke-grants", { email: "NEW@x.com" });
     expect(r.status).toBe(200);
     expect((await s.me("new@x.com")).tier).toBe("free");

@@ -90,8 +90,8 @@ img, svg { display: block; }
 }
 .skip:focus { top: 12px; }
 
-/* Buttons and links that act like buttons */
-.btn {
+/* Buttons and links that act like buttons. buy.ts plan buttons wear the same look. */
+.btn, .plan-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -108,9 +108,11 @@ img, svg { display: block; }
   cursor: pointer;
   transition: background 120ms ease, transform 80ms ease;
 }
-.btn:hover { background: #d4ff4a; }
-.btn:active { transform: scale(0.98); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover, .plan-btn:hover { background: #d4ff4a; }
+.btn:active, .plan-btn:active { transform: scale(0.98); }
+.btn:disabled, .plan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.plan-btns { display: grid; gap: 8px; }
+.plan-btn { width: 100%; }
 .btn-small { min-height: 40px; padding: 0 16px; border-radius: 11px; font-size: 0.9375rem; }
 .btn-quiet {
   background: transparent;
