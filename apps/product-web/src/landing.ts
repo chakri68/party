@@ -222,12 +222,14 @@ function showPrices(): void {
   const wanted = takeBuyParam(new URL(location.href));
   loadConfig()
     .then(async (c) => {
+      // Prices first, so they never wait on /api/me.
+      renderPrices(c.country ?? null, shown);
+      clearTimeout(timer);
+      reveal();
       // A pass with no end can't get more time, so its holder sees the strip as
       // if buying were off. Only asked when billing is on: off, there's nothing to hide.
       const billing = c.billing && (await sellsTo()) ? c.billing : null;
-      renderPrices(c.country ?? null, shown, billing);
-      clearTimeout(timer);
-      reveal();
+      if (billing) renderPrices(c.country ?? null, false, billing);
       const root = document.querySelector<HTMLElement>("[data-prices]");
       if (wanted && billing && root && plansFor(billing.provider).includes(wanted)) void startBuy(wanted, root);
     })
