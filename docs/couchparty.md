@@ -113,6 +113,59 @@ Secrets go in with `wrangler secret put` and never into git. The two vars go in 
 
     `!pnpm admin code new --uses 20 --forever --note family`
 
+## Billing
+
+Host Pass is paid. Razorpay takes the payment when Cloudflare's `CF-IPCountry` header is `IN`, in rupees. Paddle takes it everywhere else, as Merchant of Record, so it handles tax. Passes are one-time, not subscriptions, and they stack: a second pass starts when the first ends. After a payment the server asks the provider right away whether it went through, and grants the pass. Webhooks are the backup for when the tab closes mid-payment, and they are the only way a refund reaches us.
+
+### Config
+
+| Thing | Kind | What it is |
+| --- | --- | --- |
+| `BILLING` | var | `"1"` turns buying on. Anything else hides it |
+| `RAZORPAY_KEY_ID` | var | public Razorpay key id |
+| `PADDLE_ENV` | var | `sandbox` or `production` |
+| `PADDLE_CLIENT_TOKEN` | var | public Paddle client-side token |
+| `PADDLE_PRICE_MONTH` | var | Paddle price id, month pass |
+| `PADDLE_PRICE_YEAR` | var | Paddle price id, year pass |
+| `RAZORPAY_KEY_SECRET` | secret | Razorpay API secret |
+| `RAZORPAY_WEBHOOK_SECRET` | secret | the secret you typed into the Razorpay webhook |
+| `PADDLE_API_KEY` | secret | Paddle server API key |
+| `PADDLE_WEBHOOK_SECRET` | secret | the notification destination's secret key |
+
+Vars live in `apps/product-server/wrangler.jsonc`. Secrets go in with `wrangler secret put`. Locally, all ten go in `apps/product-server/.dev.vars`, which is git-ignored. Never commit them.
+
+`/api/config` hides billing, so no buy buttons show, until `BILLING` is `"1"` and that provider's public values are real, not the `<set at setup>` placeholders. `pnpm deploy:product` requires the four secrets only when `BILLING` is `"1"` in `wrangler.jsonc`.
+
+### Webhooks
+
+| Provider | URL | Events |
+| --- | --- | --- |
+| Razorpay | `https://couchpartygames.com/api/billing/razorpay/webhook` | `payment.captured`, `refund.processed` |
+| Paddle | `https://couchpartygames.com/api/billing/paddle/webhook` | `transaction.completed`, `adjustment.created`, `adjustment.updated` |
+
+### Refunds
+
+By hand, in each provider's dashboard. The refund webhook ends the pass and pulls any later passes forward.
+
+Only ever do **full** refunds. Razorpay's `refund.processed` fires for partial refunds too, and any refund ends the whole pass. A partial goodwill refund would cost the host their pass.
+
+### Going live
+
+1. Ship with `BILLING` at `"0"`. Nothing shows, nothing can be bought.
+2. Once both accounts are approved:
+   - create the live Paddle product and prices with the Paddle plugin (`paddle-live`);
+   - put the live public values into `wrangler.jsonc`;
+   - set the four secrets with `wrangler secret put`;
+   - register both webhooks at the live URLs above.
+3. Set `BILLING` to `"1"` and `!pnpm deploy:product`. Then buy a real Rs 49 day pass, refund it from the dashboard, and check the pass goes away.
+4. Regenerate the Razorpay test key secret once billing works. The old one was shared in a chat.
+
+### Testing locally
+
+`pnpm dev` in `apps/product-server` turns `BILLING` on locally. To force Razorpay, send `CF-IPCountry: IN`: in Chrome DevTools, Network conditions or an extra-headers override. Without it you get Paddle.
+
+For webhooks, run `cloudflared tunnel --url http://localhost:8788`. Register the tunnel URL (plus the webhook paths above) in Razorpay's test dashboard, and as a Paddle sandbox notification destination. Put the secrets it gives you in `.dev.vars` and restart `wrangler dev`.
+
 ## Smoke checklist
 
 On the live site, phone and laptop:
