@@ -136,12 +136,18 @@ Vars live in `apps/product-server/wrangler.jsonc`. Secrets go in with `wrangler 
 
 `/api/config` hides billing, so no buy buttons show, until `BILLING` is `"1"` and that provider's public values are real, not the `<set at setup>` placeholders. `pnpm deploy:product` requires the four secrets only when `BILLING` is `"1"` in `wrangler.jsonc`.
 
+With `BILLING` at `"1"`, `pnpm deploy:product` also refuses to deploy a config that can't take real money: `PADDLE_ENV` not `production`, a `PADDLE_CLIENT_TOKEN` that doesn't start with `live_`, a `rzp_test_` Razorpay key id, or any billing var still a `<...>` placeholder. It names each problem and stops. The dry run only warns.
+
+Always deploy with `pnpm deploy:product`. It applies D1 migrations before the Worker goes live. A plain `wrangler deploy` skips them, and without migration 0002 a signed-in `/api/me` fails.
+
 ### Webhooks
 
 | Provider | URL | Events |
 | --- | --- | --- |
 | Razorpay | `https://couchpartygames.com/api/billing/razorpay/webhook` | `payment.captured`, `refund.processed` |
 | Paddle | `https://couchpartygames.com/api/billing/paddle/webhook` | `transaction.completed`, `adjustment.created`, `adjustment.updated` |
+
+A webhook that can't match a payment says why with a `console.warn` line. Read them in the Cloudflare dashboard: Workers, `couchparty`, Logs. `observability` is on in `wrangler.jsonc`, so the lines are kept.
 
 ### Refunds
 
@@ -154,15 +160,21 @@ Only ever do **full** refunds. Razorpay's `refund.processed` fires for partial r
 1. Ship with `BILLING` at `"0"`. Nothing shows, nothing can be bought.
 2. Once both accounts are approved:
    - create the live Paddle product and prices with the Paddle plugin (`paddle-live`);
-   - put the live public values into `wrangler.jsonc`;
+   - put the live public values into `wrangler.jsonc`: `PADDLE_ENV` = `production`, the live `PADDLE_CLIENT_TOKEN` (starts with `live_`), the live `PADDLE_PRICE_MONTH` and `PADDLE_PRICE_YEAR`, and the live `RAZORPAY_KEY_ID` (starts with `rzp_live_`). The deploy stops if any of these is still a sandbox or test value;
+   - in Paddle, get the domain `couchpartygames.com` approved (Checkout, Website approval), and set a default payment link (Checkout, Checkout settings). Live checkout does not open without both;
+   - in Razorpay, set Account & Settings, Payment capture, to automatic and immediate, in live mode. Otherwise payments stay authorized, no pass is granted, and Razorpay refunds them later by itself;
    - set the four secrets with `wrangler secret put`;
    - register both webhooks at the live URLs above.
-3. Set `BILLING` to `"1"` and `!pnpm deploy:product`. Then buy a real Rs 49 day pass, refund it from the dashboard, and check the pass goes away.
+3. Set `BILLING` to `"1"` and `!pnpm deploy:product`. Then check both providers:
+   - Razorpay: from India, buy a real Rs 49 day pass, refund it from the dashboard, and check the pass goes away;
+   - Paddle: from outside India (or on a VPN), buy a $4.99 month pass, refund it in Paddle, and check the pass goes away.
 4. Regenerate the Razorpay test key secret once billing works. The old one was shared in a chat.
 
 ### Testing locally
 
 `pnpm dev` in `apps/product-server` turns `BILLING` on locally. To force Razorpay, send `CF-IPCountry: IN`: in Chrome DevTools, Network conditions or an extra-headers override. Without it you get Paddle.
+
+In Razorpay's test mode, set Account & Settings, Payment capture, to automatic and immediate, same as live. Otherwise test payments stay authorized and no pass is granted.
 
 For webhooks, run `cloudflared tunnel --url http://localhost:8788`. Register the tunnel URL (plus the webhook paths above) in Razorpay's test dashboard, and as a Paddle sandbox notification destination. Put the secrets it gives you in `.dev.vars` and restart `wrangler dev`.
 
@@ -190,4 +202,4 @@ It goes to the previous deployed version. Add a version id after `rollback` to p
 
 ## Later deploys
 
-`!pnpm deploy:product`. Migrations apply only if new files are in `apps/product-server/migrations`. Secrets and DNS are done; they stay.
+`!pnpm deploy:product`, never a plain `wrangler deploy`. Migrations apply only if new files are in `apps/product-server/migrations`. Secrets and DNS are done; they stay.

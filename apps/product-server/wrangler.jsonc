@@ -8,6 +8,8 @@
   // Hourly: prune old sign-in links, room records and expired sessions (src/prune.ts).
   "triggers": { "crons": ["17 * * * *"] },
   "preview_urls": false,
+  // Keeps console.warn lines (webhook checks that failed) in the dashboard: Workers → couchparty → Logs.
+  "observability": { "enabled": true },
   "assets": {
     "directory": "../product-web/dist",
     "binding": "ASSETS",
