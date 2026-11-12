@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activePlan, grant, tierFor } from "../src/entitlements.ts";
+import { activePlan, grant, revokeAndRelay, tierFor } from "../src/entitlements.ts";
 import { fakeD1 } from "./d1.ts";
 
 const DAY = 86_400_000;
@@ -48,5 +48,37 @@ describe("entitlements", () => {
     const db = await withUser();
     await grant(db, "u1", { source: "comp", plan: "comp", days: 30, ref: "c" }, now);
     expect(await activePlan(db, "u1", now + 1000)).toEqual({ source: "comp", startsAt: now, endsAt: now + 30 * 86_400_000 });
+  });
+  it("stacks a new pass after an active one", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "comp", plan: "comp", days: 10, ref: "a" }, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now + DAY);
+    expect((await activePlan(db, "u1", now + DAY))!.endsAt).toBe(now + 40 * DAY);
+    expect(await tierFor(db, "u1", now + 39 * DAY)).toBe("pass");
+    expect(await tierFor(db, "u1", now + 40 * DAY)).toBe("free");
+  });
+
+  it("starts now when the user holds a forever pass", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "comp", plan: "forever", days: null, ref: "c1" }, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now + DAY);
+    const row = await db.prepare("SELECT starts_at FROM entitlements WHERE ref = 'pay_1'").first<{ starts_at: number }>();
+    expect(row!.starts_at).toBe(now + DAY);
+  });
+
+  it("starts now after an expired pass", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "grant", plan: "day", days: 1, ref: null }, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now + 5 * DAY);
+    expect((await activePlan(db, "u1", now + 5 * DAY))!.endsAt).toBe(now + 35 * DAY);
+  });
+
+  it("refund mid-stack pulls later passes forward", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_2" }, now);
+    await revokeAndRelay(db, "u1", "razorpay", "pay_1", now + 5 * DAY);
+    expect(await tierFor(db, "u1", now + 5 * DAY)).toBe("pass");
+    expect((await activePlan(db, "u1", now + 5 * DAY))!.endsAt).toBe(now + 35 * DAY);
   });
 });
