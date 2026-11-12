@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { deploySteps as masterSteps } from "../../../scripts/deploy.mjs";
-import { deploySteps } from "../../../scripts/deploy-product.mjs";
+import { deploySteps, missingSecrets, REQUIRED_SECRETS } from "../../../scripts/deploy-product.mjs";
 
 type Run = { cmd: string; args: string[]; env?: Record<string, string> };
-type Step = Run | { rm: string } | { say: string };
+type Step = Run | { rm: string } | { say: string } | { secrets: string[]; dryRun: boolean };
 const steps = (dry: boolean) => deploySteps(dry) as Step[];
 const isRun = (s: Step): s is Run => "cmd" in s;
-const line = (s: Step) => (isRun(s) ? `${s.cmd} ${s.args.join(" ")}` : "rm" in s ? `rm ${s.rm.replace(/\\/g, "/")}` : s.say);
+const line = (s: Step) =>
+  isRun(s) ? `${s.cmd} ${s.args.join(" ")}` : "rm" in s ? `rm ${s.rm.replace(/\\/g, "/")}` : "secrets" in s ? `check secrets ${s.secrets.join(",")}` : s.say;
 
 describe("deploySteps (product)", () => {
-  it("runs uploads, build, cleanup, migrations, deploy in that order", () => {
+  it("runs secret check, uploads, build, cleanup, migrations, deploy in that order", () => {
     const l = steps(false).map(line);
     const at = (needle: string) => l.findIndex((x) => x.includes(needle));
     const order = [
+      "check secrets",
       "games/blind-rally/scripts/export-godot.mjs",
       "games/treasure-hunt/scripts/export-godot.mjs",
       "--filter @games/product-web build",
@@ -23,7 +25,7 @@ describe("deploySteps (product)", () => {
     ].map(at);
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(l).toHaveLength(7);
+    expect(l).toHaveLength(8);
   });
 
   it("uploads both exports to couchparty-godot", () => {
@@ -59,6 +61,20 @@ describe("deploySteps (product)", () => {
       expect(r.args.includes("--dry-run"), line(r)).toBe(wants);
     }
     for (const r of steps(false).filter(isRun)) expect(r.args).not.toContain("--dry-run");
+  });
+
+  it("checks the secrets first, IP_HASH_KEY among them; a dry run only warns", () => {
+    for (const dry of [false, true]) expect(steps(dry)[0]).toEqual({ secrets: REQUIRED_SECRETS, dryRun: dry });
+    expect(REQUIRED_SECRETS).toContain("IP_HASH_KEY");
+  });
+
+  it("missingSecrets reads wrangler's JSON list", () => {
+    const all = JSON.stringify(REQUIRED_SECRETS.map((name) => ({ name, type: "secret_text" })));
+    expect(missingSecrets(all)).toEqual([]);
+    expect(missingSecrets(`some banner\n${all}`)).toEqual([]);
+    expect(missingSecrets(JSON.stringify([{ name: "ADMIN_KEY", type: "secret_text" }]))).toEqual(["IP_HASH_KEY", "TURNSTILE_SECRET", "RESEND_API_KEY"]);
+    expect(missingSecrets("[]")).toEqual(REQUIRED_SECRETS);
+    expect(missingSecrets("not json [oops")).toEqual(REQUIRED_SECRETS);
   });
 
   it("leaves the master deploy on its own bucket", () => {

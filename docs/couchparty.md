@@ -105,6 +105,8 @@ Secrets go in with `wrangler secret put` and never into git. The two vars go in 
 
     `!pnpm deploy:product`
 
+    It checks the Worker's secrets first (`IP_HASH_KEY`, `ADMIN_KEY`, `TURNSTILE_SECRET`, `RESEND_API_KEY`). If one is missing it names it and stops before anything ships; the dry run only warns.
+
     Reruns skip any Godot hash already in the bucket. It never sets `DEV_TOOLS`: that stays `"0"` in `wrangler.jsonc`, so a missing Resend key fails loudly instead of logging magic links.
 
     Secrets apply to the live Worker immediately; putting one later needs no redeploy.
