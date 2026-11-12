@@ -1,6 +1,7 @@
 // The public pages: landing (/) and pricing. The HTML carries the words; this
 // file fills in the parts that come from data (the game list, the prices).
 
+import { PLANS, plansFor, priceLabel, providerFor } from "@games/product-server/billing-plans";
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
 import { loadConfig } from "./api.ts";
@@ -42,17 +43,12 @@ export function galleryModel(): GallerySection[] {
  * $1.99, so outside India the pass is sold by the month or year only.
  */
 export function priceTable(country: string | null): Array<{ plan: string; length: string; price: string }> {
-  if (country === "IN") {
-    return [
-      { plan: "Day", length: "24 hours", price: "₹49" },
-      { plan: "Month", length: "30 days", price: "₹149" },
-      { plan: "Year", length: "365 days", price: "₹999" },
-    ];
-  }
-  return [
-    { plan: "Month", length: "30 days", price: "$4.99" },
-    { plan: "Year", length: "365 days", price: "$39" },
-  ];
+  const provider = providerFor(country);
+  return plansFor(provider).map((p) => ({
+    plan: p[0]!.toUpperCase() + p.slice(1),
+    length: PLANS[p].length,
+    price: priceLabel(p, provider),
+  }));
 }
 
 // Small line drawings, one per section. Same stroke style as the shell's icons.
