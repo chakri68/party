@@ -200,8 +200,13 @@ async function viaPaddle(plan: PlanId, m: Me, billing: Billing, settle: Settle, 
   const Paddle = window.Paddle;
   if (!Paddle) return fail();
   if (!paddleReady) {
-    if (billing.paddle.env === "sandbox") Paddle.Environment.set("sandbox");
-    Paddle.Initialize({ token: billing.paddle.token, eventCallback: (e) => paddleListener?.(e) });
+    // If the script loaded but won't start, nothing was charged yet.
+    try {
+      if (billing.paddle.env === "sandbox") Paddle.Environment.set("sandbox");
+      Paddle.Initialize({ token: billing.paddle.token, eventCallback: (e) => paddleListener?.(e) });
+    } catch {
+      return fail();
+    }
     paddleReady = true;
   }
   return new Promise<BuyOutcome>((resolve) => {

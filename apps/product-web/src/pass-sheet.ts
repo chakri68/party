@@ -110,11 +110,12 @@ export function openPassSheet(_gameId: string, code: string, opts: { buy?: PlanI
         fail(null);
         swapIn(plans, note(PAY_PENDING));
         let error = PAY_DOWN;
+        // buy() shouldn't reject; if it does, nothing was charged, so the buttons come back.
         const outcome = await buy(plan, {
           returnTo: `/room/${code}?upgrade=1`,
           onError: (msg) => void (error = msg),
           onWait: () => swapIn(plans, note(PAY_SLOW)),
-        });
+        }).catch((): "failed" => "failed");
         if (outcome === "closed") return swapIn(plans, showButtons());
         if (outcome === "failed") {
           swapIn(plans, showButtons());

@@ -1,9 +1,11 @@
 // /account: sign in when signed out; plan, codes, sign out and delete when signed in.
 
-import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, startEmailSignIn, type Me } from "./api.ts";
+import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, startEmailSignIn, type Billing, type Me, type Purchase } from "./api.ts";
 import { getTurnstileToken } from "./turnstile.ts";
 import { FREE_MAX_PLAYERS } from "@games/product-server/catalog-data";
-import { growBar, morph } from "./motion.ts";
+import { PLANS, isPlanId, plansFor, type PlanId } from "@games/product-server/billing-plans";
+import { PAY_DOWN, PAY_LATE, PAY_PENDING, PAY_SLOW, buy, planButtons, takeBuyParam } from "./buy.ts";
+import { growBar, morph, swapIn } from "./motion.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -37,6 +39,18 @@ export function planFacts(m: Me, now: number): PlanFacts {
     ends: `Ends ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
     left,
   };
+}
+
+/** "12 Nov 2026 · 30 days · ₹149". UTC date, so it reads the same everywhere. */
+export function purchaseLine(p: Pick<Purchase, "plan" | "amount" | "currency" | "createdAt">): string {
+  const date = new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const length = isPlanId(p.plan) ? PLANS[p.plan].length : p.plan;
+  const money = new Intl.NumberFormat(p.currency === "INR" ? "en-IN" : "en-US", {
+    style: "currency",
+    currency: p.currency,
+    minimumFractionDigits: 0,
+  }).format(p.amount / 100);
+  return `${date} · ${length} · ${money}`;
 }
 
 /** Only same-site paths. Anything else goes back to this page. */
@@ -169,27 +183,82 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
   return node;
 }
 
-function signedIn(m: Me): void {
+function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null): void {
   showView("in", true);
   $("[data-email]").textContent = m.email ?? "";
   const card = $("[data-plan]");
   let first = true;
-  const buy = $("[data-buy]");
-  const show = (who: Me) => {
-    const fill = () => renderPlan(card, planFacts(who, Date.now()));
-    // Already has a pass: no "Buy Host Pass" box under it.
-    const hasPass = who.tier === "pass";
-    // First time it rides the page's own reveal; after a redeem it eases to its new size.
-    if (first) {
-      fill();
-      buy.hidden = hasPass;
-    } else {
-      morph(card, fill);
-      if (buy.hidden !== hasPass) morph($("main"), () => void (buy.hidden = hasPass));
+  const panel = $("[data-buy]");
+  const panelTitle = $("[data-buy-title]");
+  const panelBody = $("[data-buy-body]");
+  const list = $("[data-purchases]");
+  const rows = $("[data-purchases-list]");
+
+  const note = (text: string, tone?: "bad") => {
+    const p = el("p", "status", text);
+    p.setAttribute("role", tone ? "alert" : "status");
+    if (tone) p.dataset.tone = tone;
+    else p.classList.add("muted");
+    return p;
+  };
+
+  /** Plan buttons for this provider. Only called with buying on. */
+  const buyContent = (who: Me): HTMLElement[] => {
+    if (!billing) return [];
+    panelTitle.textContent = who.tier === "pass" ? "Add more time" : "Buy Host Pass";
+    return [planButtons(billing, (p) => void start(p))];
+  };
+
+  const start = async (plan: PlanId) => {
+    let error = PAY_DOWN;
+    swapIn(panelBody, note(PAY_PENDING));
+    let outcome: Awaited<ReturnType<typeof buy>> = "failed";
+    try {
+      outcome = await buy(plan, {
+        returnTo: "/account",
+        onError: (msg) => void (error = msg),
+        onWait: () => swapIn(panelBody, note(PAY_SLOW)),
+      });
+    } catch {
+      // nothing was charged if buy() itself threw
     }
+    if (outcome === "pending") return swapIn(panelBody, note(PAY_LATE));
+    if (outcome === "done") {
+      try {
+        return show(await me());
+      } catch {
+        return location.reload();
+      }
+    }
+    swapIn(panelBody, ...buyContent(me0), ...(outcome === "failed" ? [note(error, "bad")] : []));
+  };
+
+  let me0: Me = m;
+  const show = (who: Me) => {
+    me0 = who;
+    const purchases = who.purchases ?? [];
+    // A pass with no end can't be added to. With buying off, a pass hides the box as it always did.
+    const hidePanel = who.tier === "pass" && (billing === null || (who.plan?.endsAt ?? null) === null);
+    const fill = () => {
+      renderPlan(card, planFacts(who, Date.now()));
+      if (billing) panelBody.replaceChildren(...buyContent(who)); // off: the HTML's own "opens soon" stays
+      panel.hidden = hidePanel;
+      list.hidden = purchases.length === 0;
+      rows.replaceChildren(
+        ...purchases.map((p) => {
+          const li = el("li", "purchase", purchaseLine(p));
+          if (p.status === "refunded") li.append(" ", el("span", "purchase-tag", "Refunded"));
+          return li;
+        }),
+      );
+    };
+    // First time it rides the page's own reveal; after a redeem or a purchase it eases to its new size.
+    if (first) fill();
+    else morph($("main"), fill);
     first = false;
   };
   show(m);
+  if (autoBuy && billing && plansFor(billing.provider).includes(autoBuy) && !panel.hidden) void start(autoBuy);
 
   const form = $("[data-redeem]") as HTMLFormElement;
   const input = form.querySelector("input")!;
@@ -268,7 +337,8 @@ export async function mountAccount(): Promise<void> {
     error = "link";
   }
 
-  const m = await meOrNull();
+  const autoBuy = takeBuyParam(url);
+  const [m, billing] = await Promise.all([meOrNull(), loadConfig().then((c) => c.billing, () => null)]);
   if (m === null) {
     $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";
     return;
@@ -276,6 +346,6 @@ export async function mountAccount(): Promise<void> {
   morph($("main"), () => {
     showView("loading", false);
     if (m.email === null) signedOut(next, error);
-    else signedIn(m);
+    else signedIn(m, billing, autoBuy);
   });
 }

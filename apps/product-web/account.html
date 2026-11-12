@@ -58,9 +58,15 @@
         <p data-redeem-status class="status" role="status" hidden></p>
       </form>
       <div data-view="in" hidden data-buy class="panel">
-        <h2>Buy Host Pass</h2>
-        <p class="muted">Buying opens soon. See the plans on the <a href="/pricing">pricing page</a>.</p>
+        <h2 data-buy-title>Buy Host Pass</h2>
+        <div data-buy-body>
+          <p class="muted">Buying opens soon. See the plans on the <a href="/pricing">pricing page</a>.</p>
+        </div>
       </div>
+      <section data-purchases hidden class="panel" aria-label="Your purchases">
+        <h2>Your purchases</h2>
+        <ul class="purchases" data-purchases-list></ul>
+      </section>
       <div data-view="in" hidden class="danger-zone">
         <button type="button" class="btn btn-quiet btn-wide" data-logout>Sign out</button>
         <button type="button" class="text-btn text-btn-danger" data-delete>Delete account</button>

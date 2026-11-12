@@ -592,3 +592,16 @@ body > main { flex: 1 0 auto; width: 100%; }
 .legal ul + p { margin-top: 14px; }
 .account { align-content: start; }
 .lost { align-content: center; }
+
+/* Account: buying and past purchases. */
+.purchases { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.purchase { font-size: 0.9375rem; color: var(--ink); }
+.purchase-tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.8125rem; color: var(--muted); }
+.panel [data-buy-body] { display: grid; gap: 10px; }
+
+/* Price strip buy buttons (landing, pricing). The row is always there when
+   billing is on, so fading the button in does not move anything. */
+.price-buy { margin-top: 12px; min-height: 40px; padding: 0 16px; font-size: 0.9375rem; }
+.prices-msg { margin-top: 12px; }
+.prices-msg:empty { display: none; }
+.band .alert { color: #ff9b94; }

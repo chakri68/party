@@ -1,11 +1,12 @@
 // The public pages: landing (/) and pricing. The HTML carries the words; this
 // file fills in the parts that come from data (the game list, the prices).
 
-import { PLANS, plansFor, priceLabel, providerFor } from "@games/product-server/billing-plans";
+import { PLANS, isPlanId, plansFor, priceLabel, providerFor, type PlanId } from "@games/product-server/billing-plans";
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
-import { loadConfig } from "./api.ts";
-import { revealOnScroll, riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
+import { loadConfig, type Billing } from "./api.ts";
+import { PAY_DOWN, PAY_LATE, buy, takeBuyParam } from "./buy.ts";
+import { fadeIn, morph, revealOnScroll, riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
 
 overrideGameNames(PRODUCT_NAMES);
 
@@ -102,8 +103,46 @@ function renderGallery(root: HTMLElement): void {
   );
 }
 
-function renderPrices(country: string | null, roll: boolean): void {
+/** Where a strip says what happened to a purchase: an error, or the "pass is late" line. */
+function say(root: HTMLElement, text: string, error: boolean): void {
+  let msg = root.nextElementSibling?.matches(".prices-msg") ? (root.nextElementSibling as HTMLElement) : null;
+  if (!msg) {
+    msg = el("p", "prices-msg");
+    root.after(msg);
+  }
+  msg.className = error ? "prices-msg alert" : "prices-msg muted";
+  msg.setAttribute("role", error ? "alert" : "status");
+  msg.textContent = text;
+  fadeIn(msg);
+}
+
+let buying = false;
+
+/** One purchase from a price strip. Done goes to the account page, where the pass shows. */
+async function startBuy(plan: PlanId, root: HTMLElement): Promise<void> {
+  if (buying) return;
+  buying = true;
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".price-buy");
+  buttons.forEach((b) => (b.disabled = true));
+  const old = root.nextElementSibling;
+  if (old?.matches(".prices-msg")) old.textContent = "";
+  let error = PAY_DOWN;
+  let outcome: Awaited<ReturnType<typeof buy>> = "failed";
+  try {
+    outcome = await buy(plan, { returnTo: location.pathname, onError: (m) => void (error = m) });
+  } catch {
+    // nothing was charged if buy() itself threw
+  }
+  if (outcome === "done") return void location.assign("/account");
+  buying = false;
+  buttons.forEach((b) => (b.disabled = false));
+  if (outcome === "failed") say(root, error, true);
+  else if (outcome === "pending") say(root, PAY_LATE + " Check your account page.", false);
+}
+
+function renderPrices(country: string | null, roll: boolean, billing: Billing | null = null): void {
   const byPlan = new Map(priceTable(country).map((p) => [p.plan, p.price]));
+  const buyButtons: Array<[HTMLElement, HTMLElement, PlanId]> = [];
   for (const root of document.querySelectorAll<HTMLElement>("[data-prices]")) {
     // The HTML ships every plan; change the numbers in place so they can
     // roll, and fold away a plan this country doesn't sell.
@@ -114,11 +153,32 @@ function renderPrices(country: string | null, roll: boolean): void {
         foldAway(li);
         continue;
       }
+      const planName = li.querySelector(".price-plan")?.textContent ?? "";
+      if (billing && !li.querySelector(".price-buy")) {
+        const plan = planName.toLowerCase();
+        if (isPlanId(plan) && plansFor(billing.provider).includes(plan)) buyButtons.push([root, li, plan]);
+      }
       const amount = li.querySelector<HTMLElement>(".price-amount")!;
       if (roll) rollText(amount, price, 90 * i);
       else amount.textContent = price;
       i++;
     }
+  }
+  if (!billing) return;
+  for (const note of document.querySelectorAll(".prices-note")) note.textContent = "One payment. Nothing renews.";
+  // The strip eases to its taller size and the buttons fade up, so nothing jumps.
+  for (const root of new Set(buyButtons.map(([r]) => r))) {
+    morph(root, () => {
+      for (const [r, li, plan] of buyButtons) {
+        if (r !== root) continue;
+        const btn = el("button", "btn price-buy", "Buy");
+        btn.type = "button";
+        btn.setAttribute("aria-label", `Buy ${PLANS[plan].length} pass`);
+        btn.addEventListener("click", () => void startBuy(plan, root));
+        li.append(btn);
+        fadeIn(btn);
+      }
+    });
   }
 }
 
@@ -152,11 +212,15 @@ function showPrices(): void {
     );
   };
   const timer = setTimeout(reveal, 400);
+  // Taken before anything else, so a reload can't start a second purchase.
+  const wanted = takeBuyParam(new URL(location.href));
   loadConfig()
     .then((c) => {
-      renderPrices(c.country ?? null, shown);
+      renderPrices(c.country ?? null, shown, c.billing);
       clearTimeout(timer);
       reveal();
+      const root = document.querySelector<HTMLElement>("[data-prices]");
+      if (wanted && c.billing && root && plansFor(c.billing.provider).includes(wanted)) void startBuy(wanted, root);
     })
     .catch(() => {})
     .finally(reveal);
