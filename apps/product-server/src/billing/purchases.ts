@@ -7,7 +7,7 @@ export type PaidInput = {
   ref: string;
   plan: PlanId;
   amount: number;
-  currency: "INR" | "USD";
+  currency: string;
   userId: string | null;
 };
 

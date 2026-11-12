@@ -42,12 +42,13 @@ export function realPaddleDeps(env: ProductEnv): PaddleDeps {
 const down = () => json({ error: DOWN }, 502);
 const bad = (error: string) => json({ error }, 400);
 
-/** One item, at one of our prices, in dollars. Returns the plan, or null. */
+/** One item, at one of our prices, with a numeric total. Returns the plan, or null. */
 function planIfValid(t: PaddleTxn, env: ProductEnv): PlanId | null {
   if (t?.items?.length !== 1) return null;
-  // Our prices are USD only. The total itself includes tax, so it is not checked; the price id is the guard.
-  if (t.currency_code !== "USD") return null;
-  return planForPaddlePrice(String(t.items[0]?.price?.id ?? ""), env);
+  // Paddle may charge in the buyer's currency, and the total includes tax, so neither is
+  // checked against PLANS; the price id is the guard. A garbage total must not reach the DB.
+  if (!Number.isFinite(Number(t.details?.totals?.grand_total))) return null;
+  return planForPaddlePrice(t.items[0]!.price?.id, env);
 }
 
 const isPaid = (status: unknown) => status === "paid" || status === "completed";
@@ -55,7 +56,7 @@ const isPaid = (status: unknown) => status === "paid" || status === "completed";
 const record = (env: ProductEnv, deps: PaddleDeps, t: PaddleTxn, plan: PlanId, userId: string) =>
   recordPaid(
     env.DB,
-    { provider: "paddle", ref: t.id, plan, amount: Number(t.details.totals.grand_total), currency: "USD", userId },
+    { provider: "paddle", ref: t.id, plan, amount: Number(t.details.totals.grand_total), currency: t.currency_code, userId },
     deps.now(),
   );
 

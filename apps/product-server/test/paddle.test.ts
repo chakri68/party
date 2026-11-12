@@ -114,10 +114,18 @@ describe("confirm", () => {
     s.txns.txn_1 = s.txn({ items: [{ price: { id: "pri_month" } }, { price: { id: "pri_month" } }] });
     expect((await s.confirm()).status).toBe(400);
   });
-  it("400 for a non-USD currency", async () => {
+  it("grants a GBP payment and stores its currency and total", async () => {
     const s = await setup();
-    s.txns.txn_1 = s.txn({ currency_code: "EUR" });
-    expect((await s.confirm()).status).toBe(400);
+    s.txns.txn_1 = s.txn({ currency_code: "GBP", details: { totals: { grand_total: "349" } } });
+    expect((await s.confirm()).status).toBe(200);
+    expect(await s.db.prepare("SELECT amount, currency FROM purchases").first<any>()).toMatchObject({ amount: 349, currency: "GBP" });
+  });
+  it("400 for a missing or non-numeric total, and nothing recorded", async () => {
+    const s = await setup();
+    for (const details of [undefined, {}, { totals: {} }, { totals: { grand_total: "abc" } }]) {
+      s.txns.txn_1 = s.txn({ details: details as any });
+      expect((await s.confirm()).status).toBe(400);
+    }
     expect(await s.n("purchases")).toBe(0);
   });
   it("400 for an unknown transaction", async () => {
@@ -222,10 +230,25 @@ describe("webhook events", () => {
     expect((await s.hook("transaction.completed", s.txn({ custom_data: null }))).status).toBe(200);
     expect(await s.n("purchases")).toBe(0);
   });
-  it("200 and nothing recorded for an unknown price or currency", async () => {
+  it("200 and nothing recorded for an unknown price", async () => {
     const s = await setup();
     await s.hook("transaction.completed", s.txn({ items: [{ price: { id: "pri_other" } }] }));
-    await s.hook("transaction.completed", s.txn({ currency_code: "EUR" }));
+    expect(await s.n("purchases")).toBe(0);
+  });
+  it("grants a GBP payment, storing its currency", async () => {
+    const s = await setup();
+    expect((await s.hook("transaction.completed", s.txn({ currency_code: "GBP", details: { totals: { grand_total: "349" } } }))).status).toBe(200);
+    expect(await s.db.prepare("SELECT amount, currency FROM purchases").first<any>()).toMatchObject({ amount: 349, currency: "GBP" });
+  });
+  it("200 and nothing recorded for a malformed total", async () => {
+    const s = await setup();
+    expect((await s.hook("transaction.completed", s.txn({ details: { totals: { grand_total: "abc" } } }))).status).toBe(200);
+    expect((await s.hook("transaction.completed", s.txn({ details: undefined as any }))).status).toBe(200);
+    expect(await s.n("purchases")).toBe(0);
+  });
+  it("200 and nothing recorded when status is not paid or completed", async () => {
+    const s = await setup();
+    expect((await s.hook("transaction.completed", s.txn({ status: "billed" }))).status).toBe(200);
     expect(await s.n("purchases")).toBe(0);
   });
 
