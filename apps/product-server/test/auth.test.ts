@@ -76,7 +76,7 @@ describe("magic link", () => {
     expect(setCookie).toMatch(/^cp_session=[\w-]+; HttpOnly; Secure; SameSite=Lax; Path=\/; Max-Age=2592000$/);
 
     const me = await (await s.call("GET", "/api/me", { cookie: `cp_session=${s.cookieOf(v)}` })).json();
-    expect(me).toEqual({ email: "a@x.com", tier: "free", plan: null });
+    expect(me).toEqual({ email: "a@x.com", tier: "free", plan: null, purchases: [] });
   });
 
   it("stores only hashes of the login and session tokens", async () => {
@@ -318,6 +318,18 @@ describe("session", () => {
     expect(await userFromRequest(s.db, req, s.clock.t + 31 * 86_400_000)).toBeNull();
   });
 
+  it("/api/me lists purchases", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    await s.db
+      .prepare("INSERT INTO purchases (id, user_id, provider, ref, plan, amount, currency, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind("p1", u.id, "razorpay", "pay_1", "month", 9900, "INR", "paid", T0)
+      .run();
+    const me = (await (await s.call("GET", "/api/me", { cookie })).json()) as { purchases: unknown };
+    expect(me.purchases).toEqual([{ plan: "month", amount: 9900, currency: "INR", status: "paid", createdAt: T0 }]);
+  });
+
   it("/api/me shows pass tier and plan", async () => {
     const s = setup();
     const cookie = await s.signIn("a@x.com");
@@ -327,6 +339,7 @@ describe("session", () => {
       email: "a@x.com",
       tier: "pass",
       plan: { source: "grant", startsAt: T0, endsAt: null },
+      purchases: [],
     });
   });
 

@@ -1,3 +1,4 @@
+import { providerFor } from "./billing/plans.ts";
 import { json } from "./http.ts";
 import type { ProductEnv } from "./env.ts";
 
@@ -8,5 +9,14 @@ export function handleConfig(request: Request, env: ProductEnv): Response | null
   // wrangler.jsonc ships "<set at setup>" until a real client id is set.
   // Cloudflare sets CF-IPCountry at the edge; the landing page picks ₹ or $ from it.
   const country = request.headers.get("CF-IPCountry");
-  return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY, googleEnabled: gid !== "" && !gid.startsWith("<"), country });
+  // Public ids only. Secrets never go in this block.
+  const billing =
+    env.BILLING === "1"
+      ? {
+          provider: providerFor(country),
+          razorpayKeyId: env.RAZORPAY_KEY_ID,
+          paddle: { env: env.PADDLE_ENV, token: env.PADDLE_CLIENT_TOKEN, prices: { month: env.PADDLE_PRICE_MONTH, year: env.PADDLE_PRICE_YEAR } },
+        }
+      : null;
+  return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY, googleEnabled: gid !== "" && !gid.startsWith("<"), country, billing });
 }

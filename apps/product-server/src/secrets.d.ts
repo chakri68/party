@@ -13,11 +13,4 @@ interface Env {
   /** Paddle (src/billing/paddle.ts). */
   PADDLE_API_KEY?: string;
   PADDLE_WEBHOOK_SECRET?: string;
-  // Vars, not secrets. Declared here until Task 5 moves them into wrangler.jsonc.
-  BILLING?: string;
-  RAZORPAY_KEY_ID?: string;
-  PADDLE_ENV?: string;
-  PADDLE_PRICE_MONTH?: string;
-  PADDLE_PRICE_YEAR?: string;
-  PADDLE_CLIENT_TOKEN?: string;
 }

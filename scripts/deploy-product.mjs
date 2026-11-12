@@ -9,7 +9,7 @@
 // Setup (D1, R2, secrets, DNS) is by hand, once: docs/couchparty.md.
 //
 // 0. Checks the Worker has the secrets it can't run without (`wrangler secret
-//    list`). A missing one stops the deploy before anything ships; on a dry run
+//    list`; the billing four only when wrangler.jsonc has BILLING "1"). A missing one stops the deploy before anything ships; on a dry run
 //    it only warns.
 // 1. Uploads both Godot exports to the couchparty-godot bucket. First, so the
 //    new worker never names a hash the bucket doesn't have; a hash that's
@@ -28,7 +28,7 @@
 // read them without running them.
 
 import { spawnSync } from "node:child_process";
-import { realpathSync, rmSync } from "node:fs";
+import { readFileSync, realpathSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,16 +43,47 @@ const BUCKET = "couchparty-godot";
  */
 export const REQUIRED_SECRETS = ["IP_HASH_KEY", "ADMIN_KEY", "TURNSTILE_SECRET", "RESEND_API_KEY"];
 
-/** Which of `REQUIRED_SECRETS` aren't in `wrangler secret list --format json` output. */
-export function missingSecrets(listOutput) {
+/** Needed once BILLING is "1" in wrangler.jsonc: checkout and webhooks can't verify without them. */
+export const BILLING_SECRETS = ["RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET", "PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET"];
+
+// wrangler.jsonc has comments and trailing commas. Walk it once, skipping string
+// bodies, so a "//" inside a URL string survives.
+function parseJsonc(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === "\\" ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j;
+    } else if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      out += "\n";
+    } else if (c === "/" && text[i + 1] === "*") {
+      i = text.indexOf("*/", i + 2);
+      i = i < 0 ? text.length : i + 1;
+    } else out += c;
+  }
+  return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
+}
+
+/** `REQUIRED_SECRETS`, plus `BILLING_SECRETS` when the config's vars turn billing on. */
+export function requiredSecrets(wranglerJsoncText) {
+  const on = parseJsonc(wranglerJsoncText).vars?.BILLING === "1";
+  return on ? [...REQUIRED_SECRETS, ...BILLING_SECRETS] : [...REQUIRED_SECRETS];
+}
+
+/** Which of `required` aren't in `wrangler secret list --format json` output. */
+export function missingSecrets(listOutput, required) {
   const start = listOutput.indexOf("[");
   let names = [];
   try {
     names = JSON.parse(start < 0 ? "[]" : listOutput.slice(start)).map((x) => x.name);
   } catch {
-    return [...REQUIRED_SECRETS];
+    return [...required];
   }
-  return REQUIRED_SECRETS.filter((n) => !names.includes(n));
+  return required.filter((n) => !names.includes(n));
 }
 
 /** The deploy as data, in order: `{ cmd, args, env? }` runs, `{ rm }` deletes, `{ say }` prints, `{ secrets }` checks. */
@@ -61,7 +92,7 @@ export function deploySteps(dryRun) {
   const dist = (...p) => join(ROOT, "apps", "product-web", "dist", ...p);
   const wrangler = (...a) => ["--filter", "@games/product-server", "exec", "wrangler", ...a];
   return [
-    { secrets: REQUIRED_SECRETS, dryRun },
+    { secrets: requiredSecrets(readFileSync(join(ROOT, "apps", "product-server", "wrangler.jsonc"), "utf8")), dryRun },
     { cmd: process.execPath, args: ["games/blind-rally/scripts/export-godot.mjs", "--upload", "--bucket", BUCKET, ...dry] },
     { cmd: process.execPath, args: ["games/treasure-hunt/scripts/export-godot.mjs", "--upload", "--bucket", BUCKET, ...dry] },
     { cmd: "pnpm", args: ["--filter", "@games/product-web", "build"], env: { VITE_BLIND_RALLY: "1", VITE_TREASURE_HUNT: "1" } },
@@ -90,11 +121,11 @@ function run(cmd, args, env = {}) {
   }
 }
 
-function checkSecrets(dryRun) {
+function checkSecrets(required, dryRun) {
   const args = ["--filter", "@games/product-server", "exec", "wrangler", "secret", "list", "--format", "json"];
   console.log(`\n$ pnpm ${args.join(" ")}`);
   const r = spawnSync("pnpm", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], shell: WIN });
-  const missing = r.status === 0 ? missingSecrets(r.stdout) : [...REQUIRED_SECRETS];
+  const missing = r.status === 0 ? missingSecrets(r.stdout, required) : [...required];
   if (!missing.length) return console.log("All secrets are set.");
   const msg = r.status === 0
     ? `Missing secrets: ${missing.join(", ")}. Set each with: pnpm --filter @games/product-server exec wrangler secret put <NAME> (docs/couchparty.md).`
@@ -106,7 +137,7 @@ function checkSecrets(dryRun) {
 
 if (isMain()) {
   for (const step of deploySteps(process.argv.includes("--dry-run"))) {
-    if ("secrets" in step) checkSecrets(step.dryRun);
+    if ("secrets" in step) checkSecrets(step.secrets, step.dryRun);
     else if ("rm" in step) rmSync(step.rm, { recursive: true, force: true });
     else if ("say" in step) console.log(`\n${step.say}`);
     else run(step.cmd, step.args, step.env);

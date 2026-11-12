@@ -1,3 +1,4 @@
+import { listPurchases } from "./billing/purchases.ts";
 import { redeem } from "./comps.ts";
 import { newId, normalizeEmail, sha256Hex, type Db } from "./db.ts";
 import { sendEmail as sendViaResend } from "./email.ts";
@@ -250,7 +251,12 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
       const now = deps.now();
       const user = await userFromRequest(env.DB, request, now);
       if (!user) return json({ email: null, tier: "free" });
-      return json({ email: user.email, tier: await tierFor(env.DB, user.id, now), plan: await activePlan(env.DB, user.id, now) });
+      return json({
+        email: user.email,
+        tier: await tierFor(env.DB, user.id, now),
+        plan: await activePlan(env.DB, user.id, now),
+        purchases: await listPurchases(env.DB, user.id),
+      });
     }
     case "DELETE /api/account": {
       const user = await userFromRequest(env.DB, request, deps.now());

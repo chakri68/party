@@ -9,7 +9,7 @@ const get = (e: ProductEnv, path = "/api/config", method = "GET", headers: Recor
 describe("GET /api/config", () => {
   it("returns the site key and google flag", async () => {
     const r = (await get(env({})))!;
-    expect(await r.json()).toEqual({ turnstileSiteKey: "site", googleEnabled: true, country: null });
+    expect(await r.json()).toEqual({ turnstileSiteKey: "site", googleEnabled: true, country: null, billing: null });
   });
   it("passes the visitor's country from CF-IPCountry", async () => {
     const r = (await get(env({}), "/api/config", "GET", { "CF-IPCountry": "IN" }))!;
@@ -20,6 +20,27 @@ describe("GET /api/config", () => {
       const r = (await get(env({ GOOGLE_CLIENT_ID: id })))!;
       expect(((await r.json()) as { googleEnabled: boolean }).googleEnabled).toBe(false);
     }
+  });
+  it("billing is null when BILLING is 0", async () => {
+    const r = (await get(env({ BILLING: "0" }), "/api/config", "GET", { "CF-IPCountry": "IN" }))!;
+    expect(((await r.json()) as { billing: unknown }).billing).toBeNull();
+  });
+  it("billing picks the provider by country and carries public ids", async () => {
+    const e = env({
+      BILLING: "1",
+      RAZORPAY_KEY_ID: "rzp_k",
+      PADDLE_ENV: "sandbox",
+      PADDLE_CLIENT_TOKEN: "tok",
+      PADDLE_PRICE_MONTH: "pri_m",
+      PADDLE_PRICE_YEAR: "pri_y",
+    });
+    const body = async (c: string) => ((await (await get(e, "/api/config", "GET", { "CF-IPCountry": c }))!.json()) as { billing: { provider: string } }).billing;
+    expect((await body("IN")).provider).toBe("razorpay");
+    expect(await body("US")).toEqual({
+      provider: "paddle",
+      razorpayKeyId: "rzp_k",
+      paddle: { env: "sandbox", token: "tok", prices: { month: "pri_m", year: "pri_y" } },
+    });
   });
   it("ignores other routes and methods", async () => {
     expect(await get(env({}), "/api/other")).toBeNull();

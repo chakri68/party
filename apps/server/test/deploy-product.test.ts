@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deploySteps as masterSteps } from "../../../scripts/deploy.mjs";
-import { deploySteps, missingSecrets, REQUIRED_SECRETS } from "../../../scripts/deploy-product.mjs";
+import { BILLING_SECRETS, deploySteps, missingSecrets, REQUIRED_SECRETS, requiredSecrets } from "../../../scripts/deploy-product.mjs";
 
 type Run = { cmd: string; args: string[]; env?: Record<string, string> };
 type Step = Run | { rm: string } | { say: string } | { secrets: string[]; dryRun: boolean };
@@ -64,17 +64,41 @@ describe("deploySteps (product)", () => {
   });
 
   it("checks the secrets first, IP_HASH_KEY among them; a dry run only warns", () => {
-    for (const dry of [false, true]) expect(steps(dry)[0]).toEqual({ secrets: REQUIRED_SECRETS, dryRun: dry });
+    // Whatever wrangler.jsonc says today; the list itself is tested in requiredSecrets.
+    for (const dry of [false, true]) expect(steps(dry)[0]).toEqual({ secrets: expect.arrayContaining(REQUIRED_SECRETS), dryRun: dry });
     expect(REQUIRED_SECRETS).toContain("IP_HASH_KEY");
   });
 
   it("missingSecrets reads wrangler's JSON list", () => {
     const all = JSON.stringify(REQUIRED_SECRETS.map((name) => ({ name, type: "secret_text" })));
-    expect(missingSecrets(all)).toEqual([]);
-    expect(missingSecrets(`some banner\n${all}`)).toEqual([]);
-    expect(missingSecrets(JSON.stringify([{ name: "ADMIN_KEY", type: "secret_text" }]))).toEqual(["IP_HASH_KEY", "TURNSTILE_SECRET", "RESEND_API_KEY"]);
-    expect(missingSecrets("[]")).toEqual(REQUIRED_SECRETS);
-    expect(missingSecrets("not json [oops")).toEqual(REQUIRED_SECRETS);
+    expect(missingSecrets(all, REQUIRED_SECRETS)).toEqual([]);
+    expect(missingSecrets(`some banner\n${all}`, REQUIRED_SECRETS)).toEqual([]);
+    expect(missingSecrets(JSON.stringify([{ name: "ADMIN_KEY", type: "secret_text" }]), REQUIRED_SECRETS)).toEqual(["IP_HASH_KEY", "TURNSTILE_SECRET", "RESEND_API_KEY"]);
+    expect(missingSecrets("[]", REQUIRED_SECRETS)).toEqual(REQUIRED_SECRETS);
+    expect(missingSecrets("not json [oops", REQUIRED_SECRETS)).toEqual(REQUIRED_SECRETS);
+  });
+
+  it("missingSecrets checks the list it is given", () => {
+    const some = JSON.stringify([{ name: "A" }]);
+    expect(missingSecrets(some, ["A", "B"])).toEqual(["B"]);
+  });
+
+  it("requiredSecrets adds the billing secrets only when BILLING is 1", () => {
+    expect(requiredSecrets('{"vars":{"BILLING":"1"}}')).toEqual([...REQUIRED_SECRETS, ...BILLING_SECRETS]);
+    expect(BILLING_SECRETS).toHaveLength(4);
+    expect(requiredSecrets('{"vars":{"BILLING":"0"}}')).toEqual(REQUIRED_SECRETS);
+    expect(requiredSecrets("{}")).toEqual(REQUIRED_SECRETS);
+  });
+
+  it("requiredSecrets reads JSONC: comments, trailing commas, // inside strings", () => {
+    const text = `{
+      // Secrets (wrangler secret put): X
+      /* block
+         comment */
+      "routes": [{ "pattern": "https://a.test//x", }],
+      "vars": { "BILLING": "1", /* on */ },
+    }`;
+    expect(requiredSecrets(text)).toEqual([...REQUIRED_SECRETS, ...BILLING_SECRETS]);
   });
 
   it("leaves the master deploy on its own bucket", () => {

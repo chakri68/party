@@ -14,11 +14,19 @@
     "not_found_handling": "404-page",
     "run_worker_first": ["/api/*", "/parties/*", "/room/*", "/blind-rally/godot/*", "/treasure-hunt/godot/*"]
   },
-  // Secrets (wrangler secret put): RESEND_API_KEY, GOOGLE_CLIENT_SECRET, TURNSTILE_SECRET, ADMIN_KEY, IP_HASH_KEY.
+  // Secrets (wrangler secret put): RESEND_API_KEY, GOOGLE_CLIENT_SECRET, TURNSTILE_SECRET, ADMIN_KEY, IP_HASH_KEY,
+  // and, once BILLING is "1": RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET.
+  // scripts/deploy-product.mjs reads BILLING from here to decide which secrets to demand.
   "vars": {
     "DEV_TOOLS": "0",
     "BLIND_RALLY": "1",
     "TREASURE_HUNT": "1",
+    "BILLING": "0",
+    "RAZORPAY_KEY_ID": "<set at setup>",
+    "PADDLE_ENV": "sandbox",
+    "PADDLE_CLIENT_TOKEN": "<set at setup>",
+    "PADDLE_PRICE_MONTH": "<set at setup>",
+    "PADDLE_PRICE_YEAR": "<set at setup>",
     "APP_ORIGIN": "https://couchpartygames.com",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAF-FEgF2zeol-dh5",
     "GOOGLE_CLIENT_ID": "457178137263-akfeq9bds8qhpvjcip8vaa7n1hnhpm6c.apps.googleusercontent.com"

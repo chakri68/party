@@ -2,6 +2,8 @@ import { createFetch, RoomBase } from "@games/server/worker";
 import { handleAdmin } from "./admin.ts";
 import { handleAuth, realDeps } from "./auth.ts";
 import { PRODUCT_LIMITS, productGames } from "./catalog.ts";
+import { handlePaddle, realPaddleDeps } from "./billing/paddle.ts";
+import { handleRazorpay, realRazorpayDeps } from "./billing/razorpay.ts";
 import { handleConfig } from "./config.ts";
 import { maskProfanity } from "./filter.ts";
 import { prune } from "./prune.ts";
@@ -30,6 +32,10 @@ export default {
     if (admin) return admin;
     const upgrade = await handleUpgrade(request, env, realUpgradeDeps);
     if (upgrade) return upgrade;
+    const razorpay = await handleRazorpay(request, env, realRazorpayDeps(env));
+    if (razorpay) return razorpay;
+    const paddle = await handlePaddle(request, env, realPaddleDeps(env));
+    if (paddle) return paddle;
     return createFetch({
       policy: productPolicy(realRoomDeps),
       brand: "CouchParty",
