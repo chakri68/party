@@ -134,10 +134,11 @@ async function startBuy(plan: PlanId, root: HTMLElement): Promise<void> {
     // nothing was charged if buy() itself threw
   }
   if (outcome === "done") return void location.assign("/account");
+  // Money moved: leave the buttons off so a second tap can't charge again.
+  if (outcome === "pending") return say(root, PAY_LATE + " Your pass will show on your account page.", false);
   buying = false;
   buttons.forEach((b) => (b.disabled = false));
   if (outcome === "failed") say(root, error, true);
-  else if (outcome === "pending") say(root, PAY_LATE + " Check your account page.", false);
 }
 
 function renderPrices(country: string | null, roll: boolean, billing: Billing | null = null): void {

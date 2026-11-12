@@ -43,7 +43,8 @@ export function planFacts(m: Me, now: number): PlanFacts {
 
 /** "12 Nov 2026 · 30 days · ₹149". UTC date, so it reads the same everywhere. */
 export function purchaseLine(p: Pick<Purchase, "plan" | "amount" | "currency" | "createdAt">): string {
-  const date = new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const d = new Date(p.createdAt);
+  const date = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   const length = isPlanId(p.plan) ? PLANS[p.plan].length : p.plan;
   const money = new Intl.NumberFormat(p.currency === "INR" ? "en-IN" : "en-US", {
     style: "currency",

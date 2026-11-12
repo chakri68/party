@@ -599,8 +599,8 @@ body > main { flex: 1 0 auto; width: 100%; }
 .purchase-tag { display: inline-block; margin-left: 4px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.8125rem; color: var(--muted); }
 .panel [data-buy-body] { display: grid; gap: 10px; }
 
-/* Price strip buy buttons (landing, pricing). The row is always there when
-   billing is on, so fading the button in does not move anything. */
+/* Price strip buy buttons (landing, pricing). The strip eases to its taller
+   size (morph) as the buttons fade in, so nothing jumps. */
 .price-buy { margin-top: 12px; min-height: 40px; padding: 0 16px; font-size: 0.9375rem; }
 .prices-msg { margin-top: 12px; }
 .prices-msg:empty { display: none; }
