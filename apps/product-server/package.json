@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "wrangler dev --port 8788 --var DEV_TOOLS:1 --var BILLING:1 --var ADMIN_KEY:dev --var IP_HASH_KEY:dev --var TURNSTILE_SECRET:1x0000000000000000000000000000000AA --var TURNSTILE_SITE_KEY:1x00000000000000000000AA",
-    "types": "wrangler types --strict-vars=false",
+    "types": "wrangler types --env-file=/dev/null --strict-vars=false",
     "typecheck": "tsc -p .",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply couchparty --remote",
