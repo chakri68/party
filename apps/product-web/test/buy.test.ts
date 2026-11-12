@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Billing, Me } from "../src/api.ts";
-import { sheetMode, takeBuyParam, waitForPass, withBuy } from "../src/buy.ts";
+import { foreverPass, paddleOutcome, sheetMode, takeBuyParam, takePaidParam, waitForPass, withBuy } from "../src/buy.ts";
 
 const ORIGIN = "https://couchpartygames.com";
 
@@ -89,5 +89,53 @@ describe("sheetMode", () => {
     ["pass, not host", pass, false, billing, "not-host"],
   ] as const)("%s → %s", (_name, m, isHost, b, want) => {
     expect(sheetMode(m, isHost, b)).toBe(want);
+  });
+});
+
+describe("takePaidParam", () => {
+  const run = (href: string) => {
+    const urls: string[] = [];
+    const paid = takePaidParam(new URL(href, ORIGIN), (p) => void urls.push(p));
+    return { paid, urls };
+  };
+  it("is true for paid=1 and strips it", () => {
+    expect(run("/account?paid=1")).toEqual({ paid: true, urls: ["/account"] });
+  });
+  it("keeps the other params", () => {
+    expect(run("/account?paid=1&x=2#h")).toEqual({ paid: true, urls: ["/account?x=2#h"] });
+  });
+  it("strips junk values but says false", () => {
+    expect(run("/account?paid=yes")).toEqual({ paid: false, urls: ["/account"] });
+  });
+  it("leaves the address alone without paid", () => {
+    expect(run("/account")).toEqual({ paid: false, urls: [] });
+  });
+});
+
+describe("foreverPass", () => {
+  it.each([
+    ["free", { email: "a@x.com", tier: "free" }, false],
+    ["signed out", { email: null, tier: "free" }, false],
+    ["pass with an end", { email: "a@x.com", tier: "pass", plan: { source: "purchase", endsAt: 5 } }, false],
+    ["pass with no end", { email: "a@x.com", tier: "pass", plan: { source: "comp", endsAt: null } }, true],
+    ["pass with no plan facts", { email: "a@x.com", tier: "pass" }, true],
+  ] as const)("%s → %s", (_n, m, want) => {
+    expect(foreverPass(m as Me)).toBe(want);
+  });
+});
+
+describe("paddleOutcome", () => {
+  it("completed needs a transaction id", () => {
+    expect(paddleOutcome({ name: "checkout.completed", data: { transaction_id: "txn_1" } })).toEqual({ kind: "completed", txn: "txn_1" });
+    expect(paddleOutcome({ name: "checkout.completed" })).toBeNull();
+  });
+  it("closed is closed", () => {
+    expect(paddleOutcome({ name: "checkout.closed" })).toEqual({ kind: "closed" });
+  });
+  it("checkout.error is an error: the checkout never opened, so nothing was charged", () => {
+    expect(paddleOutcome({ name: "checkout.error" })).toEqual({ kind: "error" });
+  });
+  it("ignores everything else, payment.failed included (the buyer can retry in the overlay)", () => {
+    for (const name of ["checkout.loaded", "checkout.payment.failed", "checkout.warning", undefined]) expect(paddleOutcome({ name })).toBeNull();
   });
 });

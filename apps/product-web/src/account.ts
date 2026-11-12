@@ -4,8 +4,8 @@ import { deleteAccount, loadConfig, logout, me, meOrNull, redeem, spendLink, sta
 import { getTurnstileToken } from "./turnstile.ts";
 import { FREE_MAX_PLAYERS } from "@games/product-server/catalog-data";
 import { PLANS, isPlanId, plansFor, type PlanId } from "@games/product-server/billing-plans";
-import { PAY_DOWN, PAY_LATE, PAY_PENDING, PAY_SLOW, buy, planButtons, takeBuyParam } from "./buy.ts";
-import { growBar, morph, swapIn } from "./motion.ts";
+import { PAY_DONE_ACCOUNT, PAY_DOWN, PAY_LATE, PAY_PENDING, PAY_SLOW, buy, foreverPass, planButtons, takeBuyParam, takePaidParam } from "./buy.ts";
+import { fadeIn, growBar, morph, swapIn } from "./motion.ts";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -184,7 +184,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
   return node;
 }
 
-function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null): void {
+function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null, paidOnLoad: boolean): void {
   showView("in", true);
   $("[data-email]").textContent = m.email ?? "";
   const card = $("[data-plan]");
@@ -226,7 +226,7 @@ function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null): void 
     if (outcome === "pending") return swapIn(panelBody, note(PAY_LATE));
     if (outcome === "done") {
       try {
-        return show(await me());
+        return show(await me(), true);
       } catch {
         return location.reload();
       }
@@ -234,12 +234,26 @@ function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null): void 
     swapIn(panelBody, ...buyContent(me0), ...(outcome === "failed" ? [note(error, "bad")] : []));
   };
 
+  // "Payment done." sits at the top of the buy box, or under the plan card if the box is hidden.
+  let paidLine: HTMLElement | null = null;
+  const sayPaid = () => {
+    if (!paidLine) {
+      paidLine = note(PAY_DONE_ACCOUNT);
+      paidLine.classList.remove("muted");
+      paidLine.dataset.tone = "good";
+      paidLine.hidden = false;
+    }
+    if (panel.hidden) card.after(paidLine);
+    else panelTitle.before(paidLine);
+    fadeIn(paidLine);
+  };
+
   let me0: Me = m;
-  const show = (who: Me) => {
+  const show = (who: Me, paid = false) => {
     me0 = who;
     const purchases = who.purchases ?? [];
     // A pass with no end can't be added to. With buying off, a pass hides the box as it always did.
-    const hidePanel = who.tier === "pass" && (billing === null || (who.plan?.endsAt ?? null) === null);
+    const hidePanel = who.tier === "pass" && (billing === null || foreverPass(who));
     const fill = () => {
       renderPlan(card, planFacts(who, Date.now()));
       if (billing) panelBody.replaceChildren(...buyContent(who)); // off: the HTML's own "opens soon" stays
@@ -252,13 +266,14 @@ function signedIn(m: Me, billing: Billing | null, autoBuy: PlanId | null): void 
           return li;
         }),
       );
+      if (paid) sayPaid();
     };
     // First time it rides the page's own reveal; after a redeem or a purchase it eases to its new size.
     if (first) fill();
     else morph($("main"), fill);
     first = false;
   };
-  show(m);
+  show(m, paidOnLoad);
   if (autoBuy && billing && plansFor(billing.provider).includes(autoBuy) && !panel.hidden) void start(autoBuy);
 
   const form = $("[data-redeem]") as HTMLFormElement;
@@ -339,6 +354,8 @@ export async function mountAccount(): Promise<void> {
   }
 
   const autoBuy = takeBuyParam(url);
+  // Back from buying on the landing or pricing page.
+  const paid = takePaidParam(new URL(location.href));
   const [m, billing] = await Promise.all([meOrNull(), loadConfig().then((c) => c.billing, () => null)]);
   if (m === null) {
     $("[data-view=loading]").textContent = "We could not load your account. Please refresh the page.";
@@ -347,6 +364,6 @@ export async function mountAccount(): Promise<void> {
   morph($("main"), () => {
     showView("loading", false);
     if (m.email === null) signedOut(next, error);
-    else signedIn(m, billing, autoBuy);
+    else signedIn(m, billing, autoBuy, paid);
   });
 }

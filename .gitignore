@@ -36,3 +36,6 @@ apps/web/public/treasure-hunt/godot/
 
 # Local Worker secrets (wrangler dev reads these). Never commit.
 .dev.vars*
+
+# Google OAuth client secret downloads. Never commit these.
+client_secret_*.json

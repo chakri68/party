@@ -4,8 +4,8 @@
 import { PLANS, isPlanId, plansFor, priceLabel, providerFor, type PlanId } from "@games/product-server/billing-plans";
 import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
-import { loadConfig, type Billing } from "./api.ts";
-import { PAY_DOWN, PAY_LATE, buy, takeBuyParam } from "./buy.ts";
+import { loadConfig, meOrNull, type Billing } from "./api.ts";
+import { PAY_DOWN, PAY_LATE, PAY_SLOW, buy, foreverPass, takeBuyParam } from "./buy.ts";
 import { fadeIn, morph, revealOnScroll, riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
 
 overrideGameNames(PRODUCT_NAMES);
@@ -103,7 +103,7 @@ function renderGallery(root: HTMLElement): void {
   );
 }
 
-/** Where a strip says what happened to a purchase: an error, or the "pass is late" line. */
+/** Where a strip says what happened to a purchase: an error, "we got it", or the "pass is late" line. */
 function say(root: HTMLElement, text: string, error: boolean): void {
   let msg = root.nextElementSibling?.matches(".prices-msg") ? (root.nextElementSibling as HTMLElement) : null;
   if (!msg) {
@@ -129,13 +129,18 @@ async function startBuy(plan: PlanId, root: HTMLElement): Promise<void> {
   let error = PAY_DOWN;
   let outcome: Awaited<ReturnType<typeof buy>> = "failed";
   try {
-    outcome = await buy(plan, { returnTo: location.pathname, onError: (m) => void (error = m) });
+    outcome = await buy(plan, {
+      returnTo: location.pathname,
+      onError: (m) => void (error = m),
+      onWait: () => say(root, PAY_SLOW, false),
+    });
   } catch {
     // nothing was charged if buy() itself threw
   }
-  if (outcome === "done") return void location.assign("/account");
+  // paid=1 makes the account page say "Payment done." once.
+  if (outcome === "done") return void location.assign("/account?paid=1");
   // Money moved: leave the buttons off so a second tap can't charge again.
-  if (outcome === "pending") return say(root, PAY_LATE + " Your pass will show on your account page.", false);
+  if (outcome === "pending") return say(root, PAY_LATE, false);
   buying = false;
   buttons.forEach((b) => (b.disabled = false));
   if (outcome === "failed") say(root, error, true);
@@ -216,15 +221,24 @@ function showPrices(): void {
   // Taken before anything else, so a reload can't start a second purchase.
   const wanted = takeBuyParam(new URL(location.href));
   loadConfig()
-    .then((c) => {
-      renderPrices(c.country ?? null, shown, c.billing);
+    .then(async (c) => {
+      // A pass with no end can't get more time, so its holder sees the strip as
+      // if buying were off. Only asked when billing is on: off, there's nothing to hide.
+      const billing = c.billing && (await sellsTo()) ? c.billing : null;
+      renderPrices(c.country ?? null, shown, billing);
       clearTimeout(timer);
       reveal();
       const root = document.querySelector<HTMLElement>("[data-prices]");
-      if (wanted && c.billing && root && plansFor(c.billing.provider).includes(wanted)) void startBuy(wanted, root);
+      if (wanted && billing && root && plansFor(billing.provider).includes(wanted)) void startBuy(wanted, root);
     })
     .catch(() => {})
     .finally(reveal);
+}
+
+/** False for a signed-in forever-pass holder. A failed /api/me sells, as before. */
+async function sellsTo(): Promise<boolean> {
+  const m = await meOrNull().catch(() => null);
+  return !(m && foreverPass(m));
 }
 
 function fillFreeCap(): void {

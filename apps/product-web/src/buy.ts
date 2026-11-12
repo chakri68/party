@@ -14,6 +14,8 @@ export const PAY_SLOW = "We got your payment. Your pass will show up in a minute
 export const PAY_LATE = "Your payment went through, but your pass is late. Email hello@couchpartygames.com and we will fix it fast.";
 export const PAY_DONE = "Payment done. All games are open now, for everyone in this room, and up to 16 players can join when the game allows it.";
 export const PAY_DOWN = "Payments are not working right now. Please try again.";
+/** The account page's line after a purchase. Starts like PAY_DONE; there's no room to talk about there. */
+export const PAY_DONE_ACCOUNT = "Payment done. Your pass is on.";
 
 const RAZORPAY_JS = "https://checkout.razorpay.com/v1/checkout.js";
 const PADDLE_JS = "https://cdn.paddle.com/paddle/v2/paddle.js";
@@ -41,6 +43,27 @@ export function takeBuyParam(
   clean.searchParams.delete("buy");
   replace(clean.pathname + clean.search + clean.hash);
   return isPlanId(raw) ? raw : null;
+}
+
+/**
+ * Reads `?paid=1` (set by the landing page after a purchase) and strips it,
+ * so a reload doesn't say "Payment done." again.
+ */
+export function takePaidParam(
+  url: URL,
+  replace: (path: string) => void = (p) => history.replaceState(history.state, "", p),
+): boolean {
+  if (!url.searchParams.has("paid")) return false;
+  const on = url.searchParams.get("paid") === "1";
+  const clean = new URL(url);
+  clean.searchParams.delete("paid");
+  replace(clean.pathname + clean.search + clean.hash);
+  return on;
+}
+
+/** A pass with no end date. Selling it more time would take money for nothing. */
+export function foreverPass(m: Me): boolean {
+  return m.tier === "pass" && (m.plan?.endsAt ?? null) === null;
 }
 
 /**
@@ -106,7 +129,7 @@ function loadScript(src: string): Promise<void> {
 
 type RazorpayResponse = { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
 type RazorpayCtor = new (opts: Record<string, unknown>) => { open(): void };
-type PaddleEvent = { name?: string; data?: { transaction_id?: string } };
+export type PaddleEvent = { name?: string; data?: { transaction_id?: string } };
 type PaddleJs = {
   Environment: { set(env: string): void };
   Initialize(opts: { token: string; eventCallback(e: PaddleEvent): void }): void;
@@ -185,6 +208,18 @@ async function viaRazorpay(plan: PlanId, settle: Settle, fail: Fail): Promise<Bu
   });
 }
 
+/**
+ * What a Paddle.js event means for the open checkout. `checkout.error` fires
+ * when Paddle can't open the checkout at all, so nothing was charged.
+ * `checkout.payment.failed` is not final: the buyer can try again in the overlay.
+ */
+export function paddleOutcome(e: PaddleEvent): { kind: "completed"; txn: string } | { kind: "closed" } | { kind: "error" } | null {
+  if (e.name === "checkout.completed") return e.data?.transaction_id ? { kind: "completed", txn: e.data.transaction_id } : null;
+  if (e.name === "checkout.closed") return { kind: "closed" };
+  if (e.name === "checkout.error") return { kind: "error" };
+  return null;
+}
+
 // Paddle takes one eventCallback, at Initialize. It hands each event to
 // whichever checkout is open now.
 let paddleReady = false;
@@ -211,15 +246,23 @@ async function viaPaddle(plan: PlanId, m: Me, billing: Billing, settle: Settle, 
   }
   return new Promise<BuyOutcome>((resolve) => {
     paddleListener = (e) => {
-      if (e.name === "checkout.completed" && e.data?.transaction_id) {
-        paddleListener = null;
-        const txn = e.data.transaction_id;
+      const o = paddleOutcome(e);
+      if (!o) return;
+      paddleListener = null;
+      if (o.kind === "completed") {
         // Our sheet says what happens next; the overlay's own success page would cover it.
         Paddle.Checkout.close();
-        resolve(settle(paddleConfirm(txn)));
-      } else if (e.name === "checkout.closed") {
-        paddleListener = null;
+        resolve(settle(paddleConfirm(o.txn)));
+      } else if (o.kind === "closed") {
         resolve("closed");
+      } else {
+        // In case a half-open overlay is left on screen.
+        try {
+          Paddle.Checkout.close();
+        } catch {
+          // nothing to close
+        }
+        resolve(fail());
       }
     };
     try {
