@@ -36,7 +36,9 @@ Day pass (24 h, one-off), Monthly, Yearly. Placeholder prices, tune later:
 | | Day | Month | Year |
 |---|---|---|---|
 | India (Razorpay, INR) | ₹49 | ₹149 | ₹999 |
-| Global (Paddle, USD) | $1.99 | $4.99 | $39 |
+| Global (Paddle, USD) | none | $4.99 | $39 |
+
+No dollar day pass: Paddle charges 5% + 50c per sale, which would take about 30% of $1.99 (and Paddle prices sub-$10 products case by case). Decided 2026-11-12.
 
 ### Comps (the friends-and-family override)
 

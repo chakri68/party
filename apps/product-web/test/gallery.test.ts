@@ -29,8 +29,8 @@ describe("galleryModel", () => {
 describe("priceTable", () => {
   it("shows rupees for India and dollars elsewhere", () => {
     expect(priceTable("IN").map((p) => p.price)).toEqual(["₹49", "₹149", "₹999"]);
-    expect(priceTable("US").map((p) => p.price)).toEqual(["$1.99", "$4.99", "$39"]);
-    expect(priceTable(null).map((p) => p.price)).toEqual(["$1.99", "$4.99", "$39"]);
+    expect(priceTable("US").map((p) => [p.plan, p.price])).toEqual([["Month", "$4.99"], ["Year", "$39"]]);
+    expect(priceTable(null).map((p) => [p.plan, p.price])).toEqual([["Month", "$4.99"], ["Year", "$39"]]);
   });
 });
 

@@ -58,7 +58,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rollupOptions: {
-      input: Object.fromEntries(["index", "pricing", "account", "terms", "privacy", "play", "404"].map((n) => [n, page(n)])),
+      input: Object.fromEntries(["index", "pricing", "account", "terms", "privacy", "refunds", "play", "404"].map((n) => [n, page(n)])),
     },
   },
 }));

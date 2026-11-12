@@ -36,13 +36,22 @@ export function galleryModel(): GallerySection[] {
   })).filter((s) => s.games.length > 0);
 }
 
-/** Spec §2 placeholder prices. India pays in rupees, everyone else in dollars. */
+/**
+ * Spec §2 placeholder prices. India pays in rupees, everyone else in dollars.
+ * No day pass in dollars: Paddle's fixed 50c fee would take about a third of
+ * $1.99, so outside India the pass is sold by the month or year only.
+ */
 export function priceTable(country: string | null): Array<{ plan: string; length: string; price: string }> {
-  const inr = country === "IN";
+  if (country === "IN") {
+    return [
+      { plan: "Day", length: "24 hours", price: "₹49" },
+      { plan: "Month", length: "30 days", price: "₹149" },
+      { plan: "Year", length: "365 days", price: "₹999" },
+    ];
+  }
   return [
-    { plan: "Day", length: "24 hours", price: inr ? "₹49" : "$1.99" },
-    { plan: "Month", length: "30 days", price: inr ? "₹149" : "$4.99" },
-    { plan: "Year", length: "365 days", price: inr ? "₹999" : "$39" },
+    { plan: "Month", length: "30 days", price: "$4.99" },
+    { plan: "Year", length: "365 days", price: "$39" },
   ];
 }
 
@@ -98,25 +107,35 @@ function renderGallery(root: HTMLElement): void {
 }
 
 function renderPrices(country: string | null, roll: boolean): void {
-  const table = priceTable(country);
+  const byPlan = new Map(priceTable(country).map((p) => [p.plan, p.price]));
   for (const root of document.querySelectorAll<HTMLElement>("[data-prices]")) {
-    const amounts = [...root.querySelectorAll<HTMLElement>(".price-amount")];
-    // Same three plans as the HTML: change the numbers in place so they can roll.
-    if (amounts.length === table.length) {
-      table.forEach((p, i) => {
-        if (roll) rollText(amounts[i]!, p.price, 90 * i);
-        else amounts[i]!.textContent = p.price;
-      });
-      continue;
+    // The HTML ships every plan; change the numbers in place so they can
+    // roll, and fold away a plan this country doesn't sell.
+    let i = 0;
+    for (const li of root.querySelectorAll<HTMLElement>(".price")) {
+      const price = byPlan.get(li.querySelector(".price-plan")?.textContent ?? "");
+      if (price === undefined) {
+        foldAway(li);
+        continue;
+      }
+      const amount = li.querySelector<HTMLElement>(".price-amount")!;
+      if (roll) rollText(amount, price, 90 * i);
+      else amount.textContent = price;
+      i++;
     }
-    root.replaceChildren(
-      ...table.map((p) => {
-        const li = el("li", "price");
-        li.append(el("span", "price-plan", p.plan), el("span", "price-amount", p.price), el("span", "price-length", p.length));
-        return li;
-      }),
-    );
   }
+}
+
+/** Fades a price column out, then drops it so the others widen to fill. */
+function foldAway(li: HTMLElement): void {
+  if (li.hidden || "gone" in li.dataset) return;
+  li.dataset.gone = "";
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (li.hidden = true);
+  const out = li.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" });
+  out.onfinish = () => {
+    li.hidden = true;
+    out.cancel();
+  };
 }
 
 /**
@@ -125,13 +144,12 @@ function renderPrices(country: string | null, roll: boolean): void {
  * right. A config call slower than that rolls them over instead.
  */
 function showPrices(): void {
-  const amounts = [...document.querySelectorAll<HTMLElement>("[data-prices] .price-amount")];
   let shown = false;
   const reveal = () => {
     if (shown) return;
     shown = true;
     whenSettled(() =>
-      amounts.forEach((a, i) => {
+      document.querySelectorAll<HTMLElement>("[data-prices] .price:not([data-gone]) .price-amount").forEach((a, i) => {
         a.style.opacity = "1";
         riseIn(a, 90 * i);
       }),
