@@ -1,7 +1,7 @@
 import { safeEqual } from "@games/protocol";
 import { createCode, listCodes, revokeCode } from "./comps.ts";
 import { newId, normalizeEmail, type Db } from "./db.ts";
-import { grant } from "./entitlements.ts";
+import { grant, relay } from "./entitlements.ts";
 import type { ProductEnv } from "./env.ts";
 import { json } from "./http.ts";
 
@@ -61,13 +61,16 @@ export async function handleAdmin(request: Request, env: ProductEnv, now: () => 
     const b = await body(request);
     const email = b && emailOf(b);
     if (!email) return BAD();
+    const t = now();
     await db
       .prepare(
         `UPDATE entitlements SET revoked_at = ? WHERE source = 'grant' AND revoked_at IS NULL
          AND user_id = (SELECT id FROM users WHERE email = ?)`,
       )
-      .bind(now(), email)
+      .bind(t, email)
       .run();
+    const u = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
+    if (u) await relay(db, u.id, t);
     return json({ ok: true });
   }
 

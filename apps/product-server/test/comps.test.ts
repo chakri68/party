@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCode, listCodes, redeem, revokeCode } from "../src/comps.ts";
-import { tierFor } from "../src/entitlements.ts";
+import { grant, tierFor } from "../src/entitlements.ts";
 import { fakeD1 } from "./d1.ts";
 
 const DAY = 86_400_000;
@@ -102,5 +102,21 @@ describe("comp codes", () => {
     const db = await setup();
     const code = await createCode(db, { maxUses: 4, days: 7, note: "for mom", prefix: "MOM" }, now);
     expect(await listCodes(db)).toEqual([{ code, uses: 0, maxUses: 4, days: 7, note: "for mom", revoked: false }]);
+  });
+  it("redeeming while a pass is active reports the stacked end", async () => {
+    const db = await setup();
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now);
+    const code = await createCode(db, { maxUses: 1, days: 10 }, now);
+    expect(await redeem(db, "u1", code, now)).toEqual({ ok: true, endsAt: now + 40 * DAY });
+  });
+
+  it("revoking a code pulls a queued paid pass forward", async () => {
+    const db = await setup();
+    const code = await createCode(db, { maxUses: 1, days: 10 }, now);
+    await redeem(db, "u1", code, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now);
+    await revokeCode(db, code, now + DAY);
+    const row = await db.prepare("SELECT starts_at, ends_at FROM entitlements WHERE ref = 'pay_1'").first();
+    expect(row).toEqual({ starts_at: now + DAY, ends_at: now + 31 * DAY });
   });
 });

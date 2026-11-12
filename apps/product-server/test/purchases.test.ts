@@ -60,4 +60,27 @@ describe("purchases", () => {
     expect((await db.prepare("SELECT user_id FROM purchases").first<{ user_id: string | null }>())!.user_id).toBeNull();
     expect(await count(db, "SELECT COUNT(*) AS n FROM entitlements")).toBe(0);
   });
+  it("heals a half-finished first attempt", async () => {
+    const db = await setup();
+    await recordPaid(db, p, T0);
+    await db.prepare("DELETE FROM entitlements").run();
+    expect(await recordPaid(db, p, T0)).toBe("duplicate");
+    expect(await tierFor(db, u, T0)).toBe("pass");
+    expect(await count(db, "SELECT COUNT(*) AS n FROM entitlements")).toBe(1);
+  });
+
+  it("two at once: one granted, one duplicate, one pass", async () => {
+    const db = await setup();
+    const r = await Promise.all([recordPaid(db, p, T0), recordPaid(db, p, T0)]);
+    expect(r.sort()).toEqual(["duplicate", "granted"]);
+    expect(await count(db, "SELECT COUNT(*) AS n FROM entitlements")).toBe(1);
+  });
+
+  it("does not regrant a refunded purchase on a late retry", async () => {
+    const db = await setup();
+    await recordPaid(db, p, T0);
+    await refundByRef(db, "razorpay", "pay_1", T0 + DAY);
+    expect(await recordPaid(db, p, T0 + 2 * DAY)).toBe("duplicate");
+    expect(await tierFor(db, u, T0 + 2 * DAY)).toBe("free");
+  });
 });

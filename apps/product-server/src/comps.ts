@@ -1,5 +1,5 @@
 import { newId, type Db } from "./db.ts";
-import { grant } from "./entitlements.ts";
+import { grant, relay } from "./entitlements.ts";
 
 // A-Z minus I and O, plus 2-9: 32 symbols, so a random byte mod 32 is unbiased.
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -71,26 +71,36 @@ export async function redeem(db: Db, userId: string, code: string, now: number):
   if (took.meta.changes !== 1) return { ok: false, reason: "used-up" };
 
   try {
-    await grant(db, userId, { source: "comp", plan: "comp", days: row.days, ref: row.id }, now);
+    const g = await grant(db, userId, { source: "comp", plan: "comp", days: row.days, ref: row.id }, now);
+    if (!g.inserted) {
+      await db.prepare("UPDATE comp_codes SET uses = uses - 1 WHERE id = ?").bind(row.id).run();
+      return { ok: false, reason: "already-redeemed" };
+    }
+    return { ok: true, endsAt: g.endsAt };
   } catch (e) {
     await db.prepare("UPDATE comp_codes SET uses = uses - 1 WHERE id = ?").bind(row.id).run();
     // Same user raced themselves past the check above; UNIQUE(user_id, source, ref) caught it.
     if (/UNIQUE/i.test(String(e))) return { ok: false, reason: "already-redeemed" };
     throw e;
   }
-  return { ok: true, endsAt: row.days === null ? null : now + row.days * 86_400_000 };
 }
 
 /** Kills the code and every entitlement it granted. False if the code does not exist. */
 export async function revokeCode(db: Db, code: string, now: number): Promise<boolean> {
   const row = await find(db, code);
   if (!row) return false;
+  const { results: users } = await db
+    .prepare("SELECT DISTINCT user_id FROM entitlements WHERE source = 'comp' AND ref = ? AND revoked_at IS NULL")
+    .bind(row.id)
+    .all<{ user_id: string }>();
   await db.batch([
     db.prepare("UPDATE comp_codes SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL").bind(now, row.id),
     db
       .prepare("UPDATE entitlements SET revoked_at = ? WHERE source = 'comp' AND ref = ? AND revoked_at IS NULL")
       .bind(now, row.id),
   ]);
+  // Passes queued behind the revoked ones would otherwise start late.
+  for (const u of users) await relay(db, u.user_id, now);
   return true;
 }
 

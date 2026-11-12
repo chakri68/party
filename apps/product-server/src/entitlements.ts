@@ -25,7 +25,7 @@ export async function grant(
   userId: string,
   e: { source: EntitlementSource; plan: string; days: number | null; ref: string | null },
   now: number,
-): Promise<void> {
+): Promise<{ inserted: boolean; endsAt: number | null }> {
   // Rows that start later count too: they are passes already stacked.
   const open = await db
     .prepare(
@@ -39,10 +39,16 @@ export async function grant(
     .first<{ m: number | null }>();
   // A pass with no end never needs to queue.
   const start = open || last?.m == null || e.days === null ? now : last.m;
-  await db
-    .prepare("INSERT INTO entitlements (id, user_id, source, plan, starts_at, ends_at, ref) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .bind(newId(), userId, e.source, e.plan, start, e.days === null ? null : start + e.days * DAY_MS, e.ref)
+  const endsAt = e.days === null ? null : start + e.days * DAY_MS;
+  // Repeating a grant (same user, source, ref) is a no-op, so retries are safe.
+  const r = await db
+    .prepare(
+      `INSERT INTO entitlements (id, user_id, source, plan, starts_at, ends_at, ref) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (user_id, source, ref) DO NOTHING`,
+    )
+    .bind(newId(), userId, e.source, e.plan, start, endsAt, e.ref)
     .run();
+  return { inserted: r.meta.changes === 1, endsAt };
 }
 
 /**
@@ -60,6 +66,11 @@ export async function revokeAndRelay(
     .prepare("UPDATE entitlements SET revoked_at = ? WHERE user_id = ? AND source = ? AND ref = ? AND revoked_at IS NULL")
     .bind(now, userId, source, ref)
     .run();
+  await relay(db, userId, now);
+}
+
+/** Lay the passes queued after now end to end again, each keeping its length. */
+export async function relay(db: Db, userId: string, now: number): Promise<void> {
   const live = await db
     .prepare(
       `SELECT MAX(ends_at) AS m, MAX(ends_at IS NULL) AS open FROM entitlements
@@ -67,7 +78,9 @@ export async function revokeAndRelay(
     )
     .bind(userId, now, now)
     .first<{ m: number | null; open: number | null }>();
-  let at = live?.open || live?.m == null ? now : live.m;
+  // A live pass with no end covers everything; queued ones stay put.
+  if (live?.open) return;
+  let at = live?.m ?? now;
   const queued = await db
     .prepare(
       `SELECT id, starts_at, ends_at FROM entitlements

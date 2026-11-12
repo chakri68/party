@@ -73,12 +73,34 @@ describe("entitlements", () => {
     expect((await activePlan(db, "u1", now + 5 * DAY))!.endsAt).toBe(now + 35 * DAY);
   });
 
-  it("refund mid-stack pulls later passes forward", async () => {
+  it("refunding the active first pass pulls the queued one forward", async () => {
     const db = await withUser();
     await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now);
     await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_2" }, now);
     await revokeAndRelay(db, "u1", "razorpay", "pay_1", now + 5 * DAY);
     expect(await tierFor(db, "u1", now + 5 * DAY)).toBe("pass");
     expect((await activePlan(db, "u1", now + 5 * DAY))!.endsAt).toBe(now + 35 * DAY);
+  });
+  it("refunding the middle of three pulls the last one up to the first's end", async () => {
+    const db = await withUser();
+    for (const r of ["pay_1", "pay_2", "pay_3"]) await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: r }, now);
+    await revokeAndRelay(db, "u1", "razorpay", "pay_2", now + 5 * DAY);
+    const row = await db.prepare("SELECT starts_at, ends_at FROM entitlements WHERE ref = 'pay_3'").first<{ starts_at: number; ends_at: number }>();
+    expect(row).toEqual({ starts_at: now + 30 * DAY, ends_at: now + 60 * DAY });
+  });
+
+  it("refunding a paid pass under a forever comp changes nothing", async () => {
+    const db = await withUser();
+    await grant(db, "u1", { source: "comp", plan: "forever", days: null, ref: "c1" }, now);
+    await grant(db, "u1", { source: "razorpay", plan: "month", days: 30, ref: "pay_1" }, now);
+    await revokeAndRelay(db, "u1", "razorpay", "pay_1", now + DAY);
+    expect(await tierFor(db, "u1", now + 100 * DAY)).toBe("pass");
+  });
+
+  it("a repeated grant inserts once and says so", async () => {
+    const db = await withUser();
+    const e = { source: "razorpay", plan: "month", days: 30, ref: "pay_1" } as const;
+    expect((await grant(db, "u1", e, now)).inserted).toBe(true);
+    expect((await grant(db, "u1", e, now)).inserted).toBe(false);
   });
 });
