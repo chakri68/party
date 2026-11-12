@@ -33,3 +33,6 @@ wrangler.selfhost.json
 apps/web/public/blind-rally/godot/
 # Treasure Hunt's, copied in by games/treasure-hunt/scripts/export-godot.mjs
 apps/web/public/treasure-hunt/godot/
+
+# Local Worker secrets (wrangler dev reads these). Never commit.
+.dev.vars*
