@@ -14,8 +14,8 @@
 // 1. Uploads both Godot exports to the couchparty-godot bucket. First, so the
 //    new worker never names a hash the bucket doesn't have; a hash that's
 //    already there is skipped.
-// 2. Builds product-web with both lobby flags. Set VITE_CF_BEACON in the shell
-//    to bake in the Web Analytics token; it passes through.
+// 2. Builds product-web with both lobby flags. The Web Analytics token comes
+//    from apps/product-web/.env.production; VITE_CF_BEACON in the shell wins.
 // 3. Drops dist/*/godot: Vite copied them from public/, and each .wasm is over
 //    the 25 MiB asset limit. The worker serves them from R2 instead.
 // 4. Applies D1 migrations, before the worker that needs them goes live.

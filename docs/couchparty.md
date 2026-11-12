@@ -91,9 +91,7 @@ Secrets go in with `wrangler secret put` and never into git. The two vars go in 
 
     `!pnpm --filter @games/product-server exec wrangler secret put IP_HASH_KEY`
 
-    Web Analytics: dashboard, Analytics and Logs, Web Analytics, Add a site, `couchpartygames.com`. Copy the beacon token. It's optional; leave it out and the pages ship without the beacon. To include it, prefix the deploy in step 13:
-
-    `!VITE_CF_BEACON=<token> pnpm deploy:product`
+    Web Analytics: dashboard, Analytics and Logs, Web Analytics, Add a site, `couchpartygames.com`. Pick **Enable with JS Snippet installation** (the build adds the snippet; auto-inject on top would count each visit twice). The token is public, so it lives in `apps/product-web/.env.production` as `VITE_CF_BEACON`, committed. Production builds pick it up; dev has no beacon. Delete the line and the pages ship without one.
 
 ## 7. Deploy
 
