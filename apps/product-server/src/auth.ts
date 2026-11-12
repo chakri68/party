@@ -1,7 +1,7 @@
 import { listPurchases } from "./billing/purchases.ts";
 import { redeem } from "./comps.ts";
 import { newId, normalizeEmail, sha256Hex, type Db } from "./db.ts";
-import { sendEmail as sendViaResend } from "./email.ts";
+import { sendEmail as sendViaResend, signInEmail, type Email } from "./email.ts";
 import { activePlan, tierFor } from "./entitlements.ts";
 import type { ProductEnv } from "./env.ts";
 import {
@@ -16,7 +16,7 @@ const GOOGLE_PATH = "/api/auth/google";
 
 export interface AuthDeps {
   now(): number;
-  sendEmail(to: string, subject: string, html: string): Promise<void>;
+  sendEmail(to: string, mail: Email): Promise<void>;
   fetch: typeof fetch;
   verifyTurnstile(token: string, ip: string): Promise<boolean>;
 }
@@ -24,7 +24,7 @@ export interface AuthDeps {
 export function realDeps(env: ProductEnv): AuthDeps {
   return {
     now: () => Date.now(),
-    sendEmail: (to, subject, html) => sendViaResend(env, to, subject, html),
+    sendEmail: (to, mail) => sendViaResend(env, to, mail),
     fetch: (...a) => fetch(...a),
     verifyTurnstile: (token, ip) => verifyTurnstile(env.TURNSTILE_SECRET, token, ip),
   };
@@ -57,12 +57,6 @@ async function startSession(db: Db, email: string, now: number): Promise<string>
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LINK_FAILED = "That link did not work. Ask for a new one.";
 
-function linkEmail(link: string): string {
-  return `<p>Click the button to sign in to CouchParty.</p>
-<p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#111;color:#fff;text-decoration:none;border-radius:8px">Sign in</a></p>
-<p>This link works for 15 minutes. If you did not ask for it, ignore this email.</p>`;
-}
-
 async function postEmail(request: Request, env: ProductEnv, deps: AuthDeps): Promise<Response> {
   const ip = clientIp(request);
   const limited = await env.EMAIL_LIMIT.limit({ key: `email:${ip}` });
@@ -80,7 +74,7 @@ async function postEmail(request: Request, env: ProductEnv, deps: AuthDeps): Pro
     .prepare("INSERT INTO login_tokens (token_hash, email, next, expires_at) VALUES (?, ?, ?, ?)")
     .bind(await sha256Hex(secret), email, safeNext(body?.next), now + LOGIN_MS)
     .run();
-  await deps.sendEmail(email, "Your CouchParty sign-in link", linkEmail(`${env.APP_ORIGIN}/api/auth/verify?token=${secret}`));
+  await deps.sendEmail(email, signInEmail(`${env.APP_ORIGIN}/api/auth/verify?token=${secret}`, env.APP_ORIGIN));
   return json({ ok: true });
 }
 

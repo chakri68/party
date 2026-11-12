@@ -25,7 +25,7 @@ function setup(opts: { limit?: (key: string) => boolean; turnstile?: boolean; go
   const idToken = `h.${btoa(JSON.stringify(claims)).replace(/=+$/, "")}.s`;
   const deps: AuthDeps = {
     now: () => clock.t,
-    sendEmail: async (to, subject, html) => void sent.push({ to, subject, html }),
+    sendEmail: async (to, { subject, html }) => void sent.push({ to, subject, html }),
     fetch: (async () => new Response(JSON.stringify({ id_token: idToken }))) as typeof fetch,
     verifyTurnstile: async () => opts.turnstile ?? true,
   };
@@ -429,5 +429,17 @@ describe("redeem", () => {
     const r = await s.call("POST", "/api/account/redeem", { cookie, body: { code: "X" } });
     expect(r.status).toBe(429);
     expect(await r.json()).toEqual({ error: "Too many tries. Wait a minute." });
+  });
+});
+
+describe("signInEmail", () => {
+  it("puts the button first, shows the logo, and has a text copy with the link", async () => {
+    const { signInEmail } = await import("../src/email.ts");
+    const link = "https://couchpartygames.com/api/auth/verify?token=abc";
+    const m = signInEmail(link, "https://couchpartygames.com");
+    expect(/href="([^"]+)"/.exec(m.html)?.[1]).toBe(link);
+    expect(m.html).toContain('src="https://couchpartygames.com/email/lockup.png"');
+    expect(m.text).toContain(link);
+    expect(m.text).toContain("This link works for 15 minutes.");
   });
 });

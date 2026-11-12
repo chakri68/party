@@ -18,7 +18,7 @@ function setup(adminKey: string | null = "k3y") {
   } as unknown as ProductEnv;
   const deps: AuthDeps = {
     now: () => T0,
-    sendEmail: async (_to, _s, html) => void sent.push(html),
+    sendEmail: async (_to, { html }) => void sent.push(html),
     fetch,
     verifyTurnstile: async () => true,
   };
