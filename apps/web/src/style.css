@@ -935,3 +935,5 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 @media (prefers-reduced-motion: no-preference) {
   .award { animation: pop-in 420ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(120ms + var(--i, 0) * 80ms); }
 }
+.message.closed { text-align: center; justify-items: center; }
+.message.closed .party-over { justify-self: stretch; max-width: none; }
