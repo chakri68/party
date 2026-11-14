@@ -1,4 +1,4 @@
-import type { Ballot } from "@games/game-core";
+import type { Ballot, PartyStats } from "@games/game-core";
 import type { Deck, DeckSettings } from "@games/hidden-roles";
 import type { RoleId, Team } from "./roles.ts";
 
@@ -123,6 +123,8 @@ export interface NightfallServerState {
   days: DayRecord[];
   winner: Team | null;
   endReason: EndReason | null;
+  /** For the party recap. Never sent: "survived as a Wolf" names a Wolf. */
+  stats: PartyStats;
 }
 
 export interface NightfallPublicState {

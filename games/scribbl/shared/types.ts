@@ -1,3 +1,5 @@
+import type { PartyStats } from "@games/game-core";
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
@@ -165,6 +167,8 @@ export interface ScribblServerState {
   chat: ChatLine[];
   nextChatId: number;
   endReason: EndReason | null;
+  /** For the party recap. Never sent. */
+  stats: PartyStats;
 }
 
 export interface ScribblPublicState {

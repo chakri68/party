@@ -245,6 +245,17 @@ describe.each(["fake-word", "bluff-definitions"] as const)("%s", (variant) => {
       expect(pubOf(s).gained).toEqual({ p0: 4, p1: 1 });
     });
 
+    it("counts each opponent fooled for the party recap, and keeps it to the server", () => {
+      let s = toVote(start(variant, 4).state);
+      s = ok(act(s, "p0", { type: "vote", optionId: realId(s) })).state;
+      s = ok(act(s, "p1", { type: "vote", optionId: optionOf(s, "p0") })).state;
+      s = ok(act(s, "p2", { type: "vote", optionId: optionOf(s, "p0") })).state;
+      s = ok(act(s, "p3", { type: "vote", optionId: optionOf(s, "p1") })).state;
+      expect(GAMES[variant].partyStats!(s)).toEqual({ p0: { fooled: 2 }, p1: { fooled: 1 } });
+      expect(JSON.stringify(pubOf(s))).not.toContain("fooled");
+      expect(JSON.stringify(privOf(s, "p0"))).not.toContain("fooled");
+    });
+
     it("the clock closes it; no vote, no points", () => {
       let s = toVote(start(variant).state);
       s = ok(act(s, "p1", { type: "vote", optionId: realId(s) })).state;

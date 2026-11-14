@@ -28,6 +28,9 @@ function sealed(t: { state: S; events: GameEventEnvelope<unknown>[] }, label: st
   check('"lastShelter":"', ["p3"]);
   check('"readings":[{', ["p2"]);
   check('"cards":{', []);
+  // "Survived as a Wolf" names a Wolf: recap only.
+  check('"survivedAsBad"', []);
+  check('"stats":{', []);
   check('"wolfVotes":', []);
   check('"sheltered":', []);
   check('"readWolf":', []);

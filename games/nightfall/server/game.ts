@@ -10,6 +10,7 @@ import {
   shuffle,
   tally,
   type TimerRequest,
+  bumpStat,
 } from "@games/game-core";
 import { nightfallManifest } from "../shared/manifest.ts";
 import { deckOf, isRoleId, MAX_PLAYERS, MIN_PLAYERS, type RoleId, ROLES, roleById, setupProblem, type Team, teamOf } from "../shared/roles.ts";
@@ -204,6 +205,17 @@ function choicesFor(state: State, voterId: string): string[] {
   return [];
 }
 
+/** Recap counts for a finished day: every vote against someone, and each Wolf still standing. */
+function countDay(state: State, day: DayRecord): void {
+  const stats = (state.stats ??= {});
+  for (const choice of [...Object.values(day.votes), ...Object.values(day.runoffVotes ?? {})]) {
+    if (choice !== SKIP) bumpStat(stats, choice, "votesAgainst");
+  }
+  for (const p of state.players) {
+    if (!p.dead && !p.left && teamOf(state.cards[p.id]!) === "wolves") bumpStat(stats, p.id, "survivedAsBad");
+  }
+}
+
 /** The day's over: someone out or nobody, then a win check or the next night. */
 function verdict(state: State, outId: string | null, ctx: GameContext, out: Out): void {
   if (outId) find(state, outId)!.dead = true;
@@ -217,6 +229,7 @@ function verdict(state: State, outId: string | null, ctx: GameContext, out: Out)
     team,
   };
   state.days.push(record);
+  countDay(state, record);
   state.ballot = null;
   state.runoff = null;
   state.tied = [];
@@ -383,6 +396,7 @@ export const nightfallGame: GameDefinition<
       nights: [],
       days: [],
       winner: null,
+      stats: {},
       endReason: null,
     };
     const out = newOut();
@@ -556,6 +570,10 @@ export const nightfallGame: GameDefinition<
     // Public, so only the reveal names anyone: at night it would name the actors,
     // and in a ballot it would say who's voted (ruling 10).
     return state.phase === "reveal" ? actingIds(state).filter((id) => !state.acks.includes(id)) : [];
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getResult(state) {

@@ -1,3 +1,4 @@
+import type { PartyStats } from "@games/game-core";
 import type { Ballot } from "@games/game-core";
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,8 @@ export interface ImposterServerState {
   /** Test-only word list, as "category|word". Null: the real pack. */
   deck: string[] | null;
   endReason: EndReason | null;
+  /** For the party recap. Never sent. */
+  stats: PartyStats;
 }
 
 export interface PublicClue {

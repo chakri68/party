@@ -10,6 +10,7 @@ import {
   shuffle,
   stableHash,
   tally,
+  bumpStat,
   type TimerRequest,
 } from "@games/game-core";
 import { imposterManifest } from "../shared/manifest.ts";
@@ -255,7 +256,8 @@ function closeVote(state: State, ctx: GameContext, out: Out): void {
   const r = state.round;
   const runoff = r.phase === "runoff";
   const seedKey = `${state.seed}:${state.roundNumber}:${runoff ? "runoff" : "vote"}`;
-  const { winner, tied } = tally(r.ballot!, r.candidates, seedKey);
+  const { winner, tied, counts } = tally(r.ballot!, r.candidates, seedKey);
+  for (const [id, n] of Object.entries(counts)) if (n) bumpStat((state.stats ??= {}), id, "votesAgainst", n);
   if (!runoff) {
     if (winner === null) {
       out.events.push(pub({ type: "nobody-accused" }));
@@ -275,6 +277,7 @@ function closeVote(state: State, ctx: GameContext, out: Out): void {
 function settle(state: State, winner: Side, ctx: GameContext, out: Out): void {
   const r = state.round;
   r.winner = winner;
+  if (winner === "imposter") bumpStat((state.stats ??= {}), r.imposterId, "survivedAsBad");
   for (const p of state.players) {
     if (!active(p)) continue;
     if (winner === "innocents" ? p.id !== r.imposterId : p.id === r.imposterId) p.score += POINTS;
@@ -459,6 +462,7 @@ export const imposterGame: GameDefinition<
       used: parseCarry(match.carry),
       deck: options?.deck ? (options.deck as string[]) : null,
       endReason: null,
+      stats: {},
     };
     const out = newOut();
     startRound(state, false, ctx, out);
@@ -728,6 +732,10 @@ export const imposterGame: GameDefinition<
 
   carryOver(state) {
     return { used: state.used };
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getResult(state) {

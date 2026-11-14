@@ -1,4 +1,4 @@
-import type { Ballot } from "@games/game-core";
+import type { Ballot, PartyStats } from "@games/game-core";
 
 // ---------------------------------------------------------------------------
 // Variants
@@ -102,6 +102,8 @@ export interface BluffServerState {
   /** Test-only list. Null: the real one. */
   deck: Entry[] | null;
   endReason: EndReason | null;
+  /** For the party recap. Never sent. */
+  stats: PartyStats;
 }
 
 export interface PublicOption {

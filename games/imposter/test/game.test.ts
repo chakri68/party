@@ -543,3 +543,22 @@ describe("random games", () => {
 function voting(phase: string) {
   return phase === "vote" || phase === "runoff";
 }
+
+describe("party stats", () => {
+  it("counts votes against each player, and the Imposter getting away", () => {
+    let s = toVote(start(4).state);
+    const [x, y] = innocents(s);
+    s = voteAll(s, x!, y!).state;
+    expect(s.round.phase).toBe("reveal-role");
+    s = ring(s).state;
+    expect(s.round.winner).toBe("imposter");
+    expect(g.partyStats!(s)).toEqual({ [x!]: { votesAgainst: 3 }, [y!]: { votesAgainst: 1 }, [imp(s)]: { survivedAsBad: 1 } });
+  });
+
+  it("keeps the counts out of what players see", () => {
+    const s = start(4).state;
+    s.stats = { p1: { votesAgainst: 2 } };
+    expect(JSON.stringify(g.getPublicState(s))).not.toContain("votesAgainst");
+    expect(JSON.stringify(g.getPrivateState(s, "p1"))).not.toContain("votesAgainst");
+  });
+});

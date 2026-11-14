@@ -628,3 +628,18 @@ describe("rematch", () => {
     expect(JSON.stringify(b.cards)).not.toBe(JSON.stringify(a.cards));
   });
 });
+
+describe("party stats", () => {
+  it("counts day votes against each player, and Wolves who live through the day", () => {
+    const t = vote(toVote(dayOne()), { p0: "p1", p2: "p1", p3: "p1", p4: "p6", p1: "p4", p5: "p4", p6: SKIP });
+    // p1 (a Wolf) goes out; p5, the other Wolf, makes it through.
+    expect(g.partyStats!(t.state)).toEqual({ p1: { votesAgainst: 3 }, p4: { votesAgainst: 2 }, p6: { votesAgainst: 1 }, p5: { survivedAsBad: 1 } });
+  });
+
+  it("counts runoff votes too", () => {
+    let s = vote(toVote(dayOne()), { p0: "p1", p2: "p1", p3: "p4", p4: "p1", p1: "p4", p5: "p4", p6: SKIP }).state;
+    expect(s.phase).toBe("runoff");
+    s = vote(s, { p0: "p1", p2: "p1", p3: "p1", p4: "p1", p1: "p4", p5: "p4", p6: "p1" }).state;
+    expect(g.partyStats!(s)).toMatchObject({ p1: { votesAgainst: 8 }, p4: { votesAgainst: 5 } });
+  });
+});
