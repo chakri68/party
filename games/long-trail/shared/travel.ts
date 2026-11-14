@@ -1,6 +1,6 @@
 import { N } from "./numbers.ts";
 import { stopById, type Leg, type RouteDef, type SettingPack } from "./pack.ts";
-import type { Health, Pace, Plan, Stock, Supply, Trade } from "./types.ts";
+import type { Health, Pace, Plan, Rations, Stock, Supply, Trade } from "./types.ts";
 
 /** The part of server state these functions touch. */
 export interface Caravan {
@@ -155,6 +155,24 @@ export function startLeg(c: Caravan, route: RouteDef, toStopId: string): void {
 
 const SLOWER: Record<Pace, Pace> = { hard: "steady", steady: "slow", slow: "slow" };
 
+/** The pace actually walked: an overloaded caravan drops one step. null on a rest day. */
+export function effectivePace(c: Caravan, pack: SettingPack, plan: Plan): Pace | null {
+  if (plan.rest) return null;
+  return overCapacity(c, pack) ? SLOWER[plan.pace] : plan.pace;
+}
+
+/** Risk points one living traveller carries for the day. `rations` is the effective ones (after the Cook). */
+export function riskPoints(o: { pace: Pace | null; rations: Rations; shortFood: boolean; shortWater: boolean; sick: boolean; driverShield: boolean }): number {
+  let risk = 0;
+  if (o.pace === "hard" && !o.driverShield) risk += N.risk.hard;
+  if (o.rations === "half") risk += N.risk.half;
+  if (o.rations === "none") risk += N.risk.none;
+  if (o.shortWater) risk += N.risk.thirst;
+  if (o.shortFood) risk += N.risk.hungry;
+  if (o.sick) risk += N.risk.sick;
+  return risk;
+}
+
 export function travelDay(
   c: Caravan,
   pack: SettingPack,
@@ -176,7 +194,7 @@ export function travelDay(
   } else {
     if (!c.leg) throw new Error("travelDay on a moving day needs a leg; call startLeg first");
     // Fatigue and risk follow the effective pace, so a hard plan slowed by overload gains none.
-    pace = overCapacity(c, pack) ? SLOWER[plan.pace] : plan.pace;
+    pace = effectivePace(c, pack, plan) ?? plan.pace;
     if (pace === "hard") {
       if (c.fatigue >= N.animalFatigue.max) {
         report.animalLost = c.stock.animals > 0;
@@ -221,13 +239,7 @@ export function travelDay(
     const was = startHealth[id] ?? 0;
     let h: Health = was;
     if (plan.rest && effRations === "full" && h < 3 && roll(N.restHealChance, randomInt)) h = (h + 1) as Health;
-    let risk = 0;
-    if (pace === "hard" && !perks.driverHardShield) risk += N.risk.hard;
-    if (effRations === "half") risk += N.risk.half;
-    if (effRations === "none") risk += N.risk.none;
-    if (report.shortWater) risk += N.risk.thirst;
-    if (report.shortFood) risk += N.risk.hungry;
-    if (was < 3) risk += N.risk.sick;
+    const risk = riskPoints({ pace, rations: effRations, shortFood: report.shortFood, shortWater: report.shortWater, sick: was < 3, driverShield: perks.driverHardShield });
     if (roll(Math.min(1, risk * N.riskStepChance), randomInt)) h = Math.max(0, h - 1) as Health;
     c.health[id] = h;
     if (h !== was) report.healthChanges.push({ playerId: id, from: was, to: h });
