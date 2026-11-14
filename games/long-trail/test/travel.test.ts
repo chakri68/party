@@ -61,6 +61,7 @@ function van(o: Partial<Caravan> = {}): Caravan {
     prices: { a: { silk: 10 }, d: { silk: 10 } },
     visited: ["a"],
     starved: false,
+    arrivedDay: null,
     ...o,
   };
 }
@@ -104,8 +105,7 @@ describe("rollPrices", () => {
 });
 
 describe("planProblem", () => {
-  const ctx = { healerAlive: true };
-  const check = (c: Caravan, p: Plan, healerAlive = true) => planProblem(c, pack, route, p, P4, { healerAlive });
+  const check = (c: Caravan, p: Plan, healerAlive = true, traderLeads = false) => planProblem(c, pack, route, p, P4, { healerAlive, traderLeads });
   it("accepts a plain steady/full plan", () => {
     expect(check(van({ at: "e" }), plan())).toBeNull();
     expect(check(van(), plan())).toBeNull();
@@ -133,6 +133,14 @@ describe("planProblem", () => {
     expect(check(van(), plan({ trades: [{ item: "food", qty: 10 }, { item: "medicine", qty: 2 }] }))).toBeNull(); // 30 + 14
     expect(check(van(), plan({ trades: [{ item: "silk", qty: 0 }] }))).not.toBeNull();
   });
+  it("lets a plan sell and buy together, and counts the Trader's prices", () => {
+    const broke = van({ stock: { ...van().stock, coins: 0, cargo: { silk: 5 } } });
+    expect(check(broke, plan({ trades: [{ item: "silk", qty: -5 }, { item: "food", qty: 10 }] }))).toBeNull(); // 50 in, 30 out
+    expect(check(broke, plan({ trades: [{ item: "silk", qty: -1 }, { item: "food", qty: 10 }] }))).not.toBeNull(); // 10 in, 30 out
+    const tight = van({ stock: { ...van().stock, coins: 9 } });
+    expect(check(tight, plan({ trades: [{ item: "silk", qty: 1 }] }))).not.toBeNull();
+    expect(check(tight, plan({ trades: [{ item: "silk", qty: 1 }] }), true, true)).toBeNull(); // 9 with the Trader
+  });
   it("checks doses", () => {
     expect(check(van(), plan({ doses: ["p1"] }), true)).toBeNull();
     expect(check(van({ health: { ...van().health, p2: 0 } }), plan({ doses: ["p2"] }))).not.toBeNull(); // dead
@@ -140,7 +148,6 @@ describe("planProblem", () => {
     expect(check(van(), plan({ doses: ["p1", "p2", "p3", "p4"] }))).not.toBeNull(); // 4 > 3 medicine
     expect(check(van(), plan({ doses: ["p1"] }), false)).not.toBeNull(); // moving, healer dead
     expect(check(van(), plan({ doses: ["p1"], rest: true }), false)).toBeNull(); // rest day is fine
-    void ctx;
   });
 });
 
@@ -219,6 +226,7 @@ describe("travelDay: moving", () => {
     expect(c.kmLeft).toBe(0);
     expect(c.visited).toContain("d");
     expect(c.day).toBe(2);
+    expect(c.arrivedDay).toBeNull(); // d is not the end
   });
   it("throws when moving without a leg", () => {
     expect(() => travelDay(van(), pack, route, plan(), P4, NO_PERKS, never)).toThrow();
@@ -348,21 +356,33 @@ describe("arrived and failed", () => {
     expect(arrived(c, route)).toBe(false);
     expect(failed(c, route)).toBe("all-dead");
   });
-  it("reaching the end on the deadline day counts as arrived", () => {
+  it("reaching the end while playing the deadline day counts as arrived", () => {
     const c = onLeg("plain", 10, { at: "d", leg: { to: "e", km: 40, kind: "plain" }, day: route.deadline });
     travelDay(c, pack, route, plan(), P4, NO_PERKS, never);
+    expect(c.day).toBe(route.deadline + 1);
+    expect(c.arrivedDay).toBe(route.deadline);
     expect(arrived(c, route)).toBe(true);
     expect(failed(c, route)).toBeNull();
   });
-  it("past the deadline, away from the end, fails on time", () => {
-    const c = van({ at: "d", day: route.deadline + 1 });
+  it("reaching the end a day late is not arrival", () => {
+    const c = onLeg("plain", 10, { at: "d", leg: { to: "e", km: 40, kind: "plain" }, day: route.deadline + 1 });
+    travelDay(c, pack, route, plan(), P4, NO_PERKS, never);
     expect(arrived(c, route)).toBe(false);
+    expect(failed(c, route)).toBe("deadline");
+  });
+  it("not arriving by the end of the deadline day fails on time", () => {
+    const c = onLeg("plain", 90, { day: route.deadline });
+    travelDay(c, pack, route, plan(), P4, NO_PERKS, never);
     expect(failed(c, route)).toBe("deadline");
     expect(failed(van({ at: "d", day: route.deadline }), route)).toBeNull();
   });
-  it("reaching the end late is not arrival", () => {
-    const c = van({ at: "e", day: route.deadline + 1 });
-    expect(arrived(c, route)).toBe(false);
-    expect(failed(c, route)).toBe("deadline");
+});
+
+describe("perksUsed", () => {
+  it("is true only when the perk cancelled a risk point", () => {
+    const both = { driverHardShield: true, cookHalfAsFull: true };
+    expect(travelDay(onLeg("plain", 90), pack, route, plan({ pace: "hard", rations: "half" }), P4, both, never).perksUsed).toEqual({ driver: true, cook: true });
+    expect(travelDay(onLeg("plain", 90), pack, route, plan(), P4, both, never).perksUsed).toEqual({ driver: false, cook: false });
+    expect(travelDay(onLeg("plain", 90), pack, route, plan({ pace: "hard" }), P4, NO_PERKS, never).perksUsed).toEqual({ driver: false, cook: false });
   });
 });

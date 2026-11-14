@@ -8,12 +8,13 @@ export interface Caravan {
   at: string;
   leg: Leg | null; // null while halted at a stop
   kmLeft: number;
-  day: number;
+  day: number; // the day about to be played, from 1
   health: Record<string, Health>;
   fatigue: number;
   prices: Record<string, Record<string, number>>; // stop id -> good id -> price, rolled at start
   visited: string[];
   starved: boolean; // any day on "none" rations
+  arrivedDay: number | null; // the day just played when the end was reached
 }
 /** Each once per leg; the caller tracks use and sets the flag only when it should apply. */
 export interface Perks {
@@ -28,6 +29,7 @@ export interface DayReport {
   animalLost: boolean;
   shortFood: boolean;
   shortWater: boolean;
+  perksUsed: { driver: boolean; cook: boolean }; // true only when the perk cancelled a risk point
 }
 
 type RandomInt = (n: number) => number;
@@ -66,13 +68,21 @@ function priceOf(c: Caravan, pack: SettingPack, item: string): number | undefine
   return c.prices[c.at]?.[item];
 }
 
+/** What the caravan pays (qty > 0) or gets (qty < 0) per unit. The one price function for plans and trades. */
+function unitPrice(c: Caravan, pack: SettingPack, item: string, buying: boolean, traderLeads: boolean): number | undefined {
+  const base = buying ? priceOf(c, pack, item) : isSupply(item) ? undefined : c.prices[c.at]?.[item];
+  if (base === undefined) return undefined;
+  if (!traderLeads) return base;
+  return buying ? Math.floor(base * (1 - N.traderEdge)) : Math.ceil(base * (1 + N.traderEdge));
+}
+
 export function planProblem(
   c: Caravan,
   pack: SettingPack,
   route: RouteDef,
   plan: Plan,
   travellers: string[],
-  ctx: { healerAlive: boolean },
+  ctx: { healerAlive: boolean; traderLeads: boolean },
 ): string | null {
   const stop = stopById(route, c.at);
   const atStop = c.leg === null;
@@ -85,6 +95,7 @@ export function planProblem(
   }
 
   let cost = 0;
+  let revenue = 0;
   const sold: Record<string, number> = {};
   for (const t of plan.trades) {
     if (!atStop || !stop.market) return "No market here.";
@@ -92,18 +103,20 @@ export function planProblem(
     const isGood = pack.goods.some((g) => g.id === t.item);
     if (!isGood && !isSupply(t.item)) return "Unknown item.";
     if (t.qty > 0) {
-      const price = priceOf(c, pack, t.item);
+      const price = unitPrice(c, pack, t.item, true, ctx.traderLeads);
       if (price === undefined) return "Not sold here.";
       cost += price * t.qty;
     } else {
       if (!isGood) return "Only goods can be sold.";
-      if (c.prices[c.at]?.[t.item] === undefined) return "Not bought here.";
+      const price = unitPrice(c, pack, t.item, false, ctx.traderLeads);
+      if (price === undefined) return "Not bought here.";
+      revenue += price * -t.qty;
       const total = (sold[t.item] ?? 0) - t.qty;
       sold[t.item] = total;
       if (total > (c.stock.cargo[t.item] ?? 0)) return "Not enough to sell.";
     }
   }
-  if (cost > c.stock.coins) return "Not enough coins.";
+  if (cost > c.stock.coins + revenue) return "Not enough coins.";
 
   if (plan.doses.length > c.stock.medicine) return "Not enough medicine.";
   for (const id of plan.doses) {
@@ -115,22 +128,19 @@ export function planProblem(
 
 /** Sells first, then buys, so the coins from a sale can pay for a purchase. Skips what can't be done. */
 export function applyTrades(c: Caravan, pack: SettingPack, trades: Trade[], traderLeads: boolean): void {
-  const buy = (p: number) => (traderLeads ? Math.floor(p * (1 - N.traderEdge)) : p);
-  const sell = (p: number) => (traderLeads ? Math.ceil(p * (1 + N.traderEdge)) : p);
   for (const t of trades) {
     if (t.qty >= 0) continue;
-    const price = c.prices[c.at]?.[t.item];
+    const price = unitPrice(c, pack, t.item, false, traderLeads);
     const held = c.stock.cargo[t.item] ?? 0;
-    if (price === undefined || isSupply(t.item)) continue;
+    if (price === undefined) continue;
     const qty = Math.min(-t.qty, held);
     c.stock.cargo[t.item] = held - qty;
-    c.stock.coins += sell(price) * qty;
+    c.stock.coins += price * qty;
   }
   for (const t of trades) {
     if (t.qty <= 0) continue;
-    const base = priceOf(c, pack, t.item);
-    if (base === undefined) continue;
-    const price = buy(base);
+    const price = unitPrice(c, pack, t.item, true, traderLeads);
+    if (price === undefined) continue;
     const qty = price > 0 ? Math.min(t.qty, Math.floor(c.stock.coins / price)) : t.qty;
     c.stock.coins -= price * qty;
     if (isSupply(t.item)) c.stock[t.item] += qty;
@@ -163,7 +173,7 @@ export function travelDay(
   randomInt: RandomInt,
 ): DayReport {
   const living = alive(c, travellers);
-  const report: DayReport = { km: 0, reached: null, used: {}, healthChanges: [], animalLost: false, shortFood: false, shortWater: false };
+  const report: DayReport = { km: 0, reached: null, used: {}, healthChanges: [], animalLost: false, shortFood: false, shortWater: false, perksUsed: { driver: false, cook: false } };
   const startHealth = { ...c.health };
 
   const legKind = c.leg?.kind; // read before a halt clears the leg
@@ -210,6 +220,10 @@ export function travelDay(
 
   // Health
   const effRations = plan.rations === "half" && perks.cookHalfAsFull ? "full" : plan.rations;
+  report.perksUsed = {
+    driver: living.length > 0 && pace === "hard" && perks.driverHardShield,
+    cook: living.length > 0 && plan.rations === "half" && perks.cookHalfAsFull,
+  };
   for (const id of living) {
     const was = startHealth[id] ?? 0;
     let h: Health = was;
@@ -226,17 +240,17 @@ export function travelDay(
     if (h !== was) report.healthChanges.push({ playerId: id, from: was, to: h });
   }
 
-  // The game ends on arrival, so the day counter stays on the arrival day (the deadline is checked against it).
-  if (report.reached !== route.end) c.day += 1;
+  if (report.reached === route.end) c.arrivedDay = c.day;
+  c.day += 1;
   return report;
 }
 
 export function arrived(c: Caravan, route: RouteDef): boolean {
-  return c.at === route.end && Object.values(c.health).some((h) => h > 0) && c.day <= route.deadline;
+  return c.arrivedDay !== null && c.arrivedDay <= route.deadline && Object.values(c.health).some((h) => h > 0);
 }
 
 export function failed(c: Caravan, route: RouteDef): "all-dead" | "deadline" | null {
   if (!Object.values(c.health).some((h) => h > 0)) return "all-dead";
-  if (c.day > route.deadline) return "deadline";
+  if (!arrived(c, route) && c.day > route.deadline) return "deadline";
   return null;
 }
