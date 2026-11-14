@@ -6,6 +6,7 @@ import { takeBuyParam } from "./buy.ts";
 import { mountHeader } from "./header.ts";
 import { fadeIn } from "./motion.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
+import { partyOver } from "./party-over.ts";
 import { openPassSheet } from "./pass-sheet.ts";
 import { finishUpgrade } from "./upgrade-return.ts";
 import "./product.css";
@@ -42,6 +43,7 @@ startShell({
   createRoom,
   hostKeyFor,
   onLockedGame: openPassSheet,
+  partyOver,
   nameOverrides: PRODUCT_NAMES,
   beforeStart: (outlet) => {
     // The shell's views append into #app, so the HTML's loader goes by hand.

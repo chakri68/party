@@ -53,3 +53,26 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
+
+/* After the party: host your own. A link that looks like the shell's primary button. */
+.party-over { text-align: center; }
+.cp-po-heading { margin: 8px 0 0; font-size: 1.4rem; letter-spacing: -0.02em; }
+.cp-po-body { margin: 0; color: var(--muted); }
+.cp-po-note { margin: 0; color: var(--muted); font-size: 14px; }
+.cp-po-note a { color: var(--ink); text-underline-offset: 3px; }
+.cp-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1.5px solid var(--accent);
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 120ms ease, transform 80ms ease;
+}
+.cp-cta:hover { background: #d4ff4a; border-color: #d4ff4a; }
+.cp-cta:active { transform: scale(0.98); }
