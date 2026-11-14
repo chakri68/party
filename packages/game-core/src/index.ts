@@ -362,3 +362,5 @@ export function stableHash(text: string): number {
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
   return h >>> 0;
 }
+
+export * from "./recap.ts";
