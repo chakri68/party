@@ -8,16 +8,16 @@ const mk = (silk: [number, number], spice: [number, number], salt: [number, numb
 });
 
 const MARKETS = {
-  saltmere: mk([10, 16], [8, 13], [2, 4], { food: 1, water: 1, medicine: 8, animals: 22 }),
-  vessa: mk([9, 14], [7, 12], [3, 6], { food: 1, water: 1, medicine: 9 }),
-  kessel: mk([10, 15], [6, 10], [3, 5], { food: 2, water: 1, medicine: 9 }),
-  rook: mk([8, 13], [8, 13], [4, 7], { food: 2, water: 1 }),
-  lorn: mk([9, 14], [7, 11], [3, 6], { food: 1, water: 1, medicine: 8, animals: 23 }),
-  gorrow: mk([8, 12], [8, 12], [4, 7], { food: 1, water: 1, medicine: 10 }),
-  yarrin: mk([10, 15], [8, 12], [3, 6], { food: 1, water: 1, medicine: 8, animals: 24 }),
-  quillon: mk([10, 14], [8, 12], [3, 5], { food: 1, water: 1, medicine: 8, animals: 22 }),
-  telOrrin: mk([9, 14], [7, 12], [3, 6], { food: 1, water: 1, medicine: 9 }),
-  mirren: mk([14, 22], [10, 16], [4, 8], { food: 1, water: 1, medicine: 10, animals: 26 }),
+  saltmere: mk([5, 7], [10, 18], [8, 11], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  vessa: mk([6, 8], [9, 17], [9, 12], { food: 1, water: 1, medicine: 9 }),
+  kessel: mk([5, 7], [11, 18], [8, 12], { food: 2, water: 1, medicine: 9 }),
+  rook: mk([6, 8], [10, 16], [9, 13], { food: 2, water: 1 }),
+  lorn: mk([5, 7], [10, 17], [8, 12], { food: 1, water: 1, medicine: 8, animals: 23 }),
+  gorrow: mk([6, 8], [9, 16], [9, 12], { food: 1, water: 1, medicine: 10 }),
+  yarrin: mk([5, 7], [11, 18], [8, 11], { food: 1, water: 1, medicine: 8, animals: 24 }),
+  quillon: mk([6, 8], [10, 17], [9, 12], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  telOrrin: mk([5, 7], [10, 18], [8, 12], { food: 1, water: 1, medicine: 9 }),
+  mirren: mk([36, 44], [20, 28], [12, 16], { food: 1, water: 1, medicine: 10, animals: 26 }),
 };
 
 const leg = (to: string, km: number, kind: LegKind, safe?: boolean): Leg => (safe === undefined ? { to, km, kind } : { to, km, kind, safe });
@@ -42,7 +42,7 @@ const normal: RouteDef = {
   end: "mirren-gate",
   deadline: 20,
   stops: [
-    stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
+    stop("dunmar", "Dunmar", [leg("tel-orrin", 70, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")]),
     stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
@@ -65,15 +65,15 @@ const epic: RouteDef = {
     stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
     stop("vessa-pass", "Vessa Pass", [leg("ombar", 60, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel-wells", 60, "desert", true), leg("rook-pass", 50, "mountain", false)]),
+    stop("ombar", "Ombar", [leg("kessel-wells", 90, "desert", true), leg("rook-pass", 50, "mountain", false)]),
     stop("kessel-wells", "Kessel Wells", [leg("anvil-gap", 60, "plain")], MARKETS.kessel),
     stop("rook-pass", "Rook Pass", [leg("anvil-gap", 60, "mountain")], MARKETS.rook),
-    stop("anvil-gap", "Anvil Gap", [leg("teshun", 60, "plain")]),
+    stop("anvil-gap", "Anvil Gap", [leg("teshun", 90, "plain")]),
     stop("teshun", "Teshun", [leg("lorn-ferry", 80, "river", true), leg("gorrow-heights", 60, "mountain", false)]),
     stop("lorn-ferry", "Lorn Ferry", [leg("yarrin", 60, "plain")], MARKETS.lorn),
     stop("gorrow-heights", "Gorrow Heights", [leg("yarrin", 60, "mountain")], MARKETS.gorrow),
     stop("yarrin", "Yarrin", [leg("sef-oasis", 60, "desert")], MARKETS.yarrin),
-    stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 60, "plain")]),
+    stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 90, "plain")]),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
 };
@@ -148,9 +148,9 @@ const events: EventCard[] = [
     "any-2-lost-camel",
     "any",
     2,
-    "A camel runs off in the night. You can look for it, or leave it.",
-    ["Leave it", { stock: { animals: -1 } }],
-    ["Look for it all morning", { km: -25, lostTime: true, chance: { p: 0.5, then: {}, else: { stock: { animals: -1 }, health: { target: "random", steps: 1 } } } }],
+    "A camel runs off in the night. You can look for it, or go on and hope it follows.",
+    ["Look for it all morning", { km: -25, lostTime: true }],
+    ["Go on without it", { chance: { p: 0.5, then: {}, else: { stock: { animals: -1 } } } }],
   ),
 
   // Desert
@@ -284,15 +284,15 @@ const events: EventCard[] = [
 ];
 
 const goals: GoalCard[] = [
-  { id: "coins-150", text: "Arrive with at least 150 coins.", goal: { kind: "coins", atLeast: 150 } },
-  { id: "coins-200", text: "Arrive with at least 200 coins.", goal: { kind: "coins", atLeast: 200 } },
+  { id: "coins-500", text: "Arrive with at least 500 coins.", goal: { kind: "coins", atLeast: 500 } },
+  { id: "coins-600", text: "Arrive with at least 600 coins.", goal: { kind: "coins", atLeast: 600 } },
   { id: "protect", text: "Make sure this traveller reaches the end alive.", goal: "protect-someone" },
   { id: "protect-2", text: "Keep this traveller safe. Their cousin owes you money.", goal: "protect-someone" },
   { id: "early-90", text: "Arrive with a few days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.9 } },
   { id: "early-80", text: "Arrive with many days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.8 } },
   { id: "visit-saltmere", text: "Visit Saltmere. You like their salt.", goal: { kind: "visit", stop: "saltmere" } },
   { id: "visit-vessa", text: "Visit Vessa Pass. You left something there once.", goal: { kind: "visit", stop: "vessa-pass" } },
-  { id: "cargo-silk", text: "Arrive with at least 3 bolts of silk.", goal: { kind: "cargo", good: "silk", atLeast: 3 } },
+  { id: "cargo-silk", text: "Arrive with at least 22 bolts of silk.", goal: { kind: "cargo", good: "silk", atLeast: 22 } },
   { id: "cargo-spice", text: "Arrive with at least 4 sacks of spice.", goal: { kind: "cargo", good: "spice", atLeast: 4 } },
   { id: "cargo-salt", text: "Arrive with at least 5 blocks of salt.", goal: { kind: "cargo", good: "salt", atLeast: 5 } },
   { id: "never-starve", text: "Never let the caravan go a whole day with no food.", goal: { kind: "never-starve" } },
@@ -354,17 +354,17 @@ export const tradeRoute: SettingPack = {
   },
   routes: { short, normal, epic },
   start: (players) => ({
-    food: 44 * players,
-    water: 30 * players,
+    food: 14 * players,
+    water: 10 * players,
     medicine: 3,
-    coins: 200 + 10 * players,
+    coins: 800,
     animals: 2 + Math.ceil(players / 2),
     cargo: { silk: 2, spice: 2, salt: 2 },
   }),
-  capacityPerAnimal: 4,
+  capacityPerAnimal: 5,
   events,
   goals,
-  grades: { broke: 0, fair: 240, rich: 340, legendary: 460 },
+  grades: { broke: 0, fair: 985, rich: 1435, legendary: 2105 },
   endLines: {
     arrived: {
       broke: [
