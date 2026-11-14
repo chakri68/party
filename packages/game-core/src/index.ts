@@ -235,6 +235,7 @@ export const STAT_KEYS = [
   "survivedAsBad",
   "fooled",
   "firstGuesses",
+  "noGoVotes",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];

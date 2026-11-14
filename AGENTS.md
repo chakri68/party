@@ -35,6 +35,7 @@ When the host ends the party, everyone gets a recap with awards like "Biggest li
    | a hidden bad role (imposter, wolf, spy) | `survivedAsBad` for each round or day they get through |
    | other players picking your fake answer | `fooled`, per player fooled |
    | a race to answer or guess | `firstGuesses` for whoever's first |
+   | votes on a plan or proposal | `noGoVotes`, per No-go cast |
 
    Most games fit one or two. Every game counts toward "Champion of the night" through its winners, with no extra work.
 
