@@ -1,3 +1,5 @@
+import type { PartyStats } from "@games/game-core";
+
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
 
 /** Hand sort order. Alternating colours so neighbouring suits don't blur together. */
@@ -105,6 +107,8 @@ export interface CheatServerState {
   lastReveal: Reveal | null;
   winnerId: string | null;
   endReason: EndReason | null;
+  /** For the party recap. Never sent: lies nobody caught stay secret till then. */
+  stats: PartyStats;
 }
 
 export interface CheatPublicState {

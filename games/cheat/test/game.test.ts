@@ -48,6 +48,7 @@ function stateWith(
     lastReveal: null,
     winnerId: null,
     endReason: null,
+    stats: {},
   };
 }
 
@@ -359,4 +360,40 @@ describe("whole games", () => {
       }
     }
   }, 30_000); // many whole games: a full parallel run can push it past 5 s
+});
+
+describe("party stats", () => {
+  // Three plays by p0 claiming Aces with 7s; nobody calls. Then p1 calls a
+  // lie (right) and p2 calls an honest play (wrong).
+  it("counts lies told, lies nobody caught, and calls", () => {
+    let s = stateWith([["hearts-7", "clubs-7", "spades-7", "diamonds-7", "spades-A"], ["hearts-2"], ["hearts-3"]], { lastClaim: 13 });
+    for (let i = 0; i < 3; i++) {
+      s = ok(act(s, "p0", { type: "play", cardIds: [s.players[0]!.hand[0]!.id], claim: 1 })).state;
+      s = ok(act(s, "p1", { type: "pass" })).state;
+      s = ok(act(s, "p2", { type: "pass" })).state;
+      // Back round to p0: p1 and p2 play honestly-or-not, uncalled; keep it on p0.
+      s.turnIndex = 0;
+      s.step = "play";
+      s.lastClaim = 13;
+    }
+    expect(ch.partyStats!(s)).toEqual({ p0: { liesTold: 3, liesUncaught: 3 } });
+
+    s = ok(act(s, "p0", { type: "play", cardIds: ["diamonds-7"], claim: 1 })).state;
+    s = ok(act(s, "p1", { type: "call" })).state;
+    expect(ch.partyStats!(s)).toEqual({ p0: { liesTold: 4, liesUncaught: 3 }, p1: { rightCalls: 1 } });
+
+    s.turnIndex = 0;
+    s.step = "play";
+    s.lastClaim = 13;
+    s = ok(act(s, "p0", { type: "play", cardIds: ["spades-A"], claim: 1 })).state;
+    s = ok(act(s, "p2", { type: "call" })).state;
+    expect(ch.partyStats!(s)).toEqual({ p0: { liesTold: 4, liesUncaught: 3 }, p1: { rightCalls: 1 }, p2: { wrongCalls: 1 } });
+  });
+
+  it("keeps the counts out of what players see", () => {
+    const s = stateWith([["hearts-7"], ["hearts-2"]]);
+    s.stats = { p0: { liesTold: 2 } };
+    expect(JSON.stringify(ch.getPublicState(s))).not.toContain("liesTold");
+    expect(JSON.stringify(ch.getPrivateState(s, "p1"))).not.toContain("liesTold");
+  });
 });
