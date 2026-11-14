@@ -1,6 +1,6 @@
-import type { GameOutcome } from "@games/game-core";
+import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -61,7 +61,8 @@ export const isReaction = (v: unknown): v is Reaction => (REACTIONS as readonly 
 // Room state (§20)
 // ---------------------------------------------------------------------------
 
-export type RoomPhase = "lobby" | "playing" | "results";
+/** "ended": the host ended the party. No more games; the recap stays up until cleanup. */
+export type RoomPhase = "lobby" | "playing" | "results" | "ended";
 
 /**
  * connected → reconnecting (socket dropped, grace running) → disconnected (grace
@@ -124,6 +125,8 @@ export interface RoomPublicState {
   lockedGameIds: string[];
   /** How many seats the selected game has here: its max, or less in a free room. */
   maxSeats: number;
+  /** The night's recap, in `ended`. Null there too when no game finished. */
+  recap: Recap | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +155,8 @@ export type ClientMessage =
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
   | { type: "return-to-lobby" }
+  /** Host only, in the lobby or on results: ends the room for everyone and shows the recap. */
+  | { type: "end-party" }
   | { type: "leave" }
   | { type: "ping"; timestamp: number }
   /**
@@ -295,6 +300,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "start-game":
     case "nudge":
     case "return-to-lobby":
+    case "end-party":
     case "leave":
       return { type: m.type };
     default:

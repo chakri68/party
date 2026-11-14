@@ -2,12 +2,18 @@
 // can be tested with fakes; `index.ts` adapts it to PartyServer.
 
 import {
+  buildRecap,
+  emptyPartyLog,
+  PARTY_LOG_MAX,
   seededRandomInt,
   type AnyGameDefinition,
   type CreateGameOptions,
   type GameContext,
   type GameEventEnvelope,
+  type GameOutcome,
   type GameTransition,
+  type PartyLog,
+  type PartyStats,
 } from "@games/game-core";
 import {
   CHAT_KEEP,
@@ -129,6 +135,8 @@ interface RoomData {
   /** Optional: rooms stored before tiers existed are "pass" with no host key. */
   tier?: RoomTier;
   hostKey?: string | null;
+  /** The night so far, for the recap. Optional: rooms stored before it existed start one on their next game. */
+  party?: PartyLog;
 }
 
 const STORAGE_KEY = "room";
@@ -397,7 +405,8 @@ export class RoomRuntime {
       if (late && !def.manifest.lateJoin) {
         return this.fatal(conn, "game-in-progress", "A game is already going on. Try again after this round.");
       }
-      if (this.activeSeats().length >= this.maxSeats(def)) {
+      // An ended party is only a recap to look at: nobody's dealt in, so no cap.
+      if (data.phase !== "ended" && this.activeSeats().length >= this.maxSeats(def)) {
         return this.fatal(conn, "room-full", "This room is full.");
       }
       seat = {
@@ -577,6 +586,18 @@ export class RoomRuntime {
         this.setAwaiting([]);
         return this.commit([]);
 
+      case "end-party": {
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        const party = (data.party ??= emptyPartyLog());
+        party.endedAt = this.host.now();
+        data.phase = "ended";
+        data.game = null;
+        for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
+        this.resetReady();
+        this.setAwaiting([]);
+        return this.commit([]);
+      }
+
       case "leave": {
         conn.setState({ hello: true, playerId: null });
         conn.close(CLOSE_NORMAL, "left");
@@ -703,6 +724,7 @@ export class RoomRuntime {
     }
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
+    (data.party ??= emptyPartyLog()).startedAt ??= this.host.now();
     this.resetReady();
     // Suggestions are for the next pick; once a game starts they've done their job.
     for (const s of data.seats) delete s.suggestion;
@@ -744,8 +766,10 @@ export class RoomRuntime {
       else this.clearTimer(key);
     }
 
-    if (def.getResult(game.state)) {
+    const outcome = def.getResult(game.state);
+    if (outcome) {
       data.phase = "results";
+      this.logGame(def, game.state, outcome);
       if (def.carryOver) data.match.carry = { gameId: game.gameId, data: def.carryOver(game.state) };
       this.resetReady();
       this.setAwaiting([]);
@@ -754,6 +778,32 @@ export class RoomRuntime {
       this.setAwaiting(def.getAwaitedPlayerIds(game.state), acted);
     }
     return t.events;
+  }
+
+  /**
+   * Notes a finished game for the recap. Only seated players count: computer
+   * players (and anyone else the game names without a seat) can win a game but
+   * not an award.
+   */
+  private logGame(def: AnyGameDefinition, state: unknown, outcome: GameOutcome): void {
+    const data = this.data!;
+    const party = (data.party ??= emptyPartyLog());
+    const seats = new Map(data.seats.map((s) => [s.id, s]));
+    const human = (id: string) => seats.has(id) && !(outcome.names && id in outcome.names);
+    const fromStandings = outcome.standings.map((s) => s.playerId).filter(human);
+    const players = fromStandings.length ? fromStandings : data.seats.map((s) => s.id);
+    const stats: PartyStats = {};
+    for (const [id, counts] of Object.entries(def.partyStats?.(state) ?? {})) if (human(id)) stats[id] = { ...counts };
+    party.games.push({
+      gameId: def.manifest.id,
+      endedAt: this.host.now(),
+      players,
+      winnerIds: outcome.winnerIds.filter(human),
+      ...(outcome.loserIds && { loserIds: outcome.loserIds.filter(human) }),
+      stats,
+    });
+    if (party.games.length > PARTY_LOG_MAX) party.games.splice(0, party.games.length - PARTY_LOG_MAX);
+    for (const id of players) party.names[id] = seats.get(id)!.name;
   }
 
   private setAwaiting(ids: string[], restart = false): void {
@@ -909,6 +959,7 @@ export class RoomRuntime {
       tier: this.tier(),
       lockedGameIds: this.lockedGameIds(),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
+      recap: data.phase === "ended" ? buildRecap(data.party ?? emptyPartyLog(), this.host.now()) : null,
     };
   }
 
