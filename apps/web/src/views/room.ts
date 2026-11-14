@@ -17,6 +17,7 @@ import { shellConfig } from "../shell.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
 import { resultHeadline } from "./headline.ts";
+import { closedView, recapView } from "./recap.ts";
 import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
@@ -257,6 +258,7 @@ export class RoomView implements View {
     client.on("fatal", ({ code, message }) => {
       // A seat that no longer exists isn't worth resuming.
       if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
+      if (code === "room-not-found") return this.showClosed(FATAL_COPY[code]!);
       this.showMessage(FATAL_COPY[code] ?? message, code);
     });
 
@@ -347,6 +349,9 @@ export class RoomView implements View {
       clearInterval(this.ticker);
       this.ticker = undefined;
     }
+
+    if (room.phase === "ended") return this.showEnded(room, me);
+    this.endedShown = null;
 
     if (room.phase === "lobby") {
       const lobby = this.lobby(room, me);
@@ -640,6 +645,7 @@ export class RoomView implements View {
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
       ),
       h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
+      isHost ? this.endPartyControl(vt("lobby-end-party")) : null,
     );
   }
 
@@ -903,8 +909,75 @@ export class RoomView implements View {
               mySeat?.ready ? "Waiting for the host…" : "Play again",
             ),
         h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
+        isHost ? this.endPartyControl() : null,
       ),
     );
+  }
+
+  /**
+   * The host's way to close the night. Asks once, inline: a browser dialog
+   * would stop every other tab's updates while it's up.
+   */
+  private endPartyControl(style?: string): HTMLElement {
+    const box = h("div", { class: "end-party", style });
+    // Lobby updates redraw the whole screen; a question half-answered survives them.
+    const ask = () => {
+      this.endPartyAsking = true;
+      box.replaceChildren(
+        h("p", {}, "End the party for everyone? You will see the recap."),
+        h(
+          "div",
+          { class: "end-party-buttons" },
+          h("button", { type: "button", class: "danger", onclick: () => this.client?.send({ type: "end-party" }) }, "End party"),
+          h("button", { type: "button", onclick: idle }, "Cancel"),
+        ),
+      );
+    };
+    const idle = () => {
+      this.endPartyAsking = false;
+      box.replaceChildren(h("button", { type: "button", class: "link", onclick: ask }, "End party"));
+    };
+    if (this.endPartyAsking) ask();
+    else idle();
+    return box;
+  }
+
+  private endPartyAsking = false;
+
+  /** What `showEnded` last drew, so a seat joining doesn't replay the cards. */
+  private endedShown: string | null = null;
+
+  private showEnded(room: RoomPublicState, me: string) {
+    const isHost = room.hostId === me;
+    const key = JSON.stringify([room.recap, isHost]);
+    if (this.endedShown === key) return;
+    this.endedShown = key;
+    const config = shellConfig();
+    const home = () => navigate("/");
+    const screen = room.recap
+      ? recapView({
+          recap: room.recap,
+          isHost,
+          appTitle: config.appTitle,
+          gameName: (id) => games[id]?.manifest.name ?? id,
+          partyOver: config.partyOver,
+          home,
+        })
+      : closedView("This party is over.", isHost, config.partyOver, home);
+    this.show("ended", () => {
+      this.dropGameView();
+      replaceChildren(this.body, screen);
+    });
+  }
+
+  /** The room's gone (cleaned up, or never was): nothing to rejoin, so the host app gets its say. */
+  private showClosed(message: string) {
+    this.chat?.toggle(false);
+    const screen = closedView(message, false, shellConfig().partyOver, () => navigate("/"));
+    this.show("message", () => {
+      this.dropGameView();
+      replaceChildren(this.body, screen);
+    });
   }
 
   private showMessage(message: string, code?: string) {

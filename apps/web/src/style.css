@@ -898,3 +898,40 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
   .emote { bottom: 90px; animation: emote-life var(--dur, 3s) linear forwards; }
   .emote-sway, .emote-glyph, .emote-bar { animation: none; }
 }
+
+/* End party: the host's last word, asked inline. */
+.end-party { display: grid; justify-items: center; gap: 10px; width: 100%; text-align: center; }
+.end-party p { margin: 0; }
+.end-party-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+/* The recap */
+.recap {
+  width: 100%;
+  max-width: 520px;
+  margin: 24px auto 0;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+.recap h2 { margin: 0; font-size: 2rem; letter-spacing: -0.03em; }
+.recap-meta { margin: 0; }
+.awards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; width: 100%; }
+.award {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.award:first-child { border-color: var(--accent); }
+.award-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.award-who { font-size: 1.6rem; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.recap-quiet { margin: 0; }
+.recap .actions, .party-over { width: 100%; max-width: 360px; }
+.party-over { display: grid; gap: 10px; justify-items: stretch; }
+.party-over:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .award { animation: pop-in 420ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(120ms + var(--i, 0) * 80ms); }
+}

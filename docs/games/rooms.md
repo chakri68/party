@@ -171,3 +171,16 @@ What you tap depends on your role:
 - **Leave room** for anyone.
 
 Rematch doesn't wait for everyone to be ready. The count is information, not a gate. The dealer rotates between rounds.
+
+## Ending the party
+
+When the night is done, the host taps **End party**, under the lobby or the results. It asks once, on the page: "End the party for everyone? You will see the recap."
+
+Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
+
+- How many games you played, for how long, and the game you played most.
+- Up to five awards, like **Biggest liar**, **Sharpest eye** or **Most suspicious**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash); every game counts toward **Champion of the night**.
+- A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
+- **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
+
+Chat still works. Anyone who opens the link later sees the recap too, until the room is cleaned up. If no game finished, there's no recap: the room just says the party is over.
