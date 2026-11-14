@@ -54,23 +54,15 @@ const SUPPLIES: Supply[] = ["food", "water", "medicine", "animals"];
 const isSupply = (item: string): item is Supply => (SUPPLIES as string[]).includes(item);
 const alive = (c: Caravan, travellers: string[]) => travellers.filter((id) => (c.health[id] ?? 0) > 0);
 
-/** Fixed supply price at the stop the caravan is at, from the pack's routes. */
-function supplyPrice(c: Caravan, pack: SettingPack, item: Supply): number | undefined {
-  for (const route of Object.values(pack.routes)) {
-    const stop = route.stops.find((s) => s.id === c.at);
-    if (stop?.market) return stop.market.supplies[item];
-  }
-  return undefined;
-}
-/** Base price of an item at the current stop, or undefined if it isn't sold there. */
-function priceOf(c: Caravan, pack: SettingPack, item: string): number | undefined {
-  if (isSupply(item)) return supplyPrice(c, pack, item);
+/** Base price of an item at the current stop of the active route, or undefined if it isn't sold there. */
+function priceOf(c: Caravan, route: RouteDef, item: string): number | undefined {
+  if (isSupply(item)) return stopById(route, c.at).market?.supplies[item];
   return c.prices[c.at]?.[item];
 }
 
 /** What the caravan pays (qty > 0) or gets (qty < 0) per unit. The one price function for plans and trades. */
-function unitPrice(c: Caravan, pack: SettingPack, item: string, buying: boolean, traderLeads: boolean): number | undefined {
-  const base = buying ? priceOf(c, pack, item) : isSupply(item) ? undefined : c.prices[c.at]?.[item];
+function unitPrice(c: Caravan, route: RouteDef, item: string, buying: boolean, traderLeads: boolean): number | undefined {
+  const base = buying ? priceOf(c, route, item) : isSupply(item) ? undefined : c.prices[c.at]?.[item];
   if (base === undefined) return undefined;
   if (!traderLeads) return base;
   return buying ? Math.floor(base * (1 - N.traderEdge)) : Math.ceil(base * (1 + N.traderEdge));
@@ -103,12 +95,12 @@ export function planProblem(
     const isGood = pack.goods.some((g) => g.id === t.item);
     if (!isGood && !isSupply(t.item)) return "Unknown item.";
     if (t.qty > 0) {
-      const price = unitPrice(c, pack, t.item, true, ctx.traderLeads);
+      const price = unitPrice(c, route, t.item, true, ctx.traderLeads);
       if (price === undefined) return "Not sold here.";
       cost += price * t.qty;
     } else {
       if (!isGood) return "Only goods can be sold.";
-      const price = unitPrice(c, pack, t.item, false, ctx.traderLeads);
+      const price = unitPrice(c, route, t.item, false, ctx.traderLeads);
       if (price === undefined) return "Not bought here.";
       revenue += price * -t.qty;
       const total = (sold[t.item] ?? 0) - t.qty;
@@ -127,10 +119,10 @@ export function planProblem(
 }
 
 /** Sells first, then buys, so the coins from a sale can pay for a purchase. Skips what can't be done. */
-export function applyTrades(c: Caravan, pack: SettingPack, trades: Trade[], traderLeads: boolean): void {
+export function applyTrades(c: Caravan, route: RouteDef, trades: Trade[], traderLeads: boolean): void {
   for (const t of trades) {
     if (t.qty >= 0) continue;
-    const price = unitPrice(c, pack, t.item, false, traderLeads);
+    const price = unitPrice(c, route, t.item, false, traderLeads);
     const held = c.stock.cargo[t.item] ?? 0;
     if (price === undefined) continue;
     const qty = Math.min(-t.qty, held);
@@ -139,7 +131,7 @@ export function applyTrades(c: Caravan, pack: SettingPack, trades: Trade[], trad
   }
   for (const t of trades) {
     if (t.qty <= 0) continue;
-    const price = unitPrice(c, pack, t.item, true, traderLeads);
+    const price = unitPrice(c, route, t.item, true, traderLeads);
     if (price === undefined) continue;
     const qty = price > 0 ? Math.min(t.qty, Math.floor(c.stock.coins / price)) : t.qty;
     c.stock.coins -= price * qty;
@@ -183,6 +175,7 @@ export function travelDay(
     c.fatigue = Math.max(0, c.fatigue + N.animalFatigue.rest);
   } else {
     if (!c.leg) throw new Error("travelDay on a moving day needs a leg; call startLeg first");
+    // Fatigue and risk follow the effective pace, so a hard plan slowed by overload gains none.
     pace = overCapacity(c, pack) ? SLOWER[plan.pace] : plan.pace;
     if (pace === "hard") {
       if (c.fatigue >= N.animalFatigue.max) {

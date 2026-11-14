@@ -154,34 +154,57 @@ describe("planProblem", () => {
 describe("applyTrades", () => {
   it("trades at the listed price", () => {
     const c = van();
-    applyTrades(c, pack, [{ item: "silk", qty: 3 }, { item: "food", qty: 5 }], false);
+    applyTrades(c, route, [{ item: "silk", qty: 3 }, { item: "food", qty: 5 }], false);
     expect(c.stock.cargo.silk).toBe(3);
     expect(c.stock.food).toBe(105);
     expect(c.stock.coins).toBe(50 - 30 - 15);
-    applyTrades(c, pack, [{ item: "silk", qty: -2 }], false);
+    applyTrades(c, route, [{ item: "silk", qty: -2 }], false);
     expect(c.stock.cargo.silk).toBe(1);
     expect(c.stock.coins).toBe(5 + 20);
   });
   it("trader leading: buys at 9 for a price of 10, sells at 11", () => {
     const c = van();
-    applyTrades(c, pack, [{ item: "silk", qty: 1 }], true);
+    applyTrades(c, route, [{ item: "silk", qty: 1 }], true);
     expect(c.stock.coins).toBe(41);
-    applyTrades(c, pack, [{ item: "silk", qty: -1 }], true);
+    applyTrades(c, route, [{ item: "silk", qty: -1 }], true);
     expect(c.stock.coins).toBe(52);
     expect(c.stock.cargo.silk).toBe(0);
   });
   it("rounds in the caravan's favour", () => {
     const c = van({ prices: { a: { silk: 7 } } });
-    applyTrades(c, pack, [{ item: "silk", qty: 1 }], true); // 6.3 -> 6
+    applyTrades(c, route, [{ item: "silk", qty: 1 }], true); // 6.3 -> 6
     expect(c.stock.coins).toBe(44);
-    applyTrades(c, pack, [{ item: "silk", qty: -1 }], true); // 7.7 -> 8
+    applyTrades(c, route, [{ item: "silk", qty: -1 }], true); // 7.7 -> 8
     expect(c.stock.coins).toBe(52);
   });
-  it("never goes negative", () => {
-    const c = van();
-    applyTrades(c, pack, [{ item: "silk", qty: 100 }, { item: "silk", qty: -100 }], false);
-    expect(c.stock.coins).toBeGreaterThanOrEqual(0);
-    expect(c.stock.cargo.silk ?? 0).toBeGreaterThanOrEqual(0);
+  it("never goes negative: oversells and overbuys are clamped", () => {
+    const c = van({ stock: { ...van().stock, coins: 25, cargo: { silk: 2 } } });
+    // sell 5 but hold 2 -> +20 coins (45); buy 20 silk at 10 but afford 4 -> -40 (5 left)
+    applyTrades(c, route, [{ item: "silk", qty: 20 }, { item: "silk", qty: -5 }], false);
+    expect(c.stock.coins).toBe(5);
+    expect(c.stock.cargo.silk).toBe(4);
+  });
+  it("prices supplies from the route it is given", () => {
+    const mk = (food: number): RouteDef => ({
+      start: "a",
+      end: "z",
+      deadline: 10,
+      stops: [
+        { id: "a", name: "A", next: [{ to: "z", km: 10, kind: "plain" }], market: { goods: {}, supplies: { food } } },
+        { id: "z", name: "Z", next: [] },
+      ],
+    });
+    const cheap = mk(2);
+    const dear = mk(9);
+    const two = { ...pack, routes: { short: cheap, normal: dear, epic: dear } } as unknown as SettingPack;
+    const a = van();
+    applyTrades(a, cheap, [{ item: "food", qty: 1 }], false);
+    expect(a.stock.coins).toBe(48);
+    const b = van();
+    applyTrades(b, dear, [{ item: "food", qty: 1 }], false);
+    expect(b.stock.coins).toBe(41);
+    expect(planProblem(van({ stock: { ...van().stock, coins: 5 } }), two, cheap, plan({ trades: [{ item: "food", qty: 2 }] }), P4, { healerAlive: true, traderLeads: false })).toBeNull();
+    expect(planProblem(van({ stock: { ...van().stock, coins: 5 } }), two, dear, plan({ trades: [{ item: "food", qty: 2 }] }), P4, { healerAlive: true, traderLeads: false })).not.toBeNull();
   });
 });
 
@@ -287,6 +310,12 @@ describe("travelDay: fatigue", () => {
   it("rest recovers fatigue, clamped at 0", () => {
     const c = van({ fatigue: 1 });
     travelDay(c, pack, route, plan({ rest: true }), P4, NO_PERKS, never);
+    expect(c.fatigue).toBe(0);
+  });
+  it("a hard plan slowed by overload gains no fatigue", () => {
+    const c = onLeg("plain", 90, { stock: { ...van().stock, cargo: { silk: 41 } } });
+    const r = travelDay(c, pack, route, plan({ pace: "hard" }), P4, NO_PERKS, never);
+    expect(r.km).toBe(N.kmPerDay.steady);
     expect(c.fatigue).toBe(0);
   });
   it("steady days leave fatigue alone", () => {
