@@ -66,6 +66,9 @@ importers:
       '@games/liars-dice':
         specifier: workspace:*
         version: link:../../games/liars-dice
+      '@games/long-trail':
+        specifier: workspace:*
+        version: link:../../games/long-trail
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
@@ -166,6 +169,9 @@ importers:
       '@games/liars-dice':
         specifier: workspace:*
         version: link:../../games/liars-dice
+      '@games/long-trail':
+        specifier: workspace:*
+        version: link:../../games/long-trail
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
@@ -486,6 +492,18 @@ importers:
       '@games/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/long-trail:
+    dependencies:
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
