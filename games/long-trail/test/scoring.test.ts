@@ -16,7 +16,7 @@ const gradePack = {
     { id: "g6", text: "", goal: { kind: "arrive-by", share: 0.8 } },
     { id: "g7", text: "", goal: { kind: "grade", atLeast: "fair" } },
     { id: "g8", text: "", goal: { kind: "cargo", good: "silk", atLeast: 2 } },
-    { id: "g9", text: "", goal: "protect-someone" },
+    { id: "g9", text: "", goal: { kind: "cargo", good: "salt", atLeast: 1 } },
   ],
 } as unknown as SettingPack;
 
@@ -35,11 +35,14 @@ describe("dealGoals", () => {
     for (let seed = 1; seed <= 100; seed++) {
       const goals = dealGoals(gradePack, route, ids8, seeded(seed));
       expect(Object.keys(goals)).toHaveLength(8);
-      const keys = Object.values(goals).map((g) => JSON.stringify(g.kind === "protect" ? { kind: "protect" } : g));
-      // 8 distinct cards of 8 usable (g3 is a visit card, usable here); two protect cards look alike once the target is hidden
-      expect(new Set(keys).size).toBeGreaterThanOrEqual(7);
+      const kinds = Object.values(goals).map((g) => (g.kind === "cargo" ? `cargo-${g.good}` : g.kind));
+      expect(new Set(kinds).size).toBe(8);
       for (const [id, g] of Object.entries(goals)) if (g.kind === "protect") expect(g.target).not.toBe(id);
     }
+  });
+  it("returns copies, not the pack's goal objects", () => {
+    const goals = dealGoals(gradePack, route, ids8, seeded(1));
+    for (const g of Object.values(goals)) for (const card of gradePack.goals) expect(g).not.toBe(card.goal);
   });
   it("visit goals name a stop on one branch only", () => {
     for (let seed = 1; seed <= 50; seed++) {
@@ -117,6 +120,9 @@ describe("points", () => {
   it("a failed caravan still scores a met goal and survival", () => {
     expect(points("p1", { kind: "nobody-dies" }, end({ arrived: false, grade: null }))).toBe(5);
     expect(points("p1", coins, end({ arrived: false, grade: null }))).toBe(2);
+  });
+  it("a dead traveller with a met goal on a failed caravan scores 3", () => {
+    expect(points("p1", { kind: "never-starve" }, end({ arrived: false, grade: null, alive: { p1: false } }))).toBe(3);
   });
   it("a removed player scores nothing", () => {
     expect(points("p1", coins, end({ removed: ["p1"] }))).toBe(0);

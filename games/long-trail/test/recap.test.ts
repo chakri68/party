@@ -12,10 +12,10 @@ const votes = (...v: ("go" | "no-go")[]) => Object.fromEntries(v.map((x, i) => [
 const rep = (o: Partial<DayLog["report"]> = {}): DayLog["report"] => ({ km: 30, reached: null, healthChanges: [], stockDelta: {}, cargoDelta: {}, ...o });
 
 const log: DayLog[] = [
-  { day: 1, leader: "p1", plan: plan(), proposals: [{ by: "p1", votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "b", stockDelta: { food: -6 } }), where: "B" },
-  { day: 2, leader: "p2", plan: plan({ pace: "hard", rations: "half", fork: "c" }), proposals: [{ by: "p2", votes: votes("go", "go", "no-go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "c", stockDelta: { food: -2 } }), where: "C" },
-  { day: 3, leader: "p3", plan: plan({ rest: true }), proposals: [{ by: "p3", votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: { id: "e1", text: "A storm hits.", choice: { votes: { p1: 0, p2: 0, p3: 1 }, picked: 0, label: "Wait it out" } }, report: rep({ km: 0, healthChanges: [{ playerId: "p3", from: 1, to: 0 }] }), where: "between C and E" },
-  { day: 4, leader: "p1", plan: plan(), proposals: [{ by: "p1", votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "e" }), where: "E" },
+  { day: 1, leader: "p1", plan: plan(), proposals: [{ by: "p1", plan: plan(), votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "b", stockDelta: { food: -6 } }), where: "B" },
+  { day: 2, leader: "p2", plan: plan({ pace: "hard", rations: "half", fork: "c" }), proposals: [{ by: "p2", plan: plan({ pace: "hard", rations: "half", fork: "c" }), votes: votes("go", "go", "no-go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "c", stockDelta: { food: -2 } }), where: "C" },
+  { day: 3, leader: "p3", plan: plan({ rest: true }), proposals: [{ by: "p3", plan: plan({ rest: true }), votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: { id: "e1", text: "A storm hits.", choice: { votes: { p1: 0, p2: 0, p3: 1 }, picked: 0, label: "Wait it out" } }, report: rep({ km: 0, healthChanges: [{ playerId: "p3", from: 1, to: 0 }] }), where: "between C and E" },
+  { day: 4, leader: "p1", plan: plan(), proposals: [{ by: "p1", plan: plan(), votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "e" }), where: "E" },
 ];
 const end: EndView = {
   arrived: true, day: 4, deadline: 10, coins: 50, cargo: { silk: 3 }, endPrices: { silk: 20 }, grade: "fair",
@@ -36,21 +36,33 @@ describe("buildRecap", () => {
     const calls = run().bigCalls;
     expect(calls).toHaveLength(3);
     expect(calls[0]).toMatchObject({ day: 3, question: "Wait it out", go: 2, noGo: 1 }); // 2-1, later day first
-    expect(calls[1]).toMatchObject({ day: 2, question: "Hard pace, half rations, C", go: 2, noGo: 1, result: "Lost 2 food" });
+    expect(calls[1]).toMatchObject({ day: 2, question: "Hard pace, half rations, go to C", go: 2, noGo: 1, result: "Lost 2 food" });
     expect(calls[2]!.go - calls[2]!.noGo).toBe(3);
   });
   it("breaks equal margins by voters, then later day", () => {
     const l: DayLog[] = [
-      { ...log[0]!, proposals: [{ by: "p1", votes: votes("go", "go", "go"), passed: true }] },
-      { ...log[3]!, proposals: [{ by: "p1", votes: votes("go", "go", "go"), passed: true }] },
+      { ...log[0]!, proposals: [{ by: "p1", plan: plan(), votes: votes("go", "go", "go"), passed: true }] },
+      { ...log[3]!, proposals: [{ by: "p1", plan: plan(), votes: votes("go", "go", "go"), passed: true }] },
     ];
     expect(run(end, l).bigCalls.map((c) => c.day)).toEqual([4, 1]);
   });
   it("words plan questions and results", () => {
     const calls = run().bigCalls;
     expect(run(end, [log[0]!]).bigCalls[0]).toMatchObject({ question: "Steady pace, full rations", result: "Lost 6 food" });
-    expect(calls.some((c) => c.result === "Ben died" || c.result === "Cy died")).toBe(true);
+    expect(calls[0]!.result).toBe("Cy died");
     expect(run(end, [log[3]!]).bigCalls[0]!.result).toBe("Moved 30 km");
+  });
+  it("names a failed proposal's plan and counts gains in results", () => {
+    const l: DayLog[] = [{ ...log[0]!, proposals: [{ by: "p1", plan: plan({ rest: true }), votes: votes("no-go", "no-go", "go"), passed: false }], report: rep({ stockDelta: { coins: 20, food: -3 } }) }];
+    expect(run(end, l).bigCalls[0]).toMatchObject({ question: "Steady pace, full rations, rest", go: 1, noGo: 2, result: "Got 20 coins" });
+    const cargo: DayLog[] = [{ ...log[0]!, report: rep({ cargoDelta: { silk: 3 }, stockDelta: { food: 1 } }) }];
+    expect(run(end, cargo).bigCalls[0]!.result).toBe("Got 3 silk");
+    expect(run(end, cargo).worstDay).toBeNull();
+  });
+  it("breaks worst-day ties to the earliest day", () => {
+    const hurt = { healthChanges: [{ playerId: "p1", from: 3 as const, to: 2 as const }] };
+    const l: DayLog[] = [{ ...log[0]!, report: rep(hurt) }, { ...log[1]!, report: rep(hurt) }];
+    expect(run(end, l).worstDay?.day).toBe(1);
   });
   it("finds the worst day", () => {
     expect(run().worstDay).toEqual({ day: 3, text: "A storm hits. Cy died." });
@@ -71,6 +83,13 @@ describe("buildRecap", () => {
     expect(r.haul).toEqual({ coins: 50, cargoSale: 60, wealth: 110, grade: "fair" });
     expect(r.line).toBe("f");
     expect(run({ ...end, arrived: false, grade: null }).line).toBe("x");
+  });
+  it("picks the end line with randomInt(lines.length)", () => {
+    const two = { ...pack, endLines: { ...pack.endLines, arrived: { ...pack.endLines.arrived, fair: ["f0", "f1"] } } } as unknown as SettingPack;
+    const asked: number[] = [];
+    const r = buildRecap(log, two, route, end, jobs, {}, {}, (n) => (asked.push(n), 1));
+    expect(r.line).toBe("f1");
+    expect(asked).toEqual([2]);
   });
   it("leaves removed players out", () => {
     const r = run({ ...end, removed: ["p2"] });

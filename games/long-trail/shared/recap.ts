@@ -9,7 +9,7 @@ export interface DayLog {
   day: number;
   leader: string;
   plan: Plan;
-  proposals: { by: string; votes: Record<string, "go" | "no-go">; passed: boolean }[];
+  proposals: { by: string; plan: Plan; votes: Record<string, "go" | "no-go">; passed: boolean }[];
   stayedCourse: boolean;
   event: { id: string; text: string; choice?: { votes: Record<string, 0 | 1>; picked: 0 | 1; label: string } } | null;
   report: { km: number; reached: string | null; healthChanges: DayReport["healthChanges"]; stockDelta: Partial<Record<Supply | "coins", number>>; cargoDelta: Record<string, number> };
@@ -26,28 +26,36 @@ export interface Recap {
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const lost = (d: number | undefined) => Math.max(0, -(d ?? 0));
 
 interface Change {
   score: number;
   text: string;
 }
 
-/** Everything a day took away, scored with the worst-day formula. */
-function changes(d: DayLog, names: Record<string, string>): Change[] {
+/** What a day changed, scored with the worst-day weights on absolute values. `gains` adds the good news. */
+function changes(d: DayLog, pack: SettingPack, names: Record<string, string>, gains: boolean): Change[] {
   const out: Change[] = [];
   for (const h of d.report.healthChanges) {
     const steps = h.from - h.to;
-    if (steps <= 0) continue;
     const who = names[h.playerId] ?? "Someone";
-    const text = h.to === 0 ? `${who} died` : h.to === 1 ? `${who} was badly hurt` : `${who} got sick`;
-    out.push({ score: 10 * steps, text });
+    if (steps > 0) out.push({ score: 10 * steps, text: h.to === 0 ? `${who} died` : h.to === 1 ? `${who} was badly hurt` : `${who} got sick` });
+    else if (gains && steps < 0) out.push({ score: 10 * -steps, text: `${who} got better` });
   }
+  const add = (delta: number | undefined, weight: number, noun: string) => {
+    const n = delta ?? 0;
+    if (n < 0) out.push({ score: weight * -n, text: `Lost ${-n} ${noun}` });
+    else if (gains && n > 0) out.push({ score: weight * n, text: `Got ${n} ${noun}` });
+  };
   const s = d.report.stockDelta;
-  if (lost(s.food)) out.push({ score: lost(s.food), text: `Lost ${lost(s.food)} food` });
-  if (lost(s.water)) out.push({ score: lost(s.water), text: `Lost ${lost(s.water)} water` });
-  if (lost(s.coins)) out.push({ score: lost(s.coins) / 2, text: `Lost ${lost(s.coins)} coins` });
-  if (lost(s.animals)) out.push({ score: 5 * lost(s.animals), text: `Lost ${lost(s.animals)} ${lost(s.animals) === 1 ? "animal" : "animals"}` });
+  add(s.food, 1, "food");
+  add(s.water, 1, "water");
+  add(s.coins, 0.5, "coins");
+  const an = s.animals ?? 0;
+  add(s.animals, 5, Math.abs(an) === 1 ? "animal" : "animals");
+  if (gains) {
+    add(s.medicine, 1, "medicine");
+    for (const [good, n] of Object.entries(d.report.cargoDelta)) add(n, 1, (pack.goods.find((g) => g.id === good)?.name ?? good).toLowerCase());
+  }
   return out;
 }
 
@@ -57,17 +65,16 @@ function biggest(cs: Change[]): Change | null {
   return best;
 }
 
-function dayResult(d: DayLog, names: Record<string, string>): string {
-  const b = biggest(changes(d, names));
+function dayResult(d: DayLog, pack: SettingPack, names: Record<string, string>): string {
+  const b = biggest(changes(d, pack, names, true));
   if (b) return b.text;
   return d.report.km > 0 ? `Moved ${d.report.km} km` : "Rested";
 }
 
-function planQuestion(d: DayLog, route: RouteDef): string {
-  const p = d.plan;
+function planQuestion(p: Plan, route: RouteDef): string {
   let q = `${cap(p.pace)} pace, ${p.rations} rations`;
   if (p.rest) q += ", rest";
-  else if (p.fork) q += `, ${stopById(route, p.fork).name}`;
+  else if (p.fork) q += `, go to ${stopById(route, p.fork).name}`;
   return q;
 }
 
@@ -98,11 +105,11 @@ export function buildRecap(
 
   const calls: { day: number; question: string; go: number; noGo: number; result: string; voters: number }[] = [];
   for (const d of log) {
-    const result = dayResult(d, names);
+    const result = dayResult(d, pack, names);
     for (const p of d.proposals) {
       const vs = Object.values(p.votes);
       const go = vs.filter((v) => v === "go").length;
-      calls.push({ day: d.day, question: p.passed ? planQuestion(d, route) : "A plan that did not pass", go, noGo: vs.length - go, result, voters: vs.length });
+      calls.push({ day: d.day, question: planQuestion(p.plan, route), go, noGo: vs.length - go, result, voters: vs.length });
     }
     const ch = d.event?.choice;
     if (ch) {
@@ -117,10 +124,10 @@ export function buildRecap(
   let worstDay: Recap["worstDay"] = null;
   let worst = 0;
   for (const d of log) {
-    const score = changes(d, names).reduce((a, c) => a + c.score, 0);
-    if (score > worst) {
+    const score = changes(d, pack, names, false).reduce((a, c) => a + c.score, 0);
+    if (score > worst) { // strictly greater, so ties go to the earliest day
       worst = score;
-      const text = [d.event?.text, `${dayResult(d, names)}.`].filter(Boolean).join(" ");
+      const text = [d.event?.text, `${dayResult(d, pack, names)}.`].filter(Boolean).join(" ");
       worstDay = { day: d.day, text };
     }
   }

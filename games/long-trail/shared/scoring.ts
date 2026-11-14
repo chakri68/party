@@ -75,7 +75,7 @@ export function dealGoals(pack: SettingPack, route: RouteDef, playerIds: string[
     } else if (card.goal.kind === "visit") {
       out[id] = { kind: "visit", stop: branches[randomInt(branches.length)]! };
     } else {
-      out[id] = card.goal;
+      out[id] = { ...card.goal };
     }
   }
   return out;
