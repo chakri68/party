@@ -8,16 +8,16 @@ const mk = (silk: [number, number], spice: [number, number], salt: [number, numb
 });
 
 const MARKETS = {
-  saltmere: mk([10, 16], [8, 13], [2, 4], { food: 2, water: 1, medicine: 8, animals: 22 }),
-  vessa: mk([9, 14], [7, 12], [3, 6], { food: 3, water: 2, medicine: 9 }),
-  kessel: mk([10, 15], [6, 10], [3, 5], { food: 3, water: 1, medicine: 9 }),
-  rook: mk([8, 13], [8, 13], [4, 7], { food: 3, water: 2 }),
-  lorn: mk([9, 14], [7, 11], [3, 6], { food: 2, water: 1, medicine: 8, animals: 23 }),
-  gorrow: mk([8, 12], [8, 12], [4, 7], { food: 3, water: 2, medicine: 10 }),
-  yarrin: mk([10, 15], [8, 12], [3, 6], { food: 2, water: 1, medicine: 8, animals: 24 }),
-  quillon: mk([10, 14], [8, 12], [3, 5], { food: 2, water: 1, medicine: 8, animals: 22 }),
-  telOrrin: mk([9, 14], [7, 12], [3, 6], { food: 2, water: 1, medicine: 9 }),
-  mirren: mk([14, 22], [10, 16], [4, 8], { food: 3, water: 2, medicine: 10, animals: 26 }),
+  saltmere: mk([10, 16], [8, 13], [2, 4], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  vessa: mk([9, 14], [7, 12], [3, 6], { food: 1, water: 1, medicine: 9 }),
+  kessel: mk([10, 15], [6, 10], [3, 5], { food: 2, water: 1, medicine: 9 }),
+  rook: mk([8, 13], [8, 13], [4, 7], { food: 2, water: 1 }),
+  lorn: mk([9, 14], [7, 11], [3, 6], { food: 1, water: 1, medicine: 8, animals: 23 }),
+  gorrow: mk([8, 12], [8, 12], [4, 7], { food: 1, water: 1, medicine: 10 }),
+  yarrin: mk([10, 15], [8, 12], [3, 6], { food: 1, water: 1, medicine: 8, animals: 24 }),
+  quillon: mk([10, 14], [8, 12], [3, 5], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  telOrrin: mk([9, 14], [7, 12], [3, 6], { food: 1, water: 1, medicine: 9 }),
+  mirren: mk([14, 22], [10, 16], [4, 8], { food: 1, water: 1, medicine: 10, animals: 26 }),
 };
 
 const leg = (to: string, km: number, kind: LegKind, safe?: boolean): Leg => (safe === undefined ? { to, km, kind } : { to, km, kind, safe });
@@ -29,10 +29,10 @@ const short: RouteDef = {
   deadline: 12,
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
-    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 70, "river", true), leg("vessa-pass", 50, "mountain", false)]),
-    stop("saltmere", "Saltmere", [leg("quillon", 60, "plain")], MARKETS.saltmere),
+    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 90, "river", true), leg("vessa-pass", 50, "mountain", false)]),
+    stop("saltmere", "Saltmere", [leg("quillon", 90, "plain")], MARKETS.saltmere),
     stop("vessa-pass", "Vessa Pass", [leg("quillon", 60, "mountain")], MARKETS.vessa),
-    stop("quillon", "Quillon", [leg("mirren-gate", 70, "desert")], MARKETS.quillon),
+    stop("quillon", "Quillon", [leg("mirren-gate", 90, "desert")], MARKETS.quillon),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
 };
@@ -43,14 +43,14 @@ const normal: RouteDef = {
   deadline: 20,
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
-    stop("tel-orrin", "Tel Orrin", [leg("brask", 50, "desert")]),
-    stop("brask", "Brask", [leg("saltmere", 80, "river", true), leg("vessa-pass", 60, "mountain", false)]),
+    stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")]),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
     stop("vessa-pass", "Vessa Pass", [leg("ombar", 70, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel-wells", 70, "desert", true), leg("rook-pass", 50, "mountain", false)]),
+    stop("ombar", "Ombar", [leg("kessel-wells", 90, "desert", true), leg("rook-pass", 50, "mountain", false)]),
     stop("kessel-wells", "Kessel Wells", [leg("yarrin", 60, "plain")], MARKETS.kessel),
     stop("rook-pass", "Rook Pass", [leg("yarrin", 60, "mountain")], MARKETS.rook),
-    stop("yarrin", "Yarrin", [leg("mirren-gate", 70, "river")], MARKETS.yarrin),
+    stop("yarrin", "Yarrin", [leg("mirren-gate", 80, "river")], MARKETS.yarrin),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
 };
@@ -60,20 +60,20 @@ const epic: RouteDef = {
   end: "mirren-gate",
   deadline: 32,
   stops: [
-    stop("dunmar", "Dunmar", [leg("tel-orrin", 70, "plain")]),
+    stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")], MARKETS.telOrrin),
-    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 70, "mountain", false)]),
-    stop("saltmere", "Saltmere", [leg("ombar", 70, "plain")], MARKETS.saltmere),
-    stop("vessa-pass", "Vessa Pass", [leg("ombar", 70, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel-wells", 80, "desert", true), leg("rook-pass", 60, "mountain", false)]),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
+    stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
+    stop("vessa-pass", "Vessa Pass", [leg("ombar", 60, "mountain")], MARKETS.vessa),
+    stop("ombar", "Ombar", [leg("kessel-wells", 60, "desert", true), leg("rook-pass", 50, "mountain", false)]),
     stop("kessel-wells", "Kessel Wells", [leg("anvil-gap", 60, "plain")], MARKETS.kessel),
     stop("rook-pass", "Rook Pass", [leg("anvil-gap", 60, "mountain")], MARKETS.rook),
-    stop("anvil-gap", "Anvil Gap", [leg("teshun", 70, "plain")]),
+    stop("anvil-gap", "Anvil Gap", [leg("teshun", 60, "plain")]),
     stop("teshun", "Teshun", [leg("lorn-ferry", 80, "river", true), leg("gorrow-heights", 60, "mountain", false)]),
     stop("lorn-ferry", "Lorn Ferry", [leg("yarrin", 60, "plain")], MARKETS.lorn),
     stop("gorrow-heights", "Gorrow Heights", [leg("yarrin", 60, "mountain")], MARKETS.gorrow),
-    stop("yarrin", "Yarrin", [leg("sef-oasis", 70, "desert")], MARKETS.yarrin),
-    stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 70, "plain")]),
+    stop("yarrin", "Yarrin", [leg("sef-oasis", 60, "desert")], MARKETS.yarrin),
+    stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 60, "plain")]),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
 };
@@ -114,7 +114,7 @@ const events: EventCard[] = [
   // Any, rough
   ev("any-1-wind", "any", 1, "Hot wind all day. The water skins dry out faster than you expect.", { stock: { water: -2 } }),
   ev("any-1-cold", "any", 1, "A cold night and little wood. Someone sleeps badly and wakes sick.", { health: { target: "random", steps: 1 } }),
-  ev("any-1-thief", "any", 1, "A thief takes a bag of coins in the night.", { stock: { coins: -12 } }),
+  ev("any-1-thief", "any", 1, "A thief takes a bag of coins in the night.", { stock: { coins: -8 } }),
   ev("any-1-ropes", "any", 1, "The ropes on a load come loose. You spend half a day tying everything again.", { km: -15, lostTime: true }),
   ch(
     "any-1-peddler",
@@ -133,15 +133,15 @@ const events: EventCard[] = [
     ["Walk until dark", { health: { target: "everyone", steps: 1 } }],
   ),
   // Any, dangerous
-  ev("any-2-raiders", "any", 2, "Raiders on fast horses. They take what they can carry and leave before you can speak.", { cargo: -3, stock: { coins: -20 } }),
+  ev("any-2-raiders", "any", 2, "Raiders on fast horses. They take what they can carry and leave before you can speak.", { cargo: -2, stock: { coins: -10 } }),
   ev("any-2-fever", "any", 2, "A fever moves through the camp. One traveller is very sick by morning.", { health: { target: "random", steps: 2 } }),
   ev("any-2-fire", "any", 2, "A lamp falls over in the night. The fire burns a tent and a load of food.", { stock: { food: -4 }, cargo: -1 }),
   ch(
     "any-2-toll",
     "any",
     2,
-    "Armed men block the path and ask for a toll of 25 coins. You could try to avoid them.",
-    ["Pay the toll", { stock: { coins: -25 } }],
+    "Armed men block the path and ask for a toll of 15 coins. You could try to avoid them.",
+    ["Pay the toll", { stock: { coins: -15 } }],
     ["Avoid them", { km: -30, lostTime: true, chance: { p: 0.5, then: {}, else: { cargo: -3, health: { target: "random", steps: 1 } } } }],
   ),
   ch(
@@ -150,7 +150,7 @@ const events: EventCard[] = [
     2,
     "A camel runs off in the night. You can look for it, or leave it.",
     ["Leave it", { stock: { animals: -1 } }],
-    ["Look for it all morning", { km: -25, lostTime: true, chance: { p: 0.6, then: {}, else: { stock: { animals: -1 } } } }],
+    ["Look for it all morning", { km: -25, lostTime: true, chance: { p: 0.5, then: {}, else: { stock: { animals: -1 }, health: { target: "random", steps: 1 } } } }],
   ),
 
   // Desert
@@ -237,8 +237,8 @@ const events: EventCard[] = [
     "river-1-ferry",
     "river",
     1,
-    "A ferryman offers to take you across for 15 coins. The river looks deep, but the ford is nearby.",
-    ["Pay the ferryman", { stock: { coins: -15 } }],
+    "A ferryman offers to take you across for 8 coins. The river looks deep, but the ford is nearby.",
+    ["Pay the ferryman", { stock: { coins: -8 } }],
     ["Use the ford", { chance: { p: 0.6, then: {}, else: { cargo: -2, stock: { food: -2 } } } }],
   ),
   ch(
@@ -263,7 +263,7 @@ const events: EventCard[] = [
   ev("plain-0-fire", "plain", 0, "Other travellers share their fire. They sell you a little food for 2 coins and tell you the news.", { stock: { food: 2, coins: -2 } }),
   ev("plain-1-flies", "plain", 1, "Biting flies all night. Nobody sleeps. Everyone is angry in the morning.", { health: { target: "random", steps: 1 } }),
   ev("plain-1-wrong", "plain", 1, "The path forks and the signs are gone. You pick one. It was wrong.", { km: -20, lostTime: true }),
-  ev("plain-2-raiders", "plain", 2, "Horsemen come out of the grass. They take goods and coins before they ride away.", { cargo: -3, stock: { coins: -15 } }),
+  ev("plain-2-raiders", "plain", 2, "Horsemen come out of the grass. They take goods and coins before they ride away.", { cargo: -2, stock: { coins: -10 } }),
   ev("plain-2-fire", "plain", 2, "Dry grass catches fire from a spark. You lose a day and some supplies getting out.", { km: -25, lostTime: true, stock: { food: -3, water: -1 } }),
   ch(
     "plain-1-merchant",
@@ -284,8 +284,8 @@ const events: EventCard[] = [
 ];
 
 const goals: GoalCard[] = [
-  { id: "coins-60", text: "Arrive with at least 60 coins.", goal: { kind: "coins", atLeast: 60 } },
-  { id: "coins-100", text: "Arrive with at least 100 coins.", goal: { kind: "coins", atLeast: 100 } },
+  { id: "coins-150", text: "Arrive with at least 150 coins.", goal: { kind: "coins", atLeast: 150 } },
+  { id: "coins-200", text: "Arrive with at least 200 coins.", goal: { kind: "coins", atLeast: 200 } },
   { id: "protect", text: "Make sure this traveller reaches the end alive.", goal: "protect-someone" },
   { id: "protect-2", text: "Keep this traveller safe. Their cousin owes you money.", goal: "protect-someone" },
   { id: "early-90", text: "Arrive with a few days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.9 } },
@@ -354,17 +354,17 @@ export const tradeRoute: SettingPack = {
   },
   routes: { short, normal, epic },
   start: (players) => ({
-    food: 8 * players,
-    water: 6 * players,
+    food: 44 * players,
+    water: 30 * players,
     medicine: 3,
-    coins: 60,
+    coins: 200 + 10 * players,
     animals: 2 + Math.ceil(players / 2),
     cargo: { silk: 2, spice: 2, salt: 2 },
   }),
   capacityPerAnimal: 4,
   events,
   goals,
-  grades: { broke: 0, fair: 100, rich: 200, legendary: 350 },
+  grades: { broke: 0, fair: 240, rich: 340, legendary: 460 },
   endLines: {
     arrived: {
       broke: [

@@ -11,6 +11,7 @@ import {
   type Used,
 } from "../shared/events.ts";
 import { jobInfo } from "../shared/info.ts";
+import { N } from "../shared/numbers.ts";
 import type { ChoiceEvent, Danger, EventCard, PlainEvent, SettingPack } from "../shared/pack.ts";
 import type { JobId } from "../shared/types.ts";
 import { P4, never, onLeg, pack as basePack, plan, route, seeded, van, zero } from "./fixtures.ts";
@@ -333,21 +334,24 @@ describe("jobInfo", () => {
     expect(info("trader", van({ at: "b" }))).toEqual({ job: "trader", nextMarket: null }); // safe branch has none
   });
   it("healer gives today's worsen chance per sick or hurt living traveller", () => {
+    // Risk points add up in riskPoints' order (hard, half, none, thirst, hungry, sick), then scale.
+    const { hard: hard_, half: halfR, none, thirst, hungry, sick } = N.risk;
+    const chance = (points: number) => Math.min(1, points * N.riskStepChance);
     const c = van({ health: { p1: 2, p2: 3, p3: 0, p4: 1 } });
-    expect(info("healer", c)).toEqual({ job: "healer", worsenChance: { p1: 0.12, p4: 0.12 } });
+    expect(info("healer", c)).toEqual({ job: "healer", worsenChance: { p1: chance(sick), p4: chance(sick) } });
     const half = info("healer", c, state({ plan: plan({ rations: "half" }) }));
-    expect(half).toEqual({ job: "healer", worsenChance: { p1: 0.24, p4: 0.24 } });
+    expect(half).toEqual({ job: "healer", worsenChance: { p1: chance(halfR + sick), p4: chance(halfR + sick) } });
     const rest = info("healer", c, state({ plan: plan({ rest: true, pace: "hard" }) }));
-    expect(rest).toMatchObject({ worsenChance: { p1: 0.12 } });
+    expect(rest).toMatchObject({ worsenChance: { p1: chance(sick) } });
     const hard = info("healer", c, state({ plan: plan({ pace: "hard" }) }));
-    expect(hard).toMatchObject({ worsenChance: { p1: 0.24 } });
+    expect(hard).toMatchObject({ worsenChance: { p1: chance(hard_ + sick) } });
     const thirsty = van({ stock: { ...van().stock, water: 1 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
-    expect(info("healer", thirsty)).toMatchObject({ worsenChance: { p1: 0.48 } }); // sick 1 + thirst 3
+    expect(info("healer", thirsty)).toMatchObject({ worsenChance: { p1: chance(thirst + sick) } });
     const forkHalt = van({ at: "b", stock: { ...van().stock, water: 5 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
-    expect(info("healer", forkHalt, state({ plan: plan({ fork: "d" }) }))).toMatchObject({ worsenChance: { p1: 0.12 } }); // plain: 4 water needed
-    expect(info("healer", forkHalt, state({ plan: plan({ fork: "c" }) }))).toMatchObject({ worsenChance: { p1: 0.48 } }); // desert: 8 needed, thirsty
+    expect(info("healer", forkHalt, state({ plan: plan({ fork: "d" }) }))).toMatchObject({ worsenChance: { p1: chance(sick) } }); // plain: 4 water needed
+    expect(info("healer", forkHalt, state({ plan: plan({ fork: "c" }) }))).toMatchObject({ worsenChance: { p1: chance(thirst + sick) } }); // desert: 8 needed, thirsty
     const worst = van({ stock: { ...van().stock, water: 0, food: 0 }, health: { p1: 1, p2: 3, p3: 3, p4: 3 } });
-    expect(info("healer", worst, state({ plan: plan({ rations: "none", pace: "hard" }) }))).toMatchObject({ worsenChance: { p1: 0.84 } });
+    expect(info("healer", worst, state({ plan: plan({ rations: "none", pace: "hard" }) }))).toMatchObject({ worsenChance: { p1: chance(hard_ + none + thirst + hungry + sick) } });
   });
   it("driver shows fatigue and its max", () => {
     expect(info("driver", van({ fatigue: 2 }))).toEqual({ job: "driver", fatigue: 2, max: 3 });
