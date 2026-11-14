@@ -208,6 +208,43 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
    * `match.carry`. Lets teams and roles survive a rematch.
    */
   carryOver?(state: TState): unknown;
+
+  /**
+   * Counts for the party recap, per player. Read once, when the game finishes.
+   * Keep them in state with `bumpStat` as play happens; never put them in the
+   * public or private projections (lies nobody caught are the recap's reveal).
+   */
+  partyStats?(state: TState): PartyStats;
+}
+
+// ---------------------------------------------------------------------------
+// Party recap stats
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared by every game, so two games can feed the same award. A mechanic no
+ * key fits gets a new key here and an award row in recap.ts (see AGENTS.md).
+ */
+export const STAT_KEYS = [
+  "liesTold",
+  "liesUncaught",
+  "rightCalls",
+  "wrongCalls",
+  "bigBids",
+  "votesAgainst",
+  "survivedAsBad",
+  "fooled",
+  "firstGuesses",
+] as const;
+
+export type StatKey = (typeof STAT_KEYS)[number];
+
+/** Player id → counts. JSON-safe, so it lives in game state as-is. */
+export type PartyStats = Record<string, Partial<Record<StatKey, number>>>;
+
+export function bumpStat(stats: PartyStats, playerId: string, key: StatKey, by = 1): void {
+  const mine = (stats[playerId] ??= {});
+  mine[key] = (mine[key] ?? 0) + by;
 }
 
 /** What the room runtime holds. `any` is the point: the room can't know game-specific types. */
@@ -325,3 +362,5 @@ export function stableHash(text: string): number {
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
   return h >>> 0;
 }
+
+export * from "./recap.ts";

@@ -1,3 +1,5 @@
+import type { PartyStats } from "@games/game-core";
+
 /** A die face. With wild ones on, 1 counts as every face (except when the bid is on 1s). */
 export type Face = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -92,6 +94,8 @@ export interface LiarsDiceServerState {
   winnerId: string | null;
   /** Test-only dice, used up first, in seat order, round after round. Never public. */
   rigged: Face[];
+  /** For the party recap. Never sent: which bids were bluffs stays between the cups. */
+  stats: PartyStats;
 }
 
 export interface LiarsDicePublicPlayer {

@@ -1,4 +1,5 @@
 import {
+  bumpStat,
   shuffle,
   type GameContext,
   type GameDefinition,
@@ -106,6 +107,7 @@ function play(state: State, cards: Card[], claim: Rank, ctx: GameContext, out: O
   me.hand = me.hand.filter((c) => !ids.has(c.id));
   state.pile.push(...cards);
   state.lastPlay = { playerId: me.id, cards, claim };
+  if (!isHonest(cards, claim)) bumpStat((state.stats ??= {}), me.id, "liesTold");
   state.lastClaim = claim;
   state.lastReveal = null;
   state.passed = [];
@@ -123,6 +125,8 @@ function play(state: State, cards: Card[], claim: Rank, ctx: GameContext, out: O
 /** Nobody called it. An empty hand now stands; otherwise play moves on. */
 function accept(state: State, out: Out): void {
   const owner = current(state);
+  const last = state.lastPlay;
+  if (last && !isHonest(last.cards, last.claim)) bumpStat((state.stats ??= {}), owner.id, "liesUncaught");
   out.timers.push({ kind: "cancel", timerId: WINDOW });
   out.events.push(pub({ type: "accepted", playerId: owner.id }));
   if (!owner.hand.length) finish(state, owner.id, "out", out);
@@ -135,6 +139,7 @@ function call(state: State, caller: Player, out: Out): void {
   const { cards, claim } = state.lastPlay!;
   const lied = !isHonest(cards, claim);
   const taker = lied ? owner : caller;
+  bumpStat((state.stats ??= {}), caller.id, lied ? "rightCalls" : "wrongCalls");
   const taken = state.pile.length;
   taker.hand.push(...state.pile);
   state.pile = [];
@@ -243,6 +248,7 @@ export const cheatGame: GameDefinition<
       passed: [],
       lastReveal: null,
       winnerId: null,
+      stats: {},
       endReason: null,
     };
     const events: Events = [
@@ -410,6 +416,10 @@ export const cheatGame: GameDefinition<
   // During a window nobody's holding things up: the clock is.
   getAwaitedPlayerIds(state) {
     return state.phase === "playing" && state.step === "play" ? [current(state).id] : [];
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getResult(state) {

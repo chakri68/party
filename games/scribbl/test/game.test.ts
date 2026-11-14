@@ -324,3 +324,14 @@ describe("the drawing stream", () => {
     expect(sb.getStreamSnapshot!(s)).toMatchObject({ strokes: [], nextId: 0 });
   });
 });
+
+describe("party stats", () => {
+  it("counts who guessed the word first, and only them", () => {
+    let s = drawing(4, { deck: ONE_WORD });
+    const others = ["p0", "p2", "p3"];
+    s = ok(act(s, others[1]!, { type: "guess", text: "watermelon" })).state;
+    s = ok(act(s, others[0]!, { type: "guess", text: "watermelon" })).state;
+    expect(sb.partyStats!(s)).toEqual({ p2: { firstGuesses: 1 } });
+    expect(JSON.stringify(sb.getPublicState(s))).not.toContain("firstGuesses");
+  });
+});

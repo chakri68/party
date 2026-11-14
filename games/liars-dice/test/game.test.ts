@@ -41,6 +41,7 @@ function stateWith(
     outOrder: [],
     winnerId: null,
     rigged: opts.rigged ?? [],
+    stats: {},
   };
 }
 
@@ -355,5 +356,33 @@ describe("the end", () => {
       ],
     });
     expect(err(act(end.state, "p2", { type: "ready" }))).toBe("game-finished");
+  });
+});
+
+describe("party stats", () => {
+  // Nine dice, 1s wild: three 3s count (3, 3, 1). The table's honest
+  // average for 3s is 9 / 3 = 3.
+  const DICE: Face[][] = [[3, 3, 1], [2, 4, 5], [6, 6, 6]];
+
+  it("counts false bids, big bids and a right call at the reveal", () => {
+    let s = stateWith(DICE, { turn: 0, rigged: Array(20).fill(2) });
+    s = ok(act(s, "p0", { type: "bid", quantity: 2, face: 3 })).state;
+    s = ok(act(s, "p1", { type: "bid", quantity: 4, face: 3 })).state;
+    s = ok(act(s, "p2", { type: "liar" })).state;
+    expect(ld.partyStats!(s)).toEqual({ p1: { liesTold: 1, bigBids: 1 }, p2: { rightCalls: 1 } });
+  });
+
+  it("counts a wrong call", () => {
+    let s = stateWith(DICE, { turn: 1, rigged: Array(20).fill(2) });
+    s = ok(act(s, "p1", { type: "bid", quantity: 3, face: 3 })).state;
+    s = ok(act(s, "p2", { type: "liar" })).state;
+    expect(ld.partyStats!(s)).toEqual({ p2: { wrongCalls: 1 } });
+  });
+
+  it("keeps the counts out of what players see", () => {
+    const s = stateWith(DICE);
+    s.stats = { p0: { liesTold: 2 } };
+    expect(JSON.stringify(ld.getPublicState(s))).not.toContain("liesTold");
+    expect(JSON.stringify(ld.getPrivateState(s, "p0"))).not.toContain("liesTold");
   });
 });

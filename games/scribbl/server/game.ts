@@ -4,6 +4,7 @@ import {
   type GameEventEnvelope,
   type GameResult,
   type TimerRequest,
+  bumpStat,
 } from "@games/game-core";
 import { isClose } from "@games/words";
 import { scribblManifest } from "../shared/manifest.ts";
@@ -232,6 +233,7 @@ function guess(state: State, player: Player, text: string, ctx: GameContext, out
     const guessers = state.players.filter((p) => inGame(p) && !p.away && p.id !== t.drawerId).length;
     const cut = drawerPoints(guessers);
     player.score += points;
+    if (!t.guessed.length) bumpStat((state.stats ??= {}), player.id, "firstGuesses");
     t.guessed.push({ playerId: player.id, points });
     t.drawerPoints += cut;
     const drawer = state.players.find((p) => p.id === t.drawerId);
@@ -336,6 +338,7 @@ export const scribblGame: GameDefinition<
       chat: [],
       nextChatId: 0,
       endReason: null,
+      stats: {},
     };
     const out = newOut();
     nextTurn(state, ctx, out);
@@ -513,6 +516,10 @@ export const scribblGame: GameDefinition<
   // Nobody's ever "holding things up": the clock is. No nudges, no skips.
   getAwaitedPlayerIds() {
     return [];
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getResult(state) {

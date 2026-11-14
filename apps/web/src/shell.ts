@@ -7,6 +7,7 @@ import { claimOwnerKeyFromUrl, getOwnerKey } from "./identity.ts";
 import { watchKeyboard } from "./keyboard.ts";
 import { register, start } from "./router.ts";
 import { HomeView } from "./views/home.ts";
+import type { PartyOverHook } from "./views/recap.ts";
 import { RoomView } from "./views/room.ts";
 import "./style.css";
 
@@ -29,9 +30,14 @@ export interface ShellOptions {
   onLockedGame?: (gameId: string, code: string) => void;
   nameOverrides?: Record<string, string>;
   beforeStart?: (outlet: HTMLElement) => void;
+  /**
+   * Fills the slot under the party recap, and under "this room is closed"
+   * (`recap: null` there). Without it the shell shows a Home button.
+   */
+  partyOver?: PartyOverHook;
 }
 
-type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart">>;
+type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver">> & Pick<ShellOptions, "partyOver">;
 
 /** Today's behaviour: the owner key opens the room. */
 async function defaultCreateRoom(): Promise<{ code: string } | { error: string; forgetKey?: boolean }> {

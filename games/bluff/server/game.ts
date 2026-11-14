@@ -10,6 +10,7 @@ import {
   openBallot,
   shuffle,
   type TimerRequest,
+  bumpStat,
 } from "@games/game-core";
 import { editDistance } from "@games/words";
 import { isWord } from "@games/words/dictionary";
@@ -242,7 +243,10 @@ function reveal(state: State, ctx: GameContext, out: Out): void {
       const choice = r.options.find((o) => o.id === r.ballot!.votes[voter]);
       if (!choice) continue;
       if (choice.author === null) gained[voter] = (gained[voter] ?? 0) + FOUND_POINTS;
-      else gained[choice.author] = (gained[choice.author] ?? 0) + FOOLED_POINTS;
+      else {
+        gained[choice.author] = (gained[choice.author] ?? 0) + FOOLED_POINTS;
+        bumpStat((state.stats ??= {}), choice.author, "fooled");
+      }
     }
   }
   for (const p of state.players) p.score += gained[p.id] ?? 0;
@@ -349,6 +353,7 @@ export function makeBluffGame(variant: Variant): Definition {
         used: parseCarry(match.carry),
         deck,
         endReason: null,
+        stats: {},
       };
       const out = newOut();
       startRound(state, ctx, out);
@@ -524,6 +529,10 @@ export function makeBluffGame(variant: Variant): Definition {
     },
 
     getAwaitedPlayerIds: awaited,
+
+    partyStats(state) {
+      return state.stats ?? {};
+    },
 
     getResult(state) {
       if (state.phase !== "finished") return null;

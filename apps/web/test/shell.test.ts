@@ -31,4 +31,13 @@ describe("the shell seam", () => {
     expect(dominionManifest.name).toBe("Dominion");
     overrideGameNames({ dominion: "Dominion" });
   });
+
+  it("keeps the host app's party-over hook, and has none by default", () => {
+    configure({});
+    expect(shellConfig().partyOver).toBeUndefined();
+    const hook = () => {};
+    configure({ partyOver: hook });
+    expect(shellConfig().partyOver).toBe(hook);
+    configure({});
+  });
 });

@@ -1,4 +1,4 @@
-import type { GameContext, GameDefinition, GameEventEnvelope, GameResult, TimerRequest } from "@games/game-core";
+import { bumpStat, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { liarsDiceManifest } from "../shared/manifest.ts";
 import { countMatches, isLegalBid, onesAreWild, ordinal, skipBid, smallestRaise } from "../shared/rules.ts";
 import {
@@ -115,6 +115,19 @@ function allReady(state: State): boolean {
  * timer or everyone's tap. The die changes land now, so the counts on screen
  * already show who paid.
  */
+/**
+ * The cups are up: every bid this round gets judged. A bid more than the dice
+ * held was a bluff; one above what the table holds on average was a big bid.
+ */
+function tallyRound(state: State, all: Face[]): void {
+  const stats = (state.stats ??= {});
+  const { wildOnes } = state.settings;
+  for (const b of state.history) {
+    if (b.quantity > countMatches(all, b.face, wildOnes)) bumpStat(stats, b.playerId, "liesTold");
+    if (b.quantity > all.length / (onesAreWild(b.face, wildOnes) ? 3 : 6)) bumpStat(stats, b.playerId, "bigBids");
+  }
+}
+
 function call(state: State, kind: CallKind, ctx: GameContext, out: Out): void {
   const caller = state.players[state.turnIndex]!;
   const bid = state.bid!;
@@ -122,6 +135,8 @@ function call(state: State, kind: CallKind, ctx: GameContext, out: Out): void {
   const dice = Object.fromEntries(state.players.filter(inPlay).map((p) => [p.id, sorted(p.dice)]));
   const count = countMatches(Object.values(dice).flat(), bid.face, wildOnes);
   const success = kind === "liar" ? count < bid.quantity : count === bid.quantity;
+  tallyRound(state, Object.values(dice).flat());
+  bumpStat((state.stats ??= {}), caller.id, success ? "rightCalls" : "wrongCalls");
 
   let loser: Player | null = null;
   let gainer: Player | null = null;
@@ -227,6 +242,7 @@ export const liarsDiceGame: GameDefinition<
       ready: [],
       outOrder: [],
       winnerId: null,
+      stats: {},
       rigged: options?.deck ? normalizeRigged(options.deck) : [],
     };
     const out = newOut();
@@ -392,6 +408,10 @@ export const liarsDiceGame: GameDefinition<
   // A reveal runs on its own clock; nobody's holding it up.
   getAwaitedPlayerIds(state) {
     return state.phase === "bidding" ? [state.players[state.turnIndex]!.id] : [];
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getResult(state) {

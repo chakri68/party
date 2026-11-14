@@ -20,3 +20,51 @@ describe("game registry flags", () => {
     expect(on).not.toHaveProperty("blind-rally");
   });
 });
+
+/**
+ * Games with no recap stats yet. Don't add new games here: give them
+ * partyStats (see AGENTS.md, "Adding a game: party recap stats"). Taking a
+ * game off this list once it has stats is the whole point of it.
+ */
+const RECAP_EXEMPT = new Set([
+  "sevens",
+  "crazy-eights",
+  "old-maid",
+  "go-fish",
+  "president",
+  "pass-the-bomb",
+  "chain-words",
+  "dont-say-it",
+  "face-off",
+  "dominion",
+  "short-night",
+  "heist",
+  "farkle",
+  "thorns",
+  "oh-hell",
+  "holdem",
+  "overheat",
+  "same-page",
+  "blind-rally",
+  "rally",
+  "treasure-hunt",
+]);
+
+describe("party recap stats", () => {
+  const all = gamesFor({ blindRally: true, treasureHunt: true });
+
+  it.each(Object.keys(all))("%s reports partyStats, or is on the old exempt list", (id) => {
+    const has = typeof all[id]!.partyStats === "function";
+    expect(
+      has || RECAP_EXEMPT.has(id),
+      `${id} has no partyStats. Every new game feeds the party recap: see AGENTS.md, "Adding a game: party recap stats".`,
+    ).toBe(true);
+  });
+
+  it("doesn't exempt a game that already has stats, or one that's gone", () => {
+    for (const id of RECAP_EXEMPT) {
+      expect(all, `${id} is exempt but isn't registered`).toHaveProperty(id);
+      expect(typeof all[id]!.partyStats, `${id} has partyStats now: take it off RECAP_EXEMPT`).not.toBe("function");
+    }
+  });
+});
