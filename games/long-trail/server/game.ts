@@ -11,36 +11,30 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
-import { jobInfo } from "../shared/info.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
-import { N } from "../shared/numbers.ts";
-import { packFor, stopById, type Leg, type LegKind, type RouteDef, type SettingPack } from "../shared/pack.ts";
+import { packFor, stopById, type LegKind } from "../shared/pack.ts";
 import { buildRecap } from "../shared/recap.ts";
 import { dealGoals, gradeOf, outcome, wealth, type EndView } from "../shared/scoring.ts";
 import { MAX_PLAYERS, MIN_PLAYERS, parseLongTrailSettings, setupProblem } from "../shared/settings.ts";
 import { applyTrades, arrived, failed, planProblem, rollPrices, startLeg, travelDay } from "../shared/travel.ts";
 import {
-  type ArmableJob,
-  type Band,
   DEFAULT_SETTINGS,
-  type Goal,
   type Health,
-  type JobId,
   type LongTrailAction,
   type LongTrailEvent,
   type LongTrailPrivateState,
   type LongTrailPublicState,
   type LongTrailServerState,
   type LongTrailSettings,
-  type Pace,
   type Phase,
   type Plan,
-  type Rations,
   type Stock,
   TIMERS,
-  type Trade,
   type Vote,
 } from "../shared/types.ts";
+import { parseAction, VOTES } from "./parse.ts";
+import { goalTexts, privateState, publicState } from "./views.ts";
+import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, world } from "./world.ts";
 
 type State = LongTrailServerState;
 type Events = GameEventEnvelope<LongTrailEvent>[];
@@ -52,10 +46,6 @@ const reject = (code: string, message: string): GameResult<State, LongTrailEvent
 const PHASE = "phase";
 /** An alarm this early is a stray, not the deadline. */
 const SLACK_MS = 500;
-const VOTES: readonly Vote[] = ["go", "no-go"];
-const JOBS: JobId[] = ["guide", "healer", "trader", "quartermaster", "scout", "driver", "cook", "lookout"];
-const ARMABLE: readonly JobId[] = ["guide", "scout", "quartermaster", "lookout"];
-const isArmable = (job: JobId | undefined): job is ArmableJob => !!job && ARMABLE.includes(job);
 
 // ---------------------------------------------------------------------------
 // Internals. Helpers mutate the state they're given; the public API always
@@ -71,17 +61,6 @@ const clone = (state: State): State => structuredClone(state);
 const newOut = (): Out => ({ events: [], timers: [] });
 const done = (state: State, out: Out) => ({ state, events: out.events, timers: out.timers });
 
-const world = (state: State): { pack: SettingPack; route: RouteDef } => {
-  const pack = packFor(state.settings.setting);
-  return { pack, route: pack.routes[state.settings.length] };
-};
-const find = (state: State, id: string) => state.players.find((p) => p.id === id);
-const activeIds = (state: State) => state.players.filter((p) => !p.left).map((p) => p.id);
-const leaderOf = (state: State) => state.players[state.leader]!.id;
-const isAlive = (state: State, id: string) => state.travellers.includes(id) && (state.caravan.health[id] ?? 0) > 0;
-/** The job's holder is still travelling and alive. Dead travellers lose their ability. */
-const jobAlive = (state: State, job: JobId) => state.travellers.some((id) => state.jobs[id] === job && isAlive(state, id));
-const aliveJobs = (state: State) => Object.fromEntries(JOBS.map((j) => [j, jobAlive(state, j)])) as Record<JobId, boolean>;
 
 /** Everyone connected and still in has done it. Nobody connected: the clock decides. */
 function allHere(state: State, ids: readonly string[], isDone: (id: string) => boolean): boolean {
@@ -110,21 +89,6 @@ function nextSeat(state: State, from: number): number {
   return from;
 }
 
-/** The way out of a halted stop: the picked branch at a fork, the one leg otherwise. */
-function legOut(route: RouteDef, at: string, fork: string | null): Leg | undefined {
-  const next = stopById(route, at).next;
-  return next.length === 2 ? (next.find((l) => l.to === fork) ?? next.find((l) => l.safe) ?? next[0]) : next[0];
-}
-
-/** Yesterday's pace and rations (day 1: steady, full), the safe branch at a fork, nothing else. */
-function openPlan(state: State): Plan {
-  const { route } = world(state);
-  const c = state.caravan;
-  const fork = c.leg === null && stopById(route, c.at).next.length === 2 ? (legOut(route, c.at, null)?.to ?? null) : null;
-  const pace: Pace = state.lastPlan?.pace ?? "steady";
-  const rations: Rations = state.lastPlan?.rations ?? "full";
-  return { pace, rations, rest: false, fork, doses: [], trades: [] };
-}
 
 /** The leg the caravan last travelled, for events on days it doesn't move. Day 1: the first leg. */
 function eventLeg(state: State): { kind: LegKind; key: string } {
@@ -157,10 +121,19 @@ function endIfOver(state: State, out: Out): boolean {
 // ---- the day ---------------------------------------------------------------
 
 function startPlan(state: State, ctx: GameContext, out: Out): void {
+  // Never hand the plan to someone who has left.
+  if (state.players[state.leader]!.left) state.leader = nextSeat(state, state.leader);
   state.plan = null;
   state.ballot = null;
   setPhase(state, "plan", ctx, out);
   out.events.push(pub({ type: "plan", leader: leaderOf(state), proposalNo: state.proposalNo }));
+}
+
+/** The first leader is picked as the reveal ends, among players still in. */
+function firstPlan(state: State, ctx: GameContext, out: Out): void {
+  const seats = state.players.flatMap((p, i) => (p.left ? [] : [i]));
+  state.leader = seats[ctx.randomInt(seats.length)]!;
+  startPlan(state, ctx, out);
 }
 
 function propose(state: State, plan: Plan, ctx: GameContext, out: Out): void {
@@ -372,7 +345,7 @@ function finish(state: State, out: Out): void {
 function expire(state: State, ctx: GameContext, out: Out): void {
   switch (state.phase) {
     case "reveal":
-      return startPlan(state, ctx, out);
+      return firstPlan(state, ctx, out);
     case "plan":
       return propose(state, openPlan(state), ctx, out);
     case "vote":
@@ -393,160 +366,15 @@ function check(state: State, ctx: GameContext, out: Out): void {
   const acked = (id: string) => state.acks.includes(id);
   const b = state.ballot;
   const cb = state.choiceBallot;
-  if (state.phase === "reveal" && allHere(state, activeIds(state), acked)) startPlan(state, ctx, out);
-  else if (state.phase === "vote" && b && allHere(state, b.eligible, (id) => id in b.votes)) closeVote(state, ctx, out);
-  else if (state.phase === "choice" && cb && allHere(state, cb.eligible, (id) => id in cb.votes)) closeChoice(state, ctx, out);
+  // A ballot everyone was skipped out of has nobody left to wait for.
+  const allVoted = (x: { eligible: string[]; votes: object }) => x.eligible.length === 0 || allHere(state, x.eligible, (id) => id in x.votes);
+  if (state.phase === "reveal" && allHere(state, activeIds(state), acked)) firstPlan(state, ctx, out);
+  else if (state.phase === "vote" && b && allVoted(b)) closeVote(state, ctx, out);
+  else if (state.phase === "choice" && cb && allVoted(cb)) closeChoice(state, ctx, out);
   else if (state.phase === "summary" && allHere(state, activeIds(state), acked)) afterSummary(state, ctx, out);
   else if (state.phase === "recap" && allHere(state, activeIds(state), acked)) finish(state, out);
 }
 
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-const isId = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length <= 100;
-const oneOf = <T extends string>(x: unknown, list: readonly T[]): x is T => typeof x === "string" && (list as readonly string[]).includes(x);
-
-function parsePlan(input: unknown): Plan | null {
-  if (typeof input !== "object" || input === null) return null;
-  const p = input as Record<string, unknown>;
-  if (!oneOf(p.pace, ["slow", "steady", "hard"] as const) || !oneOf(p.rations, ["full", "half", "none"] as const)) return null;
-  if (typeof p.rest !== "boolean" || !(p.fork === null || isId(p.fork))) return null;
-  const doses = p.doses;
-  if (!Array.isArray(doses) || doses.length > MAX_PLAYERS || !doses.every(isId) || new Set(doses).size !== doses.length) return null;
-  const trades = p.trades;
-  if (!Array.isArray(trades) || trades.length > 20) return null;
-  const out: Trade[] = [];
-  for (const t of trades) {
-    if (typeof t !== "object" || t === null) return null;
-    const { item, qty } = t as Record<string, unknown>;
-    if (!isId(item) || typeof qty !== "number" || !Number.isInteger(qty) || Math.abs(qty) > 999) return null;
-    out.push({ item, qty });
-  }
-  return { pace: p.pace, rations: p.rations, rest: p.rest, fork: p.fork, doses: [...doses], trades: out };
-}
-
-function parseAction(input: unknown): LongTrailAction | null {
-  if (typeof input !== "object" || input === null) return null;
-  const a = input as Record<string, unknown>;
-  switch (a.type) {
-    case "ack":
-      return { type: "ack" };
-    case "next":
-      return { type: "next" };
-    case "propose": {
-      const plan = parsePlan(a.plan);
-      return plan ? { type: "propose", plan } : null;
-    }
-    case "vote":
-      return oneOf(a.vote, VOTES) ? { type: "vote", vote: a.vote } : null;
-    case "choose":
-      return a.option === 0 || a.option === 1 ? { type: "choose", option: a.option } : null;
-    case "arm":
-      return typeof a.on === "boolean" ? { type: "arm", on: a.on } : null;
-    default:
-      return null;
-  }
-}
-
-/** The goal card's own words, or plain words when the deal changed its details. */
-function goalTexts(pack: SettingPack, route: RouteDef, goals: Record<string, Goal>, ids: string[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  const seen = { protect: 0, visit: 0 };
-  const protects = pack.goals.filter((g) => g.goal === "protect-someone");
-  const visits = pack.goals.filter((g) => typeof g.goal !== "string" && g.goal.kind === "visit");
-  for (const id of ids) {
-    const goal = goals[id]!;
-    if (goal.kind === "protect") {
-      out[id] = protects[seen.protect++ % protects.length]?.text ?? "Make sure this traveller reaches the end alive.";
-    } else if (goal.kind === "visit") {
-      const card = visits[seen.visit++ % Math.max(1, visits.length)];
-      const same = card && typeof card.goal !== "string" && card.goal.kind === "visit" && card.goal.stop === goal.stop;
-      out[id] = same ? card.text : `Visit ${stopById(route, goal.stop).name}.`;
-    } else {
-      out[id] = pack.goals.find((g) => JSON.stringify(g.goal) === JSON.stringify(goal))?.text ?? "Help the caravan arrive.";
-    }
-  }
-  return out;
-}
-
-// ---- projections -----------------------------------------------------------
-
-function band(stock: number, perDay: number): Band {
-  const days = perDay <= 0 ? Infinity : Math.floor(stock / perDay);
-  return days >= 6 ? "plenty" : days >= 3 ? "some" : days >= 1 ? "low" : "out";
-}
-
-function publicState(state: State): LongTrailPublicState {
-  const { pack, route } = world(state);
-  const c = state.caravan;
-  const plan = state.plan ?? openPlan(state);
-  const living = state.travellers.filter((id) => isAlive(state, id)).length;
-  const nextKind = c.leg?.kind ?? (c.at === route.end ? undefined : legOut(route, c.at, plan.fork)?.kind);
-  const stop = stopById(route, c.at);
-  const market = c.leg === null ? stop.market : undefined;
-  const b = state.phase === "vote" ? state.ballot : state.phase === "choice" ? state.choiceBallot : null;
-  const revealed = state.phase === "recap" || (state.phase === "over" && !state.interrupted);
-  return {
-    phase: state.phase,
-    deadline: state.deadline,
-    phaseMs: state.phaseMs,
-    settings: { ...state.settings },
-    players: state.players.map((p) => ({ id: p.id, left: p.left, job: state.jobs[p.id]! })),
-    leader: leaderOf(state),
-    proposalNo: state.proposalNo,
-    day: c.day,
-    deadlineDay: route.deadline,
-    route: { start: route.start, end: route.end, stops: route.stops.map((s) => ({ id: s.id, name: s.name, next: s.next.map((l) => l.to), market: !!s.market })) },
-    at: c.at,
-    leg: c.leg ? { to: c.leg.to, km: c.leg.km, kind: c.leg.kind, kmLeft: c.kmLeft } : null,
-    visited: [...c.visited],
-    stock: {
-      food: band(c.stock.food, living * N.foodPerTraveller[plan.rations]),
-      water: band(c.stock.water, living * N.waterPerTraveller[nextKind === "desert" ? "desert" : "other"]),
-      medicine: c.stock.medicine,
-      coins: c.stock.coins,
-      animals: c.stock.animals,
-      cargo: { ...c.stock.cargo },
-    },
-    capacity: c.stock.animals * pack.capacityPerAnimal,
-    prices: market ? { goods: { ...(c.prices[c.at] ?? {}) }, supplies: { ...market.supplies } } : null,
-    travellers: state.travellers.map((id) => ({ id, health: c.health[id] ?? 0 })),
-    openPlan: openPlan(state),
-    plan: state.plan,
-    votes: b ? { voted: b.eligible.filter((id) => id in b.votes), of: b.eligible.length } : null,
-    proposals: state.proposals,
-    choice: state.choice ? { id: state.choice.id, text: state.choice.text, options: [state.choice.options[0].label, state.choice.options[1].label] } : null,
-    fired: [...state.fired],
-    lastDay: state.lastDay,
-    acked: activeIds(state).filter((id) => state.acks.includes(id)),
-    recap: revealed ? state.recap : null,
-    goals: revealed ? { ...state.goals } : null,
-    interrupted: state.interrupted,
-  };
-}
-
-function privateState(state: State, playerId: string): LongTrailPrivateState {
-  const p = find(state, playerId);
-  const job = state.jobs[playerId];
-  if (!p || !job) return { job: null, info: null, goal: null, goalText: null, ability: null, vote: null, choiceVote: null, acked: false };
-  const { pack, route } = world(state);
-  const live = !p.left && state.phase !== "over";
-  const info = live ? jobInfo(job, state.caravan, pack, route, { dangers: state.dangers, plan: state.plan ?? openPlan(state), travellers: state.travellers, choice: state.choice }) : null;
-  const ability = isArmable(job)
-    ? { job, armed: state.armed[job], used: state.used[job], canArm: live && !state.used[job] && isAlive(state, playerId) }
-    : null;
-  return {
-    job,
-    info,
-    goal: state.goals[playerId] ?? null,
-    goalText: state.goalText[playerId] ?? null,
-    ability,
-    vote: state.ballot?.votes[playerId] ?? null,
-    choiceVote: state.choiceBallot?.votes[playerId] ?? null,
-    acked: state.acks.includes(playerId),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Definition
@@ -595,7 +423,7 @@ export const longTrailGame: GameDefinition<State, LongTrailAction, LongTrailPubl
       armed: { guide: false, scout: false, quartermaster: false, lookout: false },
       used: { guide: false, scout: false, quartermaster: false, lookout: false },
       perksUsedThisLeg: { driver: false, cook: false },
-      leader: ctx.randomInt(n),
+      leader: 0, // picked as the reveal ends
       proposalNo: 1,
       plan: null,
       lastPlan: null,

@@ -210,6 +210,16 @@ describe("removal", () => {
     expect(g.getResult(s)!.headline).toBe("Everyone died on the trail");
   });
 
+  it("never hands the first plan to someone who left in the reveal", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      let s = start(4, {}, seed).state;
+      s = g.onPlayerRemoved!(s, "p0", ctx(1000)).state;
+      s = toPlan(s);
+      expect(leaderId(s)).not.toBe("p0");
+      expect(g.getAwaitedPlayerIds(s)).toEqual([leaderId(s)]);
+    }
+  });
+
   it("ends the game early below two players", () => {
     let s = toPlan(start(3).state);
     s = g.onPlayerRemoved!(s, "p0", ctx(s.deadline - 1000)).state;
@@ -238,6 +248,23 @@ describe("the clock alone", () => {
     while (s.phase !== "over" && rings < max) {
       s = ring(s).state;
       rings++;
+    }
+    expect(s.phase).toBe("over");
+    expect(g.getResult(s)).not.toBeNull();
+  });
+});
+
+describe("host Skip alone", () => {
+  it.each(["short", "normal", "epic"] as Length[])("ends a %s game", (length) => {
+    let s = start(3, { length }).state;
+    const deadline = packFor(DEFAULT_SETTINGS.setting).routes[length].deadline;
+    const max = (deadline + 1) * 6 + 3;
+    let steps = 0;
+    while (s.phase !== "over" && steps < max) {
+      const awaited = g.getAwaitedPlayerIds(s);
+      if (awaited.length === 0) s = ring(s).state;
+      for (const id of awaited) s = g.skipTurn!(s, id, ctx(s.deadline - 1000)).state;
+      steps++;
     }
     expect(s.phase).toBe("over");
     expect(g.getResult(s)).not.toBeNull();
