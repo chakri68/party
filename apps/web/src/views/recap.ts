@@ -48,7 +48,8 @@ function shareButton(text: string): HTMLElement {
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
   const label = canShare ? "Share" : "Copy recap";
-  const btn = h("button", { type: "button", class: "primary" }, label);
+  // Plain, not primary: the slot below holds the next step, which matters more.
+  const btn = h("button", { type: "button" }, label);
   btn.addEventListener("click", async () => {
     try {
       if (canShare) await nav.share!({ text });
