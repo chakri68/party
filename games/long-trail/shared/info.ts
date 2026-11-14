@@ -53,7 +53,7 @@ export function jobInfo(job: JobId, c: Caravan, pack: SettingPack, route: RouteD
     }
     case "healer": {
       const pace = effectivePace(c, pack, state.plan);
-      const legKind = c.leg?.kind ?? (state.plan.rest ? undefined : forward(route, c.at)?.kind);
+      const legKind = c.leg?.kind ?? (state.plan.rest ? undefined : (stopById(route, c.at).next.find((l) => l.to === state.plan.fork) ?? forward(route, c.at))?.kind);
       const shortFood = foodPer(state.plan.rations) > c.stock.food;
       const shortWater = waterPer(legKind) > c.stock.water;
       const worsenChance: Record<string, number> = {};

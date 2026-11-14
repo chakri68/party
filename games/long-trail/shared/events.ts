@@ -15,6 +15,7 @@ export interface EffectReport {
   healthChanges: DayReport["healthChanges"];
   stock: Partial<Record<Supply | "coins", number>>; // what actually changed, after clamping
   km: number; // what actually changed on the leg, negative = lost
+  scoutSaved: boolean; // the Scout flag zeroed some lost km
 }
 export interface Armed {
   guide: boolean;
@@ -89,7 +90,7 @@ export function hasLostTime(effect: Effect): boolean {
  * `scout` zeroes the km on every lostTime effect it applies.
  */
 export function applyEffect(c: Caravan, effect: Effect, travellers: string[], randomInt: RandomInt, opts: { scout?: boolean } = {}): EffectReport {
-  const report: EffectReport = { text: [], healthChanges: [], stock: {}, km: 0 };
+  const report: EffectReport = { text: [], healthChanges: [], stock: {}, km: 0, scoutSaved: false };
   const run = (e: Effect) => {
     for (const [item, delta] of Object.entries(e.stock ?? {}) as [Supply | "coins", number][]) {
       const before = c.stock[item];
@@ -130,7 +131,8 @@ export function applyEffect(c: Caravan, effect: Effect, travellers: string[], ra
         if (to !== from) report.healthChanges.push({ playerId: id, from, to });
       }
     }
-    if (e.km && c.leg && !(opts.scout && e.lostTime)) {
+    if (e.km && c.leg && opts.scout && e.lostTime && e.km < 0) report.scoutSaved = true;
+    else if (e.km && c.leg) {
       const before = c.kmLeft;
       c.kmLeft = e.km < 0 ? Math.min(c.leg.km, before - e.km) : Math.max(Math.min(before, 1), before - e.km);
       const real = before - c.kmLeft; // positive = gained
@@ -190,8 +192,9 @@ export function resolveEvent(
   }
   if (isChoice(card)) return { card, fired, pendingChoice: card, report: null };
   const scout = canUse("scout", armed, used, alive) && hasLostTime(card.effect);
-  if (scout) spend("scout", armed, used, fired);
-  return { card, fired, pendingChoice: null, report: applyEffect(c, card.effect, travellers, randomInt, { scout }) };
+  const report = applyEffect(c, card.effect, travellers, randomInt, { scout });
+  if (report.scoutSaved) spend("scout", armed, used, fired);
+  return { card, fired, pendingChoice: null, report };
 }
 
 /** Applies the chosen option of a choice event, with the Scout's save if it is armed and applies. */
@@ -208,6 +211,7 @@ export function resolveChoice(
   const fired: ArmableJob[] = [];
   const effect = card.options[option].effect;
   const scout = canUse("scout", armed, used, alive) && hasLostTime(effect);
-  if (scout) spend("scout", armed, used, fired);
-  return { fired, report: applyEffect(c, effect, travellers, randomInt, { scout }) };
+  const report = applyEffect(c, effect, travellers, randomInt, { scout });
+  if (report.scoutSaved) spend("scout", armed, used, fired);
+  return { fired, report };
 }

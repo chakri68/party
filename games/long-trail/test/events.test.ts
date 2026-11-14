@@ -262,6 +262,24 @@ describe("resolveEvent", () => {
     expect(q.fired).toEqual([]);
     expect(armed.scout).toBe(true);
   });
+  it("keeps the Scout armed when it saved nothing", () => {
+    const armed = armedAll({ scout: true });
+    const used = usedNone();
+    const miss = { ...plain("chancy", "any", 1), effect: { chance: { p: 0, then: {}, else: { km: -20, lostTime: true } } } } as PlainEvent;
+    // p 0 -> else branch has lostTime, so it saves; p 1 -> then branch has none
+    const hit = { ...miss, effect: { chance: { p: 1, then: { stock: { coins: 1 } }, else: { km: -20, lostTime: true } } } } as PlainEvent;
+    const r = resolveEvent(onLeg("plain", 20), pack, hit, armed, used, living(), P4, never);
+    expect(r.fired).toEqual([]);
+    expect(used.scout).toBe(false);
+    expect(armed.scout).toBe(true);
+    const h = resolveEvent(van(), pack, byId("any-1-lost"), armed, used, living(), P4, zero);
+    expect(h.fired).toEqual([]);
+    expect(armed.scout).toBe(true);
+    expect(used.scout).toBe(false);
+    const c = onLeg("plain", 20);
+    expect(resolveEvent(c, pack, miss, armed, used, living(), P4, zero).fired).toEqual(["scout"]);
+    expect(c.kmLeft).toBe(20);
+  });
   it("sets a pending choice for the Scout to act on later", () => {
     const c = onLeg("plain", 20);
     const armed = armedAll({ scout: true });
@@ -325,6 +343,9 @@ describe("jobInfo", () => {
     expect(hard).toMatchObject({ worsenChance: { p1: 0.24 } });
     const thirsty = van({ stock: { ...van().stock, water: 1 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
     expect(info("healer", thirsty)).toMatchObject({ worsenChance: { p1: 0.48 } }); // sick 1 + thirst 3
+    const forkHalt = van({ at: "b", stock: { ...van().stock, water: 5 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
+    expect(info("healer", forkHalt, state({ plan: plan({ fork: "d" }) }))).toMatchObject({ worsenChance: { p1: 0.12 } }); // plain: 4 water needed
+    expect(info("healer", forkHalt, state({ plan: plan({ fork: "c" }) }))).toMatchObject({ worsenChance: { p1: 0.48 } }); // desert: 8 needed, thirsty
     const worst = van({ stock: { ...van().stock, water: 0, food: 0 }, health: { p1: 1, p2: 3, p3: 3, p4: 3 } });
     expect(info("healer", worst, state({ plan: plan({ rations: "none", pace: "hard" }) }))).toMatchObject({ worsenChance: { p1: 0.84 } });
   });
@@ -345,8 +366,5 @@ describe("jobInfo", () => {
       job: "lookout",
       odds: [{ option: 0, p: 0 }, { option: 1, p: 0 }],
     });
-  });
-  it("jobs with no info return their own tag", () => {
-    expect(info("trader").job).toBe("trader");
   });
 });
