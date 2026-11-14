@@ -1,4 +1,4 @@
-# Long Road (game id `long-road`, working title)
+# Long Trail (game id `long-trail`)
 
 A trail game for the room: one shared caravan, a long route, not enough food, and a table that has to agree on every risky call. Genre: wagon-trail survival, in the tradition of the 1970s classic, but with our own name, settings, events, text and numbers. Nothing from that game carries over: no name, no 1840s American west, no hunting minigame, no famous death lines, no tombstones.
 
@@ -9,7 +9,7 @@ Trail games are solo. One person makes every call and everyone else watches. Thi
 ## Goals, non-goals, anti-goals
 
 **Goals**
-- 3–8 players, 15–30 minutes, phones only, on the normal room runtime (turn-based, no streams, no Godot).
+- 3–8 players, 15–45 minutes, phones only, on the normal room runtime (turn-based, no streams, no Godot).
 - Every player has a say every day (the vote), and something only they know (job info, secret goal).
 - Settings as a lobby option. Each setting is a data pack plus one signature rule. Ship **Trade Route** first; **Monsoon** and **Space Convoy** follow as packs once the core plays well.
 
@@ -112,6 +112,20 @@ Points per player:
 
 The results headline names the grade ("Arrived rich, day 19").
 
+### Journey recap
+
+When the game ends, before the shell's results screen, everyone sees the same **recap** of the trip. It's the moment the table looks back and argues about it, so it's built to be read out and screenshotted:
+
+- **The route:** the stops in order, the forks taken, and the day the caravan reached each one, as one line.
+- **Who made it:** every traveller with their fate ("Ravi, died day 14, on the high pass").
+- **The big calls:** the 3 closest votes and how each turned out ("Ford the river: 4–3 Go. Lost 6 food.").
+- **The worst day:** the day with the biggest losses.
+- **Jobs and goals revealed:** each player's job and goal, met or missed.
+- **The haul:** final wealth, the grade, and what the cargo sold for.
+- **One dry line** for the ending, picked from the pack by outcome and grade ("Rich, late, and two short. A normal trip."). Our own text.
+
+Everyone taps **Done** (or 20 s) to go to the results screen. The recap lives in public state from the `over` phase on, built from a day log the server keeps through the game (plans, votes, events, health changes, trades).
+
 Arrived: winners are the players with the top score. Failed: nobody wins, the headline says how it ended, and standings still show each goal as met or missed so people can argue about whose fault it was.
 
 ## Trade Route (v1 setting)
@@ -130,6 +144,9 @@ Arrived: winners are the players with the top score. Failed: nobody wins, the he
 |---|---|---|---|
 | Short | 5 | day 12 | 15 min |
 | **Normal** | 8 | day 20 | 25 min |
+| Epic | 12 | day 32 | 45 min |
+
+Epic adds a third fork and more of every leg kind. It's not just a longer Normal: the deadline is tighter for its distance, so the table has to push pace at some point. Goals with day numbers ("arrive before day 18") scale with the length, so the pack writes them as a share of the deadline.
 
 ## Later settings (not v1)
 
@@ -141,12 +158,12 @@ Same core. Each is a pack: names, stock labels, legs, event deck, jobs (relabell
 
 Same package shape as every game (`games/heist` is the reference):
 
-- `games/long-road/shared`: manifest, types, rules (pure functions: plan validation, travel resolution, event resolution, scoring), `rules-text.ts`, setting fields.
-- `games/long-road/server`: the `GameDefinition`.
-- `games/long-road/client`: view and styles, on the shell's Ink & Lime theme.
-- `games/long-road/packs/trade-route.ts`: the setting as data plus its twist hook.
+- `games/long-trail/shared`: manifest, types, rules (pure functions: plan validation, travel resolution, event resolution, scoring), `rules-text.ts`, setting fields.
+- `games/long-trail/server`: the `GameDefinition`.
+- `games/long-trail/client`: view and styles, on the shell's Ink & Lime theme.
+- `games/long-trail/packs/trade-route.ts`: the setting as data plus its twist hook.
 - Registration in `apps/server/src/games.ts` and `apps/web/src/games.ts`. Lobby section: **Strategy**, next to Dominion.
-- Docs: `docs/games/long-road.md` in the usual sections, a row in `docs/games/README.md` and the README list.
+- Docs: `docs/games/long-trail.md` in the usual sections, a row in `docs/games/README.md` and the README list.
 
 **Pack shape (sketch):**
 
@@ -165,7 +182,7 @@ interface SettingPack {
 
 The core never names a setting. Everything setting-specific goes through the pack.
 
-**Phases:** `reveal` → (`plan` → `vote` → [`plan` → `vote`] → `travel-event` → [`choice`] → `summary`) per day → `over`.
+**Phases:** `reveal` → (`plan` → `vote` → [`plan` → `vote`] → `travel-event` → [`choice`] → `summary`) per day → `over` (recap, then results).
 
 **Hidden information:** job info and goals live only in `getPrivateState`. Goal cards that name another player are dealt so they never name yourself. All goals and jobs are revealed on the results screen.
 
@@ -179,7 +196,7 @@ The core never names a setting. Everything setting-specific goes through the pac
 
 **Copy:** on-site text in short plain sentences, basic words, no idioms.
 
-**Tests:** plan validation (forks, markets, capacity), travel maths per pace and ration, health steps, both-proposals-fail stays the course, choice-vote ties, goal checks, scoring, secrecy (no job info or goals in public state or other players' private state), removal edge cases, and a seeded full game that arrives and one that fails.
+**Tests:** plan validation (forks, markets, capacity), travel maths per pace and ration, health steps, both-proposals-fail stays the course, choice-vote ties, goal checks, scoring, secrecy (no job info or goals in public state or other players' private state), removal edge cases, a seeded full game that arrives and one that fails, and recap building from the day log (closest votes, worst day, fates).
 
 ## Left to the builder
 
