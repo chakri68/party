@@ -169,4 +169,14 @@ describe("party log and End party", () => {
     await playOne(ps[1]!);
     expect(stored().party!.games).toHaveLength(1);
   });
+
+  it("drops seats that left during the game when the party ends", async () => {
+    await seat("Ana", "Ben", "Cy");
+    await send(room, ps[0]!, { type: "start-game" });
+    await send(room, ps[2]!, { type: "leave" });
+    await act(room, ps[1]!, "win");
+    expect(roomOf(ps[0]!).seats.map((s) => s.presence)).toContain("left");
+    await send(room, ps[0]!, { type: "end-party" });
+    expect(roomOf(ps[0]!).seats.map((s) => s.name)).toEqual(["Ana", "Ben"]);
+  });
 });
