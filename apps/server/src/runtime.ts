@@ -592,6 +592,9 @@ export class RoomRuntime {
         party.endedAt = this.host.now();
         data.phase = "ended";
         data.game = null;
+        // As "Back to lobby" does: seats only kept so the game could name them go now.
+        data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
+        this.ensureHost();
         for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
         this.resetReady();
         this.setAwaiting([]);

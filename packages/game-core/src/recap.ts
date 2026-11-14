@@ -81,9 +81,15 @@ const RULES: AwardRule[] = [
     title: "Biggest liar",
     min: 3,
     score: (id, c) => c.stat(id, c.liarByUncaught ? "liesUncaught" : "liesTold"),
-    line: ([id], c) => {
-      const away = c.stat(id!, "liesUncaught");
-      return `Told ${c.stat(id!, "liesTold")} lies.${away ? ` Got away with ${away}.` : ""}`;
+    line: (who, c) => {
+      // A tie only shares the number it was ranked on; say just that.
+      if (who.length > 1) {
+        return c.liarByUncaught
+          ? `Each told ${c.stat(who[0]!, "liesUncaught")} lies nobody caught.`
+          : `Each told ${c.stat(who[0]!, "liesTold")} lies.`;
+      }
+      const uncaught = c.stat(who[0]!, "liesUncaught");
+      return `Told ${c.stat(who[0]!, "liesTold")} lies.${uncaught ? ` ${uncaught} were never caught.` : ""}`;
     },
   },
   { id: "eye", title: "Sharpest eye", min: 2, score: (id, c) => c.stat(id, "rightCalls"), line: ([id], c) => `Called ${c.stat(id!, "rightCalls")} bluffs right.` },
@@ -140,10 +146,12 @@ export function buildRecap(log: PartyLog, now: number): Recap | null {
     let pick = top;
     // Spread the night around: if the leaders all have an award already,
     // someone without one who's right behind gets this one.
+    // A crowd tied right behind can't share it, so then it stays with the leaders.
     if (scored.filter((s) => s.score === top).every((s) => awarded.has(s.id))) {
       const fresh = scored.filter((s) => !awarded.has(s.id));
       const best = fresh.length ? Math.max(...fresh.map((s) => s.score)) : -Infinity;
-      if (best >= top - 1) pick = best;
+      const crowd = fresh.filter((s) => s.score === best).length;
+      if (best >= top - 1 && crowd <= MAX_TIED) pick = best;
     }
     const winners = scored
       .filter((s) => s.score === pick && (pick === top || !awarded.has(s.id)))

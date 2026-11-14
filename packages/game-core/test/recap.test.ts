@@ -73,12 +73,12 @@ describe("buildRecap", () => {
 
   it("ranks the liar by lies nobody caught", () => {
     const r = buildRecap(statsOnly({ a: { liesTold: 9, liesUncaught: 3 }, b: { liesTold: 12, liesUncaught: 1 } }), 0)!;
-    expect(r.awards[0]).toEqual({ id: "liar", title: "Biggest liar", who: ["Asha"], line: "Told 9 lies. Got away with 3." });
+    expect(r.awards[0]).toEqual({ id: "liar", title: "Biggest liar", who: ["Asha"], line: "Told 9 lies. 3 were never caught." });
   });
 
   it("falls back to lies told when nobody got away with 3", () => {
     const r = buildRecap(statsOnly({ a: { liesTold: 3 }, b: { liesTold: 4, liesUncaught: 2 } }), 0)!;
-    expect(r.awards[0]).toEqual({ id: "liar", title: "Biggest liar", who: ["Bilal"], line: "Told 4 lies. Got away with 2." });
+    expect(r.awards[0]).toEqual({ id: "liar", title: "Biggest liar", who: ["Bilal"], line: "Told 4 lies. 2 were never caught." });
     expect(buildRecap(statsOnly({ a: { liesTold: 3 } }), 0)!.awards[0]!.line).toBe("Told 3 lies.");
   });
 
@@ -124,5 +124,24 @@ describe("buildRecap", () => {
     const l = log([game({ stats: { z: { rightCalls: 2 } }, players: ["z"] })]);
     l.names.z = "Zoya";
     expect(buildRecap(l, 0)!.awards[0]!.who).toEqual(["Zoya"]);
+  });
+
+  it("keeps it with the leader when too many tie right behind", () => {
+    const r = buildRecap(
+      log([
+        game({ winnerIds: ["a"] }),
+        game({ winnerIds: ["a"] }),
+        game({ stats: { a: { rightCalls: 5 }, b: { rightCalls: 4 }, c: { rightCalls: 4 }, d: { rightCalls: 4 }, e: { rightCalls: 4 } } }),
+      ]),
+      0,
+    )!;
+    expect(r.awards[1]).toMatchObject({ id: "eye", who: ["Asha"] });
+  });
+
+  it("gives a tied liar card only the number they share", () => {
+    const byUncaught = buildRecap(statsOnly({ a: { liesTold: 9, liesUncaught: 3 }, b: { liesTold: 4, liesUncaught: 3 } }), 0)!;
+    expect(byUncaught.awards[0]).toMatchObject({ who: ["Asha", "Bilal"], line: "Each told 3 lies nobody caught." });
+    const byTold = buildRecap(statsOnly({ a: { liesTold: 4, liesUncaught: 1 }, b: { liesTold: 4 } }), 0)!;
+    expect(byTold.awards[0]).toMatchObject({ who: ["Asha", "Bilal"], line: "Each told 4 lies." });
   });
 });
