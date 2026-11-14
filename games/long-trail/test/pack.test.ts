@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { N, packFor, pathsOf, stopById, type Goal, type Length, type LegKind } from "../shared/index.ts";
+import type { Effect } from "../shared/index.ts";
 import { tradeRoute } from "../shared/packs/trade-route.ts";
 
 const LENGTHS: Length[] = ["short", "normal", "epic"];
@@ -53,6 +54,11 @@ describe("trade route pack", () => {
         expect(stopById(r, r.end).market).toBeDefined();
       });
 
+      it("reaches every stop from the start", () => {
+        const seen = new Set(paths.flat());
+        expect([...seen].sort()).toEqual(r.stops.map((s) => s.id).sort());
+      });
+
       it("keeps goal stops on the map", () => {
         for (const g of tradeRoute.goals) if (typeof g.goal !== "string" && g.goal.kind === "visit") stopById(r, g.goal.stop);
       });
@@ -71,6 +77,24 @@ describe("trade route pack", () => {
     for (const k of KINDS)
       for (const s of [0, 1, 2])
         expect(ev.filter((e) => (e.kind === k || e.kind === "any") && e.severity === s).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps choices and effects honest", () => {
+    const walk = (e: Effect, f: (e: Effect) => void) => {
+      f(e);
+      if (e.chance) {
+        walk(e.chance.then, f);
+        if (e.chance.else) walk(e.chance.else, f);
+      }
+    };
+    for (const ev of tradeRoute.events) {
+      const effects = "options" in ev ? ev.options.map((o) => o.effect) : [ev.effect];
+      if ("options" in ev) expect(ev.options[0].effect.chance, ev.id).toBeUndefined();
+      for (const e of effects)
+        walk(e, (x) => {
+          if (x.km !== undefined && x.km < 0) expect(x.lostTime, ev.id).toBe(true);
+        });
+    }
   });
 
   it("has goals of every kind", () => {

@@ -92,14 +92,14 @@ const ch = (
 const events: EventCard[] = [
   // Any, calm
   ev("any-0-spring", "any", 0, "A small spring runs beside the path. Everyone drinks and fills the skins.", { stock: { water: 2 } }),
-  ev("any-0-farmer", "any", 0, "A farmer sells you fresh bread for almost nothing.", { stock: { food: 3 } }),
+  ev("any-0-farmer", "any", 0, "A farmer sells you fresh bread for 2 coins.", { stock: { food: 3, coins: -2 } }),
   ev("any-0-letter", "any", 0, "A rider pays you coins to carry a letter. It is not a long letter.", { stock: { coins: 8 } }),
   ev("any-0-quiet", "any", 0, "A quiet day. Nothing happens. Nobody trusts it.", {}),
   ch(
     "any-0-guide",
     "any",
     0,
-    "A boy offers to lead you on a short path. He wants 6 coins first.",
+    "A boy says he knows a place with food and water. He wants 6 coins first.",
     ["Walk on by yourselves", {}],
     ["Pay him and follow", { stock: { coins: -6 }, chance: { p: 0.6, then: { stock: { food: 2, water: 2 } }, else: { km: -20, lostTime: true } } }],
   ),
@@ -109,7 +109,7 @@ const events: EventCard[] = [
     0,
     "A good camp site, and the sun is still high. Camp now, or use the light?",
     ["Use the light", {}],
-    ["Camp now", { km: -10, lostTime: true, stock: { food: 1 } }],
+    ["Camp now", { km: -10, lostTime: true }],
   ),
   // Any, rough
   ev("any-1-wind", "any", 1, "Hot wind all day. The water skins dry out faster than you expect.", { stock: { water: -2 } }),
@@ -140,9 +140,9 @@ const events: EventCard[] = [
     "any-2-toll",
     "any",
     2,
-    "Armed men block the path and ask for a toll of 25 coins. You could try to go round them.",
+    "Armed men block the path and ask for a toll of 25 coins. You could try to avoid them.",
     ["Pay the toll", { stock: { coins: -25 } }],
-    ["Go round them", { km: -30, lostTime: true, chance: { p: 0.5, then: {}, else: { cargo: -3, health: { target: "random", steps: 1 } } } }],
+    ["Avoid them", { km: -30, lostTime: true, chance: { p: 0.5, then: {}, else: { cargo: -3, health: { target: "random", steps: 1 } } } }],
   ),
   ch(
     "any-2-lost-camel",
@@ -164,15 +164,15 @@ const events: EventCard[] = [
     "desert-1-dunes",
     "desert",
     1,
-    "A wall of high dunes lies ahead. Go round for a day, or cross it?",
-    ["Go round", { km: -20, lostTime: true }],
+    "A wall of high dunes lies ahead. Walk around them for a day, or cross them?",
+    ["Walk around", { km: -20, lostTime: true }],
     ["Cross it", { chance: { p: 0.5, then: {}, else: { stock: { animals: -1 }, km: -10, lostTime: true } } }],
   ),
   ch(
     "desert-2-mirage",
     "desert",
     2,
-    "Something shines far off. It could be a pond. It could be a trick of the heat.",
+    "Something shines far off. It could be a pond. It could be nothing.",
     ["Stay on the path", { stock: { water: -2 } }],
     ["Walk to it", { km: -20, lostTime: true, chance: { p: 0.4, then: { stock: { water: 6 } }, else: { stock: { water: -4 } } } }],
   ),
@@ -185,6 +185,8 @@ const events: EventCard[] = [
     ["Keep walking", {}],
     ["Camp and rest", { km: -15, lostTime: true, stock: { water: 3 } }],
   ),
+
+  // Mountain
   ch(
     "mountain-0-hut",
     "mountain",
@@ -193,25 +195,7 @@ const events: EventCard[] = [
     ["Walk on", {}],
     ["Eat with him", { stock: { coins: -5, food: 3 } }],
   ),
-  ch(
-    "river-0-fish",
-    "river",
-    0,
-    "Fishermen on the bank sell their catch. They also offer to show you a shorter ford.",
-    ["Buy only fish", { stock: { coins: -4, food: 3 } }],
-    ["Follow them", { chance: { p: 0.7, then: { stock: { food: 2 } }, else: { km: -15, lostTime: true } } }],
-  ),
-  ch(
-    "plain-0-fair",
-    "plain",
-    0,
-    "A village fair is on. You can stop to trade, or pass quickly.",
-    ["Pass quickly", {}],
-    ["Stop and trade", { km: -10, lostTime: true, chance: { p: 0.6, then: { stock: { coins: 15 } }, else: { stock: { coins: -8 } } } }],
-  ),
-
-  // Mountain
-  ev("mountain-0-view", "mountain", 0, "The air is clear and the view is wide. Everyone feels better for it.", {}),
+  ev("mountain-0-view", "mountain", 0, "The air is clear and the view is wide. Everyone feels good.", {}),
   ev("mountain-0-shepherd", "mountain", 0, "A shepherd gives you cheese. In return, you listen to a very long story.", { stock: { food: 2 } }),
   ev("mountain-1-rockfall", "mountain", 1, "Rocks have fallen across the path. It takes half a day to clear.", { km: -20, lostTime: true }),
   ev("mountain-1-cold", "mountain", 1, "A freezing night. Nobody sleeps. The camels eat more to keep warm.", { stock: { food: -2 }, health: { target: "random", steps: 1 } }),
@@ -229,12 +213,20 @@ const events: EventCard[] = [
     "mountain-2-bridge",
     "mountain",
     2,
-    "An old rope bridge. It looks weak. The long way round takes two days.",
+    "An old rope bridge. It looks weak. The long way around takes two days.",
     ["Take the long way", { km: -40, lostTime: true, stock: { food: -2 } }],
     ["Use the bridge", { chance: { p: 0.6, then: {}, else: { cargo: -3, stock: { animals: -1 } } } }],
   ),
 
   // River
+  ch(
+    "river-0-fish",
+    "river",
+    0,
+    "Fishermen on the bank sell their catch. They invite you to eat at their camp, but it is a long walk.",
+    ["Buy only fish", { stock: { coins: -4, food: 3 } }],
+    ["Go to their camp", { chance: { p: 0.7, then: { stock: { food: 2 } }, else: { km: -15, lostTime: true } } }],
+  ),
   ev("river-0-shallow", "river", 0, "The river is low and clear. You cross without any trouble.", {}),
   ev("river-0-fresh", "river", 0, "Cold, clean water. Every skin is filled to the top.", { stock: { water: 3 } }),
   ev("river-1-high", "river", 1, "The river is high. You cross slowly and some of the food gets wet.", { stock: { food: -2 } }),
@@ -259,8 +251,16 @@ const events: EventCard[] = [
   ),
 
   // Plain
+  ch(
+    "plain-0-fair",
+    "plain",
+    0,
+    "A village fair is on. You can stop to trade, or pass quickly.",
+    ["Pass quickly", {}],
+    ["Stop and trade", { km: -10, lostTime: true, chance: { p: 0.6, then: { stock: { coins: 15 } }, else: { stock: { coins: -8 } } } }],
+  ),
   ev("plain-0-grass", "plain", 0, "Green grass by the path. The camels eat well and walk faster.", {}),
-  ev("plain-0-fire", "plain", 0, "Other travellers share their fire. They sell you a little food and a lot of news.", { stock: { food: 2 } }),
+  ev("plain-0-fire", "plain", 0, "Other travellers share their fire. They sell you a little food for 2 coins and tell you the news.", { stock: { food: 2, coins: -2 } }),
   ev("plain-1-flies", "plain", 1, "Biting flies all night. Nobody sleeps. Everyone is angry in the morning.", { health: { target: "random", steps: 1 } }),
   ev("plain-1-wrong", "plain", 1, "The path forks and the signs are gone. You pick one. It was wrong.", { km: -20, lostTime: true }),
   ev("plain-2-raiders", "plain", 2, "Horsemen come out of the grass. They take goods and coins before they ride away.", { cargo: -3, stock: { coins: -15 } }),
@@ -288,8 +288,8 @@ const goals: GoalCard[] = [
   { id: "coins-100", text: "Arrive with at least 100 coins.", goal: { kind: "coins", atLeast: 100 } },
   { id: "protect", text: "Make sure this traveller reaches the end alive.", goal: "protect-someone" },
   { id: "protect-2", text: "Keep this traveller safe. Their cousin owes you money.", goal: "protect-someone" },
-  { id: "early-90", text: "Arrive early. Use no more than nine tenths of the days.", goal: { kind: "arrive-by", share: 0.9 } },
-  { id: "early-80", text: "Arrive early. Use no more than four fifths of the days.", goal: { kind: "arrive-by", share: 0.8 } },
+  { id: "early-90", text: "Arrive with a few days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.9 } },
+  { id: "early-80", text: "Arrive with many days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.8 } },
   { id: "visit-saltmere", text: "Visit Saltmere. You like their salt.", goal: { kind: "visit", stop: "saltmere" } },
   { id: "visit-vessa", text: "Visit Vessa Pass. You left something there once.", goal: { kind: "visit", stop: "vessa-pass" } },
   { id: "cargo-silk", text: "Arrive with at least 3 bolts of silk.", goal: { kind: "cargo", good: "silk", atLeast: 3 } },
@@ -368,30 +368,30 @@ export const tradeRoute: SettingPack = {
   endLines: {
     arrived: {
       broke: [
-        "You arrived. You also owe someone. Mostly the first part.",
-        "Everyone is alive and nobody is richer. A fine walk.",
-        "The goods sold for less than the water cost. Still, it was a trip.",
+        "You arrived. The money did not come with you.",
+        "A long walk, and nothing to show for it. At least it is over.",
+        "The goods sold for less than the trip cost. Still, you arrived.",
       ],
       fair: [
         "A fair profit. Your families will say it was fine.",
-        "Not rich, not broke. The camels are proud.",
+        "Not rich, not broke. A fair trip.",
         "You made money. You will tell people you made more.",
       ],
       rich: [
-        "Rich, late, and two short. A normal trip.",
+        "Rich. Somewhere, a rival trader is annoyed.",
         "Good money. The route is hard, but you were harder.",
-        "A rich caravan. Someone will say it was easy.",
+        "A rich caravan. Someone at home will say it was easy.",
       ],
       legendary: [
-        "Legendary. Every trader in Mirren Gate wants to buy you a drink.",
+        "Legendary. Every trader in Mirren Gate wants to meet you.",
         "They will sing about this one. Badly, but they will.",
-        "So much money that the camels were counting it.",
+        "So much money that nobody wants to count it twice.",
       ],
     },
     failed: [
-      "The season ended. The road is still there.",
-      "Nobody made it. The camels, at least, found a quiet field.",
-      "The goods will wait. The market has moved on.",
+      "The caravan did not arrive. The road is still there.",
+      "The season ended first. The road does not mind.",
+      "The goods will wait. The buyers will not.",
     ],
   },
 };
