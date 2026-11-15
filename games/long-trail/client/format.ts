@@ -91,6 +91,8 @@ export function planLines(plan: Plan, pack: SettingPack, route: RouteDef, names:
   return out;
 }
 
+const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
+
 /** What the job sees, in short sentences. */
 export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, names: Names, choiceLabels: string[] = []): string[] {
   const stop = (id: string) => stopById(route, id).name;
@@ -118,7 +120,7 @@ export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, nam
       return [`Next market: ${stop(info.nextMarket.stop)}.`, `${prices(info.nextMarket)}.`];
     }
     case "quartermaster":
-      return [`Food for ${info.foodDays} days. Water for ${info.waterDays} days.`];
+      return [`Food for ${days(info.foodDays)}. Water for ${days(info.waterDays)}.`];
     case "scout": {
       if (!info.nextFork) return ["No more forks ahead."];
       const ways = Object.entries(info.nextFork.km).map(([to, km]) => `by ${stop(to)} ${km} km`);
@@ -127,7 +129,7 @@ export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, nam
     case "driver":
       return [`${pack.labels.animals} are tired: ${info.fatigue} of ${info.max}. At ${info.max}, the next hard pace day kills one of the ${pack.labels.animals.toLowerCase()}.`];
     case "cook":
-      return [`Food lasts ${info.foodDays.full} days on full rations, or ${info.foodDays.half} days on half rations.`];
+      return [`Food lasts ${days(info.foodDays.full)} on full rations, or ${days(info.foodDays.half)} on half rations.`];
     case "lookout":
       if (!info.odds) return ["No choice to look at now."];
       return info.odds.map((o) => {
