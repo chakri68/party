@@ -16,7 +16,7 @@ const MARKETS = {
   lorn: mk([19, 23], [19, 23], [16, 19], { food: 1, water: 1, medicine: 8, animals: 23 }),
   gorrow: mk([12, 18], [18, 26], [9, 14], { food: 1, water: 1, medicine: 10 }),
   yarrin: mk([10, 18], [10, 16], [16, 24], { food: 1, water: 1, medicine: 8, animals: 24 }),
-  quillon: mk([18, 30], [11, 18], [10, 16], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  quillon: mk([17, 26], [11, 18], [11, 16], { food: 1, water: 1, medicine: 8, animals: 22 }),
   mirren: mk([22, 30], [22, 30], [18, 26], { food: 1, water: 1, medicine: 10, animals: 26 }),
 };
 

@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are often not the same length. Which way is shorter, and by how much, changes from game to game. The length does not tell you which way is safe. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are often not the same length. Which way is shorter, and by how much, changes from game to game. About half the time, one way takes a day less. The length does not tell you which way is safe. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -90,7 +90,7 @@ Each town pays a different price for each good. Mirren Gate, at the end, pays we
 | Lorn | 19–23 | 19–23 | 16–19 | 8 | 23 | Epic |
 | Gorrow | 12–18 | 18–26 | 9–14 | 10 | – | Epic |
 | Yarrin | 10–18 | 10–16 | 16–24 | 8 | 24 | Normal, Epic |
-| Quillon | 18–30 | 11–18 | 10–16 | 8 | 22 | Short |
+| Quillon | 17–26 | 11–18 | 11–16 | 8 | 22 | Short |
 | Mirren Gate | 22–30 | 22–30 | 18–26 | 10 | 26 | All |
 
 Food and water cost 1 coin each at every market. You can sell goods, but not food, water, medicine or camels. Trades in one plan sell first, then buy, so a sale can pay for a buy.

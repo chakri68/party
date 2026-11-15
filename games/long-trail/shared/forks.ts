@@ -36,10 +36,13 @@ function reach(route: RouteDef, first: Leg): string[] {
 }
 
 /**
- * Each fork leg's km, as a part of the pack's longer way, rolled leg by leg: the same to 20%
- * shorter. Both ways roll from this same list, so a way's km never tell which way is safe.
+ * Each fork leg's km, taken off the pack's longer way's leg, rolled leg by leg (R25). A day ends at
+ * a stop and km don't carry over, so km only matter when they change the days a leg takes. 30 km
+ * is one Steady day, so a leg either keeps its km or takes one day less; about half the games, the
+ * two ways differ by a day. Smaller steps would only make legs easier without changing the days.
+ * Both ways roll from this same list, so a way's km never tell which way is safe.
  */
-const WAY_SCALE = [0.8, 0.9, 1.0] as const;
+const WAY_STEPS = [-30, 0, 0, 0] as const;
 
 /** Both ways out of a fork, each as its legs up to the stop where the ways meet. */
 function forkWays(route: RouteDef, fork: string): [{ from: string; leg: Leg }[], { from: string; leg: Leg }[]] {
@@ -63,10 +66,11 @@ export function safeWayLegs(route: RouteDef): Set<string> {
 
 /**
  * For each fork: a coin picks this game's safe way. Both ways start from the longer of the pack's
- * two km sets, and each leg is scaled by its own roll from WAY_SCALE (to the nearest 10 km), the
- * same for the safe way and the risky one. So either way can be the shorter one, and the km give
+ * two km sets, and each leg takes its own roll from WAY_STEPS (never under 10 km), the same for
+ * the safe way and the risky one. So either way can be the shorter one, and the km give
  * nothing away. No way is longer than the pack's longer way, so the safe path is never longer than
- * the pack's longest path and the deadlines stay as reachable as before. A way with a different number of legs scales its own km.
+ * the pack's longest path and the deadlines stay as reachable as before. A way with a different
+ * number of legs rolls off its own km.
  */
 export function rollForks(route: RouteDef, randomInt: RandomInt): ForkRolls {
   const out: ForkRolls = {};
@@ -81,8 +85,8 @@ export function rollForks(route: RouteDef, randomInt: RandomInt): ForkRolls {
       const same = w.length === long.length;
       w.forEach((x, j) => {
         const base = same ? long[j]! : x.leg.km;
-        const scale = WAY_SCALE[randomInt(WAY_SCALE.length)]!;
-        km[`${x.from}>${x.leg.to}`] = Math.max(10, Math.round((base * scale) / 10) * 10);
+        const step = WAY_STEPS[randomInt(WAY_STEPS.length)]!;
+        km[`${x.from}>${x.leg.to}`] = Math.max(10, base + step);
       });
     });
     out[stop.id] = { safe: stop.next[safeIdx]!.to, km };

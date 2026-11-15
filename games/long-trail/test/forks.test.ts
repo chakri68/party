@@ -31,6 +31,34 @@ function wayKm(route: RouteDef, from: string, to: string): number {
   return km;
 }
 
+/** Steady days from `from` along `to` to where the ways meet: a day ends at a stop, so a leg at a time. */
+function wayDays(route: RouteDef, from: string, to: string): number {
+  let days = Math.ceil(stopById(route, from).next.find((l) => l.to === to)!.km / N.kmPerDay.steady);
+  for (let at = to; stopById(route, at).next.length === 1; ) {
+    const leg = stopById(route, at).next[0]!;
+    days += Math.ceil(leg.km / N.kmPerDay.steady);
+    if (stopById(route, leg.to).next.length !== 1 || leg.to === route.end) break;
+    at = leg.to;
+  }
+  return days;
+}
+
+/** Share of games, per fork, where the two ways take a different number of Steady days. */
+export function dayDiffShares(length: Length, games = 400): Record<string, number> {
+  const base = pack.routes[length];
+  const out: Record<string, number> = {};
+  for (const fork of base.stops.filter((s) => s.next.length === 2)) {
+    let differ = 0;
+    for (let seed = 1; seed <= games; seed++) {
+      const route = withForks(base, rollForks(base, seededRandomInt(seed)));
+      const [a, b] = stopById(route, fork.id).next;
+      if (wayDays(route, fork.id, a!.to) !== wayDays(route, fork.id, b!.to)) differ++;
+    }
+    out[fork.id] = differ / games;
+  }
+  return out;
+}
+
 /** km of the whole trip on the safe way at every fork. */
 function safeKm(route: RouteDef): number {
   let km = 0;
@@ -102,14 +130,20 @@ describe("rollForks", () => {
         if (d > 0) seen.riskyLonger++;
       }
       expect(seen.safe.size, fork.id).toBe(2);
-      expect(seen.riskyShorter, fork.id).toBeGreaterThan(60);
-      expect(seen.riskyLonger, fork.id).toBeGreaterThan(40);
+      // Often the same km too: each leg is either the base or 30 km short of it.
+      expect(seen.riskyShorter, fork.id).toBeGreaterThan(30);
+      expect(seen.riskyLonger, fork.id).toBeGreaterThan(30);
       // Each leg out of the fork takes the same km whether it is safe or risky this game.
       for (const l of fork.next) {
         const key = `${fork.id}>${l.to}`;
         expect([...legKm.safe.get(key)!].sort(), key).toEqual([...legKm.risky.get(key)!].sort());
       }
     }
+  });
+
+  it.each(LENGTHS)("%s: at every fork the two ways often take a different number of days (R25)", (length) => {
+    // km only matter when they change the day count, so the Scout's info has to change it often.
+    for (const [fork, share] of Object.entries(dayDiffShares(length))) expect(share, `${length} ${fork}`).toBeGreaterThanOrEqual(0.3);
   });
 
   it("uses the fixture's legs too, without touching legs off the fork", () => {

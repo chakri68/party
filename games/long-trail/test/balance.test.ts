@@ -15,7 +15,7 @@ import type { Grade, Length, LongTrailServerState, Pace, Plan, Rations, Trade } 
 // LT_BALANCE_FULL=1 for 300 games a row.
 //
 // - sensible: steady; full rations while food covers this leg, else half; rest when someone is
-//   Badly hurt and the margin is 3+ days; dose the Badly hurt; choice option 0; arm everything on
+//   Badly hurt, the margin is 3+ days and there is food for a full day; dose the Badly hurt; choice option 0; arm everything on
 //   day 1. At a market: sell every good priced above its pack-wide range middle; buy food and water
 //   to reach the next market plus 2 days, selling more goods (dearest here first) if coins fall
 //   short; then buy the good with the best expected margin (the best range middle at any market
@@ -131,7 +131,9 @@ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
   const legDays = daysFor(c.leg ? c.kmLeft : leg.km);
 
   const margin = route.deadline - c.day + 1 - daysToEnd(s, route);
-  const rest = hurt.length > 0 && margin >= 3;
+  // Rest only on full rations: a half-rations rest heals nobody, and with no trades on a rest day
+  // the bot would sit at a market and starve.
+  const rest = hurt.length > 0 && margin >= 3 && c.stock.food >= living.length * N.foodPerTraveller.full;
   const healer = pub.players.some((p) => p.job === "healer" && living.some((t) => t.id === p.id));
   const doses = rest || healer ? hurt.slice(0, c.stock.medicine) : [];
 
@@ -202,7 +204,7 @@ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
       }
     }
   }
-  const rations: Rations = food >= living.length * N.foodPerTraveller.full * legDays ? "full" : "half";
+  const rations: Rations = food >= living.length * N.foodPerTraveller.full * (rest ? 1 : legDays) ? "full" : "half";
   return { pace: "steady", rations, rest, fork: open.fork, doses, trades };
 }
 
