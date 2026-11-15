@@ -8,16 +8,16 @@ const mk = (silk: [number, number], spice: [number, number], salt: [number, numb
 });
 
 const MARKETS = {
-  saltmere: mk([5, 7], [10, 18], [8, 11], { food: 1, water: 1, medicine: 8, animals: 22 }),
-  vessa: mk([6, 8], [9, 17], [9, 12], { food: 1, water: 1, medicine: 9 }),
-  kessel: mk([5, 7], [11, 18], [8, 12], { food: 2, water: 1, medicine: 9 }),
-  rook: mk([6, 8], [10, 16], [9, 13], { food: 2, water: 1 }),
-  lorn: mk([5, 7], [10, 17], [8, 12], { food: 1, water: 1, medicine: 8, animals: 23 }),
-  gorrow: mk([6, 8], [9, 16], [9, 12], { food: 1, water: 1, medicine: 10 }),
-  yarrin: mk([5, 7], [11, 18], [8, 11], { food: 1, water: 1, medicine: 8, animals: 24 }),
-  quillon: mk([6, 8], [10, 17], [9, 12], { food: 1, water: 1, medicine: 8, animals: 22 }),
-  telOrrin: mk([5, 7], [10, 18], [8, 12], { food: 1, water: 1, medicine: 9 }),
-  mirren: mk([36, 44], [20, 28], [12, 16], { food: 1, water: 1, medicine: 10, animals: 26 }),
+  telOrrin: mk([15, 18], [15, 18], [17, 22], { food: 1, water: 1, medicine: 9 }),
+  saltmere: mk([10, 18], [18, 28], [8, 13], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  vessa: mk([8, 14], [16, 24], [14, 20], { food: 1, water: 1, medicine: 9 }),
+  kessel: mk([18, 28], [9, 17], [9, 15], { food: 1, water: 1, medicine: 9 }),
+  rook: mk([16, 26], [8, 14], [16, 24], { food: 1, water: 1 }),
+  lorn: mk([19, 23], [19, 23], [16, 19], { food: 1, water: 1, medicine: 8, animals: 23 }),
+  gorrow: mk([12, 18], [18, 26], [9, 14], { food: 1, water: 1, medicine: 10 }),
+  yarrin: mk([10, 18], [10, 16], [16, 24], { food: 1, water: 1, medicine: 8, animals: 24 }),
+  quillon: mk([18, 30], [11, 18], [10, 16], { food: 1, water: 1, medicine: 8, animals: 22 }),
+  mirren: mk([22, 30], [22, 30], [18, 26], { food: 1, water: 1, medicine: 10, animals: 26 }),
 };
 
 const leg = (to: string, km: number, kind: LegKind, safe?: boolean): Leg => (safe === undefined ? { to, km, kind } : { to, km, kind, safe });
@@ -284,17 +284,17 @@ const events: EventCard[] = [
 ];
 
 const goals: GoalCard[] = [
-  { id: "coins-500", text: "Arrive with at least 500 coins.", goal: { kind: "coins", atLeast: 500 } },
-  { id: "coins-600", text: "Arrive with at least 600 coins.", goal: { kind: "coins", atLeast: 600 } },
+  { id: "coins-250", text: "Arrive with at least 250 coins.", goal: { kind: "coins", atLeast: 250 } },
+  { id: "coins-400", text: "Arrive with at least 400 coins.", goal: { kind: "coins", atLeast: 400 } },
   { id: "protect", text: "Make sure this traveller reaches the end alive.", goal: "protect-someone" },
   { id: "protect-2", text: "Keep this traveller safe. Their cousin owes you money.", goal: "protect-someone" },
   { id: "early-90", text: "Arrive with a few days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.9 } },
   { id: "early-80", text: "Arrive with many days to spare before the season ends.", goal: { kind: "arrive-by", share: 0.8 } },
   { id: "visit-saltmere", text: "Visit Saltmere. You like their salt.", goal: { kind: "visit", stop: "saltmere" } },
   { id: "visit-vessa", text: "Visit Vessa Pass. You left something there once.", goal: { kind: "visit", stop: "vessa-pass" } },
-  { id: "cargo-silk", text: "Arrive with at least 22 bolts of silk.", goal: { kind: "cargo", good: "silk", atLeast: 22 } },
-  { id: "cargo-spice", text: "Arrive with at least 4 sacks of spice.", goal: { kind: "cargo", good: "spice", atLeast: 4 } },
-  { id: "cargo-salt", text: "Arrive with at least 5 blocks of salt.", goal: { kind: "cargo", good: "salt", atLeast: 5 } },
+  { id: "cargo-silk", text: "Arrive with at least 10 bolts of silk.", goal: { kind: "cargo", good: "silk", atLeast: 10 } },
+  { id: "cargo-spice", text: "Arrive with at least 10 sacks of spice.", goal: { kind: "cargo", good: "spice", atLeast: 10 } },
+  { id: "cargo-salt", text: "Arrive with at least 10 blocks of salt.", goal: { kind: "cargo", good: "salt", atLeast: 10 } },
   { id: "never-starve", text: "Never let the caravan go a whole day with no food.", goal: { kind: "never-starve" } },
   { id: "nobody-dies", text: "Bring everyone to the end. Nobody dies.", goal: { kind: "nobody-dies" } },
   { id: "grade-rich", text: "Arrive rich, or better.", goal: { kind: "grade", atLeast: "rich" } },
@@ -357,14 +357,14 @@ export const tradeRoute: SettingPack = {
     food: 14 * players,
     water: 10 * players,
     medicine: 3,
-    coins: 800,
+    coins: 420,
     animals: 2 + Math.ceil(players / 2),
     cargo: { silk: 2, spice: 2, salt: 2 },
   }),
-  capacityPerAnimal: 5,
+  capacityPerAnimal: 6,
   events,
   goals,
-  grades: { broke: 0, fair: 985, rich: 1435, legendary: 2105 },
+  grades: { broke: 0, fair: 585, rich: 852, legendary: 1250 },
   endLines: {
     arrived: {
       broke: [
