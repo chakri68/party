@@ -151,7 +151,7 @@ In this fixed order:
 
 ### 4.6 Report (8 s, or tap Next)
 
-The client plays the round back: moves, dice, fire and the spider. Below that, 1–4 plain lines: "Ravi lit the forest. The fire spread to the bridge." Down players are named.
+The client plays the round back: moves, dice, fire and the spider. Below that, 1–4 plain lines: "Ravi started a fire. The fire spread." Down players are named.
 
 ### 4.7 Win and lose
 

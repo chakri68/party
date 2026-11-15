@@ -32,7 +32,7 @@ export function roundLines(steps: Step[], name: (id: string) => string): string[
   else {
     const lit = steps[litAt] as Extract<Step, { t: "lit" }>;
     const spread = steps.slice(litAt + 1).some((s) => s.t === "lit" && s.by === null);
-    out.push(`${name(lit.by!)} lit the forest.${spread ? " The fire spread." : ""}`);
+    out.push(`${name(lit.by!)} started a fire.${spread ? " The fire spread." : ""}`);
   }
 
   const bridge = steps.find((s) => (s.t === "burnt" && s.to === "broken") || (s.t === "bridge" && !s.fixed));

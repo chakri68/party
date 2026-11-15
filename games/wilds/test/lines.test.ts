@@ -14,8 +14,8 @@ describe("round lines", () => {
     expect(lines([{ t: "stone", who: "c", ruin: "cave", how: "force" }])).toEqual(["Arjun forced the Root Cave open. The sun moved on."]);
     expect(lines([{ t: "down", who: "a" }])).toEqual(["Ravi is down."]);
     expect(lines([{ t: "up", who: "a", by: "b" }])).toEqual(["Meera got Ravi back up."]);
-    expect(lines([{ t: "lit", tile: "0,0", by: "a" }])).toEqual(["Ravi lit the forest."]);
-    expect(lines([{ t: "lit", tile: "0,0", by: "a" }, { t: "lit", tile: "1,0", by: null }])).toEqual(["Ravi lit the forest. The fire spread."]);
+    expect(lines([{ t: "lit", tile: "0,0", by: "a" }])).toEqual(["Ravi started a fire."]);
+    expect(lines([{ t: "lit", tile: "0,0", by: "a" }, { t: "lit", tile: "1,0", by: null }])).toEqual(["Ravi started a fire. The fire spread."]);
     expect(lines([{ t: "burnt", tile: "0,0", to: "broken" }])).toEqual(["The fire burned the bridge."]);
     expect(lines([{ t: "bridge", tile: "0,0", fixed: false, by: null }])).toEqual(["The bridge broke."]);
     expect(lines([{ t: "damage", who: "a", by: "spider", blocked: false }])).toEqual(["The spider bit Ravi."]);
@@ -62,7 +62,7 @@ describe("round lines", () => {
       "Meera got Ravi back up.",
     ]);
     expect(lines(steps.slice(0, 4))).toEqual([
-      "Ravi lit the forest.",
+      "Ravi started a fire.",
       "The fire burned the bridge.",
       "The spider bit Arjun.",
       "Rain: nothing happened.",
