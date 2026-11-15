@@ -167,4 +167,5 @@ export type HeistEvent =
   | { type: "vote-closed"; passed: boolean; heat: number }
   | { type: "job-done"; job: number; winner: Alignment; sabotaged: number; heat: boolean }
   | { type: "voided" }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; winner: Alignment | null; reason: EndReason };
