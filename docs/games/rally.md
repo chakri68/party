@@ -23,7 +23,7 @@ Everyone drives their own car down the same stage at once. Rivals are ghosts: no
 6. **Drive.** Steer, watch the co-driver, keep the car on the road. Checkpoints count by themselves as you drive through them, in order.
 7. **Finish.** Cross the line after the last checkpoint. The race ends when every car has finished or dropped out, when the time runs out, or when the host taps End race.
 
-Start race is disabled, with the reason underneath, if nobody's in a car ("Nobody is in a car yet."), someone hasn't readied up ("Waiting for 2 players to get ready."), or someone's course is still loading ("Waiting for Asha and Ravi to load."). A player who has lost their connection doesn't hold up the start. When they come back, their course loads again.
+Start race is disabled, with the reason underneath, if nobody's in a car ("Nobody is in a car yet."), someone hasn't readied up ("Waiting for 2 players to get ready."), or someone's course is still loading ("Waiting for Asha and Ravi to load."). The start does not wait for a player who has lost their connection. When they come back, their course loads again.
 
 ## Winning and scoring
 

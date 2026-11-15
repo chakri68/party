@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blindRallySettingFields, parseSettings, rulesPreview } from "../shared/rules-text.ts";
-import { act, ctx, game, newGame, racing } from "./helpers.ts";
+import { act, ctx, game, newGame, racing, readyUp } from "./helpers.ts";
 
 // Spec §7.4: the host picks Solo (each car its own copy of the road; the
 // spec's "cross-track") or Shared (one road, rivals as ghosts), and a shared
@@ -32,7 +32,8 @@ describe("stage mode selection", () => {
     s = act(s, "p1", { type: "track.vote", trackId: other });
     s = act(s, "p3", { type: "track.vote", trackId: other });
     expect(s.ballots).toHaveLength(1);
-    for (const id of ["p0", "p1", "p2", "p3"]) s = act(s, id, { type: "player.ready", ready: true });
+    for (const id of ["p0", "p2"]) s = act(s, id, { type: "player.ready", ready: true });
+    for (const id of ["p1", "p3"]) s = readyUp(s, id);
     s = act(s, "p0", { type: "race.start" });
     for (const nav of ["p1", "p3"]) {
       const p = game.getPrivateState(s, nav);

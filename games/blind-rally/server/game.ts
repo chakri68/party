@@ -191,9 +191,9 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
     case "player.loaded": {
       // Sent by the client on its own, so a late one (the race is on, they
       // un-readied meanwhile) is nothing, not an error on their screen.
-      if (!inTeams || !me.ready || me.loaded) return { ok: true, transition: unchanged(prev) };
+      if (!inTeams || !me.ready || !!me.loaded === action.loaded) return { ok: true, transition: unchanged(prev) };
       const state = clone(prev);
-      state.players.find((p) => p.id === playerId)!.loaded = true;
+      state.players.find((p) => p.id === playerId)!.loaded = action.loaded;
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -303,8 +303,9 @@ export function newGame(
 }
 
 /**
- * On the grid, someone whose connection dropped doesn't hold up the start
- * (stillLoading). They come back to a fresh page, which loads the course again.
+ * On the grid, the start doesn't wait for someone whose connection dropped
+ * (stillLoading). Their loaded is cleared: back on a fresh page, it loads the
+ * course and says so again; back on the same page, it says so again anyway.
  */
 function gridPresence(prev: State, playerId: string, away: boolean): State {
   if (!prev.players.some((p) => p.id === playerId)) return prev;

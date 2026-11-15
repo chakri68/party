@@ -174,12 +174,11 @@ export function seatBlocker(state: BlindRallyState): string | null {
 }
 
 /**
- * Rally: everyone in a car who is ready and here, but whose course hasn't
- * loaded yet. Ready only starts the load. Someone whose connection has dropped
- * doesn't hold the start up: the drop-out rules deal with them.
+ * Every Navigator (in Rally, everyone in a car) who is ready and here, but
+ * whose course hasn't loaded yet. Ready only starts the load. The start doesn't
+ * wait for someone whose connection has dropped: the drop-out rules deal with them.
  */
 export function stillLoading(state: BlindRallyState): string[] {
-  if (state.variant !== "rally") return [];
-  const seated = new Set(state.teams.filter(isFull).flatMap(members));
+  const seated = new Set(state.teams.filter(isFull).map((t) => t.navigatorId));
   return state.players.filter((p) => seated.has(p.id) && p.ready && !p.loaded && !p.away).map((p) => p.id);
 }

@@ -124,6 +124,8 @@ class NavigatorView implements RoleView {
   private lastPhase: string | null = null;
   /** When "my course has loaded" last went out (performance.now()); 0 when it isn't owed. */
   private loadedSentAt = 0;
+  /** "Not loaded yet" has gone out, once per page: see reportLoaded. */
+  private unloadedSent = false;
 
   constructor(api: GameClientApi, options: NavigatorOptions) {
     this.api = api;
@@ -226,15 +228,25 @@ class NavigatorView implements RoleView {
   }
 
   /**
-   * Tells the server our course is up, so the host can start (Rally's start
-   * waits for it; Blind Rally's ignores it). Ready only started the load. Said
-   * again whenever the server forgets it (an un-ready, a new car, a dropped
-   * connection), and again after LOADED_RETRY_MS if it got lost on the way.
+   * Tells the server our course is up, so the host can start: the start waits
+   * for it. Ready only started the load. Said again whenever the server forgets
+   * it (an un-ready, a new car, a dropped connection), and again after
+   * LOADED_RETRY_MS if it got lost on the way.
+   *
+   * The other way too, once: this page is still loading but the server says
+   * loaded. That's a reload or a second tab the room didn't see as a drop, and
+   * the loaded it remembers is the old page's.
    */
   private reportLoaded() {
     const p = this.props;
     const me = p?.game.players.find((q) => q.id === p.playerId);
-    const due = !!p && p.game.phase === "teams" && !!me?.ready && !me.loaded && this.bridge.isReady && this.sessionSent;
+    const onGrid = !!p && p.game.phase === "teams" && !!me?.ready;
+    const up = this.bridge.isReady && this.sessionSent;
+    if (onGrid && me?.loaded && !up && !this.unloadedSent) {
+      this.unloadedSent = true;
+      this.api.act({ type: "player.loaded", loaded: false });
+    }
+    const due = onGrid && !me?.loaded && up;
     if (!due) {
       this.loadedSentAt = 0;
       return;
@@ -242,7 +254,7 @@ class NavigatorView implements RoleView {
     const now = performance.now();
     if (this.loadedSentAt && now - this.loadedSentAt < LOADED_RETRY_MS) return;
     this.loadedSentAt = now;
-    this.api.act({ type: "player.loaded" });
+    this.api.act({ type: "player.loaded", loaded: true });
   }
 
   stream(from: string, data: unknown) {

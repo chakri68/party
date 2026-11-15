@@ -92,7 +92,7 @@ export function teamBadge(team: { id: number; color: TeamColorKey }, word: "Team
   return el;
 }
 
-/** Why the host can't start yet, naming who a Rally start still waits on to load; null when they can. */
+/** Why the host can't start yet, naming who the start still waits on to load; null when they can. */
 export function startNote(room: RoomPublicState, game: BlindRallyPublicState): string | null {
   return game.loading.length ? loadingNote(game.loading.map((id) => seatName(room, id))) : game.startBlocker;
 }

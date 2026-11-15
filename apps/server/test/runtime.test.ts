@@ -1086,6 +1086,7 @@ describe("Blind Rally through the room", () => {
     await act(nav, { type: "team.join", teamId: 1, role: "navigator" });
     await act(drv, { type: "player.ready", ready: true });
     await act(nav, { type: "player.ready", ready: true });
+    await act(nav, { type: "player.loaded", loaded: true });
     await act(host, { type: "race.start" });
     await world.tick(room, 3_000);
     const pub = () => roomOf(host).game as BlindRallyPublicState;
@@ -1143,6 +1144,7 @@ describe("Blind Rally through the room", () => {
     await act(nav, { type: "team.join", teamId: 1, role: "navigator" });
     await act(drv, { type: "player.ready", ready: true });
     await act(nav, { type: "player.ready", ready: true });
+    await act(nav, { type: "player.loaded", loaded: true });
     // Only the room's host may start it; the game knows who that is from ctx.
     await act(drv, { type: "race.start" });
     expect(drv.last("action-rejected")).toMatchObject({ code: "not-host" });
