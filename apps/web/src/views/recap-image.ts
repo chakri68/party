@@ -32,6 +32,74 @@ export function wrapLines(text: string, maxWidth: number, measure: (s: string) =
   return lines;
 }
 
+/** Keep at most maxLines lines; the last kept line ends with "…" when text was cut. */
+export function limitLines(lines: string[], maxLines: number, maxWidth: number, measure: (s: string) => number): string[] {
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  let last = kept[maxLines - 1] ?? "";
+  while (last.length > 0 && measure(`${last}…`) > maxWidth) last = last.slice(0, -1).trimEnd();
+  kept[maxLines - 1] = `${last}…`;
+  return kept;
+}
+
+export interface AwardText {
+  title: string;
+  who: string;
+  line: string;
+}
+
+export interface AwardBlock {
+  title: string[];
+  who: string[];
+  line: string[];
+}
+
+/** Text sizes at scale 1, and the smallest scale we shrink to. */
+export const AWARD_SIZES = { title: 28, who: 46, line: 30, gap: 40, inner: 6 } as const;
+export const MIN_SCALE = 0.5;
+
+/**
+ * Fit every award in maxHeight. Shrinks the text step by step; names and the
+ * line wrap to at most 2 lines each and end in "…" when cut. A title is never
+ * drawn without its names. measure(text, size, weight) gives the width in px.
+ */
+export function layoutAwards(
+  awards: AwardText[],
+  maxWidth: number,
+  maxHeight: number,
+  measure: (s: string, size: number, weight: number) => number,
+): { scale: number; blocks: AwardBlock[] } {
+  const build = (scale: number, lineMax: number) => {
+    const size = (n: number) => Math.round(n * scale);
+    const fit = (text: string, base: number, weight: number, max: number) => {
+      const m = (t: string) => measure(t, size(base), weight);
+      return limitLines(wrapLines(text, maxWidth, m), max, maxWidth, m);
+    };
+    const blocks = awards.map((a) => ({
+      title: fit(a.title, AWARD_SIZES.title, 700, 1),
+      who: fit(a.who, AWARD_SIZES.who, 700, 2),
+      line: fit(a.line, AWARD_SIZES.line, 400, lineMax),
+    }));
+    const lh = (n: number) => Math.round(size(n) * 1.25);
+    const height = blocks.reduce(
+      (sum, b) =>
+        sum +
+        b.title.length * lh(AWARD_SIZES.title) +
+        b.who.length * lh(AWARD_SIZES.who) +
+        b.line.length * lh(AWARD_SIZES.line) +
+        AWARD_SIZES.inner * 2 * scale +
+        AWARD_SIZES.gap * scale,
+      0,
+    );
+    return { blocks, height };
+  };
+  for (let scale = 1; scale >= MIN_SCALE - 1e-9; scale -= 0.05) {
+    const r = build(scale, 2);
+    if (r.height <= maxHeight) return { scale, blocks: r.blocks };
+  }
+  return { scale: MIN_SCALE, blocks: build(MIN_SCALE, 1).blocks };
+}
+
 export interface RecapImageOptions {
   appTitle: string;
   gameName: (id: string) => string;
@@ -84,10 +152,29 @@ export async function recapImage(recap: Recap, opts: RecapImageOptions): Promise
   text(recapMeta(recap, opts.gameName), 34, 400, muted, 56);
 
   if (recap.awards.length) {
-    for (const a of recap.awards) {
-      if (!text(a.title, 28, 700, accent, 6)) break;
-      if (!text(joinNames(a.who), 46, 700, ink, 6)) break;
-      if (!text(a.line, 30, 400, muted, 40)) break;
+    const { scale, blocks } = layoutAwards(
+      recap.awards.map((a) => ({ title: a.title, who: joinNames(a.who), line: a.line })),
+      maxW,
+      bottom - y,
+      (t, size, weight) => {
+        ctx.font = `${weight} ${size}px ${font}`;
+        return ctx.measureText(t).width;
+      },
+    );
+    const sz = (n: number) => Math.round(n * scale);
+    const draw = (lines: string[], base: number, weight: number, color: string, gap: number) => {
+      ctx.font = `${weight} ${sz(base)}px ${font}`;
+      ctx.fillStyle = color;
+      for (const l of lines) {
+        ctx.fillText(l, pad, y);
+        y += Math.round(sz(base) * 1.25);
+      }
+      y += gap * scale;
+    };
+    for (const b of blocks) {
+      draw(b.title, AWARD_SIZES.title, 700, accent, AWARD_SIZES.inner);
+      draw(b.who, AWARD_SIZES.who, 700, ink, AWARD_SIZES.inner);
+      draw(b.line, AWARD_SIZES.line, 400, muted, AWARD_SIZES.gap);
     }
   } else {
     text(recap.quiet ?? "", 40, 400, ink, 0);
