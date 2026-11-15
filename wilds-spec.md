@@ -294,7 +294,7 @@ One spider. It starts on its nest, which is hidden in fog. It always takes the f
 
 - It walks like an explorer: no river, rock, fire, or broken bridge. Reeds don't stop it.
 - It ends its move on an explorer's tile, or next to one → each explorer it reaches loses 1 Heart (Guard blocks it). Then it stops.
-- The plan screen arrow shows what it will do based on the board **now**. It's marked "if nothing changes", because players' actions can change it.
+- The plan screen arrow shows what it will do based on the board **now**, plus what step 1 of this island turn will do first: a stone hand's noise due this round, and this round's event. It leaves out fire spread (random) and an event with a vote (the vote isn't known yet). It's marked "if nothing changes", because players' actions can change it.
 - In fog the spider is hidden, and so is its arrow.
 
 ### 7.3 Noise

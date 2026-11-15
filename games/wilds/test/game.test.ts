@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { neighbours } from "../shared/hex.ts";
 import { EVENTS } from "../shared/events.ts";
 import type { Plan } from "../shared/types.ts";
-import { act, ctx, err, g, GG, nextAll, ok, pickRoles, planAll, ring, round, type S, start, voteAll } from "./helpers.ts";
+import type { World } from "../shared/types.ts";
+import { act, blankWorld, ctx, err, g, GG, nextAll, ok, pickRoles, planAll, ring, round, type S, start, voteAll } from "./helpers.ts";
 
 const skip = (s: S, id: string) => g.skipTurn!(s, id, ctx(s.deadline - 1000));
 const remove = (s: S, id: string) => g.onPlayerRemoved!(s, id, ctx(s.deadline - 1000));
@@ -66,6 +67,53 @@ describe("roles", () => {
     expect(s.world.round).toBe(1);
     expect(s.event).not.toBeNull();
     expect(s.arrow).not.toBeNull();
+  });
+});
+
+describe("the spider's arrow", () => {
+  /** A game in the roles phase on this world, with this round's event. Picking roles opens the plan. */
+  function arrowGame(world: World, id: keyof typeof EVENTS, prep?: (s: S) => void): S {
+    let s = start(2).state;
+    s = { ...s, world, event: { id, tiles: [] } };
+    prep?.(s);
+    return pickRoles(s);
+  }
+  /** Everyone Guards; the spider's real move in the island turn. */
+  const realMove = (s: S) => {
+    const t = planAll(s, { p0: GG, p1: GG }).state;
+    expect(t.phase).toBe("report");
+    return t.lastRound!.steps.find((x) => x.t === "spider");
+  };
+  const twoExplorers = (extra: Parameters<typeof blankWorld>[1] = {}) => ({
+    explorers: [{ id: "p0", tile: "0,0" }, { id: "p1", tile: "-3,0" }],
+    ...extra,
+  });
+
+  it("goes to the reeds on an Echo round, as the island turn does", () => {
+    // p0 is 3 from the spider at 3,0: with no event it would hunt.
+    const s = arrowGame(blankWorld({ "3,-3": "reeds" }, twoExplorers()), "echo-reeds");
+    expect(s.event!.tiles).toEqual(["3,-3"]);
+    expect(s.arrow!.why).toBe("noise");
+    expect(s.arrow!.path.at(-1)).toBe("3,-2");
+    expect(realMove(s)).toMatchObject({ path: s.arrow!.path, why: "noise" });
+  });
+
+  it("hunts on a Rain round, since the fire next to it goes out first", () => {
+    const s = arrowGame(blankWorld({ "3,-1": "forest" }, twoExplorers({ tiles: { "3,-1": { fire: 2 } } })), "rain");
+    expect(s.arrow!.why).toBe("hunt");
+    expect(realMove(s)).toMatchObject({ path: s.arrow!.path, why: "hunt" });
+  });
+
+  it("goes to the stone hand's noise when it lands this round", () => {
+    const s = arrowGame(blankWorld({}, twoExplorers()), "bird-calls", (x) => { x.pending = { tile: "3,-3", due: 1 }; });
+    expect(s.arrow!.why).toBe("noise");
+    expect(realMove(s)).toMatchObject({ path: s.arrow!.path, why: "noise" });
+  });
+
+  it("does not guess a vote: Warm spring is left out", () => {
+    const w = blankWorld({}, twoExplorers());
+    const s = arrowGame(w, "warm-spring", (x) => { x.world.explorers[0]!.hearts = 1; });
+    expect(s.arrow!.why).toBe("hunt");
   });
 });
 

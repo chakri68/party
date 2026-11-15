@@ -33,12 +33,12 @@ import {
   type World,
 } from "../shared/types.ts";
 import { planProblem, playBeats } from "./beats.ts";
-import { canApply, draw, newDeck, pickTiles } from "./deck.ts";
+import { applyEvent, canApply, draw, newDeck, pickTiles } from "./deck.ts";
 import { islandTurn } from "./island.ts";
 import { parseAction, ROLES } from "./parse.ts";
 import { spiderPlan } from "./spider.ts";
 import { privateState, publicState, shownSteps } from "./views.ts";
-import { cloneWorld } from "./world.ts";
+import { addNoise, cloneWorld } from "./world.ts";
 
 type State = WildsServerState;
 type Events = GameEventEnvelope<WildsEvent>[];
@@ -99,11 +99,23 @@ function finish(state: State, interrupted: boolean, out: Out): void {
 
 // ---- the round -------------------------------------------------------------
 
-/** The spider's move if nothing changes, with this round's event already in mind. */
+/** applyEvent takes a random source but never draws from it. */
+const NO_RANDOM = () => 0;
+
+/**
+ * The spider's move if nothing changes. On a copy of the world it plays what the island turn
+ * plays before the spider moves and the team already knows: a stone hand's noise due this round,
+ * then this round's event. An event with a vote is left out (the vote is not known yet), and so is
+ * fire spread (it is random).
+ */
 function arrowFor(state: State) {
   const w = cloneWorld(state.world);
-  if (state.event?.id === "quiet-morning") w.spider.still = true;
-  if (state.event?.id === "hungry-spider" && canApply(w, "hungry-spider", null)) w.speedBonus = 1;
+  let pending = state.pending;
+  if (pending && pending.due === w.round) {
+    addNoise(w, pending.tile, N.stoneNoise, []);
+    pending = null;
+  }
+  if (state.event && !EVENTS[state.event.id].options) applyEvent(w, state.event, null, pending, NO_RANDOM, []);
   return spiderPlan(w);
 }
 

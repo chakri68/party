@@ -176,7 +176,7 @@ There is one spider. It starts on its nest, hidden in fog. Each island turn it d
 - It walks like an explorer: not over river, rock, fire or a broken bridge. Reeds do not stop it.
 - It stops as soon as it is next to an explorer. If it ends its move on a tile next to an explorer, each explorer next to it loses 1 Heart. Guard stops it. It never steps onto an explorer.
 - It leaves down players alone. It never walks onto a tile with an explorer, also a down one.
-- The plan screen shows an arrow with where the spider goes **if nothing changes**. Your actions can change this. In fog, the spider and its arrow are hidden.
+- The plan screen shows an arrow with where the spider goes **if nothing changes**. It counts this round's event and the stone hand's noise, if it comes this round. It does not count fire that spreads, or an event with a vote. Your actions can change this. In fog, the spider and its arrow are hidden.
 
 ## Events
 
