@@ -200,7 +200,7 @@ Each explorer has 2 bag slots. A full bag can't take a cache item: the Act tells
 
 | Item | Use on | What it does | Used up? |
 |---|---|---|---|
-| **Torch** | A tile next to you | Spider there → it runs 3 tiles away from you now, and won't come back next round. Forest or bridge there → it starts to burn. Both at once is allowed | No |
+| **Torch** | A tile next to you | Spider there → it runs up to 3 tiles away from you now, and stays still for the rest of this round. Forest or bridge there → it starts to burn. Both at once is allowed | No |
 | **Planks** | A broken bridge or river tile next to you | Becomes a bridge. A bridge made this way can burn too | Yes |
 | **Medkit** | You or an ally next to you | +2 Hearts (max 3). Doesn't bring a down player back up | Yes |
 | **Lure** | An open tile within 3 | Set that tile's noise to 3 | Yes |
@@ -287,7 +287,7 @@ A waiting bargain cost shows on the board and in a small bar: "The stone hand: n
 
 One spider. It starts on its nest, which is hidden in fog. It always takes the first of these that fits:
 
-1. **Scared** (it was hit by a Torch this round, or it's next to fire): move 3 away from the fire or the torch. Next round it does nothing.
+1. **Scared** (it was hit by a Torch this round, or it's next to fire): move up to 3 away from the fire or the torch. A Torch scare (in the beats) makes it stay still for the rest of this round. A scare by fire (in the island turn) makes it stay still the next round.
 2. **Noise:** if a tile with noise is within 4, move up to 2 toward the loudest. A tie goes to the nearest, then to the lower tile id.
 3. **Hunt:** if an explorer (not down) is within 3, move up to 2 toward the nearest.
 4. **Home:** move 1 toward the nest.

@@ -7,7 +7,7 @@ One strange island and a team of explorers. Plan together, find 3 key stones, an
 - You all win or lose together. Nobody plays against anyone.
 - Find a **key stone** at each of 3 old ruins. With all 3, open the **gate** in the middle of the island.
 - Then every explorer must stand on the gate or next to it, and nobody can be down. This must happen before the sun goes down.
-- Each round, everyone plans **2 actions** at the same time. Then the game plays them out, one after another.
+- Each round, everyone plans **2 actions** at the same time. Then the game does them one after another.
 - You can't see each other's plans. Talk out loud.
 - The island has its own rules. Fire spreads through forest. Noise pulls the spider. Fire scares the spider. Most of the fun is in how these rules meet your plans.
 
@@ -26,11 +26,11 @@ One strange island and a team of explorers. Plan together, find 3 key stones, an
    6. Win check. If the gate is open and everyone is at the gate and up, you win.
    7. The sun moves on by 1. If it reaches the limit, you lose.
    8. If every explorer is down, you lose.
-6. **Report (8 s).** The screen plays the round back: moves, dice, fire and the spider. Below it are 1 to 4 plain lines about what happened. Tap **Next**, or wait 8 seconds.
+6. **Report (8 s).** The screen plays the round back: moves, dice, fire and the spider. Below it are up to 4 plain lines about what happened. Tap **Next**, or wait 8 seconds.
 
 ## Winning and losing
 
-- **Win:** at the win check, the gate is open, and every explorer is on the gate or next to it, and nobody is down. Bring down players back up first. Nobody gets left behind. The win check comes before the sun moves, so a win on the last round counts.
+- **Win:** at the win check, the gate is open, and every explorer is on the gate or next to it, and nobody is down. First, help any down player get up. Nobody stays behind. The win check comes before the sun moves, so a win on the last round counts.
 - **Lose:** the sun reaches the limit (10 by default), or every explorer is down at the end of a round.
 
 The result says how it ended, for example "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Each player's Hearts are shown, or "Down". If you win, everyone on the team wins. If you lose, nobody wins.
@@ -101,7 +101,7 @@ Each explorer has 2 bag slots. A full bag can't take an item from a cache. The A
 
 | Item | Use on | What it does | Used up? |
 | --- | --- | --- | --- |
-| Torch | A tile next to you | The spider there runs 3 tiles away from you, and does nothing next round. Forest or a bridge there starts to burn. Both at once is fine. | No |
+| Torch | A tile next to you | The spider there runs up to 3 tiles away from you at once, and stays still for the rest of this round. Forest or a bridge there starts to burn. Both at once is fine. | No |
 | Planks | A broken bridge or a river tile next to you | It becomes a bridge. This bridge can burn too. | Yes |
 | Medkit | You, or a friend next to you | +2 Hearts (never above 3). It does not bring a down player back. Use Help for that. | Yes |
 | Lure | An open tile up to 3 tiles away | Set that tile's noise to 3. | Yes |
@@ -131,7 +131,7 @@ Each ruin has two **ways in**. Each uses one score and has a target of Easy (7) 
 
 | Way | Bonus | What else |
 | --- | ---: | --- |
-| Careful | −1 | If you fail, the cost is smaller: just 1 noise on the ruin. |
+| Careful | -1 | If you fail, the cost is smaller: just 1 noise on the ruin. |
 | Normal | 0 | |
 | Bold | +1 | 1 noise on your tile, whether you pass or fail. |
 
@@ -157,8 +157,10 @@ The plan screen shows the chance before you tap Ready, for example "Mind +2 · B
 ## Fire
 
 - A tile can burn if it is forest or a bridge.
-- A tile that catches fire burns until the end of the next round. Then forest becomes ash. A bridge becomes a broken bridge. A fire that comes from spreading lasts one round longer than a fire lit with a Torch, because it does not burn down in the round it starts.
-- At the end of each round, each burning tile lights one forest or bridge tile next to it, picked at random. New fires do not spread in the round they start.
+- A fire from a Torch hurts anyone standing there at the end of this round. At the end of the next round it turns to ash.
+- A fire that spreads hurts at the end of the round it starts, and again at the end of the next round. At the end of the round after that it turns to ash.
+- Burnt forest becomes ash. A burnt bridge becomes a broken bridge.
+- At the end of each round, each burning tile lights one forest or bridge tile next to it, picked at random. This includes a fire from a Torch. One spread uses only the fires that burned before it began. With Dry wind there are two spreads, and the second one can use the fires from the first.
 - At most 5 tiles can burn at once. Extra spreads do not happen.
 - You can't walk into fire. If you stand on a tile that burns at the end of the round, you lose 1 Heart. Guard stops it.
 
@@ -166,14 +168,14 @@ The plan screen shows the chance before you tap Ready, for example "Mind +2 · B
 
 There is one spider. It starts on its nest, hidden in fog. Each island turn it does the first of these that fits:
 
-1. **Scared.** If a Torch hit it this round, or if fire is on a tile next to it, it runs 3 tiles away from the fire or the Torch. The next round, it does nothing.
+1. **Scared.** If fire is on a tile next to it, it runs up to 3 tiles away from the fire, and stays still the next round. If you hit it with a Torch, it runs up to 3 tiles away from you at once, and stays still for the rest of that round. It stops early if it has no place to run.
 2. **Noise.** If a tile with noise is within 4 tiles, it moves up to 2 tiles toward the loudest one. A tie goes to the nearest, then to a fixed tile order.
 3. **Hunt.** If an explorer who is not down is within 3 tiles, it moves up to 2 tiles toward the nearest one.
 4. **Home.** It moves 1 tile toward its nest.
 
 - It walks like an explorer: not over river, rock, fire or a broken bridge. Reeds do not stop it.
 - It stops as soon as it is next to an explorer. If it ends its move on a tile next to an explorer, each explorer next to it loses 1 Heart. Guard stops it. It never steps onto an explorer.
-- It leaves down players alone.
+- It leaves down players alone. It never walks onto a tile with an explorer, also a down one.
 - The plan screen shows an arrow with where the spider goes **if nothing changes**. Your actions can change this. In fog, the spider and its arrow are hidden.
 
 ## Events
@@ -183,7 +185,7 @@ One event each round. You see it at the top of the plan screen, and it happens i
 - Rounds 1 and 2 have only calm events.
 - After a harm event, the next one is not harm.
 - Only one bargain can be waiting at a time.
-- An event that can't apply right now is skipped.
+- An event that can't apply when it is drawn is skipped. The board can change before it happens. Then the report says "nothing happened".
 - The Guide sees the next event, on the event card, one round early.
 
 | Event | Kind | What it does | Choice |
@@ -199,7 +201,7 @@ One event each round. You see it at the top of the plan screen, and it happens i
 | Rotten bridge | Harm | The marked bridge breaks, unless an explorer stands on it at the end of the round. | No |
 | Echo in the reeds | Harm | 2 noise on the marked reeds tile. | No |
 | The stone hand | Bargain | **Accept:** every broken bridge is fixed now. In 2 rounds, the marked bridge gets 3 noise. **Refuse:** nothing happens. | Vote |
-| The warm spring | Bargain | **Accept:** everyone gets 1 Heart, and down players get up with 1 Heart. The sun moves on by 1. **Refuse:** nothing happens. | Vote |
+| The warm spring | Bargain | **Accept:** everyone gets +1 Heart (never above 3), and down players get up with 1 Heart. The sun moves on by 1. **Refuse:** nothing happens. | Vote |
 
 **Choice.** Everyone votes, also players who are down. Most votes wins. You can change your vote until time runs out. For a **bargain**, Accept needs more votes than Refuse. A tie, or no votes, means Refuse. For Clear sky, a tie goes to the first option.
 
@@ -218,7 +220,7 @@ Other timers are fixed: 30 s to pick a role, 20 s to vote on a choice, 8 s for t
 
 ## On your screen
 
-- **The board.** 37 hex tiles. Each tile type has its own colour and a small icon, so colour is never the only sign. Fog is grey and has no detail. You see fire, noise marks, caches, marked event tiles, and a token for each explorer (the first letter of the name, with a ring for the role). The camp, the gate and the ruins are shown as icons, even in fog.
+- **The board.** 37 hex tiles. Each tile type has its own colour and a small icon, so colour is never the only sign. Fog is grey and has no detail. You see fire, noise marks, caches, marked event tiles, and a token for each explorer (the first letter of the name, with a ring for the role). The gate and the ruins are shown as icons, even in fog.
 - **The top bar.** The sun ("Sun 4 / 10"), the 3 key stones, the round and the timer.
 - **The spider's arrow.** On the plan screen, an arrow shows where the spider goes if nothing changes. A key under the board explains it: "Where the spider goes if nothing changes."
 - **The event card.** This round's event, and what its marked tiles are. The Guide also sees "Only you see this: next round is ..." with the next event.
@@ -227,7 +229,7 @@ Other timers are fixed: 30 s to pick a role, 20 s to vote on a choice, 8 s for t
 - **The plan tray.** Two slots, Beat 1 and Beat 2, and 6 action cards. Tap a card, and the tiles you can use light up on the board. The others go dim. Tap a dim tile to see why you can't use it, for example "Fog: you can't plan a path there." or "River: you can't walk there. Find a bridge." For Help and Medkit, you can also tap a name. An Act on a ruin opens a small sheet with both ways in, the three ways of acting, their chances, the fail cost, and Force. When you tap **Ready**, the tray locks. Tap **Edit** to change it.
 - **The pending bargain bar.** After you accept the stone hand, a bar above the board says when and where the noise will come.
 - **The choice.** A vote screen with the options, how many have voted, and a note about ties.
-- **The round report.** The board plays the round back step by step: moves, dice (with every bonus), fire and the spider. Tap **Skip to the end** to jump to the end. If your phone is set to reduce motion, the board shows only the end and the lines. After it, 1 to 4 plain lines say what happened, and who is down. Tap **Next** when you are ready.
+- **The round report.** The board plays the round back step by step: moves, dice (with every bonus), fire and the spider. Tap **Skip to the end** to jump to the end. If your phone is set to reduce motion, the board shows only the end and the lines. After it, up to 4 plain lines say what happened, and who is down. If nothing happened, it says "A quiet round." Tap **Next** when you are ready.
 - **Sounds and buzzes** mark a new plan and a choice.
 
 At the end of the party, The Wilds counts toward the party awards. Everyone on a winning team counts as a winner. Each Help that gets a down friend up counts toward **Always there**. Each fire you light with a Torch counts toward **Fire starter**. Each Refuse vote on a bargain counts toward **Hardest to convince**.
@@ -238,7 +240,8 @@ At the end of the party, The Wilds counts toward the party awards. Everyone on a
 - **You do not pick a role in time.** You get a random role.
 - **You do not vote in time.** Your vote is not counted. For a bargain, a tie becomes Refuse.
 - **A move can't happen.** If something blocks it (fire, the spider, a broken bridge) by the time it plays, you Guard instead. The report says why.
-- **Someone's phone dies, or the host skips them.** In a plan, they Guard and are Ready. In a choice, they do not vote. In roles, they get a random role.
+- **Someone's phone dies.** They do not hold up the game. The clock decides: in a plan, their plan as it stands is used, or they Guard twice. They do not vote.
+- **The host skips someone.** In a plan, they Guard and are Ready. In a choice, they do not vote. In roles, they get a random role.
 - **Someone leaves the game.** Their explorer leaves the board and their items are lost. The win check does not count them.
 - **Everyone leaves.** The game ends early.
 
