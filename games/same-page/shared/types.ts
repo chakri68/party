@@ -175,6 +175,7 @@ export type SamePageEvent =
   | { type: "split"; group: string }
   | { type: "revealed"; round: number }
   | { type: "player-removed"; playerId: string }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; reason: EndReason };
 
 /** What a finished match hands the next one. */

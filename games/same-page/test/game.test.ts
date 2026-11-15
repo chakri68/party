@@ -431,4 +431,14 @@ describe("disconnects and removal", () => {
     s = g.skipTurn!(s, "p0", ctx(at(s))).state;
     expect(s.round.ready).toEqual(["p0"]);
   });
+
+  it("a Skip in the reveal sends an event while others are still not ready", () => {
+    let s = start(3).state;
+    s = answerAll(s, { p0: "a", p1: "b" }).state;
+    s = g.skipTurn!(s, HOST, ctx(at(s))).state;
+    const t = g.skipTurn!(s, "p1", ctx(at(s)));
+    expect(t.events.map((e) => e.event)).toEqual([{ type: "skipped", playerId: "p1" }]);
+    expect(t.state.round.ready).toContain("p1");
+    expect(t.state.phase).toBe("reveal");
+  });
 });

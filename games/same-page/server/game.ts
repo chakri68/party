@@ -411,6 +411,7 @@ export const samePageGame: GameDefinition<
     if (state.phase === "tidying") reveal(state, ctx, out);
     else if (state.phase === "reveal") {
       state.round.ready.push(playerId);
+      out.events.push(pub({ type: "skipped", playerId }));
       checkAllReady(state, ctx, out);
     }
     return done(state, out);
