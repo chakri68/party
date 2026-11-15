@@ -11,7 +11,8 @@ export type JobInfo =
   | { job: "guide"; nextLeg: Danger | null; fork: { stop: string; ways: Record<string, Danger | null> } | null }
   | { job: "healer"; worsenChance: Record<string, number> } // per sick or hurt traveller, today's chance at the current plan
   | { job: "trader"; nextMarket: MarketView | null; fork: { stop: string; ways: Record<string, MarketView | null> } | null }
-  | { job: "quartermaster"; foodDays: number; waterDays: number } // at current rations and today's leg kind
+  // Food days at the plan's rations (full rations when the plan eats nothing), water at today's leg kind.
+  | { job: "quartermaster"; foodDays: number; rations: "full" | "half"; waterDays: number }
   | { job: "scout"; nextFork: { stop: string; km: Record<string, number> } | null } // total km on each branch to where the branches meet
   | { job: "driver"; fatigue: number; max: number }
   | { job: "cook"; foodDays: Record<Rations, number> }
@@ -98,7 +99,9 @@ export function jobInfo(job: JobId, c: Caravan, pack: SettingPack, route: RouteD
     }
     case "quartermaster": {
       const kind = todayKind(c, route, state.plan);
-      return { job, foodDays: daysOf(c.stock.food, foodPer(state.plan.rations)), waterDays: daysOf(c.stock.water, waterPer(kind)) };
+      // No rations eat nothing, so "days left" would be endless: count full rations, like the food band.
+      const rations = state.plan.rations === "none" ? "full" : state.plan.rations;
+      return { job, foodDays: daysOf(c.stock.food, foodPer(rations)), rations, waterDays: daysOf(c.stock.water, waterPer(kind)) };
     }
     case "scout": {
       for (let id: string | undefined = origin(c); id !== undefined; id = only(route, id)?.to) {

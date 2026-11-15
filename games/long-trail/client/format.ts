@@ -120,7 +120,7 @@ export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, nam
       return [`Next market: ${stop(info.nextMarket.stop)}.`, `${prices(info.nextMarket)}.`];
     }
     case "quartermaster":
-      return [`Food for ${days(info.foodDays)}. Water for ${days(info.waterDays)}.`];
+      return [`Food for ${days(info.foodDays)} on ${info.rations} rations. Water for ${days(info.waterDays)}.`];
     case "scout": {
       if (!info.nextFork) return ["No more forks ahead."];
       const ways = Object.entries(info.nextFork.km).map(([to, km]) => `by ${stop(to)} ${km} km`);

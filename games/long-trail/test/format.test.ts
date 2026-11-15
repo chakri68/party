@@ -43,7 +43,7 @@ describe("infoLines at a fork", () => {
 
 describe("infoLines day counts", () => {
   it("say 1 day, not 1 days", () => {
-    expect(infoLines({ job: "quartermaster", foodDays: 1, waterDays: 2 }, pack, route, names)).toEqual(["Food for 1 day. Water for 2 days."]);
+    expect(infoLines({ job: "quartermaster", foodDays: 1, rations: "half", waterDays: 2 }, pack, route, names)).toEqual(["Food for 1 day on half rations. Water for 2 days."]);
     expect(infoLines({ job: "cook", foodDays: { full: 0, half: 1, none: 99 } }, pack, route, names)).toEqual(["Food lasts 0 days on full rations, or 1 day on half rations."]);
   });
 });

@@ -152,6 +152,25 @@ describe("choice events", () => {
   });
 });
 
+describe("medicine bought and given on the same day", () => {
+  it("is bought first, then given", () => {
+    let s = toPlan(start(4, { length: "short" }).state);
+    // Halt at a market with no medicine, one traveller sick.
+    s.caravan.at = "saltmere";
+    s.caravan.leg = null;
+    s.caravan.stock.medicine = 0;
+    s.caravan.stock.coins = 100;
+    s.caravan.health.p1 = 2;
+    const plan = { ...g.getPublicState(s).openPlan, rest: true, doses: ["p1"], trades: [{ item: "medicine", qty: 1 }] };
+    s = ok(act(s, leaderId(s), { type: "propose", plan })).state;
+    s = voteAll(s, "go").state;
+    if (s.phase === "choice") s = chooseAll(s, 0).state;
+    const day = s.log.at(-1)!;
+    expect(day.report.healthChanges).toContainEqual({ playerId: "p1", from: 2, to: 3 });
+    expect(s.caravan.stock.medicine).toBe(0); // bought 1, gave 1
+  });
+});
+
 describe("abilities", () => {
   it("rejects arming a job with nothing to arm", () => {
     const s = toPlan(start(8).state);

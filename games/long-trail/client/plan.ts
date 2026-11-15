@@ -87,6 +87,8 @@ export class PlanForm {
     const stop = stopById(route, game.at);
     const forkDay = game.leg === null && stop.next.length === 2;
     const sick = game.travellers.filter((t) => t.health > 0 && t.health < 3);
+    // Trades come first, so medicine bought in this plan counts for today's doses.
+    const medicine = game.stock.medicine + Math.max(0, game.prices ? (this.qty.medicine ?? 0) : 0);
 
     const parts: (HTMLElement | null)[] = [
       segmented<Pace>("Pace", [["slow", PACE_LABEL.slow], ["steady", PACE_LABEL.steady], ["hard", PACE_LABEL.hard]], d.pace, (pace) => set({ pace }), d.rest),
@@ -111,11 +113,11 @@ export class PlanForm {
             (fork) => set({ fork }),
           )
         : null,
-      game.stock.medicine > 0
+      medicine > 0
         ? h(
             "fieldset",
             { class: "lt-field" },
-            h("legend", {}, `Medicine (${game.stock.medicine} left)`),
+            h("legend", {}, game.stock.medicine === medicine ? `Medicine (${medicine} left)` : `Medicine (${medicine}, with what you buy)`),
             sick.length
               ? h(
                   "div",

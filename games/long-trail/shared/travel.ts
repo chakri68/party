@@ -111,7 +111,9 @@ export function planProblem(
   }
   if (cost > c.stock.coins + revenue) return "Not enough coins.";
 
-  if (plan.doses.length > c.stock.medicine) return "Not enough medicine.";
+  // Trades come before doses, so medicine bought in this plan can be given today.
+  const bought = atStop && stop.market ? plan.trades.filter((t) => t.item === "medicine" && t.qty > 0).reduce((a, t) => a + t.qty, 0) : 0;
+  if (plan.doses.length > c.stock.medicine + bought) return "Not enough medicine.";
   for (const id of plan.doses) {
     if (!travellers.includes(id) || (c.health[id] ?? 0) <= 0) return "That traveller cannot take a dose.";
   }

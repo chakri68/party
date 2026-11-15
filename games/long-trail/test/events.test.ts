@@ -308,8 +308,10 @@ describe("jobInfo", () => {
 
   it("quartermaster counts days at current rations and today's leg", () => {
     const c = van({ stock: { ...van().stock, food: 20 } });
-    expect(info("quartermaster", c)).toEqual({ job: "quartermaster", foodDays: 2, waterDays: 25 });
-    expect(info("quartermaster", c, state({ plan: plan({ rations: "half" }) }))).toMatchObject({ foodDays: 5 });
+    expect(info("quartermaster", c)).toEqual({ job: "quartermaster", foodDays: 2, rations: "full", waterDays: 25 });
+    expect(info("quartermaster", c, state({ plan: plan({ rations: "half" }) }))).toMatchObject({ foodDays: 5, rations: "half" });
+    // No rations: never an endless 99, but days on full rations.
+    expect(info("quartermaster", c, state({ plan: plan({ rations: "none" }) }))).toMatchObject({ foodDays: 2, rations: "full" });
     const fork = van({ at: "b", stock: { ...van().stock, water: 20 } });
     expect(info("quartermaster", fork)).toMatchObject({ waterDays: 5 }); // no way picked: the normal rate, 4 a day
     expect(info("quartermaster", fork, state({ plan: plan({ fork: "c" }) }))).toMatchObject({ waterDays: 2 }); // b>c is desert: 8 a day

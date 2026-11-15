@@ -86,6 +86,19 @@ describe("planProblem", () => {
   });
 });
 
+describe("medicine bought today", () => {
+  it("counts for today's doses, since trades come first", () => {
+    const c = van({ stock: { ...van().stock, medicine: 0 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
+    const check = (p: Plan) => planProblem(c, pack, route, p, P4, { healerAlive: true, traderLeads: false });
+    expect(check(plan({ doses: ["p1"] }))).toBe("Not enough medicine.");
+    expect(check(plan({ doses: ["p1"], trades: [{ item: "medicine", qty: 1 }] }))).toBeNull();
+    expect(check(plan({ doses: ["p1", "p2"], trades: [{ item: "medicine", qty: 1 }] }))).toBe("Not enough medicine.");
+    // Not at a market: buying is not possible, so it cannot count.
+    const away = van({ at: "b", stock: { ...van().stock, medicine: 0 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } });
+    expect(planProblem(away, pack, route, plan({ doses: ["p1"], trades: [{ item: "medicine", qty: 1 }], fork: "c" }), P4, { healerAlive: true, traderLeads: false })).not.toBeNull();
+  });
+});
+
 describe("applyTrades", () => {
   it("trades at the listed price", () => {
     const c = van();
