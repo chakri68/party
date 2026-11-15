@@ -269,8 +269,9 @@ export class Playback {
   get running(): boolean {
     return this.timer !== null;
   }
+  /** Before the first tick this is already the first frame, so the board never shows the end first. */
   get frame(): Frame | null {
-    return this.running ? (this.frames[this.i] ?? null) : null;
+    return this.running ? (this.frames[Math.max(this.i, 0)] ?? null) : null;
   }
 
   play(frames: Frame[]): void {

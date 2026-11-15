@@ -203,6 +203,15 @@ describe("Playback", () => {
     expect(p.running).toBe(false);
   });
 
+  it("has the first frame as soon as it plays, never the end state", () => {
+    vi.useFakeTimers();
+    const p = new Playback(() => {});
+    const frames = [f("one", 500), f("two", 500), f("end", 0)];
+    p.play(frames);
+    expect(p.running).toBe(true);
+    expect(p.frame).toBe(frames[0]);
+  });
+
   it("jumps to the end on skip", async () => {
     vi.useFakeTimers();
     const shown: (string | null)[] = [];
