@@ -1,4 +1,4 @@
-import { jobInfo } from "../shared/info.ts";
+import { jobInfo, todayKind } from "../shared/info.ts";
 import { N } from "../shared/numbers.ts";
 import { stopById, type RouteDef, type SettingPack } from "../shared/pack.ts";
 import type { Band, Goal, LongTrailPrivateState, LongTrailPublicState, LongTrailServerState, Plan } from "../shared/types.ts";
@@ -29,7 +29,12 @@ export function goalTexts(pack: SettingPack, route: RouteDef, goals: Record<stri
 
 // ---- projections -----------------------------------------------------------
 
+/** The open plan as players see it: at a fork it names no way, so no view follows the safe one (R15, R17). */
+const shownOpenPlan = (state: State): Plan => ({ ...openPlan(state), fork: null });
+
+/** Days of stock left, as a word. None left is always "out", even when nothing is used. */
 export function band(stock: number, perDay: number): Band {
+  if (stock <= 0) return "out";
   const days = perDay <= 0 ? Infinity : Math.floor(stock / perDay);
   return days >= 6 ? "plenty" : days >= 3 ? "some" : days >= 1 ? "low" : "out";
 }
@@ -39,13 +44,13 @@ export function publicState(state: State): LongTrailPublicState {
   const c = state.caravan;
   // At a fork the leader must pick: the public open plan names no branch, and nothing
   // public may follow the safe one until a plan is proposed (R15, R17).
-  const open: Plan = { ...openPlan(state), fork: null };
+  const open = shownOpenPlan(state);
   const plan = state.plan ?? open;
   const living = state.travellers.filter((id) => isAlive(state, id)).length;
   const stop = stopById(route, c.at);
-  // The leg the caravan travels next: the current one, the one way out, or the picked
-  // branch at a fork. No branch picked yet: no leg kind, so the normal water rate.
-  const nextKind = c.leg?.kind ?? (stop.next.length === 2 ? stop.next.find((l) => l.to === plan.fork)?.kind : stop.next[0]?.kind);
+  // Today's leg: the current one, the one way out, or the picked branch at a fork.
+  // No branch picked yet: no leg kind, so the normal water rate.
+  const nextKind = todayKind(c, route, plan);
   const market = c.leg === null ? stop.market : undefined;
   const b = state.phase === "vote" ? state.ballot : state.phase === "choice" ? state.choiceBallot : null;
   const revealed = state.phase === "recap" || (state.phase === "over" && !state.interrupted);
@@ -64,7 +69,8 @@ export function publicState(state: State): LongTrailPublicState {
     leg: c.leg ? { to: c.leg.to, km: c.leg.km, kind: c.leg.kind, kmLeft: c.kmLeft } : null,
     visited: [...c.visited],
     stock: {
-      food: band(c.stock.food, living * N.foodPerTraveller[plan.rations]),
+      // No rations uses no food, so band by full rations: "plenty" should mean days of real meals.
+      food: band(c.stock.food, living * N.foodPerTraveller[plan.rations === "none" ? "full" : plan.rations]),
       water: band(c.stock.water, living * N.waterPerTraveller[nextKind === "desert" ? "desert" : "other"]),
       medicine: c.stock.medicine,
       coins: c.stock.coins,
@@ -94,7 +100,7 @@ export function privateState(state: State, playerId: string): LongTrailPrivateSt
   if (!p || !job) return { job: null, info: null, goal: null, goalText: null, ability: null, vote: null, choiceVote: null, acked: false };
   const { pack, route } = world(state);
   const live = !p.left && state.phase !== "over";
-  const info = live ? jobInfo(job, state.caravan, pack, route, { dangers: state.dangers, plan: state.plan ?? openPlan(state), travellers: state.travellers, choice: state.choice }) : null;
+  const info = live ? jobInfo(job, state.caravan, pack, route, { dangers: state.dangers, plan: state.plan ?? shownOpenPlan(state), travellers: state.travellers, choice: state.choice }) : null;
   const ability = isArmable(job)
     ? { job, armed: state.armed[job], used: state.used[job], canArm: live && !state.used[job] && isAlive(state, playerId) }
     : null;

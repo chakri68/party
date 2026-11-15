@@ -3,11 +3,15 @@ import { stopById, type ChoiceEvent, type Danger, type Leg, type LegKind, type R
 import { effectivePace, riskPoints, type Caravan } from "./travel.ts";
 import type { JobId, Plan, Rations } from "./types.ts";
 
+export type MarketView = { stop: string; prices: Record<string, number> };
+
+// At a fork, info that looks past it shows every way, keyed by the way's first stop, so
+// nothing a job sees depends on which way is safe (R15, R17).
 export type JobInfo =
-  | { job: "guide"; nextLeg: Danger | null }
+  | { job: "guide"; nextLeg: Danger | null; fork: { stop: string; ways: Record<string, Danger | null> } | null }
   | { job: "healer"; worsenChance: Record<string, number> } // per sick or hurt traveller, today's chance at the current plan
-  | { job: "trader"; nextMarket: { stop: string; prices: Record<string, number> } | null }
-  | { job: "quartermaster"; foodDays: number; waterDays: number } // at current rations and the next leg's kind
+  | { job: "trader"; nextMarket: MarketView | null; fork: { stop: string; ways: Record<string, MarketView | null> } | null }
+  | { job: "quartermaster"; foodDays: number; waterDays: number } // at current rations and today's leg kind
   | { job: "scout"; nextFork: { stop: string; km: Record<string, number> } | null } // total km on each branch to where the branches meet
   | { job: "driver"; fatigue: number; max: number }
   | { job: "cook"; foodDays: Record<Rations, number> }
@@ -23,20 +27,34 @@ export interface InfoState {
 /** Days are capped so "no food needed" stays a plain number. */
 const MAX_DAYS = 99;
 
-/** The way forward from a stop; at a fork, the safe branch. */
-const forward = (route: RouteDef, id: string): Leg | undefined => {
+/** The one way out of a stop; undefined at a fork or the end. Never picks a branch. */
+const only = (route: RouteDef, id: string): Leg | undefined => {
   const next = stopById(route, id).next;
-  return next.length === 2 ? (next.find((l) => l.safe) ?? next[0]) : next[0];
+  return next.length === 1 ? next[0] : undefined;
 };
 
 /** Where the look-ahead starts: the current leg's destination, or the stop we are halted at. */
 const origin = (c: Caravan): string => c.leg?.to ?? c.at;
 
-/** The leg after the one we're on, or the one leaving the stop we're halted at. */
-function nextLeg(c: Caravan, route: RouteDef): { from: string; leg: Leg } | null {
-  const from = origin(c);
-  const leg = forward(route, from);
-  return leg ? { from, leg } : null;
+/**
+ * The kind of leg walked today: the current leg, or the leg the plan takes out of the stop.
+ * At a fork with no way picked, none (the normal water rate), so nothing follows the safe way.
+ */
+export function todayKind(c: Caravan, route: RouteDef, plan: Plan): LegKind | undefined {
+  if (c.leg) return c.leg.kind;
+  if (plan.rest) return undefined;
+  const next = stopById(route, c.at).next;
+  return next.length === 2 ? next.find((l) => l.to === plan.fork)?.kind : next[0]?.kind;
+}
+
+/** The first market from a stop on, without passing a fork. "fork" when a fork comes first. */
+function marketFrom(c: Caravan, route: RouteDef, from: string): MarketView | { fork: string } | null {
+  for (let id: string | undefined = from; id !== undefined; id = only(route, id)?.to) {
+    const stop = stopById(route, id);
+    if (stop.market) return { stop: id, prices: { ...(c.prices[id] ?? {}) } };
+    if (stop.next.length === 2) return { fork: id };
+  }
+  return null;
 }
 
 const daysOf = (stock: number, perDay: number) => (perDay <= 0 ? MAX_DAYS : Math.min(MAX_DAYS, Math.floor(stock / perDay)));
@@ -48,12 +66,15 @@ export function jobInfo(job: JobId, c: Caravan, pack: SettingPack, route: RouteD
 
   switch (job) {
     case "guide": {
-      const n = nextLeg(c, route);
-      return { job, nextLeg: n ? (state.dangers[`${n.from}>${n.leg.to}`] ?? null) : null };
+      const from = origin(c);
+      const next = stopById(route, from).next;
+      const danger = (to: string) => state.dangers[`${from}>${to}`] ?? null;
+      if (next.length === 2) return { job, nextLeg: null, fork: { stop: from, ways: Object.fromEntries(next.map((l) => [l.to, danger(l.to)])) } };
+      return { job, nextLeg: next[0] ? danger(next[0].to) : null, fork: null };
     }
     case "healer": {
       const pace = effectivePace(c, pack, state.plan);
-      const legKind = c.leg?.kind ?? (state.plan.rest ? undefined : (stopById(route, c.at).next.find((l) => l.to === state.plan.fork) ?? forward(route, c.at))?.kind);
+      const legKind = todayKind(c, route, state.plan);
       const shortFood = foodPer(state.plan.rations) > c.stock.food;
       const shortWater = waterPer(legKind) > c.stock.water;
       const worsenChance: Record<string, number> = {};
@@ -65,23 +86,28 @@ export function jobInfo(job: JobId, c: Caravan, pack: SettingPack, route: RouteD
       return { job, worsenChance };
     }
     case "trader": {
-      for (let id: string | undefined = origin(c); id !== undefined; id = forward(route, id)?.to) {
-        if (stopById(route, id).market) return { job, nextMarket: { stop: id, prices: { ...(c.prices[id] ?? {}) } } };
+      const found = marketFrom(c, route, origin(c));
+      if (!found || !("fork" in found)) return { job, nextMarket: found, fork: null };
+      // A fork comes first: the next market on each way. A second fork on a way ends its look.
+      const ways: Record<string, MarketView | null> = {};
+      for (const l of stopById(route, found.fork).next) {
+        const m = marketFrom(c, route, l.to);
+        ways[l.to] = m && !("fork" in m) ? m : null;
       }
-      return { job, nextMarket: null };
+      return { job, nextMarket: null, fork: { stop: found.fork, ways } };
     }
     case "quartermaster": {
-      const kind = nextLeg(c, route)?.leg.kind;
+      const kind = todayKind(c, route, state.plan);
       return { job, foodDays: daysOf(c.stock.food, foodPer(state.plan.rations)), waterDays: daysOf(c.stock.water, waterPer(kind)) };
     }
     case "scout": {
-      for (let id: string | undefined = origin(c); id !== undefined; id = forward(route, id)?.to) {
+      for (let id: string | undefined = origin(c); id !== undefined; id = only(route, id)?.to) {
         const stop = stopById(route, id);
         if (stop.next.length !== 2) continue;
         const paths = stop.next.map((first) => {
           const stops: { id: string; km: number }[] = [];
           let km = 0;
-          for (let leg: Leg | undefined = first; leg; leg = forward(route, leg.to)) {
+          for (let leg: Leg | undefined = first; leg; leg = only(route, leg.to)) {
             km += leg.km;
             stops.push({ id: leg.to, km });
           }

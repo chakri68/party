@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way: no way is picked for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Only the Scout sees how long each way is.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Only the Scout sees how long each way is.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -103,10 +103,10 @@ Each player has one job. Everyone sees who has which job. What the job tells you
 
 | Job | Sees | Help |
 | --- | --- | --- |
-| Guide | How dangerous the next leg is. | Once per game, swaps an event that has no choice for a new one. |
+| Guide | How dangerous the next leg is. Before a fork, how dangerous each way is. | Once per game, swaps an event that has no choice for a new one. |
 | Healer | The chance that each sick traveller gets worse today. | Medicine can be given on a travel day, not only on a rest day. |
-| Trader | The prices at the next market town. | Better prices on days the Trader leads. |
-| Quartermaster | How many days of food and water are left. | Once per game, finds 10 food. |
+| Trader | The prices at the next market town. If a fork comes first, the next market on each way. | Better prices on days the Trader leads. |
+| Quartermaster | How many days of food and water are left. At a fork, water days count the way in the plan. With no way picked yet, they count the normal rate, not the desert rate. | Once per game, finds 10 food. |
 | Scout | How long each way is at the next fork. | Once per game, cancels the time lost to an event. |
 | Driver | How tired the camels are. | Once per leg, a Hard pace adds no health risk. |
 | Cook | How long the food lasts on full and half rations. | One day per leg, half rations count as full for health. |
@@ -177,7 +177,7 @@ Timers are fixed: 30 s to read your job, 45 s to plan, 25 s to vote, 20 s to cho
 ## On your screen
 
 - **The trail.** A line of stops, with the forks ahead. Below it, where you are, or how many km are left to the next stop.
-- **Stock.** Food and water as bars: plenty (6 days or more), some (3 to 5), low (1 or 2), out. Medicine, coins, camels and each good as numbers, and your load out of what the camels can carry.
+- **Stock.** Food and water as bars: plenty (6 days or more), some (3 to 5), low (1 or 2), out (none left, or less than 1 day). On no rations, the food bar counts days on full rations. At a fork with no way picked, the water bar counts the normal rate. Medicine, coins, camels and each good as numbers, and your load out of what the camels can carry.
 - **The caravan.** Each player, their job, their health, and who leads today.
 - **You.** Your job, what it tells you, your help and its **Get ready** button, and your secret goal behind a tap.
 - **The plan.** The leader gets the plan form. Everyone else sees the plan when it is proposed, then **Go** and **No-go**. While the vote is open, you see who has voted, not how. When it closes, everyone's vote is shown by name.

@@ -95,16 +95,27 @@ export function planLines(plan: Plan, pack: SettingPack, route: RouteDef, names:
 export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, names: Names, choiceLabels: string[] = []): string[] {
   const stop = (id: string) => stopById(route, id).name;
   switch (info.job) {
-    case "guide":
+    case "guide": {
+      if (info.fork) {
+        const ways = Object.entries(info.fork.ways).map(([to, d]) => (d === null ? `The way by ${stop(to)}: not known.` : `The way by ${stop(to)} looks ${DANGER_LABEL[d]}.`));
+        return [`Fork at ${stop(info.fork.stop)}.`, ...ways];
+      }
       return [info.nextLeg === null ? "No more legs ahead." : `The next leg looks ${DANGER_LABEL[info.nextLeg]}.`];
+    }
     case "healer": {
       const rows = Object.entries(info.worsenChance);
       return rows.length ? rows.map(([id, p]) => `${names(id)}: ${pct(p)} chance to get worse today.`) : ["Nobody is sick."];
     }
     case "trader": {
+      const prices = (m: { prices: Record<string, number> }) => pack.goods.map((g) => `${g.name} ${m.prices[g.id] ?? "-"}`).join(", ");
+      if (info.fork) {
+        const ways = Object.entries(info.fork.ways).map(([to, m]) =>
+          m === null ? `The way by ${stop(to)}: no market ahead.` : `The way by ${stop(to)}: next market ${stop(m.stop)}. ${prices(m)}.`,
+        );
+        return [`Fork at ${stop(info.fork.stop)}.`, ...ways];
+      }
       if (!info.nextMarket) return ["No more markets ahead."];
-      const prices = pack.goods.map((g) => `${g.name} ${info.nextMarket!.prices[g.id] ?? "-"}`).join(", ");
-      return [`Next market: ${stop(info.nextMarket.stop)}.`, `${prices}.`];
+      return [`Next market: ${stop(info.nextMarket.stop)}.`, `${prices(info.nextMarket)}.`];
     }
     case "quartermaster":
       return [`Food for ${info.foodDays} days. Water for ${info.waterDays} days.`];

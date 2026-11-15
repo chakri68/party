@@ -89,8 +89,25 @@ describe("the water band at a fork", () => {
     expect(s.travellers.filter((id) => s.caravan.health[id]! > 0)).toHaveLength(4);
     // The safe branch is desert, so a band that followed it would say "low".
     expect(g.getPublicState(s).stock.water).toBe("some");
-    // jobInfo still sees the server's open plan, safe branch included.
+    // The server's open plan (Skip, the timer) still takes the safe branch.
     expect(openPlan(s).fork).toBe("kessel-wells");
+  });
+
+  it("job info before a plan shows both ways, and water days at the normal rate", () => {
+    const s = atOmbar();
+    const [a, b, c] = ids(s);
+    s.jobs[a!] = "quartermaster";
+    s.jobs[b!] = "trader";
+    s.jobs[c!] = "guide";
+    expect(g.getPrivateState(s, a!).info).toMatchObject({ waterDays: 4 }); // 16 water, 4 a day; desert would say 2
+    const trader = g.getPrivateState(s, b!).info;
+    expect(trader).toMatchObject({ nextMarket: null, fork: { stop: "ombar" } });
+    expect(Object.keys((trader as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel-wells", "rook-pass"]);
+    const guide = g.getPrivateState(s, c!).info;
+    expect(guide).toMatchObject({ nextLeg: null, fork: { stop: "ombar" } });
+    expect(Object.keys((guide as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel-wells", "rook-pass"]);
+    s.plan = { ...openPlan(s), fork: "kessel-wells" };
+    expect(g.getPrivateState(s, a!).info).toMatchObject({ waterDays: 2 });
   });
 
   it("follows the fork a proposed plan picks", () => {
@@ -99,5 +116,32 @@ describe("the water band at a fork", () => {
     expect(g.getPublicState(s).stock.water).toBe("low");
     s.plan = { ...openPlan(s), fork: "rook-pass" };
     expect(g.getPublicState(s).stock.water).toBe("some");
+  });
+});
+
+describe("the food band", () => {
+  function withFood(food: number, rations: "full" | "half" | "none"): S {
+    const s = structuredClone(toPlan(start(4, { length: "short" }, 5).state));
+    s.caravan.stock.food = food;
+    s.plan = { ...openPlan(s), rations };
+    return s;
+  }
+
+  it("is out at 0 food, on any rations", () => {
+    for (const r of ["full", "half", "none"] as const) expect(g.getPublicState(withFood(0, r)).stock.food, r).toBe("out");
+  });
+
+  it("bands by full rations when the plan eats nothing", () => {
+    // 4 travellers, 2 food each on full rations: 8 a day.
+    expect(g.getPublicState(withFood(8, "none")).stock.food).toBe("low");
+    expect(g.getPublicState(withFood(24, "none")).stock.food).toBe("some");
+    expect(g.getPublicState(withFood(48, "none")).stock.food).toBe("plenty");
+    expect(g.getPublicState(withFood(8, "half")).stock.food).toBe("low"); // 2 days on half
+  });
+
+  it("water is out at 0 too", () => {
+    const s = withFood(10, "full");
+    s.caravan.stock.water = 0;
+    expect(g.getPublicState(s).stock.water).toBe("out");
   });
 });

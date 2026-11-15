@@ -338,7 +338,7 @@ export const tradeRoute: SettingPack = {
     },
     driver: {
       name: "Driver",
-      info: "You see how tired each camel is.",
+      info: "You see how tired the camels are.",
       ability: "Once per leg, a hard pace adds no health risk.",
     },
     cook: {

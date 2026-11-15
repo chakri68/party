@@ -12,7 +12,7 @@ import {
 } from "../shared/events.ts";
 import { jobInfo } from "../shared/info.ts";
 import { N } from "../shared/numbers.ts";
-import type { ChoiceEvent, Danger, EventCard, PlainEvent, SettingPack } from "../shared/pack.ts";
+import type { ChoiceEvent, Danger, EventCard, PlainEvent, RouteDef, SettingPack } from "../shared/pack.ts";
 import type { JobId } from "../shared/types.ts";
 import { P4, never, onLeg, pack as basePack, plan, route, seeded, van, zero } from "./fixtures.ts";
 
@@ -306,19 +306,24 @@ describe("jobInfo", () => {
   });
   const info = (job: JobId, c = van(), s = state()) => jobInfo(job, c, pack, route, s);
 
-  it("quartermaster counts days at current rations and the next leg", () => {
+  it("quartermaster counts days at current rations and today's leg", () => {
     const c = van({ stock: { ...van().stock, food: 20 } });
     expect(info("quartermaster", c)).toEqual({ job: "quartermaster", foodDays: 2, waterDays: 25 });
     expect(info("quartermaster", c, state({ plan: plan({ rations: "half" }) }))).toMatchObject({ foodDays: 5 });
-    const desert = van({ at: "b", stock: { ...van().stock, water: 20 } });
-    expect(info("quartermaster", desert)).toMatchObject({ waterDays: 2 }); // b>c is the safe branch, desert: 8 a day
+    const fork = van({ at: "b", stock: { ...van().stock, water: 20 } });
+    expect(info("quartermaster", fork)).toMatchObject({ waterDays: 5 }); // no way picked: the normal rate, 4 a day
+    expect(info("quartermaster", fork, state({ plan: plan({ fork: "c" }) }))).toMatchObject({ waterDays: 2 }); // b>c is desert: 8 a day
+    expect(info("quartermaster", fork, state({ plan: plan({ fork: "d" }) }))).toMatchObject({ waterDays: 5 });
+    expect(info("quartermaster", onLeg("desert", 30, { stock: { ...van().stock, water: 20 } }))).toMatchObject({ waterDays: 2 }); // on the desert leg
     expect(info("quartermaster", van({ health: { p1: 3, p2: 0, p3: 0, p4: 0 }, stock: { ...van().stock, food: 20 } }))).toMatchObject({ foodDays: 10 });
   });
   it("guide shows the next leg's danger, or null at the end", () => {
-    expect(info("guide")).toEqual({ job: "guide", nextLeg: 1 });
-    expect(info("guide", van({ at: "b" }))).toEqual({ job: "guide", nextLeg: 0 }); // safe branch
-    expect(info("guide", onLeg("plain", 20))).toEqual({ job: "guide", nextLeg: 1 }); // heading to d, then d>e
-    expect(info("guide", van({ at: "e" }))).toEqual({ job: "guide", nextLeg: null });
+    expect(info("guide")).toEqual({ job: "guide", nextLeg: 1, fork: null });
+    expect(info("guide", van({ at: "b" }))).toEqual({ job: "guide", nextLeg: null, fork: { stop: "b", ways: { c: 0, d: 2 } } }); // both ways
+    const toB = van({ leg: { to: "b", km: 100, kind: "plain" }, kmLeft: 40 });
+    expect(info("guide", toB)).toEqual({ job: "guide", nextLeg: null, fork: { stop: "b", ways: { c: 0, d: 2 } } });
+    expect(info("guide", onLeg("plain", 20))).toEqual({ job: "guide", nextLeg: 1, fork: null }); // heading to d, then d>e
+    expect(info("guide", van({ at: "e" }))).toEqual({ job: "guide", nextLeg: null, fork: null });
   });
   it("scout shows km on each branch of the next fork, or null", () => {
     expect(info("scout")).toEqual({ job: "scout", nextFork: { stop: "b", km: { c: 130, d: 100 } } });
@@ -329,9 +334,13 @@ describe("jobInfo", () => {
     expect(info("scout", onLeg("plain", 20))).toEqual({ job: "scout", nextFork: null }); // heading to d
   });
   it("trader shows the next market's prices", () => {
-    expect(info("trader")).toEqual({ job: "trader", nextMarket: { stop: "a", prices: { silk: 10 } } });
-    expect(info("trader", onLeg("plain", 20))).toEqual({ job: "trader", nextMarket: { stop: "d", prices: { silk: 10 } } });
-    expect(info("trader", van({ at: "b" }))).toEqual({ job: "trader", nextMarket: null }); // safe branch has none
+    expect(info("trader")).toEqual({ job: "trader", nextMarket: { stop: "a", prices: { silk: 10 } }, fork: null });
+    expect(info("trader", onLeg("plain", 20))).toEqual({ job: "trader", nextMarket: { stop: "d", prices: { silk: 10 } }, fork: null });
+    // A fork before the next market: the next market on each way.
+    const both = { job: "trader", nextMarket: null, fork: { stop: "b", ways: { c: null, d: { stop: "d", prices: { silk: 10 } } } } };
+    expect(info("trader", van({ at: "b" }))).toEqual(both);
+    expect(info("trader", van({ leg: { to: "b", km: 100, kind: "plain" }, kmLeft: 40 }))).toEqual(both);
+    expect(info("trader", van({ at: "e" }))).toEqual({ job: "trader", nextMarket: null, fork: null });
   });
   it("healer gives today's worsen chance per sick or hurt living traveller", () => {
     // Risk points add up in riskPoints' order (hard, half, none, thirst, hungry, sick), then scale.
@@ -370,5 +379,30 @@ describe("jobInfo", () => {
       job: "lookout",
       odds: [{ option: 0, p: 0 }, { option: 1, p: 0 }],
     });
+  });
+});
+
+describe("jobInfo at a fork does not depend on which way is safe", () => {
+  // The fixture route with the safe flag moved from b>c to b>d. Nothing else changes.
+  const flipped: RouteDef = {
+    ...route,
+    stops: route.stops.map((st) => (st.id === "b" ? { ...st, next: st.next.map((l) => ({ ...l, safe: l.to === "d" })) } : st)),
+  };
+  const dangers: Record<string, Danger> = { "a>b": 1, "b>c": 1, "b>d": 1, "c>e": 2, "d>e": 1 };
+  const s = (fork: string | null = null): Parameters<typeof jobInfo>[4] => ({ dangers, plan: plan({ fork }), travellers: P4, choice: null });
+  const jobs: JobId[] = ["guide", "healer", "trader", "quartermaster", "scout", "driver", "cook", "lookout"];
+  const places = {
+    "halted at the fork": van({ at: "b", stock: { ...van().stock, water: 20 }, health: { p1: 2, p2: 3, p3: 3, p4: 3 } }),
+    "on the leg to the fork": van({ leg: { to: "b", km: 100, kind: "plain" }, kmLeft: 40, stock: { ...van().stock, water: 20 } }),
+    "at the stop before the fork": van({ stock: { ...van().stock, water: 20 } }),
+  };
+
+  it.each(Object.entries(places))("gives the same info %s", (_, c) => {
+    for (const job of jobs) {
+      for (const fork of [null, "c", "d"]) {
+        if (fork !== null && c.at !== "b") continue;
+        expect(jobInfo(job, c, basePack, flipped, s(fork)), `${job} fork ${fork}`).toEqual(jobInfo(job, c, basePack, route, s(fork)));
+      }
+    }
   });
 });
