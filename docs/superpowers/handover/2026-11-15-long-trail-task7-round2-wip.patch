@@ -1,0 +1,261 @@
+diff --git a/games/long-trail/test/balance.test.ts b/games/long-trail/test/balance.test.ts
+index 91ad3bd..3012b50 100644
+--- a/games/long-trail/test/balance.test.ts
++++ b/games/long-trail/test/balance.test.ts
+@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
+ import { longTrailGame as g } from "../server/game.ts";
+ import { legOut } from "../server/world.ts";
+ import { N } from "../shared/numbers.ts";
+-import { packFor, stopById, type RouteDef } from "../shared/pack.ts";
++import { packFor, stopById, type RouteDef, type StopDef } from "../shared/pack.ts";
+ import { wealth } from "../shared/scoring.ts";
+ import { failed } from "../shared/travel.ts";
+ import type { Grade, Length, LongTrailServerState, Pace, Plan, Rations, Trade } from "../shared/types.ts";
+@@ -27,13 +27,27 @@ type S = LongTrailServerState;
+ type Bot = "sensible" | "no-trade" | "careless";
+ 
+ const GAMES = 300;
+-const SIDE_GAMES = 60; // 3 and 8 players, printed only (kept small for time)
++const SIDE_GAMES = 40; // 3 and 8 players, printed only (kept small for time)
+ const LENGTHS: Length[] = ["short", "normal", "epic"];
+ const ARMABLE = ["guide", "scout", "quartermaster", "lookout"];
+ const pack = packFor("trade-route");
+ 
++export const TRACE_HOOK = { on: false, lines: [] as string[] };
+ const daysFor = (km: number) => Math.ceil(km / N.kmPerDay.steady);
+ 
++/** Each good's pack-wide range middle: halfway between its lowest and highest price anywhere. */
++function packMid(): Record<string, number> {
++  const lo: Record<string, number> = {};
++  const hi: Record<string, number> = {};
++  for (const route of Object.values(pack.routes))
++    for (const stop of route.stops)
++      for (const [good, [a, b]] of Object.entries(stop.market?.goods ?? {})) {
++        lo[good] = Math.min(lo[good] ?? a, a);
++        hi[good] = Math.max(hi[good] ?? b, b);
++      }
++  return Object.fromEntries(Object.keys(lo).map((good) => [good, (lo[good]! + hi[good]!) / 2]));
++}
++
+ /** Days of steady walking left to the end, on the safe branch at every fork still ahead. */
+ function daysToEnd(s: S, route: RouteDef): number {
+   const c = s.caravan;
+@@ -71,6 +85,31 @@ function coverNeeds(s: S, route: RouteDef, fork: string | null, living: number):
+   return { food: living * N.foodPerTraveller.full * days, water: living * water };
+ }
+ 
++/** Market stops ahead on the safe path, nearest first, ending with the end stop. */
++function marketsAhead(route: RouteDef, from: string): StopDef[] {
++  const out: StopDef[] = [];
++  for (let at = from; at !== route.end; ) {
++    at = legOut(route, at, null)!.to;
++    const stop = stopById(route, at);
++    if (stop.market) out.push(stop);
++  }
++  return out;
++}
++
++/** Food and water from a halted stop to the next market on the safe path, no spare days. */
++function coverFrom(route: RouteDef, from: string, living: number): { food: number; water: number } {
++  let days = 0;
++  let water = 0;
++  for (let at = from; ; ) {
++    const leg = legOut(route, at, null)!;
++    days += daysFor(leg.km);
++    water += daysFor(leg.km) * N.waterPerTraveller[leg.kind === "desert" ? "desert" : "other"];
++    at = leg.to;
++    if (stopById(route, at).market || at === route.end) break;
++  }
++  return { food: living * N.foodPerTraveller.full * days, water: living * water };
++}
++
+ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
+   const pub = g.getPublicState(s);
+   const c = s.caravan;
+@@ -92,13 +131,12 @@ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
+     const traderLeads = s.jobs[leader] === "trader" && living.some((t) => t.id === leader);
+     const buyAt = (p: number) => (traderLeads ? Math.floor(p * (1 - N.traderEdge)) : p);
+     const sellAt = (p: number) => (traderLeads ? Math.ceil(p * (1 + N.traderEdge)) : p);
+-    const market = stopById(route, c.at).market!;
+     let coins = c.stock.coins;
+     let cargo = Object.values(c.stock.cargo).reduce((a, b) => a + b, 0);
++    const mid = packMid();
+     for (const [good, price] of Object.entries(tradeGoods ? pub.prices.goods : {})) {
+-      const [lo, hi] = market.goods[good]!;
+       const held = c.stock.cargo[good] ?? 0;
+-      if (held > 0 && price >= 1.2 * ((lo + hi) / 2)) {
++      if (held > 0 && price > mid[good]!) {
+         trades.push({ item: good, qty: -held });
+         coins += sellAt(price) * held;
+         cargo -= held;
+@@ -116,13 +154,26 @@ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
+       coins -= unit * qty;
+       if (item === "food") food += qty;
+     }
+-    const cheapest = Object.entries(pub.prices.goods)
+-      .filter(([good]) => !trades.some((t) => t.item === good))
+-      .sort((a, b) => a[1] - b[1])[0];
+-    if (cheapest && tradeGoods) {
+-      const price = buyAt(cheapest[1]);
+-      const qty = Math.min(pub.capacity - cargo, price > 0 ? Math.floor((coins - 40) / price) : 0);
+-      if (qty > 0) trades.push({ item: cheapest[0], qty });
++    if (tradeGoods) {
++      // Keep enough to buy the next market's supplies, priced as here.
++      const ahead = marketsAhead(route, c.at);
++      const next = ahead[0];
++      let reserve = 0;
++      if (next && next.id !== route.end) {
++        const need = coverFrom(route, next.id, living.length);
++        reserve = need.food * (pub.prices.supplies.food ?? 0) + need.water * (pub.prices.supplies.water ?? 0);
++      }
++      let best: { good: string; price: number; margin: number } | null = null;
++      for (const [good, here] of Object.entries(pub.prices.goods)) {
++        if (trades.some((t) => t.item === good)) continue;
++        const price = buyAt(here);
++        const sell = Math.max(...ahead.map((m) => { const [lo, hi] = m.market!.goods[good]!; return (lo + hi) / 2; }));
++        if (sell - price > (best?.margin ?? 0)) best = { good, price, margin: sell - price };
++      }
++      if (best && best.price > 0) {
++        const qty = Math.min(pub.capacity - cargo, Math.floor((coins - reserve) / best.price));
++        if (qty > 0) trades.push({ item: best.good, qty });
++      }
+     }
+   }
+   const rations: Rations = food >= living.length * N.foodPerTraveller.full * legDays ? "full" : "half";
+@@ -143,9 +194,10 @@ interface Result {
+   day: number;
+   grade: Grade | null;
+   wealth: number;
++  sold: boolean; // sold a good before the end stop
+ }
+ 
+-function play(bot: Bot, length: Length, players: number, seed: number): Result {
++export function play(bot: Bot, length: Length, players: number, seed: number): Result {
+   const route = pack.routes[length];
+   const rnd = seededRandomInt(seed);
+   const botRnd = seededRandomInt(seed + 7919);
+@@ -170,6 +222,11 @@ function play(bot: Bot, length: Length, players: number, seed: number): Result {
+   for (let guard = 0; guard < 1000 && s.phase !== "recap"; guard++) {
+     if (s.phase === "plan") {
+       const leader = g.getPublicState(s).leader;
++      if (TRACE_HOOK.on && seed < 1004 && bot === "sensible") {
++        const c = s.caravan;
++        const l = s.lastDay;
++        TRACE_HOOK.lines.push(`${seed} d${c.day} ${c.leg ? c.at + ">" + c.leg.to + " " + c.kmLeft : c.at} f${c.stock.food} w${c.stock.water} c${c.stock.coins} a${c.stock.animals} ${JSON.stringify(c.stock.cargo)} h${Object.values(c.health).join("")} | ${l?.event?.id ?? ""} ${l ? JSON.stringify(l.plan.trades) + " " + l.plan.rations + (l.plan.rest ? " REST" : "") : ""}`);
++      }
+       act(leader, { type: "propose", plan: bot === "careless" ? carelessPlan(s, route, botRnd) : sensiblePlan(s, route, bot === "sensible") });
+       act("p0", { type: "vote", vote: "go" }); // one Go is a majority of the votes cast
+     } else if (s.phase === "choice") act("p0", { type: "choose", option: bot === "careless" ? botRnd(2) : 0 });
+@@ -177,7 +234,7 @@ function play(bot: Bot, length: Length, players: number, seed: number): Result {
+     else ring();
+   }
+   const end = s.end!;
+-  return { arrived: end.arrived, dead: failed(s.caravan, route) === "all-dead", day: end.day, grade: end.grade, wealth: wealth(s.caravan, route) };
++  return { arrived: end.arrived, dead: failed(s.caravan, route) === "all-dead", day: end.day, grade: end.grade, wealth: wealth(s.caravan, route), sold: s.log.some((l) => l.plan.trades.some((t) => t.qty < 0)) };
+ }
+ 
+ interface Row {
+@@ -192,12 +249,13 @@ interface Row {
+   legendary: number;
+   fairRich: number;
+   fairUp: number; // fair, rich or legendary: arrived with at least the start wealth
++  sold: number; // share of games that sold a good on the way
+   medianDay: number;
+   deadline: number;
+   wealth: number; // median among arrivals
+ }
+ 
+-function run(bot: Bot, length: Length, players: number, games: number): Row {
++export function run(bot: Bot, length: Length, players: number, games: number): Row {
+   const results = Array.from({ length: games }, (_, i) => play(bot, length, players, 1000 + i));
+   const made = results.filter((r) => r.arrived);
+   const share = (grade: Grade) => (made.length ? made.filter((r) => r.grade === grade).length / made.length : 0);
+@@ -215,6 +273,7 @@ function run(bot: Bot, length: Length, players: number, games: number): Row {
+     legendary: round(share("legendary")),
+     fairRich: round(share("fair") + share("rich")),
+     fairUp: round(share("fair") + share("rich") + share("legendary")),
++    sold: round(results.filter((r) => r.sold).length / games),
+     medianDay: days.length ? days[Math.floor((days.length - 1) / 2)]! : NaN,
+     deadline: pack.routes[length].deadline,
+     wealth: made.length ? made.map((r) => r.wealth).sort((a, b) => a - b)[Math.floor((made.length - 1) / 2)]! : NaN,
+@@ -238,7 +297,9 @@ describe("balance", () => {
+         expect(r.arrive, `${name} arrival`).toBeGreaterThanOrEqual(0.55);
+         expect(r.arrive, `${name} arrival`).toBeLessThanOrEqual(0.8);
+         expect(r.fairRich, `${name} fair + rich`).toBeGreaterThanOrEqual(0.5);
++        expect(r.legendary, `${name} legendary`).toBeGreaterThanOrEqual(0.02);
+         expect(r.legendary, `${name} legendary`).toBeLessThanOrEqual(0.15);
++        expect(r.sold, `${name} sells on the way`).toBeGreaterThanOrEqual(0.3);
+         expect(r.medianDay, `${name} median day`).toBeGreaterThanOrEqual(r.deadline - 5);
+         expect(r.medianDay, `${name} median day`).toBeLessThanOrEqual(r.deadline - 1);
+       }
+diff --git a/games/long-trail/test/zz-sweep.test.ts b/games/long-trail/test/zz-sweep.test.ts
+new file mode 100644
+index 0000000..a5280c4
+--- /dev/null
++++ b/games/long-trail/test/zz-sweep.test.ts
+@@ -0,0 +1,65 @@
++// SCRATCH: parameter sweep for Task 7 tuning. Delete before commit.
++import { readFileSync, writeFileSync } from "node:fs";
++import { it } from "vitest";
++import { N } from "../shared/numbers.ts";
++import { tradeRoute } from "../shared/packs/trade-route.ts";
++import { play, run, TRACE_HOOK } from "./balance.test.ts";
++import type { Length } from "../shared/types.ts";
++
++type Any = Record<string, any>;
++function merge(dst: Any, src: Any) {
++  for (const [k, v] of Object.entries(src)) {
++    if (v && typeof v === "object" && !Array.isArray(v) && dst[k] && typeof dst[k] === "object") merge(dst[k], v);
++    else dst[k] = v;
++  }
++}
++
++it.runIf(!!process.env.SWEEP)("sweep", () => {
++  const configs: Any[] = JSON.parse(readFileSync(process.env.SWEEP!, "utf8"));
++  const baseN = structuredClone(N);
++  const baseStart = tradeRoute.start;
++  const baseRoutes = structuredClone(tradeRoute.routes);
++  const baseCap = tradeRoute.capacityPerAnimal;
++  const lines: string[] = [];
++  for (const cfg of configs) {
++    merge(N as Any, structuredClone(baseN));
++    tradeRoute.start = baseStart;
++    tradeRoute.routes = structuredClone(baseRoutes);
++    tradeRoute.capacityPerAnimal = cfg.cap ?? baseCap;
++    if (cfg.N) merge(N as Any, cfg.N);
++    if (cfg.start) {
++      const s = cfg.start;
++      tradeRoute.start = (n: number) => ({ ...baseStart(n), food: s.food * n, water: s.water * n, coins: s.coins, ...(s.cargo ? { cargo: { ...s.cargo } } : {}) });
++    }
++    if (cfg.markets)
++      for (const r of Object.values(tradeRoute.routes))
++        for (const st of r.stops) if (st.market && cfg.markets[st.id]) merge(st.market as Any, structuredClone(cfg.markets[st.id]));
++    if (cfg.legs)
++      for (const [len, legs] of Object.entries(cfg.legs as Record<string, Record<string, number>>))
++        for (const [key, km] of Object.entries(legs)) {
++          const [a, b] = key.split(">");
++          tradeRoute.routes[len as Length].stops.find((s) => s.id === a)!.next.find((l) => l.to === b)!.km = km;
++        }
++    const mir = tradeRoute.routes.short.stops.find((s) => s.id === "mirren-gate")!.market!.goods;
++    const st = tradeRoute.start(5);
++    const w0 = st.coins + Object.entries(st.cargo).reduce((a, [g, n]) => a + n * ((mir[g]![0] + mir[g]![1]) / 2), 0);
++    const [f, r, l] = cfg.gradeMul ?? [1.03, 1.5, 2.2];
++    tradeRoute.grades = { broke: 0, fair: Math.round(w0 * f), rich: Math.round(w0 * r), legendary: Math.round(w0 * l) };
++    TRACE_HOOK.on = !!cfg.trace;
++    TRACE_HOOK.lines = [];
++    const games = cfg.games ?? 150;
++    lines.push(`== ${cfg.name} W0=${w0} grades=${JSON.stringify(tradeRoute.grades)}`);
++    for (const len of (cfg.lengths ?? ["short", "normal", "epic"]) as Length[])
++      for (const p of (cfg.players ?? [5]) as number[])
++        for (const bot of cfg.bots ?? ["sensible", "no-trade", "careless"]) {
++          const r = run(bot, len, p, games);
++          if (cfg.pct && bot === "sensible") {
++            const ws = Array.from({ length: games }, (_, i) => play(bot, len, p, 1000 + i)).filter((x) => x.arrived).map((x) => x.wealth).sort((a, b) => a - b);
++            lines.push(`   wealth/W0 p10..p95: ${[0.1, 0.25, 0.5, 0.75, 0.9, 0.95].map((q) => (ws[Math.floor(q * (ws.length - 1))]! / w0).toFixed(2)).join(" ")}`);
++          }
++          lines.push(`${len.padEnd(6)} p${p} ${bot.padEnd(8)} arr ${r.arrive.toFixed(2)} dead ${r.dead.toFixed(2)} | b ${r.broke.toFixed(2)} f ${r.fair.toFixed(2)} r ${r.rich.toFixed(2)} L ${r.legendary.toFixed(2)} up ${r.fairUp.toFixed(2)} sold ${r.sold.toFixed(2)} | day ${r.medianDay}/${r.deadline} | w ${r.wealth}`);
++        }
++  }
++  if (TRACE_HOOK.lines.length) writeFileSync(process.env.SWEEP_OUT! + ".trace", TRACE_HOOK.lines.join("\n"));
++  writeFileSync(process.env.SWEEP_OUT!, lines.join("\n") + "\n");
++}, 900_000);
