@@ -275,8 +275,35 @@ function finishDay(state: State, ctx: GameContext, out: Out): void {
 }
 
 /** Fills in the draft's stock changes and place, and adds it to the trip log. */
-function closeDraft(state: State): DayLog {
+/** The caravan's place, as the trip log names it. */
+function whereNow(state: State): string {
   const { route } = world(state);
+  const c = state.caravan;
+  const name = (id: string) => stopById(route, id).name;
+  return c.leg ? `between ${name(c.at)} and ${name(c.leg.to)}` : name(c.at);
+}
+
+/**
+ * A removal ended the trip before today's day ran, after a plan was already voted down:
+ * keep those votes in the trip as a day that did not travel.
+ */
+function closeUnfinishedDay(state: State): void {
+  if (state.proposals.length === 0) return;
+  state.log.push({
+    day: state.caravan.day,
+    leader: leaderOf(state),
+    plan: state.proposals[state.proposals.length - 1]!.plan,
+    proposals: state.proposals,
+    stayedCourse: false,
+    event: null,
+    report: { km: 0, reached: null, healthChanges: [], stockDelta: {}, cargoDelta: {} },
+    where: whereNow(state),
+    unfinished: true,
+  });
+  state.proposals = [];
+}
+
+function closeDraft(state: State): DayLog {
   const c = state.caravan;
   const { log, before } = state.draft!;
   for (const k of ["food", "water", "medicine", "animals", "coins"] as const) {
@@ -287,8 +314,7 @@ function closeDraft(state: State): DayLog {
     const d = (c.stock.cargo[good] ?? 0) - (before.cargo[good] ?? 0);
     if (d !== 0) log.report.cargoDelta[good] = d;
   }
-  const name = (id: string) => stopById(route, id).name;
-  log.where = c.leg ? `between ${name(c.at)} and ${name(c.leg.to)}` : name(c.at);
+  log.where = whereNow(state);
   state.log.push(log);
   state.lastDay = log;
   state.draft = null;
@@ -325,6 +351,7 @@ function toRecap(state: State, ctx: GameContext, out: Out): void {
   const { pack, route } = world(state);
   // A removal can end the trip while a choice is open: keep that day (and its votes) in the trip.
   if (state.draft) closeDraft(state);
+  else closeUnfinishedDay(state);
   state.plan = null;
   state.ballot = null;
   state.choice = null;

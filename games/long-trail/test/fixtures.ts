@@ -25,6 +25,7 @@ export const route: RouteDef = {
 export const pack = {
   id: "trade-route",
   goods: [{ id: "silk", name: "Silk" }],
+  labels: { food: "Food", water: "Water", medicine: "Medicine", animals: "Camels", coins: "Coins", cargo: "Cargo" },
   capacityPerAnimal: 10,
   routes: { short: route, normal: route, epic: route },
 } as unknown as SettingPack;

@@ -32,12 +32,18 @@ describe("buildRecap", () => {
       { stop: "e", name: "E", day: 4 },
     ]);
   });
-  it("orders big calls by margin, closest first, at most 3", () => {
+  it("orders big calls by margin, closest first, and leaves out votes everyone agreed on", () => {
     const calls = run().bigCalls;
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2); // the 3-0 votes are not close
     expect(calls[0]).toMatchObject({ day: 3, question: "Wait it out", go: 2, noGo: 1 }); // 2-1, later day first
     expect(calls[1]).toMatchObject({ day: 2, question: "Hard pace, half rations, go to C", go: 2, noGo: 1, result: "Lost 2 food" });
-    expect(calls[2]!.go - calls[2]!.noGo).toBe(3);
+    // With nothing split, the agreed votes are all there is.
+    expect(run(end, [log[0]!, log[3]!]).bigCalls).toHaveLength(2);
+  });
+  it("keeps at most 3 close votes", () => {
+    const split = { by: "p1", plan: plan(), votes: votes("go", "go", "no-go"), passed: true };
+    const l: DayLog[] = log.map((d) => ({ ...d, proposals: [split] }));
+    expect(run(end, l).bigCalls).toHaveLength(3);
   });
   it("breaks equal margins by voters, then later day", () => {
     const l: DayLog[] = [
@@ -54,7 +60,10 @@ describe("buildRecap", () => {
   });
   it("names a failed proposal's plan and counts gains in results", () => {
     const l: DayLog[] = [{ ...log[0]!, proposals: [{ by: "p1", plan: plan({ rest: true }), votes: votes("no-go", "no-go", "go"), passed: false }], report: rep({ stockDelta: { coins: 20, food: -3 } }) }];
-    expect(run(end, l).bigCalls[0]).toMatchObject({ question: "Steady pace, full rations, rest", go: 1, noGo: 2, result: "Got 20 coins" });
+    // A rejected plan never ran: it says so, and the day's outcome is not pinned on it.
+    expect(run(end, l).bigCalls[0]).toMatchObject({ question: "Steady pace, full rations, rest", go: 1, noGo: 2, result: "Rejected" });
+    const none: DayLog[] = [{ ...log[0]!, proposals: [{ by: "p1", plan: plan({ rations: "none", pace: "hard" }), votes: votes("go", "go", "no-go"), passed: true }] }];
+    expect(run(end, none).bigCalls[0]!.question).toBe("Hard pace, no food");
     const cargo: DayLog[] = [{ ...log[0]!, report: rep({ cargoDelta: { silk: 3 }, stockDelta: { food: 1 } }) }];
     expect(run(end, cargo).bigCalls[0]!.result).toBe("Got 3 silk");
     expect(run(end, cargo).worstDay).toBeNull();
@@ -63,6 +72,20 @@ describe("buildRecap", () => {
     const hurt = { healthChanges: [{ playerId: "p1", from: 3 as const, to: 2 as const }] };
     const l: DayLog[] = [{ ...log[0]!, report: rep(hurt) }, { ...log[1]!, report: rep(hurt) }];
     expect(run(end, l).worstDay?.day).toBe(1);
+  });
+  it("names everyone who got worse on the worst day, worst first", () => {
+    const l: DayLog[] = [{ ...log[0]!, event: { id: "x", text: "Cold rain." }, report: rep({ healthChanges: [
+      { playerId: "p1", from: 3, to: 2 },
+      { playerId: "p2", from: 2, to: 1 },
+      { playerId: "p3", from: 3, to: 2 },
+    ] }) }];
+    expect(run(end, l).worstDay).toEqual({ day: 1, text: "Cold rain. Ben was badly hurt, Asha got sick and Cy got sick." });
+  });
+  it("says camel, not animal", () => {
+    const l: DayLog[] = [{ ...log[0]!, report: rep({ stockDelta: { animals: -1 } }) }];
+    expect(run(end, l).worstDay!.text).toBe("Lost 1 camel.");
+    const two: DayLog[] = [{ ...log[0]!, report: rep({ stockDelta: { animals: -2 } }) }];
+    expect(run(end, two).worstDay!.text).toBe("Lost 2 camels.");
   });
   it("finds the worst day", () => {
     expect(run().worstDay).toEqual({ day: 3, text: "A storm hits. Cy died." });

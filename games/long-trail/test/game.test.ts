@@ -231,6 +231,26 @@ describe("removal", () => {
     expect(s.log.at(-1)!.event!.choice).toBeUndefined(); // the choice never closed
   });
 
+  it.each(["plan", "vote"] as const)("keeps a voted-down plan in the trip when a removal ends it mid-%s", (phase) => {
+    let s = proposeOpen(toPlan(start(5).state));
+    s = voteAll(s, "no-go").state; // the first plan fails; the next seat plans
+    expect(s.phase).toBe("plan");
+    if (phase === "vote") s = proposeOpen(s);
+    expect(s.phase).toBe(phase);
+    const day = s.caravan.day;
+    for (const id of ["p0", "p1", "p2", "p3"]) s.caravan.health[id] = 0;
+    s = g.onPlayerRemoved!(s, "p4", ctx(s.deadline - 1000)).state;
+    expect(s.phase).toBe("recap");
+    const last = s.log.at(-1)!;
+    expect(last).toMatchObject({ day, unfinished: true, event: null });
+    expect(last.report.km).toBe(0);
+    expect(last.proposals).toHaveLength(1); // the open second vote never closed, so only the first counts
+    expect(last.proposals[0]!.passed).toBe(false);
+    expect(s.proposals).toEqual([]);
+    const call = s.recap!.bigCalls.find((c) => c.day === day)!;
+    expect(call.result).toBe("Rejected");
+  });
+
   it("counts a protect goal as met when its target leaves", () => {
     let s = toPlan(start(4).state);
     s.goals.p0 = { kind: "protect", target: "p1" };
