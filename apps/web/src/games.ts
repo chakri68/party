@@ -15,6 +15,7 @@ import { heistManifest, heistRules, heistSettingFields } from "@games/heist/shar
 import { holdemManifest, holdemRules, holdemSettingFields } from "@games/holdem/shared";
 import { imposterManifest, imposterRules, imposterSettingFields } from "@games/imposter/shared";
 import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish/shared";
+import { longTrailManifest, longTrailRules, longTrailSettingFields } from "@games/long-trail/shared";
 import { liarsDiceManifest, liarsDiceRules, liarsDiceSettingFields } from "@games/liars-dice/shared";
 import { nightfallManifest, nightfallRules, nightfallSettingFields } from "@games/nightfall/shared";
 import { ohHellManifest, ohHellRules, ohHellSettingFields } from "@games/oh-hell/shared";
@@ -174,6 +175,13 @@ export const games: Record<string, GameEntry> = {
     rules: dominionRules,
     settingFields: dominionSettingFields,
     loadClient: () => import("@games/dominion/client").then((m) => m.default),
+  },
+  "long-trail": {
+    section: "strategy",
+    manifest: longTrailManifest,
+    rules: longTrailRules,
+    settingFields: longTrailSettingFields,
+    loadClient: () => import("@games/long-trail/client").then((m) => m.default),
   },
   "short-night": {
     section: "roles",

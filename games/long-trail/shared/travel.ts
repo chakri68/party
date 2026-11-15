@@ -61,7 +61,7 @@ function priceOf(c: Caravan, route: RouteDef, item: string): number | undefined 
 }
 
 /** What the caravan pays (qty > 0) or gets (qty < 0) per unit. The one price function for plans and trades. */
-function unitPrice(c: Caravan, route: RouteDef, item: string, buying: boolean, traderLeads: boolean): number | undefined {
+export function unitPrice(c: Caravan, route: RouteDef, item: string, buying: boolean, traderLeads: boolean): number | undefined {
   const base = buying ? priceOf(c, route, item) : isSupply(item) ? undefined : c.prices[c.at]?.[item];
   if (base === undefined) return undefined;
   if (!traderLeads) return base;
