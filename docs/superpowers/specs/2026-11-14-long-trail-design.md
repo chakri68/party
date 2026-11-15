@@ -50,9 +50,9 @@ Trail games are solo. One person makes every call and everyone else watches. Thi
    - **Rest** instead of moving (heals, costs a day).
    - **Medicine:** which travellers get a dose today, if any. The leader assigns doses. On a rest day a dose works as usual. On a moving day only the Healer can give one (see Jobs).
    - **Trade orders**, only at a market town (Trade Route twist, below).
-   The plan opens on yesterday's pace and rations, so a leader in a hurry just taps **Propose**.
+   The plan opens on the caravan's current pace and rations (on day 1: steady and full), so a leader in a hurry just taps **Propose**. At a fork the form picks no way.
 2. **Vote (25 s).** Everyone, living or dead traveller, taps **Go** or **No-go**. Majority of the votes cast passes. A tie fails. Votes are shown by name when it closes.
-3. **Rejected?** The lead passes to the next seat for a second proposal. If that also fails, the caravan **stays the course**: yesterday's pace and rations, the safer route at a fork, no trades. No third proposal, so a deadlocked table costs nothing but momentum.
+3. **Rejected?** The lead passes to the next seat for a second proposal. If that also fails, the caravan **stays the course**: it keeps its pace and rations (on day 1: steady and full), takes the safer route at a fork, and makes no trades. It moves at once, with no vote, so the safer route gives nothing away. No third proposal, so a deadlocked table costs nothing but momentum.
 4. **Travel.** The server applies the plan: distance, food and water used, health changes.
 5. **Event.** One event card is drawn from the current leg's deck. Two kinds:
    - **Plain:** it just happens. "A wheel cracks. Lose half a day." "A friendly herder shares water. +6 water."
@@ -190,7 +190,7 @@ The core never names a setting. Everything setting-specific goes through the pac
 
 **Lobby tier:** master has no tiers. Whether it's free or paid on CouchParty is decided on the `product` branch when it merges, not here.
 
-**Idle players:** host **Skip** on a leader proposes the open plan (yesterday's pace and rations, safer fork, no trades). A skipped voter just doesn't count, since the vote is a majority of votes cast.
+**Idle players:** host **Skip** on a leader, or the plan timer running out, proposes the open plan: the caravan keeps its pace and rations, with no trades. At a fork the way is picked by a coin (`ctx.randomInt`), not the safer one (R23), since this plan is public and put to a vote. A skipped voter just doesn't count, since the vote is a majority of votes cast.
 
 **Disconnects and removal:** usual 60 s seat hold; nothing waits on a disconnected player. A removed player's traveller leaves the caravan (doesn't count as dead for anyone's goal), their goal is void, and goals that named them count as met. Fewer than 2 players left: the game ends interrupted, no winner.
 

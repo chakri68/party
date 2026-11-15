@@ -194,12 +194,14 @@ describe("the safe way is rolled each game", () => {
       // Public order is by id, whichever way is safe.
       expect(g.getPublicState(s).route.stops.find((x) => x.id === "tel-orrin")!.next).toEqual(["saltmere", "vessa"]);
       // R23: Skip and the timer pick the way by a coin, since the plan is public and put to a vote.
-      const picked = new Set<string>();
+      const bySkip = new Set<string>();
+      const byTimer = new Set<string>();
       for (let r = 1; r <= 16; r++) {
-        picked.add(g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000, r)).state.plan!.fork!);
-        picked.add(ring(s, r).state.plan!.fork!);
+        bySkip.add(g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000, r)).state.plan!.fork!);
+        byTimer.add(ring(s, r).state.plan!.fork!);
       }
-      expect([...picked].sort()).toEqual(["saltmere", "vessa"]);
+      expect([...bySkip].sort(), "Skip").toEqual(["saltmere", "vessa"]);
+      expect([...byTimer].sort(), "timer").toEqual(["saltmere", "vessa"]);
       // Both plans fail: the caravan moves at once, and takes the safer way.
       let t = voteAll(proposeOpenOther(s, other), "no-go");
       t = voteAll(proposeOpenOther(t.state, other), "no-go");
