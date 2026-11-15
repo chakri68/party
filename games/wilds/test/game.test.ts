@@ -224,6 +224,46 @@ describe("choice", () => {
     expect(s.world.tiles[s.board.gate]!.open).toBe(true);
   });
 
+  /** Round 1 with this event, everyone Guards, and the plan closes. */
+  function closeWith(id: keyof typeof EVENTS, prep?: (s: S) => void): S {
+    let s = pickRoles(start(2).state);
+    s = withEvent(s, id, s.event!.tiles);
+    prep?.(s);
+    return planAll(s, { p0: GG, p1: GG }).state;
+  }
+
+  it("opens no vote for a Warm spring when nobody is hurt", () => {
+    const s = closeWith("warm-spring");
+    expect(s.phase).toBe("report");
+    expect(s.ballot).toBeNull();
+    expect(s.lastRound!.votes).toBeNull();
+    expect(s.lastRound!.steps).toContainEqual({ t: "event", id: "warm-spring", option: null, nothing: true });
+    expect(s.world.sun).toBe(1);
+    expect(g.partyStats!(s)).toEqual({});
+  });
+
+  it("opens no vote for a stone hand while another one waits", () => {
+    let bridge = "";
+    const s = closeWith("stone-hand", (x) => {
+      bridge = brokenBridge(x);
+      x.event!.tiles = [bridge];
+      x.pending = { tile: bridge, due: 2 };
+    });
+    expect(s.phase).toBe("report");
+    expect(s.world.tiles[bridge]!.terrain).toBe("broken");
+    expect(g.partyStats!(s)).toEqual({});
+  });
+
+  it("opens the vote when the waiting stone hand lands this round first", () => {
+    let bridge = "";
+    const s = closeWith("stone-hand", (x) => {
+      bridge = brokenBridge(x);
+      x.event!.tiles = [bridge];
+      x.pending = { tile: bridge, due: 1 };
+    });
+    expect(s.phase).toBe("choice");
+  });
+
   it("down players vote too", () => {
     const s = toChoice("clear-sky", [], 2, (x) => { x.event!.tiles = [x.board.gate]; const e = me(x, "p1"); e.down = true; e.hearts = 0; });
     expect(s.ballot!.eligible).toEqual(["p0", "p1"]);
@@ -405,6 +445,7 @@ describe("a whole game", () => {
     // A bargain next: p1 says Refuse.
     const bridge = s.world.order.find((x) => !s.world.tiles[x]!.ruin && s.world.tiles[x]!.terrain === "grass" && x !== camp)!;
     s.world.tiles[bridge]!.terrain = "broken";
+    s.world.tiles[bridge]!.open = true; // the stone hand marks only open bridges
     s = withEvent(s, "stone-hand", [bridge]);
     s = planAll(s, { p0: GG, p1: GG }).state;
     s = voteAll(s, 0, { p1: 1 }).state;

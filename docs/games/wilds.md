@@ -185,7 +185,7 @@ One event each round. You see it at the top of the plan screen, and it happens i
 - Rounds 1 and 2 have only calm events.
 - After a harm event, the next one is not harm.
 - Only one bargain can be waiting at a time.
-- An event that can't apply when it is drawn is skipped. The board can change before it happens. Then the report says "nothing happened".
+- An event that can't apply when it is drawn is skipped. The board can change before it happens. Then the report says "nothing happened". If it has a vote, there is no vote.
 - The Guide sees the next event, on the event card, one round early.
 
 | Event | Kind | What it does | Choice |

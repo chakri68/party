@@ -148,7 +148,10 @@ function closePlan(state: State, ctx: GameContext, out: Out): void {
   state.ready = [];
   state.arrow = null;
   const card = EVENTS[state.event!.id];
-  if (card.options) {
+  // The island turn lands a stone hand's noise that is due before the event, so the event sees no bargain then.
+  const pending = state.pending && state.pending.due === state.world.round ? null : state.pending;
+  // An event that can no longer happen gets no vote. The report says "nothing happened".
+  if (card.options && canApply(state.world, state.event!.id, pending)) {
     state.beatSteps = steps;
     state.ballot = openBallot<string>(inGame(state).map((e) => e.id));
     setPhase(state, "choice", ctx, out);
