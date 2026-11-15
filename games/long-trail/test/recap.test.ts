@@ -5,7 +5,7 @@ import type { EndView } from "../shared/scoring.ts";
 import type { JobId } from "../shared/types.ts";
 import { pack as basePack, plan, route } from "./fixtures.ts";
 
-const pack = { ...basePack, endLines: { arrived: { broke: ["b"], fair: ["f"], rich: ["r"], legendary: ["l"] }, failed: ["x"] } } as unknown as SettingPack;
+const pack = { ...basePack, endLines: { arrived: { broke: ["b"], fair: ["f"], rich: ["r"], legendary: ["l"] }, failed: { dead: ["dead"], deadline: ["late"] } } } as unknown as SettingPack;
 const jobs: Record<string, JobId> = { p1: "guide", p2: "healer", p3: "trader" };
 const names = { p1: "Asha", p2: "Ben", p3: "Cy" };
 const votes = (...v: ("go" | "no-go")[]) => Object.fromEntries(v.map((x, i) => [`p${i + 1}`, x]));
@@ -18,7 +18,7 @@ const log: DayLog[] = [
   { day: 4, leader: "p1", plan: plan(), proposals: [{ by: "p1", plan: plan(), votes: votes("go", "go", "go"), passed: true }], stayedCourse: false, event: null, report: rep({ reached: "e" }), where: "E" },
 ];
 const end: EndView = {
-  arrived: true, day: 4, deadline: 10, coins: 50, cargo: { silk: 3 }, endPrices: { silk: 20 }, grade: "fair",
+  arrived: true, failedBy: null, day: 4, deadline: 10, coins: 50, cargo: { silk: 3 }, endPrices: { silk: 20 }, grade: "fair",
   alive: { p1: true, p2: true, p3: false }, removed: [], visited: ["a", "b", "c", "e"], starved: false, deaths: 1,
 };
 const run = (e = end, l = log) => buildRecap(l, pack, route, e, jobs, { p1: { kind: "coins", atLeast: 10 }, p2: { kind: "nobody-dies" }, p3: { kind: "coins", atLeast: 10 } }, { p1: "Get coins", p2: "Nobody dies", p3: "More coins" }, () => 0, names);
@@ -82,7 +82,11 @@ describe("buildRecap", () => {
     const r = run();
     expect(r.haul).toEqual({ coins: 50, cargoSale: 60, wealth: 110, grade: "fair" });
     expect(r.line).toBe("f");
-    expect(run({ ...end, arrived: false, grade: null }).line).toBe("x");
+    const late = run({ ...end, arrived: false, failedBy: "deadline", grade: null });
+    expect(late).toMatchObject({ cause: "deadline", line: "late" });
+    const dead = run({ ...end, arrived: false, failedBy: "all-dead", grade: null, alive: { p1: false, p2: false, p3: false } });
+    expect(dead).toMatchObject({ cause: "all-dead", line: "dead" });
+    expect(r.cause).toBe("arrived");
   });
   it("picks the end line with randomInt(lines.length)", () => {
     const two = { ...pack, endLines: { ...pack.endLines, arrived: { ...pack.endLines.arrived, fair: ["f0", "f1"] } } } as unknown as SettingPack;

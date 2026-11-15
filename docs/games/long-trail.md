@@ -163,6 +163,8 @@ The most points wins. Ties share the win.
 
 If the caravan does not arrive, nobody wins. Points are still shown, and so are the goals, so you can talk about whose fault it was.
 
+The end screen says how the trip ended: the caravan arrived, everyone died, or time ran out. If everyone is dead, it says so, even if the last day had also passed.
+
 ## Settings
 
 Host picks these in the lobby.

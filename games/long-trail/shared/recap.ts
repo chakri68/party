@@ -22,6 +22,8 @@ export interface Recap {
   worstDay: { day: number; text: string } | null;
   reveals: { playerId: string; job: JobId; goal: string; met: boolean }[];
   haul: { coins: number; cargoSale: number; wealth: number; grade: Grade | null };
+  /** How the trip ended, so the headline and the line tell the same story. */
+  cause: "arrived" | "all-dead" | "deadline";
   line: string;
 }
 
@@ -150,8 +152,10 @@ export function buildRecap(
   });
 
   const sale = cargoSale(end.cargo, end.endPrices);
-  const lines = end.arrived && end.grade ? pack.endLines.arrived[end.grade] : pack.endLines.failed;
+  const cause: Recap["cause"] = end.arrived ? "arrived" : end.failedBy === "all-dead" ? "all-dead" : "deadline";
+  const lines =
+    cause === "arrived" ? pack.endLines.arrived[end.grade ?? "broke"] : cause === "all-dead" ? pack.endLines.failed.dead : pack.endLines.failed.deadline;
   const line = lines[randomInt(lines.length)] ?? "";
 
-  return { route: stops, fates, bigCalls, worstDay, reveals, haul: { coins: end.coins, cargoSale: sale, wealth: end.coins + sale, grade: end.grade }, line };
+  return { route: stops, fates, bigCalls, worstDay, reveals, haul: { coins: end.coins, cargoSale: sale, wealth: end.coins + sale, grade: end.grade }, cause, line };
 }

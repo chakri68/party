@@ -437,9 +437,8 @@ export class LongTrailView implements GameView {
     const g = this.game;
     const r = g.recap;
     if (!r) return "The trip is over.";
-    const last = r.route.at(-1);
-    if (last?.stop === g.route.end && r.fates.some((f) => f.alive)) return `The caravan arrived on day ${last.day}`;
-    return r.fates.some((f) => f.alive) ? "The caravan did not arrive in time" : "Everyone died on the trail";
+    if (r.cause === "arrived") return `The caravan arrived on day ${r.route.at(-1)?.day ?? g.day}`;
+    return r.cause === "all-dead" ? "Everyone died on the trail" : "The caravan did not arrive in time";
   }
 
   private renderPanel() {

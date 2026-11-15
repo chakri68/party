@@ -24,7 +24,7 @@ const ids8 = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"];
 
 function end(o: Partial<EndView> = {}): EndView {
   return {
-    arrived: true, day: 8, deadline: 10, coins: 50, cargo: {}, endPrices: {}, grade: "rich",
+    arrived: true, failedBy: null, day: 8, deadline: 10, coins: 50, cargo: {}, endPrices: {}, grade: "rich",
     alive: { p1: true, p2: true, p3: true }, removed: [], visited: ["a", "b", "e"], starved: false, deaths: 0,
     ...o,
   };
@@ -132,13 +132,13 @@ describe("points", () => {
 describe("outcome", () => {
   const goals: Record<string, Goal> = { p1: { kind: "coins", atLeast: 10 }, p2: { kind: "coins", atLeast: 999 }, p3: { kind: "coins", atLeast: 999 } };
   it("a failed caravan has no winners", () => {
-    const o = outcome(["p1", "p2", "p3"], goals, end({ arrived: false, grade: null, day: 10, alive: { p1: true, p2: false, p3: false } }), gradePack, 10);
+    const o = outcome(["p1", "p2", "p3"], goals, end({ arrived: false, failedBy: "deadline", grade: null, day: 10, alive: { p1: true, p2: false, p3: false } }), gradePack, 10);
     expect(o.winnerIds).toEqual([]);
     expect(o.headline).toBe("The caravan did not arrive by day 10");
     expect(o.standings).toHaveLength(3);
   });
   it("everyone dead says so", () => {
-    const o = outcome(["p1", "p2", "p3"], goals, end({ arrived: false, grade: null, alive: { p1: false, p2: false, p3: false } }), gradePack, 4);
+    const o = outcome(["p1", "p2", "p3"], goals, end({ arrived: false, failedBy: "all-dead", grade: null, alive: { p1: false, p2: false, p3: false } }), gradePack, 4);
     expect(o.headline).toBe("Everyone died on the trail");
   });
   it("top points win, ties share", () => {

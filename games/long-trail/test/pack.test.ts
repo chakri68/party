@@ -119,6 +119,10 @@ describe("trade route pack", () => {
       for (const v of [s.food, s.water, s.medicine, s.coins, s.animals]) expect(v).toBeGreaterThan(0);
     }
     expect(tradeRoute.start(4).animals).toBe(4);
-    expect(tradeRoute.endLines.failed.length).toBe(3);
+    expect(tradeRoute.endLines.failed.dead.length).toBe(3);
+    expect(tradeRoute.endLines.failed.deadline.length).toBe(3);
+    // A trip where everyone died never says time ran out, and a late trip never says everyone died.
+    for (const l of tradeRoute.endLines.failed.dead) expect(l).not.toMatch(/time|late|slow|wait/i);
+    for (const l of tradeRoute.endLines.failed.deadline) expect(l).not.toMatch(/alive|dead|died|lost/i);
   });
 });

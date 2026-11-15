@@ -305,6 +305,7 @@ function endView(state: State): EndView {
   const made = arrived(c, route);
   return {
     arrived: made,
+    failedBy: made ? null : (failed(c, route) ?? "deadline"),
     day: c.arrivedDay ?? c.day - 1,
     deadline: route.deadline,
     coins: c.stock.coins,

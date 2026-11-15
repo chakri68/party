@@ -13,7 +13,7 @@ describe("goalLine", () => {
   });
   it("the day shown is the last day that meets the goal", () => {
     const end = (day: number): EndView => ({
-      arrived: true, day, deadline: 32, coins: 0, cargo: {}, endPrices: {}, grade: "fair", alive: {}, removed: [], visited: [], starved: false, deaths: 0,
+      arrived: true, failedBy: null, day, deadline: 32, coins: 0, cargo: {}, endPrices: {}, grade: "fair", alive: {}, removed: [], visited: [], starved: false, deaths: 0,
     });
     const goal = { kind: "arrive-by", share: 0.9 } as const;
     const last = arriveByDay(goal.share, 32);

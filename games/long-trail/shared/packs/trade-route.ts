@@ -388,10 +388,17 @@ export const tradeRoute: SettingPack = {
         "So much money that nobody wants to count it twice.",
       ],
     },
-    failed: [
-      "The caravan did not arrive. The road is still there.",
-      "Time ran out. The road does not mind.",
-      "The buyers in Mirren Gate are still waiting for you.",
-    ],
+    failed: {
+      dead: [
+        "Nobody in the caravan is alive. The road was too hard.",
+        "The caravan is lost. Nobody reached Mirren Gate.",
+        "No traveller is left alive. The goods lie in the sand.",
+      ],
+      deadline: [
+        "Time ran out. The buyers in Mirren Gate did not wait.",
+        "You were too slow. The buyers in Mirren Gate went home.",
+        "The caravan did not arrive in time. The road is still there.",
+      ],
+    },
   },
 };

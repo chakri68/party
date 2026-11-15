@@ -12,6 +12,8 @@ export const GRADE_LABEL: Record<Grade, string> = { broke: "Poor", fair: "Fair",
 /** How the caravan ended, as the scoring and the recap see it. */
 export interface EndView {
   arrived: boolean;
+  /** Why the trip failed; null when it arrived. Everyone dead wins over the deadline. */
+  failedBy: "all-dead" | "deadline" | null;
   day: number; // the arrival day when arrived, otherwise the last day played
   deadline: number;
   coins: number;
@@ -142,11 +144,10 @@ export function outcome(players: string[], goals: Record<string, Goal>, end: End
     return { playerId, value, label: `${value} pts · goal ${met ? "met" : "missed"}` };
   });
   if (!end.arrived) {
-    const anyAlive = inGame.some((id) => end.alive[id]);
     return {
       winnerIds: [],
       standings,
-      headline: anyAlive ? `The caravan did not arrive by day ${dayCount}` : "Everyone died on the trail",
+      headline: end.failedBy === "all-dead" ? "Everyone died on the trail" : `The caravan did not arrive by day ${dayCount}`,
     };
   }
   const top = Math.max(...standings.map((s) => s.value));

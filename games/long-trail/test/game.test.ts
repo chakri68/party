@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { packFor } from "../shared/pack.ts";
+import { tradeRoute } from "../shared/packs/trade-route.ts";
 import { fillNames } from "../shared/recap.ts";
 import { DEFAULT_SETTINGS, type Length } from "../shared/types.ts";
 import { act, ctx, err, g, ids, leaderId, nextAll, ok, playDay, proposeOpen, ring, type S, start, toPlan, voteAll, chooseAll } from "./helpers.ts";
@@ -277,6 +278,53 @@ describe("removal", () => {
     s = g.onPlayerRemoved!(s, voter, ctx(s.deadline - 1000)).state;
     expect(s.ballot!.votes).not.toHaveProperty(voter);
     expect(s.ballot!.eligible).not.toContain(voter);
+  });
+});
+
+describe("the end tells one story", () => {
+  const lines = tradeRoute.endLines.failed;
+
+  it("everyone dead: the dead headline, the dead line", () => {
+    let s = toPlan(start(5).state);
+    for (const id of ["p0", "p1", "p2", "p3"]) s.caravan.health[id] = 0;
+    s = g.onPlayerRemoved!(s, "p4", ctx(s.deadline - 1000)).state;
+    expect(s.recap!.cause).toBe("all-dead");
+    expect(lines.dead).toContain(s.recap!.line);
+    s = ring(s).state;
+    expect(g.getResult(s)!.headline).toBe("Everyone died on the trail");
+  });
+
+  it("out of time: the late headline, the late line", () => {
+    let s = toPlan(start(4, { length: "short" }).state);
+    const deadline = packFor(DEFAULT_SETTINGS.setting).routes.short.deadline;
+    s.caravan.day = deadline;
+    s = ok(act(s, leaderId(s), { type: "propose", plan: { ...g.getPublicState(s).openPlan, rest: true } })).state;
+    s = voteAll(s, "go").state;
+    if (s.phase === "choice") s = chooseAll(s, 0).state;
+    s = nextAll(s).state;
+    expect(s.phase).toBe("recap");
+    expect(s.recap!.cause).toBe("deadline");
+    expect(lines.deadline).toContain(s.recap!.line);
+    s = ring(s).state;
+    expect(g.getResult(s)!.headline).toBe(`The caravan did not arrive by day ${deadline}`);
+  });
+
+  it("everyone dead after the deadline never says time ran out", () => {
+    let s = toPlan(start(5).state);
+    s.caravan.day = packFor(DEFAULT_SETTINGS.setting).routes[s.settings.length].deadline + 1;
+    for (const id of ["p0", "p1", "p2", "p3"]) s.caravan.health[id] = 0;
+    s = g.onPlayerRemoved!(s, "p4", ctx(s.deadline - 1000)).state;
+    expect(s.recap!.cause).toBe("all-dead");
+    expect(lines.dead).toContain(s.recap!.line);
+    expect(g.getResult(ring(s).state)!.headline).toBe("Everyone died on the trail");
+  });
+
+  it("the game ended early: no recap, no end line", () => {
+    let s = toPlan(start(3).state);
+    s = g.onPlayerRemoved!(s, "p0", ctx(s.deadline - 1000)).state;
+    s = g.onPlayerRemoved!(s, "p1", ctx(s.deadline - 1000)).state;
+    expect(s.recap).toBeNull();
+    expect(g.getResult(s)!.headline).toBe("The game ended early.");
   });
 });
 

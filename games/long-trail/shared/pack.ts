@@ -63,7 +63,8 @@ export interface SettingPack {
   events: EventCard[];
   goals: GoalCard[];
   grades: Record<Grade, number>; // wealth thresholds, broke = 0
-  endLines: { arrived: Record<Grade, string[]>; failed: string[] };
+  /** End lines by result. A failed trip has its own lines for each cause. */
+  endLines: { arrived: Record<Grade, string[]>; failed: { dead: string[]; deadline: string[] } };
 }
 
 const PACKS: Record<SettingId, SettingPack> = { "trade-route": tradeRoute };
