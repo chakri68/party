@@ -57,6 +57,9 @@ const SPIDER =
   "M-1.4 -0.4 L-3.6 -2.2 M-1.5 0.6 L-4 0 M-1.4 1.6 L-3.6 3 M1.4 -0.4 L3.6 -2.2 M1.5 0.6 L4 0 M1.4 1.6 L3.6 3";
 const STONE = "M0 -2.2 L1.8 0 L0 2.2 L-1.8 0 Z";
 
+/** A tile's centre in the board's own units, for animations that slide from one tile to another. */
+export const tileXY = (t: TileId): { x: number; y: number } => toPixel(t, S);
+
 /** The arrow's label, shown under the board next to a small arrow. */
 export const ARROW_LABEL = "If nothing changes";
 export const hasArrow = (pub: Pub): boolean => (pub.spider?.arrow?.path.length ?? 0) >= 2;
@@ -174,6 +177,7 @@ export class BoardView {
       if (pub.spider?.tile === t.id) g.append(el("path", { class: "wd-spider", d: SPIDER, transform: "scale(1.15)" }));
     }
     if (shown) g.append(el("polygon", { class: "wd-shown", points: HEX_POINTS, transform: "scale(0.86)" }));
+    if (pub.pending?.tile === t.id) g.append(el("polygon", { class: "wd-pending", points: HEX_POINTS, transform: "scale(0.72)" }));
     if (hl) g.append(el("polygon", { class: `wd-hl wd-hl-${hl}`, points: HEX_POINTS, transform: hl === "ok" ? "scale(0.9)" : undefined }));
     if (mark) {
       g.append(
@@ -208,6 +212,7 @@ export class BoardView {
       if (t.nest) parts.push("The spider's nest.");
       if (pub.spider?.tile === t.id) parts.push("The spider.");
     }
+    if (pub.pending?.tile === t.id) parts.push("The stone hand's noise comes here.");
     if (here.length) parts.push(`${here.map((e) => this.name(e.id)).join(", ")}.`);
     return parts.join(" ");
   }
@@ -236,7 +241,7 @@ export class BoardView {
         const letter = (this.name(e.id).trim()[0] ?? "?").toUpperCase();
         const cls = ["wd-token", e.down && "wd-down", e.id === this.me && "wd-me"].filter(Boolean).join(" ");
         g.append(
-          el("g", { class: cls, transform: `translate(${(at.x + p.x).toFixed(2)} ${(at.y + p.y).toFixed(2)})` },
+          el("g", { class: cls, "data-who": e.id, transform: `translate(${(at.x + p.x).toFixed(2)} ${(at.y + p.y).toFixed(2)})` },
             el("circle", { class: `wd-ring wd-role-${roleClass(e.role)}`, r: p.r.toFixed(2) }),
             el("text", { "text-anchor": "middle", "dominant-baseline": "central", "font-size": (p.r * 1.15).toFixed(2) }, letter)),
         );

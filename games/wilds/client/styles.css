@@ -22,6 +22,7 @@
   --wd-stone: #7fe0d0;
   --wd-event: #ffd166;
   --wd-spider: #f3f1ea;
+  --wd-hand: #e6b8ff; /* the stone hand's bridge */
   /* Role rings. */
   --wd-runner: #5ec8ff;
   --wd-fixer: #ffb347;
@@ -67,7 +68,7 @@
 /* ---- Board ------------------------------------------------------------------- */
 
 .wd-board-wrap { width: 100%; }
-.wd-board { display: block; width: 100%; height: auto; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.wd-board { display: block; width: 100%; height: auto; max-height: 62vh; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .wd-hex { cursor: pointer; }
 .wd-hex:focus { outline: none; }
 .wd-hex:focus-visible .wd-hl-ok { stroke: var(--ink); stroke-width: 1.6; }
@@ -94,6 +95,7 @@
 .wd-stone-mark { fill: var(--wd-stone); stroke: var(--bg); stroke-width: 0.5; }
 .wd-half-mark { fill: none; stroke: var(--wd-stone); stroke-width: 0.8; }
 .wd-spider { fill: var(--wd-spider); stroke: var(--wd-spider); stroke-width: 0.7; stroke-linecap: round; }
+.wd-pending { fill: none; stroke: var(--wd-hand); stroke-width: 1.4; pointer-events: none; }
 .wd-shown { fill: none; stroke: var(--wd-event); stroke-width: 1; stroke-dasharray: 2 1.4; }
 .wd-hl { pointer-events: none; }
 .wd-hl-ok { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.1; }
@@ -214,3 +216,68 @@
 .wd-ways small { color: var(--muted); font-weight: 500; font-size: 0.7rem; line-height: 1.2; }
 .wd-ways button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .wd-force { border-style: dashed; }
+
+/* ---- Stone hand ---------------------------------------------------------------- */
+
+.wd-pending-bar {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--wd-hand);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+.wd-pending-bar[hidden] { display: none; }
+.wd-pending-bar svg { flex: none; }
+.wd-pending-swatch { fill: var(--wd-forest); stroke: var(--wd-hand); stroke-width: 2.4; }
+
+/* ---- Panels: roles, vote, report ------------------------------------------------ */
+
+.wd-panel h2 { margin: 0; font-size: 1.05rem; }
+.wd-roles, .wd-choice, .wd-report { display: grid; gap: 8px; }
+.wd-roles p, .wd-choice p, .wd-report p { margin: 0; }
+.wd-role-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wd-role {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 500;
+}
+.wd-role[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-role:disabled { opacity: 1; }
+.wd-role-head { display: flex; align-items: center; gap: 6px; }
+.wd-role-stats { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.wd-role-power { font-size: 0.85rem; line-height: 1.3; }
+.wd-role-by { color: var(--accent); font-weight: 700; font-size: 0.75rem; }
+.wd-items { display: grid; gap: 4px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 12px; font-size: 0.9rem; }
+.wd-options { display: grid; gap: 8px; }
+.wd-option { min-height: 52px; padding: 10px 14px; text-align: left; overflow-wrap: anywhere; }
+.wd-option[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wd-lines { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.wd-lines-empty { color: var(--muted); }
+.wd-end { font-weight: 700; }
+.wd-end.win { color: var(--accent); }
+.wd-end.sun, .wd-end.down { color: var(--danger); }
+.wd-report .link { justify-self: start; padding: 0; }
+
+@media (max-width: 360px) {
+  .wd-role-list { grid-template-columns: 1fr; }
+}
+
+/* ---- Playback ------------------------------------------------------------------ */
+
+.wd-caption { display: grid; gap: 6px; min-height: 3.2em; cursor: pointer; }
+.wd-caption[hidden] { display: none; }
+.wd-caption-text { margin: 0; font-weight: 600; }
+.wd-roll { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-variant-numeric: tabular-nums; }
+.wd-dice { display: inline-flex; gap: 6px; }
+.wd-dice .die-svg { width: 34px; height: 34px; display: block; }
+.wd-roll.pass b { color: var(--accent); }
+.wd-roll.fail b { color: var(--danger); }
