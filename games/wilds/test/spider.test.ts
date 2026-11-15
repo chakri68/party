@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { distance } from "../shared/hex.ts";
 import { moveSpider, scare, spiderPlan } from "../server/spider.ts";
 import { light } from "../server/fire.ts";
 import { addNoise } from "../server/world.ts";
@@ -63,19 +64,51 @@ describe("spider plan", () => {
     expect(spiderPlan(w).why).not.toBe("rest");
   });
 
-  it("never enters river, rock, broken, fire or explorers; reeds are fine", () => {
-    const w = blankWorld(
-      { "1,0": "river", "0,1": "rock", "-1,1": "broken", "-1,0": "forest", "0,-1": "reeds" },
-      { spider: "0,0", nest: "2,0" },
-    );
-    light(w, "-1,0", null, []);
-    // next to fire -> scared; make fire not adjacent: use a separate world
-    const v = blankWorld({ "1,0": "river", "0,1": "rock", "1,-1": "reeds" }, { spider: "0,0", nest: "2,0", explorers: [ex("a", "1,-1")] });
-    const p = spiderPlan(v);
-    expect(p.path).toEqual(["0,0"]); // next to a already; hunt stops, a's tile not entered
+  it("reeds do not stop it", () => {
     const u = blankWorld({ "1,0": "river", "0,1": "rock", "0,-1": "reeds" }, { spider: "0,0", nest: "0,-2" });
     expect(spiderPlan(u).path).toEqual(["0,0", "0,-1"]);
-    expect(w.tiles["-1,0"]!.fire).toBe(2);
+  });
+
+  describe("never enters an obstacle on the direct route", () => {
+    // Noise at the far end of a straight line; the middle tile is the obstacle.
+    const detour = (w: ReturnType<typeof blankWorld>, from: string, to: string, bad: string) => {
+      addNoise(w, to, 3, []);
+      const p = spiderPlan(w);
+      expect(p.why).toBe("noise");
+      expect(p.path).not.toContain(bad);
+      expect(p.path[0]).toBe(from);
+      expect(p.path.length).toBeGreaterThan(1); // it detours, it does not give up
+      for (let i = 1; i < p.path.length; i++) expect(distance(p.path[i - 1]!, p.path[i]!)).toBe(1);
+      return p;
+    };
+
+    for (const terrain of ["river", "rock", "broken"] as const) {
+      it(terrain, () => {
+        const w = blankWorld({ "1,0": terrain }, { spider: "0,0" });
+        const p = detour(w, "0,0", "2,0", "1,0");
+        expect(p.path).toHaveLength(3); // full 2 steps along the detour
+      });
+    }
+
+    it("burning tile", () => {
+      const w = blankWorld({ "0,0": "forest" }, { spider: "-2,0", nest: "3,0" });
+      light(w, "0,0", null, []);
+      const p = detour(w, "-2,0", "2,0", "0,0");
+      expect(p.path).toHaveLength(3);
+    });
+
+    it("explorer tile", () => {
+      const w = blankWorld({}, { spider: "0,0", explorers: [ex("a", "1,0")] });
+      const p = detour(w, "0,0", "2,0", "1,0");
+      expect(p.path).toHaveLength(2); // stops next to the explorer
+    });
+
+    it("down explorer tile", () => {
+      const w = blankWorld({}, { spider: "0,0", explorers: [ex("a", "1,0")] });
+      w.explorers[0]!.down = true;
+      const p = detour(w, "0,0", "2,0", "1,0");
+      expect(p.path).toHaveLength(3);
+    });
   });
 
   it("bites everyone on or next to its tile; shield blocks; down explorers are ignored", () => {
