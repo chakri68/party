@@ -11,6 +11,7 @@ describe("galleryModel", () => {
   it("uses product names and marks Host Pass games", () => {
     expect(all.find((g) => g.name === "Frontier")).toMatchObject({ id: "dominion", section: "Strategy", pass: true });
     expect(all.find((g) => g.name === "Doodle Dash")).toMatchObject({ id: "scribbl", pass: false });
+    expect(all.find((g) => g.id === "long-trail")).toMatchObject({ section: "Strategy", pass: true });
     expect(all.some((g) => g.name === "Dominion" || g.name === "Scribbl")).toBe(false);
   });
 
