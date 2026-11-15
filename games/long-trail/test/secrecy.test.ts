@@ -1,6 +1,6 @@
 import { findLeaks } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { act, g, ids, leaderId, nextAll, ok, proposeOpen, ring, type S, start, type T, voteAll, chooseAll } from "./helpers.ts";
+import { act, ctx, g, ids, leaderId, nextAll, ok, playDay, proposeOpen, ring, type S, start, toPlan, type T, voteAll, chooseAll } from "./helpers.ts";
 
 const INFO_FIELDS = ["worsenChance", "foodDays", "nextFork", "odds", "fatigue", "nextMarket"];
 
@@ -54,5 +54,19 @@ describe("secrets", () => {
     }
     expect(t.state.phase).toBe("over");
     for (const p of ["plan", "vote", "summary", "recap"]) expect(phases).toContain(p);
+  });
+});
+
+describe("the open plan at a fork", () => {
+  it("never names the safe branch in public", () => {
+    let s = toPlan(start(4, { length: "short" }, 3).state);
+    for (let day = 0; day < 20 && s.phase === "plan" && !(s.caravan.leg === null && s.caravan.at === "tel-orrin"); day++) s = playDay(s);
+    expect(s.caravan.at).toBe("tel-orrin"); // the Short route's fork
+    expect(s.caravan.leg).toBeNull();
+    expect(s.phase).toBe("plan");
+    expect(g.getPublicState(s).openPlan.fork).toBeNull();
+    // Skip and the timer still take the safe branch.
+    const t = g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000));
+    expect(t.state.plan?.fork).toBe("saltmere");
   });
 });

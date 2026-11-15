@@ -55,6 +55,8 @@ export class PlanForm {
 
   plan(game: Pub): Plan {
     const d = (this.draft ??= structuredClone(game.openPlan));
+    // A traveller who left or died since the draft began can no longer take a dose.
+    d.doses = d.doses.filter((id) => game.travellers.some((t) => t.id === id && t.health > 0));
     const trades: Trade[] = Object.entries(this.qty)
       .filter(([, q]) => q !== 0)
       .map(([item, qty]) => ({ item, qty }));

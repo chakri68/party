@@ -503,7 +503,7 @@ export class LongTrailView implements GameView {
         );
       case "recap":
       case "over":
-        return replaceChildren(this.panel, g.recap ? recapView(g.recap, g.goals, pack, this.name) : null);
+        return replaceChildren(this.panel, g.recap ? recapView(g.recap, g.goals, pack, this.name, (id) => seatName(this.props!.room, id)) : null);
       default:
         return replaceChildren(this.panel);
     }

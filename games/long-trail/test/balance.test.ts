@@ -1,7 +1,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { longTrailGame as g } from "../server/game.ts";
-import { legOut } from "../server/world.ts";
+import { legOut, openPlan } from "../server/world.ts";
 import { N } from "../shared/numbers.ts";
 import { packFor, stopById, type RouteDef, type StopDef } from "../shared/pack.ts";
 import { wealth } from "../shared/scoring.ts";
@@ -121,7 +121,7 @@ function coverFrom(route: RouteDef, from: string, living: number): { food: numbe
 function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
   const pub = g.getPublicState(s);
   const c = s.caravan;
-  const open = pub.openPlan;
+  const open = openPlan(s); // server side: keeps the safe branch at a fork
   const living = pub.travellers.filter((t) => t.health > 0);
   const hurt = living.filter((t) => t.health === 1).map((t) => t.id);
   const leg = c.leg ?? legOut(route, c.at, open.fork)!;

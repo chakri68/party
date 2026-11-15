@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { packFor } from "../shared/pack.ts";
+import { fillNames } from "../shared/recap.ts";
 import { DEFAULT_SETTINGS, type Length } from "../shared/types.ts";
 import { act, ctx, err, g, ids, leaderId, nextAll, ok, playDay, proposeOpen, ring, type S, start, toPlan, voteAll, chooseAll } from "./helpers.ts";
 
@@ -282,6 +283,13 @@ describe("a full game", () => {
     expect(g.getResult(s)).toBeNull();
     expect(g.getPublicState(s).recap).toEqual(s.recap);
     expect(s.recap!.reveals).toHaveLength(5);
+    // Recap sentences name travellers by token; the client fills in seat names.
+    const text = [s.recap!.worstDay?.text ?? "", ...s.recap!.bigCalls.map((b) => b.result)].join(" ");
+    expect(text).not.toContain("Someone");
+    expect(s.recap!.worstDay?.text).toMatch(/\{\{p\d\}\}/);
+    const named = fillNames(s.recap!.worstDay!.text, (id) => `Name-${id}`);
+    expect(named).toMatch(/Name-p\d/);
+    expect(named).not.toContain("{{");
     s = nextAll(s).state;
     expect(s.phase).toBe("over");
     const result = g.getResult(s)!;

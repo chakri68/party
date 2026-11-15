@@ -1,7 +1,7 @@
 // The day report (summary phase) and the trip recap. Read-only, the same on every phone.
 import { h } from "@games/ui";
 import type { RouteDef, SettingPack } from "../shared/pack.ts";
-import type { DayLog, Recap } from "../shared/recap.ts";
+import { fillNames, type DayLog, type Recap } from "../shared/recap.ts";
 import type { ArmableJob, Goal } from "../shared/types.ts";
 import { deltaLine, firedLine, goalLine, gradeLabel, HEALTH_LABEL, planLines } from "./format.ts";
 
@@ -69,7 +69,8 @@ export function dayReport(d: DayLog, fired: ArmableJob[], pack: SettingPack, rou
   );
 }
 
-export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack: SettingPack, name: Name): HTMLElement {
+/** `seat` names a player inside recap sentences ("Asha was badly hurt"), where "You" would not fit. */
+export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack: SettingPack, name: Name, seat: Name = name): HTMLElement {
   const route = recap.route.map((s) => `${s.name} (day ${s.day})`).join(" → ");
   return h(
     "div",
@@ -96,11 +97,11 @@ export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack
           h(
             "ol",
             { class: "lt-log" },
-            recap.bigCalls.map((b) => h("li", {}, h("b", {}, `Day ${b.day}. `), `${b.question}: ${b.go}–${b.noGo}. ${b.result}.`)),
+            recap.bigCalls.map((b) => h("li", {}, h("b", {}, `Day ${b.day}. `), `${b.question}: ${b.go}–${b.noGo}. ${fillNames(b.result, seat)}.`)),
           ),
         )
       : null,
-    recap.worstDay ? section("The worst day", h("p", {}, h("b", {}, `Day ${recap.worstDay.day}. `), recap.worstDay.text)) : null,
+    recap.worstDay ? section("The worst day", h("p", {}, h("b", {}, `Day ${recap.worstDay.day}. `), fillNames(recap.worstDay.text, seat))) : null,
     section(
       "Jobs and goals",
       h(

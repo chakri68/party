@@ -27,6 +27,18 @@ export interface Recap {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * The server has no seat names, so recap text names a traveller with a token.
+ * The client swaps each one for the seat name with `fillNames`.
+ */
+export const nameToken = (playerId: string) => `{{${playerId}}}`;
+/** Tokens for everyone, for `buildRecap`'s `names`. */
+export const nameTokens = (ids: string[]): Record<string, string> => Object.fromEntries(ids.map((id) => [id, nameToken(id)]));
+/** Recap text with each name token swapped for `name(id)`. */
+export function fillNames(text: string, name: (id: string) => string): string {
+  return text.replace(/\{\{([^{}]+)\}\}/g, (_, id: string) => name(id));
+}
+
 interface Change {
   score: number;
   text: string;

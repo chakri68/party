@@ -1,6 +1,7 @@
 import { seededRandomInt, type GameContext, type GameTransition } from "@games/game-core";
 import { expect } from "vitest";
 import { longTrailGame as g } from "../server/game.ts";
+import { openPlan } from "../server/world.ts";
 import { DEFAULT_SETTINGS, type LongTrailEvent, type LongTrailServerState, type LongTrailSettings, type Vote } from "../shared/types.ts";
 
 export { g };
@@ -41,8 +42,8 @@ export function toPlan(s: S): S {
   return s;
 }
 
-/** The leader proposes the open plan as it stands. */
-export const proposeOpen = (s: S): S => ok(act(s, leaderId(s), { type: "propose", plan: g.getPublicState(s).openPlan })).state;
+/** The leader proposes the server's open plan (the safe branch at a fork), as Skip would. */
+export const proposeOpen = (s: S): S => ok(act(s, leaderId(s), { type: "propose", plan: openPlan(s) })).state;
 
 /** Everyone votes `vote` unless named in `except`. Stops once the vote closes. */
 export function voteAll(s: S, vote: Vote, except: Record<string, Vote> = {}): T {

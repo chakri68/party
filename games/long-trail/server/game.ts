@@ -13,7 +13,7 @@ import {
 import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
 import { packFor, stopById, type LegKind } from "../shared/pack.ts";
-import { buildRecap } from "../shared/recap.ts";
+import { buildRecap, nameTokens } from "../shared/recap.ts";
 import { dealGoals, gradeOf, outcome, wealth, type EndView } from "../shared/scoring.ts";
 import { MAX_PLAYERS, MIN_PLAYERS, parseLongTrailSettings, setupProblem } from "../shared/settings.ts";
 import { applyTrades, arrived, failed, planProblem, rollPrices, startLeg, travelDay } from "../shared/travel.ts";
@@ -320,7 +320,8 @@ function toRecap(state: State, ctx: GameContext, out: Out): void {
   state.choice = null;
   state.choiceBallot = null;
   state.end = endView(state);
-  state.recap = buildRecap(state.log, pack, route, state.end, state.jobs, state.goals, state.goalText, ctx.randomInt);
+  const names = nameTokens(Object.keys(state.jobs)); // the client fills in seat names
+  state.recap = buildRecap(state.log, pack, route, state.end, state.jobs, state.goals, state.goalText, ctx.randomInt, names);
   setPhase(state, "recap", ctx, out);
   out.events.push(pub({ type: "recap" }));
 }

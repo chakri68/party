@@ -69,7 +69,8 @@ export function publicState(state: State): LongTrailPublicState {
     capacity: c.stock.animals * pack.capacityPerAnimal,
     prices: market ? { goods: { ...(c.prices[c.at] ?? {}) }, supplies: { ...market.supplies } } : null,
     travellers: state.travellers.map((id) => ({ id, health: c.health[id] ?? 0 })),
-    openPlan: openPlan(state),
+    // At a fork the leader must pick: naming the safe branch here would tell the table which it is.
+    openPlan: { ...openPlan(state), fork: null },
     plan: state.plan,
     votes: b ? { voted: b.eligible.filter((id) => id in b.votes), of: b.eligible.length } : null,
     proposals: state.proposals,
