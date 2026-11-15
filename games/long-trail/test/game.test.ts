@@ -190,6 +190,46 @@ describe("removal", () => {
     expect(t.state.caravan.health).not.toHaveProperty(s.players[seat]!.id);
   });
 
+  it("gives the next seat a fresh plan when the leader leaves mid-vote", () => {
+    const s = proposeOpen(toPlan(start(4).state));
+    expect(s.phase).toBe("vote");
+    const seat = s.leader;
+    const now = s.deadline - 5000;
+    const t = g.onPlayerRemoved!(s, leaderId(s), ctx(now));
+    expect(t.state.phase).toBe("plan");
+    expect(t.state.leader).toBe((seat + 1) % 4);
+    expect(t.state.deadline).toBe(now + 45_000);
+    expect(t.state.ballot).toBeNull();
+    expect(t.state.plan).toBeNull();
+    expect(t.state.proposalNo).toBe(s.proposalNo); // nothing was voted down
+    expect(t.state.travellers).not.toContain(s.players[seat]!.id);
+  });
+
+  it("keeps the day in the trip when a removal ends it mid-choice", () => {
+    let found: S | null = null;
+    for (let seed = 1; seed <= 40 && !found; seed++) {
+      let s = toPlan(start(5, { length: "short" }, seed).state);
+      for (let day = 0; day < 12 && s.phase === "plan"; day++) {
+        s = voteAll(proposeOpen(s), "go").state;
+        if (s.phase === "choice") found = s;
+        else if (s.phase === "summary") s = nextAll(s).state;
+      }
+    }
+    expect(found).not.toBeNull();
+    let s = found!;
+    const day = s.draft!.log.day;
+    const logged = s.log.length;
+    const alive = s.travellers.filter((id) => s.caravan.health[id]! > 0);
+    for (const id of alive.slice(1)) s.caravan.health[id] = 0;
+    s = g.onPlayerRemoved!(s, alive[0]!, ctx(s.deadline - 1000)).state;
+    expect(s.phase).toBe("recap");
+    expect(s.draft).toBeNull();
+    expect(s.log).toHaveLength(logged + 1);
+    expect(s.log.at(-1)!.day).toBe(day);
+    expect(s.log.at(-1)!.proposals).toHaveLength(1);
+    expect(s.log.at(-1)!.event!.choice).toBeUndefined(); // the choice never closed
+  });
+
   it("counts a protect goal as met when its target leaves", () => {
     let s = toPlan(start(4).state);
     s.goals.p0 = { kind: "protect", target: "p1" };

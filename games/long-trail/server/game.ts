@@ -13,7 +13,7 @@ import {
 import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
 import { packFor, stopById, type LegKind } from "../shared/pack.ts";
-import { buildRecap, nameTokens } from "../shared/recap.ts";
+import { buildRecap, nameTokens, type DayLog } from "../shared/recap.ts";
 import { dealGoals, gradeOf, outcome, wealth, type EndView } from "../shared/scoring.ts";
 import { MAX_PLAYERS, MIN_PLAYERS, parseLongTrailSettings, setupProblem } from "../shared/settings.ts";
 import { applyTrades, arrived, failed, planProblem, rollPrices, startLeg, travelDay } from "../shared/travel.ts";
@@ -268,6 +268,13 @@ function closeChoice(state: State, ctx: GameContext, out: Out): void {
 
 /** Closes the day's log with what changed, then the summary. */
 function finishDay(state: State, ctx: GameContext, out: Out): void {
+  const log = closeDraft(state);
+  setPhase(state, "summary", ctx, out);
+  out.events.push(pub({ type: "day-done", day: log.day }));
+}
+
+/** Fills in the draft's stock changes and place, and adds it to the trip log. */
+function closeDraft(state: State): DayLog {
   const { route } = world(state);
   const c = state.caravan;
   const { log, before } = state.draft!;
@@ -284,8 +291,7 @@ function finishDay(state: State, ctx: GameContext, out: Out): void {
   state.log.push(log);
   state.lastDay = log;
   state.draft = null;
-  setPhase(state, "summary", ctx, out);
-  out.events.push(pub({ type: "day-done", day: log.day }));
+  return log;
 }
 
 function tripOver(state: State): boolean {
@@ -315,6 +321,8 @@ function endView(state: State): EndView {
 
 function toRecap(state: State, ctx: GameContext, out: Out): void {
   const { pack, route } = world(state);
+  // A removal can end the trip while a choice is open: keep that day (and its votes) in the trip.
+  if (state.draft) closeDraft(state);
   state.plan = null;
   state.ballot = null;
   state.choice = null;
