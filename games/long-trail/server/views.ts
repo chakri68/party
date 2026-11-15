@@ -15,7 +15,7 @@ export function goalTexts(pack: SettingPack, route: RouteDef, goals: Record<stri
   for (const id of ids) {
     const goal = goals[id]!;
     if (goal.kind === "protect") {
-      out[id] = protects[seen.protect++ % protects.length]?.text ?? "Make sure this traveller reaches the end alive.";
+      out[id] = protects[seen.protect++ % protects.length]?.text ?? "Keep this traveller alive until the end of the trip.";
     } else if (goal.kind === "visit") {
       const card = visits[seen.visit++ % Math.max(1, visits.length)];
       const same = card && typeof card.goal !== "string" && card.goal.kind === "visit" && card.goal.stop === goal.stop;

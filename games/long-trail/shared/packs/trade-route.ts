@@ -291,7 +291,7 @@ const events: EventCard[] = [
 const goals: GoalCard[] = [
   { id: "coins-250", text: "Arrive with at least 250 coins.", goal: { kind: "coins", atLeast: 250 } },
   { id: "coins-400", text: "Arrive with at least 400 coins.", goal: { kind: "coins", atLeast: 400 } },
-  { id: "protect", text: "Make sure this traveller reaches the end alive.", goal: "protect-someone" },
+  { id: "protect", text: "Keep this traveller alive until the end of the trip.", goal: "protect-someone" },
   { id: "protect-2", text: "Keep this traveller safe. Their cousin owes you money.", goal: "protect-someone" },
   { id: "early-90", text: "Arrive a few days early.", goal: { kind: "arrive-by", share: 0.9 } },
   { id: "early-80", text: "Arrive many days early.", goal: { kind: "arrive-by", share: 0.8 } },

@@ -4,7 +4,7 @@ export const longTrailRules: string[] = [
   "The trail goes from stop to stop. The part between two stops is called a leg.",
   "Each day, one player is the leader. The leader plans the day: pace, rations, rest, and who gets medicine.",
   "At a fork, the leader also picks the way. One way is safer, and which one changes every game. At a market, the leader can buy and sell.",
-  "Then every player votes Go or No-go. More Go than No-go passes the plan. If it fails, the next player makes a new plan. If that fails too, the caravan walks at yesterday's pace and rations (on day 1: steady and full). It takes the safer way at a fork. Nobody trades or gets medicine.",
+  "Then every player votes Go or No-go. More Go than No-go passes the plan. If it fails, the next player makes a new plan. If that fails too, the caravan keeps its pace and rations (on day 1: steady and full). It takes the safer way at a fork. Nobody trades or gets medicine.",
   "A hard pace goes further each day. It hurts health and tires the camels.",
   "Half rations save food, but hurt health a little. No rations save more food, but hurt health more.",
   "Each traveller has health from 0 to 3. 3 is well. 0 is dead. A dose of medicine adds 1.",

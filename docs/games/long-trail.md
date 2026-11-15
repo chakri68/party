@@ -22,7 +22,7 @@ One caravan, a long trail and not enough food. Plan each day together, and keep 
    - **Market:** what to buy and sell, at a town with a market. Tap **+** or **−** to change an amount by 1. Food and water also have **+5** and **−5**. A **+5** tap never buys more than your coins can pay for.
 
    Then the leader taps **Propose**. The button stays off until you change the plan, so a second tap does nothing. Everyone else talks about it out loud.
-3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan walks at yesterday's pace and rations (on day 1: Steady and Full). It takes the safer way at a fork. Nobody trades or gets medicine, and nobody rests.
+3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan keeps its pace and rations (on day 1: Steady and Full). It takes the safer way at a fork. Nobody trades or gets medicine, and nobody rests.
 4. **The day.** Trades happen first, then medicine, then the caravan travels. It eats and drinks, and each traveller may get worse. Then an event happens.
 5. **Choice (20 s).** Some events have 2 options. Everyone picks one. Most picks wins. A tie goes to the leader's pick, or to the first option if the leader did not pick.
 6. **Day report (5 s).** How far you moved, what you lost or got, and who got sick. Tap **Next**. Then the next player leads.
@@ -126,7 +126,7 @@ Tap **Cancel** to stop it before then. The day report says when a help was used.
 Each player gets one secret goal. Only you see yours, until the end.
 
 - Arrive with at least 250 coins. Or 400 coins. These are the numbers for 5 players. With more players the number is higher, with fewer it is lower (see the table below). Your card shows your number.
-- Make sure one named traveller reaches the end alive. It also counts if that player leaves the game.
+- Keep one named traveller alive until the end of the trip. It counts even if the caravan does not reach Mirren Gate, and also if that player leaves the game.
 - Arrive a few days early: by day 11 (Short), 18 (Normal) or 29 (Epic).
 - Arrive many days early: by day 10 (Short), 16 (Normal) or 26 (Epic).
 

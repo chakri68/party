@@ -65,10 +65,18 @@ export class PlanForm {
     const d = (this.draft ??= structuredClone(game.openPlan));
     // A traveller who left or died since the draft began can no longer take a dose.
     d.doses = d.doses.filter((id) => game.travellers.some((t) => t.id === id && t.health > 0));
+    // Doses never go past the medicine there is. Taking back a buy drops the last ticked doses,
+    // so a dose can't stay ticked when the Medicine section is gone.
+    d.doses = d.doses.slice(0, this.medicine(game));
     const trades: Trade[] = Object.entries(this.qty)
       .filter(([, q]) => q !== 0)
       .map(([item, qty]) => ({ item, qty }));
     return { ...d, doses: [...d.doses], trades };
+  }
+
+  /** Medicine for today's doses. Trades come first, so medicine bought in this plan counts. */
+  private medicine(game: Pub): number {
+    return game.stock.medicine + Math.max(0, game.prices ? (this.qty.medicine ?? 0) : 0);
   }
 
   render(x: PlanCtx): HTMLElement {
@@ -87,8 +95,7 @@ export class PlanForm {
     const stop = stopById(route, game.at);
     const forkDay = game.leg === null && stop.next.length === 2;
     const sick = game.travellers.filter((t) => t.health > 0 && t.health < 3);
-    // Trades come first, so medicine bought in this plan counts for today's doses.
-    const medicine = game.stock.medicine + Math.max(0, game.prices ? (this.qty.medicine ?? 0) : 0);
+    const medicine = this.medicine(game);
 
     const parts: (HTMLElement | null)[] = [
       segmented<Pace>("Pace", [["slow", PACE_LABEL.slow], ["steady", PACE_LABEL.steady], ["hard", PACE_LABEL.hard]], d.pace, (pace) => set({ pace }), d.rest),
