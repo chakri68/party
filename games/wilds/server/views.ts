@@ -79,7 +79,7 @@ export function publicState(state: State): WildsPublicState {
     phase: state.phase,
     deadline: state.deadline,
     round: w.round,
-    sun: w.sun,
+    sun: Math.min(w.sun, w.sunLimit), // Force or Warm spring on the last round can push the count past it
     sunLimit: w.sunLimit,
     planSeconds: state.settings.planSeconds,
     stones: [...w.stones],

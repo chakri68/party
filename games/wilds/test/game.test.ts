@@ -398,6 +398,12 @@ describe("a whole game", () => {
     expect(won(9, 10)).toBe("You escaped just in time."); // Force pushed the sun to the limit
   });
 
+  it("never shows the sun past its limit, though the server's count can go past it", () => {
+    const s = pickRoles(start(2).state);
+    s.world.sun = s.world.sunLimit + 1; // a Force on the last round, then the island turn's +1
+    expect(g.getPublicState(s).sun).toBe(s.world.sunLimit);
+  });
+
   it("labels the standings with Hearts", () => {
     let s = pickRoles(start(3).state);
     me(s, "p1").hearts = 1;
