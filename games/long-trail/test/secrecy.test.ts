@@ -197,3 +197,13 @@ describe("the safe way is rolled each game", () => {
     expect(reached).toBeGreaterThan(6);
   });
 });
+
+describe("job info after the trip", () => {
+  it("is gone in the recap, so a dead caravan never reads 99 days", () => {
+    let s = toPlan(start(5).state);
+    for (const id of ["p0", "p1", "p2", "p3"]) s.caravan.health[id] = 0;
+    s = g.onPlayerRemoved!(s, "p4", ctx(s.deadline - 1000)).state;
+    expect(s.phase).toBe("recap");
+    for (const id of ids(s)) expect(g.getPrivateState(s, id).info).toBeNull();
+  });
+});

@@ -102,7 +102,9 @@ export function privateState(state: State, playerId: string): LongTrailPrivateSt
   const job = state.jobs[playerId];
   if (!p || !job) return { job: null, info: null, goal: null, goalText: null, ability: null, vote: null, choiceVote: null, acked: false };
   const { pack, route } = world(state);
-  const live = !p.left && state.phase !== "over";
+  // Job info is for the trip. Once it ends (the recap), there is nothing left to plan, and a
+  // caravan with nobody alive would read "food for 99 days".
+  const live = !p.left && state.phase !== "over" && state.phase !== "recap";
   const info = live ? jobInfo(job, state.caravan, pack, route, { dangers: state.dangers, plan: state.plan ?? shownOpenPlan(state), travellers: state.travellers, choice: state.choice }) : null;
   const ability = isArmable(job)
     ? { job, armed: state.armed[job], used: state.used[job], canArm: live && !state.used[job] && isAlive(state, playerId) }

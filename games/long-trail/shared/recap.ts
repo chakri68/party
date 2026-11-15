@@ -155,8 +155,10 @@ export function buildRecap(
     }
   }
   // Closest first. A vote everyone agreed on is not close: leave those out unless there is nothing else.
-  const split = calls.filter((c) => c.go > 0 && c.noGo > 0);
-  const pool = split.length ? split : calls;
+  // A choice nobody voted on (0-0) was not a vote at all.
+  const cast = calls.filter((c) => c.voters > 0);
+  const split = cast.filter((c) => c.go > 0 && c.noGo > 0);
+  const pool = split.length ? split : cast;
   pool.sort((a, b) => Math.abs(a.go - a.noGo) - Math.abs(b.go - b.noGo) || b.voters - a.voters || b.day - a.day);
   const bigCalls = pool.slice(0, 3).map(({ voters: _v, ...c }) => c);
 

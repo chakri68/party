@@ -40,6 +40,10 @@ describe("buildRecap", () => {
     // With nothing split, the agreed votes are all there is.
     expect(run(end, [log[0]!, log[3]!]).bigCalls).toHaveLength(2);
   });
+  it("never lists a choice nobody voted on", () => {
+    const l: DayLog[] = [{ ...log[0]!, proposals: [], event: { id: "e", text: "A fork in the path.", choice: { votes: {}, picked: 0, label: "Walk on" } } }];
+    expect(run(end, l).bigCalls).toEqual([]);
+  });
   it("keeps at most 3 close votes", () => {
     const split = { by: "p1", plan: plan(), votes: votes("go", "go", "no-go"), passed: true };
     const l: DayLog[] = log.map((d) => ({ ...d, proposals: [split] }));
