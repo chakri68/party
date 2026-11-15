@@ -277,8 +277,10 @@ A waiting bargain cost shows on the board and in a small bar: "The stone hand: n
 
 ### 7.1 Fire
 
-- Burning tiles start at **2** and go down by 1 each island turn. At 0 the tile becomes **ash**. A burnt bridge becomes a **broken bridge**.
-- Spread: each burning tile picks one forest or bridge tile next to it (random, using `ctx.randomInt`) and lights it. New fires don't spread in the same turn.
+- Burning tiles start at **2**. At 0 the tile becomes **ash**. A burnt bridge becomes a **broken bridge**.
+  - A fire from a Torch goes down by 1 in the island turn of the round it was lit, and again the next round. So it hurts at the end of this round, and turns to ash at the end of the next.
+  - A fire that spreads skips its first burn-down. So it hurts at the end of the round it starts and again at the end of the next round, and turns to ash at the end of the round after that.
+- Spread: each burning tile picks one forest or bridge tile next to it (random, using `ctx.randomInt`) and lights it. This includes a fire from a Torch. One spread uses only the fires that burned before it began. With Dry wind there are two spreads, and the second one can use the fires from the first.
 - At most **5** tiles can burn at once. Extra spreads don't happen.
 - You can't Move into fire. If you're on a tile when it catches, you lose 1 Heart at step 4 (Guard blocks it).
 - Fire shows on all open tiles. Fire in fog shows as smoke on the edge of the fog, so you see something is burning.
@@ -340,7 +342,8 @@ Register it in `apps/server/src/games.ts` and `apps/web/src/games.ts` (section `
 - **Server-only:** hidden tiles, the deck order, other players' plans until they play, `stats`.
 - **Actions** (`parseAction`): `pick-role`, `set-plan` (both beats, checked when they play, not when sent), `ready`, `unready`, `vote`, `next`.
 - **`getAwaitedPlayerIds`:** in plan, explorers not down and not Ready. In choice, everyone who hasn't voted. Otherwise, nobody.
-- **Skip and drops** (`skipTurn`, `onPlayerDisconnected`): plan → Guard, Guard and Ready. Choice → no vote (a bargain tie becomes Refuse). Roles → random role.
+- **Skip** (`skipTurn`): plan → Guard, Guard and Ready. Choice → no vote (a bargain tie becomes Refuse). Roles → random role. Report → counts as Next.
+- **Drops:** there is no `onPlayerDisconnected`. A dropped player does not hold up the game: the phase clock (at most 60 s) runs out, and their plan as it stands is used, or Guard, Guard. They do not vote. The host can also skip them at once.
 - **`onPlayerRemoved`:** their explorer leaves the board. Their items are lost. The win check stops counting them.
 - **Results:** `winnerIds` is everyone still in on a win (not players who left), nobody on a loss. Headline: "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Standings show each player's Hearts at the end, labelled "2 Hearts", "Down" or "Left".
 
