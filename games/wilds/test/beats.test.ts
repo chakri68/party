@@ -83,10 +83,24 @@ describe("help", () => {
   it("a far helper does nothing and gets help-nothing when target did not roll", () => {
     const w = blankWorld({}, { explorers: [ex("a", "0,0"), ex("b", "3,-3")] });
     const r = run(w, { a: [G, G], b: [{ kind: "help", who: "a" }, G] });
-    expect(r.steps.some((s) => s.t === "help-nothing")).toBe(false);
+    expect(r.steps).toContainEqual({ t: "help-nothing", who: "b", target: "a" });
     const w2 = blankWorld({}, { explorers: [ex("a", "0,0"), ex("b", "0,0")] });
     const r2 = run(w2, { a: [G, G], b: [{ kind: "help", who: "a" }, G] });
     expect(r2.steps.filter((s) => s.t === "help-nothing")).toEqual([{ t: "help-nothing", who: "b", target: "a" }, { t: "help-nothing", who: "b", target: "a" }].slice(0, 1));
+  });
+  it("a far helper adds no bonus to the roll", () => {
+    const w = blankWorld({}, { explorers: [ex("a", "0,0", "protector"), ex("b", "3,-3")], tiles: { "1,0": { ruin: "shrine" } } });
+    const r = run(w, { a: [{ kind: "act", at: "1,0", approach: 1 }, G], b: [{ kind: "help", who: "a" }, G] }, seq(...pass));
+    const roll = r.steps.find((s) => s.t === "roll") as Extract<Step, { t: "roll" }>;
+    expect(roll.bonus).toBe(2); expect(roll.helpers).toEqual([]);
+    expect(r.steps).toContainEqual({ t: "help-nothing", who: "b", target: "a" });
+  });
+  it("down at round start, rescued in beat 1: guards in beat 2", () => {
+    const w = blankWorld({}, { explorers: [ex("a", "0,0"), ex("b", "0,0")] });
+    w.explorers[0]!.down = true; w.explorers[0]!.hearts = 0;
+    const r = run(w, { a: [{ kind: "look" }, { kind: "look" }], b: [{ kind: "help", who: "a" }, G] });
+    expect(w.explorers[0]!.shield).toBe(true);
+    expect(r.steps).toContainEqual({ t: "guard", who: "a", why: null });
   });
   it("gets a down player up and counts rescues", () => {
     const w = blankWorld({}, { explorers: [ex("a", "0,0"), ex("b", "0,0")] });

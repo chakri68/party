@@ -60,13 +60,14 @@ export function planProblem(w: World, who: string, card: Card): string | null {
 
 export function playBeats(w: World, plans: Record<string, Plan>, rnd: Rnd, stats: PartyStats, steps: Step[]): void {
   const order = turnOrder(w);
-  const out = new Set<string>(); // down at the start of any beat: plays nothing more this round
+  const startDown = new Set(w.explorers.filter((e) => e.down).map((e) => e.id)); // down at round start: Guard when up
+  const out = new Set<string>(); // went down during this round: plays nothing more
   const emptied = new Set<TileId>();
   const fixed = new Set<TileId>();
 
   for (let beat = 0; beat < N.actions; beat++) {
-    for (const e of w.explorers) if (e.down) out.add(e.id);
-    const cardOf = (id: string): Card => plans[id]?.[beat] ?? { kind: "guard" };
+    for (const e of w.explorers) if (e.down && !startDown.has(e.id)) out.add(e.id);
+    const cardOf = (id: string): Card => startDown.has(id) ? { kind: "guard" } : plans[id]?.[beat] ?? { kind: "guard" };
     const helped = new Map<string, string[]>(); // target -> helpers
     const rolled = new Set<string>();
     const startTile = new Map(w.explorers.map((e) => [e.id, e.tile] as const));
@@ -76,9 +77,13 @@ export function playBeats(w: World, plans: Record<string, Plan>, rnd: Rnd, stats
       const c = cardOf(id);
       if (c.kind !== "help" || out.has(id) || explorer(w, id).down) continue;
       const target = w.explorers.find((e) => e.id === c.who);
-      if (!target || target.id === id) continue;
+      if (!target) continue;
+      if (target.id === id) { steps.push({ t: "help-nothing", who: id, target: id }); continue; }
       if (target.left) { steps.push({ t: "help-nothing", who: id, target: target.id }); continue; }
-      if (distance(startTile.get(id)!, startTile.get(target.id)!) > 1) continue;
+      if (distance(startTile.get(id)!, startTile.get(target.id)!) > 1) {
+        steps.push({ t: "help-nothing", who: id, target: target.id });
+        continue;
+      }
       if (target.down) {
         target.down = false; target.hearts = 1;
         bumpStat(stats, id, "rescues");
