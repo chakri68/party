@@ -44,19 +44,53 @@ function outlet(hook: PartyOverHook | undefined, isHost: boolean, recap: Recap |
   return slot;
 }
 
-function shareButton(text: string): HTMLElement {
+export type ShareMode = "files" | "text" | "copy-image" | "copy-text";
+
+/** How the button shares: a picture with text, text only, or a copy. */
+export function shareMode(env: { canShareFiles: boolean; hasShare: boolean; coarse: boolean; hasClipboardItem: boolean }): ShareMode {
+  if (env.canShareFiles) return "files";
+  if (env.hasShare && env.coarse) return "text";
+  return env.hasClipboardItem ? "copy-image" : "copy-text";
+}
+
+function shareButton(recap: Recap, o: RecapViewOptions): HTMLElement {
+  const text = recapShareText(recap, o.appTitle, location.host);
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
-  const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
-  const label = canShare ? "Share" : "Copy recap";
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const shares = !!nav.share && coarse;
+  const label = shares ? "Share" : "Copy recap";
   // Plain, not primary: the slot below holds the next step, which matters more.
   const btn = h("button", { type: "button" }, label);
+  // Built on the first click, then kept.
+  let png: Promise<Blob> | null = null;
+  const image = () =>
+    (png ??= import("./recap-image.ts").then((m) => m.recapImage(recap, { appTitle: o.appTitle, gameName: o.gameName, site: location.host })));
+  const copied = () => {
+    btn.replaceChildren(icon("check"), "Copied");
+    setTimeout(() => (btn.textContent = label), 1500);
+  };
   btn.addEventListener("click", async () => {
     try {
-      if (canShare) await nav.share!({ text });
+      const hasClipboardItem = typeof ClipboardItem !== "undefined" && !!navigator.clipboard?.write;
+      // If drawing fails, the text-only paths below still work.
+      const drawn = image();
+      const file = await drawn.then((b) => new File([b], "recap.png", { type: "image/png" })).catch(() => null);
+      const canShareFiles = !!file && !!nav.share && !!navigator.canShare?.({ files: [file] });
+      const mode = shareMode({ canShareFiles, hasShare: !!nav.share, coarse, hasClipboardItem: hasClipboardItem && !!file });
+      if (mode === "files") await nav.share!({ files: [file!], text });
+      else if (mode === "text") await nav.share!({ text });
       else {
+        if (mode === "copy-image") {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": drawn, "text/plain": new Blob([text], { type: "text/plain" }) })]);
+            copied();
+            return;
+          } catch {
+            // Fall through to plain text.
+          }
+        }
         await navigator.clipboard.writeText(text);
-        btn.replaceChildren(icon("check"), "Copied");
-        setTimeout(() => (btn.textContent = label), 1500);
+        copied();
       }
     } catch {
       // Share sheet dismissed, or clipboard blocked: the recap is on screen anyway.
@@ -96,7 +130,7 @@ export function recapView(o: RecapViewOptions): HTMLElement {
           ),
         )
       : h("p", { class: "recap-quiet" }, recap.quiet ?? ""),
-    h("div", { class: "actions" }, shareButton(recapShareText(recap, o.appTitle, location.host))),
+    h("div", { class: "actions" }, shareButton(recap, o)),
     outlet(o.partyOver, o.isHost, recap, o.home),
   );
 }
