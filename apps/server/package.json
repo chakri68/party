@@ -30,6 +30,7 @@
     "@games/holdem": "workspace:*",
     "@games/imposter": "workspace:*",
     "@games/liars-dice": "workspace:*",
+    "@games/long-trail": "workspace:*",
     "@games/nightfall": "workspace:*",
     "@games/oh-hell": "workspace:*",
     "@games/old-maid": "workspace:*",

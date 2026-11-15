@@ -13,6 +13,7 @@ import { holdemGame } from "@games/holdem/server";
 import { imposterGame } from "@games/imposter/server";
 import { goFishGame } from "@games/go-fish/server";
 import { liarsDiceGame } from "@games/liars-dice/server";
+import { longTrailGame } from "@games/long-trail/server";
 import { nightfallGame } from "@games/nightfall/server";
 import { ohHellGame } from "@games/oh-hell/server";
 import { oldMaidGame } from "@games/old-maid/server";
@@ -53,6 +54,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   holdem: holdemGame,
   overheat: overheatGame,
   "same-page": samePageGame,
+  "long-trail": longTrailGame,
 };
 
 export interface GameFlags {

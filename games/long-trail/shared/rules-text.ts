@@ -1,0 +1,20 @@
+/** Plain-language rules for the lobby's Rules button. */
+export const longTrailRules: string[] = [
+  "You are one caravan on a long trail. Everyone wins or loses the trip together.",
+  "The trail goes from stop to stop. The part between two stops is called a leg.",
+  "Each day, one player is the leader. The leader plans the day: pace, rations, rest, and who gets medicine.",
+  "At a fork, the leader also picks the way. One way is safer, and which one changes every game. At a market, the leader can buy and sell.",
+  "Then every player votes Go or No-go. More Go than No-go passes the plan. If it fails, the next player makes a new plan. If that fails too, the caravan keeps its pace and rations (on day 1: steady and full). It takes the safer way at a fork. Nobody trades or gets medicine.",
+  "A hard pace goes further each day. It hurts health and tires the camels.",
+  "Half rations save food, but hurt health a little. No rations save more food, but hurt health more.",
+  "Each traveller has health from 0 to 3. 3 is well. 0 is dead. A dose of medicine adds 1.",
+  "On a rest day the caravan does not move. With full rations, a sick traveller may get better. Medicine is given only on rest days, unless the Healer is alive.",
+  "Each player has a job, like guide, healer or scout. Everyone can see your job. Only you see what your job tells you.",
+  "Four jobs have a help you can use once. Tap Get ready during the plan or the vote. It works by itself the next time it can, and is then used up.",
+  "Each day, something happens on the trail. Some events give the caravan 2 options. Everyone picks one. A tie goes to the leader.",
+  "Each player also has a secret goal. For example: keep one traveller alive, or finish with enough coins.",
+  "At a market you can buy food, water and more. You can also buy and sell silk, spice and salt. Prices are different in each town. Buy where a good is cheap. Sell where it pays more.",
+  "At the end, the caravan sells all its cargo at the last town's prices. Coins and cargo give the caravan a grade: poor, fair, rich or very rich.",
+  "Score: +5 if the caravan arrives. 0 to 6 for the grade. +3 if your goal is met. +2 if your traveller is alive.",
+  "If the caravan does not arrive, nobody wins. The goals are still shown, so you can say whose fault it was.",
+];

@@ -104,6 +104,7 @@ const RULES: AwardRule[] = [
   { id: "bold", title: "Boldest bidder", min: 3, score: (id, c) => c.stat(id, "bigBids"), line: ([id], c) => `Made ${c.stat(id!, "bigBids")} big bids.` },
   { id: "quick", title: "Fastest guesser", min: 2, score: (id, c) => c.stat(id, "firstGuesses"), line: ([id], c) => `Guessed first ${c.stat(id!, "firstGuesses")} times.` },
   { id: "trusting", title: "Too trusting", min: 3, score: (id, c) => c.stat(id, "wrongCalls"), line: ([id], c) => `Called ${c.stat(id!, "wrongCalls")} bluffs wrong.` },
+  { id: "doubter", title: "Hardest to convince", min: 5, score: (id, c) => c.stat(id, "noGoVotes"), line: ([id], c) => `Voted No-go ${c.stat(id!, "noGoVotes")} times.` },
 ];
 
 /** Null when no game finished. `now` stands in for `endedAt` while the party's still on. */

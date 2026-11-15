@@ -63,3 +63,4 @@ Only on builds that ship the 3D engine. The hosted site has them; self-hosted co
 | Game | Players | |
 | --- | --- | --- |
 | [Dominion](dominion.md) | 1–8 | Explore, build cities, research, conquer. Takes a while. |
+| [Long Trail](long-trail.md) | 3–8 | One caravan, a long trail, and a secret goal each. |
