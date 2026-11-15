@@ -144,6 +144,8 @@
 .lt-check input { width: 22px; height: 22px; accent-color: var(--accent); }
 .lt-trades { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-width: 480px; }
 .lt-trade { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px 44px; align-items: center; gap: 6px; min-height: 44px; }
+.lt-trade-big { grid-template-columns: minmax(0, 1fr) auto repeat(4, 44px); }
+.lt-trade-big .lt-step { font-size: 1rem; }
 .lt-trade-name { display: grid; min-width: 0; }
 .lt-trade-name small { color: var(--muted); font-size: 0.75rem; }
 .lt-trade-now { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }

@@ -82,6 +82,9 @@ export class LongTrailView implements GameView {
 
   rejected(_clientActionId: string, message: string) {
     this.note.textContent = message;
+    // A refused proposal: Propose works again.
+    this.form.unlock();
+    if (this.props) this.settle(this.props);
     audio.play("reject");
     audio.buzz([30, 40, 30]);
   }

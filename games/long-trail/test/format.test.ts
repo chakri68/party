@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { goalLine } from "../client/format.ts";
+import { goalLine, infoLines } from "../client/format.ts";
+import { pack, route } from "./fixtures.ts";
 import { arriveByDay, goalMet, type EndView } from "../shared/scoring.ts";
 
 const names = (id: string) => (id === "p2" ? "Asha" : id);
@@ -23,5 +24,19 @@ describe("goalLine", () => {
   it("names the traveller on a protect goal, and leaves other goals alone", () => {
     expect(goalLine("Keep this traveller safe.", { kind: "protect", target: "p2" }, names, 20)).toBe("Keep this traveller safe. (Asha)");
     expect(goalLine("Nobody dies.", { kind: "nobody-dies" }, names, 20)).toBe("Nobody dies.");
+  });
+});
+
+describe("infoLines at a fork", () => {
+  it("names each way for the Guide and the Trader", () => {
+    expect(infoLines({ job: "guide", nextLeg: null, fork: { stop: "b", ways: { c: 0, d: 2 } } }, pack, route, names)).toEqual([
+      "Fork at B.",
+      "The way by C looks calm.",
+      "The way by D looks dangerous.",
+    ]);
+    expect(
+      infoLines({ job: "trader", nextMarket: null, fork: { stop: "b", ways: { c: null, d: { stop: "d", prices: { silk: 12 } } } } }, pack, route, names),
+    ).toEqual(["Fork at B.", "The way by C: no market ahead.", "The way by D: next market D. Silk 12."]);
+    expect(infoLines({ job: "guide", nextLeg: 1, fork: null }, pack, route, names)).toEqual(["The next leg looks rough."]);
   });
 });

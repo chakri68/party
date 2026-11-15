@@ -46,11 +46,19 @@ function segmented<T extends string>(label: string, options: [T, string][], valu
 export class PlanForm {
   private draft: Plan | null = null;
   private qty: Record<string, number> = {};
+  /** Propose was tapped and this plan is on its way: a second tap would only be rejected. */
+  private sent = false;
 
   /** Start again from the open plan (a new day, a new leader, a new proposal). */
   reset() {
     this.draft = null;
     this.qty = {};
+    this.sent = false;
+  }
+
+  /** The server said no: let the leader try again. */
+  unlock() {
+    this.sent = false;
   }
 
   plan(game: Pub): Plan {
@@ -69,6 +77,7 @@ export class PlanForm {
     const d = this.draft!;
     const set = (patch: Partial<Plan>) => {
       Object.assign(d, patch);
+      this.sent = false;
       x.changed();
     };
     const c = caravanOf(game);
@@ -138,7 +147,21 @@ export class PlanForm {
       { class: "lt-form" },
       parts,
       h("p", { class: "lt-problem", role: "status" }, problem ?? ""),
-      h("button", { type: "button", class: "primary lt-action", disabled: !!problem, onclick: () => x.propose(this.plan(game)) }, "Propose"),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "primary lt-action",
+          disabled: !!problem || this.sent,
+          onclick: (e: Event) => {
+            if (this.sent) return;
+            this.sent = true;
+            (e.currentTarget as HTMLButtonElement).disabled = true;
+            x.propose(this.plan(game));
+          },
+        },
+        "Propose",
+      ),
     );
   }
 
@@ -153,20 +176,37 @@ export class PlanForm {
       if (buy === undefined && sell === undefined) return [];
       const q = this.qty[item] ?? 0;
       const held = SUPPLIES.includes(item as never) ? null : (game.stock.cargo[item] ?? 0);
+      // Food and water are bought by the dozen, so they get a 5 step too.
+      const big = item === "food" || item === "water";
+      const min = sell === undefined ? 0 : -(held ?? 0);
       const bump = (by: number) => {
-        this.qty[item] = q + by;
+        let next = Math.max(min, q + by);
+        if (by > 1 && buy !== undefined && buy > 0 && q >= 0) {
+          // A big step stops at what the coins can still pay for.
+          const most = q + Math.floor(Math.max(0, totals.coinsAfter) / buy);
+          next = Math.max(q + 1, Math.min(next, most));
+        }
+        this.qty[item] = next;
+        this.sent = false;
         x.changed();
       };
       const price = buy === sell || sell === undefined ? `${buy} each` : `buy ${buy}, sell ${sell}`;
       const now = q > 0 ? `Buy ${q}` : q < 0 ? `Sell ${-q}` : held !== null ? `Have ${held}` : "";
+      const name = itemName(pack, item);
+      const less = q <= min;
+      const more = buy === undefined ? q >= 0 : false;
+      const step = (by: number, label: string, aria: string, disabled: boolean) =>
+        h("button", { type: "button", class: "lt-step", "aria-label": aria, disabled, onclick: () => bump(by) }, label);
       return [
         h(
           "li",
-          { class: "lt-trade" },
-          h("span", { class: "lt-trade-name" }, h("b", {}, itemName(pack, item)), h("small", {}, price)),
+          { class: big ? "lt-trade lt-trade-big" : "lt-trade" },
+          h("span", { class: "lt-trade-name" }, h("b", {}, name), h("small", {}, price)),
           h("span", { class: "lt-trade-now", "aria-live": "polite" }, now),
-          h("button", { type: "button", class: "lt-step", "aria-label": `Less ${itemName(pack, item)}`, disabled: sell === undefined ? q <= 0 : q <= -(held ?? 0), onclick: () => bump(-1) }, "−"),
-          h("button", { type: "button", class: "lt-step", "aria-label": `More ${itemName(pack, item)}`, disabled: buy === undefined ? q >= 0 : false, onclick: () => bump(1) }, "+"),
+          big ? step(-5, "−5", `5 less ${name}`, less) : null,
+          step(-1, "−", `1 less ${name}`, less),
+          step(1, "+", `1 more ${name}`, more),
+          big ? step(5, "+5", `5 more ${name}`, more) : null,
         ),
       ];
     });

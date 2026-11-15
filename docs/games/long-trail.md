@@ -19,9 +19,9 @@ One caravan, a long trail and not enough food. Plan each day together, and keep 
    - **Rest today:** the caravan does not move.
    - **Which way?** at a fork.
    - **Medicine:** who gets a dose.
-   - **Market:** what to buy and sell, at a town with a market.
+   - **Market:** what to buy and sell, at a town with a market. Tap **+** or **−** to change an amount by 1. Food and water also have **+5** and **−5**. A **+5** tap never buys more than your coins can pay for.
 
-   Then the leader taps **Propose**. Everyone else talks about it out loud.
+   Then the leader taps **Propose**. The button stays off until you change the plan, so a second tap does nothing. Everyone else talks about it out loud.
 3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan keeps yesterday's pace and rations, and nothing else.
 4. **The day.** Trades happen first, then medicine, then the caravan travels. It eats and drinks, and each traveller may get worse. Then an event happens.
 5. **Choice (20 s).** Some events have 2 options. Everyone picks one. Most picks wins. A tie goes to the leader's pick, or to the first option if the leader did not pick.
