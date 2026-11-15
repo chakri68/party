@@ -168,7 +168,15 @@ export type Phase = "teams" | "countdown" | "racing" | "finished";
 
 export interface PlayerState {
   id: string;
+  /** Pressed Ready. In Rally that starts loading the course; it isn't loaded yet. */
   ready: boolean;
+  /**
+   * Rally: their course is up on their screen (the client says so after it
+   * readies). Never true unless `ready`. Older saved states lack it: not loaded.
+   */
+  loaded?: boolean;
+  /** Their connection has dropped and not come back. Older saved states lack it: here. */
+  away?: boolean;
 }
 
 export type RunStatus = "running" | "finished" | "dnf";
@@ -392,7 +400,9 @@ export interface BlindRallyPublicState {
   timeLimitMs: number;
   teams: PublicTeam[];
   /** Everyone in the game, seated in a car or not. */
-  players: { id: string; ready: boolean }[];
+  players: { id: string; ready: boolean; loaded: boolean }[];
+  /** Rally: who the start is waiting on to load their course, once everyone is ready. */
+  loading: string[];
   startsAt: number | null;
   endsAt: number | null;
   endedAt: number | null;
@@ -461,6 +471,8 @@ export type BlindRallyAction =
   /** Host: put someone in a seat (bumping whoever's there), or `teamId: null` to unseat them. */
   | { type: "team.assign"; playerId: string; teamId: number | null; role?: Role }
   | { type: "player.ready"; ready: boolean }
+  /** The client, by itself: my course has loaded. Only counts while ready, in TEAMS. */
+  | { type: "player.loaded" }
   /** Host, host-pick mode, TEAMS only. */
   | { type: "track.pick"; trackId: string }
   /** A team captain, ballot mode, TEAMS only. `null` takes the team's vote back. */

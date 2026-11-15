@@ -5,7 +5,7 @@ import { trackName } from "../shared/tracks-public.ts";
 import { formatClock } from "../shared/wire.ts";
 import { teamColor, type BlindRallyPublicState, type PublicTeam, type Role } from "../shared/types.ts";
 import { briefingCard } from "./briefing.ts";
-import { raceElapsed, teamBadge } from "./role.ts";
+import { raceElapsed, startNote, teamBadge } from "./role.ts";
 import { coinFlipped, trackPicker } from "./stages.ts";
 
 const ROLE_NAME: Record<Role, string> = { driver: "Driver", navigator: "Navigator" };
@@ -154,13 +154,14 @@ export class TeamsScreen {
     }
 
     const host: (Node | null)[] = [];
+    const blocker = startNote(room, game);
     if (isHost && editable) {
       host.push(
-        h("button", { type: "button", class: "primary br-start", disabled: game.startBlocker !== null, onclick: () => this.api.act({ type: "race.start" }) }, "Start race"),
-        game.startBlocker ? h("p", { class: "br-blocker" }, game.startBlocker) : null,
+        h("button", { type: "button", class: "primary br-start", disabled: blocker !== null, onclick: () => this.api.act({ type: "race.start" }) }, "Start race"),
+        blocker ? h("p", { class: "br-blocker" }, blocker) : null,
       );
     } else if (editable) {
-      host.push(h("p", { class: "br-blocker" }, game.startBlocker ?? "Everyone is ready. Waiting for the host."));
+      host.push(h("p", { class: "br-blocker" }, blocker ?? "Everyone is ready. Waiting for the host."));
     } else if (isHost && game.phase !== "finished") {
       host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Cars still driving get a DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
     }

@@ -121,9 +121,14 @@ export function newRally(players = 2, settings: Partial<BlindRallySettings> = {}
   return rallyGame.createGame(ids, parsed, { roundNumber: 1, dealerSeat: 0, ...(carry !== undefined && { carry }) }, ctx()).state;
 }
 
-/** Everyone in a car ready, and the race started at t=0. */
+/** Rally: ready, and their course has loaded, as the client reports it. */
+export function readyUp(state: BlindRallyState, playerId: string): BlindRallyState {
+  return act(act(state, playerId, { type: "player.ready", ready: true }), playerId, { type: "player.loaded" });
+}
+
+/** Everyone in a car ready and loaded, and the race started at t=0. */
 export function rallying(players = 2, settings: Partial<BlindRallySettings> = {}): BlindRallyState {
   let s = newRally(players, settings);
-  for (const t of s.teams) if (t.driverId) s = act(s, t.driverId, { type: "player.ready", ready: true });
+  for (const t of s.teams) if (t.driverId) s = readyUp(s, t.driverId);
   return act(s, "p0", { type: "race.start" });
 }

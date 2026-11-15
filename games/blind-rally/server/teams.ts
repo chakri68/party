@@ -1,5 +1,5 @@
 import { DEFAULT_VEHICLE, isVehicleId } from "../shared/vehicles.ts";
-import { MAX_TEAMS, RALLY_MAX_CARS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, type Role, type TeamColorKey, type TeamState } from "../shared/types.ts";
+import { MAX_TEAMS, RALLY_MAX_CARS, TEAM_COLORS, type BlindRallyCarry, type BlindRallyState, type PlayerState, type Role, type TeamColorKey, type TeamState } from "../shared/types.ts";
 
 // Seats in cars. Helpers mutate the state they're given; game.ts hands them a
 // clone. Invariant: a player is in at most one seat, in at most one team.
@@ -49,11 +49,20 @@ export const members = (t: TeamState) => [...new Set([t.driverId, t.navigatorId]
 /** The captain's seat, or whoever's in the car if that one's empty. */
 export const captainOf = (t: TeamState) => t[slot(t.captain)] ?? t[slot(other(t.captain))];
 
+/**
+ * Back to not ready. Loaded goes too: whatever loads next (a new course, a new
+ * car) has to say so again before the start.
+ */
+export function notReady(p: PlayerState): void {
+  p.ready = false;
+  p.loaded = false;
+}
+
 /** Anyone whose car changed has to ready up again: they may not like the new arrangement. */
 function unready(state: BlindRallyState, team: TeamState): void {
   for (const id of members(team)) {
     const p = state.players.find((q) => q.id === id);
-    if (p) p.ready = false;
+    if (p) notReady(p);
   }
 }
 
@@ -64,7 +73,7 @@ export function unseat(state: BlindRallyState, playerId: string): void {
   if (isSolo(s.team)) s.team.navigatorId = null;
   s.team[slot(s.role)] = null;
   const p = state.players.find((q) => q.id === playerId);
-  if (p) p.ready = false;
+  if (p) notReady(p);
 }
 
 /**
@@ -112,7 +121,7 @@ function fitCars(state: BlindRallyState): void {
     car.driverId = car.navigatorId = p.id;
     // A freed car comes back as new: the last driver's pick isn't this one's.
     car.vehicle = DEFAULT_VEHICLE;
-    p.ready = false;
+    notReady(p);
   }
   while (state.teams.length > 1 && isEmpty(state.teams.at(-1)!)) state.teams.pop();
   if (!state.teams.length) state.teams.push(newTeam(1, state.teams));
@@ -146,6 +155,15 @@ export function carryOf(state: BlindRallyState): BlindRallyCarry {
 
 /** Why the host can't start, in words for the screen; null when they can. */
 export function startBlocker(state: BlindRallyState): string | null {
+  const seats = seatBlocker(state);
+  if (seats) return seats;
+  const loading = stillLoading(state).length;
+  if (loading) return loading === 1 ? "Waiting for 1 player to load." : `Waiting for ${loading} players to load.`;
+  return null;
+}
+
+/** The start's checks before loading: cars filled and everyone in them ready. */
+export function seatBlocker(state: BlindRallyState): string | null {
   const full = state.teams.filter(isFull);
   if (!full.length) return state.variant === "rally" ? "Nobody is in a car yet." : "A car needs a Driver and a Navigator.";
   const half = state.teams.find((t) => !isFull(t) && !isEmpty(t));
@@ -153,4 +171,15 @@ export function startBlocker(state: BlindRallyState): string | null {
   const waiting = full.flatMap(members).filter((id) => !state.players.find((p) => p.id === id)?.ready).length;
   if (waiting) return waiting === 1 ? "Waiting for 1 player to get ready." : `Waiting for ${waiting} players to get ready.`;
   return null;
+}
+
+/**
+ * Rally: everyone in a car who is ready and here, but whose course hasn't
+ * loaded yet. Ready only starts the load. Someone whose connection has dropped
+ * doesn't hold the start up: the drop-out rules deal with them.
+ */
+export function stillLoading(state: BlindRallyState): string[] {
+  if (state.variant !== "rally") return [];
+  const seated = new Set(state.teams.filter(isFull).flatMap(members));
+  return state.players.filter((p) => seated.has(p.id) && p.ready && !p.loaded && !p.away).map((p) => p.id);
 }

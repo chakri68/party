@@ -1,7 +1,7 @@
 import { type BlindRallyState, type TeamState } from "../shared/types.ts";
 import { DEFAULT_VEHICLE, VEHICLE_IDS, type VehicleId } from "../shared/vehicles.ts";
 import { count } from "./ballot.ts";
-import { isEmpty } from "./teams.ts";
+import { isEmpty, notReady } from "./teams.ts";
 
 // Rally's car class (rally-spec.md). Free: each car has its own pick. Ballot:
 // one vote per car and the whole grid drives the leader, counted live like
@@ -39,6 +39,6 @@ export function settleVehicle(state: BlindRallyState): boolean {
   if (!c || c.winner === state.vehicleId) return false;
   state.vehicleId = c.winner;
   const seated = new Set(state.teams.flatMap((t) => [t.driverId, t.navigatorId]));
-  for (const p of state.players) if (seated.has(p.id)) p.ready = false;
+  for (const p of state.players) if (seated.has(p.id)) notReady(p);
   return true;
 }
