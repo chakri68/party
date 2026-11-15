@@ -10,6 +10,7 @@ import {
   shuffle,
   type TimerRequest,
 } from "@games/game-core";
+import { rollForks, withForks } from "../shared/forks.ts";
 import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
 import { packFor, stopById, type LegKind } from "../shared/pack.ts";
@@ -311,7 +312,7 @@ function endView(state: State): EndView {
     coins: c.stock.coins,
     cargo: { ...c.stock.cargo },
     endPrices: { ...(c.prices[route.end] ?? {}) },
-    grade: made ? gradeOf(pack, wealth(c, route)) : null,
+    grade: made ? gradeOf(pack, wealth(c, route), state.players.length) : null,
     alive: Object.fromEntries(state.travellers.map((id) => [id, isAlive(state, id)])),
     removed: state.players.filter((p) => p.left).map((p) => p.id),
     visited: [...c.visited],
@@ -402,10 +403,15 @@ export const longTrailGame: GameDefinition<State, LongTrailAction, LongTrailPubl
     if (n < MIN_PLAYERS || n > MAX_PLAYERS) throw new Error(`long-trail: needs ${MIN_PLAYERS}–${MAX_PLAYERS} players, got ${n}`);
     const ids = players.map((p) => p.id);
     const pack = packFor(settings.setting);
-    const route = pack.routes[settings.length];
+    const base = pack.routes[settings.length];
     const jobs = shuffle([...JOBS], ctx.randomInt).slice(0, n);
-    const goals = dealGoals(pack, route, ids, ctx.randomInt);
+    const goals = dealGoals(pack, base, ids, ctx.randomInt);
     const stock: Stock = pack.start(n);
+    const prices = rollPrices(base, ctx.randomInt);
+    // Each game rolls its own safe way and km at every fork, then the dangers on that route.
+    const forks = rollForks(base, ctx.randomInt);
+    const route = withForks(base, forks);
+    const dangers = rollDangers(route, ctx.randomInt);
     const state: State = {
       phase: "reveal",
       deadline: 0,
@@ -421,12 +427,13 @@ export const longTrailGame: GameDefinition<State, LongTrailAction, LongTrailPubl
         day: 1,
         health: Object.fromEntries(ids.map((id) => [id, 3 as Health])),
         fatigue: 0,
-        prices: rollPrices(route, ctx.randomInt),
+        prices,
         visited: [route.start],
         starved: false,
         arrivedDay: null,
       },
-      dangers: rollDangers(route, ctx.randomInt),
+      dangers,
+      forks,
       jobs: Object.fromEntries(ids.map((id, i) => [id, jobs[i]!])),
       goals,
       goalText: goalTexts(pack, route, goals, ids),

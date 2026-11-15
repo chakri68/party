@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { N, packFor, pathsOf, stopById, type Goal, type Length, type LegKind } from "../shared/index.ts";
 import type { Effect } from "../shared/index.ts";
-import { tradeRoute } from "../shared/packs/trade-route.ts";
+import { startWealth, tradeRoute } from "../shared/packs/trade-route.ts";
 
 const LENGTHS: Length[] = ["short", "normal", "epic"];
 const KINDS: LegKind[] = ["desert", "mountain", "river", "plain"];
@@ -108,11 +108,21 @@ describe("trade route pack", () => {
   });
 
   it("has sane grades and start stock", () => {
-    const { grades } = tradeRoute;
-    expect(grades.broke).toBe(0);
-    expect(grades.fair).toBeGreaterThan(grades.broke);
-    expect(grades.rich).toBeGreaterThan(grades.fair);
-    expect(grades.legendary).toBeGreaterThan(grades.rich);
+    for (const n of [3, 5, 8]) {
+      const grades = tradeRoute.grades(n);
+      expect(grades.broke).toBe(0);
+      expect(grades.fair).toBeGreaterThan(grades.broke);
+      expect(grades.rich).toBeGreaterThan(grades.fair);
+      expect(grades.legendary).toBeGreaterThan(grades.rich);
+      // Grades sit at about 1.03, 1.5 and 2.2 times that table's start wealth.
+      const w0 = startWealth(n);
+      expect(w0).toBe(tradeRoute.start(n).coins + 148);
+      expect(grades.fair / w0).toBeCloseTo(1.03, 2);
+      expect(grades.rich / w0).toBeCloseTo(1.5, 2);
+      expect(grades.legendary / w0).toBeCloseTo(2.2, 2);
+    }
+    expect(tradeRoute.grades(5)).toEqual({ broke: 0, fair: 585, rich: 852, legendary: 1250 }); // 5 players: as before
+    expect(tradeRoute.start(3).coins).toBeLessThan(tradeRoute.start(8).coins);
     for (const n of [3, 8]) {
       const s = tradeRoute.start(n);
       expect(Object.keys(s.cargo).length).toBe(3);

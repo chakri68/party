@@ -29,9 +29,9 @@ const short: RouteDef = {
   deadline: 12,
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
-    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 90, "river", true), leg("vessa-pass", 50, "mountain", false)]),
+    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 90, "river", true), leg("vessa", 50, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("quillon", 90, "plain")], MARKETS.saltmere),
-    stop("vessa-pass", "Vessa Pass", [leg("quillon", 60, "mountain")], MARKETS.vessa),
+    stop("vessa", "Vessa", [leg("quillon", 60, "mountain")], MARKETS.vessa),
     stop("quillon", "Quillon", [leg("mirren-gate", 90, "desert")], MARKETS.quillon),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
@@ -44,12 +44,12 @@ const normal: RouteDef = {
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 70, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")]),
-    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
-    stop("vessa-pass", "Vessa Pass", [leg("ombar", 70, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel-wells", 90, "desert", true), leg("rook-pass", 50, "mountain", false)]),
-    stop("kessel-wells", "Kessel Wells", [leg("yarrin", 60, "plain")], MARKETS.kessel),
-    stop("rook-pass", "Rook Pass", [leg("yarrin", 60, "mountain")], MARKETS.rook),
+    stop("vessa", "Vessa", [leg("ombar", 70, "mountain")], MARKETS.vessa),
+    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "mountain", false)]),
+    stop("kessel", "Kessel", [leg("yarrin", 60, "plain")], MARKETS.kessel),
+    stop("rookan", "Rookan", [leg("yarrin", 60, "mountain")], MARKETS.rook),
     stop("yarrin", "Yarrin", [leg("mirren-gate", 80, "river")], MARKETS.yarrin),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
@@ -62,16 +62,16 @@ const epic: RouteDef = {
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")], MARKETS.telOrrin),
-    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa-pass", 60, "mountain", false)]),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "mountain", false)]),
     stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
-    stop("vessa-pass", "Vessa Pass", [leg("ombar", 60, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel-wells", 90, "desert", true), leg("rook-pass", 50, "mountain", false)]),
-    stop("kessel-wells", "Kessel Wells", [leg("anvil-gap", 60, "plain")], MARKETS.kessel),
-    stop("rook-pass", "Rook Pass", [leg("anvil-gap", 60, "mountain")], MARKETS.rook),
-    stop("anvil-gap", "Anvil Gap", [leg("teshun", 90, "plain")]),
-    stop("teshun", "Teshun", [leg("lorn-ferry", 80, "river", true), leg("gorrow-heights", 60, "mountain", false)]),
-    stop("lorn-ferry", "Lorn Ferry", [leg("yarrin", 60, "plain")], MARKETS.lorn),
-    stop("gorrow-heights", "Gorrow Heights", [leg("yarrin", 60, "mountain")], MARKETS.gorrow),
+    stop("vessa", "Vessa", [leg("ombar", 60, "mountain")], MARKETS.vessa),
+    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "mountain", false)]),
+    stop("kessel", "Kessel", [leg("anvara", 60, "plain")], MARKETS.kessel),
+    stop("rookan", "Rookan", [leg("anvara", 60, "mountain")], MARKETS.rook),
+    stop("anvara", "Anvara", [leg("teshun", 90, "plain")]),
+    stop("teshun", "Teshun", [leg("lorn", 80, "river", true), leg("gorrow", 60, "mountain", false)]),
+    stop("lorn", "Lorn", [leg("yarrin", 60, "plain")], MARKETS.lorn),
+    stop("gorrow", "Gorrow", [leg("yarrin", 60, "mountain")], MARKETS.gorrow),
     stop("yarrin", "Yarrin", [leg("sef-oasis", 60, "desert")], MARKETS.yarrin),
     stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 90, "plain")]),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
@@ -291,7 +291,7 @@ const goals: GoalCard[] = [
   { id: "early-90", text: "Arrive a few days early.", goal: { kind: "arrive-by", share: 0.9 } },
   { id: "early-80", text: "Arrive many days early.", goal: { kind: "arrive-by", share: 0.8 } },
   { id: "visit-saltmere", text: "Visit Saltmere. You like their salt.", goal: { kind: "visit", stop: "saltmere" } },
-  { id: "visit-vessa", text: "Visit Vessa Pass. You left something there once.", goal: { kind: "visit", stop: "vessa-pass" } },
+  { id: "visit-vessa", text: "Visit Vessa. You left something there once.", goal: { kind: "visit", stop: "vessa" } },
   { id: "cargo-silk", text: "Arrive with at least 10 rolls of silk.", goal: { kind: "cargo", good: "silk", atLeast: 10 } },
   { id: "cargo-spice", text: "Arrive with at least 10 sacks of spice.", goal: { kind: "cargo", good: "spice", atLeast: 10 } },
   { id: "cargo-salt", text: "Arrive with at least 10 blocks of salt.", goal: { kind: "cargo", good: "salt", atLeast: 10 } },
@@ -300,6 +300,15 @@ const goals: GoalCard[] = [
   { id: "grade-rich", text: "Arrive rich, or very rich.", goal: { kind: "grade", atLeast: "rich" } },
   { id: "grade-fair", text: "Arrive with a fair profit, or better.", goal: { kind: "grade", atLeast: "fair" } },
 ];
+
+/** Coins grow with the table: more travellers eat and drink more on the way (R21). */
+const startCoins = (players: number) => 170 + 50 * players;
+const START_CARGO = { silk: 2, spice: 2, salt: 2 };
+/** W0: start coins plus the start goods at the middle of Mirren Gate's price ranges. Grades are set against it. */
+export function startWealth(players: number): number {
+  const mid = (g: keyof typeof START_CARGO) => (MARKETS.mirren.goods[g]![0] + MARKETS.mirren.goods[g]![1]) / 2;
+  return startCoins(players) + (Object.keys(START_CARGO) as (keyof typeof START_CARGO)[]).reduce((s, g) => s + START_CARGO[g] * mid(g), 0);
+}
 
 export const tradeRoute: SettingPack = {
   id: "trade-route",
@@ -357,14 +366,17 @@ export const tradeRoute: SettingPack = {
     food: 14 * players,
     water: 10 * players,
     medicine: 3,
-    coins: 420,
+    coins: startCoins(players),
     animals: 2 + Math.ceil(players / 2),
-    cargo: { silk: 2, spice: 2, salt: 2 },
+    cargo: { ...START_CARGO },
   }),
   capacityPerAnimal: 6,
   events,
   goals,
-  grades: { broke: 0, fair: 585, rich: 852, legendary: 1250 },
+  grades: (players) => {
+    const w0 = startWealth(players);
+    return { broke: 0, fair: Math.round(1.03 * w0), rich: Math.round(1.5 * w0), legendary: Math.round(2.2 * w0) };
+  },
   endLines: {
     arrived: {
       broke: [

@@ -3,6 +3,7 @@ import type { Armed, Used } from "./events.ts";
 import type { JobInfo } from "./info.ts";
 import type { ChoiceEvent, Danger, LegKind } from "./pack.ts";
 import type { DayLog, Recap } from "./recap.ts";
+import type { ForkRolls } from "./forks.ts";
 import type { EndView } from "./scoring.ts";
 import type { Caravan } from "./travel.ts";
 
@@ -101,6 +102,8 @@ export interface LongTrailServerState {
   travellers: string[];
   caravan: Caravan;
   dangers: Record<string, Danger>; // leg key `${from}>${to}`
+  /** This game's safe way and km at each fork. Missing in games stored before it existed. */
+  forks?: ForkRolls;
   jobs: Record<string, JobId>;
   goals: Record<string, Goal>;
   goalText: Record<string, string>;

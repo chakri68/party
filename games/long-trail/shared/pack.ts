@@ -62,7 +62,8 @@ export interface SettingPack {
   capacityPerAnimal: number;
   events: EventCard[];
   goals: GoalCard[];
-  grades: Record<Grade, number>; // wealth thresholds, broke = 0
+  /** Wealth thresholds for a game that started with this many players; broke = 0. */
+  grades: (players: number) => Record<Grade, number>;
   /** End lines by result. A failed trip has its own lines for each cause. */
   endLines: { arrived: Record<Grade, string[]>; failed: { dead: string[]; deadline: string[] } };
 }

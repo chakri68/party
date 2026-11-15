@@ -372,7 +372,11 @@ describe("a full game", () => {
     expect(g.getPublicState(s).recap).toEqual(s.recap);
     expect(s.recap!.reveals).toHaveLength(5);
     // Recap sentences name travellers by token; the client fills in seat names.
-    const text = [s.recap!.worstDay?.text ?? "", ...s.recap!.bigCalls.map((b) => b.result)].join(" ");
+    // (Event cards may say "Someone" in their own words, so take the card text out first.)
+    const cards = new Set(s.log.map((d) => d.event?.text).filter(Boolean) as string[]);
+    let worst = s.recap!.worstDay?.text ?? "";
+    for (const c of cards) worst = worst.replace(c, "");
+    const text = [worst, ...s.recap!.bigCalls.map((b) => b.result)].join(" ");
     expect(text).not.toContain("Someone");
     expect(s.recap!.worstDay?.text).toMatch(/\{\{p\d\}\}/);
     const named = fillNames(s.recap!.worstDay!.text, (id) => `Name-${id}`);
@@ -398,5 +402,22 @@ describe("party stats", () => {
     for (const view of [g.getPublicState(s), ...ids(s).map((id) => g.getPrivateState(s, id))]) {
       expect(JSON.stringify(view)).not.toMatch(/stats|noGoVotes/);
     }
+  });
+});
+
+describe("coin goal cards", () => {
+  it("show the amount this table must reach", () => {
+    let seen = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = start(8, {}, seed).state;
+      for (const id of ids(s)) {
+        const goal = s.goals[id]!;
+        if (goal.kind !== "coins") continue;
+        seen++;
+        expect([340, 540]).toContain(goal.atLeast); // 250 and 400, times 570 / 420 start coins
+        expect(s.goalText[id]).toBe(`Arrive with at least ${goal.atLeast} coins.`);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });

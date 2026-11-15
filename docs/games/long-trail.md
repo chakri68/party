@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Only the Scout sees how long each way is.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Which way is shorter, and by how much, changes from game to game. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ The top of the screen shows "Day 5 of 20". You must reach Mirren Gate by the las
 
 ## Food, water and health
 
-You start with 14 food and 10 water for each player, 3 medicine, 420 coins, 2 of each good (silk, spice, salt), and 2 camels plus 1 for every 2 players (rounded up).
+You start with 14 food and 10 water for each player, 3 medicine, 170 coins plus 50 for each player (420 coins with 5 players), 2 of each good (silk, spice, salt), and 2 camels plus 1 for every 2 players (rounded up).
 
 Each day, each living traveller eats 2 food on full rations, 1 on half, 0 on none. Each one drinks 1 water, or 2 in the desert. Rest days use food and water too.
 
@@ -84,11 +84,11 @@ Each town pays a different price for each good. Mirren Gate, at the end, pays we
 | --- | --- | --- | --- | --- | --- | --- |
 | Tel Orrin | 15–18 | 15–18 | 17–22 | 9 | – | Epic |
 | Saltmere | 10–18 | 18–28 | 8–13 | 8 | 22 | All |
-| Vessa Pass | 8–14 | 16–24 | 14–20 | 9 | – | All |
-| Kessel Wells | 18–28 | 9–17 | 9–15 | 9 | – | Normal, Epic |
-| Rook Pass | 16–26 | 8–14 | 16–24 | – | – | Normal, Epic |
-| Lorn Ferry | 19–23 | 19–23 | 16–19 | 8 | 23 | Epic |
-| Gorrow Heights | 12–18 | 18–26 | 9–14 | 10 | – | Epic |
+| Vessa | 8–14 | 16–24 | 14–20 | 9 | – | All |
+| Kessel | 18–28 | 9–17 | 9–15 | 9 | – | Normal, Epic |
+| Rookan | 16–26 | 8–14 | 16–24 | – | – | Normal, Epic |
+| Lorn | 19–23 | 19–23 | 16–19 | 8 | 23 | Epic |
+| Gorrow | 12–18 | 18–26 | 9–14 | 10 | – | Epic |
 | Yarrin | 10–18 | 10–16 | 16–24 | 8 | 24 | Normal, Epic |
 | Quillon | 18–30 | 11–18 | 10–16 | 8 | 22 | Short |
 | Mirren Gate | 22–30 | 22–30 | 18–26 | 10 | 26 | All |
@@ -125,7 +125,7 @@ Tap **Cancel** to stop it before then. The day report says when a help was used.
 
 Each player gets one secret goal. Only you see yours, until the end.
 
-- Arrive with at least 250 coins. Or 400 coins.
+- Arrive with at least 250 coins. Or 400 coins. These are the numbers for 5 players. With more players the number is higher, with fewer it is lower (see the table below). Your card shows your number.
 - Make sure one named traveller reaches the end alive. It also counts if that player leaves the game.
 - Arrive a few days early: by day 11 (Short), 18 (Normal) or 29 (Epic).
 - Arrive many days early: by day 10 (Short), 16 (Normal) or 26 (Epic).
@@ -141,14 +141,18 @@ Goals about coins, goods, grade and arriving early need the caravan to arrive. C
 
 ## Winning and scoring
 
-At Mirren Gate, the caravan sells all its goods at Mirren Gate's prices. Coins plus that sale is the caravan's wealth. Wealth gives a grade:
+At Mirren Gate, the caravan sells all its goods at Mirren Gate's prices. Coins plus that sale is the caravan's wealth. Wealth gives a grade. A bigger group starts with more coins, so it needs more wealth for each grade. The grade lines are about 1.03, 1.5 and 2.2 times what the caravan had at the start (start coins plus the start goods at Mirren Gate's middle prices).
 
-| Grade | Wealth |
-| --- | --- |
-| Poor | under 585 |
-| Fair | 585 |
-| Rich | 852 |
-| Very rich | 1250 |
+| Players | Start coins | Fair | Rich | Very rich | Coin goals |
+| --- | --- | --- | --- | --- | --- |
+| 3 | 320 | 482 | 702 | 1030 | 190, 300 |
+| 4 | 370 | 534 | 777 | 1140 | 220, 350 |
+| 5 | 420 | 585 | 852 | 1250 | 250, 400 |
+| 6 | 470 | 637 | 927 | 1360 | 280, 450 |
+| 7 | 520 | 688 | 1002 | 1470 | 310, 500 |
+| 8 | 570 | 740 | 1077 | 1580 | 340, 540 |
+
+Below Fair is Poor. The count is the number of players at the start of the game.
 
 Points for each player:
 

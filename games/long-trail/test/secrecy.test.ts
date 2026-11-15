@@ -1,6 +1,6 @@
 import { findLeaks } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { openPlan } from "../server/world.ts";
+import { openPlan, world } from "../server/world.ts";
 import { act, ctx, g, ids, leaderId, nextAll, ok, playDay, proposeOpen, ring, type S, start, toPlan, type T, voteAll, chooseAll } from "./helpers.ts";
 
 const INFO_FIELDS = ["worsenChance", "foodDays", "nextFork", "odds", "fatigue", "nextMarket"];
@@ -66,14 +66,15 @@ describe("the open plan at a fork", () => {
     expect(s.caravan.leg).toBeNull();
     expect(s.phase).toBe("plan");
     expect(g.getPublicState(s).openPlan.fork).toBeNull();
-    // Skip and the timer still take the safe branch.
+    // Skip and the timer still take this game's safe branch.
     const t = g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000));
-    expect(t.state.plan?.fork).toBe("saltmere");
+    expect(t.state.plan?.fork).toBe(s.forks!["tel-orrin"]!.safe);
+    expect(world(s).route.stops.find((x) => x.id === "tel-orrin")!.next.find((l) => l.safe)!.to).toBe(s.forks!["tel-orrin"]!.safe);
   });
 });
 
 describe("the water band at a fork", () => {
-  // Normal route, Ombar: the safe branch (Kessel Wells) is desert, the other (Rook Pass) is not.
+  // Normal route, Ombar: the safe branch (Kessel) is desert, the other (Rookan) is not.
   // 4 travellers and 16 water: 4 days at the normal rate ("some"), 2 days at the desert rate ("low").
   function atOmbar(): S {
     const s = structuredClone(toPlan(start(4, { length: "normal" }, 5).state));
@@ -81,6 +82,7 @@ describe("the water band at a fork", () => {
     s.caravan.leg = null;
     s.caravan.kmLeft = 0;
     s.caravan.stock.water = 16;
+    s.forks!.ombar!.safe = "kessel"; // this test wants the desert way to be the safe one
     return s;
   }
 
@@ -90,7 +92,7 @@ describe("the water band at a fork", () => {
     // The safe branch is desert, so a band that followed it would say "low".
     expect(g.getPublicState(s).stock.water).toBe("some");
     // The server's open plan (Skip, the timer) still takes the safe branch.
-    expect(openPlan(s).fork).toBe("kessel-wells");
+    expect(openPlan(s).fork).toBe("kessel");
   });
 
   it("job info before a plan shows both ways, and water days at the normal rate", () => {
@@ -102,19 +104,19 @@ describe("the water band at a fork", () => {
     expect(g.getPrivateState(s, a!).info).toMatchObject({ waterDays: 4 }); // 16 water, 4 a day; desert would say 2
     const trader = g.getPrivateState(s, b!).info;
     expect(trader).toMatchObject({ nextMarket: null, fork: { stop: "ombar" } });
-    expect(Object.keys((trader as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel-wells", "rook-pass"]);
+    expect(Object.keys((trader as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel", "rookan"]);
     const guide = g.getPrivateState(s, c!).info;
     expect(guide).toMatchObject({ nextLeg: null, fork: { stop: "ombar" } });
-    expect(Object.keys((guide as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel-wells", "rook-pass"]);
-    s.plan = { ...openPlan(s), fork: "kessel-wells" };
+    expect(Object.keys((guide as { fork: { ways: object } }).fork.ways).sort()).toEqual(["kessel", "rookan"]);
+    s.plan = { ...openPlan(s), fork: "kessel" };
     expect(g.getPrivateState(s, a!).info).toMatchObject({ waterDays: 2 });
   });
 
   it("follows the fork a proposed plan picks", () => {
     const s = atOmbar();
-    s.plan = { ...openPlan(s), fork: "kessel-wells" };
+    s.plan = { ...openPlan(s), fork: "kessel" };
     expect(g.getPublicState(s).stock.water).toBe("low");
-    s.plan = { ...openPlan(s), fork: "rook-pass" };
+    s.plan = { ...openPlan(s), fork: "rookan" };
     expect(g.getPublicState(s).stock.water).toBe("some");
   });
 });
@@ -143,5 +145,24 @@ describe("the food band", () => {
     const s = withFood(10, "full");
     s.caravan.stock.water = 0;
     expect(g.getPublicState(s).stock.water).toBe("out");
+  });
+});
+
+describe("this game's forks", () => {
+  it("stay out of public state: no km, kind or safe flag before you walk a leg", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const s = toPlan(start(4, { length: "epic" }, seed).state);
+      const pub = g.getPublicState(s);
+      const json = JSON.stringify(pub);
+      expect(json).not.toContain('"safe"');
+      expect(json).not.toContain('"forks"');
+      expect(json).not.toContain('"kind"');
+      for (const stop of pub.route.stops) expect(Object.keys(stop).sort()).toEqual(["id", "market", "name", "next"]);
+      for (const id of ids(s)) {
+        const priv = JSON.stringify(g.getPrivateState(s, id));
+        expect(priv).not.toContain('"safe"');
+        expect(priv).not.toContain('"forks"');
+      }
+    }
   });
 });

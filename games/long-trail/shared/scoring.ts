@@ -53,6 +53,12 @@ export function branchStops(route: RouteDef): string[] {
  * than usable cards, the deck is reshuffled, never putting the same card twice in a row.
  * Cards that can't be used on this route (a visit goal with no branch stop) are skipped.
  */
+/** Coin goal cards are written for 5 players; start coins grow with the table, so the goal does too. */
+export const CARD_TABLE = 5;
+export function coinGoalFor(pack: SettingPack, atLeast: number, players: number): number {
+  return Math.round((atLeast * pack.start(players).coins) / pack.start(CARD_TABLE).coins / 10) * 10;
+}
+
 export function dealGoals(pack: SettingPack, route: RouteDef, playerIds: string[], randomInt: RandomInt): Record<string, Goal> {
   const branches = branchStops(route);
   const usable = pack.goals.filter((card) => {
@@ -78,6 +84,8 @@ export function dealGoals(pack: SettingPack, route: RouteDef, playerIds: string[
       out[id] = { kind: "protect", target: others[randomInt(others.length)]! };
     } else if (card.goal.kind === "visit") {
       out[id] = { kind: "visit", stop: branches[randomInt(branches.length)]! };
+    } else if (card.goal.kind === "coins") {
+      out[id] = { kind: "coins", atLeast: coinGoalFor(pack, card.goal.atLeast, playerIds.length) };
     } else {
       out[id] = { ...card.goal };
     }
@@ -96,9 +104,11 @@ export function wealth(c: Caravan, route: RouteDef): number {
   return c.stock.coins + cargoSale(c.stock.cargo, c.prices[route.end] ?? {});
 }
 
-export function gradeOf(pack: SettingPack, w: number): Grade {
+/** `players`: how many started the game, since start wealth and the grade lines grow with it. */
+export function gradeOf(pack: SettingPack, w: number, players: number): Grade {
+  const lines = pack.grades(players);
   let best: Grade = "broke";
-  for (const g of GRADES) if (w >= pack.grades[g]) best = g;
+  for (const g of GRADES) if (w >= lines[g]) best = g;
   return best;
 }
 

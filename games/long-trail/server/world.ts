@@ -1,3 +1,4 @@
+import { withForks } from "../shared/forks.ts";
 import { packFor, stopById, type Leg, type RouteDef, type SettingPack } from "../shared/pack.ts";
 import type { ArmableJob, JobId, LongTrailServerState, Pace, Plan, Rations } from "../shared/types.ts";
 
@@ -9,9 +10,11 @@ export const JOBS: JobId[] = ["guide", "healer", "trader", "quartermaster", "sco
 export const ARMABLE: readonly JobId[] = ["guide", "scout", "quartermaster", "lookout"];
 export const isArmable = (job: JobId | undefined): job is ArmableJob => !!job && ARMABLE.includes(job);
 
+/** The pack, and this game's route: the pack's route with the game's rolled forks. */
 export const world = (state: State): { pack: SettingPack; route: RouteDef } => {
   const pack = packFor(state.settings.setting);
-  return { pack, route: pack.routes[state.settings.length] };
+  const base = pack.routes[state.settings.length];
+  return { pack, route: state.forks ? withForks(base, state.forks) : base };
 };
 export const find = (state: State, id: string) => state.players.find((p) => p.id === id);
 export const activeIds = (state: State) => state.players.filter((p) => !p.left).map((p) => p.id);

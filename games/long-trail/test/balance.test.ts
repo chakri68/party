@@ -1,7 +1,7 @@
 import { seededRandomInt, type GameContext } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { longTrailGame as g } from "../server/game.ts";
-import { legOut, openPlan } from "../server/world.ts";
+import { legOut, openPlan, world } from "../server/world.ts";
 import { N } from "../shared/numbers.ts";
 import { packFor, stopById, type RouteDef, type StopDef } from "../shared/pack.ts";
 import { wealth } from "../shared/scoring.ts";
@@ -30,7 +30,7 @@ type S = LongTrailServerState;
 type Bot = "sensible" | "no-trade" | "careless";
 
 const GAMES = 300;
-const SIDE_GAMES = 40; // 3 and 8 players, printed only (kept small for time)
+const SIDE_GAMES = 40; // 3 and 8 players: printed, with loose broke / very rich caps (kept small for time)
 const LENGTHS: Length[] = ["short", "normal", "epic"];
 const ARMABLE = ["guide", "scout", "quartermaster", "lookout"];
 const pack = packFor("trade-route");
@@ -221,12 +221,12 @@ interface Result {
 }
 
 function play(bot: Bot, length: Length, players: number, seed: number): Result {
-  const route = pack.routes[length];
   const rnd = seededRandomInt(seed);
   const botRnd = seededRandomInt(seed + 7919);
   const ctx = (now: number): GameContext => ({ now, randomInt: rnd, hostId: "p0" });
   const ids = Array.from({ length: players }, (_, i) => `p${i}`);
   let s = g.createGame(ids.map((id) => ({ id })), { setting: "trade-route", length }, { roundNumber: 1, dealerSeat: 0 }, ctx(0)).state;
+  const route = world(s).route; // this game's rolled forks
   const act = (id: string, action: unknown) => {
     const parsed = g.parseAction(action);
     if (!parsed) throw new Error(`unparsed ${JSON.stringify(action)}`);
@@ -328,6 +328,12 @@ describe("balance", () => {
         expect(r.medianDay, `${name} median day`).toBeGreaterThanOrEqual(r.deadline - 5);
         expect(r.medianDay, `${name} median day`).toBeLessThanOrEqual(r.deadline - 1);
       }
+    }
+    // Start coins and grades grow with the table (R21): no table size is mostly broke or mostly very rich.
+    for (const r of side) {
+      const name = `${r.length} ${r.players}p sensible`;
+      expect(r.broke, `${name} broke`).toBeLessThanOrEqual(0.5);
+      expect(r.legendary, `${name} very rich`).toBeLessThanOrEqual(0.25);
     }
   }, 120_000);
 });

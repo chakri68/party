@@ -20,6 +20,9 @@ export function goalTexts(pack: SettingPack, route: RouteDef, goals: Record<stri
       const card = visits[seen.visit++ % Math.max(1, visits.length)];
       const same = card && typeof card.goal !== "string" && card.goal.kind === "visit" && card.goal.stop === goal.stop;
       out[id] = same ? card.text : `Visit ${stopById(route, goal.stop).name}.`;
+    } else if (goal.kind === "coins") {
+      // The amount grows with the table, so the card's own number may not fit.
+      out[id] = `Arrive with at least ${goal.atLeast} ${pack.labels.coins.toLowerCase()}.`;
     } else {
       out[id] = pack.goals.find((g) => JSON.stringify(g.goal) === JSON.stringify(goal))?.text ?? "Help the caravan arrive.";
     }

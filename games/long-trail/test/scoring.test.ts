@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { SettingPack } from "../shared/pack.ts";
-import { POINTS, dealGoals, goalMet, gradeOf, outcome, points, wealth, type EndView } from "../shared/scoring.ts";
+import { POINTS, coinGoalFor, dealGoals, goalMet, gradeOf, outcome, points, wealth, type EndView } from "../shared/scoring.ts";
 import type { Goal } from "../shared/types.ts";
 import { pack as basePack, route, seeded, van } from "./fixtures.ts";
 
 const gradePack = {
   ...basePack,
-  grades: { broke: 0, fair: 100, rich: 200, legendary: 350 },
+  grades: () => ({ broke: 0, fair: 100, rich: 200, legendary: 350 }),
+  start: () => ({ food: 0, water: 0, medicine: 0, coins: 100, animals: 1, cargo: {} }), // same coins at any table size
   goals: [
     { id: "g1", text: "", goal: { kind: "coins", atLeast: 10 } },
     { id: "g2", text: "", goal: "protect-someone" },
@@ -74,10 +75,10 @@ describe("wealth and grades", () => {
     expect(wealth(c, route)).toBe(110);
   });
   it("grades by threshold", () => {
-    expect(gradeOf(gradePack, 110)).toBe("fair");
-    expect(gradeOf(gradePack, 99)).toBe("broke");
-    expect(gradeOf(gradePack, 200)).toBe("rich");
-    expect(gradeOf(gradePack, 350)).toBe("legendary");
+    expect(gradeOf(gradePack, 110, 4)).toBe("fair");
+    expect(gradeOf(gradePack, 99, 4)).toBe("broke");
+    expect(gradeOf(gradePack, 200, 4)).toBe("rich");
+    expect(gradeOf(gradePack, 350, 4)).toBe("legendary");
   });
 });
 
@@ -158,5 +159,20 @@ describe("outcome", () => {
     const o = outcome(["p1", "p2", "p3"], goals, end({ removed: ["p1"] }), gradePack, 8);
     expect(o.standings.map((s) => s.playerId)).toEqual(["p2", "p3"]);
     expect(o.winnerIds).not.toContain("p1");
+  });
+});
+
+describe("coin goals grow with the table", () => {
+  it("scale the card's amount by start coins, against a 5-player table", async () => {
+    const { tradeRoute } = await import("../shared/packs/trade-route.ts");
+    expect(coinGoalFor(tradeRoute, 250, 5)).toBe(250);
+    expect(coinGoalFor(tradeRoute, 400, 5)).toBe(400);
+    expect(coinGoalFor(tradeRoute, 250, 3)).toBeLessThan(250);
+    expect(coinGoalFor(tradeRoute, 400, 8)).toBeGreaterThan(400);
+    for (const n of [3, 8]) {
+      const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+      const goals = dealGoals(tradeRoute, tradeRoute.routes.short, ids, seeded(n));
+      for (const g of Object.values(goals)) if (g.kind === "coins") expect([coinGoalFor(tradeRoute, 250, n), coinGoalFor(tradeRoute, 400, n)]).toContain(g.atLeast);
+    }
   });
 });
