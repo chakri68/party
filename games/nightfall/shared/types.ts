@@ -181,4 +181,5 @@ export type NightfallEvent =
   | { type: "dawn"; died: string | null; team: Team | null }
   | { type: "vote-open"; runoff: boolean }
   | { type: "verdict"; out: string | null; team: Team | null }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; winner: Team | null; reason: EndReason };

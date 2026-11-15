@@ -509,6 +509,7 @@ export const nightfallGame: GameDefinition<
     const state = clone(prev);
     const out = newOut();
     state.acks.push(playerId);
+    out.events.push(pub({ type: "skipped", playerId }));
     check(state, ctx, out);
     return done(state, out);
   },
