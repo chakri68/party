@@ -137,7 +137,7 @@ function sensiblePlan(s: S, route: RouteDef, tradeGoods: boolean): Plan {
   if (pub.prices && !rest) {
     const leader = pub.leader;
     const traderLeads = s.jobs[leader] === "trader" && living.some((t) => t.id === leader);
-    const buyAt = (p: number) => (traderLeads ? Math.floor(p * (1 - N.traderEdge)) : p);
+    const buyAt = (p: number) => (traderLeads ? Math.max(1, Math.floor(p * (1 - N.traderEdge))) : p); // same as unitPrice
     const sellAt = (p: number) => (traderLeads ? Math.ceil(p * (1 + N.traderEdge)) : p);
     let coins = c.stock.coins;
     let cargo = Object.values(c.stock.cargo).reduce((a, b) => a + b, 0);

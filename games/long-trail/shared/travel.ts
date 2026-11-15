@@ -65,7 +65,8 @@ export function unitPrice(c: Caravan, route: RouteDef, item: string, buying: boo
   const base = buying ? priceOf(c, route, item) : isSupply(item) ? undefined : c.prices[c.at]?.[item];
   if (base === undefined) return undefined;
   if (!traderLeads) return base;
-  return buying ? Math.floor(base * (1 - N.traderEdge)) : Math.ceil(base * (1 + N.traderEdge));
+  // A buy never drops below 1 coin: a free item would let the caravan take any amount.
+  return buying ? Math.max(1, Math.floor(base * (1 - N.traderEdge))) : Math.ceil(base * (1 + N.traderEdge));
 }
 
 export function planProblem(

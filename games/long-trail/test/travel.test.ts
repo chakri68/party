@@ -12,6 +12,7 @@ import {
   roll,
   startLeg,
   travelDay,
+  unitPrice,
   type Caravan,
 } from "../shared/travel.ts";
 import { NO_PERKS, P4, never, onLeg, pack, plan, route, seeded, seq, van, zero } from "./fixtures.ts";
@@ -110,6 +111,25 @@ describe("applyTrades", () => {
     expect(c.stock.coins).toBe(44);
     applyTrades(c, route, [{ item: "silk", qty: -1 }], true); // 7.7 -> 8
     expect(c.stock.coins).toBe(52);
+  });
+  it("trader leading: a 1-coin item still costs 1, so supplies are never free", () => {
+    const one: RouteDef = {
+      start: "a",
+      end: "z",
+      deadline: 10,
+      stops: [
+        { id: "a", name: "A", next: [{ to: "z", km: 10, kind: "plain" }], market: { goods: {}, supplies: { food: 1, water: 1 } } },
+        { id: "z", name: "Z", next: [] },
+      ],
+    };
+    const c = van({ stock: { ...van().stock, coins: 5 } });
+    expect(unitPrice(c, one, "food", true, true)).toBe(1);
+    expect(unitPrice(c, one, "water", true, true)).toBe(1);
+    const big = plan({ trades: [{ item: "food", qty: 999 }, { item: "water", qty: 999 }] });
+    expect(planProblem(c, pack, one, big, P4, { healerAlive: true, traderLeads: true })).toBe("Not enough coins.");
+    applyTrades(c, one, big.trades, true);
+    expect(c.stock.food + c.stock.water).toBe(205); // 5 coins buy 5 units, no more
+    expect(c.stock.coins).toBe(0);
   });
   it("never goes negative: oversells and overbuys are clamped", () => {
     const c = van({ stock: { ...van().stock, coins: 25, cargo: { silk: 2 } } });

@@ -95,7 +95,7 @@ Each town pays a different price for each good. Mirren Gate, at the end, pays we
 
 Food and water cost 1 coin each at every market. You can sell goods, but not food, water, medicine or camels. Trades in one plan sell first, then buy, so a sale can pay for a buy.
 
-When the Trader leads, the caravan buys 10% cheaper and sells 10% higher.
+When the Trader leads, the caravan buys 10% cheaper and sells 10% higher. A price never drops below 1 coin, so food and water still cost 1.
 
 ## Jobs
 
