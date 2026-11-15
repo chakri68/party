@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { goalLine, infoLines } from "../client/format.ts";
+import { goalLine, infoLines, planLines } from "../client/format.ts";
 import { pack, route } from "./fixtures.ts";
 import { arriveByDay, goalMet, type EndView } from "../shared/scoring.ts";
 
@@ -45,5 +45,16 @@ describe("infoLines day counts", () => {
   it("say 1 day, not 1 days", () => {
     expect(infoLines({ job: "quartermaster", foodDays: 1, rations: "half", waterDays: 2 }, pack, route, names)).toEqual(["Food for 1 day on half rations. Water for 2 days."]);
     expect(infoLines({ job: "cook", foodDays: { full: 0, half: 1, none: 99 } }, pack, route, names)).toEqual(["Food lasts 0 days on full rations, or 1 day on half rations."]);
+  });
+});
+
+describe("planLines", () => {
+  const p = (o: object) => ({ pace: "steady", rations: "full", rest: false, fork: null, doses: [], trades: [], ...o }) as Parameters<typeof planLines>[0];
+  it("reads naturally", () => {
+    expect(planLines(p({ pace: "hard", rations: "none" }), pack, route, names)[0]).toBe("Hard pace. No food today.");
+    expect(planLines(p({ rest: true, rations: "half" }), pack, route, names)[0]).toBe("Rest today. Half rations.");
+    const buy = planLines(p({ trades: [{ item: "food", qty: 10 }, { item: "water", qty: 10 }, { item: "silk", qty: -2 }] }), pack, route, names);
+    expect(buy).toContain("Buy 10 food and 10 water.");
+    expect(buy).toContain("Sell 2 silk.");
   });
 });

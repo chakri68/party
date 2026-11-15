@@ -164,6 +164,6 @@ export function outcome(players: string[], goals: Record<string, Goal>, end: End
   return {
     winnerIds: standings.filter((s) => s.value === top).map((s) => s.playerId),
     standings,
-    headline: `Arrived ${GRADE_LABEL[end.grade ?? "broke"].toLowerCase()}, day ${end.day}`,
+    headline: `Arrived on day ${end.day}. Grade: ${GRADE_LABEL[end.grade ?? "broke"]}.`,
   };
 }

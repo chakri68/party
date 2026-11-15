@@ -81,11 +81,14 @@ export function tradeTotals(c: Caravan, pack: SettingPack, route: RouteDef, trad
 
 /** One plan as short lines, for the vote preview and the day report. */
 export function planLines(plan: Plan, pack: SettingPack, route: RouteDef, names: Names): string[] {
-  const out = [plan.rest ? `Rest today. ${RATIONS_LABEL[plan.rations]} rations.` : `${PACE_LABEL[plan.pace]} pace. ${RATIONS_LABEL[plan.rations]} rations.`];
+  const food = plan.rations === "none" ? "No food today." : `${RATIONS_LABEL[plan.rations]} rations.`;
+  const out = [plan.rest ? `Rest today. ${food}` : `${PACE_LABEL[plan.pace]} pace. ${food}`];
   if (plan.fork && !plan.rest) out.push(`Go to ${stopById(route, plan.fork).name}.`);
   if (plan.doses.length) out.push(`Medicine for ${list(plan.doses.map((id) => inSentence(names(id))))}.`);
-  const buys = plan.trades.filter((t) => t.qty > 0).map((t) => `${t.qty} ${itemName(pack, t.item)}`);
-  const sells = plan.trades.filter((t) => t.qty < 0).map((t) => `${-t.qty} ${itemName(pack, t.item)}`);
+  // Item names are lower case inside a sentence: "Buy 10 food and 10 water."
+  const item = (id: string) => itemName(pack, id).toLowerCase();
+  const buys = plan.trades.filter((t) => t.qty > 0).map((t) => `${t.qty} ${item(t.item)}`);
+  const sells = plan.trades.filter((t) => t.qty < 0).map((t) => `${-t.qty} ${item(t.item)}`);
   if (buys.length) out.push(`Buy ${list(buys)}.`);
   if (sells.length) out.push(`Sell ${list(sells)}.`);
   return out;

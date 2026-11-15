@@ -145,15 +145,15 @@ describe("outcome", () => {
   it("top points win, ties share", () => {
     const o = outcome(["p1", "p2", "p3"], goals, end(), gradePack, 8);
     expect(o.winnerIds).toEqual(["p1"]);
-    expect(o.headline).toBe("Arrived rich, day 8");
+    expect(o.headline).toBe("Arrived on day 8. Grade: Rich.");
     expect(o.standings.find((s) => s.playerId === "p1")).toEqual({ playerId: "p1", value: 14, label: "14 pts · goal met" });
     expect(o.standings.find((s) => s.playerId === "p2")?.label).toBe("11 pts · goal missed");
     const tie = outcome(["p1", "p2"], { p1: goals.p1!, p2: goals.p1! }, end(), gradePack, 8);
     expect(tie.winnerIds.sort()).toEqual(["p1", "p2"]);
   });
   it("the headline uses the grade's label, not its id", () => {
-    expect(outcome(["p1"], goals, end({ grade: "legendary" }), gradePack, 8).headline).toBe("Arrived very rich, day 8");
-    expect(outcome(["p1"], goals, end({ grade: "broke" }), gradePack, 8).headline).toBe("Arrived poor, day 8");
+    expect(outcome(["p1"], goals, end({ grade: "legendary" }), gradePack, 8).headline).toBe("Arrived on day 8. Grade: Very rich.");
+    expect(outcome(["p1"], goals, end({ grade: "broke" }), gradePack, 8).headline).toBe("Arrived on day 8. Grade: Poor.");
   });
   it("removed players get no standing and can't win", () => {
     const o = outcome(["p1", "p2", "p3"], goals, end({ removed: ["p1"] }), gradePack, 8);
