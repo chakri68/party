@@ -1,5 +1,6 @@
 import { findLeaks } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
+import { openPlan } from "../server/world.ts";
 import { act, ctx, g, ids, leaderId, nextAll, ok, playDay, proposeOpen, ring, type S, start, toPlan, type T, voteAll, chooseAll } from "./helpers.ts";
 
 const INFO_FIELDS = ["worsenChance", "foodDays", "nextFork", "odds", "fatigue", "nextMarket"];
@@ -68,5 +69,35 @@ describe("the open plan at a fork", () => {
     // Skip and the timer still take the safe branch.
     const t = g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000));
     expect(t.state.plan?.fork).toBe("saltmere");
+  });
+});
+
+describe("the water band at a fork", () => {
+  // Normal route, Ombar: the safe branch (Kessel Wells) is desert, the other (Rook Pass) is not.
+  // 4 travellers and 16 water: 4 days at the normal rate ("some"), 2 days at the desert rate ("low").
+  function atOmbar(): S {
+    const s = structuredClone(toPlan(start(4, { length: "normal" }, 5).state));
+    s.caravan.at = "ombar";
+    s.caravan.leg = null;
+    s.caravan.kmLeft = 0;
+    s.caravan.stock.water = 16;
+    return s;
+  }
+
+  it("does not follow the safe branch before a plan is proposed", () => {
+    const s = atOmbar();
+    expect(s.travellers.filter((id) => s.caravan.health[id]! > 0)).toHaveLength(4);
+    // The safe branch is desert, so a band that followed it would say "low".
+    expect(g.getPublicState(s).stock.water).toBe("some");
+    // jobInfo still sees the server's open plan, safe branch included.
+    expect(openPlan(s).fork).toBe("kessel-wells");
+  });
+
+  it("follows the fork a proposed plan picks", () => {
+    const s = atOmbar();
+    s.plan = { ...openPlan(s), fork: "kessel-wells" };
+    expect(g.getPublicState(s).stock.water).toBe("low");
+    s.plan = { ...openPlan(s), fork: "rook-pass" };
+    expect(g.getPublicState(s).stock.water).toBe("some");
   });
 });

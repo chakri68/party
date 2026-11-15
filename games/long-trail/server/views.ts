@@ -1,8 +1,8 @@
 import { jobInfo } from "../shared/info.ts";
 import { N } from "../shared/numbers.ts";
 import { stopById, type RouteDef, type SettingPack } from "../shared/pack.ts";
-import type { Band, Goal, LongTrailPrivateState, LongTrailPublicState, LongTrailServerState } from "../shared/types.ts";
-import { activeIds, find, isAlive, isArmable, leaderOf, legOut, openPlan, world } from "./world.ts";
+import type { Band, Goal, LongTrailPrivateState, LongTrailPublicState, LongTrailServerState, Plan } from "../shared/types.ts";
+import { activeIds, find, isAlive, isArmable, leaderOf, openPlan, world } from "./world.ts";
 
 type State = LongTrailServerState;
 
@@ -37,10 +37,15 @@ export function band(stock: number, perDay: number): Band {
 export function publicState(state: State): LongTrailPublicState {
   const { pack, route } = world(state);
   const c = state.caravan;
-  const plan = state.plan ?? openPlan(state);
+  // At a fork the leader must pick: the public open plan names no branch, and nothing
+  // public may follow the safe one until a plan is proposed (R15, R17).
+  const open: Plan = { ...openPlan(state), fork: null };
+  const plan = state.plan ?? open;
   const living = state.travellers.filter((id) => isAlive(state, id)).length;
-  const nextKind = c.leg?.kind ?? (c.at === route.end ? undefined : legOut(route, c.at, plan.fork)?.kind);
   const stop = stopById(route, c.at);
+  // The leg the caravan travels next: the current one, the one way out, or the picked
+  // branch at a fork. No branch picked yet: no leg kind, so the normal water rate.
+  const nextKind = c.leg?.kind ?? (stop.next.length === 2 ? stop.next.find((l) => l.to === plan.fork)?.kind : stop.next[0]?.kind);
   const market = c.leg === null ? stop.market : undefined;
   const b = state.phase === "vote" ? state.ballot : state.phase === "choice" ? state.choiceBallot : null;
   const revealed = state.phase === "recap" || (state.phase === "over" && !state.interrupted);
@@ -69,8 +74,7 @@ export function publicState(state: State): LongTrailPublicState {
     capacity: c.stock.animals * pack.capacityPerAnimal,
     prices: market ? { goods: { ...(c.prices[c.at] ?? {}) }, supplies: { ...market.supplies } } : null,
     travellers: state.travellers.map((id) => ({ id, health: c.health[id] ?? 0 })),
-    // At a fork the leader must pick: naming the safe branch here would tell the table which it is.
-    openPlan: { ...openPlan(state), fork: null },
+    openPlan: open,
     plan: state.plan,
     votes: b ? { voted: b.eligible.filter((id) => id in b.votes), of: b.eligible.length } : null,
     proposals: state.proposals,
