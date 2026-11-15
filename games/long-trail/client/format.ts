@@ -1,8 +1,9 @@
 // Pure words and numbers for the Long Trail view. No DOM here.
 import type { JobInfo } from "../shared/info.ts";
 import { stopById, type Danger, type RouteDef, type SettingPack } from "../shared/pack.ts";
+import { GRADE_LABEL } from "../shared/scoring.ts";
 import { unitPrice, type Caravan } from "../shared/travel.ts";
-import type { ArmableJob, Band, Goal, Health, LongTrailPublicState, Pace, Plan, Rations, Supply, Trade } from "../shared/types.ts";
+import type { ArmableJob, Band, Goal, Grade, Health, LongTrailPublicState, Pace, Plan, Rations, Supply, Trade } from "../shared/types.ts";
 
 type Pub = LongTrailPublicState;
 type Names = (id: string) => string;
@@ -14,19 +15,21 @@ export const BAND_LABEL: Record<Band, string> = { plenty: "plenty", some: "some"
 /** Filled bars out of 4, for the stock meter. */
 export const BAND_BARS: Record<Band, number> = { plenty: 4, some: 3, low: 2, out: 0 };
 const DANGER_LABEL: Record<Danger, string> = { 0: "calm", 1: "rough", 2: "dangerous" };
-const GRADE_LABEL = { broke: "Broke", fair: "Fair", rich: "Rich", legendary: "Legendary" } as const;
 
 export const SUPPLIES: Supply[] = ["food", "water", "medicine", "animals"];
 
 export const pct = (p: number) => `${Math.round(p * 100)}%`;
 export const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
+/** A name inside a sentence: "you", not "You". */
+export const inSentence = (name: string) => (name === "You" ? "you" : name);
+
 /** "A and B", "A, B and C". */
 export function list(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
-export function gradeLabel(g: keyof typeof GRADE_LABEL | null): string {
+export function gradeLabel(g: Grade | null): string {
   return g ? GRADE_LABEL[g] : "No grade";
 }
 
@@ -80,7 +83,7 @@ export function tradeTotals(c: Caravan, pack: SettingPack, route: RouteDef, trad
 export function planLines(plan: Plan, pack: SettingPack, route: RouteDef, names: Names): string[] {
   const out = [plan.rest ? `Rest today. ${RATIONS_LABEL[plan.rations]} rations.` : `${PACE_LABEL[plan.pace]} pace. ${RATIONS_LABEL[plan.rations]} rations.`];
   if (plan.fork && !plan.rest) out.push(`Go to ${stopById(route, plan.fork).name}.`);
-  if (plan.doses.length) out.push(`Medicine for ${list(plan.doses.map(names))}.`);
+  if (plan.doses.length) out.push(`Medicine for ${list(plan.doses.map((id) => inSentence(names(id))))}.`);
   const buys = plan.trades.filter((t) => t.qty > 0).map((t) => `${t.qty} ${itemName(pack, t.item)}`);
   const sells = plan.trades.filter((t) => t.qty < 0).map((t) => `${-t.qty} ${itemName(pack, t.item)}`);
   if (buys.length) out.push(`Buy ${list(buys)}.`);
@@ -111,9 +114,9 @@ export function infoLines(info: JobInfo, pack: SettingPack, route: RouteDef, nam
       return [`Fork at ${stop(info.nextFork.stop)}: ${list(ways)}.`];
     }
     case "driver":
-      return [`${pack.labels.animals} are tired: ${info.fatigue} of ${info.max}. At ${info.max}, a hard day costs one.`];
+      return [`${pack.labels.animals} are tired: ${info.fatigue} of ${info.max}. At ${info.max}, the next hard pace day kills one of the ${pack.labels.animals.toLowerCase()}.`];
     case "cook":
-      return [`Food lasts: full ${info.foodDays.full} days, half ${info.foodDays.half} days.`];
+      return [`Food lasts ${info.foodDays.full} days on full rations, or ${info.foodDays.half} days on half rations.`];
     case "lookout":
       if (!info.odds) return ["No choice to look at now."];
       return info.odds.map((o) => {

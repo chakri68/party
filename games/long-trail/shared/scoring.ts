@@ -6,6 +6,8 @@ import type { Goal, Grade } from "./types.ts";
 type RandomInt = (n: number) => number;
 
 const GRADES: Grade[] = ["broke", "fair", "rich", "legendary"];
+/** What players read for each grade. The ids stay as data keys. */
+export const GRADE_LABEL: Record<Grade, string> = { broke: "Poor", fair: "Fair", rich: "Rich", legendary: "Very rich" };
 
 /** How the caravan ended, as the scoring and the recap see it. */
 export interface EndView {
@@ -141,13 +143,13 @@ export function outcome(players: string[], goals: Record<string, Goal>, end: End
     return {
       winnerIds: [],
       standings,
-      headline: anyAlive ? `The season ended on day ${dayCount}` : "Everyone died on the trail",
+      headline: anyAlive ? `The caravan did not arrive by day ${dayCount}` : "Everyone died on the trail",
     };
   }
   const top = Math.max(...standings.map((s) => s.value));
   return {
     winnerIds: standings.filter((s) => s.value === top).map((s) => s.playerId),
     standings,
-    headline: `Arrived ${end.grade ?? "broke"}, day ${end.day}`,
+    headline: `Arrived ${GRADE_LABEL[end.grade ?? "broke"].toLowerCase()}, day ${end.day}`,
   };
 }

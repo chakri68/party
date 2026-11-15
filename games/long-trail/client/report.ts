@@ -49,7 +49,7 @@ export function dayReport(d: DayLog, fired: ArmableJob[], pack: SettingPack, rou
   const moved = r.km > 0 ? `Moved ${r.km} km.` : d.plan.rest ? "Rested." : "Did not move.";
   const reached = r.reached ? ` Reached ${route.stops.find((s) => s.id === r.reached)?.name ?? r.reached}.` : ` Now ${place(d.where)}.`;
   const deltas = deltaLine(pack, r.stockDelta, r.cargoDelta);
-  const health = r.healthChanges.map((c) => `${name(c.playerId)}: ${HEALTH_LABEL[c.from]} to ${HEALTH_LABEL[c.to]}.`);
+  const health = r.healthChanges.map((c) => `${name(c.playerId)} went from ${HEALTH_LABEL[c.from]} to ${HEALTH_LABEL[c.to]}.`);
   return h(
     "div",
     { class: "lt-report" },

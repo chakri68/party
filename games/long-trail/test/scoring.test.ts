@@ -134,7 +134,7 @@ describe("outcome", () => {
   it("a failed caravan has no winners", () => {
     const o = outcome(["p1", "p2", "p3"], goals, end({ arrived: false, grade: null, day: 10, alive: { p1: true, p2: false, p3: false } }), gradePack, 10);
     expect(o.winnerIds).toEqual([]);
-    expect(o.headline).toBe("The season ended on day 10");
+    expect(o.headline).toBe("The caravan did not arrive by day 10");
     expect(o.standings).toHaveLength(3);
   });
   it("everyone dead says so", () => {
@@ -149,6 +149,10 @@ describe("outcome", () => {
     expect(o.standings.find((s) => s.playerId === "p2")?.label).toBe("11 pts · goal missed");
     const tie = outcome(["p1", "p2"], { p1: goals.p1!, p2: goals.p1! }, end(), gradePack, 8);
     expect(tie.winnerIds.sort()).toEqual(["p1", "p2"]);
+  });
+  it("the headline uses the grade's label, not its id", () => {
+    expect(outcome(["p1"], goals, end({ grade: "legendary" }), gradePack, 8).headline).toBe("Arrived very rich, day 8");
+    expect(outcome(["p1"], goals, end({ grade: "broke" }), gradePack, 8).headline).toBe("Arrived poor, day 8");
   });
   it("removed players get no standing and can't win", () => {
     const o = outcome(["p1", "p2", "p3"], goals, end({ removed: ["p1"] }), gradePack, 8);

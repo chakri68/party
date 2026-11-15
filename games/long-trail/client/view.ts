@@ -357,13 +357,13 @@ export class LongTrailView implements GameView {
     let abilityRow: HTMLElement;
     if (!a) abilityRow = h("p", { class: "lt-ability" }, job.ability);
     else {
-      const state = a.used ? "Used." : a.armed ? "Armed. It works when it is needed." : "";
+      const state = a.used ? "Used." : a.armed ? "Ready. It works when it is needed." : "";
       abilityRow = h(
         "div",
         { class: "lt-ability-row" },
         h("p", { class: "lt-ability" }, job.ability, state ? h("b", {}, ` ${state}`) : null),
         a.canArm && armPhase
-          ? h("button", { type: "button", class: "lt-toggle", "aria-pressed": String(a.armed), onclick: () => this.arm(!a.armed) }, a.armed ? "Cancel" : "Arm")
+          ? h("button", { type: "button", class: "lt-toggle", "aria-pressed": String(a.armed), onclick: () => this.arm(!a.armed) }, a.armed ? "Cancel" : "Get ready")
           : null,
       );
     }
