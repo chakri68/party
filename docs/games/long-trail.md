@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are often not the same length. Which way is shorter, and by how much, changes from game to game. About half the time, one way takes a day less. The length does not tell you which way is safe. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are often not the same length. Which way is shorter, and by how much, changes from game to game. About half the time, one way takes at least a day less. The length does not tell you which way is safe. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
