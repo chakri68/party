@@ -17,6 +17,9 @@ const tilesOf = (w: World, f: (t: World["tiles"][string]) => boolean): TileId[] 
   w.order.filter((id) => f(w.tiles[id]!));
 const closedCaches = (w: World) => tilesOf(w, (t) => t.cache && !t.open);
 const bridges = (w: World, terrain: "bridge" | "broken") => tilesOf(w, (t) => t.terrain === terrain);
+/** Shown tiles must be open: a marked tile in the fog would say what ground it is. */
+const openBridges = (w: World, terrain: "bridge" | "broken") => tilesOf(w, (t) => t.open && t.terrain === terrain);
+const openReeds = (w: World) => tilesOf(w, (t) => t.open && t.terrain === "reeds");
 
 export function canApply(w: World, id: EventId, pending: PendingBargain | null): boolean {
   switch (id) {
@@ -25,9 +28,9 @@ export function canApply(w: World, id: EventId, pending: PendingBargain | null):
     case "rain": case "dry-wind": return burning(w).length > 0;
     case "hungry-spider":
       return active(w).some((e) => distance(e.tile, w.spider.tile) <= N.spiderNoiseRange);
-    case "rotten-bridge": return bridges(w, "bridge").length > 0;
-    case "echo-reeds": return tilesOf(w, (t) => t.terrain === "reeds").length > 0;
-    case "stone-hand": return pending === null && bridges(w, "broken").length > 0;
+    case "rotten-bridge": return openBridges(w, "bridge").length > 0;
+    case "echo-reeds": return openReeds(w).length > 0;
+    case "stone-hand": return pending === null && openBridges(w, "broken").length > 0;
     case "warm-spring": return pending === null && w.explorers.some((e) => !e.left && e.hearts < N.hearts);
   }
 }
@@ -87,12 +90,9 @@ export function pickTiles(w: World, id: EventId, rnd: Rnd): TileId[] {
       }
       return [];
     }
-    case "rotten-bridge": { const t = pickOne(bridges(w, "bridge"), rnd); return t ? [t] : []; }
-    case "echo-reeds": {
-      const t = pickOne(tilesOf(w, (x) => x.terrain === "reeds"), rnd);
-      return t ? [t] : [];
-    }
-    case "stone-hand": { const t = pickOne(bridges(w, "broken"), rnd); return t ? [t] : []; }
+    case "rotten-bridge": { const t = pickOne(openBridges(w, "bridge"), rnd); return t ? [t] : []; }
+    case "echo-reeds": { const t = pickOne(openReeds(w), rnd); return t ? [t] : []; }
+    case "stone-hand": { const t = pickOne(openBridges(w, "broken"), rnd); return t ? [t] : []; }
     default: return [];
   }
 }
@@ -104,11 +104,12 @@ export function pickTiles(w: World, id: EventId, rnd: Rnd): TileId[] {
  * Dry wind does nothing here: the island turn checks `ev.id === "dry-wind"` and spreads fire twice.
  */
 export function applyEvent(
-  w: World, ev: LiveEvent, option: number | null, _pending: PendingBargain | null, rnd: Rnd, steps: Step[],
+  w: World, ev: LiveEvent, option: number | null, pending: PendingBargain | null, rnd: Rnd, steps: Step[],
 ): PendingBargain | null {
   void rnd;
   const card = EVENTS[ev.id];
-  const nothing = !canApply(w, ev.id, null);
+  // The real pending bargain: a second bargain does nothing while one waits.
+  const nothing = !canApply(w, ev.id, pending);
   steps.push({ t: "event", id: ev.id, option: card.options ? option : null, nothing });
   if (nothing) return null;
   const tile = ev.tiles[0];

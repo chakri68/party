@@ -36,6 +36,18 @@ function sealed(t: { state: S; events: GameEventEnvelope<unknown>[] }, label: st
     for (const x of tilesOf(step)) expect(closed.has(x), `${label}: ${step.t} on fog ${x}`).toBe(false);
   }
 
+  // Event tiles and the waiting bargain: open, or a fog tile whose mark says nothing new about its ground.
+  // Old camp marks the hidden cache it opens around. Bird calls marks fog tiles next to open land,
+  // picked without looking at their ground. Clear sky marks the gate and a ruin, whose icons already show.
+  const markedOk = (x: string) => pub.tiles.some((t) => t.id === x && !t.open && t.marker !== undefined);
+  const fogOk = (x: string) =>
+    (pub.event?.id === "old-camp" && s.world.tiles[x]!.cache) || pub.event?.id === "bird-calls"
+    || (pub.event?.id === "clear-sky" && markedOk(x));
+  for (const x of pub.event?.tiles ?? []) {
+    expect(!closed.has(x) || fogOk(x), `${label}: ${pub.event?.id} tile ${x} in the fog`).toBe(true);
+  }
+  if (pub.pending) expect(closed.has(pub.pending.tile), `${label}: bargain tile in the fog`).toBe(false);
+
   // The next event: a Guide's alone.
   check('"next":"', guides);
   for (const id of all) {

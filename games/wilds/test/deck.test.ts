@@ -86,6 +86,36 @@ describe("deck", () => {
     expect(canApply(w, "stone-hand", { tile: "x", due: 5 })).toBe(false);
   });
 
+  it("bridge and reeds events need an open tile, and mark only open ones", () => {
+    const rnd = seededRandomInt(1);
+    const w = blankWorld({ "1,0": "bridge", "0,1": "broken", "-1,0": "reeds" }, { explorers: [{ id: "a", tile: "2,0" }] });
+    for (const t of ["1,0", "0,1", "-1,0"]) w.tiles[t]!.open = false;
+    expect(canApply(w, "rotten-bridge", null)).toBe(false);
+    expect(canApply(w, "echo-reeds", null)).toBe(false);
+    expect(canApply(w, "stone-hand", null)).toBe(false);
+    // A second of each, in the open.
+    w.tiles["-2,0"]!.terrain = "bridge";
+    w.tiles["-2,1"]!.terrain = "broken";
+    w.tiles["-3,0"]!.terrain = "reeds";
+    expect(canApply(w, "rotten-bridge", null)).toBe(true);
+    expect(canApply(w, "echo-reeds", null)).toBe(true);
+    expect(canApply(w, "stone-hand", null)).toBe(true);
+    for (let i = 0; i < 20; i++) {
+      expect(pickTiles(w, "rotten-bridge", rnd)).toEqual(["-2,0"]);
+      expect(pickTiles(w, "echo-reeds", rnd)).toEqual(["-3,0"]);
+      expect(pickTiles(w, "stone-hand", rnd)).toEqual(["-2,1"]);
+    }
+  });
+
+  it("a bargain does nothing while another one waits", () => {
+    const w = blankWorld({ "1,0": "broken" }, { explorers: [{ id: "a", tile: "0,0" }] });
+    const steps: Step[] = [];
+    const p = applyEvent(w, { id: "stone-hand", tiles: ["1,0"] }, 0, { tile: "0,1", due: 9 }, seededRandomInt(1), steps);
+    expect(p).toBeNull();
+    expect(steps).toEqual([{ t: "event", id: "stone-hand", option: 0, nothing: true }]);
+    expect(w.tiles["1,0"]!.terrain).toBe("broken");
+  });
+
   it("rotten bridge breaks, unless an explorer stands on it", () => {
     const w = blankWorld({ "1,0": "bridge" }, { explorers: [{ id: "a", tile: "0,0" }] });
     run(w, "rotten-bridge", null, ["1,0"]);

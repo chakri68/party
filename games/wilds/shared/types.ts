@@ -159,4 +159,5 @@ export interface WildsPrivateState {
 
 export type WildsEvent =
   | { type: "phase"; phase: Phase; round: number }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; interrupted: boolean };

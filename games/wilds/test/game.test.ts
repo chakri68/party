@@ -105,10 +105,20 @@ describe("plan", () => {
   it("skip in the plan is Guard, Guard and Ready", () => {
     let s = pickRoles(start(3).state);
     s = ok(act(s, "p0", { type: "set-plan", plan: [{ kind: "look" }, { kind: "look" }] })).state;
-    s = skip(s, "p0").state;
+    const t = skip(s, "p0");
+    s = t.state;
     expect(s.plans.p0).toEqual(GG);
     expect(s.ready).toContain("p0");
     expect(s.phase).toBe("plan");
+    // The room counts a skip with no events as "can't skip".
+    expect(t.events).toEqual([{ visibility: { kind: "public" }, event: { type: "skipped", playerId: "p0" } }]);
+  });
+
+  it("skip in the roles gives a random role, and says so", () => {
+    const t = skip(start(3).state, "p1");
+    expect(t.state.world.explorers.find((e) => e.id === "p1")!.role).not.toBeNull();
+    expect(t.state.phase).toBe("roles");
+    expect(t.events).toContainEqual({ visibility: { kind: "public" }, event: { type: "skipped", playerId: "p1" } });
   });
 });
 
@@ -125,6 +135,7 @@ describe("choice", () => {
   const brokenBridge = (s: S): string => {
     const t = s.world.order.find((x) => x !== s.board.camp && !s.world.tiles[x]!.ruin && s.world.tiles[x]!.terrain !== "gate")!;
     s.world.tiles[t]!.terrain = "broken";
+    s.world.tiles[t]!.open = true; // the stone hand marks only open bridges
     return t;
   };
 
@@ -174,7 +185,9 @@ describe("choice", () => {
   it("skip in the choice drops the vote", () => {
     let s = toChoice("clear-sky", [], 3, (x) => { x.event!.tiles = [x.board.gate]; });
     s = ok(act(s, "p0", { type: "vote", option: 1 })).state;
-    s = skip(s, "p1").state;
+    const t = skip(s, "p1");
+    expect(t.events.length).toBeGreaterThan(0);
+    s = t.state;
     expect(s.ballot!.eligible).toEqual(["p0", "p2"]);
     s = ok(act(s, "p2", { type: "vote", option: 1 })).state;
     expect(s.phase).toBe("report");
@@ -212,7 +225,9 @@ describe("report and rounds", () => {
     s = planAll(s, { p0: GG, p1: GG }).state;
     expect(s.phase).toBe("report");
     expect(g.getAwaitedPlayerIds(s)).toEqual([]);
-    s = skip(s, "p0").state;
+    const t = skip(s, "p0");
+    expect(t.events.length).toBeGreaterThan(0);
+    s = t.state;
     expect(s.nexts).toEqual(["p0"]);
     s = ok(act(s, "p1", { type: "next" })).state;
     expect(s.phase).toBe("plan");
@@ -277,10 +292,11 @@ describe("a whole game", () => {
     expect(r.standings.map((x) => x.playerId)).toEqual(["p0", "p1"]);
   });
 
-  it("says just in time, and 1 round left", () => {
-    const won = (round: number) => {
+  it("says just in time, and 1 round left, counting the sun Force moved on", () => {
+    const won = (round: number, sun = round - 1) => {
       let s = pickRoles(start(2).state);
       s.world.round = round;
+      s.world.sun = sun;
       s.world.stones = ["shrine", "tower", "cave"];
       for (const e of s.world.explorers) e.tile = s.board.gate;
       s = withEvent(s, "rain");
@@ -289,6 +305,9 @@ describe("a whole game", () => {
     };
     expect(won(10)).toBe("You escaped just in time.");
     expect(won(9)).toBe("You escaped with 1 round left.");
+    expect(won(5)).toBe("You escaped with 5 rounds left.");
+    expect(won(5, 6)).toBe("You escaped with 3 rounds left."); // two Forces
+    expect(won(9, 10)).toBe("You escaped just in time."); // Force pushed the sun to the limit
   });
 
   it("labels the standings with Hearts", () => {

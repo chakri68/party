@@ -260,7 +260,8 @@ function headline(state: State): string {
   const w = state.world;
   const stones = `${w.stones.length} of 3 key stones found.`;
   if (state.end === "win") {
-    const left = Math.max(0, w.sunLimit - w.round);
+    // At the win check the sun has not moved for this round yet, and Force or Warm spring may have pushed it on.
+    const left = Math.max(0, w.sunLimit - w.sun - 1);
     if (left === 0) return "You escaped just in time.";
     return `You escaped with ${left} ${left === 1 ? "round" : "rounds"} left.`;
   }
@@ -404,20 +405,25 @@ export const wildsGame: GameDefinition<State, WildsAction, WildsPublicState, Wil
     const me = find(state, playerId)!;
     switch (prev.phase) {
       case "roles":
-        if (!me.role) me.role = ROLES[ctx.randomInt(ROLES.length)]!;
+        if (me.role) return { state: prev, events: [] };
+        me.role = ROLES[ctx.randomInt(ROLES.length)]!;
         break;
       case "plan":
-        if (me.down) return { state: prev, events: [] };
+        if (me.down || prev.ready.includes(playerId)) return { state: prev, events: [] };
         state.plans[playerId] = GUARDS;
-        if (!state.ready.includes(playerId)) state.ready.push(playerId);
+        state.ready.push(playerId);
         break;
       case "choice":
-        if (state.ballot) dropVoter(state.ballot, playerId);
+        if (!state.ballot?.eligible.includes(playerId)) return { state: prev, events: [] };
+        dropVoter(state.ballot, playerId);
         break;
       case "report":
-        if (!state.nexts.includes(playerId)) state.nexts.push(playerId);
+        if (state.nexts.includes(playerId)) return { state: prev, events: [] };
+        state.nexts.push(playerId);
         break;
     }
+    // The room reads a skip with no events as "can't skip", and would not keep it.
+    out.events.push(pub({ type: "skipped", playerId }));
     check(state, ctx, out);
     return done(state, out);
   },
