@@ -11,7 +11,8 @@ import type { Grade, Length, LongTrailServerState, Pace, Plan, Rations, Trade } 
 // Three bots play whole games through longTrailGame, seeded, and the table has to land in the bands.
 // The bots act on the public and private views; the sensible ones also read exact stock off the
 // server state, since they stand in for a table that can count. The table prints with
-// `pnpm vitest run games/long-trail/test/balance.test.ts --reporter=verbose`.
+// `pnpm vitest run games/long-trail/test/balance.test.ts --reporter=verbose`; add
+// LT_BALANCE_FULL=1 for 300 games a row.
 //
 // - sensible: steady; full rations while food covers this leg, else half; rest when someone is
 //   Badly hurt and the margin is 3+ days; dose the Badly hurt; choice option 0; arm everything on
@@ -29,8 +30,10 @@ import type { Grade, Length, LongTrailServerState, Pace, Plan, Rations, Trade } 
 type S = LongTrailServerState;
 type Bot = "sensible" | "no-trade" | "careless";
 
-const GAMES = 300;
-const SIDE_GAMES = 200; // 3 and 8 players: printed, with loose broke / very rich caps
+// R24: the default run stays under 20 s. LT_BALANCE_FULL=1 runs the big sweeps, for tuning.
+const FULL = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.LT_BALANCE_FULL === "1";
+const GAMES: Record<Bot, number> = FULL ? { sensible: 300, "no-trade": 300, careless: 300 } : { sensible: 300, "no-trade": 120, careless: 150 };
+const SIDE_GAMES = FULL ? 300 : 100; // 3 and 8 players: printed, with loose broke / very rich caps
 const LENGTHS: Length[] = ["short", "normal", "epic"];
 const ARMABLE = ["guide", "scout", "quartermaster", "lookout"];
 const pack = packFor("trade-route");
@@ -307,7 +310,7 @@ function run(bot: Bot, length: Length, players: number, games: number): Row {
 
 describe("balance", () => {
   it("lands each bot in its bands, and trading pays", () => {
-    const rows = LENGTHS.flatMap((length) => (["sensible", "no-trade", "careless"] as const).map((bot) => run(bot, length, 5, GAMES)));
+    const rows = LENGTHS.flatMap((length) => (["sensible", "no-trade", "careless"] as const).map((bot) => run(bot, length, 5, GAMES[bot])));
     const side = LENGTHS.flatMap((length) => [run("sensible", length, 3, SIDE_GAMES), run("sensible", length, 8, SIDE_GAMES)]);
     console.table([...rows, ...side]);
     for (const r of rows) {
@@ -330,10 +333,12 @@ describe("balance", () => {
       }
     }
     // Start coins and grades grow with the table (R21): no table size is mostly broke or mostly very rich.
+    // 100 games a row is noisy (about 0.05 either way), so the default run's caps are a little looser.
+    const caps = FULL ? { broke: 0.5, veryRich: 0.25 } : { broke: 0.55, veryRich: 0.3 };
     for (const r of side) {
       const name = `${r.length} ${r.players}p sensible`;
-      expect(r.broke, `${name} broke`).toBeLessThanOrEqual(0.5);
-      expect(r.legendary, `${name} very rich`).toBeLessThanOrEqual(0.25);
+      expect(r.broke, `${name} broke`).toBeLessThanOrEqual(caps.broke);
+      expect(r.legendary, `${name} very rich`).toBeLessThanOrEqual(caps.veryRich);
     }
-  }, 120_000);
+  }, FULL ? 300_000 : 120_000);
 });
