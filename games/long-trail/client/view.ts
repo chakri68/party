@@ -357,7 +357,7 @@ export class LongTrailView implements GameView {
     let abilityRow: HTMLElement;
     if (!a) abilityRow = h("p", { class: "lt-ability" }, job.ability);
     else {
-      const state = a.used ? "Used." : a.armed ? "Ready. It works when it is needed." : "";
+      const state = a.used ? "Used." : a.armed ? "Ready. It works the next time it can." : "";
       abilityRow = h(
         "div",
         { class: "lt-ability-row" },
@@ -371,7 +371,7 @@ export class LongTrailView implements GameView {
       "details",
       { class: "lt-goal", open: !!this.goalOpen },
       h("summary", {}, "Your secret goal"),
-      h("p", {}, me!.goalText ? goalLine(me!.goalText, me!.goal, this.name) : "No goal."),
+      h("p", {}, me!.goalText ? goalLine(me!.goalText, me!.goal, this.name, g.deadlineDay) : "No goal."),
     );
     goal.addEventListener("toggle", () => (this.goalOpen = goal.open));
     replaceChildren(
@@ -503,7 +503,7 @@ export class LongTrailView implements GameView {
         );
       case "recap":
       case "over":
-        return replaceChildren(this.panel, g.recap ? recapView(g.recap, g.goals, pack, this.name, (id) => seatName(this.props!.room, id)) : null);
+        return replaceChildren(this.panel, g.recap ? recapView(g.recap, g.goals, pack, g.deadlineDay, this.name, (id) => seatName(this.props!.room, id)) : null);
       default:
         return replaceChildren(this.panel);
     }

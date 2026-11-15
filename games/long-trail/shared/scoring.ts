@@ -100,6 +100,9 @@ export function gradeOf(pack: SettingPack, w: number): Grade {
   return best;
 }
 
+/** The last day an arrive-by goal allows. */
+export const arriveByDay = (share: number, deadline: number) => Math.ceil(share * deadline);
+
 export function goalMet(goal: Goal, end: EndView): boolean {
   switch (goal.kind) {
     case "coins":
@@ -107,7 +110,7 @@ export function goalMet(goal: Goal, end: EndView): boolean {
     case "cargo":
       return end.arrived && (end.cargo[goal.good] ?? 0) >= goal.atLeast;
     case "arrive-by":
-      return end.arrived && end.day <= Math.ceil(goal.share * end.deadline);
+      return end.arrived && end.day <= arriveByDay(goal.share, end.deadline);
     case "grade":
       return end.arrived && end.grade !== null && GRADES.indexOf(end.grade) >= GRADES.indexOf(goal.atLeast);
     case "protect":

@@ -10,7 +10,7 @@ export const longTrailRules: string[] = [
   "Each traveller has health from 0 to 3. 3 is well. 0 is dead. A dose of medicine adds 1.",
   "On a rest day the caravan does not move. With full rations, a sick traveller may get better. Medicine is given only on rest days, unless the Healer is alive.",
   "Each player has a job, like guide, healer or scout. Everyone can see your job. Only you see what your job tells you.",
-  "Four jobs have a help you can use once. Tap Get ready during the plan or the vote. It then works by itself when it is needed.",
+  "Four jobs have a help you can use once. Tap Get ready during the plan or the vote. It works by itself the next time it can, and is then used up.",
   "Each day, something happens on the trail. Some events give the caravan 2 options. Everyone picks one. A tie goes to the leader.",
   "Each player also has a secret goal. For example: keep one traveller alive, or finish with enough coins.",
   "At a market you can buy food, water and more. You can also buy and sell silk, spice and salt. Prices are different in each town. Buy where a good is cheap. Sell where it pays more.",

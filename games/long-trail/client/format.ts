@@ -1,7 +1,7 @@
 // Pure words and numbers for the Long Trail view. No DOM here.
 import type { JobInfo } from "../shared/info.ts";
 import { stopById, type Danger, type RouteDef, type SettingPack } from "../shared/pack.ts";
-import { GRADE_LABEL } from "../shared/scoring.ts";
+import { arriveByDay, GRADE_LABEL } from "../shared/scoring.ts";
 import { unitPrice, type Caravan } from "../shared/travel.ts";
 import type { ArmableJob, Band, Goal, Grade, Health, LongTrailPublicState, Pace, Plan, Rations, Supply, Trade } from "../shared/types.ts";
 
@@ -134,9 +134,11 @@ const FIRED: Record<ArmableJob, string> = {
 };
 export const firedLine = (job: ArmableJob) => FIRED[job];
 
-/** The goal card, with the named traveller filled in. */
-export function goalLine(text: string, goal: Goal | null | undefined, names: Names): string {
-  return goal?.kind === "protect" ? `${text} (${names(goal.target)})` : text;
+/** The goal card, with the named traveller or the last allowed day filled in. */
+export function goalLine(text: string, goal: Goal | null | undefined, names: Names, deadlineDay: number): string {
+  if (goal?.kind === "protect") return `${text} (${names(goal.target)})`;
+  if (goal?.kind === "arrive-by") return `${text} (by day ${arriveByDay(goal.share, deadlineDay)})`;
+  return text;
 }
 
 /** Stock changes as "Food -6, Coins +10". */

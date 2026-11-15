@@ -70,7 +70,7 @@ export function dayReport(d: DayLog, fired: ArmableJob[], pack: SettingPack, rou
 }
 
 /** `seat` names a player inside recap sentences ("Asha was badly hurt"), where "You" would not fit. */
-export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack: SettingPack, name: Name, seat: Name = name): HTMLElement {
+export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack: SettingPack, deadlineDay: number, name: Name, seat: Name = name): HTMLElement {
   const route = recap.route.map((s) => `${s.name} (day ${s.day})`).join(" → ");
   return h(
     "div",
@@ -111,7 +111,7 @@ export function recapView(recap: Recap, goals: Record<string, Goal> | null, pack
           h(
             "li",
             { class: "lt-reveal" },
-            h("span", {}, h("b", {}, `${name(r.playerId)}, ${pack.jobs[r.job].name}. `), goalLine(r.goal, goals?.[r.playerId], name)),
+            h("span", {}, h("b", {}, `${name(r.playerId)}, ${pack.jobs[r.job].name}. `), goalLine(r.goal, goals?.[r.playerId], name, deadlineDay)),
             h("span", { class: `lt-met ${r.met ? "yes" : "no"}` }, r.met ? "Met" : "Missed"),
           ),
         ),

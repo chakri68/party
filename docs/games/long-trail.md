@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way: no way is picked for you. One way starts with a leg that is never dangerous. The other way goes over the mountains. It is shorter, but it can be dangerous. Only the Scout sees how long each way is.
+The trail has forks. At a fork, the leader must pick a way: no way is picked for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Only the Scout sees how long each way is.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ Each player has one job. Everyone sees who has which job. What the job tells you
 | Cook | How long the food lasts on full and half rations. | One day per leg, half rations count as full for health. |
 | Lookout | The chance that each option in a choice goes well. | Once per game, swaps a choice for a different one. |
 
-**Get ready.** The Guide, Scout, Quartermaster and Lookout tap **Get ready** during a plan or a vote. The help then works by itself, once, and is used up:
+**Get ready.** The Guide, Scout, Quartermaster and Lookout tap **Get ready** during a plan or a vote. The help works by itself the next time it can, and is then used up:
 
 - Guide: on the next event that has no choice, good or bad.
 - Lookout: on the next choice.
@@ -127,8 +127,10 @@ Each player gets one secret goal. Only you see yours, until the end.
 
 - Arrive with at least 250 coins. Or 400 coins.
 - Make sure one named traveller reaches the end alive. It also counts if that player leaves the game.
-- Arrive a little early: by day 11 (Short), 18 (Normal) or 29 (Epic).
-- Arrive early: by day 10 (Short), 16 (Normal) or 26 (Epic).
+- Arrive a few days early: by day 11 (Short), 18 (Normal) or 29 (Epic).
+- Arrive many days early: by day 10 (Short), 16 (Normal) or 26 (Epic).
+
+Your goal card shows the exact day.
 - Visit a town on one side of a fork.
 - Arrive with at least 10 silk, 10 spice or 10 salt.
 - Never set rations to None, not even for one day.
@@ -198,6 +200,6 @@ At the end of the party, Long Trail counts toward the party awards. Each No-go v
 
 - Everyone can see your job, so the table knows what you know. Say it out loud, or keep quiet. Your goal may want something different.
 - The end town is not always the best place to sell. The Trader sees the next market's prices first.
-- The short way at a fork can save days, but it can also be dangerous. Ask the Scout and the Guide.
+- Ask the Scout and the Guide before you pick a way.
 - Half rations save a lot of food, but people get sick. Rest days with full rations bring them back.
 - Watch the camels. A Hard pace for many days in a row costs you a camel, and a lost camel means less to carry.
