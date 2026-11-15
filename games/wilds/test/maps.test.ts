@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distance, neighbours } from "../shared/hex.ts";
+import { distance, neighbours, path } from "../shared/hex.ts";
 import { ISLANDS, buildBoard, passable } from "../shared/maps.ts";
 import type { RuinId, TileId } from "../shared/types.ts";
 
@@ -58,6 +58,22 @@ describe("islands", () => {
       }
     }
   }
+  it("has a bridge that matters on every island", () => {
+    const len = (tiles: ReturnType<typeof buildBoard>["tiles"], from: TileId, to: TileId, broken?: TileId) => {
+      const p = path(from, to, (t) => t !== broken && passable(tiles[t]!.terrain));
+      return p ? p.length : Infinity;
+    };
+    for (let island = 0; island < ISLANDS.length; island++) {
+      for (let turns = 0; turns < 6; turns++) {
+        const b = buildBoard(island, turns, ["shrine", "tower"]);
+        const targets = [b.gate, ...Object.values(b.ruins)];
+        const bridges = Object.values(b.tiles).filter((t) => t.terrain === "bridge");
+        const longer = bridges.some((br) =>
+          targets.some((to) => len(b.tiles, b.camp, to, br.id) > len(b.tiles, b.camp, to)));
+        expect(longer, `island ${island} turn ${turns}`).toBe(true);
+      }
+    }
+  });
   it("gives the S spots the ruin order in TILE_ORDER order", () => {
     const b = buildBoard(0, 0, ["shrine", "tower"]);
     expect(b.ruins.shrine).toBe("3,-2");

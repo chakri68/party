@@ -12,8 +12,8 @@ import type { RuinId, Terrain, Tile, TileId } from "./types.ts";
 export const ISLANDS: string[][] = [
   // 0: a river cuts the island in two. 2 bridges.
   ["gfcg", "fgfgS", "gnRgfg", "gfgGfgc", "wbwwbw", "gcgSg", "Cggg"],
-  // 1: reeds in the middle.
-  ["gcgC", "gSeeg", "gfeeeg", "fgeGwbg", "gnRegg", "gcfeS", "cwbg"],
+  // 1: a river splits the east (camp) from the west. Reeds by the bridges. 2 bridges.
+  ["cwgC", "ggwgg", "gfgbeS", "fgeGwec", "gnRgbe", "gcgSw", "gggg"],
   // 2: rock walls with gaps, and a short river in the north east. 2 bridges.
   ["gfkc", "gfkwS", "ggkkbg", "CgkGgbg", "ggkgfS", "gcgRg", "cgng"],
   // 3: thick forest round the nest, and a stream along the south.
