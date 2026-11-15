@@ -460,11 +460,12 @@ export const wildsGame: GameDefinition<State, WildsAction, WildsPublicState, Wil
     if (state.interrupted) return { winnerIds: [], standings: [], headline: "The game ended early." };
     const all = state.world.explorers;
     return {
-      winnerIds: state.end === "win" ? all.map((e) => e.id) : [],
+      // Someone who left is not a winner, and their Hearts from before they left mean nothing now.
+      winnerIds: state.end === "win" ? all.filter((e) => !e.left).map((e) => e.id) : [],
       standings: all.map((e) => ({
         playerId: e.id,
-        value: e.down ? 0 : e.hearts,
-        label: e.down ? "Down" : e.hearts === 1 ? "1 Heart" : `${e.hearts} Hearts`,
+        value: e.down || e.left ? 0 : e.hearts,
+        label: e.left ? "Left" : e.down ? "Down" : e.hearts === 1 ? "1 Heart" : `${e.hearts} Hearts`,
       })),
       headline: headline(state),
     };

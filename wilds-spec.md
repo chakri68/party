@@ -342,7 +342,7 @@ Register it in `apps/server/src/games.ts` and `apps/web/src/games.ts` (section `
 - **`getAwaitedPlayerIds`:** in plan, explorers not down and not Ready. In choice, everyone who hasn't voted. Otherwise, nobody.
 - **Skip and drops** (`skipTurn`, `onPlayerDisconnected`): plan → Guard, Guard and Ready. Choice → no vote (a bargain tie becomes Refuse). Roles → random role.
 - **`onPlayerRemoved`:** their explorer leaves the board. Their items are lost. The win check stops counting them.
-- **Results:** `winnerIds` is everyone on a win, nobody on a loss. Headline: "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Standings show each player's Hearts at the end, labelled "2 Hearts" or "Down".
+- **Results:** `winnerIds` is everyone still in on a win (not players who left), nobody on a loss. Headline: "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Standings show each player's Hearts at the end, labelled "2 Hearts", "Down" or "Left".
 
 ### Client
 

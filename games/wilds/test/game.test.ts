@@ -414,6 +414,15 @@ describe("a whole game", () => {
     expect(g.getResult(s)!.headline).toBe(`Everyone was down. ${s.world.stones.length} of 3 key stones found.`);
   });
 
+  it("does not count a player who left as a winner, and labels them Left", () => {
+    let s = pickRoles(start(3).state);
+    s = remove(s, "p2").state;
+    s.end = "win"; s.phase = "over";
+    const r = g.getResult(s)!;
+    expect(r.winnerIds).toEqual(["p0", "p1"]);
+    expect(r.standings.find((x) => x.playerId === "p2")).toEqual({ playerId: "p2", value: 0, label: "Left" });
+  });
+
   it.each([8, 10, 12] as const)("ringing the timer with nobody acting ends the game (sun %i)", (sunLimit) => {
     for (const seed of [1, 2, 3]) {
       let s = start(3, { sunLimit }, seed).state;
