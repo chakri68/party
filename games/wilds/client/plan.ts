@@ -86,6 +86,8 @@ function moveWhy(pub: Pub, me: string, from: TileId, tiles: Map<TileId, PublicTi
     const x = tiles.get(t);
     return !!x && x.open && x.terrain === "reeds";
   });
+  // The same walk where reeds don't stop you: a tile only that walk reaches was cut off by reeds.
+  const pastReeds = reachable(from, steps, canEnter);
   return (t) => {
     if (t === from) return "You are here.";
     const x = tiles.get(t)!;
@@ -97,7 +99,7 @@ function moveWhy(pub: Pub, me: string, from: TileId, tiles: Map<TileId, PublicTi
     if (x.fire > 0) return "Fire: you can't walk into it.";
     if (t === spider) return "The spider is there.";
     if (distance(from, t) > steps) return `Too far. You can move ${steps} tiles.`;
-    return "You can't get there in one Move. Reeds stop a Move.";
+    return pastReeds.has(t) ? "You can't get there in one Move. Reeds stop a Move." : "The way is blocked.";
   };
 }
 

@@ -117,6 +117,24 @@ describe("move targets", () => {
     expect(ok(t)).toEqual([...ring].sort());
     expect(t.offReason.get("2,0")).toMatch(/Reeds stop a Move/);
   });
+  it("a path cut by river, fog, fire or the spider is blocked, with no word about reeds", () => {
+    // 2,0 is in range, and 1,0 is the only tile between it and 0,0.
+    const cases: Parameters<typeof pub>[0][] = [
+      { terrain: { "1,0": "river" } },
+      { fog: ["1,0"] },
+      { tile: { "1,0": { fire: 2 } } },
+      { spider: "1,0" },
+    ];
+    for (const c of cases) {
+      const p = pub({ explorers: [{ id: "a", tile: "0,0" }], ...c });
+      expect(targets(p, "a", "0,0", { kind: "move" }).offReason.get("2,0")).toBe("The way is blocked.");
+    }
+  });
+  it("names reeds only when reeds stopped the path", () => {
+    // 1,0 is reeds, the only tile between 0,0 and 2,0.
+    const p = pub({ explorers: [{ id: "a", tile: "0,0" }], terrain: { "1,0": "reeds" } });
+    expect(targets(p, "a", "0,0", { kind: "move" }).offReason.get("2,0")).toMatch(/Reeds stop a Move/);
+  });
 });
 
 describe("act targets", () => {
