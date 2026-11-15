@@ -9,7 +9,7 @@ Twenty-six of them, roughly:
 - **Words and drawing**: Scribbl, Pass the Bomb, Chain Words, Fake Word, Bluff Definitions, Don't Say It, Face-Off, Same Page
 - **Hidden roles**: Imposter, Short Night, Heist, Nightfall
 - **Racing**: Blind Rally, Rally (hosted site only, see [below](#blind-rally-and-its-flag))
-- **Strategy**: Dominion
+- **Strategy**: Dominion, Long Trail
 
 How to play each one, and how rooms work: **[docs/games](docs/games/README.md)**.
 
