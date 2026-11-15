@@ -64,3 +64,4 @@ Only on builds that ship the 3D engine. The hosted site has them; self-hosted co
 | --- | --- | --- |
 | [Dominion](dominion.md) | 1–8 | Explore, build cities, research, conquer. Takes a while. |
 | [Long Trail](long-trail.md) | 3–8 | One caravan, a long trail, and a secret goal each. |
+| [The Wilds](wilds.md) | 2–6 | Work together on a strange island. Find 3 key stones before the sun goes down. |
