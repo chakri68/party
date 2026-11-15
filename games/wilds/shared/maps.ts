@@ -10,14 +10,14 @@ import type { RuinId, Terrain, Tile, TileId } from "./types.ts";
  * S the two other ruin spots.
  */
 export const ISLANDS: string[][] = [
-  // 0: a river cuts the island in two. 2 bridges.
-  ["gfcg", "fgfgS", "gnRgfg", "gfgGfgc", "wbwwbw", "gcgSg", "Cggg"],
-  // 1: a river splits the east (camp) from the west. Reeds by the bridges. 2 bridges.
-  ["cwgC", "ggwgg", "gfgbeS", "fgeGwec", "gnRgbe", "gcgSw", "gggg"],
-  // 2: rock walls with gaps, and a short river in the north east. 2 bridges.
-  ["gfkc", "gfkwS", "ggkkbg", "CgkGgbg", "ggkgfS", "gcgRg", "cgng"],
-  // 3: thick forest round the nest, and a stream along the south.
-  ["gfcf", "ffnfS", "gfRfff", "cgfGfgg", "gffffc", "wbwbS", "Cfgg"],
+  // 0: a rock wall on the camp side and a river on the far side, with one dry gap by the nest.
+  ["fScc", "fbwwf", "fkfgwf", "CkfGgfR", "gkgfbn", "gwwwf", "cgfS"],
+  // 1: rock walls by the camp, a short stream in the south west, and thick forest round the nest.
+  ["Cgkc", "gkkkf", "ekgfwS", "cgfGfwg", "wbffbc", "Swfff", "ffnR"],
+  // 2: much like island 0 in a mirror, with reeds by a bridge.
+  ["Cggc", "fkkwg", "fkfgwf", "fbfGfwS", "Swgebf", "cwwfn", "cffR"],
+  // 3: much like island 1 in a mirror, with less rock by the camp.
+  ["cwSf", "egbwf", "gkfffn", "CkgGffR", "gkfgbf", "gkwwc", "cfSg"],
 ];
 
 export interface Board {

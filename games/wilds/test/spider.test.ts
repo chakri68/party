@@ -4,6 +4,7 @@ import { moveSpider, scare, spiderPlan } from "../server/spider.ts";
 import { light } from "../server/fire.ts";
 import { addNoise } from "../server/world.ts";
 import type { Step } from "../shared/types.ts";
+import { N } from "../shared/numbers.ts";
 import { blankWorld } from "./helpers.ts";
 
 const ex = (id: string, tile: string) => ({ id, tile, role: "runner" as const });
@@ -53,7 +54,7 @@ describe("spider plan", () => {
     const p = spiderPlan(w);
     expect(p.why).toBe("scared");
     expect(p.bites).toEqual([]);
-    expect(p.path).toHaveLength(3);
+    expect(p.path).toHaveLength(N.scaredStep + 1);
     const s: Step[] = [];
     moveSpider(w, s);
     expect(w.spider.rest).toBe(true);
@@ -168,7 +169,8 @@ describe("spider plan", () => {
   it("scare runs away from the torch", () => {
     const w = blankWorld({}, { spider: "0,0" });
     scare(w, "1,0", []);
-    expect(w.spider.tile).toBe("0,-2");
+    // N.scaredStep (3) tiles straight away from the torch.
+    expect(w.spider.tile).toBe("0,-3");
     expect(w.spider.rest).toBe(true);
   });
 

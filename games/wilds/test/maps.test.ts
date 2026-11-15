@@ -76,8 +76,8 @@ describe("islands", () => {
   });
   it("gives the S spots the ruin order in TILE_ORDER order", () => {
     const b = buildBoard(0, 0, ["shrine", "tower"]);
-    expect(b.ruins.shrine).toBe("3,-2");
-    expect(b.ruins.tower).toBe("0,2");
-    expect(b.ruins.cave).toBe("0,-1");
+    expect(b.ruins.shrine).toBe("1,-3");
+    expect(b.ruins.tower).toBe("0,3");
+    expect(b.ruins.cave).toBe("3,0");
   });
 });
