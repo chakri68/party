@@ -3,7 +3,10 @@ import { tradeRoute } from "./packs/trade-route.ts";
 
 export type LegKind = "desert" | "mountain" | "river" | "plain";
 export type Danger = 0 | 1 | 2; // calm, rough, dangerous
-/** At a fork, exactly one branch is safe. */
+/**
+ * At a fork, exactly one branch is safe. In a pack this is only the default: each game rolls its
+ * own safe way (shared/forks.ts), and the server's route for the game carries that roll.
+ */
 export interface Leg {
   to: string;
   km: number;

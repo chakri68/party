@@ -414,7 +414,7 @@ describe("coin goal cards", () => {
         const goal = s.goals[id]!;
         if (goal.kind !== "coins") continue;
         seen++;
-        expect([340, 540]).toContain(goal.atLeast); // 250 and 400, times 570 / 420 start coins
+        expect([360, 570]).toContain(goal.atLeast); // 250 and 400, times 600 / 420 start coins
         expect(s.goalText[id]).toBe(`Arrive with at least ${goal.atLeast} coins.`);
       }
     }

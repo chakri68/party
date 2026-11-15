@@ -4,6 +4,13 @@ import { rollForks, withForks } from "../shared/forks.ts";
 import { packFor, stopById, type RouteDef } from "../shared/pack.ts";
 import type { Length } from "../shared/types.ts";
 import { route as fixture } from "./fixtures.ts";
+import formatSrc from "../client/format.ts?raw";
+import indexSrc from "../client/index.ts?raw";
+import planSrc from "../client/plan.ts?raw";
+import reportSrc from "../client/report.ts?raw";
+import viewSrc from "../client/view.ts?raw";
+
+const CLIENT = { "format.ts": formatSrc, "index.ts": indexSrc, "plan.ts": planSrc, "report.ts": reportSrc, "view.ts": viewSrc };
 
 const pack = packFor("trade-route");
 const LENGTHS: Length[] = ["short", "normal", "epic"];
@@ -42,7 +49,7 @@ function longestKm(route: RouteDef, at = route.start): number {
 }
 
 describe("rollForks", () => {
-  it.each(LENGTHS)("%s: the pack's safe way, and only fork legs change", (length) => {
+  it.each(LENGTHS)("%s: one safe way per fork, and only fork legs change", (length) => {
     const base = pack.routes[length];
     for (let seed = 1; seed <= 50; seed++) {
       const route = withForks(base, rollForks(base, seededRandomInt(seed)));
@@ -58,24 +65,25 @@ describe("rollForks", () => {
     }
   });
 
-  it.each(LENGTHS)("%s: across games the risky way is sometimes shorter and sometimes longer", (length) => {
+  it.each(LENGTHS)("%s: across games either way can be safe, and the risky way is sometimes shorter and sometimes longer", (length) => {
     const base = pack.routes[length];
     const forks = base.stops.filter((s) => s.next.length === 2);
     for (const fork of forks) {
-      const seen = { riskyShorter: 0, riskyLonger: 0 };
-      const baseSafe = stopById(base, fork.id).next.find((l) => l.safe)!.to;
+      const seen = { riskyShorter: 0, riskyLonger: 0, safe: new Set<string>() };
+      const longest = Math.max(...stopById(base, fork.id).next.map((l) => wayKm(base, fork.id, l.to)));
       for (let seed = 1; seed <= 200; seed++) {
         const route = withForks(base, rollForks(base, seededRandomInt(seed)));
         const [a, b] = stopById(route, fork.id).next;
         const safe = a!.safe ? a! : b!;
         const risky = a!.safe ? b! : a!;
-        expect(safe.to).toBe(baseSafe);
-        // The safe way keeps the pack's km.
-        expect(wayKm(route, fork.id, safe.to)).toBe(wayKm(base, fork.id, safe.to));
+        seen.safe.add(safe.to);
+        // The safe way is as long as the pack's longer way, whichever way it is.
+        expect(wayKm(route, fork.id, safe.to)).toBe(longest);
         const d = wayKm(route, fork.id, risky.to) - wayKm(route, fork.id, safe.to);
         if (d < 0) seen.riskyShorter++;
         if (d > 0) seen.riskyLonger++;
       }
+      expect(seen.safe.size, fork.id).toBe(2);
       expect(seen.riskyShorter, fork.id).toBeGreaterThan(60);
       expect(seen.riskyLonger, fork.id).toBeGreaterThan(40);
     }
@@ -94,5 +102,56 @@ describe("fork stop names", () => {
   it("do not hint at the land or the danger", () => {
     for (const length of LENGTHS)
       for (const s of pack.routes[length].stops) expect(s.name, s.id).not.toMatch(/pass|heights|gap|ferry|wells|cliff|peak|ridge|mountain|hill/i);
+  });
+});
+
+describe("safeWayLegs and dangers", () => {
+  it("cap every leg of this game's safe way, up to where the ways meet", async () => {
+    const { rollDangers } = await import("../shared/events.ts");
+    const { safeWayLegs } = await import("../shared/forks.ts");
+    const base = pack.routes.epic;
+    const safeKinds = new Map<string, Set<string>>();
+    for (let seed = 1; seed <= 100; seed++) {
+      const route = withForks(base, rollForks(base, seededRandomInt(seed)));
+      const safe = safeWayLegs(route);
+      for (const s of route.stops.filter((x) => x.next.length === 2)) {
+        const way = s.next.find((l) => l.safe)!;
+        expect(safe.has(`${s.id}>${way.to}`)).toBe(true);
+        const after = stopById(route, way.to).next[0]!;
+        expect(safe.has(`${way.to}>${after.to}`)).toBe(true); // the second leg, to where the ways meet
+        const meet = stopById(route, after.to);
+        if (meet.next.length === 1) expect(safe.has(`${meet.id}>${meet.next[0]!.to}`)).toBe(false); // past the meeting stop
+        if (!safeKinds.has(s.id)) safeKinds.set(s.id, new Set());
+        safeKinds.get(s.id)!.add(way.kind);
+      }
+      // Every roll on a safe leg is below dangerous, whatever randomInt says.
+      const dangers = rollDangers(route, (n) => n - 1);
+      for (const k of safe) expect(dangers[k], k).toBe(1);
+      expect(Object.values(dangers)).toContain(2);
+    }
+    // Each fork's two first legs are different kinds, and either can be the safe one: the kind is no tell.
+    for (const [fork, kinds] of safeKinds) expect(kinds.size, fork).toBe(2);
+  });
+
+  it("lists the ways at a fork by stop id, in the pack and in this game's route", () => {
+    for (const length of LENGTHS) {
+      const base = pack.routes[length];
+      for (const seed of [1, 2, 3]) {
+        const route = withForks(base, rollForks(base, seededRandomInt(seed)));
+        for (const s of route.stops.filter((x) => x.next.length === 2)) {
+          const ids = s.next.map((l) => l.to);
+          expect(ids).toEqual([...ids].sort());
+        }
+      }
+    }
+  });
+});
+
+describe("the client", () => {
+  it("never reads a leg's safe flag: the pack's flag is not this game's answer", () => {
+    for (const [f, src] of Object.entries(CLIENT)) {
+      expect(src.length, f).toBeGreaterThan(100);
+      expect(src, f).not.toMatch(/\.safe\b|\bsafe:/);
+    }
   });
 });

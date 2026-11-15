@@ -22,7 +22,7 @@ One caravan, a long trail and not enough food. Plan each day together, and keep 
    - **Market:** what to buy and sell, at a town with a market. Tap **+** or **−** to change an amount by 1. Food and water also have **+5** and **−5**. A **+5** tap never buys more than your coins can pay for.
 
    Then the leader taps **Propose**. The button stays off until you change the plan, so a second tap does nothing. Everyone else talks about it out loud.
-3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan keeps yesterday's pace and rations, and nothing else.
+3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan walks at yesterday's pace and rations (on day 1: Steady and Full). It takes the safer way at a fork. Nobody trades or gets medicine, and nobody rests.
 4. **The day.** Trades happen first, then medicine, then the caravan travels. It eats and drinks, and each traveller may get worse. Then an event happens.
 5. **Choice (20 s).** Some events have 2 options. Everyone picks one. Most picks wins. A tie goes to the leader's pick, or to the first option if the leader did not pick.
 6. **Day report (5 s).** How far you moved, what you lost or got, and who got sick. Tap **Next**. Then the next player leads.
@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way starts with a leg that is never dangerous. The two ways are not the same length. Which way is shorter, and by how much, changes from game to game. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are not the same length. Which way is shorter, and by how much, changes from game to game. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ The top of the screen shows "Day 5 of 20". You must reach Mirren Gate by the las
 
 ## Food, water and health
 
-You start with 14 food and 10 water for each player, 3 medicine, 170 coins plus 50 for each player (420 coins with 5 players), 2 of each good (silk, spice, salt), and 2 camels plus 1 for every 2 players (rounded up).
+You start with 14 food and 10 water for each player, 3 medicine, 120 coins plus 60 for each player (420 coins with 5 players), 2 of each good (silk, spice, salt), and 2 camels plus 1 for every 2 players (rounded up).
 
 Each day, each living traveller eats 2 food on full rations, 1 on half, 0 on none. Each one drinks 1 water, or 2 in the desert. Rest days use food and water too.
 
@@ -70,7 +70,7 @@ Each camel carries 6 goods. If you carry more than that, the caravan walks one p
 
 ## Events
 
-Each leg is calm, rough or dangerous. This is set at the start and is hidden. The Guide can see it for the next leg. A calm leg has mostly calm events. A dangerous leg has mostly bad ones. The first leg of the safer way at a fork is calm or rough, never dangerous.
+Each leg is calm, rough or dangerous. This is set at the start and is hidden. The Guide can see it for the next leg. A calm leg has mostly calm events. A dangerous leg has mostly bad ones. Every leg of the safer way at a fork, up to where the two ways meet, is calm or rough, never dangerous. The Guide sees both ways before a fork.
 
 Events can give or take food, water, coins, goods, camels, health and time. Lost time means the caravan is pushed back along the leg, but never past the last stop.
 
@@ -145,12 +145,12 @@ At Mirren Gate, the caravan sells all its goods at Mirren Gate's prices. Coins p
 
 | Players | Start coins | Fair | Rich | Very rich | Coin goals |
 | --- | --- | --- | --- | --- | --- |
-| 3 | 320 | 482 | 702 | 1030 | 190, 300 |
-| 4 | 370 | 534 | 777 | 1140 | 220, 350 |
+| 3 | 300 | 461 | 672 | 986 | 180, 290 |
+| 4 | 360 | 523 | 762 | 1118 | 210, 340 |
 | 5 | 420 | 585 | 852 | 1250 | 250, 400 |
-| 6 | 470 | 637 | 927 | 1360 | 280, 450 |
-| 7 | 520 | 688 | 1002 | 1470 | 310, 500 |
-| 8 | 570 | 740 | 1077 | 1580 | 340, 540 |
+| 6 | 480 | 647 | 942 | 1382 | 290, 460 |
+| 7 | 540 | 709 | 1032 | 1514 | 320, 510 |
+| 8 | 600 | 770 | 1122 | 1646 | 360, 570 |
 
 Below Fair is Poor. The count is the number of players at the start of the game.
 

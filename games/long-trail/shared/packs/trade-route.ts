@@ -21,7 +21,12 @@ const MARKETS = {
 };
 
 const leg = (to: string, km: number, kind: LegKind, safe?: boolean): Leg => (safe === undefined ? { to, km, kind } : { to, km, kind, safe });
-const stop = (id: string, name: string, next: Leg[], market?: Market): StopDef => (market ? { id, name, next, market } : { id, name, next });
+// The ways out of a fork are listed by stop id, so their order says nothing about which is safe.
+// The `safe` flag here is only the default for games stored before forks were rolled per game.
+const stop = (id: string, name: string, next: Leg[], market?: Market): StopDef => {
+  const ways = [...next].sort((x, y) => (x.to < y.to ? -1 : x.to > y.to ? 1 : 0));
+  return market ? { id, name, next: ways, market } : { id, name, next: ways };
+};
 
 const short: RouteDef = {
   start: "dunmar",
@@ -29,8 +34,8 @@ const short: RouteDef = {
   deadline: 12,
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
-    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 90, "river", true), leg("vessa", 50, "mountain", false)]),
-    stop("saltmere", "Saltmere", [leg("quillon", 90, "plain")], MARKETS.saltmere),
+    stop("tel-orrin", "Tel Orrin", [leg("saltmere", 90, "river", true), leg("vessa", 50, "plain", false)]),
+    stop("saltmere", "Saltmere", [leg("quillon", 90, "mountain")], MARKETS.saltmere),
     stop("vessa", "Vessa", [leg("quillon", 60, "mountain")], MARKETS.vessa),
     stop("quillon", "Quillon", [leg("mirren-gate", 90, "desert")], MARKETS.quillon),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
@@ -44,12 +49,12 @@ const normal: RouteDef = {
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 70, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")]),
-    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "mountain", false)]),
-    stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "plain", false)]),
+    stop("saltmere", "Saltmere", [leg("ombar", 60, "mountain")], MARKETS.saltmere),
     stop("vessa", "Vessa", [leg("ombar", 70, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "mountain", false)]),
+    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "river", false)]),
     stop("kessel", "Kessel", [leg("yarrin", 60, "plain")], MARKETS.kessel),
-    stop("rookan", "Rookan", [leg("yarrin", 60, "mountain")], MARKETS.rook),
+    stop("rookan", "Rookan", [leg("yarrin", 60, "plain")], MARKETS.rook),
     stop("yarrin", "Yarrin", [leg("mirren-gate", 80, "river")], MARKETS.yarrin),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
@@ -62,15 +67,15 @@ const epic: RouteDef = {
   stops: [
     stop("dunmar", "Dunmar", [leg("tel-orrin", 60, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")], MARKETS.telOrrin),
-    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "mountain", false)]),
-    stop("saltmere", "Saltmere", [leg("ombar", 60, "plain")], MARKETS.saltmere),
+    stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "plain", false)]),
+    stop("saltmere", "Saltmere", [leg("ombar", 60, "mountain")], MARKETS.saltmere),
     stop("vessa", "Vessa", [leg("ombar", 60, "mountain")], MARKETS.vessa),
-    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "mountain", false)]),
+    stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "river", false)]),
     stop("kessel", "Kessel", [leg("anvara", 60, "plain")], MARKETS.kessel),
-    stop("rookan", "Rookan", [leg("anvara", 60, "mountain")], MARKETS.rook),
+    stop("rookan", "Rookan", [leg("anvara", 60, "plain")], MARKETS.rook),
     stop("anvara", "Anvara", [leg("teshun", 90, "plain")]),
-    stop("teshun", "Teshun", [leg("lorn", 80, "river", true), leg("gorrow", 60, "mountain", false)]),
-    stop("lorn", "Lorn", [leg("yarrin", 60, "plain")], MARKETS.lorn),
+    stop("teshun", "Teshun", [leg("lorn", 80, "river", true), leg("gorrow", 60, "plain", false)]),
+    stop("lorn", "Lorn", [leg("yarrin", 60, "mountain")], MARKETS.lorn),
     stop("gorrow", "Gorrow", [leg("yarrin", 60, "mountain")], MARKETS.gorrow),
     stop("yarrin", "Yarrin", [leg("sef-oasis", 60, "desert")], MARKETS.yarrin),
     stop("sef-oasis", "Sef Oasis", [leg("mirren-gate", 90, "plain")]),
@@ -302,7 +307,7 @@ const goals: GoalCard[] = [
 ];
 
 /** Coins grow with the table: more travellers eat and drink more on the way (R21). */
-const startCoins = (players: number) => 170 + 50 * players;
+const startCoins = (players: number) => 120 + 60 * players;
 const START_CARGO = { silk: 2, spice: 2, salt: 2 };
 /** W0: start coins plus the start goods at the middle of Mirren Gate's price ranges. Grades are set against it. */
 export function startWealth(players: number): number {

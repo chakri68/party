@@ -30,7 +30,7 @@ export function legOut(route: RouteDef, at: string, fork: string | null): Leg | 
   return next.length === 2 ? (next.find((l) => l.to === fork) ?? next.find((l) => l.safe) ?? next[0]) : next[0];
 }
 
-/** Yesterday's pace and rations (day 1: steady, full), the safe branch at a fork, nothing else. */
+/** Yesterday's pace and rations (day 1: steady, full), this game's safe branch at a fork, nothing else. */
 export function openPlan(state: State): Plan {
   const { route } = world(state);
   const c = state.caravan;

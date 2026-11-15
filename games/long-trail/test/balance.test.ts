@@ -30,7 +30,7 @@ type S = LongTrailServerState;
 type Bot = "sensible" | "no-trade" | "careless";
 
 const GAMES = 300;
-const SIDE_GAMES = 40; // 3 and 8 players: printed, with loose broke / very rich caps (kept small for time)
+const SIDE_GAMES = 200; // 3 and 8 players: printed, with loose broke / very rich caps
 const LENGTHS: Length[] = ["short", "normal", "epic"];
 const ARMABLE = ["guide", "scout", "quartermaster", "lookout"];
 const pack = packFor("trade-route");

@@ -54,7 +54,7 @@ export function dayReport(d: DayLog, fired: ArmableJob[], pack: SettingPack, rou
     "div",
     { class: "lt-report" },
     h("p", { class: "lt-report-head" }, `${moved}${reached}`),
-    d.stayedCourse ? h("p", { class: "lt-hint" }, "Both plans were rejected. The caravan kept yesterday's plan.") : null,
+    d.stayedCourse ? h("p", { class: "lt-hint" }, "Both plans were rejected. The caravan walked at yesterday's pace and rations, with no trades.") : null,
     d.event
       ? h(
           "div",

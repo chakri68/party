@@ -1,4 +1,5 @@
 import type { ChoiceEvent, Danger, Effect, EventCard, LegKind, RouteDef, SettingPack } from "./pack.ts";
+import { safeWayLegs } from "./forks.ts";
 import { roll, type Caravan, type DayReport } from "./travel.ts";
 import type { ArmableJob, Health, JobId, Supply } from "./types.ts";
 
@@ -34,12 +35,16 @@ export const isChoice = (card: EventCard): card is ChoiceEvent => "options" in c
 
 /**
  * One danger per leg, keyed `${from}>${to}`. Uniform over calm, rough, dangerous,
- * except the safe branch at a fork, which is never dangerous.
+ * except every leg of the safe way at a fork (up to where the ways meet), which is never dangerous.
  */
 export function rollDangers(route: RouteDef, randomInt: RandomInt): Record<string, Danger> {
+  const safe = safeWayLegs(route);
   const out: Record<string, Danger> = {};
   for (const stop of route.stops) {
-    for (const leg of stop.next) out[`${stop.id}>${leg.to}`] = randomInt(leg.safe ? 2 : 3) as Danger;
+    for (const leg of stop.next) {
+      const key = `${stop.id}>${leg.to}`;
+      out[key] = randomInt(safe.has(key) ? 2 : 3) as Danger;
+    }
   }
   return out;
 }

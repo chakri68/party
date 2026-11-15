@@ -403,7 +403,7 @@ export class LongTrailView implements GameView {
         break;
       case "plan":
         headline = this.leading() ? "You lead today. Plan the day." : `${lead} is planning the day`;
-        sub = g.proposalNo === 2 ? "Second plan. If this one fails too, the caravan keeps yesterday's plan." : "Talk about it out loud.";
+        sub = g.proposalNo === 2 ? "Second plan. If this one fails too, the caravan walks at yesterday's pace and rations, with no trades." : "Talk about it out loud.";
         break;
       case "vote":
         headline = g.leader === this.props!.playerId ? "Vote on your plan" : `Vote on ${lead}'s plan`;

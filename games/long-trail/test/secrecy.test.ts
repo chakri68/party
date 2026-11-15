@@ -166,3 +166,34 @@ describe("this game's forks", () => {
     }
   });
 });
+
+describe("the safe way is rolled each game", () => {
+  it("Skip, dangers and job info all follow this game's safe way", () => {
+    const safeAt = new Set<string>();
+    let reached = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      let s = toPlan(start(4, { length: "short" }, seed).state);
+      const safe = s.forks!["tel-orrin"]!.safe;
+      safeAt.add(safe);
+      const other = safe === "saltmere" ? "vessa" : "saltmere";
+      // Never dangerous on any leg of the safe way, up to Quillon where the ways meet.
+      expect(s.dangers[`tel-orrin>${safe}`]).toBeLessThan(2);
+      expect(s.dangers[`${safe}>quillon`]).toBeLessThan(2);
+      for (let day = 0; day < 20 && s.phase === "plan" && !(s.caravan.leg === null && s.caravan.at === "tel-orrin"); day++) s = playDay(s);
+      if (s.caravan.at !== "tel-orrin" || s.phase !== "plan") continue;
+      reached++;
+      // The Guide sees both ways, the real dangers, in id order.
+      s.jobs[ids(s)[0]!] = "guide";
+      const info = g.getPrivateState(s, ids(s)[0]!).info as { fork: { ways: Record<string, number> } };
+      expect(Object.keys(info.fork.ways)).toEqual(["saltmere", "vessa"]);
+      expect(info.fork.ways[safe]).toBe(s.dangers[`tel-orrin>${safe}`]);
+      expect(info.fork.ways[other]).toBe(s.dangers[`tel-orrin>${other}`]);
+      // Public order is by id, whichever way is safe.
+      expect(g.getPublicState(s).route.stops.find((x) => x.id === "tel-orrin")!.next).toEqual(["saltmere", "vessa"]);
+      // Skip and the timer take the safer way.
+      expect(g.skipTurn!(s, leaderId(s), ctx(s.deadline - 1000)).state.plan?.fork).toBe(safe);
+    }
+    expect(safeAt.size).toBe(2);
+    expect(reached).toBeGreaterThan(6);
+  });
+});
