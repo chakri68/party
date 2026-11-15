@@ -186,4 +186,5 @@ export type LongTrailEvent =
   | { type: "choice"; id: string }
   | { type: "day-done"; day: number }
   | { type: "recap" }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; interrupted: boolean };

@@ -124,6 +124,46 @@ describe("plans and votes", () => {
   });
 });
 
+describe("a host Skip always sends an event", () => {
+  const skipped = (t: { events: { event: { type: string } }[] }, id: string) => t.events.map((e) => e.event).filter((e) => e.type === "skipped").length === 1 && t.events.some((e) => (e.event as { playerId?: string }).playerId === id);
+
+  it("drops a voter in the vote", () => {
+    const s = proposeOpen(toPlan(start(4).state));
+    const voter = ids(s).find((id) => id !== leaderId(s))!;
+    const t = g.skipTurn!(s, voter, ctx(s.deadline - 1000));
+    expect(skipped(t, voter)).toBe(true);
+    expect(t.state.phase).toBe("vote");
+    expect(t.state.ballot!.eligible).not.toContain(voter);
+  });
+
+  it("drops a chooser in the choice", () => {
+    let s: S | null = null;
+    for (let seed = 1; seed < 40 && !s; seed++) s = toChoice(seed);
+    const who = ids(s!)[0]!;
+    const t = g.skipTurn!(s!, who, ctx(s!.deadline - 1000));
+    expect(skipped(t, who)).toBe(true);
+    expect(t.state.phase).toBe("choice");
+    expect(t.state.choiceBallot!.eligible).not.toContain(who);
+  });
+
+  it("counts a player as done in the reveal and in the summary", () => {
+    const r = start(4).state;
+    const tr = g.skipTurn!(r, "p1", ctx(1000));
+    expect(skipped(tr, "p1")).toBe(true);
+    expect(tr.state.acks).toContain("p1");
+    expect(tr.state.phase).toBe("reveal");
+
+    let s: S | null = null;
+    for (let seed = 1; seed < 40 && !s; seed++) s = toChoice(seed);
+    s = chooseAll(s!, 0).state;
+    expect(s.phase).toBe("summary");
+    const ts = g.skipTurn!(s, "p1", ctx(s.deadline - 1000));
+    expect(skipped(ts, "p1")).toBe(true);
+    expect(ts.state.acks).toContain("p1");
+    expect(ts.state.phase).toBe("summary");
+  });
+});
+
 describe("choice events", () => {
   it("settles a tie with the leader's pick", () => {
     let s: S | null = null;

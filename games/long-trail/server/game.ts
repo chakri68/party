@@ -626,6 +626,7 @@ export const longTrailGame: GameDefinition<State, LongTrailAction, LongTrailPubl
       delete state.choiceBallot.votes[playerId];
     } else if (["reveal", "summary", "recap"].includes(prev.phase) && !state.acks.includes(playerId)) state.acks.push(playerId);
     else return { state: prev, events: [] };
+    out.events.push(pub({ type: "skipped", playerId }));
     check(state, ctx, out);
     return done(state, out);
   },
