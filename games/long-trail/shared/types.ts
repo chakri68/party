@@ -155,7 +155,7 @@ export interface LongTrailPublicState {
   capacity: number; // cargo units the animals can carry at a normal pace
   prices: { goods: Record<string, number>; supplies: Partial<Record<Supply, number>> } | null; // halted at a market
   travellers: { id: string; health: Health }[];
-  openPlan: Plan; // where the plan form starts; Skip or a timeout proposes this, but with the safe branch at a fork (fork is null here)
+  openPlan: Plan; // where the plan form starts; Skip or a timeout proposes this, with a coin-picked way at a fork (fork is null here)
   plan: Plan | null;
   votes: { voted: string[]; of: number } | null; // the open plan or choice vote
   proposals: DayLog["proposals"]; // today's closed votes, by name

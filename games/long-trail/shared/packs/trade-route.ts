@@ -47,15 +47,15 @@ const normal: RouteDef = {
   end: "mirren-gate",
   deadline: 20,
   stops: [
-    stop("dunmar", "Dunmar", [leg("tel-orrin", 70, "plain")]),
+    stop("dunmar", "Dunmar", [leg("tel-orrin", 90, "plain")]),
     stop("tel-orrin", "Tel Orrin", [leg("brask", 60, "desert")]),
     stop("brask", "Brask", [leg("saltmere", 90, "river", true), leg("vessa", 60, "plain", false)]),
-    stop("saltmere", "Saltmere", [leg("ombar", 60, "mountain")], MARKETS.saltmere),
+    stop("saltmere", "Saltmere", [leg("ombar", 70, "mountain")], MARKETS.saltmere),
     stop("vessa", "Vessa", [leg("ombar", 70, "mountain")], MARKETS.vessa),
     stop("ombar", "Ombar", [leg("kessel", 90, "desert", true), leg("rookan", 50, "river", false)]),
     stop("kessel", "Kessel", [leg("yarrin", 60, "plain")], MARKETS.kessel),
     stop("rookan", "Rookan", [leg("yarrin", 60, "plain")], MARKETS.rook),
-    stop("yarrin", "Yarrin", [leg("mirren-gate", 80, "river")], MARKETS.yarrin),
+    stop("yarrin", "Yarrin", [leg("mirren-gate", 90, "river")], MARKETS.yarrin),
     stop("mirren-gate", "Mirren Gate", [], MARKETS.mirren),
   ],
 };

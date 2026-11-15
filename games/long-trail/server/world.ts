@@ -30,7 +30,10 @@ export function legOut(route: RouteDef, at: string, fork: string | null): Leg | 
   return next.length === 2 ? (next.find((l) => l.to === fork) ?? next.find((l) => l.safe) ?? next[0]) : next[0];
 }
 
-/** Yesterday's pace and rations (day 1: steady, full), this game's safe branch at a fork, nothing else. */
+/**
+ * Yesterday's pace and rations (day 1: steady, full), this game's safe branch at a fork, nothing
+ * else. Used when both plans fail and the caravan moves at once. Skip and the timer use skipPlan.
+ */
 export function openPlan(state: State): Plan {
   const { route } = world(state);
   const c = state.caravan;
@@ -38,4 +41,15 @@ export function openPlan(state: State): Plan {
   const pace: Pace = state.lastPlan?.pace ?? "steady";
   const rations: Rations = state.lastPlan?.rations ?? "full";
   return { pace, rations, rest: false, fork, doses: [], trades: [] };
+}
+
+/**
+ * The plan that Skip or a timeout proposes (R23): the open plan, but at a fork a coin picks the
+ * way. It is shown to everyone as "Go to X" and put to a vote, so taking the safe way would tell.
+ */
+export function skipPlan(state: State, randomInt: (n: number) => number): Plan {
+  const plan = openPlan(state);
+  if (plan.fork === null) return plan;
+  const next = stopById(world(state).route, state.caravan.at).next;
+  return { ...plan, fork: next[randomInt(next.length)]!.to };
 }

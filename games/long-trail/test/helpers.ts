@@ -42,7 +42,7 @@ export function toPlan(s: S): S {
   return s;
 }
 
-/** The leader proposes the server's open plan (the safe branch at a fork), as Skip would. */
+/** The leader proposes the server's open plan (the safe branch at a fork), as a double fail would. */
 export const proposeOpen = (s: S): S => ok(act(s, leaderId(s), { type: "propose", plan: openPlan(s) })).state;
 
 /** Everyone votes `vote` unless named in `except`. Stops once the vote closes. */

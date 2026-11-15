@@ -35,7 +35,7 @@ import {
 } from "../shared/types.ts";
 import { parseAction, VOTES } from "./parse.ts";
 import { goalTexts, privateState, publicState } from "./views.ts";
-import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, world } from "./world.ts";
+import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, skipPlan, world } from "./world.ts";
 
 type State = LongTrailServerState;
 type Events = GameEventEnvelope<LongTrailEvent>[];
@@ -385,7 +385,7 @@ function expire(state: State, ctx: GameContext, out: Out): void {
     case "reveal":
       return firstPlan(state, ctx, out);
     case "plan":
-      return propose(state, openPlan(state), ctx, out);
+      return propose(state, skipPlan(state, (n) => ctx.randomInt(n)), ctx, out);
     case "vote":
       return closeVote(state, ctx, out);
     case "choice":
@@ -617,7 +617,7 @@ export const longTrailGame: GameDefinition<State, LongTrailAction, LongTrailPubl
     const state = clone(prev);
     const out = newOut();
     if (prev.phase === "plan" && leaderOf(prev) === playerId) {
-      propose(state, openPlan(state), ctx, out);
+      propose(state, skipPlan(state, (n) => ctx.randomInt(n)), ctx, out);
       return done(state, out);
     }
     if (prev.phase === "vote" && state.ballot) dropVoter(state.ballot, playerId);

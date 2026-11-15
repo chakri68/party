@@ -35,8 +35,11 @@ function reach(route: RouteDef, first: Leg): string[] {
   return out;
 }
 
-/** How the risky way's km compare with the safe way's, leg by leg: 40% shorter to 30% longer. */
-const RISKY_SCALE = [0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3] as const;
+/**
+ * Each fork leg's km, as a part of the pack's longer way, rolled leg by leg: the same to 20%
+ * shorter. Both ways roll from this same list, so a way's km never tell which way is safe.
+ */
+const WAY_SCALE = [0.8, 0.9, 1.0] as const;
 
 /** Both ways out of a fork, each as its legs up to the stop where the ways meet. */
 function forkWays(route: RouteDef, fork: string): [{ from: string; leg: Leg }[], { from: string; leg: Leg }[]] {
@@ -59,11 +62,11 @@ export function safeWayLegs(route: RouteDef): Set<string> {
 }
 
 /**
- * For each fork: a coin picks this game's safe way. The safe way gets the longer of the pack's
- * two km sets, so the safe path is as long as the pack's safe path and the deadlines stay as
- * reachable as before. The risky way gets that same set, each leg scaled by a roll from
- * RISKY_SCALE (to the nearest 10 km), so it is shorter in some games and longer in others.
- * A way with a different number of legs scales its own km.
+ * For each fork: a coin picks this game's safe way. Both ways start from the longer of the pack's
+ * two km sets, and each leg is scaled by its own roll from WAY_SCALE (to the nearest 10 km), the
+ * same for the safe way and the risky one. So either way can be the shorter one, and the km give
+ * nothing away. No way is longer than the pack's longer way, so the safe path is never longer than
+ * the pack's longest path and the deadlines stay as reachable as before. A way with a different number of legs scales its own km.
  */
 export function rollForks(route: RouteDef, randomInt: RandomInt): ForkRolls {
   const out: ForkRolls = {};
@@ -74,11 +77,11 @@ export function rollForks(route: RouteDef, randomInt: RandomInt): ForkRolls {
     const long = ways[total(ways[0]) >= total(ways[1]) ? 0 : 1].map((x) => x.leg.km);
     const safeIdx = randomInt(2);
     const km: Record<string, number> = {};
-    ways.forEach((w, i) => {
+    ways.forEach((w) => {
       const same = w.length === long.length;
       w.forEach((x, j) => {
         const base = same ? long[j]! : x.leg.km;
-        const scale = i === safeIdx ? 1 : RISKY_SCALE[randomInt(RISKY_SCALE.length)]!;
+        const scale = WAY_SCALE[randomInt(WAY_SCALE.length)]!;
         km[`${x.from}>${x.leg.to}`] = Math.max(10, Math.round((base * scale) / 10) * 10);
       });
     });

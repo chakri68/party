@@ -1,6 +1,7 @@
 import { seededRandomInt } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { rollForks, withForks } from "../shared/forks.ts";
+import { N } from "../shared/index.ts";
 import { packFor, stopById, type RouteDef } from "../shared/pack.ts";
 import type { Length } from "../shared/types.ts";
 import { route as fixture } from "./fixtures.ts";
@@ -42,6 +43,18 @@ function safeKm(route: RouteDef): number {
   return km;
 }
 
+/** Days of the whole trip on the safe way at steady pace, a leg at a time. */
+function safeDays(route: RouteDef): number {
+  let days = 0;
+  for (let at = route.start; at !== route.end; ) {
+    const next = stopById(route, at).next;
+    const leg = next.length === 2 ? next.find((l) => l.safe)! : next[0]!;
+    days += Math.ceil(leg.km / N.kmPerDay.steady);
+    at = leg.to;
+  }
+  return days;
+}
+
 /** The longest trip there is, over the pack's own km. */
 function longestKm(route: RouteDef, at = route.start): number {
   if (at === route.end) return 0;
@@ -60,25 +73,30 @@ describe("rollForks", () => {
         if (s.next.length === 2) expect(s.next.filter((l) => l.safe)).toHaveLength(1);
         for (const l of s.next) expect(l.km).toBeGreaterThanOrEqual(10);
       }
-      // The safe path is never longer than the pack's longest way, so the deadline stays reachable.
+      // The safe path is never longer than the pack's longest way, so at steady pace it fits the
+      // deadline with a day to spare, as the pack's own longest path does.
       expect(safeKm(route)).toBeLessThanOrEqual(longestKm(base));
+      expect(safeDays(route)).toBeLessThanOrEqual(base.deadline - 1);
     }
   });
 
-  it.each(LENGTHS)("%s: across games either way can be safe, and the risky way is sometimes shorter and sometimes longer", (length) => {
+  it.each(LENGTHS)("%s: across games either way can be safe, either way can be shorter, and km never mark the safe way", (length) => {
     const base = pack.routes[length];
     const forks = base.stops.filter((s) => s.next.length === 2);
     for (const fork of forks) {
       const seen = { riskyShorter: 0, riskyLonger: 0, safe: new Set<string>() };
-      const longest = Math.max(...stopById(base, fork.id).next.map((l) => wayKm(base, fork.id, l.to)));
+      // Every km a fork leg had, kept apart for safe and risky legs, keyed by the leg.
+      const legKm = { safe: new Map<string, Set<number>>(), risky: new Map<string, Set<number>>() };
       for (let seed = 1; seed <= 200; seed++) {
         const route = withForks(base, rollForks(base, seededRandomInt(seed)));
         const [a, b] = stopById(route, fork.id).next;
         const safe = a!.safe ? a! : b!;
         const risky = a!.safe ? b! : a!;
         seen.safe.add(safe.to);
-        // The safe way is as long as the pack's longer way, whichever way it is.
-        expect(wayKm(route, fork.id, safe.to)).toBe(longest);
+        for (const [l, side] of [[safe, "safe"], [risky, "risky"]] as const) {
+          const key = `${fork.id}>${l.to}`;
+          legKm[side].set(key, (legKm[side].get(key) ?? new Set()).add(l.km));
+        }
         const d = wayKm(route, fork.id, risky.to) - wayKm(route, fork.id, safe.to);
         if (d < 0) seen.riskyShorter++;
         if (d > 0) seen.riskyLonger++;
@@ -86,6 +104,11 @@ describe("rollForks", () => {
       expect(seen.safe.size, fork.id).toBe(2);
       expect(seen.riskyShorter, fork.id).toBeGreaterThan(60);
       expect(seen.riskyLonger, fork.id).toBeGreaterThan(40);
+      // Each leg out of the fork takes the same km whether it is safe or risky this game.
+      for (const l of fork.next) {
+        const key = `${fork.id}>${l.to}`;
+        expect([...legKm.safe.get(key)!].sort(), key).toEqual([...legKm.risky.get(key)!].sort());
+      }
     }
   });
 

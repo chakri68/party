@@ -33,7 +33,7 @@ The game ends when the caravan reaches Mirren Gate, when time runs out, or when 
 
 The trail goes from stop to stop. The part between two stops is a **leg**. Each leg is plains, desert, mountains or river.
 
-The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are not the same length. Which way is shorter, and by how much, changes from game to game. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
+The trail has forks. At a fork, the leader must pick a way. The plan form does not pick a way for you. One way is safer: none of its legs, up to where the two ways meet, is dangerous. Which way is safer changes from game to game. The two ways are often not the same length. Which way is shorter, and by how much, changes from game to game. The length does not tell you which way is safe. Only the Scout sees how long each way is. The town names do not tell you which way is safe or short.
 
 | Length | Stops on your way | Days you have |
 | --- | --- | --- |
@@ -195,7 +195,7 @@ At the end of the party, Long Trail counts toward the party awards. Each No-go v
 
 ## When things go wrong
 
-- **The leader does not plan in time.** The caravan gets yesterday's pace and rations as the plan, and everyone votes on it. At a fork, it takes the safer way.
+- **The leader does not plan in time, or the host skips them.** The plan keeps the caravan's pace and rations (on day 1: Steady and Full), with no trades, and everyone votes on it. At a fork, the way is picked at random, so this plan does not tell you which way is safer. If both plans fail, the caravan still takes the safer way.
 - **You do not vote in time.** Your vote is not counted.
 - **You do not choose in time.** Your pick is not counted. If nobody picks, the first option is used.
 - **Someone's connection drops.** They do not hold up the game. The clock decides.
