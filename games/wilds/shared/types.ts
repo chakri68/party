@@ -1,3 +1,5 @@
+import type { Ballot, PartyStats } from "@games/game-core";
+
 export type TileId = string; // "q,r"
 export type Terrain =
   | "grass" | "forest" | "reeds" | "river" | "bridge" | "broken" | "rock" | "camp" | "gate" | "ruin" | "ash";
@@ -81,8 +83,80 @@ export type WildsAction =
   | { type: "vote"; option: number }
   | { type: "next" };
 
-// Task 7 fills these in.
-export interface WildsServerState {}
-export interface WildsPublicState {}
-export interface WildsPrivateState {}
-export interface WildsEvent {}
+export interface WildsServerState {
+  phase: Phase;
+  deadline: number;
+  settings: WildsSettings;
+  world: World;
+  board: { camp: TileId; gate: TileId; nest: TileId; ruins: Record<RuinId, TileId> };
+  deck: Deck;
+  event: LiveEvent | null; // this round's (round 1's card waits here, tiles unpicked, until round 1 opens)
+  next: EventId | null; // next round's card: only a Guide sees it
+  pending: PendingBargain | null;
+  plans: Record<string, Plan>;
+  ready: string[];
+  ballot: Ballot<string> | null;
+  nexts: string[]; // who tapped Next in the report
+  arrow: SpiderMove | null; // the spider's move if nothing changes, set as the plan opens
+  beatSteps: Step[]; // the beats, held while the choice is open
+  lastRound: RoundLog | null;
+  end: "win" | "sun" | "down" | null;
+  interrupted: boolean;
+  stats: PartyStats;
+}
+
+export interface RoundLog {
+  round: number;
+  steps: Step[];
+  /** Report lines. Names are tokens like `{{p0}}`, for the client to fill in. */
+  lines: string[];
+  /** Votes for each option, once the choice has closed. Null when the event had no choice. */
+  votes: number[] | null;
+}
+
+export type PublicTile =
+  | {
+      id: TileId; open: true; q: number; r: number; terrain: Terrain; fire: number; noise: number;
+      cache: boolean; nest: boolean; ruin: RuinId | null;
+    }
+  | { id: TileId; open: false; smoke?: true; marker?: "gate" | RuinId };
+
+export interface PublicExplorer {
+  id: string; role: Role | null; tile: TileId; hearts: number; items: ItemId[];
+  down: boolean; left: boolean; ready: boolean;
+}
+
+export interface WildsPublicState {
+  phase: Phase;
+  deadline: number;
+  round: number;
+  sun: number;
+  sunLimit: number;
+  planSeconds: WildsSettings["planSeconds"];
+  stones: RuinId[];
+  half: RuinId[];
+  gateOpen: boolean;
+  order: string[];
+  tiles: PublicTile[];
+  explorers: PublicExplorer[];
+  /** Null while the spider is in the fog. */
+  spider: { tile: TileId; arrow: SpiderMove | null } | null;
+  event: { id: EventId; tiles: TileId[]; options: string[] | null } | null;
+  pending: PendingBargain | null;
+  /** Who has voted in an open choice. Never what. */
+  voted: string[] | null;
+  lastRound: RoundLog | null;
+  end: "win" | "sun" | "down" | null;
+}
+
+export interface WildsPrivateState {
+  plan: Plan | null;
+  ready: boolean;
+  vote: number | null;
+  /** Only in a Guide's private state. */
+  next?: EventId | null;
+}
+
+export type WildsEvent =
+  | { type: "phase"; phase: Phase; round: number }
+  | { type: "game-over"; interrupted: boolean };

@@ -7,3 +7,5 @@ export * from "./hex.ts";
 export { ISLANDS, buildBoard, passable, type Board } from "./maps.ts";
 export { ROLE_ATTRS, WAY_BONUS, chance36, percent, failCost, rollDice } from "./roll.ts";
 export { RUINS, type Approach } from "./ruins.ts";
+export { roundLines } from "./lines.ts";
+export { EVENTS, type EventCard } from "./events.ts";
