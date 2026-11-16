@@ -33,7 +33,7 @@ One strange island and a team of explorers. Plan together, find 3 key stones, an
 - **Win:** at the win check, the gate is open, and every explorer is on the gate or next to it, and nobody is down. First, help any down player get up. Nobody stays behind. The win check comes before the sun moves, so a win on the last round counts.
 - **Lose:** the sun reaches the limit (10 by default), or every explorer is down at the end of a round.
 
-The result says how it ended, for example "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Each player's Hearts are shown, or "Down". If you win, everyone on the team wins. If you lose, nobody wins.
+The result says how it ended, for example "You escaped with 3 rounds left." or "The sun went down. 2 of 3 key stones found." Each player's Hearts are shown, or "Down", or "Left" for a player who left the game. If you win, everyone still in the game wins. A player who left does not win. If you lose, nobody wins.
 
 Key stones belong to the team. Nobody carries them. Losing Hearts never loses them.
 
@@ -232,7 +232,7 @@ Other timers are fixed: 30 s to pick a role, 20 s to vote on a choice, 8 s for t
 - **The round report.** The board plays the round back step by step: moves, dice (with every bonus), fire and the spider. Tap **Skip to the end** to jump to the end. If your phone is set to reduce motion, the board shows only the end and the lines. After it, up to 4 plain lines say what happened, and who is down. If nothing happened, it says "A quiet round." Tap **Next** when you are ready.
 - **Sounds and buzzes** mark a new plan and a choice.
 
-At the end of the party, The Wilds counts toward the party awards. Everyone on a winning team counts as a winner. Each Help that gets a down friend up counts toward **Always there**. Each fire you light with a Torch counts toward **Fire starter**. Each Refuse vote on a bargain counts toward **Hardest to convince**.
+At the end of the party, The Wilds counts toward the party awards. Everyone on a winning team counts as a winner, except a player who left the game. Each Help that gets a down friend up counts toward **Always there**. Each fire you light with a Torch counts toward **Fire starter**. Each Refuse vote on a bargain counts toward **Hardest to convince**.
 
 ## When things go wrong
 
