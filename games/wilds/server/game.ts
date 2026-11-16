@@ -468,6 +468,7 @@ export const wildsGame: GameDefinition<State, WildsAction, WildsPublicState, Wil
         label: e.left ? "Left" : e.down ? "Down" : e.hearts === 1 ? "1 Heart" : `${e.hearts} Hearts`,
       })),
       headline: headline(state),
+      unranked: true,
     };
   },
 

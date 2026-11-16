@@ -378,6 +378,8 @@ describe("a whole game", () => {
     expect(r.winnerIds).toEqual(["p0", "p1"]);
     expect(r.headline).toBe(`You escaped with ${10 - 2} rounds left.`);
     expect(r.standings.map((x) => x.playerId)).toEqual(["p0", "p1"]);
+    // A team game: the results screen shows no 1st, 2nd, 3rd.
+    expect(r.unranked).toBe(true);
   });
 
   it("says just in time, and 1 round left, counting the sun Force moved on", () => {
