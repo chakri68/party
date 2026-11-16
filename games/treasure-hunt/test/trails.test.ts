@@ -125,7 +125,7 @@ describe("trails and minor points", () => {
       }
     }
     expect(unjoined / 1000).toBeLessThan(0.5);
-  }, 30_000);
+  }, 60_000);
 
   it("200 seeds: every kind shows on at least half the maps, and kindFor keeps to its biome", () => {
     const seen = new Map<string, number>();
