@@ -129,7 +129,7 @@ class NavigatorView implements RoleView {
 
   constructor(api: GameClientApi, options: NavigatorOptions) {
     this.api = api;
-    this.loader = new StageLoader(() => this.bridge.retry());
+    this.loader = new StageLoader(() => this.bridge.retry(), !!options.addon);
     this.root.querySelector(".br-view")!.append(this.loader.el);
     this.bridge = new GodotBridge({
       ready: () => {

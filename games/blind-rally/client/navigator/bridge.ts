@@ -118,7 +118,7 @@ export class GodotBridge {
       try {
         const res = await fetch(b.base + file, { method: "HEAD" });
         const type = res.headers.get("content-type") ?? "";
-        if (!res.ok || type.includes("text/html")) return this.fail(`The Navigator build is missing ${file}.`);
+        if (!res.ok || type.includes("text/html")) return this.fail(`The game build is missing ${file}.`);
         // Streaming compile wants application/wasm; anything else is slower, not fatal.
         if (file === "index.wasm" && !type.includes(want)) console.warn(`blind-rally: ${file} served as ${type}`);
       } catch {
