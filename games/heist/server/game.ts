@@ -435,6 +435,7 @@ export const heistGame: GameDefinition<HeistServerState, HeistAction, HeistPubli
     const p = find(prev, playerId);
     if (prev.phase === "reveal" && p && !p.left && !prev.acks.includes(playerId)) {
       state.acks.push(playerId);
+      out.events.push(pub({ type: "skipped", playerId }));
       check(state, ctx, out);
       return done(state, out);
     }

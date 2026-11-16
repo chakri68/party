@@ -19,11 +19,11 @@ Everyone drives their own car down the same stage at once. Rivals are ghosts: no
 2. **Pick the track.** The host taps a track card, or everyone votes (see Settings). The cards show difficulty, length, landmarks and par time.
 3. **Choose your car.** Tap a car card to drive it. Each card shows the car, one line about it, and four bars from 1 to 5: speed, grip, off-road and weight. In a vote, tap a card to vote for it and tap it again to take your vote back. The card with the most votes says "Winning", and everyone drives that car. Your car's name shows under your name on the grid.
 4. **Read your card, then ready up.** Your briefing card has every control for this race. Tap "I'm ready". That also loads the course ("Loading the stage").
-5. **Start.** The host taps Start race once every car is ready. Three, two, one, GO.
+5. **Start.** The host taps Start race once every car is ready and every course has loaded. Three, two, one, GO.
 6. **Drive.** Steer, watch the co-driver, keep the car on the road. Checkpoints count by themselves as you drive through them, in order.
 7. **Finish.** Cross the line after the last checkpoint. The race ends when every car has finished or dropped out, when the time runs out, or when the host taps End race.
 
-Start race is disabled, with the reason underneath, if nobody's in a car ("Nobody's in a car yet.") or someone hasn't readied up ("Waiting for 2 players to ready up.").
+Start race is disabled, with the reason underneath, if nobody's in a car ("Nobody is in a car yet."), someone hasn't readied up ("Waiting for 2 players to get ready."), or someone's course is still loading ("Waiting for Asha and Ravi to load."). The start does not wait for a player who has lost their connection. When they come back, their course loads again.
 
 ## Winning and scoring
 

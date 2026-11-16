@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { GHOST_EVERY_MS } from "../server/race.ts";
 import { parseSettings } from "../shared/rules-text.ts";
 import { DEFAULT_VEHICLE, isVehicleId, VEHICLE_IDS, VEHICLES } from "../shared/vehicles.ts";
-import { parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
+import { loadingNote, parseRallySettings, RALLY_DEFAULTS, rallyBriefing, rallyManifest, rallyPreview, rallySettingFields } from "../shared/rally.ts";
 import { COUNTDOWN_MS, MAX_TEAMS, RALLY_MAX_CARS, RESET_PENALTY_MS, TEAM_COLORS, type BlindRallyState } from "../shared/types.ts";
 import { routeProgress, upcoming } from "../client/rally/progress.ts";
 import { vehicleCards } from "../client/rally/vehicle-picker.ts";
 import { parseAction } from "../server/parse.ts";
 import * as vehicles from "../server/vehicles.ts";
-import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
+import { act, ctx, driveTo, east, finishRun, game, newGame, newRally, passCheckpoints, racing, rallyGame, rallying, readyUp, refused, snapAt, SPAWN, TRACK } from "./helpers.ts";
 
 // Rally (rally-spec.md): Blind Rally's race with the blindfold off. Every
 // player is a car of one, the controls are on the car's own device, and the
@@ -82,9 +82,9 @@ describe("one-person teams", () => {
   it("the start waits for everyone in a car, not for the watchers", () => {
     let s = newRally(9);
     expect(s.teams.length).toBe(8);
-    for (const id of ["p0", "p1", "p2", "p3", "p4", "p5", "p6"]) s = act(s, id, { type: "player.ready", ready: true });
+    for (const id of ["p0", "p1", "p2", "p3", "p4", "p5", "p6"]) s = readyUp(s, id);
     expect(game.getPublicState(s).startBlocker).toBe("Waiting for 1 player to get ready.");
-    s = act(s, "p7", { type: "player.ready", ready: true });
+    s = readyUp(s, "p7");
     expect(game.getPublicState(s).startBlocker).toBeNull();
   });
 
@@ -351,7 +351,7 @@ describe("vehicle classes: rules", () => {
   const vote = (s: BlindRallyState, who: string, vehicleId: "hatch" | "4x4" | "rwd" | "truck" | "tractor" | null) => act(s, who, { type: "vehicle.vote", vehicleId });
   const ballot = (players = 3) => newRally(players, { vehiclePick: "ballot" });
   const ready = (s: BlindRallyState) => {
-    for (const p of s.players) s = act(s, p.id, { type: "player.ready", ready: true });
+    for (const p of s.players) s = readyUp(s, p.id);
     return s;
   };
 
@@ -469,7 +469,7 @@ describe("vehicle classes: over the wire", () => {
     return p.session;
   };
   const started = (s: BlindRallyState) => {
-    for (const t of s.teams) if (t.driverId) s = act(s, t.driverId, { type: "player.ready", ready: true });
+    for (const t of s.teams) if (t.driverId) s = readyUp(s, t.driverId);
     return act(s, "p0", { type: "race.start" });
   };
 
@@ -562,5 +562,107 @@ describe("vehicle classes: the grid's cards", () => {
     const s = vote(vote(newRally(2, { vehiclePick: "ballot" }), "p0", "truck"), "p1", "rwd");
     const c = cards(s, "p0");
     expect(c.filter((x) => x.tied).map((x) => x.id).sort()).toEqual(["rwd", "truck"]);
+  });
+});
+
+describe("the start waits until every car's course has loaded", () => {
+  const ready = (s: BlindRallyState, id: string) => act(s, id, { type: "player.ready", ready: true });
+  const loaded = (s: BlindRallyState, id: string) => act(s, id, { type: "player.loaded", loaded: true });
+  const pub = (s: BlindRallyState) => rallyGame.getPublicState(s);
+
+  it("ready is not loaded: the host cannot start while a course is still loading", () => {
+    let s = ready(ready(newRally(3), "p0"), "p1");
+    s = ready(s, "p2");
+    s = loaded(s, "p0");
+    expect(pub(s).startBlocker).toBe("Waiting for 2 players to load.");
+    expect(pub(s).loading).toEqual(["p1", "p2"]);
+    refused(s, "p0", { type: "race.start" }, "cannot-start");
+    s = loaded(loaded(s, "p1"), "p2");
+    expect(pub(s).startBlocker).toBeNull();
+    expect(pub(s).loading).toEqual([]);
+    expect(act(s, "p0", { type: "race.start" }).phase).toBe("countdown");
+  });
+
+  it("un-ready drops loaded; a report from a player who is not ready changes nothing", () => {
+    let s = loaded(ready(newRally(1), "p0"), "p0");
+    s = act(s, "p0", { type: "player.ready", ready: false });
+    expect(s.players[0]!.loaded).toBe(false);
+    s = loaded(s, "p0");
+    expect(s.players[0]!.loaded).toBe(false);
+    s = ready(s, "p0");
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to load.");
+  });
+
+  it("a new track or a new car makes them load again", () => {
+    let s = loaded(ready(newRally(2), "p0"), "p0");
+    s = loaded(ready(s, "p1"), "p1");
+    s = act(s, "p0", { type: "vehicle.pick", vehicleId: "truck" });
+    expect(s.players.map((p) => p.loaded)).toEqual([false, true]);
+    const other = pub(s).tracks.find((t) => t.id !== s.trackId)!.id;
+    s = act(s, "p0", { type: "track.pick", trackId: other });
+    expect(s.players.map((p) => p.loaded)).toEqual([false, false]);
+  });
+
+  it("a disconnected player does not hold up the start; back, they load again", () => {
+    let s = loaded(ready(newRally(2), "p0"), "p0");
+    s = loaded(ready(s, "p1"), "p1");
+    s = rallyGame.onPlayerDisconnected!(s, "p1", ctx()).state;
+    expect(s.players[1]!.loaded).toBe(false);
+    expect(pub(s).startBlocker).toBeNull();
+    s = rallyGame.onPlayerReconnected!(s, "p1", ctx()).state;
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to load.");
+    expect(pub(s).loading).toEqual(["p1"]);
+    s = loaded(s, "p1");
+    expect(pub(s).startBlocker).toBeNull();
+  });
+
+  it("names who the host waits for", () => {
+    expect(loadingNote(["Asha"])).toBe("Waiting for Asha to load.");
+    expect(loadingNote(["Asha", "Ravi"])).toBe("Waiting for Asha and Ravi to load.");
+    expect(loadingNote(["Asha", "Ravi", "Meena"])).toBe("Waiting for Asha, Ravi and Meena to load.");
+  });
+
+  it("only once everyone is ready: before that, the ready count is the reason", () => {
+    const s = act(newRally(2), "p0", { type: "player.ready", ready: true });
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to get ready.");
+    expect(pub(s).loading).toEqual([]);
+  });
+
+  it("a reload or a second tab the room didn't see as a drop: the new page says it isn't loaded, and the start waits again", () => {
+    let s = loaded(ready(newRally(2), "p0"), "p0");
+    s = loaded(ready(s, "p1"), "p1");
+    expect(pub(s).startBlocker).toBeNull();
+    s = act(s, "p1", { type: "player.loaded", loaded: false });
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to load.");
+    expect(pub(s).loading).toEqual(["p1"]);
+    refused(s, "p0", { type: "race.start" }, "cannot-start");
+    expect(loaded(s, "p1").players[1]!.loaded).toBe(true);
+  });
+
+  it("Blind Rally's start waits for the Navigator's course, not the Driver", () => {
+    let s = newGame(2);
+    s = act(s, "p0", { type: "team.join", teamId: 1, role: "driver" });
+    s = act(s, "p1", { type: "team.join", teamId: 1, role: "navigator" });
+    s = act(act(s, "p0", { type: "player.ready", ready: true }), "p1", { type: "player.ready", ready: true });
+    expect(game.getPublicState(s).startBlocker).toBe("Waiting for 1 player to load.");
+    expect(game.getPublicState(s).loading).toEqual(["p1"]);
+    refused(s, "p0", { type: "race.start" }, "cannot-start");
+    s = act(s, "p1", { type: "player.loaded", loaded: true });
+    expect(game.getPublicState(s).startBlocker).toBeNull();
+    expect(game.getPublicState(s).loading).toEqual([]);
+  });
+
+  it("a game saved before loaded existed: a ready Navigator without the key has not loaded", () => {
+    let s = loaded(ready(newRally(1), "p0"), "p0");
+    s = { ...s, players: s.players.map(({ id, ready }) => ({ id, ready })) };
+    expect(pub(s).loading).toEqual(["p0"]);
+  });
+
+  it("parses the report and keeps it off other phases", () => {
+    expect(parseAction({ type: "player.loaded", loaded: true, extra: 1 })).toEqual({ type: "player.loaded", loaded: true });
+    expect(parseAction({ type: "player.loaded", loaded: false })).toEqual({ type: "player.loaded", loaded: false });
+    expect(parseAction({ type: "player.loaded" })).toBeNull();
+    const s = rallying(1);
+    expect(loaded(s, "p0")).toBe(s);
   });
 });

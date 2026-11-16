@@ -13,7 +13,7 @@ import { skyPlan, skyWords } from "../shared/sky.ts";
 import { trackCatalog, trackData } from "./geometry.ts";
 import { effectiveTime, pinView } from "./race.ts";
 import { vehicleOf } from "./vehicles.ts";
-import { captainOf, isSolo, seatOf, startBlocker } from "./teams.ts";
+import { captainOf, isSolo, seatBlocker, seatOf, startBlocker, stillLoading } from "./teams.ts";
 
 // Three audiences (spec §8.2, map §2). Public and Driver DTOs are built from
 // an allow-list of fields, never by spreading state, so nothing new on the
@@ -52,7 +52,9 @@ export function publicState(state: BlindRallyState): BlindRallyPublicState {
       timeMs: t.run?.status === "finished" ? effectiveTime(state, t.run, t.run.finishedAt!) : null,
       vehicle: vehicleOf(state, t),
     })),
-    players: state.players.map((p) => ({ id: p.id, ready: p.ready })),
+    players: state.players.map((p) => ({ id: p.id, ready: p.ready, loaded: p.loaded ?? false })),
+    // Names are the client's to add. Only once loading is all the start waits for.
+    loading: state.phase === "teams" && !seatBlocker(state) ? stillLoading(state) : [],
     startsAt: state.startsAt,
     endsAt: state.endsAt,
     endedAt: state.endedAt,

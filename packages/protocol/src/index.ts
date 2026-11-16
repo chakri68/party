@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)

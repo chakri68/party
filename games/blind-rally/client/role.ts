@@ -1,5 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
-import type { GameClientApi } from "@games/ui";
+import { seatName, type GameClientApi } from "@games/ui";
+import { loadingNote } from "../shared/rally.ts";
 import { teamColor, type BlindRallyEvent, type BlindRallyPrivateState, type BlindRallyPublicState, type PublicTeam, type TeamColorKey } from "../shared/types.ts";
 
 // The contract between view.ts and the two lazily loaded seats. view.ts only
@@ -89,4 +90,9 @@ export function teamBadge(team: { id: number; color: TeamColorKey }, word: "Team
   el.append(`${word} ${team.id}`);
   el.title = `${c.name} ${word.toLowerCase()}`;
   return el;
+}
+
+/** Why the host can't start yet, naming who the start still waits on to load; null when they can. */
+export function startNote(room: RoomPublicState, game: BlindRallyPublicState): string | null {
+  return game.loading.length ? loadingNote(game.loading.map((id) => seatName(room, id))) : game.startBlocker;
 }

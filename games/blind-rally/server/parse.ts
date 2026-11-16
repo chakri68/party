@@ -47,6 +47,8 @@ export function parseAction(input: unknown): BlindRallyAction | null {
     case "vehicle.vote":
       if (a.vehicleId === null) return { type: "vehicle.vote", vehicleId: null };
       return isVehicleId(a.vehicleId) ? { type: "vehicle.vote", vehicleId: a.vehicleId } : null;
+    case "player.loaded":
+      return typeof a.loaded === "boolean" ? { type: "player.loaded", loaded: a.loaded } : null;
     case "team.leave":
     case "race.start":
     case "race.end":

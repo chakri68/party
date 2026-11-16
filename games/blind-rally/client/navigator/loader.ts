@@ -14,10 +14,14 @@ export class StageLoader {
   private fill = h("span", { class: "br-load-fill" });
   private bar = h("span", { class: "br-load-bar", role: "progressbar", "aria-label": "Track download" }, this.fill);
   private count = h("p", { class: "br-load-count" });
-  private hint = h("p", { class: "br-load-hint" }, "The Driver must wait for this to load.");
+  private hint = h("p", { class: "br-load-hint" });
   private retryBtn = h("button", { type: "button", class: "primary br-load-retry", hidden: true }, "Try again");
 
-  constructor(onRetry: () => void) {
+  /** Rally: this player drives, and the race waits for every player's track. */
+  private readonly drives: boolean;
+
+  constructor(onRetry: () => void, drives = false) {
+    this.drives = drives;
     this.el = h("div", { class: "br-boot", role: "status", "aria-live": "polite" }, h("div", { class: "br-load" }, this.stage, this.title, this.bar, this.count, this.hint, this.retryBtn));
     this.retryBtn.addEventListener("click", () => {
       this.reset();
@@ -62,7 +66,7 @@ export class StageLoader {
     this.el.dataset.state = "failed";
     this.title.textContent = "The track did not load";
     this.count.textContent = why;
-    this.hint.textContent = "Try again. Your Driver will wait.";
+    this.hint.textContent = this.drives ? "Try again. The race waits for you." : "Try again. Your Driver will wait.";
     this.retryBtn.hidden = false;
     this.el.setAttribute("role", "alert");
   }
@@ -73,7 +77,7 @@ export class StageLoader {
     this.title.textContent = "Loading the track";
     this.fill.style.transform = "scaleX(0)";
     this.count.textContent = "Getting the files";
-    this.hint.textContent = "The Driver must wait for this to load.";
+    this.hint.textContent = this.drives ? "The race starts when every player's track has loaded." : "The Driver must wait for this to load.";
     this.retryBtn.hidden = true;
   }
 }

@@ -13,7 +13,7 @@ vi.mock("../data/tracks.json", async (importOriginal) => {
   return { default: { ...real, tracks: [pine, copy("test_dunes", "Test Dunes", "medium"), copy("test_ice", "Test Ice", "hard")] } };
 });
 
-const { act, ctx, game, newGame, refused } = await import("./helpers.ts");
+const { act, ctx, game, newGame, readyUp, refused } = await import("./helpers.ts");
 const { parseAction } = await import("../server/parse.ts");
 const { upgrade } = await import("../server/upgrade.ts");
 
@@ -54,7 +54,7 @@ describe("host picks (the default)", () => {
     s = act(s, "p0", { type: "team.join", teamId: 1, role: "driver" });
     s = act(s, "p1", { type: "team.join", teamId: 1, role: "navigator" });
     s = act(s, "p0", { type: "player.ready", ready: true });
-    s = act(s, "p1", { type: "player.ready", ready: true });
+    s = readyUp(s, "p1");
     s = act(s, "p0", { type: "race.start" });
     refused(s, "p0", { type: "track.pick", trackId: ICE }, "wrong-phase");
     expect(s.trackId).toBe(DUNES);
@@ -183,7 +183,8 @@ describe("team ballot", () => {
 
   it("locks when the race starts: no votes after TEAMS, and the Navigator's session names the winner", () => {
     let s = vote(ballot(4), "p1", ICE);
-    for (const id of ["p0", "p1", "p2", "p3"]) s = act(s, id, { type: "player.ready", ready: true });
+    for (const id of ["p0", "p2"]) s = act(s, id, { type: "player.ready", ready: true });
+    for (const id of ["p1", "p3"]) s = readyUp(s, id);
     s = act(s, "p0", { type: "race.start" });
     refused(s, "p3", { type: "track.vote", trackId: DUNES }, "wrong-phase");
     expect(s.trackId).toBe(ICE);

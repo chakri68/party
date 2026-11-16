@@ -2,7 +2,7 @@ import { audio } from "@games/audio";
 import { h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
 import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
-import { awayBanner, teamBadge, runClock, teamClock, type RoleProps, type RoleView } from "../role.ts";
+import { awayBanner, startNote, teamBadge, runClock, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { GodotBridge, type GodotPhysicsEvent, type GodotSnapshot } from "./bridge.ts";
 import { StageLoader } from "./loader.ts";
 import { navigatorTrack } from "./track.ts";
@@ -39,6 +39,8 @@ import "./navigator.css";
 // pins, R asks for a reset), the addon feeds receiveControl itself, and the
 // Driver's status line goes.
 
+/** "My course has loaded" again after this, if the server still hasn't heard it. */
+const LOADED_RETRY_MS = 3_000;
 /** Without input from the Driver for this long mid-race, say so. Godot has already gone neutral. */
 const DRIVER_QUIET_MS = 1_000;
 const GO_SHOWN_MS = 800;
@@ -120,15 +122,20 @@ class NavigatorView implements RoleView {
   private pendingPin: { x: number; z: number } | { clear: true } | null = null;
   private pinTimer: ReturnType<typeof setTimeout> | undefined;
   private lastPhase: string | null = null;
+  /** When "my course has loaded" last went out (performance.now()); 0 when it isn't owed. */
+  private loadedSentAt = 0;
+  /** "Not loaded yet" has gone out, once per page: see reportLoaded. */
+  private unloadedSent = false;
 
   constructor(api: GameClientApi, options: NavigatorOptions) {
     this.api = api;
-    this.loader = new StageLoader(() => this.bridge.retry());
+    this.loader = new StageLoader(() => this.bridge.retry(), !!options.addon);
     this.root.querySelector(".br-view")!.append(this.loader.el);
     this.bridge = new GodotBridge({
       ready: () => {
         this.loader.el.hidden = true;
         this.sendSession();
+        this.reportLoaded();
       },
       progress: (loaded, total) => this.loader.progress(loaded, total),
       started: () => this.loader.started(),
@@ -218,6 +225,36 @@ class NavigatorView implements RoleView {
     }
     this.addon?.update(props);
     this.tick();
+  }
+
+  /**
+   * Tells the server our course is up, so the host can start: the start waits
+   * for it. Ready only started the load. Said again whenever the server forgets
+   * it (an un-ready, a new car, a dropped connection), and again after
+   * LOADED_RETRY_MS if it got lost on the way.
+   *
+   * The other way too, once: this page is still loading but the server says
+   * loaded. That's a reload or a second tab the room didn't see as a drop, and
+   * the loaded it remembers is the old page's.
+   */
+  private reportLoaded() {
+    const p = this.props;
+    const me = p?.game.players.find((q) => q.id === p.playerId);
+    const onGrid = !!p && p.game.phase === "teams" && !!me?.ready;
+    const up = this.bridge.isReady && this.sessionSent;
+    if (onGrid && me?.loaded && !up && !this.unloadedSent) {
+      this.unloadedSent = true;
+      this.api.act({ type: "player.loaded", loaded: false });
+    }
+    const due = onGrid && !me?.loaded && up;
+    if (!due) {
+      this.loadedSentAt = 0;
+      return;
+    }
+    const now = performance.now();
+    if (this.loadedSentAt && now - this.loadedSentAt < LOADED_RETRY_MS) return;
+    this.loadedSentAt = now;
+    this.api.act({ type: "player.loaded", loaded: true });
   }
 
   stream(from: string, data: unknown) {
@@ -379,6 +416,7 @@ class NavigatorView implements RoleView {
   private tick() {
     const p = this.props;
     if (!p) return;
+    this.reportLoaded();
     const g = p.game;
     const now = this.api.serverNow();
     const live = this.live();
@@ -412,7 +450,8 @@ class NavigatorView implements RoleView {
     if (banner && this.banner.textContent !== banner) this.banner.textContent = banner;
     this.back.hidden = g.phase !== "teams";
     this.start.hidden = g.phase !== "teams" || p.room.hostId !== p.playerId;
-    this.start.disabled = g.startBlocker !== null;
+    const blocker = startNote(p.room, g);
+    this.start.disabled = blocker !== null;
     this.end.hidden = (g.phase !== "countdown" && g.phase !== "racing") || p.room.hostId !== p.playerId;
 
     let count = "";
@@ -431,7 +470,7 @@ class NavigatorView implements RoleView {
     let text: string;
     let tone: "ok" | "warn" | "bad";
     if (!seat || seat.presence !== "connected") [text, tone] = [`${name} disconnected`, "bad"];
-    else if (g.phase === "teams") [text, tone] = [g.startBlocker ?? "Waiting for the host", "warn"];
+    else if (g.phase === "teams") [text, tone] = [blocker ?? "Waiting for the host", "warn"];
     else if (g.phase === "finished") [text, tone] = ["Race over", "warn"];
     else if (live && performance.now() - Math.max(this.lastInput, this.liveSince) > DRIVER_QUIET_MS) [text, tone] = [`${name} isn't pressing anything`, "warn"];
     else [text, tone] = [`${name} driving`, "ok"];

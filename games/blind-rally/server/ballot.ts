@@ -1,7 +1,7 @@
 import { stableHash } from "@games/game-core";
 import { effectiveTrackPick, type BlindRallyState, type TrackBallot } from "../shared/types.ts";
 import { trackCatalog } from "./geometry.ts";
-import { isEmpty } from "./teams.ts";
+import { isEmpty, notReady } from "./teams.ts";
 
 // Fair Race's track (spec §7.1): the host's pick, or one lobby-wide ballot
 // with a vote per team. The count runs live, so `trackId` is always the
@@ -82,6 +82,6 @@ export function setTrack(state: BlindRallyState, trackId: string): boolean {
   if (state.trackId === trackId) return false;
   state.trackId = trackId;
   const navigators = new Set(state.teams.map((t) => t.navigatorId));
-  for (const p of state.players) if (navigators.has(p.id)) p.ready = false;
+  for (const p of state.players) if (navigators.has(p.id)) notReady(p);
   return true;
 }

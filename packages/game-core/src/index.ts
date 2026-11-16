@@ -109,6 +109,11 @@ export interface GameOutcome {
    */
   headline?: string;
   /**
+   * For team games where everyone wins or loses together. The results screen
+   * then shows no place numbers, since nobody came 1st or last.
+   */
+  unranked?: boolean;
+  /**
    * Names for participants without a room seat, e.g. computer players. The
    * results screen uses these before falling back to seat names.
    */
@@ -236,6 +241,8 @@ export const STAT_KEYS = [
   "fooled",
   "firstGuesses",
   "noGoVotes",
+  "rescues",
+  "firesLit",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];

@@ -147,4 +147,5 @@ export type ShortNightEvent =
   | { type: "night-step"; step: number; waking: RoleId }
   | { type: "day" }
   | { type: "vote-open"; runoff: boolean }
+  | { type: "skipped"; playerId: string }
   | { type: "game-over"; winner: Team | null; out: string | null; reason: EndReason };

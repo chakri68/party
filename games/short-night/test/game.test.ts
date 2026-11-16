@@ -80,6 +80,13 @@ describe("the reveal", () => {
     expect(s.phase).toBe("night");
   });
 
+  it("a Skip while others still wait sends an event and counts as seen", () => {
+    const t = g.skipTurn!(six(), "p5", ctx(1000));
+    expect(t.events.map((e) => e.event)).toEqual([{ type: "skipped", playerId: "p5" }]);
+    expect(t.state.acks).toContain("p5");
+    expect(t.state.phase).toBe("reveal");
+  });
+
   it("refuses night moves", () => {
     expect(err(act(six(), "p1", { type: "pick", targets: ["p0"] }))).toBe("wrong-phase");
   });

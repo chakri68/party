@@ -31,8 +31,8 @@ export function refused(state: BlindRallyState, playerId: string, action: BlindR
 }
 
 /**
- * Teams of [driver, navigator] pairs, everyone ready, and the race started at
- * t=0, so the clock runs from COUNTDOWN_MS.
+ * Teams of [driver, navigator] pairs, everyone ready, every Navigator's course
+ * loaded, and the race started at t=0, so the clock runs from COUNTDOWN_MS.
  */
 export function racing(pairs: [string, string][], players = pairs.length * 2, settings: Partial<BlindRallySettings> = {}): BlindRallyState {
   let s = newGame(players, settings);
@@ -41,6 +41,7 @@ export function racing(pairs: [string, string][], players = pairs.length * 2, se
     s = act(s, n, { type: "team.join", teamId: i + 1, role: "navigator" });
   });
   for (const id of pairs.flat()) s = act(s, id, { type: "player.ready", ready: true });
+  for (const [, n] of pairs) s = act(s, n, { type: "player.loaded", loaded: true });
   return act(s, "p0", { type: "race.start" });
 }
 
@@ -121,9 +122,14 @@ export function newRally(players = 2, settings: Partial<BlindRallySettings> = {}
   return rallyGame.createGame(ids, parsed, { roundNumber: 1, dealerSeat: 0, ...(carry !== undefined && { carry }) }, ctx()).state;
 }
 
-/** Everyone in a car ready, and the race started at t=0. */
+/** Ready, and their course has loaded, as a Navigator's (or Rally player's) client reports it. */
+export function readyUp(state: BlindRallyState, playerId: string): BlindRallyState {
+  return act(act(state, playerId, { type: "player.ready", ready: true }), playerId, { type: "player.loaded", loaded: true });
+}
+
+/** Everyone in a car ready and loaded, and the race started at t=0. */
 export function rallying(players = 2, settings: Partial<BlindRallySettings> = {}): BlindRallyState {
   let s = newRally(players, settings);
-  for (const t of s.teams) if (t.driverId) s = act(s, t.driverId, { type: "player.ready", ready: true });
+  for (const t of s.teams) if (t.driverId) s = readyUp(s, t.driverId);
   return act(s, "p0", { type: "race.start" });
 }

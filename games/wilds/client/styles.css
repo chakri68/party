@@ -1,0 +1,283 @@
+/* The Wilds. Shell tokens (--surface, --surface-2, --line, --ink, --muted, --accent, --accent-soft,
+   --accent-ink, --danger) plus the island's own colours below. Everything is wd- prefixed:
+   other games' stylesheets may be loaded in the same tab. */
+
+.wilds {
+  /* Terrain. Each one also has an icon: colour is never the only sign. */
+  --wd-grass: #3d6332;
+  --wd-forest: #1f4a2b;
+  --wd-reeds: #66713a;
+  --wd-river: #24506e;
+  --wd-bridge: #7a5a36;
+  --wd-broken: #4b3b2a;
+  --wd-rock: #57554f;
+  --wd-camp: #85663c;
+  --wd-gate: #5d5184;
+  --wd-ruin: #6c604f;
+  --wd-ash: #3b3734;
+  --wd-fog: #24231e;
+  --wd-icon: rgb(255 255 255 / 0.55);
+  --wd-fire: #ff8a3d;
+  --wd-smoke: #8f8a7e;
+  --wd-stone: #7fe0d0;
+  --wd-event: #ffd166;
+  --wd-spider: #f3f1ea;
+  --wd-hand: #e6b8ff; /* the stone hand's bridge */
+  /* Role rings. */
+  --wd-runner: #5ec8ff;
+  --wd-fixer: #ffb347;
+  --wd-protector: #ff8fb1;
+  --wd-guide: #b79cff;
+
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.wilds > * { min-width: 0; }
+
+/* ---- Top bar ------------------------------------------------------------------ */
+
+.wd-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.wd-round { font-weight: 700; }
+.wd-sun { color: var(--muted); }
+.wd-stones { display: inline-flex; gap: 3px; flex: 1; }
+.wd-stone path { fill: none; stroke: var(--muted); stroke-width: 2; }
+.wd-stone.half path { fill: var(--accent-soft); stroke: var(--wd-stone); }
+.wd-stone.found path { fill: var(--wd-stone); stroke: var(--wd-stone); }
+.wd-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
+.wilds.low .wd-timer { color: var(--danger); }
+
+/* ---- Event ------------------------------------------------------------------- */
+
+.wd-event { padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); }
+.wd-event h2 { margin: 0; font-size: 1rem; }
+.wd-event p { margin: 2px 0 0; font-size: 0.9rem; }
+.wd-guide { color: var(--wd-guide); }
+.wd-hint { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.wd-event .wd-hint { font-size: 0.8rem; }
+
+/* ---- Board ------------------------------------------------------------------- */
+
+.wd-board-wrap { width: 100%; }
+.wd-board { display: block; width: 100%; height: auto; max-height: 62vh; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.wd-hex { cursor: pointer; }
+.wd-hex:focus { outline: none; }
+.wd-hex:focus-visible .wd-hl-ok { stroke: var(--ink); stroke-width: 1.6; }
+.wd-terrain, .wd-fog { stroke: var(--bg); stroke-width: 0.8; }
+.wd-fog { fill: var(--wd-fog); }
+.wd-t-grass { fill: var(--wd-grass); }
+.wd-t-forest { fill: var(--wd-forest); }
+.wd-t-reeds { fill: var(--wd-reeds); }
+.wd-t-river { fill: var(--wd-river); }
+.wd-t-bridge { fill: var(--wd-bridge); }
+.wd-t-broken { fill: var(--wd-broken); }
+.wd-t-rock { fill: var(--wd-rock); }
+.wd-t-camp { fill: var(--wd-camp); }
+.wd-t-gate { fill: var(--wd-gate); }
+.wd-t-ruin { fill: var(--wd-ruin); }
+.wd-t-ash { fill: var(--wd-ash); }
+.wd-icon { fill: none; stroke: var(--wd-icon); stroke-width: 0.9; stroke-linecap: round; stroke-linejoin: round; }
+.wd-icon.wd-faint { stroke: var(--muted); opacity: 0.45; }
+.wd-smoke { fill: var(--wd-smoke); opacity: 0.8; }
+.wd-fire { fill: var(--wd-fire); stroke: var(--bg); stroke-width: 0.6; }
+.wd-noise path { fill: none; stroke: var(--ink); stroke-width: 0.8; stroke-linecap: round; }
+.wd-cache { fill: var(--wd-event); fill-opacity: 0.25; stroke: var(--wd-event); stroke-width: 1; }
+.wd-nest { stroke: var(--ink); }
+.wd-stone-mark { fill: var(--wd-stone); stroke: var(--bg); stroke-width: 0.5; }
+.wd-half-mark { fill: none; stroke: var(--wd-stone); stroke-width: 0.8; }
+.wd-spider { fill: var(--wd-spider); stroke: var(--wd-spider); stroke-width: 0.7; stroke-linecap: round; }
+.wd-pending { fill: none; stroke: var(--wd-hand); stroke-width: 1.4; pointer-events: none; }
+.wd-shown { fill: none; stroke: var(--wd-event); stroke-width: 1; stroke-dasharray: 2 1.4; }
+.wd-hl { pointer-events: none; }
+.wd-hl-ok { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.1; }
+.wd-hl-off { fill: var(--bg); fill-opacity: 0.5; stroke: none; }
+.wd-mark circle { fill: var(--accent); }
+.wd-mark text { fill: var(--accent-ink); font-size: 3.6px; font-weight: 700; }
+.wd-arrow { pointer-events: none; }
+.wd-arrow polyline { fill: none; stroke: var(--danger); stroke-width: 1.2; stroke-dasharray: 2.4 1.2; stroke-linejoin: round; }
+.wd-arrow marker path { fill: var(--danger); }
+.wd-legend { margin: -4px 0 0; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); }
+.wd-legend-line { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 4 2; fill: none; }
+.wd-legend-head { fill: var(--danger); }
+.wd-tokens { pointer-events: none; }
+.wd-token circle { fill: var(--surface); stroke-width: 1.3; }
+.wd-token text { fill: var(--ink); font-weight: 700; }
+.wd-token.wd-me circle { fill: var(--surface-2); stroke-width: 1.8; }
+.wd-token.wd-down { opacity: 0.5; }
+.wd-token.wd-down circle { stroke-dasharray: 1.2 0.8; }
+.wd-ring.wd-role-runner, .wd-dot.wd-role-runner { stroke: var(--wd-runner); background: var(--wd-runner); }
+.wd-ring.wd-role-fixer, .wd-dot.wd-role-fixer { stroke: var(--wd-fixer); background: var(--wd-fixer); }
+.wd-ring.wd-role-protector, .wd-dot.wd-role-protector { stroke: var(--wd-protector); background: var(--wd-protector); }
+.wd-ring.wd-role-guide, .wd-dot.wd-role-guide { stroke: var(--wd-guide); background: var(--wd-guide); }
+.wd-ring.wd-role-none, .wd-dot.wd-role-none { stroke: var(--muted); background: var(--muted); }
+
+/* ---- Team -------------------------------------------------------------------- */
+
+.wd-team { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.wd-explorer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+.wd-explorer.me { border-color: var(--muted); }
+.wd-explorer.down { opacity: 0.7; }
+.wd-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.wd-who { display: grid; line-height: 1.15; }
+.wd-who small { color: var(--muted); font-size: 0.75rem; }
+.wd-hearts { display: inline-flex; gap: 2px; }
+.wd-hearts span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--danger); }
+.wd-hearts span.on { background: var(--danger); }
+.wd-tag { font-size: 0.75rem; font-weight: 700; color: var(--danger); }
+.wd-ready { font-size: 0.75rem; color: var(--muted); }
+.wd-ready.on { color: var(--accent); font-weight: 700; }
+
+/* ---- Plan tray --------------------------------------------------------------- */
+
+.wd-note { margin: 0; min-height: 1.2em; font-size: 0.9rem; color: var(--danger); }
+.wd-note:empty { min-height: 0; }
+.wd-tray { display: grid; gap: 10px; }
+.wd-tray:empty { display: none; }
+.wd-down-note { margin: 0; padding: 12px; border: 1.5px solid var(--danger); border-radius: 14px; text-align: center; font-weight: 700; }
+.wd-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wd-slot { display: grid; justify-items: start; gap: 2px; padding: 8px 12px; text-align: left; min-height: 56px; }
+.wd-slot small { color: var(--muted); font-weight: 500; font-size: 0.75rem; }
+.wd-slot b { overflow-wrap: anywhere; }
+.wd-slot[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-slot:disabled { opacity: 1; }
+.wd-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wd-card {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 4px;
+  min-height: 76px;
+  text-align: center;
+}
+.wd-card small { color: var(--muted); font-weight: 500; font-size: 0.7rem; line-height: 1.2; }
+.wd-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-card-icon { display: block; color: var(--ink); }
+.wd-pick { display: grid; gap: 6px; padding: 8px 10px; border: 1.5px dashed var(--line); border-radius: 12px; }
+.wd-pick p { margin: 0; font-size: 0.9rem; }
+.wd-pick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wd-pick-row button { min-height: 44px; padding: 0 14px; }
+.wd-pick-row button.wd-off { opacity: 0.5; }
+.wd-pick .link { justify-self: start; padding: 0; }
+.wd-wide { width: 100%; }
+
+/* ---- Ruin sheet -------------------------------------------------------------- */
+
+.wd-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.55);
+}
+.wd-sheet {
+  width: 100%;
+  max-width: 600px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-bottom: none;
+}
+.wd-sheet p { margin: 0; }
+.wd-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.wd-sheet-head h2 { margin: 0; font-size: 1.1rem; }
+.wd-ways-in { display: grid; gap: 8px; }
+.wd-way-in, .wd-force { display: grid; justify-items: start; gap: 2px; padding: 10px 12px; text-align: left; }
+.wd-way-in small, .wd-force small { color: var(--muted); font-weight: 500; font-size: 0.8rem; }
+.wd-way-in[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-odds { font-variant-numeric: tabular-nums; font-weight: 600; }
+.wd-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wd-ways button { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; }
+.wd-ways small { color: var(--muted); font-weight: 500; font-size: 0.7rem; line-height: 1.2; }
+.wd-ways button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-force { border-style: dashed; }
+
+/* ---- Stone hand ---------------------------------------------------------------- */
+
+.wd-pending-bar {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--wd-hand);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+.wd-pending-bar[hidden] { display: none; }
+.wd-pending-bar svg { flex: none; }
+.wd-pending-swatch { fill: var(--wd-forest); stroke: var(--wd-hand); stroke-width: 2.4; }
+
+/* ---- Panels: roles, vote, report ------------------------------------------------ */
+
+.wd-panel h2 { margin: 0; font-size: 1.05rem; }
+.wd-roles, .wd-choice, .wd-report { display: grid; gap: 8px; }
+.wd-roles p, .wd-choice p, .wd-report p { margin: 0; }
+.wd-role-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wd-role {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 500;
+}
+.wd-role[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-role:disabled { opacity: 1; }
+.wd-role-head { display: flex; align-items: center; gap: 6px; }
+.wd-role-stats { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.wd-role-power { font-size: 0.85rem; line-height: 1.3; }
+.wd-role-by { color: var(--accent); font-weight: 700; font-size: 0.75rem; }
+.wd-items { display: grid; gap: 4px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 12px; font-size: 0.9rem; }
+.wd-options { display: grid; gap: 8px; }
+.wd-option { min-height: 52px; padding: 10px 14px; text-align: left; overflow-wrap: anywhere; }
+.wd-option[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wd-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wd-lines { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.wd-lines-empty { color: var(--muted); }
+.wd-end { font-weight: 700; }
+.wd-end.win { color: var(--accent); }
+.wd-end.sun, .wd-end.down { color: var(--danger); }
+.wd-report .link { justify-self: start; padding: 0; }
+
+@media (max-width: 360px) {
+  .wd-role-list { grid-template-columns: 1fr; }
+}
+
+/* ---- Playback ------------------------------------------------------------------ */
+
+.wd-caption { display: grid; gap: 6px; min-height: 3.2em; cursor: pointer; }
+.wd-caption[hidden] { display: none; }
+.wd-caption-text { margin: 0; font-weight: 600; }
+.wd-roll { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-variant-numeric: tabular-nums; }
+.wd-dice { display: inline-flex; gap: 6px; }
+.wd-dice .die-svg { width: 34px; height: 34px; display: block; }
+.wd-roll.pass b { color: var(--accent); }
+.wd-roll.fail b { color: var(--danger); }

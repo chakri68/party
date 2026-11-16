@@ -72,6 +72,14 @@ describe("the reveal", () => {
     expect(g.skipTurn!(s, "p4", ctx(1000)).state.phase).toBe("propose");
   });
 
+  it("a Skip while others still wait sends an event and counts as seen", () => {
+    const s = start(FIVE).state;
+    const t = g.skipTurn!(s, "p4", ctx(1000));
+    expect(t.events.map((e) => e.event)).toEqual([{ type: "skipped", playerId: "p4" }]);
+    expect(t.state.acks).toContain("p4");
+    expect(t.state.phase).toBe("reveal");
+  });
+
   it("never acks a leaver, and counts only who's still in", () => {
     let s = start("cmcmcmc").state;
     s = ok(act(s, "p6", { type: "ack" })).state;

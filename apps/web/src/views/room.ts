@@ -883,7 +883,7 @@ export class RoomView implements View {
           return h(
             "li",
             { class: s.playerId === me ? "me" : "" },
-            h("span", { class: "place" }, String(i + 1)),
+            h("span", { class: "place" }, result?.unranked ? "" : String(i + 1)),
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "name" }, s.playerId === me ? "You" : nameOf(s.playerId)),
             h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.label ?? (s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`)),

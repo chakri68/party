@@ -26,6 +26,7 @@ import { sevensGame } from "@games/sevens/server";
 import { shortNightGame } from "@games/short-night/server";
 import { thornsGame } from "@games/thorns/server";
 import { treasureHuntGame } from "@games/treasure-hunt/server";
+import { wildsGame } from "@games/wilds/server";
 
 /** Server half of the game registry (§43). */
 const GAMES: Record<string, AnyGameDefinition> = {
@@ -55,6 +56,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   overheat: overheatGame,
   "same-page": samePageGame,
   "long-trail": longTrailGame,
+  wilds: wildsGame,
 };
 
 export interface GameFlags {

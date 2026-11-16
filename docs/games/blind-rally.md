@@ -17,11 +17,11 @@ One of you drives without seeing the road. The other sees it all and has to talk
 1. **Pick seats.** After the host starts the game you land on the teams screen: up to four cars, each with a Driver seat and a Navigator seat. Tap Sit here on an empty seat. Be Driver / Be Navigator swaps you with your teammate; Leave seat puts you back in the spares. The host can move anyone with the dropdown next to their name.
 2. **Pick the track.** Depending on the Track setting, the host taps a track card, or each car's captain taps one to vote (see Settings). The cards show difficulty, length, landmarks and par time. They never show the road, because anyone might end up as the Driver.
 3. **Read your card, then ready up.** When you're in a seat and not ready, your role's briefing card sits on the screen with every control for this race's settings. "I'm ready" is the only ready button. Ready also loads your seat: a Navigator's 3D course starts downloading ("Loading the stage"), and the Driver can't move until it's in.
-4. **Start.** The host taps Start race once every seated player is ready. Three, two, one, GO. All cars go at once, and the clock is the room's.
+4. **Start.** The host taps Start race once every seated player is ready and every Navigator's course has loaded. Three, two, one, GO. All cars go at once, and the clock is the room's.
 5. **Race.** The Navigator watches the car and calls the road. The Driver steers, brakes and listens. Checkpoints count by themselves as the car drives through them, in order.
 6. **Finish.** Cross the finish after the last checkpoint. The race ends when every car has finished or dropped out, when the time runs out, or when the host taps End race.
 
-The Start button is disabled, with a reason underneath, if no car has both seats filled ("A car needs a Driver and a Navigator."), a car has only one person ("Team 2 needs a Navigator."), or someone seated isn't ready yet. Empty cars just sit the race out.
+The Start button is disabled, with a reason underneath, if no car has both seats filled ("A car needs a Driver and a Navigator."), a car has only one person ("Team 2 needs a Navigator."), someone seated isn't ready yet, or a Navigator's course is still loading ("Waiting for Asha and Ravi to load."). The start does not wait for a Navigator who has lost their connection. When they come back, their course loads again. Empty cars do not race.
 
 ## Winning and scoring
 

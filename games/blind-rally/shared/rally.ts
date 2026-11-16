@@ -198,3 +198,9 @@ export function rallyBriefing(raw: unknown): Briefing {
     lines,
   };
 }
+
+/** The host's Start note while courses load: "Waiting for Asha and Ravi to load." */
+export function loadingNote(names: string[]): string {
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "everyone");
+  return `Waiting for ${list} to load.`;
+}

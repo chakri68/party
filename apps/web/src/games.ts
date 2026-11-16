@@ -29,6 +29,7 @@ import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/
 import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
 import { thornsManifest, thornsRules, thornsSettingFields } from "@games/thorns/shared";
 import { treasureHuntManifest, treasureHuntRules, treasureHuntSettingFields } from "@games/treasure-hunt/shared";
+import { wildsManifest, wildsRules, wildsSettingFields } from "@games/wilds/shared";
 import type { GameClientModule } from "@games/ui";
 
 /** Headings in the host's game list, in the order they show. */
@@ -182,6 +183,13 @@ export const games: Record<string, GameEntry> = {
     rules: longTrailRules,
     settingFields: longTrailSettingFields,
     loadClient: () => import("@games/long-trail/client").then((m) => m.default),
+  },
+  wilds: {
+    section: "strategy",
+    manifest: wildsManifest,
+    rules: wildsRules,
+    settingFields: wildsSettingFields,
+    loadClient: () => import("@games/wilds/client").then((m) => m.default),
   },
   "short-night": {
     section: "roles",

@@ -5,7 +5,7 @@ import { upgrade } from "../server/upgrade.ts";
 import { seatOf } from "../server/teams.ts";
 import { blindRallySettingFields, parseSettings } from "../shared/rules-text.ts";
 import { COUNTDOWN_MS, RESET_HOLD_MS, RESET_PENALTY_MS, MAX_TEAMS, TEAM_COLORS, type BlindRallyPublicState } from "../shared/types.ts";
-import { act, ctx, game, newGame, newRally, racing, refused, TRACK } from "./helpers.ts";
+import { act, ctx, game, newGame, newRally, racing, readyUp, refused, TRACK } from "./helpers.ts";
 
 const pub = (s: ReturnType<typeof newGame>) => game.getPublicState(s) as BlindRallyPublicState;
 const roleOf = (s: ReturnType<typeof newGame>, id: string) => {
@@ -51,7 +51,7 @@ describe("phases", () => {
     s = act(s, "p0", { type: "team.join", teamId: 1, role: "driver" });
     s = act(s, "p1", { type: "team.join", teamId: 1, role: "navigator" });
     s = act(s, "p0", { type: "player.ready", ready: true });
-    s = act(s, "p1", { type: "player.ready", ready: true });
+    s = readyUp(s, "p1");
     const r = game.handleAction(s, "p0", { type: "race.start" }, ctx(1_000));
     expect(r.ok && r.transition.timers).toEqual([
       { kind: "set", timerId: "go", delayMs: COUNTDOWN_MS },
@@ -155,6 +155,10 @@ describe("teams and roles", () => {
     expect(pub(s).startBlocker).toBe("Waiting for 2 players to get ready.");
     s = act(s, "p0", { type: "player.ready", ready: true });
     s = act(s, "p1", { type: "player.ready", ready: true });
+    // Ready starts the Navigator's course loading; the start waits for it.
+    expect(pub(s).startBlocker).toBe("Waiting for 1 player to load.");
+    refused(s, "p0", { type: "race.start" }, "cannot-start");
+    s = act(s, "p1", { type: "player.loaded", loaded: true });
     expect(pub(s).startBlocker).toBeNull();
     refused(s, "p1", { type: "race.start" }, "not-host");
     s = act(s, "p0", { type: "race.start" });
@@ -168,7 +172,7 @@ describe("teams and roles", () => {
     s = act(s, "p1", { type: "team.join", teamId: 1, role: "driver" });
     s = act(s, "p2", { type: "team.join", teamId: 1, role: "navigator" });
     s = act(s, "p1", { type: "player.ready", ready: true });
-    s = act(s, "p2", { type: "player.ready", ready: true });
+    s = readyUp(s, "p2");
     s = act(s, "p0", { type: "race.start" }); // the host can be a spare
     expect(s.phase).toBe("countdown");
     expect(pub(s).mode).toBe("practice");

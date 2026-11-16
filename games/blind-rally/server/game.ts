@@ -36,7 +36,7 @@ import {
   type Out,
 } from "./race.ts";
 import { result } from "./scoring.ts";
-import { captainOf, carryOf, fitTeams, holds, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
+import { captainOf, carryOf, fitTeams, holds, notReady, pickRole, restoreTeams, seatOf, sit, startBlocker, unseat } from "./teams.ts";
 import { upgrade } from "./upgrade.ts";
 import { settleVehicle } from "./vehicles.ts";
 
@@ -158,7 +158,7 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       const state = clone(prev);
       seatOf(state, playerId)!.team.vehicle = action.vehicleId;
       // Their Godot has built the old car; they look again and ready up.
-      state.players.find((p) => p.id === playerId)!.ready = false;
+      notReady(state.players.find((p) => p.id === playerId)!);
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -182,7 +182,18 @@ function handle(prev: State, playerId: string, action: BlindRallyAction, ctx: Ga
       if (action.ready && !seatOf(prev, playerId)) return reject("not-seated", "Choose a seat in a car first.");
       if (me.ready === action.ready) return { ok: true, transition: unchanged(prev) };
       const state = clone(prev);
-      state.players.find((p) => p.id === playerId)!.ready = action.ready;
+      const p = state.players.find((q) => q.id === playerId)!;
+      if (action.ready) p.ready = true;
+      else notReady(p);
+      return { ok: true, transition: unchanged(state) };
+    }
+
+    case "player.loaded": {
+      // Sent by the client on its own, so a late one (the race is on, they
+      // un-readied meanwhile) is nothing, not an error on their screen.
+      if (!inTeams || !me.ready || !!me.loaded === action.loaded) return { ok: true, transition: unchanged(prev) };
+      const state = clone(prev);
+      state.players.find((p) => p.id === playerId)!.loaded = action.loaded;
       return { ok: true, transition: unchanged(state) };
     }
 
@@ -279,7 +290,7 @@ export function newGame(
     vehicleId: isVehicleId(carriedVehicle) ? carriedVehicle : DEFAULT_VEHICLE,
     vehicleBallot: { votes: [], tied: [] },
     seed: ctx.randomInt(2 ** 31),
-    players: players.map((p) => ({ id: p.id, ready: false })),
+    players: players.map((p) => ({ id: p.id, ready: false, loaded: false })),
     teams: [],
     startsAt: null,
     endsAt: null,
@@ -289,6 +300,20 @@ export function newGame(
   restoreTeams(state, match.carry);
   fitTeams(state);
   return { state, events: [] };
+}
+
+/**
+ * On the grid, the start doesn't wait for someone whose connection dropped
+ * (stillLoading). Their loaded is cleared: back on a fresh page, it loads the
+ * course and says so again; back on the same page, it says so again anyway.
+ */
+function gridPresence(prev: State, playerId: string, away: boolean): State {
+  if (!prev.players.some((p) => p.id === playerId)) return prev;
+  const state = clone(prev);
+  const p = state.players.find((q) => q.id === playerId)!;
+  p.away = away;
+  if (away) p.loaded = false;
+  return state;
 }
 
 export const blindRallyGame: GameDefinition<
@@ -336,6 +361,7 @@ export const blindRallyGame: GameDefinition<
   // grace finds the team out and changes nothing.
   onPlayerDisconnected(old, playerId, ctx) {
     const prev = upgrade(old);
+    if (prev.phase === "teams") return unchanged(gridPresence(prev, playerId, true));
     const state = clone(prev);
     const out = newOut();
     return playerAway(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
@@ -343,6 +369,7 @@ export const blindRallyGame: GameDefinition<
 
   onPlayerReconnected(old, playerId, ctx) {
     const prev = upgrade(old);
+    if (prev.phase === "teams") return unchanged(gridPresence(prev, playerId, false));
     const state = clone(prev);
     const out = newOut();
     return playerBack(state, playerId, ctx.now, out) ? done(state, out) : unchanged(prev);
@@ -352,7 +379,7 @@ export const blindRallyGame: GameDefinition<
     const prev = upgrade(old);
     if (prev.players.some((p) => p.id === playerId)) return unchanged(prev);
     const state = clone(prev);
-    state.players.push({ id: playerId, ready: false });
+    state.players.push({ id: playerId, ready: false, loaded: false });
     // Mid-race they watch; before it, a fresh car may appear for them.
     if (state.phase === "teams") fitTeams(state);
     return unchanged(state);
