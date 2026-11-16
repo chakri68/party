@@ -230,6 +230,6 @@ describe("catalog", () => {
     expect(Object.keys(g)).toEqual(expect.arrayContaining(["blind-rally", "rally", "treasure-hunt"]));
   });
   it("limits", () => {
-    expect(PRODUCT_LIMITS).toEqual({ premiumGameIds: ["blind-rally", "rally", "treasure-hunt", "dominion", "long-trail"], freeMaxPlayers: 8 });
+    expect(PRODUCT_LIMITS).toEqual({ premiumGameIds: ["blind-rally", "rally", "treasure-hunt", "dominion", "long-trail", "wilds"], freeMaxPlayers: 8 });
   });
 });
