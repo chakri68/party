@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { View } from "../client/scene/backdrop.ts";
-import { drawCaravan, layoutCaravan, MAX_CAMELS, type CaravanLayout, type CaravanWalker } from "../client/scene/caravan.ts";
+import { drawCaravan, layoutCaravan, MAX_CAMELS, walkerLook, type CaravanLayout, type CaravanWalker } from "../client/scene/caravan.ts";
 import { TRAVELLER } from "../client/scene/sprites.ts";
 import type { Health } from "../shared/types.ts";
 import { fakeCtx } from "./scene-fake-ctx.ts";
@@ -105,5 +105,23 @@ describe("caravan layout", () => {
       expect(f.count("save")).toBe(f.count("restore"));
       expect(f.count("fill")).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("walkerLook", () => {
+  it("a walker who dies in the event fades out in settle, not vanishes", () => {
+    // In settle the beat's health is already after the event: 0 for the dead.
+    expect(walkerLook({ fading: true, health: 0, t: 0 })).toEqual({ health: 1, alpha: 1 });
+    expect(walkerLook({ fading: true, health: 0, t: 0.5 })).toEqual({ health: 1, alpha: 0.5 });
+    expect(walkerLook({ fading: true, health: 0, t: 1 })).toBeNull();
+  });
+  it("a fading walker keeps the health it was drawn with", () => {
+    expect(walkerLook({ fading: true, health: 2, t: 0.25 })).toEqual({ health: 2, alpha: 0.75 });
+  });
+  it("a walker already dead and not fading is not drawn", () => {
+    expect(walkerLook({ fading: false, health: 0, t: 0.5 })).toBeNull();
+  });
+  it("a living walker is drawn in full", () => {
+    expect(walkerLook({ fading: false, health: 3, t: 0.5 })).toEqual({ health: 3, alpha: 1 });
   });
 });
