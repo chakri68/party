@@ -4,7 +4,7 @@ import { drawCaravan, layoutCaravan, MAX_CAMELS, type CaravanWalker } from "../c
 import type { Health } from "../shared/types.ts";
 import { fakeCtx } from "./scene-fake-ctx.ts";
 
-const view: View = { w: 360, h: 90, ground: 70, s: 90 / 150 };
+const view: View = { w: 358, h: 143, ground: 0.78 * 143, s: 143 / 150 }; // a phone band, 5:2
 const walker = (id: string, health: Health = 3, riding = false): CaravanWalker => ({ id, color: "#c0392b", health, riding, alpha: 1 });
 
 describe("caravan layout", () => {

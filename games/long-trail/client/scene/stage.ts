@@ -23,8 +23,16 @@ const NIGHT = "rgba(16,20,48,0.38)";
 const EVENT_MS = 4000;
 
 const scrollPerSec = (speed: number) => speed * 13; // px at s = 1
+/** On an arrival the ground carries the town at least this far (px at s = 1), so it comes in from off screen. */
+const ARRIVE_PX = 130;
+const SLOW_FROM = 0.6; // an arrival slows to a stop from here
+const slowing = (t: number) => 1 - ramp(t, SLOW_FROM, 1);
+/** The share of an arrival beat's full-speed distance still to go at t, with the slow-down at the end. */
+function leftToGo(t: number): number {
+  const tail = 1 - SLOW_FROM;
+  return t < SLOW_FROM ? SLOW_FROM - t + tail / 2 : (1 - t) ** 2 / (2 * tail);
+}
 const stepsPerSec = (speed: number) => (speed > 0 ? 0.45 + 0.3 * speed : 0);
-const ease = (t: number) => 1 - (1 - t) * (1 - t);
 const ramp = (t: number, a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
 const isTown = (t: Terrain): t is "town" | "market" | "gate" => t === "town" || t === "market" || t === "gate";
 
@@ -38,15 +46,15 @@ function drawTown(c: C, v: View, kind: "town" | "market" | "gate", shift: number
   const s = v.s;
   const x = (u: number) => v.w - u * s + shift;
   const y = v.ground - 6 * s;
-  if (kind === "gate") return drawGate(c, x(62), y, s);
+  if (kind === "gate") return drawGate(c, x(44), y, s);
   if (kind === "market") {
-    drawStall(c, x(128), y + 1 * s, s, 20);
-    drawHouse(c, x(88), y, s);
-    drawStall(c, x(42), y + 1 * s, s, 200);
+    drawStall(c, x(100), y + 1 * s, s, 20);
+    drawHouse(c, x(62), y, s);
+    drawStall(c, x(26), y + 1 * s, s, 200);
     return;
   }
-  drawHouse(c, x(98), y, s);
-  drawHouse(c, x(44), y - 2 * s, s);
+  drawHouse(c, x(64), y, s);
+  drawHouse(c, x(24), y - 2 * s, s);
 }
 
 export class TrailScene {
@@ -63,6 +71,8 @@ export class TrailScene {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private last = 0; // when the last frame was drawn, 0 = none since the loop began
   private scroll = 0;
+  private arriveKey = ""; // the arrival beat the town is placed for
+  private arriveEnd = 0; // the scroll at which the town stands in its place
   private phase = 0; // the walk cycle
   private reduced = false;
   private onScreen = true;
@@ -159,11 +169,11 @@ export class TrailScene {
     }
   };
 
-  private tick = () => {
+  private tick = (now: number) => {
     this.raf = 0;
     if (!this.active() || this.reduced) return;
-    const now = performance.now();
-    if (this.last && now - this.last < FRAME_MS) {
+    // 3 ms of slack, so every second frame of a 60 Hz display draws: a steady 30 fps.
+    if (this.last && now - this.last < FRAME_MS - 3) {
       this.raf = requestAnimationFrame(this.tick);
       return;
     }
@@ -233,11 +243,15 @@ export class TrailScene {
     const lay = layoutCaravan(v, walkers, camels);
 
     // How fast: travel at the day's pace (slowing into a town), still for events, else the plan's.
+    const arriving = travel && !!beat.arrive;
     let speed = m.speed as number;
-    if (travel) speed = (beat.speed ?? m.speed) * (beat.arrive ? 1 - ramp(t, 0.6, 1) : 1);
+    if (travel) speed = (beat.speed ?? m.speed) * (arriving ? slowing(t) : 1);
     else if (scene) speed = 0;
     if (this.reduced) speed = 0;
-    this.scroll += (dt / 1000) * scrollPerSec(speed) * v.s;
+    // An arrival moves the ground fast enough to bring the town in from the right.
+    const arrivePx = arriving ? Math.max(scrollPerSec(beat.speed ?? m.speed), ARRIVE_PX / ((leftToGo(0) * beat.ms) / 1000)) : 0;
+    const rate = arriving ? (this.reduced ? 0 : arrivePx * slowing(t)) : scrollPerSec(speed);
+    this.scroll += (dt / 1000) * rate * v.s;
     this.phase += (dt / 1000) * stepsPerSec(speed);
     const frame = speed > 0 ? this.phase : 0;
 
@@ -264,7 +278,15 @@ export class TrailScene {
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, v.w, v.h);
     drawBackdrop(c, this.art, v, terrain, this.reduced ? 0 : this.scroll, { fork: m.fork && !travel, night: !!pose.night });
-    if (travel && beat.arrive) drawTown(c, v, isTown(m.terrain) ? m.terrain : "town", (1 - ease(t)) * v.w * 0.7);
+    if (arriving) {
+      // The town rides on the ground: it moves with the scroll and stops in its place.
+      const key = `${this.beatsKey}:${pos!.index}`;
+      if (key !== this.arriveKey) {
+        this.arriveKey = key;
+        this.arriveEnd = this.scroll + arrivePx * v.s * leftToGo(t) * (beat.ms / 1000);
+      }
+      drawTown(c, v, isTown(m.terrain) ? m.terrain : "town", Math.max(0, this.arriveEnd - this.scroll));
+    }
     else if (!travel && isTown(m.terrain)) drawTown(c, v, m.terrain, 0);
     if (m.camp && scene !== SCENES.thief) {
       const x = Math.min(v.w - 26 * v.s, lay.x1 + 52 * v.s);
