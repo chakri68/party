@@ -1,12 +1,14 @@
 // Sick: the hurt traveller lies down by a small fire under a blanket, and the
 // others crouch round. With no one hurt (or in a situation), the caravan only
 // rests by the fire: no blanket, no one lying down.
-import { drawFire } from "../sprites.ts";
+import { drawFire, TRAVELLER } from "../sprites.ts";
 import { ell, hurt, ramp, ticks } from "./fx.ts";
 import type { EventScene, Stagehand } from "./index.ts";
 
 const LIE = 0.18; // lies down from here
 const UP = 0.88; // gets up again, so the beat ends with them standing
+/** The blanket and bowl were laid out for travellers at 1.15; they grow with the sprite. */
+const fit = (h: Stagehand) => (h.v.s * TRAVELLER) / 1.15;
 const shown = (h: Stagehand) => (h.loop ? 1 : ramp(h.t, 0.05, 0.2));
 
 /** The fire: on the near side by the hurt traveller's head, else ahead of the caravan. */
@@ -16,7 +18,7 @@ function fire(h: Stagehand, near: boolean): void {
   const { c, v } = h;
   const a = shown(h);
   if (a <= 0) return;
-  const x = who ? who.x + 18 * v.s : h.caravan.x1 + 26 * v.s;
+  const x = who ? who.x + 18 * fit(h) : h.caravan.x1 + 26 * v.s;
   c.save();
   c.globalAlpha *= a;
   drawFire(c, x, v.ground + (who ? 9 : -1) * v.s, v.s * 0.9, ticks(h) / 4);
@@ -36,7 +38,7 @@ export const sick: EventScene = {
     const who = hurt(h);
     if (!who) return;
     const { c, v } = h;
-    const s = v.s;
+    const s = fit(h);
     const a = Math.min(ramp(h.t, LIE, LIE + 0.1), 1 - ramp(h.t, UP - 0.06, UP));
     if (a <= 0) return;
     // A striped blanket over the body, the head left out; a bowl of water by them.

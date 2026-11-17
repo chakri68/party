@@ -27,12 +27,12 @@ export interface CaravanLayout {
 /** More camels than this are not drawn, unless that many have riders. */
 export const MAX_CAMELS = 6;
 // Spacing at s = 1: the left margin, camel to camel, the lead camel to the rear walker, walker to walker.
-const LEFT = 34;
-const CAMEL_GAP = 58;
-const TO_WALKERS = 38;
-const WALKER_GAP = 19;
+const LEFT = 28;
+const CAMEL_GAP = 46;
+const TO_WALKERS = 40;
+const WALKER_GAP = 22;
 /** The caravan keeps to the left part of the band; event scenes play to its right. */
-const SPAN = 0.62;
+const SPAN = 0.7;
 
 export function layoutCaravan(v: View, walkers: CaravanWalker[], camels: number): CaravanLayout {
   const riders = walkers.filter((w) => w.riding);

@@ -12,7 +12,8 @@ const SHADE = "rgba(0,0,0,0.2)";
 const CAMEL = "#c99a5e";
 const CAMEL_FAR = "#ab7f4b";
 const WOOD = "#7a5235";
-const TRAVELLER = 1.15; // travellers a little larger than life, so players find themselves
+/** Travellers drawn larger than life, so players find themselves in a small band. */
+export const TRAVELLER = 1.6;
 
 /** Where a rider sits on a camel, from the camel's feet, at s = 1. */
 export const CAMEL_SEAT = { x: -2, y: -33 } as const;
