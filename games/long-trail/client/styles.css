@@ -27,24 +27,30 @@
 .lt-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }
 .long-trail.low .lt-bar { background: var(--danger); }
 
+/* ---- Trail scene ------------------------------------------------------------ */
+
+.lt-scene { aspect-ratio: 4 / 1; border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.lt-scene[hidden] { display: none; }
+.lt-scene canvas { display: block; width: 100%; height: 100%; }
+
 /* ---- Route strip ------------------------------------------------------------ */
 
 .lt-strip { display: grid; gap: 4px; }
-.lt-route { display: flex; align-items: center; min-height: 28px; }
+.lt-route { display: flex; align-items: center; min-height: 18px; }
 .lt-node {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid var(--muted);
   background: var(--surface);
 }
 .lt-node.market { border-radius: 4px; }
 .lt-node.reached { border-color: var(--accent); background: var(--accent); }
-.lt-node.here { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); width: 18px; height: 18px; }
+.lt-node.here { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); width: 14px; height: 14px; }
 .lt-node.pick { border-color: var(--ink); background: var(--ink); }
 .lt-fork { flex: none; display: grid; gap: 3px; }
-.lt-fork .lt-node { width: 11px; height: 11px; }
+.lt-fork .lt-node { width: 8px; height: 8px; }
 .lt-link { flex: 1 1 0; min-width: 4px; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .lt-link-fill { display: block; height: 100%; background: var(--accent); }
 .lt-where { margin: 0; font-size: 0.85rem; color: var(--muted); }

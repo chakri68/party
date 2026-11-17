@@ -1,9 +1,11 @@
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, faceColor, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { packFor, stopById, type LegKind, type RouteDef, type SettingPack } from "../shared/pack.ts";
 import type { LongTrailEvent, LongTrailPrivateState, LongTrailPublicState, Phase, Plan } from "../shared/types.ts";
 import { BAND_BARS, BAND_LABEL, goalLine, HEALTH_LABEL, infoLines } from "./format.ts";
 import { planCard, PlanForm } from "./plan.ts";
+import { sceneModel } from "./scene/model.ts";
+import { TrailScene } from "./scene/stage.ts";
 import { dayReport, proposalsPart, recapView } from "./report.ts";
 
 type Pub = LongTrailPublicState;
@@ -34,6 +36,7 @@ export class LongTrailView implements GameView {
   private phaseLabel = h("span", { class: "lt-phase" });
   private timer = h("span", { class: "lt-timer", role: "timer" });
   private bar = h("div", { class: "lt-bar" });
+  private scene = new TrailScene();
   private strip = h("div", { class: "lt-strip" });
   private stock = h("div", { class: "lt-stock" });
   private party = h("ul", { class: "lt-party", "aria-label": "Travellers" });
@@ -59,6 +62,7 @@ export class LongTrailView implements GameView {
     this.root.append(
       h("div", { class: "lt-top" }, this.dayLabel, this.phaseLabel, this.timer),
       h("div", { class: "lt-track", "aria-hidden": "true" }, this.bar),
+      this.scene.el,
       this.strip,
       this.stock,
       this.party,
@@ -77,6 +81,7 @@ export class LongTrailView implements GameView {
 
   destroy() {
     clearInterval(this.clock);
+    this.scene.destroy();
     this.root.remove();
   }
 
@@ -197,8 +202,10 @@ export class LongTrailView implements GameView {
     const done = g.phase === "recap" || g.phase === "over";
     // The recap lists the route, so the strip goes with the stock.
     this.strip.hidden = pre || done;
+    this.scene.el.hidden = pre || done;
     this.stock.hidden = pre || done;
     if (!this.strip.hidden) this.renderStrip();
+    if (!this.scene.el.hidden) this.renderScene(props);
     if (!this.stock.hidden) this.renderStock();
     this.renderParty();
     this.renderYou();
@@ -221,6 +228,17 @@ export class LongTrailView implements GameView {
     if (turn === this.turn) return;
     this.turn = turn;
     this.api.setTurn(turn);
+  }
+
+  /** The trail scene: public state, the pack and the leader's draft only. */
+  private renderScene(props: GameViewProps) {
+    const g = this.game;
+    const { pack, route } = this.world();
+    const colorOf = (id: string) => {
+      const seat = props.room.seats.find((s) => s.id === id);
+      return seat?.avatarSeed ? faceColor(seat.avatarSeed) : null;
+    };
+    this.scene.update(sceneModel({ game: g, pack, route, draft: this.leading() ? this.form.plan(g) : null, colorOf }), { snapshot: props.snapshot });
   }
 
   /** The stops so far, where the caravan is, and what lies ahead. Forks show both ways. */
