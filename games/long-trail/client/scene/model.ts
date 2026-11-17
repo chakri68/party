@@ -20,12 +20,14 @@ export interface Beat {
   outcome?: EventOutcome | null; // event beats
   fill?: [number, number]; // travel: share of the leg walked at the start and at the end, 0..1
   arrive?: string | null; // travel: stop id reached, slides in
+  speed?: 0 | 1 | 2 | 3; // travel: the day's pace
+  terrain?: Terrain; // travel: the walked leg's kind, also on the day it ends at a stop
 }
 export interface SceneModel {
   terrain: Terrain;
   fork: boolean; // halted at a fork with no leg yet: draw two alike paths
   camp: boolean;
-  speed: 0 | 1 | 2 | 3; // 0 stopped, then slow, steady, hard
+  speed: 0 | 1 | 2 | 3; // 0 stopped (halted or camping), then slow, steady, hard
   walkers: Walker[];
   camels: number;
   overloaded: boolean;
@@ -71,30 +73,48 @@ function before(now: Record<string, Health>, changes: Report["healthChanges"]): 
   return out;
 }
 
+/** Health after the given changes, from `start`. */
+function after(start: Record<string, Health>, changes: Report["healthChanges"]): Record<string, Health> {
+  const out = { ...start };
+  for (const c of changes) if (c.playerId in out) out[c.playerId] = c.to;
+  return out;
+}
+
+/** Health-1 walkers in `order` who ride: only the first `camels` of them. */
+export function ridingIds(order: string[], health: Record<string, Health>, camels: number): Set<string> {
+  return new Set(order.filter((id) => health[id] === 1).slice(0, Math.max(0, camels)));
+}
+
+/** The leg that ended at `reached` today, from the stop visited before it. */
+function finishedLeg({ game, route }: SceneInput, reached: string) {
+  const from = game.visited[game.visited.lastIndexOf(reached) - 1];
+  return route.stops.find((x) => x.id === from)?.next.find((l) => l.to === reached);
+}
+
 /** Share of the leg walked before and after the day's travel. */
 function fillOf(input: SceneInput, report: Report, eventKm: number): [number, number] {
-  const { game, route } = input;
+  const { game } = input;
   const clamp = (n: number) => Math.min(1, Math.max(0, n));
   if (game.leg) {
     const end = (game.leg.km - game.leg.kmLeft - eventKm) / game.leg.km;
     return [clamp(end - report.km / game.leg.km), clamp(end)];
   }
   if (report.reached) {
-    // The leg just finished: its km from the route, from the stop visited before.
-    const from = game.visited[game.visited.lastIndexOf(report.reached) - 1];
-    const km = route.stops.find((x) => x.id === from)?.next.find((l) => l.to === report.reached)?.km;
+    // The pack route's km: approximate on legs whose km is rolled per game (forks).
+    const km = finishedLeg(input, report.reached)?.km;
     return [km ? clamp(1 - report.km / km) : 0, 1];
   }
   return [0, 0];
 }
 
-function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan): Beat[] {
+function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, terrain: Terrain): Beat[] {
   const { game, pack } = input;
   const report = playedReport(game);
   if (!report) return [];
   const outcome = game.phase === "summary" ? (game.lastDay!.eventOutcome ?? null) : null;
   const eventPart = outcome ? report.healthChanges.slice(report.healthChanges.length - outcome.healthChanges.length) : [];
-  const atEvent = before(final, eventPart);
+  // Travel's own changes show in settle, so every beat before it starts from the day's start.
+  const atStart = before(final, report.healthChanges);
   const camels = game.stock.animals;
   const camelsAt = (delta: number | undefined) => Math.max(0, camels - (delta ?? 0));
   const beats: Beat[] = [];
@@ -104,15 +124,17 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan): 
     beats.push({
       kind: "travel",
       ms: MS.travel,
-      health: before(final, report.healthChanges),
+      health: atStart,
       camels: camelsAt(report.stockDelta.animals),
       fill: fillOf(input, report, outcome?.km ?? 0),
       arrive: report.reached,
+      speed: SPEED[plan.pace],
+      terrain: game.leg?.kind ?? (report.reached ? finishedLeg(input, report.reached)?.kind : undefined) ?? terrain,
     });
   }
   if (game.phase === "choice") {
     const card = pack.events.find((e) => e.id === game.choice?.id);
-    beats.push({ kind: "situation", ms: Infinity, health: atEvent, camels, scene: card?.scene ?? "calm" });
+    beats.push({ kind: "situation", ms: Infinity, health: { ...atStart }, camels, scene: card?.scene ?? "calm" });
     return beats;
   }
   if (event) {
@@ -122,9 +144,9 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan): 
       const opt = (card as ChoiceEvent | undefined)?.options?.[event.choice.picked];
       scene = outcome?.lucky === false ? (opt?.badScene ?? opt?.scene) : opt?.scene;
     } else scene = card?.scene;
-    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: atEvent, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome });
+    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: { ...atStart }, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome });
   }
-  beats.push({ kind: "settle", ms: MS.settle, health: { ...final }, camels });
+  beats.push({ kind: "settle", ms: MS.settle, health: after(atStart, eventPart), camels });
   return beats;
 }
 
@@ -139,24 +161,20 @@ export function sceneModel(input: SceneInput): SceneModel {
   const left = new Set(game.players.filter((p) => p.left).map((p) => p.id));
   const shown = game.travellers.filter((t) => !left.has(t.id) && (t.health > 0 || diedToday.has(t.id)));
   const camels = game.stock.animals;
-  let riders = camels;
-  const walkers: Walker[] = shown.map((t) => {
-    const riding = t.health === 1 && riders > 0;
-    if (riding) riders--;
-    return { id: t.id, color: colorOf(t.id) ?? FALLBACK_COLOR, health: t.health, riding };
-  });
   const final = Object.fromEntries(shown.map((t) => [t.id, t.health])) as Record<string, Health>;
+  const riding = ridingIds(shown.map((t) => t.id), final, camels);
+  const walkers: Walker[] = shown.map((t) => ({ id: t.id, color: colorOf(t.id) ?? FALLBACK_COLOR, health: t.health, riding: riding.has(t.id) }));
 
   const load = Object.values(game.stock.cargo).reduce((a, n) => a + n, 0);
   return {
     terrain,
     fork: !game.leg && (stop?.next.length ?? 0) === 2,
     camp: plan.rest,
-    speed: !game.leg && !plan.rest ? 0 : SPEED[plan.pace],
+    speed: !game.leg || plan.rest ? 0 : SPEED[plan.pace],
     walkers,
     camels,
     overloaded: load > game.capacity,
-    beats: beatsOf(input, final, plan),
+    beats: beatsOf(input, final, plan, terrain),
     beatsKey: `${game.phase}:${game.day}`,
   };
 }
