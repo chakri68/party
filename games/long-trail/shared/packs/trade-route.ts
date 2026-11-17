@@ -196,8 +196,8 @@ const events: EventCard[] = [
     2,
     "Something shines far off. It could be a pond. It could be nothing.",
     "calm",
-    ["Stay on the path", { stock: { water: -2 } }, "leak"],
-    ["Walk to it", { km: -20, lostTime: true, chance: { p: 0.4, then: { stock: { water: 6 } }, else: { stock: { water: -4 } } } }, "water-found", "leak"],
+    ["Stay on the path", { stock: { water: -2 } }, "calm"],
+    ["Walk to it", { km: -20, lostTime: true, chance: { p: 0.4, then: { stock: { water: 6 } }, else: { stock: { water: -4 } } } }, "water-found", "turn-back"],
   ),
 
   ch(
@@ -231,9 +231,9 @@ const events: EventCard[] = [
     "mountain",
     1,
     "Snow on the high path. Wait for it to melt, or walk through it?",
-    "calm",
+    "storm",
     ["Wait a day", { km: -30, lostTime: true }, "calm"],
-    ["Walk through it", { chance: { p: 0.5, then: {}, else: { health: { target: "random", steps: 1 }, km: -15, lostTime: true } } }, "calm", "sick"],
+    ["Walk through it", { chance: { p: 0.5, then: {}, else: { health: { target: "random", steps: 1 }, km: -15, lostTime: true } } }, "calm", "storm"],
   ),
   ch(
     "mountain-2-bridge",
@@ -288,7 +288,7 @@ const events: EventCard[] = [
     "A village fair is on. You can stop to trade, or pass quickly.",
     "visitor",
     ["Pass quickly", {}, "calm"],
-    ["Stop and trade", { km: -10, lostTime: true, chance: { p: 0.6, then: { stock: { coins: 15 } }, else: { stock: { coins: -8 } } } }, "visitor", "thief"],
+    ["Stop and trade", { km: -10, lostTime: true, chance: { p: 0.6, then: { stock: { coins: 15 } }, else: { stock: { coins: -8 } } } }, "visitor", "visitor"],
   ),
   ev("plain-0-grass", "plain", 0, "Green grass by the path. The camels eat well and walk faster.", {}, "calm"),
   ev("plain-0-fire", "plain", 0, "Other travellers share their fire. They sell you a little food for 2 coins and tell you the news.", { stock: { food: 2, coins: -2 } }, "visitor"),

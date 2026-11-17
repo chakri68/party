@@ -144,6 +144,7 @@ describe("trade route pack", () => {
         expect(SCENE_IDS, `${card.id} ${o.label}`).toContain(o.scene);
         if (o.badScene !== undefined) expect(SCENE_IDS).toContain(o.badScene);
         if (o.effect.chance) expect(o.badScene, `${card.id} ${o.label} badScene`).toBeDefined();
+        else expect(o.badScene, `${card.id} ${o.label} badScene`).toBeUndefined();
       }
     }
   });
