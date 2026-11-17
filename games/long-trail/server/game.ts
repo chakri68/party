@@ -35,7 +35,7 @@ import {
 } from "../shared/types.ts";
 import { parseAction, VOTES } from "./parse.ts";
 import { goalTexts, privateState, publicState } from "./views.ts";
-import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, skipPlan, world } from "./world.ts";
+import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, skipPlan, stockDeltas, world } from "./world.ts";
 
 type State = LongTrailServerState;
 type Events = GameEventEnvelope<LongTrailEvent>[];
@@ -313,14 +313,7 @@ function closeUnfinishedDay(state: State): void {
 function closeDraft(state: State): DayLog {
   const c = state.caravan;
   const { log, before } = state.draft!;
-  for (const k of ["food", "water", "medicine", "animals", "coins"] as const) {
-    const d = c.stock[k] - before[k];
-    if (d !== 0) log.report.stockDelta[k] = d;
-  }
-  for (const good of new Set([...Object.keys(before.cargo), ...Object.keys(c.stock.cargo)])) {
-    const d = (c.stock.cargo[good] ?? 0) - (before.cargo[good] ?? 0);
-    if (d !== 0) log.report.cargoDelta[good] = d;
-  }
+  Object.assign(log.report, stockDeltas(before, c.stock));
   log.where = whereNow(state);
   state.log.push(log);
   state.lastDay = log;
