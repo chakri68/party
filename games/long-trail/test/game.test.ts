@@ -211,6 +211,60 @@ describe("medicine bought and given on the same day", () => {
   });
 });
 
+describe("the event's own outcome", () => {
+  it("a plain event's outcome is kept apart from the day", () => {
+    let found = false;
+    for (let seed = 1; seed < 40 && !found; seed++) {
+      let s = toPlan(start(4, {}, seed).state);
+      for (let day = 0; day < 20 && s.phase === "plan" && !found; day++) {
+        s = proposeOpen(s);
+        s = voteAll(s, "go").state;
+        if (s.phase === "choice") s = chooseAll(s, 0).state;
+        const last = s.log.at(-1)!;
+        if (last.event && !last.event.choice) {
+          found = true;
+          const out = last.eventOutcome!;
+          expect(out).toBeDefined();
+          const all = last.report.healthChanges;
+          for (const h of out.healthChanges) expect(all).toContainEqual(h);
+          expect(all.slice(all.length - out.healthChanges.length)).toEqual(out.healthChanges);
+        }
+        s = nextAll(s).state;
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  it("a choice's outcome is kept after the vote", () => {
+    let s: S | null = null;
+    for (let seed = 1; seed < 40 && !s; seed++) s = toChoice(seed);
+    s = chooseAll(s!, 0).state;
+    const last = s.log.at(-1)!;
+    expect(last.eventOutcome).toBeDefined();
+    expect(last.event!.choice).toBeDefined();
+  });
+
+  it("no event, no outcome", () => {
+    let checked = false;
+    for (let seed = 1; seed < 40 && !checked; seed++) {
+      let s = toPlan(start(4, {}, seed).state);
+      for (let day = 0; day < 60 && s.phase === "plan"; day++) {
+        s = proposeOpen(s);
+        s = voteAll(s, "go").state;
+        if (s.phase === "choice") s = chooseAll(s, 0).state;
+        if (s.caravan.arrivedDay !== null) {
+          expect(s.log.at(-1)!.event).toBeNull();
+          expect(s.log.at(-1)!.eventOutcome).toBeUndefined();
+          checked = true;
+          break;
+        }
+        s = nextAll(s).state;
+      }
+    }
+    expect(checked).toBe(true);
+  });
+});
+
 describe("abilities", () => {
   it("rejects arming a job with nothing to arm", () => {
     const s = toPlan(start(8).state);
