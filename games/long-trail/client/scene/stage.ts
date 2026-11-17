@@ -6,7 +6,7 @@
 import type { Health } from "../../shared/types.ts";
 import { loadArt, type Art } from "./art.ts";
 import { drawBackdrop, type View } from "./backdrop.ts";
-import { drawCaravan, layoutCaravan, type CaravanWalker } from "./caravan.ts";
+import { drawCaravan, layoutCaravan, walkerLook, type CaravanWalker } from "./caravan.ts";
 import { beatAt, startAt, totalMs } from "./director.ts";
 import { walkFrame } from "./events/fx.ts";
 import { SCENES, type EventScene, type Pose, type Stagehand } from "./events/index.ts";
@@ -261,10 +261,9 @@ export class TrailScene {
     for (const w of m.walkers) {
       // A walker who fades in this beat is drawn as at its start; one already dead is not drawn.
       const fading = !!beat?.fade?.includes(w.id);
-      const h = (fading ? beat!.health[w.id] : health[w.id]) ?? w.health;
-      const alpha = fading ? 1 - t : 1;
-      if (alpha <= 0 || h === 0) continue;
-      walkers.push({ id: w.id, color: w.color, health: h, riding: riding.has(w.id), alpha });
+      const look = walkerLook({ fading, health: (fading ? beat!.health[w.id] : health[w.id]) ?? w.health, t });
+      if (!look) continue;
+      walkers.push({ id: w.id, color: w.color, health: look.health, riding: riding.has(w.id), alpha: look.alpha });
     }
     const lay = layoutCaravan(v, walkers, camels);
 

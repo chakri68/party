@@ -26,6 +26,18 @@ export interface CaravanLayout {
   size: number; // the sprites' scale, 1 = full size, never below MIN_SIZE
 }
 
+/**
+ * How one walker is drawn in a beat, or null when not at all. A walker fading in
+ * this beat fades by 1 - t. One who died in the event already has health 0 in
+ * settle, so they are drawn at 1 (badly hurt) while they fade, not dropped at once.
+ */
+export function walkerLook(w: { fading: boolean; health: Health; t: number }): { health: Health; alpha: number } | null {
+  const alpha = w.fading ? 1 - w.t : 1;
+  if (alpha <= 0) return null;
+  if (w.health === 0) return w.fading ? { health: 1, alpha } : null;
+  return { health: w.health, alpha };
+}
+
 /** More camels than this are not drawn, unless that many have riders. */
 export const MAX_CAMELS = 6;
 // Spacing at s = 1: the left margin, camel to camel, the lead camel to the rear walker, walker to walker.
