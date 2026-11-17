@@ -34,19 +34,29 @@ export interface Effect {
   lostTime?: boolean; // marks it for the Scout
   chance?: { p: number; then: Effect; else?: Effect }; // p in 0..1
 }
+export const SCENE_IDS = ["calm", "storm", "robbers", "fire", "water", "rocks", "camel-trouble", "sick", "visitor", "water-found", "turn-back", "thief", "leak"] as const;
+export type SceneId = (typeof SCENE_IDS)[number];
 export interface PlainEvent {
   id: string;
   kind: LegKind | "any";
   severity: Danger;
   text: string;
   effect: Effect;
+  scene?: SceneId; // what plays on screen
+}
+export interface ChoiceOption {
+  label: string;
+  effect: Effect;
+  scene?: SceneId; // the result
+  badScene?: SceneId; // the result when the chance roll went badly; falls back to `scene`
 }
 export interface ChoiceEvent {
   id: string;
   kind: LegKind | "any";
   severity: Danger;
   text: string;
-  options: [{ label: string; effect: Effect }, { label: string; effect: Effect }]; // options[0] is the safer one
+  scene?: SceneId; // the situation, looped while players pick
+  options: [ChoiceOption, ChoiceOption]; // options[0] is the safer one
 }
 export type EventCard = PlainEvent | ChoiceEvent; // ChoiceEvent has `options`
 export interface GoalCard {
