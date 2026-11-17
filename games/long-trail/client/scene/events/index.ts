@@ -23,6 +23,7 @@ export interface Stagehand {
   c: CanvasRenderingContext2D;
   v: View;
   t: number; // 0..1 through the beat
+  ms: number; // the beat's length: 4000 for an event, 5000 for a choice's result, Infinity for a situation
   loop: boolean; // situation: t loops, so the scene must look the same at t = 0 and t = 1
   /** What the event did. Null in a situation loop (nothing has happened yet) and for the mildest version. */
   outcome: EventOutcome | null;

@@ -18,7 +18,7 @@ export interface Beat {
   camels: number; // camels drawn as this beat starts
   scene?: SceneId; // event and situation beats
   outcome?: EventOutcome | null; // event beats
-  fill?: [number, number]; // travel: share of the leg walked at the start and at the end, 0..1
+  fade?: string[]; // walkers who fade out through this beat (drawn as at its start, alpha 1 - t), then are gone
   arrive?: string | null; // travel: stop id reached, slides in
   speed?: 0 | 1 | 2 | 3; // travel: the day's pace
   terrain?: Terrain; // travel: the walked leg's kind, also on the day it ends at a stop
@@ -91,20 +91,9 @@ function finishedLeg({ game, route }: SceneInput, reached: string) {
   return route.stops.find((x) => x.id === from)?.next.find((l) => l.to === reached);
 }
 
-/** Share of the leg walked before and after the day's travel. */
-function fillOf(input: SceneInput, report: Report, eventKm: number): [number, number] {
-  const { game } = input;
-  const clamp = (n: number) => Math.min(1, Math.max(0, n));
-  if (game.leg) {
-    const end = (game.leg.km - game.leg.kmLeft - eventKm) / game.leg.km;
-    return [clamp(end - report.km / game.leg.km), clamp(end)];
-  }
-  if (report.reached) {
-    // The pack route's km: approximate on legs whose km is rolled per game (forks).
-    const km = finishedLeg(input, report.reached)?.km;
-    return [km ? clamp(1 - report.km / km) : 0, 1];
-  }
-  return [0, 0];
+/** Walkers alive in `from` and dead in `to`. */
+function dying(from: Record<string, Health>, to: Record<string, Health>): string[] {
+  return Object.keys(to).filter((id) => to[id] === 0 && (from[id] ?? 0) > 0);
 }
 
 function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, terrain: Terrain): Beat[] {
@@ -113,20 +102,26 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
   if (!report) return [];
   const outcome = game.phase === "summary" ? (game.lastDay!.eventOutcome ?? null) : null;
   const eventPart = outcome ? report.healthChanges.slice(report.healthChanges.length - outcome.healthChanges.length) : [];
-  // Travel's own changes show in settle, so every beat before it starts from the day's start.
   const atStart = before(final, report.healthChanges);
+  // Health once travel is done: before the event's own changes.
+  const afterTravel = before(final, eventPart);
   const camels = game.stock.animals;
   const camelsAt = (delta: number | undefined) => Math.max(0, camels - (delta ?? 0));
   const beats: Beat[] = [];
   const event = game.phase === "summary" ? game.lastDay!.event : null;
   const choiceDone = !!event?.choice;
+  const choiceDay = game.phase === "choice" || choiceDone;
+  // A plain day shows travel's own changes in settle, so every beat before it starts from the day's start.
+  // A choice day shows them by the end of the travel beat, which plays in `choice`.
+  const eventStart = choiceDay ? afterTravel : atStart;
   if (!plan.rest && !choiceDone) {
+    const fade = game.phase === "choice" ? dying(atStart, afterTravel) : [];
     beats.push({
       kind: "travel",
       ms: MS.travel,
       health: atStart,
       camels: camelsAt(report.stockDelta.animals),
-      fill: fillOf(input, report, outcome?.km ?? 0),
+      ...(fade.length ? { fade } : {}),
       arrive: report.reached,
       speed: SPEED[plan.pace],
       terrain: game.leg?.kind ?? (report.reached ? finishedLeg(input, report.reached)?.kind : undefined) ?? terrain,
@@ -134,7 +129,7 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
   }
   if (game.phase === "choice") {
     const card = pack.events.find((e) => e.id === game.choice?.id);
-    beats.push({ kind: "situation", ms: Infinity, health: { ...atStart }, camels, scene: card?.scene ?? "calm" });
+    beats.push({ kind: "situation", ms: Infinity, health: { ...afterTravel }, camels, scene: card?.scene ?? "calm" });
     return beats;
   }
   if (event) {
@@ -144,9 +139,11 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
       const opt = (card as ChoiceEvent | undefined)?.options?.[event.choice.picked];
       scene = outcome?.lucky === false ? (opt?.badScene ?? opt?.scene) : opt?.scene;
     } else scene = card?.scene;
-    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: { ...atStart }, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome });
+    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: { ...eventStart }, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome });
   }
-  beats.push({ kind: "settle", ms: MS.settle, health: after(atStart, eventPart), camels });
+  const settle = after(eventStart, eventPart);
+  const fade = dying(eventStart, final);
+  beats.push({ kind: "settle", ms: MS.settle, health: settle, camels, ...(fade.length ? { fade } : {}) });
   return beats;
 }
 

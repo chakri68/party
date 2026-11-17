@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Art } from "../client/scene/art.ts";
 import { drawBackdrop, type View } from "../client/scene/backdrop.ts";
 import { SCENES, type Stagehand } from "../client/scene/events/index.ts";
-import { ticks } from "../client/scene/events/fx.ts";
+import { ticks, walkFrame } from "../client/scene/events/fx.ts";
 import type { Terrain } from "../client/scene/model.ts";
 import {
   drawCamel,
@@ -76,11 +76,12 @@ const HARSH: EventOutcome = {
 };
 const TS = [0, 0.25, 0.5, 0.75, 1];
 
-function hand(c: CanvasRenderingContext2D, t: number, loop: boolean, outcome: EventOutcome | null, terrain?: Terrain): Stagehand {
+function hand(c: CanvasRenderingContext2D, t: number, loop: boolean, outcome: EventOutcome | null, terrain?: Terrain, ms = 4000): Stagehand {
   return {
     c,
     v: view,
     t,
+    ms: loop ? Infinity : ms,
     loop,
     outcome,
     caravan: { x0: 30, x1: 200 },
@@ -219,17 +220,24 @@ describe("event scenes", () => {
     expect(SCENES["camel-trouble"].pose!(hand(fakeCtx().ctx, 1, false, null)).hideCamel).toBeUndefined();
   });
 
-  it("flicker changes at most 3 times a second", () => {
-    for (const loop of [false, true]) {
-      const ms = loop ? 2400 : 4000;
+  it("flicker changes at most 3 times a second, timed to the real beat", () => {
+    // An event beat, a choice's result, and a situation loop.
+    for (const [loop, ms] of [[false, 4000], [false, 5000], [true, 2400]] as const) {
       let changes = 0;
-      let last = ticks(hand(fakeCtx().ctx, 0, loop, null));
+      let last = ticks(hand(fakeCtx().ctx, 0, loop, null, undefined, ms));
       for (let i = 1; i <= 1000; i++) {
-        const k = ticks(hand(fakeCtx().ctx, i / 1000, loop, null));
+        const k = ticks(hand(fakeCtx().ctx, i / 1000, loop, null, undefined, ms));
         if (k !== last) changes++;
         last = k;
       }
-      expect(changes).toBeLessThanOrEqual((3 * ms) / 1000);
+      expect(changes, `ms=${ms} loop=${loop}`).toBeLessThanOrEqual((3 * ms) / 1000);
+      expect(changes, `ms=${ms} loop=${loop}`).toBeGreaterThanOrEqual((3 * ms) / 1000 - 1);
     }
+  });
+
+  it("walk frames follow the real beat length", () => {
+    const a = walkFrame(hand(fakeCtx().ctx, 1, false, null, undefined, 4000));
+    const b = walkFrame(hand(fakeCtx().ctx, 1, false, null, undefined, 5000));
+    expect(b / a).toBeCloseTo(5 / 4);
   });
 });

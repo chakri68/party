@@ -22,6 +22,8 @@ export interface CaravanLayout {
   footX: Map<string, number>; // feet x of each traveller on foot
   x0: number; // the rear sprite's feet
   x1: number; // the lead sprite's feet
+  spacing: number; // the gaps' share of their full size, 1 = not squeezed
+  size: number; // the sprites' scale, 1 = full size, never below MIN_SIZE
 }
 
 /** More camels than this are not drawn, unless that many have riders. */
@@ -29,21 +31,40 @@ export const MAX_CAMELS = 6;
 // Spacing at s = 1: the left margin, camel to camel, the lead camel to the rear walker, walker to walker.
 const LEFT = 28;
 const CAMEL_GAP = 46;
-const TO_WALKERS = 40;
-const WALKER_GAP = 22;
+const TO_WALKERS = 44;
+const WALKER_GAP = 23; // just over a walker's hips (12 x TRAVELLER = 19.2) at MIN_SPACING
 /** The caravan keeps to the left part of the band; event scenes play to its right. */
 const SPAN = 0.7;
+/** Gaps squeezed below this share of their size (k / size) make a heap: draw fewer camels first, then smaller sprites. */
+const MIN_SPACING = 0.85;
+const MIN_SIZE = 0.85;
+/** The tightest squeeze, for a caravan that still does not fit. */
+const MAX_SQUEEZE = 0.45;
 
+/**
+ * Where everyone stands. A crowded caravan first draws fewer camels (never fewer
+ * than carry riders, and at least one if there are any), then draws smaller
+ * sprites, down to MIN_SIZE. Travellers are never dropped.
+ */
 export function layoutCaravan(v: View, walkers: CaravanWalker[], camels: number): CaravanLayout {
   const riders = walkers.filter((w) => w.riding);
-  const n = Math.max(0, Math.min(camels, Math.max(MAX_CAMELS, riders.length)));
+  const most = Math.max(0, Math.min(camels, Math.max(MAX_CAMELS, riders.length)));
+  const fewest = Math.min(most, Math.max(camels > 0 ? 1 : 0, riders.length));
+  const room = (v.w / v.s) * SPAN - LEFT;
+  const spanOf = (n: number) => {
+    const m = walkers.length - Math.min(n, riders.length);
+    return (n > 0 ? (n - 1) * CAMEL_GAP + TO_WALKERS : 0) + Math.max(0, m - 1) * WALKER_GAP;
+  };
+  const fit = (n: number) => (spanOf(n) > room && spanOf(n) > 0 ? room / spanOf(n) : 1);
+  let n = most;
+  while (n > fewest && fit(n) < MIN_SPACING) n--;
+  const k = Math.max(MAX_SQUEEZE, fit(n));
+  const size = Math.max(MIN_SIZE, Math.min(1, k / MIN_SPACING));
   const seat = new Map<string, number>();
-  riders.slice(0, n).forEach((w, k) => seat.set(w.id, n - 1 - k));
+  riders.slice(0, n).forEach((w, j) => seat.set(w.id, n - 1 - j));
+  // Riders with no camel drawn walk, with a limp.
   const foot = walkers.filter((w) => !seat.has(w.id));
   const m = foot.length;
-  const span = (n > 0 ? (n - 1) * CAMEL_GAP + TO_WALKERS : 0) + Math.max(0, m - 1) * WALKER_GAP;
-  const room = (v.w / v.s) * SPAN - LEFT;
-  const k = span > room && span > 0 ? Math.max(0.45, room / span) : 1;
   const u = v.s * k;
   const left = LEFT * v.s;
   const camelX = Array.from({ length: n }, (_, i) => left + (n - 1 - i) * CAMEL_GAP * u);
@@ -53,7 +74,7 @@ export function layoutCaravan(v: View, walkers: CaravanWalker[], camels: number)
   foot.forEach((w, j) => footX.set(w.id, start + (m - 1 - j) * WALKER_GAP * u));
   const x0 = n > 0 ? camelX[n - 1]! : m > 0 ? footX.get(foot[m - 1]!.id)! : left;
   const x1 = m > 0 ? footX.get(foot[0]!.id)! : n > 0 ? camelX[0]! : left;
-  return { camelX, seat, footX, x0, x1 };
+  return { camelX, seat, footX, x0, x1, spacing: k, size };
 }
 
 /** Draws `fn` at x, turned round about x when facing left. */
@@ -91,7 +112,7 @@ export function drawCaravan(
   load: "normal" | "high",
   moveFrame = frame, // the walk frame of a traveller the pose moves out of line
 ): void {
-  const s = v.s;
+  const s = v.s * lay.size;
   const g = v.ground;
   const dx = pose.dx ?? 0;
   const facing = pose.facing ?? 1;
