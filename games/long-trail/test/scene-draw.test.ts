@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Art } from "../client/scene/art.ts";
 import { drawBackdrop, type View } from "../client/scene/backdrop.ts";
+import { SCENES, type Stagehand } from "../client/scene/events/index.ts";
+import { ticks } from "../client/scene/events/fx.ts";
 import type { Terrain } from "../client/scene/model.ts";
 import {
   drawCamel,
@@ -12,6 +14,8 @@ import {
   drawTent,
   drawTraveller,
 } from "../client/scene/sprites.ts";
+import type { EventOutcome } from "../shared/events.ts";
+import { SCENE_IDS, type SceneId } from "../shared/pack.ts";
 import type { Health } from "../shared/types.ts";
 import { fakeCtx } from "./scene-fake-ctx.ts";
 
@@ -58,5 +62,124 @@ describe("scene drawing", () => {
     drawCamel(f.ctx, 50, 80, 1, 0.3, "high");
     drawRider(f.ctx, 50, 80, 1, 0.3, -1);
     expect(f.count("save")).toBe(f.count("restore"));
+  });
+});
+
+const HARSH: EventOutcome = {
+  healthChanges: [{ playerId: "p2", from: 3, to: 2 }],
+  stock: { animals: -1, coins: -10, food: -5 },
+  km: 0,
+  scoutSaved: false,
+  cargo: -2,
+  lucky: false,
+};
+const TS = [0, 0.25, 0.5, 0.75, 1];
+
+function hand(c: CanvasRenderingContext2D, t: number, loop: boolean, outcome: EventOutcome | null, terrain?: Terrain): Stagehand {
+  return {
+    c,
+    v: view,
+    t,
+    loop,
+    outcome,
+    caravan: { x0: 30, x1: 200 },
+    target: outcome?.healthChanges.length ? { id: "p2", x: 150 } : null,
+    terrain,
+    camels: 2,
+  };
+}
+
+function drawAll(id: SceneId, h: Stagehand) {
+  const sc = SCENES[id];
+  return { pose: sc.pose?.(h) ?? {}, back: sc.back?.(h), front: sc.front?.(h) };
+}
+
+describe("event scenes", () => {
+  it("every scene draws through its beat", () => {
+    for (const id of SCENE_IDS) {
+      const sc = SCENES[id];
+      expect(sc, id).toBeDefined();
+      expect(sc.still).toBeGreaterThanOrEqual(0);
+      expect(sc.still).toBeLessThanOrEqual(1);
+      for (const t of TS)
+        for (const loop of [false, true])
+          for (const outcome of [null, HARSH])
+            for (const terrain of [undefined, "mountain", "river"] as const) {
+              const f = fakeCtx();
+              expect(() => drawAll(id, hand(f.ctx, t, loop, outcome, terrain)), `${id} t=${t} loop=${loop}`).not.toThrow();
+              expect(f.count("save"), `${id} save/restore`).toBe(f.count("restore"));
+            }
+    }
+  });
+
+  it("a situation loops cleanly", () => {
+    for (const id of SCENE_IDS) {
+      const pose = SCENES[id].pose;
+      if (!pose) continue;
+      for (const outcome of [null, HARSH]) {
+        const a = pose(hand(fakeCtx().ctx, 0, true, outcome));
+        const b = pose(hand(fakeCtx().ctx, 1, true, outcome));
+        expect(b, id).toEqual(a);
+      }
+    }
+  });
+
+  it("a situation loop draws the same at t = 0 and t = 1", () => {
+    for (const id of SCENE_IDS) {
+      const a = fakeCtx();
+      const b = fakeCtx();
+      drawAll(id, hand(a.ctx, 0, true, HARSH));
+      drawAll(id, hand(b.ctx, 1, true, HARSH));
+      expect(b.calls, id).toEqual(a.calls);
+    }
+  });
+
+  it("an event beat ends with the caravan in its own place", () => {
+    for (const id of SCENE_IDS) {
+      const p = SCENES[id].pose?.(hand(fakeCtx().ctx, 1, false, null)) ?? {};
+      expect(p.dx ?? 0, id).toBe(0);
+      expect(p.crouch ?? false, id).toBe(false);
+      expect(p.facing ?? 1, id).toBe(1);
+    }
+  });
+
+  it("the outcome decides the ending", () => {
+    const end = (id: SceneId, outcome: EventOutcome | null, t = 1) => SCENES[id].pose?.(hand(fakeCtx().ctx, t, false, outcome)) ?? {};
+    expect(end("camel-trouble", HARSH).hideCamel).toBe(0);
+    expect(end("camel-trouble", null).hideCamel).toBeUndefined();
+    expect(end("thief", null).night).toBe(true);
+    // Robbers ride off with a pack only when something was lost.
+    const fills = (outcome: EventOutcome | null) => {
+      const f = fakeCtx();
+      drawAll("robbers", hand(f.ctx, 0.8, false, outcome));
+      return f.count("fill");
+    };
+    expect(fills(HARSH)).toBeGreaterThan(fills(null));
+    const mild: EventOutcome = { ...HARSH, stock: {}, cargo: 0 };
+    expect(fills(mild)).toBe(fills(null));
+  });
+
+  it("a situation loop never shows the loss", () => {
+    const f = (outcome: EventOutcome | null) => {
+      const x = fakeCtx();
+      drawAll("robbers", hand(x.ctx, 0.5, true, outcome));
+      return x.calls;
+    };
+    expect(f(HARSH)).toEqual(f(null));
+    expect(SCENES["camel-trouble"].pose?.(hand(fakeCtx().ctx, 0.5, true, null)).hideCamel).toBe(0);
+  });
+
+  it("flicker changes at most 3 times a second", () => {
+    for (const loop of [false, true]) {
+      const ms = loop ? 2400 : 4000;
+      let changes = 0;
+      let last = ticks(hand(fakeCtx().ctx, 0, loop, null));
+      for (let i = 1; i <= 1000; i++) {
+        const k = ticks(hand(fakeCtx().ctx, i / 1000, loop, null));
+        if (k !== last) changes++;
+        last = k;
+      }
+      expect(changes).toBeLessThanOrEqual((3 * ms) / 1000);
+    }
   });
 });
