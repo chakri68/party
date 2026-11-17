@@ -24,7 +24,7 @@ function flames(h: Stagehand, x: number, y: number, k: number): void {
 }
 
 export const fire: EventScene = {
-  still: 0.3,
+  still: 0.72,
   pose: (h) => ({ dx: px(h.loop ? 0 : -8 * h.v.s * env(h.t, 0.1, 0.25, 0.7, 0.95)) }),
   back(h) {
     const { c, v } = h;

@@ -21,7 +21,7 @@ function shadow(h: Stagehand, x: number, y: number, frame: number, loot: boolean
 }
 
 export const thief: EventScene = {
-  still: 0.55,
+  still: 0.75,
   pose: () => ({ night: true }),
   back(h) {
     const { c, v } = h;

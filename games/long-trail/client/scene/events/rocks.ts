@@ -39,7 +39,7 @@ function fall(h: Stagehand): void {
 }
 
 export const rocks: EventScene = {
-  still: 0.45,
+  still: 0.65,
   pose: (h) => ({ crouch: !h.loop && h.t > 0.55 && h.t < 0.85 }),
   back: fall,
 };

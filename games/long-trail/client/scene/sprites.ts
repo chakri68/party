@@ -116,10 +116,15 @@ export function drawTraveller(
   y: number,
   s: number,
   frame: number,
-  w: { color: string; health: Health; riding: boolean; alpha: number },
+  w: { color: string; health: Health; riding: boolean; alpha: number; down?: boolean },
 ): void {
   begin(c, x, y, s * TRAVELLER);
   c.globalAlpha *= Math.max(0, Math.min(1, w.alpha));
+  if (w.down) {
+    lying(c, w.color);
+    c.restore();
+    return;
+  }
   const st = step(frame);
   if (w.riding) {
     // Seated on a camel's back: (x, y) is the seat.
@@ -143,6 +148,19 @@ export function drawTraveller(
   if (limp) limb(c, 4.5, -12, 8, 0, 1.4, WOOD); // a walking stick
   upper(c, w.color, -16, w.health < 3);
   c.restore();
+}
+
+/** Lying on the ground, feet at (-11, 0), head to the right at (10, -3.5). Riding or walking does not matter. */
+function lying(c: C, color: string): void {
+  limb(c, -11, -1.4, -5, -1.4, 2.4, "#3d2c22"); // legs
+  poly(c, [[-6, 0], [5, 0], [5, -6], [-6, -4.5]], color);
+  ell(c, 5, -3, 2.6, 3.2, color); // shoulders
+  box(c, -1, -5.6, 1.4, 5.6, SHADE); // sash
+  ell(c, 10, -3.5, 3.6, 3.4, SKIN);
+  c.fillStyle = WRAP;
+  c.beginPath();
+  c.ellipse(11, -3.5, 3.4, 3.8, 0, -Math.PI / 2, Math.PI / 2);
+  c.fill();
 }
 
 /** Shoulders, arm, head and head wrap, with the top of the robe at `top`. */

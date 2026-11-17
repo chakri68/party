@@ -43,7 +43,8 @@ describe("scene drawing", () => {
       for (const load of ["normal", "high", "none"] as const) drawCamel(c, 50, 80, 1, frame, load);
       for (const health of [1, 2, 3] as Health[])
         for (const riding of [true, false])
-          drawTraveller(c, 50, 80, 1, frame, { color: "#c0392b", health, riding, alpha: 0.5 });
+          for (const down of [false, true])
+            drawTraveller(c, 50, 80, 1, frame, { color: "#c0392b", health, riding, alpha: 0.5, down });
       drawTent(c, 50, 80, 1);
       drawFire(c, 50, 80, 1, frame);
       drawStall(c, 50, 80, 1, 30);
@@ -86,6 +87,8 @@ function hand(c: CanvasRenderingContext2D, t: number, loop: boolean, outcome: Ev
     target: outcome?.healthChanges.length ? { id: "p2", x: 150 } : null,
     terrain,
     camels: 2,
+    camelX: [80, 30],
+    walkers: [110, 130, 150, 170].map((x, i) => ({ id: `p${i}`, x })),
   };
 }
 
@@ -125,13 +128,14 @@ describe("event scenes", () => {
   });
 
   it("a situation loop draws the same at t = 0 and t = 1", () => {
-    for (const id of SCENE_IDS) {
-      const a = fakeCtx();
-      const b = fakeCtx();
-      drawAll(id, hand(a.ctx, 0, true, HARSH));
-      drawAll(id, hand(b.ctx, 1, true, HARSH));
-      expect(b.calls, id).toEqual(a.calls);
-    }
+    for (const id of SCENE_IDS)
+      for (const terrain of [undefined, "mountain", "river", "desert"] as const) {
+        const a = fakeCtx();
+        const b = fakeCtx();
+        drawAll(id, hand(a.ctx, 0, true, null, terrain));
+        drawAll(id, hand(b.ctx, 1, true, null, terrain));
+        expect(b.trace, `${id} ${terrain}`).toEqual(a.trace);
+      }
   });
 
   it("an event beat ends with the caravan in its own place", () => {
@@ -160,13 +164,58 @@ describe("event scenes", () => {
   });
 
   it("a situation loop never shows the loss", () => {
-    const f = (outcome: EventOutcome | null) => {
-      const x = fakeCtx();
-      drawAll("robbers", hand(x.ctx, 0.5, true, outcome));
-      return x.calls;
-    };
-    expect(f(HARSH)).toEqual(f(null));
+    for (const id of SCENE_IDS)
+      for (const t of [0.2, 0.5, 0.8]) {
+        const run = (outcome: EventOutcome | null) => {
+          const x = fakeCtx();
+          const r = drawAll(id, hand(x.ctx, t, true, outcome));
+          return { pose: r.pose, trace: x.trace };
+        };
+        expect(run(HARSH), `${id} t=${t}`).toEqual(run(null));
+      }
     expect(SCENES["camel-trouble"].pose?.(hand(fakeCtx().ctx, 0.5, true, null)).hideCamel).toBe(0);
+  });
+
+  it("camel trouble with no camels hides none and draws no camel", () => {
+    for (const t of TS)
+      for (const loop of [false, true])
+        for (const outcome of [null, HARSH]) {
+          const f = fakeCtx();
+          const h = { ...hand(f.ctx, t, loop, outcome), camels: 0, camelX: [] };
+          const { pose } = drawAll("camel-trouble", h);
+          expect(pose.hideCamel).toBeUndefined();
+          expect(f.count("save")).toBe(f.count("restore"));
+          expect(f.count("save"), `t=${t}`).toBe(0); // drawCamel saves; nothing else here does
+        }
+  });
+
+  it("the hurt traveller lies down", () => {
+    const pose = (id: SceneId, t: number, outcome: EventOutcome | null) => SCENES[id].pose?.(hand(fakeCtx().ctx, t, false, outcome)) ?? {};
+    expect(pose("sick", 0.6, HARSH).down).toBe("p2");
+    expect(pose("sick", 0.6, null)).toEqual({});
+    expect(pose("water", 0.5, HARSH).down).toBe("p2");
+    expect(pose("water", 0.9, HARSH).down).toBeUndefined();
+    expect(pose("water", 0.5, null).down).toBeUndefined();
+  });
+
+  it("leak: the traveller nearest the bag walks back, ties it, and returns", () => {
+    const pose = (t: number) => SCENES.leak.pose?.(hand(fakeCtx().ctx, t, false, null)) ?? {};
+    expect(pose(0.1)).toEqual({});
+    expect(pose(0.5).move).toMatchObject({ id: "p0", facing: -1, crouch: true });
+    expect(pose(0.5).move!.x).toBeLessThan(110);
+    expect(pose(0.9)).toEqual({});
+    expect(pose(0.5).crouch).toBeUndefined(); // the others keep walking
+  });
+
+  it("camel trouble: the camel walks out from its place and back with no jump", () => {
+    const at = (t: number) => {
+      const f = fakeCtx();
+      SCENES["camel-trouble"].back!(hand(f.ctx, t, false, null));
+      return f.trace.find((x) => x.startsWith("translate("));
+    };
+    expect(at(0)).toBe("translate(80,78)"); // the lead camel's own place
+    expect(at(0.999)).toMatch(/^translate\(80(\.\d+)?,78\)$/);
+    expect(SCENES["camel-trouble"].pose!(hand(fakeCtx().ctx, 1, false, null)).hideCamel).toBeUndefined();
   });
 
   it("flicker changes at most 3 times a second", () => {

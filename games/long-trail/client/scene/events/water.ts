@@ -1,8 +1,8 @@
 // Water: the river rises over the ground and the path, a wave hits the hurt
 // traveller, then it falls back. Off a river leg, a river is drawn in the
 // ground layer. A situation shows the river running high.
-import { ell, env, line, rnd, ticks, wrap } from "./fx.ts";
-import type { EventScene, Stagehand } from "./index.ts";
+import { ell, env, hurt, line, rnd, ticks, wrap } from "./fx.ts";
+import type { EventScene, Pose, Stagehand } from "./index.ts";
 
 const WATER = "#4f9fb8";
 const LIGHT = "#86c9da";
@@ -19,14 +19,19 @@ function river(h: Stagehand): void {
   c.fillStyle = LIGHT;
   const gap = 30 * s;
   for (let i = 0; i * gap < v.w + gap; i++) {
-    const x = wrap(i * gap + rnd(i, 81) * gap + h.t * (h.loop ? 1 : 2) * gap, v.w + gap) - gap;
+    const x = wrap(i * gap + rnd(i, 81) * gap + h.t * (h.loop ? v.w + gap : 2 * gap), v.w + gap) // a loop moves a whole wrap - gap;
     c.fillRect(x, top + (0.2 + rnd(i, 82) * 0.6) * (bottom - top), (6 + rnd(i, 83) * 8) * s, 1.2 * s);
   }
 }
 
 export const water: EventScene = {
-  still: 0.4,
-  pose: (h) => ({ crouch: !h.loop && h.t > 0.35 && h.t < 0.62 }),
+  still: 0.48,
+  pose(h) {
+    const who = hurt(h);
+    const p: Pose = { crouch: !h.loop && h.t > 0.35 && h.t < 0.62 };
+    if (who && h.t > 0.42 && h.t < 0.75) p.down = who.id; // knocked down by the wave, then up again
+    return p;
+  },
   back: river,
   front(h) {
     const { c, v } = h;
@@ -41,11 +46,12 @@ export const water: EventScene = {
       c.fillRect(0, v.ground - 2 * s, v.w, deep * 8 * s);
       c.restore();
     }
-    if (h.loop || !h.target) return;
+    const who = hurt(h);
+    if (!who) return;
     // The wave that knocks the traveller down.
     const a = env(h.t, 0.3, 0.38, 0.52, 0.62);
     if (a <= 0) return;
-    const x = h.target.x;
+    const x = who.x;
     const k = 0.8 + 0.2 * (ticks(h) % 2);
     c.save();
     c.globalAlpha *= a;

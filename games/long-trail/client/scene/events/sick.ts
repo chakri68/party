@@ -1,38 +1,59 @@
-// Sick: a blanket and a small fire by the hurt traveller, and the others
-// crouch round. With no one named, it plays by the middle of the caravan.
+// Sick: the hurt traveller lies down by a small fire under a blanket, and the
+// others crouch round. With no one hurt (or in a situation), the caravan only
+// rests by the fire: no blanket, no one lying down.
 import { drawFire } from "../sprites.ts";
-import { ell, ramp, targetX, ticks } from "./fx.ts";
+import { ell, hurt, ramp, ticks } from "./fx.ts";
 import type { EventScene, Stagehand } from "./index.ts";
 
-const shown = (h: Stagehand) => (h.loop ? 1 : ramp(h.t, 0.08, 0.25));
+const LIE = 0.18; // lies down from here to the end
+const shown = (h: Stagehand) => (h.loop ? 1 : ramp(h.t, 0.05, 0.2));
+
+/** The fire: on the near side by the hurt traveller's head, else ahead of the caravan. */
+function fire(h: Stagehand, near: boolean): void {
+  const who = hurt(h);
+  if (!!who !== near) return;
+  const { c, v } = h;
+  const a = shown(h);
+  if (a <= 0) return;
+  const x = who ? who.x + 18 * v.s : h.caravan.x1 + 26 * v.s;
+  c.save();
+  c.globalAlpha *= a;
+  drawFire(c, x, v.ground + (who ? 9 : -1) * v.s, v.s * 0.9, ticks(h) / 4);
+  c.restore();
+}
 
 export const sick: EventScene = {
   still: 0.6,
-  pose: (h) => ({ crouch: h.loop || (h.t > 0.2 && h.t < 0.85) }),
-  back(h) {
+  pose(h) {
+    const who = hurt(h);
+    if (!who || h.t < LIE) return {};
+    return { down: who.id, crouch: h.t > 0.25 && h.t < 0.85 };
+  },
+  back: (h) => fire(h, false),
+  front(h) {
+    fire(h, true);
+    const who = hurt(h);
+    if (!who) return;
     const { c, v } = h;
     const s = v.s;
-    const a = shown(h);
+    const a = ramp(h.t, LIE, LIE + 0.1);
     if (a <= 0) return;
-    const x = targetX(h);
+    // A striped blanket over the body, the head left out; a bowl of water by them.
+    const x = who.x;
     c.save();
     c.globalAlpha *= a;
-    ell(c, x, v.ground + 1 * s, 13 * s, 2.6 * s, "#a8432f");
+    c.fillStyle = "#a8432f";
+    c.beginPath();
+    c.moveTo(x - 15 * s, v.ground + 1 * s);
+    c.lineTo(x - 14 * s, v.ground - 6 * s);
+    c.quadraticCurveTo(x - 4 * s, v.ground - 10 * s, x + 8 * s, v.ground - 8 * s);
+    c.lineTo(x + 9 * s, v.ground + 1 * s);
+    c.closePath();
+    c.fill();
     c.fillStyle = "#e2b04a";
-    c.fillRect(x - 13 * s, v.ground + 0.5 * s, 26 * s, 0.9 * s);
-    drawFire(c, x + 20 * s, v.ground - 3 * s, s * 0.8, ticks(h) / 4);
-    c.restore();
-  },
-  front(h) {
-    const { c, v } = h;
-    const a = shown(h);
-    if (a <= 0) return;
-    // A bowl of water at their feet.
-    const x = targetX(h) - 9 * v.s;
-    c.save();
-    c.globalAlpha *= a;
-    ell(c, x, v.ground + 5 * v.s, 3.4 * v.s, 1.6 * v.s, "#7a5235");
-    ell(c, x, v.ground + 4.4 * v.s, 2.6 * v.s, 0.8 * v.s, "#86c9da");
+    for (const dx of [-10, -4, 2]) c.fillRect(x + dx * s, v.ground - 8.5 * s, 1.6 * s, 9.5 * s);
+    ell(c, x - 18 * s, v.ground + 5 * s, 3.4 * s, 1.6 * s, "#7a5235");
+    ell(c, x - 18 * s, v.ground + 4.4 * s, 2.6 * s, 0.8 * s, "#86c9da");
     c.restore();
   },
 };

@@ -53,7 +53,7 @@ function ride(h: Stagehand, near: boolean): void {
 }
 
 export const robbers: EventScene = {
-  still: 0.45,
+  still: 0.75,
   pose: (h) => ({ crouch: !h.loop && h.t > IN - 0.02 && h.t < OUT }),
   back: (h) => ride(h, false),
   front: (h) => ride(h, true),

@@ -49,8 +49,8 @@ export const burnt = (o: EventOutcome | null) => !!o && (o.cargo < 0 || (o.stock
 export const gained = (o: EventOutcome | null) => !!o && Object.values(o.stock).some((d) => (d ?? 0) > 0);
 export const gave = (o: EventOutcome | null) => !!o && Object.values(o.stock).some((d) => (d ?? 0) < 0);
 
-/** Where the hurt traveller stands, or the middle of the caravan. */
-export const targetX = (h: Stagehand) => h.target?.x ?? (h.caravan.x0 + h.caravan.x1) / 2;
+/** The hurt traveller, never in a loop: a situation shows only the setup. */
+export const hurt = (h: Stagehand) => (h.loop ? null : h.target);
 /** Clamp an x into the band, `pad` px from each side. */
 export const inBand = (h: Stagehand, x: number, pad: number) => Math.max(pad, Math.min(h.v.w - pad, x));
 
