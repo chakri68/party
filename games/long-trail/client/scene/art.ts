@@ -47,10 +47,21 @@ function tint(img: HTMLImageElement, color: string): CanvasImageSource {
   }
 }
 
-/** Never rejects. A missing or broken file is left out, and the code draws that layer. */
-export async function loadArt(): Promise<Art> {
+let loading: Promise<Art> | null = null;
+
+/**
+ * Never rejects. A missing or broken file is left out, and the code draws that
+ * layer. Loads once: every scene shares the one promise.
+ */
+export function loadArt(): Promise<Art> {
+  return (loading ??= build());
+}
+
+async function build(): Promise<Art> {
   const art: Art = { far: {}, clouds: [] };
   const clouds: [string, HTMLImageElement][] = [];
+  // One tinted copy per file and colour: town and market share one.
+  const tinted = new Map<string, CanvasImageSource>();
   try {
     await Promise.all(
       Object.entries(urls).map(async ([path, url]) => {
@@ -58,7 +69,11 @@ export async function loadArt(): Promise<Art> {
         const img = await load(url);
         if (!img) return;
         if (name.startsWith("cloud")) clouds.push([name, img]);
-        for (const t of FAR[name] ?? []) art.far[t] = tint(img, PALETTES[t].far);
+        for (const t of FAR[name] ?? []) {
+          const key = `${name}|${PALETTES[t].far}`;
+          if (!tinted.has(key)) tinted.set(key, tint(img, PALETTES[t].far));
+          art.far[t] = tinted.get(key)!;
+        }
       }),
     );
   } catch {
