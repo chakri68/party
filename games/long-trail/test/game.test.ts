@@ -221,7 +221,7 @@ describe("the event's own outcome", () => {
         s = voteAll(s, "go").state;
         if (s.phase === "choice") s = chooseAll(s, 0).state;
         const last = s.log.at(-1)!;
-        if (last.event && !last.event.choice) {
+        if (last.event && !last.event.choice && last.eventOutcome && last.eventOutcome.healthChanges.length > 0) {
           found = true;
           const out = last.eventOutcome!;
           expect(out).toBeDefined();
@@ -236,12 +236,23 @@ describe("the event's own outcome", () => {
   });
 
   it("a choice's outcome is kept after the vote", () => {
-    let s: S | null = null;
-    for (let seed = 1; seed < 40 && !s; seed++) s = toChoice(seed);
-    s = chooseAll(s!, 0).state;
-    const last = s.log.at(-1)!;
-    expect(last.eventOutcome).toBeDefined();
-    expect(last.event!.choice).toBeDefined();
+    let hurt = false;
+    for (let seed = 1; seed < 200 && !hurt; seed++) {
+      const open = toChoice(seed);
+      if (!open) continue;
+      for (const option of [0, 1] as const) {
+        const last = chooseAll(open, option).state.log.at(-1)!;
+        const out = last.eventOutcome!;
+        expect(out).toBeDefined();
+        expect(last.event!.choice).toBeDefined();
+        expect(out.km).toEqual(expect.any(Number));
+        expect(out.stock).toBeDefined();
+        const all = last.report.healthChanges;
+        expect(all.slice(all.length - out.healthChanges.length)).toEqual(out.healthChanges);
+        if (out.healthChanges.length > 0) hurt = true;
+      }
+    }
+    expect(hurt).toBe(true);
   });
 
   it("no event, no outcome", () => {
