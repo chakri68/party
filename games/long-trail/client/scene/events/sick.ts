@@ -5,7 +5,8 @@ import { drawFire } from "../sprites.ts";
 import { ell, hurt, ramp, ticks } from "./fx.ts";
 import type { EventScene, Stagehand } from "./index.ts";
 
-const LIE = 0.18; // lies down from here to the end
+const LIE = 0.18; // lies down from here
+const UP = 0.88; // gets up again, so the beat ends with them standing
 const shown = (h: Stagehand) => (h.loop ? 1 : ramp(h.t, 0.05, 0.2));
 
 /** The fire: on the near side by the hurt traveller's head, else ahead of the caravan. */
@@ -26,7 +27,7 @@ export const sick: EventScene = {
   still: 0.6,
   pose(h) {
     const who = hurt(h);
-    if (!who || h.t < LIE) return {};
+    if (!who || h.t < LIE || h.t >= UP) return {};
     return { down: who.id, crouch: h.t > 0.25 && h.t < 0.85 };
   },
   back: (h) => fire(h, false),
@@ -36,7 +37,7 @@ export const sick: EventScene = {
     if (!who) return;
     const { c, v } = h;
     const s = v.s;
-    const a = ramp(h.t, LIE, LIE + 0.1);
+    const a = Math.min(ramp(h.t, LIE, LIE + 0.1), 1 - ramp(h.t, UP - 0.06, UP));
     if (a <= 0) return;
     // A striped blanket over the body, the head left out; a bowl of water by them.
     const x = who.x;
