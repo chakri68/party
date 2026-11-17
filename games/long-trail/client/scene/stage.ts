@@ -1,14 +1,17 @@
 // The trail scene: a canvas band that draws the caravan in its land, and plays
 // the day's beats over time. It draws at most 30 frames a second, and stops
-// when the tab is hidden or the band is off screen. Under reduced motion it
+// when the tab is hidden or the band is off screen. Standing still with no beat
+// to play, it draws only after a change (see paint-gate.ts). Under reduced motion it
 // draws one still frame for each beat.
 import type { Health } from "../../shared/types.ts";
 import { loadArt, type Art } from "./art.ts";
 import { drawBackdrop, type View } from "./backdrop.ts";
 import { drawCaravan, layoutCaravan, type CaravanWalker } from "./caravan.ts";
-import { beatAt, startAt } from "./director.ts";
+import { beatAt, startAt, totalMs } from "./director.ts";
+import { walkFrame } from "./events/fx.ts";
 import { SCENES, type EventScene, type Pose, type Stagehand } from "./events/index.ts";
 import { ridingIds, type Beat, type SceneModel, type Terrain } from "./model.ts";
+import { FIRE_MS, needsPaint, sleepMs } from "./paint-gate.ts";
 import { drawFire, drawGate, drawHouse, drawStall, drawTent } from "./sprites.ts";
 
 type C = CanvasRenderingContext2D;
@@ -20,7 +23,6 @@ const MAX_DPR = 2;
 /** In the settle beat, changes from outside the event (rest, risk, doses) show from here. */
 const SETTLE_SWITCH = 0.4;
 const NIGHT = "rgba(16,20,48,0.38)";
-const EVENT_MS = 4000;
 
 const scrollPerSec = (speed: number) => speed * 13; // px at s = 1
 /** On an arrival the ground carries the town at least this far (px at s = 1), so it comes in from off screen. */
@@ -78,6 +80,7 @@ export class TrailScene {
   private onScreen = true;
   private stillKey = "";
   private dirty = true;
+  private wasRunning = false; // a beat was playing at the last frame
   private dead = false;
   private motion: MediaQueryList | null;
   private resize: ResizeObserver | null = null;
@@ -163,6 +166,8 @@ export class TrailScene {
   private kick = () => {
     if (!this.active()) return this.stop();
     if (this.reduced) return this.still();
+    clearTimeout(this.timer);
+    this.timer = undefined;
     if (!this.raf) {
       this.last = 0;
       this.raf = requestAnimationFrame(this.tick);
@@ -177,11 +182,29 @@ export class TrailScene {
       this.raf = requestAnimationFrame(this.tick);
       return;
     }
-    // The first frame after a pause draws the present, with no catch-up.
-    const dt = this.last ? Math.min(now - this.last, MAX_DT) : 0;
-    this.last = now;
-    this.paint(now, dt);
-    this.raf = requestAnimationFrame(this.tick);
+    const m = this.model!;
+    const running = m.beats.length > 0 && now - this.beatsStart < totalMs(m.beats);
+    // The frame after the last beat ends draws its end state once.
+    if (this.wasRunning && !running) this.dirty = true;
+    this.wasRunning = running;
+    const gate = { running, speed: m.speed, camp: m.camp, dirty: this.dirty, now, last: this.last };
+    if (needsPaint(gate)) {
+      // The first frame after a pause draws the present, with no catch-up.
+      const dt = this.last ? Math.min(now - this.last, MAX_DT) : 0;
+      this.last = now;
+      this.paint(now, dt);
+    }
+    // Standing still: sleep until the fire changes, or until `update`, a resize or the art wakes it.
+    const wait = sleepMs(gate);
+    if (wait === 0) this.raf = requestAnimationFrame(this.tick);
+    else if (Number.isFinite(wait)) this.timer = setTimeout(this.wake, wait);
+  };
+
+  /** After a sleep: draw on the next frame, keeping `last` so the fire stays at 3 a second. */
+  private wake = () => {
+    this.timer = undefined;
+    if (!this.active() || this.reduced) return this.kick();
+    if (!this.raf) this.raf = requestAnimationFrame(this.tick);
   };
 
   /** Reduced motion: draw when the model or the beat changes, and wait for the next beat. */
@@ -236,9 +259,12 @@ export class TrailScene {
     const riding = ridingIds(m.walkers.map((w) => w.id), health, camels);
     const walkers: CaravanWalker[] = [];
     for (const w of m.walkers) {
-      const alpha = beat?.kind === "settle" && w.health === 0 ? 1 - t : 1;
-      if (alpha <= 0) continue;
-      walkers.push({ id: w.id, color: w.color, health: Math.max(1, health[w.id] ?? w.health) as Health, riding: riding.has(w.id), alpha });
+      // A walker who fades in this beat is drawn as at its start; one already dead is not drawn.
+      const fading = !!beat?.fade?.includes(w.id);
+      const h = (fading ? beat!.health[w.id] : health[w.id]) ?? w.health;
+      const alpha = fading ? 1 - t : 1;
+      if (alpha <= 0 || h === 0) continue;
+      walkers.push({ id: w.id, color: w.color, health: h, riding: riding.has(w.id), alpha });
     }
     const lay = layoutCaravan(v, walkers, camels);
 
@@ -264,6 +290,7 @@ export class TrailScene {
       c,
       v,
       t,
+      ms: beat?.ms ?? Infinity,
       loop: beat?.kind === "situation",
       outcome,
       caravan: { x0: lay.x0, x1: lay.x1 },
@@ -291,10 +318,10 @@ export class TrailScene {
     if (m.camp && scene !== SCENES.thief) {
       const x = Math.min(v.w - 26 * v.s, lay.x1 + 52 * v.s);
       drawTent(c, x, v.ground - 7 * v.s, v.s);
-      drawFire(c, lay.x1 + 26 * v.s, v.ground - 1 * v.s, v.s * 0.9, this.reduced ? 0 : Math.floor(now / 333) / 4);
+      drawFire(c, lay.x1 + 26 * v.s, v.ground - 1 * v.s, v.s * 0.9, this.reduced ? 0 : Math.floor(now / FIRE_MS) / 4);
     }
     scene?.back?.(hand);
-    const moveFrame = this.reduced ? 0 : ((t * EVENT_MS) / 1000) * 1.5;
+    const moveFrame = this.reduced ? 0 : walkFrame(hand);
     drawCaravan(c, v, walkers, lay, pose, frame, m.overloaded ? "high" : "normal", moveFrame);
     if (pose.night) {
       c.fillStyle = NIGHT;

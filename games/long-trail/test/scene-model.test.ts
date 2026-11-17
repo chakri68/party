@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FALLBACK_COLOR, ridingIds, sceneModel, type SceneInput } from "../client/scene/model.ts";
+import { FALLBACK_COLOR, ridingIds, sceneModel, type Beat, type SceneInput } from "../client/scene/model.ts";
 import { packFor, type ChoiceEvent, type PlainEvent } from "../shared/pack.ts";
 import type { LongTrailPublicState } from "../shared/types.ts";
 import { act, chooseAll, ctx, g, leaderId, nextAll, ok, playDay, proposeOpen, type S, start, toPlan, voteAll } from "./helpers.ts";
@@ -99,10 +99,7 @@ describe("sceneModel", () => {
     const card = pack.events.find((e) => e.id === game.lastDay!.event!.id) as PlainEvent;
     expect(m.beats[1]!.scene).toBe(card.scene);
     expect(m.beats[1]!.outcome).toEqual(game.lastDay!.eventOutcome);
-    const fill = m.beats[0]!.fill!;
-    expect(fill[0]).toBeGreaterThanOrEqual(0);
-    expect(fill[1]).toBeLessThanOrEqual(1);
-    expect(fill[1]).toBeGreaterThanOrEqual(fill[0]);
+    expect(m.beats[0]).not.toHaveProperty("fill");
     expect(m.beatsKey).toBe(`summary:${game.day}`);
   });
 
@@ -237,21 +234,17 @@ describe("sceneModel", () => {
     expect(m.beats.map((b) => b.camels)).toEqual([5, 4, 3]);
   });
 
-  it("fill mid-leg takes off the event's km", () => {
+  it("mid-leg travel walks the leg's terrain, with no arrival", () => {
     const game = structuredClone(toSummary((p) => !p.lastDay!.plan.rest && !p.lastDay!.event?.choice)!);
     game.leg = { to: "x", km: 100, kind: "desert", kmLeft: 40 };
-    game.lastDay!.report.km = 30;
     game.lastDay!.report.reached = null;
-    game.lastDay!.eventOutcome = { healthChanges: [], stock: {}, km: -10, scoutSaved: false, cargo: 0, lucky: null };
     const travel = model(game).beats[0]!;
     expect(travel.kind).toBe("travel");
-    // 60 km walked now, 70 before the event took 10 off, 40 at the start of the day.
-    expect(travel.fill![0]).toBeCloseTo(0.4);
-    expect(travel.fill![1]).toBeCloseTo(0.7);
+    expect(travel.arrive).toBeNull();
     expect(travel.terrain).toBe("desert");
   });
 
-  it("fill on the day a stop is reached", () => {
+  it("the day a stop is reached: the town arrives", () => {
     const game = structuredClone(toSummary((p) => !p.lastDay!.plan.rest && !p.lastDay!.event?.choice)!);
     const route = pack.routes[game.settings.length];
     const from = route.stops.find((x) => x.next.length === 1)!;
@@ -260,9 +253,7 @@ describe("sceneModel", () => {
     game.at = leg.to;
     game.visited = [from.id, leg.to];
     game.lastDay!.report.reached = leg.to;
-    game.lastDay!.report.km = leg.km / 4;
     const m = model(game);
-    expect(m.beats[0]!.fill).toEqual([0.75, 1]);
     expect(m.beats[0]!.arrive).toBe(leg.to);
     expect(m.beats[0]!.terrain).toBe(leg.kind);
   });
@@ -280,6 +271,57 @@ describe("sceneModel", () => {
     expect(travel.kind).toBe("travel");
     expect(travel.terrain).toBe(leg.kind);
     expect(travel.speed).toBeGreaterThan(0);
+  });
+
+  it("a plain day: deaths in travel or the event fade in settle", () => {
+    const base = toSummary((p) => !p.lastDay!.plan.rest && !p.lastDay!.event?.choice)!;
+    const game = structuredClone(base);
+    game.travellers = game.travellers.map((t) => (t.id === "p0" ? { ...t, health: 0 } : t));
+    game.lastDay!.report.healthChanges = [{ playerId: "p0", from: 3, to: 0 }];
+    delete game.lastDay!.eventOutcome;
+    const m = model(game);
+    expect(m.beats[0]!.kind).toBe("travel");
+    expect(m.beats[0]!.health.p0).toBe(3);
+    expect(m.beats[0]!.fade ?? []).toEqual([]);
+    expect(m.beats.at(-1)!.fade).toEqual(["p0"]);
+  });
+
+  it("a choice day: travel's changes show by the end of travel", () => {
+    const { choice } = toChoice();
+    const game = structuredClone(choice);
+    game.travellers = game.travellers.map((t) => (t.id === "p0" ? { ...t, health: 0 } : t.id === "p1" ? { ...t, health: 2 } : t));
+    game.today!.report.healthChanges = [
+      { playerId: "p0", from: 3, to: 0 },
+      { playerId: "p1", from: 3, to: 2 },
+    ];
+    const m = model(game);
+    expect(m.beats.map((b) => b.kind)).toEqual(["travel", "situation"]);
+    const [travel, situation] = m.beats as [Beat, Beat];
+    expect(travel.health.p0).toBe(3);
+    expect(travel.health.p1).toBe(3);
+    expect(travel.fade).toEqual(["p0"]); // fades out through the travel beat
+    expect(situation.health.p0).toBe(0); // and is not drawn in the loop
+    expect(situation.health.p1).toBe(2);
+    expect(situation.fade ?? []).toEqual([]);
+  });
+
+  it("a choice day: the result starts from health after travel", () => {
+    const { summary } = toChoice();
+    const game = structuredClone(summary);
+    game.travellers = game.travellers.map((t) => (t.id === "p0" ? { ...t, health: 0 } : t.id === "p1" ? { ...t, health: 0 } : t));
+    game.lastDay!.report.healthChanges = [
+      { playerId: "p0", from: 3, to: 0 }, // travel
+      { playerId: "p1", from: 3, to: 0 }, // the result
+    ];
+    game.lastDay!.eventOutcome = { healthChanges: [{ playerId: "p1", from: 3, to: 0 }], stock: {}, km: 0, scoutSaved: false, cargo: 0, lucky: null };
+    const m = model(game);
+    expect(m.beats.map((b) => b.kind)).toEqual(["event", "settle"]);
+    const [result, settle] = m.beats as [Beat, Beat];
+    expect(result.health.p0).toBe(0);
+    expect(result.health.p1).toBe(3);
+    expect(settle.health.p0).toBe(0);
+    expect(settle.health.p1).toBe(0);
+    expect(settle.fade).toEqual(["p1"]); // p0 is already gone
   });
 
   it("an old game without eventOutcome", () => {

@@ -1,14 +1,14 @@
 // Small helpers the event scenes share: time, easing, outcome checks, and a
 // few drawn bits (puffs, drops, a turned sprite, a particle field).
 import type { EventOutcome } from "../../../shared/events.ts";
+import { SITUATION_LOOP_MS } from "../director.ts";
 import type { Stagehand } from "./index.ts";
 
 type C = CanvasRenderingContext2D;
 
-/** Beat lengths the scenes are timed against: an event beat and one situation loop. */
-export const EVENT_MS = 4000;
-export const LOOP_MS = 2400;
-const msOf = (h: Stagehand) => (h.loop ? LOOP_MS : EVENT_MS);
+/** One situation loop. Other beats are timed by their own length, `h.ms`. */
+export const LOOP_MS = SITUATION_LOOP_MS;
+const msOf = (h: Stagehand) => (h.loop || !Number.isFinite(h.ms) ? LOOP_MS : h.ms);
 
 export const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const smooth = (x: number) => x * x * (3 - 2 * x);
@@ -32,7 +32,7 @@ export function ticks(h: Stagehand, perSec = 3): number {
 /** A walk frame for the sprites (four steps per unit), from seconds into the beat. */
 export function walkFrame(h: Stagehand, stepsPerSec = 1.5): number {
   if (h.loop) return clamp01(h.t) * Math.max(1, Math.round((LOOP_MS / 1000) * stepsPerSec)); // whole cycles
-  return ((clamp01(h.t) * EVENT_MS) / 1000) * stepsPerSec;
+  return ((clamp01(h.t) * msOf(h)) / 1000) * stepsPerSec;
 }
 
 /** A fixed random number 0..1. */
