@@ -11,7 +11,7 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { rollForks, withForks } from "../shared/forks.ts";
-import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
+import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers, type EffectReport, type EventOutcome } from "../shared/events.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
 import { packFor, stopById, type LegKind } from "../shared/pack.ts";
 import { buildRecap, nameTokens, type DayLog } from "../shared/recap.ts";
@@ -246,8 +246,14 @@ function resolveDay(state: State, plan: Plan, stayedCourse: boolean, ctx: GameCo
       return;
     }
     changes.push(...res.report!.healthChanges);
+    state.draft.log.eventOutcome = outcomeOf(res.report!);
   }
   finishDay(state, ctx, out);
+}
+
+/** What the event did, without its text, copied so the log owns it. */
+function outcomeOf(r: EffectReport): EventOutcome {
+  return { healthChanges: r.healthChanges.map((h) => ({ ...h })), stock: { ...r.stock }, km: r.km, scoutSaved: r.scoutSaved, cargo: r.cargo, lucky: r.lucky };
 }
 
 /** Majority; a tie goes to the leader's vote, or option 0 if they didn't vote. */
@@ -262,6 +268,7 @@ function closeChoice(state: State, ctx: GameContext, out: Out): void {
   const log = state.draft!.log;
   log.event = { id: card.id, text: card.text, choice: { votes: { ...b.votes }, picked, label: card.options[picked].label } };
   log.report.healthChanges.push(...res.report.healthChanges);
+  log.eventOutcome = outcomeOf(res.report);
   state.choice = null;
   state.choiceBallot = null;
   finishDay(state, ctx, out);

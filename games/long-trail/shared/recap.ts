@@ -1,3 +1,4 @@
+import type { EventOutcome } from "./events.ts";
 import { stopById, type RouteDef, type SettingPack } from "./pack.ts";
 import { cargoSale, goalMet, type EndView } from "./scoring.ts";
 import type { DayReport } from "./travel.ts";
@@ -13,6 +14,8 @@ export interface DayLog {
   stayedCourse: boolean;
   event: { id: string; text: string; choice?: { votes: Record<string, 0 | 1>; picked: 0 | 1; label: string } } | null;
   report: { km: number; reached: string | null; healthChanges: DayReport["healthChanges"]; stockDelta: Partial<Record<Supply | "coins", number>>; cargoDelta: Record<string, number> };
+  /** What the event alone did. Missing when no event happened, and in games stored before this field. */
+  eventOutcome?: EventOutcome;
   where: string; // stop name, or "between X and Y"
   /** The trip ended before this day ran (a removal mid-plan or mid-vote): only its votes are kept. */
   unfinished?: true;
