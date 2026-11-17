@@ -193,6 +193,7 @@ describe("event scenes", () => {
     const pose = (id: SceneId, t: number, outcome: EventOutcome | null) => SCENES[id].pose?.(hand(fakeCtx().ctx, t, false, outcome)) ?? {};
     expect(pose("sick", 0.6, HARSH).down).toBe("p2");
     expect(pose("sick", 0.6, null)).toEqual({});
+    expect(pose("sick", 0.95, HARSH).down).toBeUndefined(); // up again before the beat ends
     expect(pose("water", 0.5, HARSH).down).toBe("p2");
     expect(pose("water", 0.9, HARSH).down).toBeUndefined();
     expect(pose("water", 0.5, null).down).toBeUndefined();

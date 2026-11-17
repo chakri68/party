@@ -19,7 +19,8 @@ function river(h: Stagehand): void {
   c.fillStyle = LIGHT;
   const gap = 30 * s;
   for (let i = 0; i * gap < v.w + gap; i++) {
-    const x = wrap(i * gap + rnd(i, 81) * gap + h.t * (h.loop ? v.w + gap : 2 * gap), v.w + gap) // a loop moves a whole wrap - gap;
+    // A loop moves a whole wrap, so it meets itself at t = 1.
+    const x = wrap(i * gap + rnd(i, 81) * gap + h.t * (h.loop ? v.w + gap : 2 * gap), v.w + gap) - gap;
     c.fillRect(x, top + (0.2 + rnd(i, 82) * 0.6) * (bottom - top), (6 + rnd(i, 83) * 8) * s, 1.2 * s);
   }
 }
