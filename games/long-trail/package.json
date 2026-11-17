@@ -14,5 +14,8 @@
     "@games/game-core": "workspace:*",
     "@games/ui": "workspace:*",
     "@games/audio": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
   }
 }

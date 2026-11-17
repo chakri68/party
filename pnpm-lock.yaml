@@ -513,6 +513,10 @@ importers:
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+    devDependencies:
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@26.6.5)(esbuild@0.28.1)
 
   games/nightfall:
     dependencies:
