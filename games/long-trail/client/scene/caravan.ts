@@ -38,6 +38,24 @@ export function walkerLook(w: { fading: boolean; health: Health; t: number }): {
   return { health: w.health, alpha };
 }
 
+/**
+ * Who is drawn in a frame, how, and who rides. Seats go by the health drawn, so a
+ * badly hurt rider who dies stays on their camel while they fade.
+ */
+export function castWalkers(
+  people: { id: string; color: string; health: Health }[],
+  at: { health: Record<string, Health>; fade: readonly string[]; t: number; camels: number },
+): CaravanWalker[] {
+  const shown: { id: string; color: string; health: Health; alpha: number }[] = [];
+  for (const w of people) {
+    const look = walkerLook({ fading: at.fade.includes(w.id), health: at.health[w.id] ?? w.health, t: at.t });
+    if (look) shown.push({ id: w.id, color: w.color, ...look });
+  }
+  const seats = Math.max(0, at.camels);
+  const riding = new Set(shown.filter((w) => w.health === 1).slice(0, seats).map((w) => w.id));
+  return shown.map((w) => ({ ...w, riding: riding.has(w.id) }));
+}
+
 /** More camels than this are not drawn, unless that many have riders. */
 export const MAX_CAMELS = 6;
 // Spacing at s = 1: the left margin, camel to camel, the lead camel to the rear walker, walker to walker.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { View } from "../client/scene/backdrop.ts";
-import { drawCaravan, layoutCaravan, MAX_CAMELS, walkerLook, type CaravanLayout, type CaravanWalker } from "../client/scene/caravan.ts";
+import { castWalkers, drawCaravan, layoutCaravan, MAX_CAMELS, walkerLook, type CaravanLayout, type CaravanWalker } from "../client/scene/caravan.ts";
 import { TRAVELLER } from "../client/scene/sprites.ts";
 import type { Health } from "../shared/types.ts";
 import { fakeCtx } from "./scene-fake-ctx.ts";
@@ -123,5 +123,29 @@ describe("walkerLook", () => {
   });
   it("a living walker is drawn in full", () => {
     expect(walkerLook({ fading: false, health: 3, t: 0.5 })).toEqual({ health: 3, alpha: 1 });
+  });
+});
+
+describe("castWalkers", () => {
+  const people = [
+    { id: "a", color: "#a00", health: 0 as Health },
+    { id: "b", color: "#0a0", health: 0 as Health },
+    { id: "c", color: "#00a", health: 3 as Health },
+  ];
+  it("a rider who dies keeps their seat while they fade", () => {
+    // Settle after the switch: the health shown is the final one, 0 for the dead.
+    const health: Record<string, Health> = { a: 0, b: 0, c: 3 };
+    for (const t of [0.1, 0.5, 0.9]) {
+      const cast = castWalkers(people, { health, fade: ["a", "b"], t, camels: 4 });
+      expect(cast.map((w) => [w.id, w.riding])).toEqual([["a", true], ["b", true], ["c", false]]);
+    }
+  });
+  it("the dead who are not fading are not drawn and take no seat", () => {
+    const cast = castWalkers(people, { health: { a: 0, b: 1, c: 3 }, fade: [], t: 0.5, camels: 1 });
+    expect(cast.map((w) => [w.id, w.riding])).toEqual([["b", true], ["c", false]]);
+  });
+  it("seats go to the badly hurt in order, no more than there are camels", () => {
+    const cast = castWalkers(people, { health: { a: 1, b: 1, c: 1 }, fade: [], t: 0, camels: 2 });
+    expect(cast.map((w) => w.riding)).toEqual([true, true, false]);
   });
 });
