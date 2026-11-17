@@ -221,3 +221,20 @@ describe("job info after the trip", () => {
     for (const id of ids(s)) expect(g.getPrivateState(s, id).info).toBeNull();
   });
 });
+
+describe("today, during a choice", () => {
+  it("keeps goals and job info out of the public day so far", () => {
+    let found: S | null = null;
+    for (let seed = 1; seed < 40 && !found; seed++) {
+      let s = toPlan(start(4, {}, seed).state);
+      for (let day = 0; day < 20 && s.phase === "plan" && !found; day++) {
+        s = voteAll(proposeOpen(s), "go").state;
+        if (s.phase === "choice") found = s;
+        else s = nextAll(s).state;
+      }
+    }
+    expect(found).not.toBeNull();
+    expect(g.getPublicState(found!).today).not.toBeNull();
+    sealed({ state: found!, events: [] }, "choice");
+  });
+});

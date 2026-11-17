@@ -73,7 +73,7 @@ export const TIMERS: Record<Exclude<Phase, "over">, number> = {
   plan: 45_000,
   vote: 25_000,
   choice: 20_000,
-  summary: 5_000,
+  summary: 9_000,
   recap: 20_000,
 };
 
@@ -150,6 +150,8 @@ export interface LongTrailPublicState {
   route: { start: string; end: string; stops: PublicStop[] };
   at: string;
   leg: { to: string; km: number; kind: LegKind; kmLeft: number } | null; // null while halted at `at`
+  /** The day so far, while a choice is open: where the caravan went and what it cost. Null in every other phase. */
+  today: { day: number; plan: Plan; report: DayLog["report"] } | null;
   visited: string[];
   stock: { food: Band; water: Band; medicine: number; coins: number; animals: number; cargo: Record<string, number> };
   capacity: number; // cargo units the animals can carry at a normal pace

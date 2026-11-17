@@ -1,6 +1,7 @@
 import { withForks } from "../shared/forks.ts";
 import { packFor, stopById, type Leg, type RouteDef, type SettingPack } from "../shared/pack.ts";
-import type { ArmableJob, JobId, LongTrailServerState, Pace, Plan, Rations } from "../shared/types.ts";
+import type { DayLog } from "../shared/recap.ts";
+import type { ArmableJob, JobId, LongTrailServerState, Pace, Plan, Rations, Stock } from "../shared/types.ts";
 
 // Read-only lookups on server state, shared by the phase machine and the views.
 
@@ -52,4 +53,19 @@ export function skipPlan(state: State, randomInt: (n: number) => number): Plan {
   if (plan.fork === null) return plan;
   const next = stopById(world(state).route, state.caravan.at).next;
   return { ...plan, fork: next[randomInt(next.length)]!.to };
+}
+
+/** What changed in the stock since `before`: plain stock by key, cargo by good. Zero changes are left out. */
+export function stockDeltas(before: Stock, now: Stock): { stockDelta: DayLog["report"]["stockDelta"]; cargoDelta: Record<string, number> } {
+  const stockDelta: DayLog["report"]["stockDelta"] = {};
+  const cargoDelta: Record<string, number> = {};
+  for (const k of ["food", "water", "medicine", "animals", "coins"] as const) {
+    const d = now[k] - before[k];
+    if (d !== 0) stockDelta[k] = d;
+  }
+  for (const good of new Set([...Object.keys(before.cargo), ...Object.keys(now.cargo)])) {
+    const d = (now.cargo[good] ?? 0) - (before.cargo[good] ?? 0);
+    if (d !== 0) cargoDelta[good] = d;
+  }
+  return { stockDelta, cargoDelta };
 }

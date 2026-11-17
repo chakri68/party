@@ -565,3 +565,40 @@ describe("coin goal cards", () => {
     expect(seen).toBeGreaterThan(0);
   });
 });
+
+describe("today's travel", () => {
+  it("today is public only during a choice", () => {
+    let s = toPlan(start(4, {}, 5).state);
+    expect(g.getPublicState(s).today).toBeNull();
+    s = proposeOpen(s);
+    expect(s.phase).toBe("vote");
+    expect(g.getPublicState(s).today).toBeNull();
+    let seenChoice = false;
+    for (let seed = 1; seed < 40 && !seenChoice; seed++) {
+      const c = toChoice(seed);
+      if (!c) continue;
+      seenChoice = true;
+      const today = g.getPublicState(c).today;
+      expect(today).not.toBeNull();
+      expect(today!.day).toBe(c.draft!.log.day);
+      expect(today!.plan).toEqual(c.draft!.log.plan);
+      expect(today!.report.km).toBe(c.draft!.log.report.km);
+      expect(today!.report).not.toBe(c.draft!.log.report); // a copy
+      const after = chooseAll(c, 0).state;
+      expect(after.phase).toBe("summary");
+      expect(g.getPublicState(after).today).toBeNull();
+    }
+    expect(seenChoice).toBe(true);
+  });
+
+  it("the day report waits 9 seconds", () => {
+    let s = proposeOpen(toPlan(start(4, {}, 5).state));
+    const now = 1234;
+    const t = ok(act(s, ids(s)[0]!, { type: "vote", vote: "go" }, now));
+    s = t.state;
+    for (const id of ids(s).slice(1)) if (s.phase === "vote") s = ok(act(s, id, { type: "vote", vote: "go" }, now)).state;
+    if (s.phase === "choice") for (const id of ids(s)) if (s.phase === "choice") s = ok(act(s, id, { type: "choose", option: 0 }, now)).state;
+    expect(s.phase).toBe("summary");
+    expect(s.deadline - now).toBe(9_000);
+  });
+});
