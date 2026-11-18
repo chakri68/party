@@ -10,21 +10,25 @@ import { partyOver } from "./party-over.ts";
 import { openPassSheet } from "./pass-sheet.ts";
 import { finishUpgrade } from "./upgrade-return.ts";
 import "./product.css";
-import { getTurnstileToken } from "./turnstile.ts";
+import { getTurnstileToken, warmTurnstile } from "./turnstile.ts";
+import { roomCreator } from "./create-room.ts";
 
-async function createRoom(): Promise<{ code: string } | { error: string; forgetKey?: boolean }> {
-  let token: string | null = null;
-  if ((await me()).tier === "free") {
-    try {
-      token = await getTurnstileToken();
-    } catch {
-      return { error: "Could not check you are human. Please try again." };
-    }
-  }
-  const r = await apiCreateRoom(token);
-  if ("error" in r) return r;
-  saveHostKey(r.code, r.hostKey);
-  return { code: r.code };
+const whenIdle = (f: () => void) => ("requestIdleCallback" in window ? requestIdleCallback(() => f(), { timeout: 3000 }) : setTimeout(f, 1500));
+
+// One account check on load: the header shows it, and the first "Create room" uses it.
+const account = me();
+const createRoom = roomCreator(account, {
+  me,
+  token: getTurnstileToken,
+  create: apiCreateRoom,
+  save: saveHostKey,
+});
+// A free host needs Turnstile to make a room: have its script ready before the tap.
+// Not on a room link: someone joining never makes a room.
+if (location.pathname === "/play") {
+  void account.then((m) => {
+    if (m.tier === "free") whenIdle(warmTurnstile);
+  });
 }
 
 // Back from sign-in with ?buy=<plan>: take it out of the address first, so
@@ -48,7 +52,7 @@ startShell({
   beforeStart: (outlet) => {
     // The shell's views append into #app, so the HTML's loader goes by hand.
     outlet.querySelector(".cp-loader")?.remove();
-    mountHeader(outlet);
+    mountHeader(outlet, account);
     // The shell draws its first screen after the page has already faded in
     // empty; fade the content up too so it doesn't just appear.
     fadeIn(outlet);

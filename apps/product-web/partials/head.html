@@ -17,3 +17,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" />
     <link rel="stylesheet" href="/src/site.css" />
+    <!-- Chrome: fetch /play's page when a link to it is likely, and build it on
+         touch, so "Start a room" opens without a full round trip first. -->
+    <script type="speculationrules">
+      {
+        "prefetch": [{ "where": { "href_matches": "/play" }, "eagerness": "moderate" }],
+        "prerender": [{ "where": { "href_matches": "/play" }, "eagerness": "conservative" }]
+      }
+    </script>

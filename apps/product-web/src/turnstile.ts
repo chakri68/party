@@ -52,29 +52,46 @@ function settle(f: (p: NonNullable<typeof pending>) => void): void {
   f(p);
 }
 
+/** The widget, made once; its callbacks read the current `pending`. execution "execute": rendering runs no check. */
+function ensureWidget(api: TurnstileApi, sitekey: string): string {
+  if (widget !== null) return widget;
+  const host = document.createElement("div");
+  // Fixed in a corner: an interactive challenge stays visible without moving the page.
+  host.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647";
+  document.body.append(host);
+  widget = api.render(
+    host,
+    renderOptions(sitekey, {
+      ok: (t) => settle((p) => p.ok(t)),
+      fail: () => settle((p) => p.fail(new Error("turnstile failed"))),
+    }),
+  );
+  return widget;
+}
+
+/**
+ * Loads the script and makes the widget ahead of time, so a tap on "Create
+ * room" only runs the check. Runs no check itself; failures are left for
+ * getTurnstileToken to retry and report.
+ */
+export function warmTurnstile(): void {
+  Promise.all([loadScript(), loadConfig()]).then(
+    ([api, cfg]) => void ensureWidget(api, cfg.turnstileSiteKey),
+    () => {},
+  );
+}
+
 /** One invisible challenge, one fresh token. Rejects if the script or the check fails. */
 export async function getTurnstileToken(): Promise<string> {
   const [api, cfg] = await Promise.all([loadScript(), loadConfig()]);
   settle((p) => p.fail(new Error("replaced")));
   return new Promise<string>((ok, fail) => {
-    // The widget is made once, so its callbacks read the current `pending`.
     const timer = setTimeout(() => settle((p) => p.fail(new Error("timeout"))), TIMEOUT_MS);
     pending = { ok, fail, timer };
-    if (widget === null) {
-      const host = document.createElement("div");
-      // Fixed in a corner: an interactive challenge stays visible without moving the page.
-      host.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647";
-      document.body.append(host);
-      widget = api.render(
-        host,
-        renderOptions(cfg.turnstileSiteKey, {
-          ok: (t) => settle((p) => p.ok(t)),
-          fail: () => settle((p) => p.fail(new Error("turnstile failed"))),
-        }),
-      );
-    } else {
-      api.reset(widget);
-    }
-    api.execute(widget);
+    const fresh = widget === null;
+    const id = ensureWidget(api, cfg.turnstileSiteKey);
+    // A used (or warmed and idle) widget is reset before it runs again.
+    if (!fresh) api.reset(id);
+    api.execute(id);
   });
 }

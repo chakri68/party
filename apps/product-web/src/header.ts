@@ -1,9 +1,9 @@
 import { h } from "@games/ui";
-import { me } from "./api.ts";
+import { me, type Me } from "./api.ts";
 import { swapIn } from "./motion.ts";
 
 /** A thin bar above the shell: wordmark, then sign-in or the signed-in email. */
-export function mountHeader(outlet: HTMLElement): void {
+export function mountHeader(outlet: HTMLElement, account: Promise<Me> = me()): void {
   const right = h("span", { class: "cp-bar-right" });
   const bar = h(
     "header",
@@ -12,7 +12,7 @@ export function mountHeader(outlet: HTMLElement): void {
     right,
   );
   outlet.before(bar);
-  void me().then((m) => {
+  void account.then((m) => {
     if (m.email === null) {
       const link = h("a", { class: "cp-signin" }, "Sign in") as HTMLAnchorElement;
       // The shell moves between rooms without a page load, so the room to come
