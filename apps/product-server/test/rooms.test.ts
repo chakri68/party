@@ -13,15 +13,20 @@ import { productGames, PRODUCT_LIMITS } from "../src/catalog.ts";
 import { handleUpgrade, productPolicy, recordRoom } from "../src/rooms.ts";
 import { gamesFor } from "@games/server/games";
 import { createFetch } from "@games/server/worker";
-import { fakeD1 } from "./d1.ts";
+import { fakeD1, tripCounter } from "./d1.ts";
 
 const T0 = 1_800_000_000_000;
 const HOUR = 3_600_000;
 const ORIGIN = "https://couchpartygames.com";
 const KEY = "test-ip-key";
 
-function setup(opts: { turnstile?: boolean; createLimit?: boolean | ((key: string) => boolean); ipHashKey?: string | null; claim?: boolean | ((hostKey: string) => boolean) } = {}) {
-  const db = fakeD1();
+function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boolean | ((key: string) => boolean); ipHashKey?: string | null; claim?: boolean | ((hostKey: string) => boolean) } = {}) {
+  const raw = fakeD1();
+  // trips: count database round trips (and time Turnstile on the same clock).
+  const counter = opts.trips ? tripCounter(raw) : null;
+  const db = counter?.db ?? raw;
+  const background: Promise<unknown>[] = [];
+  const ctx = opts.trips ? { waitUntil: (p: Promise<unknown>) => void background.push(p) } : undefined;
   const clock = { t: T0 };
   const claims: Array<unknown> = [];
   const limitKeys: string[] = [];
@@ -35,7 +40,8 @@ function setup(opts: { turnstile?: boolean; createLimit?: boolean | ((key: strin
     },
     IP_HASH_KEY: opts.ipHashKey === null ? undefined : (opts.ipHashKey ?? KEY),
   } as unknown as ProductEnv;
-  const deps = { now: () => clock.t, verifyTurnstile: async () => opts.turnstile ?? true };
+  const turnstile = async () => opts.turnstile ?? true;
+  const deps = { now: () => clock.t, verifyTurnstile: counter ? () => counter.track(turnstile) : turnstile };
   const getRoom = async () => ({
     claim: async (g?: unknown) => (claims.push(g), true),
   });
@@ -51,6 +57,7 @@ function setup(opts: { turnstile?: boolean; createLimit?: boolean | ((key: strin
         },
       }),
       env,
+      ctx,
     );
   const upgradeDeps = {
     now: deps.now,
@@ -76,7 +83,7 @@ function setup(opts: { turnstile?: boolean; createLimit?: boolean | ((key: strin
     if (pass) await grant(db, id, { source: "comp", plan: "pass", days: 1, ref: "x" }, T0);
     return `cp_session=${token}`;
   };
-  return { db, clock, claims, limitKeys, upgrades, create, upgrade, user };
+  return { db, raw, counter, background, clock, claims, limitKeys, upgrades, create, upgrade, user };
 }
 
 const rows = async (db: Db) =>
@@ -172,6 +179,34 @@ describe("room creation policy", () => {
     const s = setup({ turnstile: false });
     const cookie = await s.user(false);
     expect((await s.create({ cookie })).status).toBe(403);
+  });
+});
+
+describe("room creation round trips", () => {
+  it("anonymous: Turnstile and the cap counts overlap, and the record waits for nothing", async () => {
+    const s = setup({ trips: true });
+    const res = await s.create({ token: "t" });
+    expect(res.status).toBe(200);
+    expect(s.counter!.trips).toBe(1);
+    expect(s.background).toHaveLength(1);
+    await Promise.all(s.background);
+    expect(await rows(s.raw)).toHaveLength(1);
+  });
+
+  it("a pass user's session and pass come back in one trip", async () => {
+    const s = setup({ trips: true });
+    const cookie = await s.user(true);
+    s.counter!.reset();
+    expect((await s.create({ cookie })).status).toBe(200);
+    expect(s.counter!.trips).toBe(1);
+  });
+
+  it("a signed-in free user: one trip for who they are, then one for Turnstile and the counts", async () => {
+    const s = setup({ trips: true });
+    const cookie = await s.user(false);
+    s.counter!.reset();
+    expect((await s.create({ cookie, token: "t" })).status).toBe(200);
+    expect(s.counter!.trips).toBe(2);
   });
 });
 

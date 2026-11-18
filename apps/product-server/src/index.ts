@@ -23,7 +23,7 @@ export class Room extends RoomBase {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const auth = await handleAuth(request, env, realDeps(env));
     if (auth) return auth;
     const config = handleConfig(request, env);
@@ -42,7 +42,7 @@ export default {
       // Not "/play.html": assets answer that with a 307 to /play (html_handling).
       shellPath: "/play",
       onRoomCreated: recordRoom(env.DB, env.IP_HASH_KEY),
-    })(request, env);
+    })(request, env, ctx);
   },
   // wrangler.jsonc "triggers.crons": hourly cleanup of old rows.
   async scheduled(_controller, env, ctx) {

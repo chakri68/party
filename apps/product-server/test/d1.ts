@@ -15,6 +15,50 @@ process.emitWarning = emit;
 
 type SqlValue = null | number | bigint | string;
 
+/**
+ * Counts round trips, the way a far-away database feels them: each call waits
+ * a tick, and a trip is a run of calls that overlap. Two awaited one after the
+ * other are 2 trips; two in a Promise.all are 1. `track` times anything else
+ * (Turnstile, say) on the same clock.
+ */
+export function tripCounter(db: Db) {
+  let inFlight = 0;
+  let trips = 0;
+  const track = async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (inFlight++ === 0) trips++;
+    try {
+      await new Promise((r) => setTimeout(r, 1));
+      return await fn();
+    } finally {
+      inFlight--;
+    }
+  };
+  type S = { bind(...a: unknown[]): S; first(): Promise<unknown>; all(): Promise<unknown>; run(): Promise<unknown> };
+  const wrap = (st: S): S => ({
+    bind: (...a) => wrap(st.bind(...a)),
+    first: () => track(() => st.first()),
+    all: () => track(() => st.all()),
+    run: () => track(() => st.run()),
+    // batch runs these synchronously, inside its own single trip.
+    runSync: (st as unknown as { runSync: unknown }).runSync,
+  } as S);
+  const raw = db as unknown as { prepare(sql: string): S; batch(s: unknown[]): Promise<unknown> };
+  const counted = {
+    prepare: (sql: string) => wrap(raw.prepare(sql)),
+    batch: (stmts: unknown[]) => track(() => raw.batch(stmts)),
+  } as unknown as Db;
+  return {
+    db: counted,
+    track,
+    get trips() {
+      return trips;
+    },
+    reset() {
+      trips = 0;
+    },
+  };
+}
+
 /** A D1 stand-in over in-memory SQLite, with every migration applied. */
 export function fakeD1(): Db {
   const sqlite = new DatabaseSync(":memory:");

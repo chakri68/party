@@ -2,10 +2,9 @@ import { isValidRoomCode } from "@games/protocol";
 import { json, type HostPolicy } from "@games/server/policy";
 import { getServerByName } from "partyserver";
 import { hmacHex, newId, type Db } from "./db.ts";
-import { tierFor } from "./entitlements.ts";
 import type { ProductEnv } from "./env.ts";
 import { clientIp } from "./http.ts";
-import { userFromRequest } from "./auth.ts";
+import { userWithTier } from "./auth.ts";
 import { verifyTurnstile } from "./turnstile.ts";
 
 const WINDOW_MS = 6 * 3_600_000;
@@ -39,8 +38,8 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
       const now = deps.now();
       const hostKey = newId();
 
-      const user = await userFromRequest(env.DB, request, now);
-      if (user && (await tierFor(env.DB, user.id, now)) === "pass") {
+      const user = await userWithTier(env.DB, request, now);
+      if (user?.tier === "pass") {
         // No Turnstile and no caps for Host Pass, but a runaway script still gets slowed.
         if (!(await env.CREATE_LIMIT.limit({ key: `user:${user.id}` })).success) return { ok: false, response: json({ error: TOO_MANY }, 429) };
         return { ok: true, grant: { tier: "pass", hostKey }, extra: { hostKey } };
@@ -48,22 +47,29 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
 
       const ip = clientIp(request);
       const token = request.headers.get("x-turnstile-token") ?? "";
+      // The counts only read, so they go out with the Turnstile check instead
+      // of after it. The answers are still taken in the old order.
+      const counts = freeCounts(env, ip, now - WINDOW_MS);
+      counts.catch(() => {});
       if (!(await deps.verifyTurnstile(token, ip, env))) return { ok: false, response: json({ error: "Please try again." }, 403) };
       if (!(await env.CREATE_LIMIT.limit({ key: ip })).success) return { ok: false, response: json({ error: TOO_MANY }, 429) };
-
-      const since = now - WINDOW_MS;
-      const mine = await env.DB.prepare("SELECT COUNT(*) AS n FROM rooms WHERE tier = 'free' AND ip_hash = ? AND created_at > ?")
-        .bind(await ipHash(env.IP_HASH_KEY, ip), since)
-        .first<{ n: number }>();
-      const all = await env.DB.prepare("SELECT COUNT(*) AS n FROM rooms WHERE tier = 'free' AND created_at > ?")
-        .bind(since)
-        .first<{ n: number }>();
-      if ((mine?.n ?? 0) >= MAX_FREE_PER_IP || (all?.n ?? 0) >= MAX_FREE_TOTAL) {
+      const { mine, all } = await counts;
+      if (mine >= MAX_FREE_PER_IP || all >= MAX_FREE_TOTAL) {
         return { ok: false, response: json({ error: TOO_MANY }, 429) };
       }
       return { ok: true, grant: { tier: "free", hostKey }, extra: { hostKey } };
     },
   };
+}
+
+/** Free rooms made since `since`: from this IP, and in all. One query. */
+async function freeCounts(env: ProductEnv, ip: string, since: number): Promise<{ mine: number; all: number }> {
+  const row = await env.DB.prepare(
+    "SELECT COALESCE(SUM(ip_hash = ?), 0) AS mine, COUNT(*) AS all_rooms FROM rooms WHERE tier = 'free' AND created_at > ?",
+  )
+    .bind(await ipHash(env.IP_HASH_KEY, ip), since)
+    .first<{ mine: number; all_rooms: number }>();
+  return { mine: row?.mine ?? 0, all: row?.all_rooms ?? 0 };
 }
 
 /** The `onRoomCreated` hook: one row per room, for the abuse caps. Only a keyed hash of the IP is kept. */
@@ -91,9 +97,9 @@ export async function handleUpgrade(request: Request, env: ProductEnv, deps: Upg
   const m = /^\/api\/rooms\/([^/]+)\/upgrade$/.exec(new URL(request.url).pathname);
   if (!m || request.method !== "POST") return null;
   const now = deps.now();
-  const user = await userFromRequest(env.DB, request, now);
+  const user = await userWithTier(env.DB, request, now);
   if (!user) return json({ error: "Sign in first." }, 401);
-  if ((await tierFor(env.DB, user.id, now)) !== "pass") return json({ error: "This needs Host Pass." }, 402);
+  if (user.tier !== "pass") return json({ error: "This needs Host Pass." }, 402);
   const code = m[1]!.toUpperCase();
   const body = (await request.json().catch(() => null)) as { hostKey?: unknown } | null;
   if (!isValidRoomCode(code) || typeof body?.hostKey !== "string" || !body.hostKey) return json({ error: "That room code is not valid." }, 400);

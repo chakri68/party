@@ -6,7 +6,9 @@ export type Tier = RoomTier;
 export type EntitlementSource = "razorpay" | "paddle" | "comp" | "grant";
 
 const DAY_MS = 86_400_000;
-const ACTIVE = "user_id = ? AND revoked_at IS NULL AND starts_at <= ? AND (ends_at IS NULL OR ends_at > ?)";
+/** A live pass for `user` (a column or "?"); binds `now` twice. */
+export const activeWhere = (user: string) => `user_id = ${user} AND revoked_at IS NULL AND starts_at <= ? AND (ends_at IS NULL OR ends_at > ?)`;
+const ACTIVE = activeWhere("?");
 
 export async function tierFor(db: Db, userId: string, now: number): Promise<Tier> {
   const row = await db

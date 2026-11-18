@@ -3,7 +3,7 @@ import { handleAuth, userFromRequest, type AuthDeps } from "../src/auth.ts";
 import { createCode } from "../src/comps.ts";
 import { grant } from "../src/entitlements.ts";
 import type { ProductEnv } from "../src/env.ts";
-import { fakeD1 } from "./d1.ts";
+import { fakeD1, tripCounter } from "./d1.ts";
 
 const T0 = 1_800_000_000_000;
 const MIN = 60_000;
@@ -342,6 +342,19 @@ describe("session", () => {
       plan: { source: "grant", startsAt: T0, endsAt: null },
       purchases: [],
     });
+  });
+
+  it("/api/me is two database trips, not one per field", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    await grant(s.db, u.id, { source: "grant", plan: "x", days: null, ref: null }, T0);
+    const c = tripCounter(s.db);
+    s.env.DB = c.db as ProductEnv["DB"];
+    const me = (await (await s.call("GET", "/api/me", { cookie })).json()) as { tier: string };
+    expect(me.tier).toBe("pass");
+    // The session, then tier, plan and purchases together.
+    expect(c.trips).toBe(2);
   });
 
   it("logout deletes the session and clears the cookie", async () => {

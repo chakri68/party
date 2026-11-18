@@ -2,7 +2,7 @@ import { listPurchases } from "./billing/purchases.ts";
 import { redeem } from "./comps.ts";
 import { newId, normalizeEmail, sha256Hex, type Db } from "./db.ts";
 import { sendEmail as sendViaResend, signInEmail, type Email } from "./email.ts";
-import { activePlan, tierFor } from "./entitlements.ts";
+import { activePlan, activeWhere, type Tier } from "./entitlements.ts";
 import type { ProductEnv } from "./env.ts";
 import {
   clearCookie, clientIp, json, OAUTH_COOKIE, readCookie, redirect, safeNext, SESSION_COOKIE, setCookie,
@@ -37,6 +37,23 @@ export async function userFromRequest(db: Db, request: Request, now: number): Pr
     .prepare("SELECT u.id AS id, u.email AS email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?")
     .bind(await sha256Hex(token), now)
     .first<{ id: string; email: string }>();
+}
+
+/**
+ * userFromRequest plus their tier, in one query: the database is far from
+ * where many requests land, so each trip counts.
+ */
+export async function userWithTier(db: Db, request: Request, now: number): Promise<{ id: string; email: string; tier: Tier } | null> {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (!token) return null;
+  const row = await db
+    .prepare(
+      `SELECT u.id AS id, u.email AS email, EXISTS (SELECT 1 FROM entitlements WHERE ${activeWhere("u.id")}) AS pass
+       FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`,
+    )
+    .bind(now, now, await sha256Hex(token), now)
+    .first<{ id: string; email: string; pass: number }>();
+  return row && { id: row.id, email: row.email, tier: row.pass ? "pass" : "free" };
 }
 
 /** Makes the user if new, opens a session, and returns its Set-Cookie value. */
@@ -243,15 +260,10 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
     }
     case "GET /api/me": {
       const now = deps.now();
-      const user = await userFromRequest(env.DB, request, now);
+      const user = await userWithTier(env.DB, request, now);
       if (!user) return json({ email: null, tier: "free" });
-      return json({
-        id: user.id,
-        email: user.email,
-        tier: await tierFor(env.DB, user.id, now),
-        plan: await activePlan(env.DB, user.id, now),
-        purchases: await listPurchases(env.DB, user.id),
-      });
+      const [plan, purchases] = await Promise.all([activePlan(env.DB, user.id, now), listPurchases(env.DB, user.id)]);
+      return json({ id: user.id, email: user.email, tier: user.tier, plan, purchases });
     }
     case "DELETE /api/account": {
       const user = await userFromRequest(env.DB, request, deps.now());

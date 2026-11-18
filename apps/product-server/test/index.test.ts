@@ -60,7 +60,7 @@ describe("product Worker routing", () => {
   it("a room link gets the shell from /play with the room's preview title, not a 307", async () => {
     const assets = fakeAssets();
     const env = { ASSETS: assets, APP_ORIGIN: ORIGIN } as unknown as ProductEnv;
-    const r = await worker.fetch(new Request(`${ORIGIN}/room/ABCD`) as never, env);
+    const r = await worker.fetch(new Request(`${ORIGIN}/room/ABCD`) as never, env, { waitUntil() {} } as never);
     expect(r.status).toBe(200);
     expect(await r.text()).toContain("<title>Join room ABCD · CouchParty</title>");
     expect(assets.seen).toEqual(["/play"]);
