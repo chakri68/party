@@ -2,7 +2,7 @@ import { jobInfo, todayKind } from "../shared/info.ts";
 import { N } from "../shared/numbers.ts";
 import { stopById, type RouteDef, type SettingPack } from "../shared/pack.ts";
 import type { Band, Goal, LongTrailPrivateState, LongTrailPublicState, LongTrailServerState, Plan } from "../shared/types.ts";
-import { activeIds, find, isAlive, isArmable, leaderOf, openPlan, world } from "./world.ts";
+import { activeIds, find, isAlive, isArmable, leaderOf, openPlan, stockDeltas, world } from "./world.ts";
 
 type State = LongTrailServerState;
 
@@ -42,6 +42,17 @@ export function band(stock: number, perDay: number): Band {
   return days >= 6 ? "plenty" : days >= 3 ? "some" : days >= 1 ? "low" : "out";
 }
 
+/** The day so far while a choice is open, as a copy: the stock changes are worked out as the day closes. */
+function todayView(state: State): LongTrailPublicState["today"] {
+  if (state.phase !== "choice" || !state.draft) return null;
+  const { log, before } = state.draft;
+  return {
+    day: log.day,
+    plan: log.plan,
+    report: { ...log.report, healthChanges: log.report.healthChanges.map((h) => ({ ...h })), ...stockDeltas(before, state.caravan.stock) },
+  };
+}
+
 export function publicState(state: State): LongTrailPublicState {
   const { pack, route } = world(state);
   const c = state.caravan;
@@ -71,6 +82,7 @@ export function publicState(state: State): LongTrailPublicState {
     at: c.at,
     leg: c.leg ? { to: c.leg.to, km: c.leg.km, kind: c.leg.kind, kmLeft: c.kmLeft } : null,
     visited: [...c.visited],
+    today: todayView(state),
     stock: {
       // No rations uses no food, so band by full rations: "plenty" should mean days of real meals.
       food: band(c.stock.food, living * N.foodPerTraveller[plan.rations === "none" ? "full" : plan.rations]),

@@ -17,7 +17,11 @@ export interface EffectReport {
   stock: Partial<Record<Supply | "coins", number>>; // what actually changed, after clamping
   km: number; // what actually changed on the leg, negative = lost
   scoutSaved: boolean; // the Scout flag zeroed some lost km
+  cargo: number; // units of cargo lost, 0 or negative
+  lucky: boolean | null; // how the first chance roll went, null if the effect has none
 }
+/** What the event alone did, as the day log keeps it. */
+export type EventOutcome = Omit<EffectReport, "text">;
 export interface Armed {
   guide: boolean;
   scout: boolean;
@@ -95,7 +99,7 @@ export function hasLostTime(effect: Effect): boolean {
  * `scout` zeroes the km on every lostTime effect it applies.
  */
 export function applyEffect(c: Caravan, effect: Effect, travellers: string[], randomInt: RandomInt, opts: { scout?: boolean } = {}): EffectReport {
-  const report: EffectReport = { text: [], healthChanges: [], stock: {}, km: 0, scoutSaved: false };
+  const report: EffectReport = { text: [], healthChanges: [], stock: {}, km: 0, scoutSaved: false, cargo: 0, lucky: null };
   const run = (e: Effect) => {
     for (const [item, delta] of Object.entries(e.stock ?? {}) as [Supply | "coins", number][]) {
       const before = c.stock[item];
@@ -117,6 +121,7 @@ export function applyEffect(c: Caravan, effect: Effect, travellers: string[], ra
         left -= take;
         lost += take;
       }
+      report.cargo -= lost;
       if (lost > 0) report.text.push(`cargo -${lost}`);
     }
     if (e.health) {
@@ -147,7 +152,9 @@ export function applyEffect(c: Caravan, effect: Effect, travellers: string[], ra
       }
     }
     if (e.chance) {
-      const branch = roll(e.chance.p, randomInt) ? e.chance.then : e.chance.else;
+      const rolled = roll(e.chance.p, randomInt);
+      report.lucky ??= rolled;
+      const branch = rolled ? e.chance.then : e.chance.else;
       if (branch) run(branch);
     }
   };

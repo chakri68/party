@@ -11,7 +11,7 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { rollForks, withForks } from "../shared/forks.ts";
-import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers } from "../shared/events.ts";
+import { CACHE_FOOD, drawEvent, resolveChoice, resolveEvent, rollDangers, type EffectReport, type EventOutcome } from "../shared/events.ts";
 import { longTrailManifest } from "../shared/manifest.ts";
 import { packFor, stopById, type LegKind } from "../shared/pack.ts";
 import { buildRecap, nameTokens, type DayLog } from "../shared/recap.ts";
@@ -35,7 +35,7 @@ import {
 } from "../shared/types.ts";
 import { parseAction, VOTES } from "./parse.ts";
 import { goalTexts, privateState, publicState } from "./views.ts";
-import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, skipPlan, world } from "./world.ts";
+import { activeIds, aliveJobs, find, isAlive, isArmable, JOBS, jobAlive, leaderOf, legOut, openPlan, skipPlan, stockDeltas, world } from "./world.ts";
 
 type State = LongTrailServerState;
 type Events = GameEventEnvelope<LongTrailEvent>[];
@@ -246,8 +246,14 @@ function resolveDay(state: State, plan: Plan, stayedCourse: boolean, ctx: GameCo
       return;
     }
     changes.push(...res.report!.healthChanges);
+    state.draft.log.eventOutcome = outcomeOf(res.report!);
   }
   finishDay(state, ctx, out);
+}
+
+/** What the event did, without its text, copied so the log owns it. */
+function outcomeOf(r: EffectReport): EventOutcome {
+  return { healthChanges: r.healthChanges.map((h) => ({ ...h })), stock: { ...r.stock }, km: r.km, scoutSaved: r.scoutSaved, cargo: r.cargo, lucky: r.lucky };
 }
 
 /** Majority; a tie goes to the leader's vote, or option 0 if they didn't vote. */
@@ -262,6 +268,7 @@ function closeChoice(state: State, ctx: GameContext, out: Out): void {
   const log = state.draft!.log;
   log.event = { id: card.id, text: card.text, choice: { votes: { ...b.votes }, picked, label: card.options[picked].label } };
   log.report.healthChanges.push(...res.report.healthChanges);
+  log.eventOutcome = outcomeOf(res.report);
   state.choice = null;
   state.choiceBallot = null;
   finishDay(state, ctx, out);
@@ -306,14 +313,7 @@ function closeUnfinishedDay(state: State): void {
 function closeDraft(state: State): DayLog {
   const c = state.caravan;
   const { log, before } = state.draft!;
-  for (const k of ["food", "water", "medicine", "animals", "coins"] as const) {
-    const d = c.stock[k] - before[k];
-    if (d !== 0) log.report.stockDelta[k] = d;
-  }
-  for (const good of new Set([...Object.keys(before.cargo), ...Object.keys(c.stock.cargo)])) {
-    const d = (c.stock.cargo[good] ?? 0) - (before.cargo[good] ?? 0);
-    if (d !== 0) log.report.cargoDelta[good] = d;
-  }
+  Object.assign(log.report, stockDeltas(before, c.stock));
   log.where = whereNow(state);
   state.log.push(log);
   state.lastDay = log;

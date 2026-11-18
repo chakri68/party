@@ -135,6 +135,26 @@ describe("prompts", () => {
     expect(fresh).toEqual(VIABLE);
   });
 
+  it("each prompt's answers are exactly the dictionary words that fit, in order", () => {
+    // Any run of 1 to 4 letters can come in on a custom deck (normalizeClusters).
+    const deck = ["z", "ing", "tion", "qu", "xyzq"];
+    for (const m of COMBOS.filter((c) => !c.category && !c.reverse)) {
+      const expected = deck.flatMap((cluster) => {
+        const answers = WORDS.filter((w) => fits(w, cluster, m));
+        return answers.length >= MIN_ANSWERS ? [{ cluster, category: null, answers }] : [];
+      });
+      expect(promptsFor(m, deck), label(m)).toEqual(expected);
+    }
+  });
+
+  it("builds a cold pool fast: it runs inside the room's turn", () => {
+    // A key nothing has built yet, so this is the first deal in a fresh isolate.
+    const fresh = [...CLUSTERS].reverse();
+    const t = performance.now();
+    promptsFor(NO_MODES, fresh);
+    expect(performance.now() - t).toBeLessThan(150);
+  });
+
   it("an empty combination is refused with a reason", () => {
     expect(modesProblem(NO_MODES, { "000": { prompts: 0, answers: 0 } })).toMatch(/Too few/);
     expect(modesProblem(NO_MODES, {})).toMatch(/Too few/);

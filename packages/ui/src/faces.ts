@@ -68,10 +68,20 @@ const EXTRAS = [
 
 const TILTS = [-8, -4, 0, 0, 4, 8];
 
+/** The seed's picker, already past the disc pick (the first). Shared so the disc and the rest of the face can't drift. */
+function facePicks(seed: string): { disc: string; pick: ReturnType<typeof picker> } {
+  const pick = picker(seed);
+  return { disc: pick(DISCS), pick };
+}
+
+/** The avatar's disc colour for a seed: the colour `faceSvg(seed)` paints. */
+export function faceColor(seed: string): string {
+  return facePicks(seed).disc;
+}
+
 /** The avatar's SVG markup for a seed. Same seed, same face, forever. */
 export function faceSvg(seed: string): string {
-  const pick = picker(seed);
-  const disc = pick(DISCS);
+  const { disc, pick } = facePicks(seed);
   const eyes = pick(EYES);
   const mouth = pick(MOUTHS);
   const extra = pick(EXTRAS);

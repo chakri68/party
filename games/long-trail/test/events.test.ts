@@ -108,6 +108,18 @@ describe("drawEvent", () => {
 });
 
 describe("applyEffect", () => {
+  it("applyEffect reports cargo lost", () => {
+    const c = van({ stock: { ...van().stock, cargo: { silk: 3 } } });
+    expect(applyEffect(c, { cargo: -2 }, P4, zero).cargo).toBe(-2);
+    const d = van({ stock: { ...van().stock, cargo: { silk: 1 } } });
+    expect(applyEffect(d, { cargo: -2 }, P4, zero).cargo).toBe(-1);
+  });
+  it("applyEffect reports which way a chance went", () => {
+    const water = { stock: { water: 1 } };
+    expect(applyEffect(van(), { chance: { p: 1, then: water } }, P4, zero).lucky).toBe(true);
+    expect(applyEffect(van(), { chance: { p: 0, then: water } }, P4, zero).lucky).toBe(false);
+    expect(applyEffect(van(), water, P4, zero).lucky).toBeNull();
+  });
   it("hits the weakest living traveller, ties by randomInt, never the dead", () => {
     const c = van({ health: { p1: 3, p2: 1, p3: 2, p4: 3 } });
     const r = applyEffect(c, { health: { target: "weakest", steps: 1 } }, P4, zero);

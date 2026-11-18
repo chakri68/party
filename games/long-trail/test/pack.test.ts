@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { N, packFor, pathsOf, stopById, type Goal, type Length, type LegKind } from "../shared/index.ts";
+import { N, SCENE_IDS, packFor, pathsOf, stopById, type Goal, type Length, type LegKind } from "../shared/index.ts";
 import type { Effect } from "../shared/index.ts";
 import { startWealth, tradeRoute } from "../shared/packs/trade-route.ts";
 
@@ -134,5 +134,18 @@ describe("trade route pack", () => {
     // A trip where everyone died never says time ran out, and a late trip never says everyone died.
     for (const l of tradeRoute.endLines.failed.dead) expect(l).not.toMatch(/time|late|slow|wait/i);
     for (const l of tradeRoute.endLines.failed.deadline) expect(l).not.toMatch(/alive|dead|died|lost/i);
+  });
+
+  it("every card and option has a scene", () => {
+    for (const card of packFor("trade-route").events) {
+      expect(SCENE_IDS, card.id).toContain(card.scene);
+      if (!("options" in card)) continue;
+      for (const o of card.options) {
+        expect(SCENE_IDS, `${card.id} ${o.label}`).toContain(o.scene);
+        if (o.badScene !== undefined) expect(SCENE_IDS).toContain(o.badScene);
+        if (o.effect.chance) expect(o.badScene, `${card.id} ${o.label} badScene`).toBeDefined();
+        else expect(o.badScene, `${card.id} ${o.label} badScene`).toBeUndefined();
+      }
+    }
   });
 });

@@ -29,6 +29,37 @@ function runsIn(words: readonly string[]): string[] {
   return [...runs].sort();
 }
 
+/**
+ * What `words.filter((w) => fits(w, cluster, modes))` gives for each cluster,
+ * in one pass over the words: each word looks up its own runs (or, in ending
+ * mode, its endings) instead of every cluster scanning all 60k words. The
+ * filter-per-cluster version took most of a second, inside the room's turn.
+ */
+function answersByCluster(words: readonly string[], clusters: readonly string[], modes: Pick<BombModes, "ending" | "length">): Map<string, string[]> {
+  // Runs are keyed by number, not by slicing out a string: a million slices was most of the cost.
+  const code = (w: string, from: number, n: number) => {
+    let k = n;
+    for (let i = from; i < from + n; i++) k = k * 32 + (w.charCodeAt(i) & 31);
+    return k;
+  };
+  const answers = new Map<string, string[]>(clusters.map((c) => [c, []]));
+  const byCode = new Map(clusters.map((c) => [code(c, 0, c.length), answers.get(c)!]));
+  const sizes = [...new Set(clusters.map((c) => c.length))];
+  for (const w of words) {
+    if (!fits(w, "", modes)) continue;
+    for (const n of sizes) {
+      if (n > w.length) continue;
+      const first = modes.ending ? w.length - n : 0;
+      for (let i = first; i + n <= w.length; i++) {
+        const list = byCode.get(code(w, i, n));
+        // A word with the cluster in it twice still answers it once.
+        if (list && list[list.length - 1] !== w) list.push(w);
+      }
+    }
+  }
+  return answers;
+}
+
 const cache = new Map<string, readonly Prompt[]>();
 
 /**
@@ -51,10 +82,10 @@ export function promptsFor(modes: BombModes, clusters: readonly string[] = CLUST
       }
     }
   } else {
-    const words = allWords();
+    const answers = answersByCluster(allWords(), clusters, modes);
     for (const cluster of clusters) {
-      const answers = words.filter((w) => fits(w, cluster, modes));
-      if (answers.length >= MIN_ANSWERS) out.push({ cluster, category: null, answers });
+      const list = answers.get(cluster)!;
+      if (list.length >= MIN_ANSWERS) out.push({ cluster, category: null, answers: list });
     }
   }
   pool = out;

@@ -25,7 +25,7 @@ One caravan, a long trail and not enough food. Plan each day together, and keep 
 3. **Vote (25 s).** Everyone taps **Go** or **No-go**. You can change your vote until the vote closes. More Go than No-go passes the plan. A tie fails. If the plan fails, the next player makes a second plan. If that fails too, the caravan keeps its pace and rations (on day 1: Steady and Full). It takes the safer way at a fork. Nobody trades or gets medicine, and nobody rests.
 4. **The day.** Trades happen first, then medicine, then the caravan travels. It eats and drinks, and each traveller may get worse. Then an event happens.
 5. **Choice (20 s).** Some events have 2 options. Everyone picks one. Most picks wins. A tie goes to the leader's pick, or to the first option if the leader did not pick.
-6. **Day report (5 s).** How far you moved, what you lost or got, and who got sick. Tap **Next**. Then the next player leads.
+6. **Day report (9 s).** The caravan walks, and the day's event plays out at the top of the screen. Then you see how far you moved, what you lost or got, and who got sick. Tap **Next**. Then the next player leads.
 
 The game ends when the caravan reaches Mirren Gate, when time runs out, or when every traveller is dead.
 
@@ -178,11 +178,11 @@ Host picks these in the lobby.
 | Setting | **Trade route** | Camels, desert and markets. Only one for now. |
 | Length | Short, **Normal** (default), Epic | Short: 5 stops, about 15 min. Normal: 8 stops, about 25 min. Epic: 12 stops, about 45 min. |
 
-Timers are fixed: 30 s to read your job, 45 s to plan, 25 s to vote, 20 s to choose, 5 s for the day report, 20 s for the trip at the end.
+Timers are fixed: 30 s to read your job, 45 s to plan, 25 s to vote, 20 s to choose, 9 s for the day report, 20 s for the trip at the end.
 
 ## On your screen
 
-- **The trail.** A line of stops, with the forks ahead. Below it, where you are, or how many km are left to the next stop.
+- **The trail.** At the top, your caravan walks through the land you are crossing: desert, mountains, river or plains. There is one traveller for each living player, in their colour, and one camel for each camel you have. Sick travellers walk slowly. Badly hurt travellers ride a camel. Each day's event plays out here. Under it, a line of stops shows the forks ahead and where you are, or how many km are left to the next stop.
 - **Stock.** Food and water as bars: plenty (6 days or more), some (3 to 5), low (1 or 2), out (none left, or less than 1 day). On no rations, the food bar counts days on full rations. At a fork with no way picked, the water bar counts the normal rate. Medicine, coins, camels and each good as numbers, and your load out of what the camels can carry.
 - **The caravan.** Each player, their job, their health, and who leads today.
 - **You.** Your job, what it tells you, your help and its **Get ready** button, and your secret goal behind a tap.

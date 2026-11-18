@@ -1,0 +1,4 @@
+# Vite names everything in /assets/ by content hash, so a file there never changes.
+# The default (max-age=0, must-revalidate) made every page load re-check each one.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
