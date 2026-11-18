@@ -273,6 +273,27 @@ describe("sceneModel", () => {
     expect(travel.speed).toBeGreaterThan(0);
   });
 
+  it("the day a stop is reached: the event and settle play on the leg's land, not the town's", () => {
+    const game = toSummary((p) => !!p.lastDay!.report.reached && !p.lastDay!.plan.rest && !p.lastDay!.event?.choice && !!p.lastDay!.event)!;
+    expect(game).not.toBeNull();
+    const reached = game.lastDay!.report.reached!;
+    const from = game.visited[game.visited.lastIndexOf(reached) - 1];
+    const leg = pack.routes[game.settings.length].stops.find((x) => x.id === from)!.next.find((l) => l.to === reached)!;
+    const m = model(game);
+    expect(m.beats.map((b) => b.kind)).toEqual(["travel", "event", "settle"]);
+    expect(m.beats.map((b) => b.terrain)).toEqual([leg.kind, leg.kind, leg.kind]);
+    expect(m.terrain).not.toBe(leg.kind); // settle fades from the leg's land to this
+  });
+
+  it("mid-leg: every beat plays on the leg's land", () => {
+    const game = structuredClone(toSummary((p) => !p.lastDay!.plan.rest && !p.lastDay!.event?.choice && !!p.lastDay!.event)!);
+    game.leg = { to: "x", km: 100, kind: "desert", kmLeft: 40 };
+    game.lastDay!.report.reached = null;
+    const m = model(game);
+    expect(m.beats.map((b) => b.terrain)).toEqual(["desert", "desert", "desert"]);
+    expect(m.terrain).toBe("desert");
+  });
+
   it("a plain day: deaths in travel or the event fade in settle", () => {
     const base = toSummary((p) => !p.lastDay!.plan.rest && !p.lastDay!.event?.choice)!;
     const game = structuredClone(base);

@@ -21,7 +21,7 @@ export interface Beat {
   fade?: string[]; // walkers who fade out through this beat (drawn as at its start, alpha 1 - t), then are gone
   arrive?: string | null; // travel: stop id reached, slides in
   speed?: 0 | 1 | 2 | 3; // travel: the day's pace
-  terrain?: Terrain; // travel: the walked leg's kind, also on the day it ends at a stop
+  terrain?: Terrain; // the land the beat plays on: the walked leg's kind, also on the day it ends at a stop (settle fades from it to the model's)
 }
 export interface SceneModel {
   terrain: Terrain;
@@ -110,6 +110,8 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
   const beats: Beat[] = [];
   const event = game.phase === "summary" ? game.lastDay!.event : null;
   const choiceDone = !!event?.choice;
+  // The day plays on the leg walked, even when it ends at a stop; settle fades to the stop's land.
+  const walked = game.leg?.kind ?? (report.reached ? finishedLeg(input, report.reached)?.kind : undefined) ?? terrain;
   const choiceDay = game.phase === "choice" || choiceDone;
   // A plain day shows travel's own changes in settle, so every beat before it starts from the day's start.
   // A choice day shows them by the end of the travel beat, which plays in `choice`.
@@ -124,12 +126,12 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
       ...(fade.length ? { fade } : {}),
       arrive: report.reached,
       speed: SPEED[plan.pace],
-      terrain: game.leg?.kind ?? (report.reached ? finishedLeg(input, report.reached)?.kind : undefined) ?? terrain,
+      terrain: walked,
     });
   }
   if (game.phase === "choice") {
     const card = pack.events.find((e) => e.id === game.choice?.id);
-    beats.push({ kind: "situation", ms: Infinity, health: { ...afterTravel }, camels, scene: card?.scene ?? "calm" });
+    beats.push({ kind: "situation", ms: Infinity, health: { ...afterTravel }, camels, scene: card?.scene ?? "calm", terrain: walked });
     return beats;
   }
   if (event) {
@@ -139,11 +141,11 @@ function beatsOf(input: SceneInput, final: Record<string, Health>, plan: Plan, t
       const opt = (card as ChoiceEvent | undefined)?.options?.[event.choice.picked];
       scene = outcome?.lucky === false ? (opt?.badScene ?? opt?.scene) : opt?.scene;
     } else scene = card?.scene;
-    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: { ...eventStart }, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome });
+    beats.push({ kind: "event", ms: choiceDone ? MS.result : MS.event, health: { ...eventStart }, camels: camelsAt(outcome?.stock.animals), scene: scene ?? "calm", outcome, terrain: walked });
   }
   const settle = after(eventStart, eventPart);
   const fade = dying(eventStart, final);
-  beats.push({ kind: "settle", ms: MS.settle, health: settle, camels, ...(fade.length ? { fade } : {}) });
+  beats.push({ kind: "settle", ms: MS.settle, health: settle, camels, ...(fade.length ? { fade } : {}), terrain: walked });
   return beats;
 }
 
