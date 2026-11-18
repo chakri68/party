@@ -276,7 +276,9 @@ export class TrailScene {
     this.phase += (dt / 1000) * stepsPerSec(speed);
     const frame = speed > 0 ? this.phase : 0;
 
-    const terrain = travel ? (beat.terrain ?? m.terrain) : m.terrain;
+    // The land: the beat's (the leg walked), fading to the model's (the stop reached) through settle.
+    const terrain = beat?.terrain ?? m.terrain;
+    const landing = beat?.kind === "settle" && terrain !== m.terrain ? t : terrain === m.terrain ? 1 : 0;
     const outcome = beat?.kind === "event" ? (beat.outcome ?? null) : null;
     const hurt = outcome?.healthChanges.find((h) => h.to < h.from);
     const seat = hurt ? lay.seat.get(hurt.playerId) : undefined;
@@ -299,7 +301,13 @@ export class TrailScene {
 
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, v.w, v.h);
-    drawBackdrop(c, this.art, v, terrain, this.reduced ? 0 : this.scroll, { fork: m.fork && !travel, night: !!pose.night });
+    const scrollPx = this.reduced ? 0 : this.scroll;
+    if (landing < 1) drawBackdrop(c, this.art, v, terrain, scrollPx, { fork: false, night: !!pose.night });
+    if (landing > 0) {
+      c.globalAlpha = landing;
+      drawBackdrop(c, this.art, v, m.terrain, scrollPx, { fork: m.fork && !travel, night: !!pose.night });
+      c.globalAlpha = 1;
+    }
     if (arriving) {
       // The town rides on the ground: it moves with the scroll and stops in its place.
       const key = `${this.beatsKey}:${pos!.index}`;

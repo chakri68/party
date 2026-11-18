@@ -106,15 +106,16 @@ function clouds(c: C, art: Art, v: View, off: number): void {
   if (!art.clouds.length) return;
   const gap = 170 * v.s;
   const first = Math.floor(off / gap) - 1;
+  const alpha = c.globalAlpha; // the whole backdrop may be fading in
   for (let i = first; i <= first + Math.ceil(v.w / gap) + 2; i++) {
     const img = art.clouds[Math.floor(rnd(i, 5) * art.clouds.length)]!;
     const [iw, ih] = imageWidth(img);
     const h = (16 + rnd(i, 6) * 8) * v.s;
     const x = i * gap - off + rnd(i, 7) * gap * 0.5;
-    c.globalAlpha = 0.9;
+    c.globalAlpha = alpha * 0.9;
     c.drawImage(img, x, (4 + rnd(i, 8) * 16) * v.s, (h * iw) / ih, h);
   }
-  c.globalAlpha = 1;
+  c.globalAlpha = alpha;
 }
 
 /** The far layer's shape when there is no image for it. */
