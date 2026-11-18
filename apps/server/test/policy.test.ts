@@ -67,4 +67,22 @@ describe("createFetch", () => {
     expect(claimed).toEqual([{ tier: "free", hostKey: "hk" }]);
     expect(created).toEqual([body.code]);
   });
+
+  it("answers without waiting for onRoomCreated when it has a ctx, and hands the record to waitUntil", async () => {
+    let finish!: () => void;
+    const record = new Promise<void>((r) => (finish = r));
+    const waited: Promise<unknown>[] = [];
+    const fetch = createFetch({
+      brand: "Test",
+      policy: { canCreate: async (): Promise<CreateDecision> => ({ ok: true, grant: { tier: "free", hostKey: "hk" } }) },
+      getRoom: async () => ({ claim: async () => true }),
+      // Never settles until the test says so: an awaited record would hang the response.
+      onRoomCreated: () => record,
+    });
+    const res = await fetch(post(), env(), { waitUntil: (p) => void waited.push(p) });
+    expect(res.status).toBe(200);
+    expect(waited).toHaveLength(1);
+    finish();
+    await waited[0];
+  });
 });

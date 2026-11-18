@@ -136,10 +136,15 @@ export interface WorkerOptions {
   getRoom?(env: ServerEnv, code: string): Promise<RoomStub>;
 }
 
-export function createFetch(opts: WorkerOptions): (request: Request, env: ServerEnv) => Promise<Response> {
+/** The bit of ExecutionContext createFetch uses. */
+export interface WaitUntil {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+export function createFetch(opts: WorkerOptions): (request: Request, env: ServerEnv, ctx?: WaitUntil) => Promise<Response> {
   const getRoom =
     opts.getRoom ?? ((env: ServerEnv, code: string) => getServerByName(env.Room as DurableObjectNamespace<RoomBase>, code));
-  return async (request, env) => {
+  return async (request, env, ctx) => {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/rooms" && request.method === "POST") {
@@ -150,7 +155,11 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
         const code = generateRoomCode();
         const stub = await getRoom(env, code);
         if (await stub.claim(decision.grant)) {
-          await opts.onRoomCreated?.(code, decision.grant, request);
+          // The room is claimed and playable: the record (a database write, far
+          // away on a slow route) needn't hold up the host. Awaited without a ctx.
+          const record = opts.onRoomCreated?.(code, decision.grant, request);
+          if (record && ctx) ctx.waitUntil(record.catch((err) => console.error(`room ${code}: record failed:`, err)));
+          else await record;
           return json({ code, ...decision.extra });
         }
       }
