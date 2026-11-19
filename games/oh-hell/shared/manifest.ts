@@ -6,5 +6,7 @@ export const ohHellManifest: GameManifest = {
   description: "The number of cards changes each round. Say how many tricks you will win. You score only if your number is exact.",
   minPlayers: 3,
   maxPlayers: 7,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 5,
   icon: "cards",
 };

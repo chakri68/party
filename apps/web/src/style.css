@@ -13,6 +13,7 @@
   --accent-ink: #141a00;
   --accent-soft: rgb(198 244 50 / 0.14);
   --danger: #ff7b7b;
+  --warn: #f5c542;
   --card: #fffdf8;
   --card-ink: #1b1b1b;
   --red: #c8302f; /* 5.3:1 on card white; small board suits need ≥4.5 */
@@ -387,7 +388,10 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .game-option.locked .tag { background: var(--line); color: var(--muted); }
 .game-option:disabled { opacity: 0.5; cursor: not-allowed; }
 .game-option-text { display: grid; gap: 2px; min-width: 0; }
-.game-option-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.game-option-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 700; }
+/* The room has the player count this game plays best at. Solid, so it reads before the softer tags. */
+.game-option .tag.best { display: inline-flex; align-items: center; gap: 3px; background: var(--accent); color: var(--accent-ink); }
+.game-option .tag.best .icon { width: 11px; height: 11px; }
 .game-option-text .muted { font-size: 0.88rem; }
 .game-option-meta { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .game-option-meta.warn { color: var(--danger); }
@@ -550,6 +554,13 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .room-header .icon-btn:hover { color: var(--ink); }
 .room-code + .icon-btn { margin-left: 4px; }
+/* Ping meter: sits close to the room code, narrower than the other buttons so phones keep one line. */
+.room-header .signal { min-width: 26px; width: 26px; margin-left: -6px; }
+.room-header .signal svg { width: 16px; height: 14px; }
+.signal rect { fill: var(--line); transition: fill 0.3s; }
+.signal[data-level="good"] rect { fill: var(--accent); }
+.signal[data-level="ok"] :is(.b1, .b2) { fill: var(--warn); }
+.signal[data-level="slow"] .b1 { fill: var(--danger); }
 .settings { display: grid; gap: 14px; min-width: min(300px, 80vw); }
 .settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
 .settings input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }

@@ -14,6 +14,7 @@ import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
 import { appTitle, navigate } from "../router.ts";
 import { shellConfig } from "../shell.ts";
+import { signalMeter } from "../signal.ts";
 import { canTransition, transition } from "../transition.ts";
 import { RoomChat } from "./chat.ts";
 import { resultHeadline } from "./headline.ts";
@@ -100,6 +101,7 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
+  private signal = signalMeter((text) => this.showToast(text));
   private turn = new TurnSignal(() => `${this.code} · ${appTitle()}`);
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
@@ -207,6 +209,7 @@ export class RoomView implements View {
     this.root.append(emotes.layer);
     client.on("emote", ({ from, emoji }) => emotes.show(from, emoji));
 
+    client.on("latency", (ms) => this.signal.set(ms));
     client.on("status", (status) => {
       this.renderHeader();
       if (status === "open") {
@@ -323,6 +326,7 @@ export class RoomView implements View {
         h("span", {}, shellConfig().brand.wordmark, h("span", { class: "dot" }, ".")),
       ),
       h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
+      status === "open" ? this.signal.el : null,
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       // Once seated: before that there's nobody to talk as.
       this.client?.playerId && status !== "closed" ? [this.emotes?.wrap, this.chat?.button] : null,
@@ -706,7 +710,7 @@ export class RoomView implements View {
     const refreshers: ((room: RoomPublicState) => void)[] = [];
 
     const rows = all.map(([id, entry]) => {
-      const { name, description, minPlayers, maxPlayers } = entry.manifest;
+      const { name, description, minPlayers, maxPlayers, bestMinPlayers, bestMaxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
       // Only the host's rows pick, so only theirs are buttons.
       const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option readonly" });
@@ -726,13 +730,20 @@ export class RoomView implements View {
         const current = id === room.gameId;
         const locked = room.lockedGameIds.includes(id);
         const tooMany = players > maxPlayers;
+        const best = bestMinPlayers !== undefined && bestMaxPlayers !== undefined && players >= bestMinPlayers && players <= bestMaxPlayers;
+        option.classList.toggle("best", best);
         const n = suggestionCounts(room).get(id) ?? 0;
         option.classList.toggle("locked", locked);
         if (current) option.setAttribute("aria-current", "true");
         else option.removeAttribute("aria-current");
         // The host's rows disable when the game can't seat everyone.
         if (option instanceof HTMLButtonElement) option.disabled = tooMany && !current && !locked;
-        replaceChildren(nameLine, [name, current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null]);
+        replaceChildren(nameLine, [
+          name,
+          current ? h("span", { class: "tag" }, "current") : null,
+          locked ? h("span", { class: "tag" }, "Host Pass") : null,
+          best ? h("span", { class: "tag best" }, icon("star"), `Best for ${players}`) : null,
+        ]);
         meta.className = `game-option-meta${tooMany ? " warn" : ""}`;
         meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
         replaceChildren(want, n ? [icon("thumbs-up"), wantLabel(n)] : []);

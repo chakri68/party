@@ -6,5 +6,7 @@ export const chainWordsManifest: GameManifest = {
   description: "Players take turns to type a word. Each word starts with the last letter of the word before. Be quick.",
   minPlayers: 2,
   maxPlayers: 12,
+  bestMinPlayers: 3,
+  bestMaxPlayers: 6,
   icon: "chain",
 };

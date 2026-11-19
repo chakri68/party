@@ -20,6 +20,10 @@ Shared code lands on `master`. `product` merges `master` in, and adds only Couch
 
 Words players read: short, plain sentences, basic words, no idioms. Write for someone reading English as a second language. No emoji in the UI; icons are SVG.
 
+## Adding a game: best player counts
+
+Set `bestMinPlayers` and `bestMaxPlayers` in the manifest: the head counts the game plays best at, inside `minPlayers`..`maxPlayers`. The game list tags the game "Best for N" when the room has that many. `apps/server/test/games.test.ts` fails for a registered game without them.
+
 ## Adding a game: party recap stats
 
 When the host ends the party, everyone gets a recap with awards like "Biggest liar" and "Most suspicious". The awards come from counts each game keeps. **Every new game reports them from day one.** A test enforces it: `apps/server/test/games.test.ts` fails for any registered game without `partyStats` that isn't on the old exempt list. Don't add to that list.

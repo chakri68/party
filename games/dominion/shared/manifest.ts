@@ -7,5 +7,7 @@ export const dominionManifest: GameManifest = {
   // One person can play: the game adds a computer opponent.
   minPlayers: 1,
   maxPlayers: 8,
+  bestMinPlayers: 2,
+  bestMaxPlayers: 4,
   icon: "map",
 };

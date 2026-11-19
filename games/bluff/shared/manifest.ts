@@ -6,6 +6,8 @@ export const fakeWordManifest: GameManifest = {
   description: "You see the meaning of a real word. Make up a word for it. Then find the real word.",
   minPlayers: 3,
   maxPlayers: 12,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 8,
   icon: "book",
 };
 
@@ -15,5 +17,7 @@ export const bluffDefinitionsManifest: GameManifest = {
   description: "You see a rare real word. Write a fake meaning for it. Then find the real meaning.",
   minPlayers: 3,
   maxPlayers: 12,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 8,
   icon: "book",
 };

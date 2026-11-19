@@ -7,5 +7,7 @@ export const longTrailManifest: GameManifest = {
   description: "One caravan, a long trail and not enough food. Plan each day together, and keep your own goal secret.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 6,
   icon: "map",
 };

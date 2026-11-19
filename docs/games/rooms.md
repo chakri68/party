@@ -65,7 +65,7 @@ The header, always there, has the room code, a sound button, an emoji button and
 
 The host is the first person into the room. The tag next to their name says "host". Only they can:
 
-- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy), each with its player range. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
+- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy), each with its player range. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
 - Change the **settings**. Everyone else sees them read-only.
 - **Start game**.
 - Remove a player from the lobby with the **✕** next to their name (after a confirmation).
@@ -121,6 +121,8 @@ The speaker button opens **Settings**:
 The settings stay on your device.
 
 ## Connection drops and reconnecting
+
+Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is OK (under 300 ms), and one red bar is slow. Tap the bars to see the number.
 
 If your connection goes, the header shows "reconnecting…" and your seat stays yours. The server holds it for **60 seconds**.
 

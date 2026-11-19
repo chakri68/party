@@ -68,3 +68,16 @@ describe("party recap stats", () => {
     }
   });
 });
+
+describe("best player counts", () => {
+  const all = gamesFor({ blindRally: true, treasureHunt: true });
+
+  it.each(Object.keys(all))("%s says which player counts it plays best at", (id) => {
+    const { minPlayers, maxPlayers, bestMinPlayers, bestMaxPlayers } = all[id]!.manifest;
+    expect(bestMinPlayers, `${id} needs bestMinPlayers and bestMaxPlayers in its manifest`).toBeTypeOf("number");
+    expect(bestMaxPlayers).toBeTypeOf("number");
+    expect(bestMinPlayers!).toBeGreaterThanOrEqual(minPlayers);
+    expect(bestMaxPlayers!).toBeLessThanOrEqual(maxPlayers);
+    expect(bestMinPlayers!).toBeLessThanOrEqual(bestMaxPlayers!);
+  });
+});

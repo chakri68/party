@@ -7,5 +7,7 @@ export const shortNightManifest: GameManifest = {
   description: "Some players are secret Wolves. There is 1 night, then 1 talk, then 1 vote. Vote out a Wolf to win.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
+  bestMinPlayers: 5,
+  bestMaxPlayers: 8,
   icon: "moon",
 };

@@ -6,5 +6,7 @@ export const crazyEightsManifest: GameManifest = {
   description: "Play a card with the same suit or number. You can play an 8 at any time. The first player with no cards wins.",
   minPlayers: 2,
   maxPlayers: 10,
+  bestMinPlayers: 3,
+  bestMaxPlayers: 5,
   icon: "cards",
 };

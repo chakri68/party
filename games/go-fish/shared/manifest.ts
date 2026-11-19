@@ -6,5 +6,7 @@ export const goFishManifest: GameManifest = {
   description: "Ask a player for a card number you have. Get all 4 cards of one number. This is a book. The player with the most books wins.",
   minPlayers: 2,
   maxPlayers: 6,
+  bestMinPlayers: 3,
+  bestMaxPlayers: 5,
   icon: "cards",
 };

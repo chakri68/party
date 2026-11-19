@@ -6,5 +6,7 @@ export const thornsManifest: GameManifest = {
   description: "Everyone puts discs face down. Most are roses. One is a thorn. Say how many discs you can turn over without finding a thorn. Then turn them over.",
   minPlayers: 3,
   maxPlayers: 6,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 6,
   icon: "rose",
 };

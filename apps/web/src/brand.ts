@@ -31,6 +31,7 @@ const ICONS = {
   close: `<path d="M6 6l12 12M18 6 6 18"/>`,
   check: `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
   "thumbs-up": `<path d="M7 10v10"/><path d="M15 6.5 14 10h5.2a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7V10l4-6.5a1.9 1.9 0 0 1 3.5 1z"/><path d="M3 10h4v10H3z"/>`,
+  star: `<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>`,
   bug: `<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M12 6V3M4 13h4M16 13h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2"/>`,
 } as const;
 

@@ -7,6 +7,13 @@ export interface GameManifest {
   description: string;
   minPlayers: number;
   maxPlayers: number;
+  /**
+   * The player counts the game plays best at, inside min..max. The game list
+   * tags the game "Best for N" when the room has that many. Every registered
+   * game sets both (a test checks); optional only so test fixtures needn't.
+   */
+  bestMinPlayers?: number;
+  bestMaxPlayers?: number;
   /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
   /**
