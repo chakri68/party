@@ -1,3 +1,4 @@
+import type { AnyGameDefinition, PartyLog } from "@games/game-core";
 import { NUDGE_AFTER_MS } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CLEANUP_AFTER_MS, RoomRuntime } from "../src/runtime.ts";
@@ -238,5 +239,295 @@ describe("computer seats", () => {
     expect(roomOf(a).botGameIds).toEqual(["toy"]);
     await send(room, a, { type: "start-game" });
     expect(roomOf(a).phase).toBe("playing");
+  });
+});
+
+describe("bots in a game", () => {
+  const STUCK = "A computer player got stuck, so the game ended.";
+  /** One bot that never gives up the turn: its skip leaves it awaited. */
+  const hogGame = {
+    ...toyGame,
+    skipTurn: (st: { phase: string }, pid: string) => ({
+      state: st,
+      events: [{ visibility: { kind: "public" as const }, event: { type: "skipped", playerId: pid } }],
+    }),
+  } as AnyGameDefinition;
+  /** Room for six computers. */
+  const bigGame = { ...toyGame, manifest: { ...toyGame.manifest, maxPlayers: 8 } } as AnyGameDefinition;
+
+  let world: World;
+  let room: RoomRuntime;
+  let people: FakeConn[];
+
+  const pub = (c: FakeConn) => roomOf(c).game as ToyPublic;
+  const idOf = (c: FakeConn) => c.last("welcome")!.playerId;
+  const data = () =>
+    world.store.get("room") as {
+      phase: string;
+      hostId: string | null;
+      timers: Record<string, number>;
+      seats: { id: string; presence: string; ready: boolean; bot?: true }[];
+      party?: PartyLog;
+    };
+  const botTimers = () => Object.entries(data().timers).filter(([k]) => k.startsWith("bot:"));
+  const events = (c: FakeConn) => c.of("update").flatMap((u) => u.events as { type: string; playerId?: string }[]);
+
+  async function setUp(game: AnyGameDefinition = toyGame) {
+    world = new World();
+    room = new RoomRuntime("K7DX", world.host(), { toy: game }, "toy");
+    await room.load();
+    await room.claim();
+  }
+
+  async function table(names: string[], botCount: number) {
+    people = [];
+    for (const n of names) people.push(await join(world, room, n));
+    for (let i = 0; i < botCount; i++) await send(room, people[0]!, { type: "add-bot" });
+    await send(room, people[0]!, { type: "start-game" });
+    expect(roomOf(people[0]!).phase).toBe("playing");
+    return people[0]!;
+  }
+
+  /** Whoever's turn it is, if a person: they add 1. */
+  async function peopleMove() {
+    const a = people[0]!;
+    if (roomOf(a).phase !== "playing") return;
+    const p = people.find((c) => idOf(c) === pub(a).turnId);
+    if (p) await send(room, p, { type: "game-action", clientActionId: "x", action: { type: "add", n: 1 } });
+  }
+
+  async function playUntil(done: () => boolean, max = 300) {
+    for (let i = 0; i < max && !done(); i++) {
+      await peopleMove();
+      if (done()) break;
+      await world.tick(room, 3000);
+    }
+    expect(done()).toBe(true);
+  }
+
+  /** Gets to a bot's turn with its timer pending. */
+  async function toBotTurn() {
+    const a = people[0]!;
+    await playUntil(() => roomOf(a).phase === "playing" && bots(a).some((b) => b.id === pub(a).turnId));
+    expect(botTimers().map(([k]) => k)).toContain(`bot:${pub(a).turnId}`);
+  }
+
+  beforeEach(async () => {
+    toyKnobs.decide = "normal";
+    await setUp();
+  });
+
+  it("bots take their turns after a short think", async () => {
+    const a = await table(["Ana"], 3);
+    await toBotTurn();
+    const before = a.of("update").length;
+    const total = pub(a).total;
+    await world.tick(room, 300);
+    expect(a.of("update").length).toBe(before);
+    await world.tick(room, 1400);
+    expect(pub(a).total).toBeGreaterThan(total);
+
+    await playUntil(() => roomOf(a).phase === "results");
+    expect(roomOf(a).result!.winnerIds).toHaveLength(1);
+  });
+
+  it("a person's move goes out before any bot moves", async () => {
+    const a = await table(["Ana"], 1);
+    await playUntil(() => pub(a).turnId === idOf(a));
+    const total = pub(a).total;
+    await send(room, a, { type: "game-action", clientActionId: "x", action: { type: "add", n: 1 } });
+    const update = a.last("update")!;
+    expect(update.events).toEqual([{ type: "moved", total: total + 1 }]);
+    expect(pub(a).total).toBe(total + 1);
+    expect(roomOf(a).awaitingPlayerIds).toEqual([bots(a)[0]!.id]);
+    // The bot's move waits on its own timer.
+    expect(botTimers()).toHaveLength(1);
+    expect(botTimers()[0]![1]).toBeGreaterThan(world.clock);
+  });
+
+  it("bots take optional moves, and bots due together share one commit", async () => {
+    const a = await table(["Ana"], 2);
+    await playUntil(() => pub(a).phase === "window");
+    expect(roomOf(a).awaitingPlayerIds).toEqual([]);
+    expect(botTimers()).toHaveLength(2);
+    const before = a.of("update").length;
+    await world.tick(room, 1600);
+    expect(a.of("update").length).toBe(before + 1);
+    expect(pub(a).phase).toBe("window");
+    expect(pub(a).callers.sort()).toEqual(bots(a).map((b) => b.id).sort());
+  });
+
+  for (const [knob, reason] of [["null", "returns nothing"], ["throw", "throws"], ["illegal", "breaks a rule"]] as const) {
+    it(`a bot that ${reason} on its turn: skip first, then back to the lobby`, async () => {
+      toyKnobs.decide = knob;
+      const a = await table(["Ana", "Ben"], 2);
+      const [b1, b2] = bots(a);
+      await toBotTurn();
+      const stuck = pub(a).turnId!;
+      // A throw in the alarm must not reach the rollback and rethrow.
+      world.clock += 3000;
+      await expect(room.onAlarm()).resolves.toBeUndefined();
+      expect(events(a)).toContainEqual({ type: "skipped", playerId: stuck });
+      expect(roomOf(a).phase).toBe("playing");
+      // b1 sits before b2: if b1 was skipped, b2 is next and stuck too.
+      if (stuck === b2!.id) await playUntil(() => pub(a).turnId === b1!.id);
+      await playUntil(() => roomOf(a).phase === "lobby");
+
+      for (const c of people) {
+        expect(c.last("error")).toEqual({ type: "error", code: "game-ended", message: STUCK, fatal: false });
+        expect(c.closed).toBeNull();
+      }
+      expect(roomOf(a).game).toBeNull();
+      expect(botTimers()).toEqual([]);
+      expect(Object.keys(data().timers).some((k) => k.startsWith("game:"))).toBe(false);
+      expect(data().party?.games ?? []).toHaveLength(0);
+      expect(bots(a).every((s) => s.ready)).toBe(true);
+      if (knob === "throw") expect(world.errors).toContainEqual(new Error("toy bot broke"));
+      else expect(world.errors.length).toBeGreaterThan(0);
+    });
+  }
+
+  it("the in-a-row cap: a bot that keeps the turn is skipped, then the game ends", async () => {
+    await setUp(hogGame);
+    toyKnobs.decide = "hog";
+    const a = await table(["Ana"], 1);
+    await toBotTurn();
+    const moved = events(a).filter((e) => e.type === "moved").length;
+    await playUntil(() => roomOf(a).phase === "lobby", 100);
+    const after = events(a);
+    expect(after.filter((e) => e.type === "skipped")).toHaveLength(1);
+    // 51 moves trip the cap and the skip; the next one, still in a row, ends it.
+    expect(after.filter((e) => e.type === "moved").length - moved).toBe(52);
+    expect(a.last("error")).toMatchObject({ code: "game-ended", message: STUCK });
+  });
+
+  it("bots take turns against each other without tripping the cap", async () => {
+    const a = await table(["Ana"], 3);
+    // Ana is out of it: only the bots move, and the game still ends normally.
+    await playUntil(() => roomOf(a).phase === "results");
+    expect(a.of("error").filter((e) => e.code === "game-ended")).toHaveLength(0);
+  });
+
+  it("bots pause while no person is connected, and pick up on reconnect", async () => {
+    const a = await table(["Ana"], 1);
+    await toBotTurn();
+    const token = a.last("welcome")!.resumeToken;
+    const total = pub(a).total;
+    const stored = () => (data() as unknown as { game: { state: { total: number } } }).game.state.total;
+    await world.disconnect(room, a);
+    for (let i = 0; i < 5; i++) await world.tick(room, 2000);
+    expect(stored()).toBe(total);
+    expect(botTimers()).toEqual([]);
+
+    const back = await join(world, room, "Ana", token);
+    people = [back];
+    expect(pub(back).total).toBe(total);
+    await world.tick(room, 2000);
+    expect(pub(back).total).toBeGreaterThan(total);
+  });
+
+  it("the game ends when every person has left", async () => {
+    const a = await table(["Ana"], 2);
+    await send(room, a, { type: "leave" });
+    expect(data().phase).toBe("lobby");
+    expect(data().hostId).toBeNull();
+    expect(botTimers()).toEqual([]);
+    expect(data().seats.every((s) => s.bot)).toBe(true);
+    expect(a.of("error").filter((e) => e.code === "game-ended")).toHaveLength(0);
+    for (let i = 0; i < 5; i++) await world.tick(room, 3000);
+    expect(data().phase).toBe("lobby");
+
+    const b = await join(world, room, "Ben");
+    expect(roomOf(b)).toMatchObject({ phase: "lobby", hostId: idOf(b) });
+    expect(bots(b)).toHaveLength(2);
+  });
+
+  it("a reload mid-game keeps bots playing", async () => {
+    const a = await table(["Ana"], 1);
+    await toBotTurn();
+    const total = pub(a).total;
+    const room2 = new RoomRuntime("K7DX", world.host(), { toy: toyGame }, "toy");
+    await room2.load();
+    expect(data().seats.filter((s) => s.bot).every((s) => s.presence === "connected")).toBe(true);
+    expect(botTimers()).toHaveLength(1);
+    room = room2;
+    await world.tick(room2, 2000);
+    expect(pub(a).total).toBeGreaterThan(total);
+  });
+
+  async function delays(): Promise<number[]> {
+    const a = people[0]!;
+    const out: number[] = [];
+    for (let i = 0; i < 40 && out.length < 12 && roomOf(a).phase === "playing" && pub(a).phase === "count"; i++) {
+      await peopleMove();
+      const [entry] = botTimers();
+      if (!entry) {
+        await world.tick(room, 3000);
+        continue;
+      }
+      out.push(entry[1] - world.clock);
+      await world.tick(room, entry[1] - world.clock);
+    }
+    expect(out.length).toBeGreaterThan(3);
+    return out;
+  }
+
+  it("think time shrinks at big tables", async () => {
+    await table(["Ana"], 3);
+    for (const d of await delays()) {
+      expect(d).toBeGreaterThanOrEqual(800);
+      expect(d).toBeLessThanOrEqual(1600);
+    }
+    await setUp(bigGame);
+    await table(["Ana"], 6);
+    for (const d of await delays()) {
+      expect(d).toBeGreaterThanOrEqual(400);
+      expect(d).toBeLessThanOrEqual(800);
+    }
+  });
+
+  it("bot seats stay ready after results and after back to lobby", async () => {
+    const a = await table(["Ana"], 2);
+    await playUntil(() => roomOf(a).phase === "results");
+    expect(botTimers()).toEqual([]);
+    expect(bots(a).every((s) => s.ready)).toBe(true);
+    expect(roomOf(a).seats.find((s) => s.id === idOf(a))!.ready).toBe(false);
+    await send(room, a, { type: "return-to-lobby" });
+    expect(roomOf(a).phase).toBe("lobby");
+    expect(bots(a).every((s) => s.ready)).toBe(true);
+
+    await send(room, a, { type: "start-game" });
+    await send(room, a, { type: "return-to-lobby" });
+    expect(bots(a).every((s) => s.ready)).toBe(true);
+    expect(botTimers()).toEqual([]);
+  });
+
+  it("bots win games but get no awards", async () => {
+    const a = await table(["Ana"], 1);
+    const bot = bots(a)[0]!;
+    let botWon = false;
+    for (let game = 0; game < 20 && !botWon; game++) {
+      if (game > 0) await send(room, a, { type: "start-game" });
+      await playUntil(() => roomOf(a).phase === "results");
+      botWon = roomOf(a).result!.winnerIds.includes(bot.id);
+    }
+    expect(botWon).toBe(true);
+    // The bot called first in the window: the game counted it.
+    const party = data().party!;
+    expect(party.games.length).toBeGreaterThan(0);
+    await send(room, a, { type: "end-party" });
+    const recap = roomOf(a).recap!;
+    expect(recap.gamesPlayed).toBe(party.games.length);
+    for (const award of recap.awards) expect(award.who).not.toContain(bot.name);
+    const log = data().party!;
+    for (const g of log.games) {
+      expect(g.players).not.toContain(bot.id);
+      expect(g.winnerIds).not.toContain(bot.id);
+      expect(g.loserIds ?? []).not.toContain(bot.id);
+      expect(Object.keys(g.stats)).not.toContain(bot.id);
+    }
+    expect(Object.keys(log.names)).not.toContain(bot.id);
+    // Ana is the only one the recap can name.
+    expect(recap.awards.flatMap((x) => x.who).every((n) => n === "Ana")).toBe(true);
   });
 });
