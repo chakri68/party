@@ -454,6 +454,40 @@ describe("bots in a game", () => {
     expect(a.last("error")).toMatchObject({ code: "game-ended", message: STUCK });
   });
 
+  it("a bot that keeps the turn moves again quickly", async () => {
+    await setUp(hogGame);
+    toyKnobs.decide = "hog";
+    await table(["Ana"], 1);
+    await toBotTurn();
+    const gaps: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const [, at] = botTimers()[0]!;
+      gaps.push(at - world.clock);
+      await world.tick(room, at - world.clock);
+    }
+    // The first move is a full think; the ones after it, in the same turn, are short.
+    expect(gaps[0]).toBeGreaterThanOrEqual(800);
+    for (const g of gaps.slice(1)) {
+      expect(g).toBeGreaterThanOrEqual(350);
+      expect(g).toBeLessThan(600);
+    }
+  });
+
+  it("a stuck computer's reason reaches every seat after the update", async () => {
+    toyKnobs.decide = "bad-call";
+    const a = await table(["Ana", "Ben"], 1);
+    await playUntil(() => roomOf(a).phase === "lobby");
+    expect(a.last("welcome")!.playerId).toBe(roomOf(a).hostId);
+    for (const c of people) {
+      const last = c.inbox.at(-1)!;
+      expect(last).toEqual({ type: "error", code: "game-ended", message: STUCK, fatal: false });
+      // The update that brought everyone back to the lobby came first.
+      const prev = c.inbox.at(-2)!;
+      expect(prev.type).toBe("update");
+      expect((prev as { room: { phase: string } }).room.phase).toBe("lobby");
+    }
+  });
+
   it("bots take turns against each other without tripping the cap", async () => {
     const a = await table(["Ana"], 3);
     // Ana is out of it: only the bots move, and the game still ends normally.

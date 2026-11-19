@@ -8,7 +8,7 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { avatar, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { avatar, botTag, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
 import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
@@ -488,7 +488,7 @@ export class RoomView implements View {
           : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
-    if (target && target.id !== me && !dropped && elapsed >= NUDGE_AFTER_MS) {
+    if (target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
       items.push(
         h("button", {
           type: "button",
@@ -617,7 +617,7 @@ export class RoomView implements View {
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            s.bot ? h("span", { class: "tag" }, "computer") : null,
+            botTag(s),
             s.bot ? null : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
             isHost && s.id !== me
               ? h("button", {

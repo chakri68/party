@@ -179,6 +179,8 @@ export class RoomRuntime {
   private queue: Promise<unknown> = Promise.resolve();
   /** "kind:seat" → recent send times. In memory: an eviction forgiving a spammer is fine. */
   private sendTimes = new Map<string, number[]>();
+  /** Why a game just ended early; the next commit sends it to every seat after its update. */
+  private gameEndedNotice: string | null = null;
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -204,6 +206,7 @@ export class RoomRuntime {
    */
   private async recover(err: unknown): Promise<void> {
     this.host.logError(err);
+    this.gameEndedNotice = null;
     this.data = (await this.host.storage.get<RoomData>(STORAGE_KEY)) ?? null;
   }
 
@@ -804,9 +807,8 @@ export class RoomRuntime {
     this.resetReady();
     this.setAwaiting([]);
     delete data.botRun;
-    if (message) {
-      for (const c of this.liveConns()) if (this.seatOf(c)) this.error(c, "game-ended", message);
-    }
+    // Sent after the commit's update, so the client reads it as the reason, not "the host ended it".
+    if (message) this.gameEndedNotice = message;
   }
 
   // ---- computer players ---------------------------------------------------
@@ -850,6 +852,11 @@ export class RoomRuntime {
         }
       }
       if (!wants) continue;
+      // This bot moved last and still has a move (a second draw, say): it's a forced step, not a new think.
+      if (data.botRun?.seatId === seat.id) {
+        this.setTimer(key, this.host.now() + 350 + this.host.randomInt(250));
+        continue;
+      }
       // Feels human at a small table; quicker when many bots move in a row.
       const think = (800 + this.host.randomInt(801)) * Math.min(1, 3 / botSeats.length);
       this.setTimer(key, this.host.now() + Math.max(350, Math.round(think)));
@@ -1124,6 +1131,9 @@ export class RoomRuntime {
         ...(snapshot && def?.getStreamSnapshot && { stream: def.getStreamSnapshot(data.game!.state) }),
       });
     }
+    const notice = this.gameEndedNotice;
+    this.gameEndedNotice = null;
+    if (notice) for (const c of this.liveConns()) if (this.seatOf(c)) this.error(c, "game-ended", notice);
   }
 
   /** Sliding-window rate limit. Records the send when it's allowed. */
