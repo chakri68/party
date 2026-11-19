@@ -884,11 +884,15 @@ export class RoomRuntime {
     return events;
   }
 
-  /** Skip the bot once; if it's stuck again before anyone else moves, end the game. */
+  /**
+   * Skip the bot once, when it's awaited; if it's stuck again before anyone else
+   * moves, or stuck off its turn, end the game.
+   */
   private botStuck(seatId: string, reason: string): GameEventEnvelope<unknown>[] {
     const data = this.data!;
     this.host.logError(new Error(`Computer player stuck: game ${data.game?.gameId}, seat ${seatId}, ${reason}`));
-    if (!data.botRun?.skipped) {
+    // Only a seat whose turn it is can be skipped; off-turn, a skip could undo a move (a cast vote).
+    if (!data.botRun?.skipped && data.awaiting.includes(seatId)) {
       const moves = data.botRun?.seatId === seatId ? data.botRun.moves : 0;
       data.botRun = { seatId, moves, skipped: true };
       try {
