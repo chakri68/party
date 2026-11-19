@@ -40,8 +40,9 @@ export type ToyAction = { type: "add"; n: number } | { type: "call" } | { type: 
  * but "normal" only changes the bot's own turn; outside it, it plays normally.
  * - "null": nothing to do. "throw": `decide` throws. "illegal": adds 3.
  * - "hog": keeps the turn forever with `hold`.
+ * - "bad-call": plays its turns normally, but in the call window sends an `add`, which is refused.
  */
-export const toyKnobs: { decide: "normal" | "null" | "throw" | "illegal" | "hog" } = { decide: "normal" };
+export const toyKnobs: { decide: "normal" | "null" | "throw" | "illegal" | "hog" | "bad-call" } = { decide: "normal" };
 
 const err = (code: string, message: string) => ({ ok: false as const, error: { code, message } });
 const ok = (state: ToyState, timers?: { kind: "set"; timerId: string; delayMs: number }[]) => ({
@@ -63,10 +64,13 @@ function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: { randomInt(max: numb
       case "hog":
         return { type: "hold" };
       case "normal":
+      case "bad-call":
         return { type: "add", n: 1 + ctx.randomInt(2) };
     }
   }
-  if (pub.phase === "window" && !pub.callers.includes(view.playerId)) return { type: "call" };
+  if (pub.phase === "window" && !pub.callers.includes(view.playerId)) {
+    return toyKnobs.decide === "bad-call" ? { type: "add", n: 1 } : { type: "call" };
+  }
   return null;
 }
 

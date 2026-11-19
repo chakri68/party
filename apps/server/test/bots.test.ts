@@ -387,6 +387,27 @@ describe("bots in a game", () => {
     });
   }
 
+  it("a bot stuck off its turn ends the game at once, with no skip", async () => {
+    const skipped: string[] = [];
+    await setUp({
+      ...toyGame,
+      skipTurn: (st: unknown, pid: string, ctx: never) => {
+        skipped.push(pid);
+        return toyGame.skipTurn!(st, pid, ctx);
+      },
+    } as AnyGameDefinition);
+    toyKnobs.decide = "bad-call";
+    const a = await table(["Ana"], 1);
+    await playUntil(() => pub(a).phase === "window");
+    expect(roomOf(a).awaitingPlayerIds).toEqual([]);
+    await world.tick(room, 1600);
+    expect(roomOf(a).phase).toBe("lobby");
+    expect(a.last("error")).toEqual({ type: "error", code: "game-ended", message: STUCK, fatal: false });
+    expect(skipped).toEqual([]);
+    expect(events(a).some((e) => e.type === "skipped")).toBe(false);
+    expect(data().party?.games ?? []).toHaveLength(0);
+  });
+
   it("the in-a-row cap: a bot that keeps the turn is skipped, then the game ends", async () => {
     await setUp(hogGame);
     toyKnobs.decide = "hog";
