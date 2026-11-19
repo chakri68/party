@@ -89,6 +89,8 @@ Bots must never make a person wait on the server, and bot-heavy tables shouldn't
 - **`decide()` is cheap.** Simple rules and weights, no deep search. Budget: a few milliseconds at most, so it never stalls the room for the other players. Hold'em-style odds use a small fixed number of samples, not open-ended ones.
 - **No extra round trips.** A bot move costs exactly what a person's move costs: one transition, one commit, one broadcast. Several bots due at once fire in the same alarm and share one commit.
 
+*Update 2026-11-19: the pause was too fast to follow. It is now 1.6 to 2.6 s for a normal move (shorter only above 4 bots, never under 1 s) and 0.9 to 1.3 s for a follow-up move by the same bot.*
+
 ### When a bot can't move
 
 This must never leave a game stuck.
