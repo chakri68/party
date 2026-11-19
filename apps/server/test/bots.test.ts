@@ -408,6 +408,38 @@ describe("bots in a game", () => {
     expect(data().party?.games ?? []).toHaveLength(0);
   });
 
+  it("a timer cleared or re-set by an earlier timer in the same alarm doesn't fire", async () => {
+    // Every move re-sets a "clock" game timer, due just after the bot's think time.
+    const fired: number[] = [];
+    await setUp({
+      ...toyGame,
+      handleAction: (st: unknown, pid: string, action: unknown, ctx: never) => {
+        const res = toyGame.handleAction(st, pid, action, ctx);
+        if (!res.ok) return res;
+        const timers = [...(res.transition.timers ?? []), { kind: "set" as const, timerId: "clock", delayMs: 1700 }];
+        return { ok: true, transition: { ...res.transition, timers } };
+      },
+      onTimer: (st: unknown, timerId: string, ctx: never) => {
+        if (timerId !== "clock") return toyGame.onTimer!(st, timerId, ctx);
+        fired.push(world.clock);
+        return { state: st, events: [] };
+      },
+    } as AnyGameDefinition);
+    const a = await table(["Ana"], 1);
+    await playUntil(() => roomOf(a).phase === "playing" && pub(a).turnId === idOf(a));
+    await send(room, a, { type: "game-action", clientActionId: "x", action: { type: "add", n: 1 } });
+    const clockAt = data().timers["game:clock"]!;
+    expect(botTimers()[0]![1]).toBeLessThan(clockAt);
+    fired.length = 0;
+    const version = (data() as unknown as { stateVersion: number }).stateVersion;
+
+    // Both are due: the bot moves first, which re-sets the clock.
+    await world.tick(room, 1700);
+    expect((data() as unknown as { stateVersion: number }).stateVersion).toBe(version + 1);
+    expect(fired).toEqual([]);
+    expect(data().timers["game:clock"]).toBe(world.clock + 1700);
+  });
+
   it("the in-a-row cap: a bot that keeps the turn is skipped, then the game ends", async () => {
     await setUp(hogGame);
     toyKnobs.decide = "hog";
