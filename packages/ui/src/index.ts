@@ -117,6 +117,41 @@ export function botTag(seat: { bot?: boolean } | undefined): HTMLElement | null 
   return seat?.bot ? h("span", { class: "tag bot-tag" }, "computer") : null;
 }
 
+/** A robot head, as a 24x24 line icon in the shell's icon style. */
+const ROBOT_SVG =
+  '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M12 4.5V8"/><circle cx="12" cy="3.5" r="1.2" fill="currentColor" stroke="none"/>' +
+  '<rect x="4" y="8" width="16" height="12" rx="3.5"/>' +
+  '<circle cx="9" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.5" fill="currentColor" stroke="none"/>' +
+  "</svg>";
+
+/**
+ * The small round robot badge for a computer player; null for a person.
+ * Decorative (aria-hidden): say "(computer)" in the label of whatever holds it.
+ * Put it on an avatar with `withBotBadge`.
+ */
+export function botBadge(seat: { bot?: boolean } | undefined): HTMLElement | null {
+  if (!seat?.bot) return null;
+  const el = h("span", { class: "bot-badge", title: "Computer", "aria-hidden": "true" });
+  el.innerHTML = ROBOT_SVG;
+  return el;
+}
+
+/**
+ * Pins the robot badge to the avatar's bottom right, like a status dot, if the
+ * seat is a computer player. Returns the avatar. The ring around the badge takes
+ * `--bot-badge-ring` (default `--surface`): set it to the background behind the
+ * avatar so the badge reads as cut out.
+ */
+export function withBotBadge(avatarEl: HTMLElement, seat: { bot?: boolean } | undefined): HTMLElement {
+  const badge = botBadge(seat);
+  if (badge) {
+    avatarEl.classList.add("has-bot-badge");
+    avatarEl.append(badge);
+  }
+  return avatarEl;
+}
+
 // ---------------------------------------------------------------------------
 // Avatars
 // ---------------------------------------------------------------------------
