@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, botTag, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { compareCards } from "../shared/rules.ts";
 import {
   EIGHT,
@@ -369,7 +369,7 @@ export class CrazyEightsView implements GameView {
             class: `ce-opp${current ? " current" : ""}${away || p.removed ? " away" : ""}`,
             role: "listitem",
             "data-player": p.id,
-            "aria-label": `${name}: ${p.removed ? "left" : `${p.cardCount} cards`}${current ? ", playing now" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
+            "aria-label": `${name}${seat?.bot ? " (computer)" : ""}: ${p.removed ? "left" : `${p.cardCount} cards`}${current ? ", playing now" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
           },
           seat ? avatar(name, seat.avatarSeed) : null,
           h(
@@ -381,6 +381,7 @@ export class CrazyEightsView implements GameView {
               { class: "count" },
               p.removed ? "left" : [cardBackMini(), ` ${p.cardCount}`],
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
+              botTag(seat),
             ),
           ),
         );
