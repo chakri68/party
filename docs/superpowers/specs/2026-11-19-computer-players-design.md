@@ -13,7 +13,7 @@ Bots are a try-it and practice table, not the main way to play. Success: one per
 - A host can add and remove computers in the lobby, for games that support them.
 - Bots play the 12 card and dice games: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Oh Hell, Hold'em, Liar's Dice, Farkle, Overheat, Thorns.
 - One level, "plays like an average person": sensible moves, the odd mistake, bluffs sometimes. Losing badly every game is the worst outcome for a first-timer.
-- Bots think for about 1 to 2.5 seconds before each move, so the table feels alive.
+- Bots think for about 1.6 to 2.6 seconds before each move (0.9 to 1.3 seconds for a follow-up move), so the table feels alive.
 - The room machinery (seats, timing, lobby, recap) is written once. A game adds one `decide()` function and its tests.
 
 ## Non-goals
