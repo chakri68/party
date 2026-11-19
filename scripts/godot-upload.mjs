@@ -70,13 +70,6 @@ export function uploadGodot({ manifestPath, publicRoot, stagingRoot, keyRoot, ar
   if (!existsSync(manifestPath)) throw new Error(`no ${manifestPath}: run the export first`);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const dir = join(publicRoot, manifest.hash);
-  // The client is pinned to this hash, so upload exactly what it names.
-  for (const f of manifest.files) {
-    const p = join(dir, f);
-    if (!existsSync(p)) throw new Error(`${p} is missing: rerun the export (or --no-export) so apps/web/public matches godot-build.json`);
-    if (statSync(p).size !== manifest.sizes[f]) throw new Error(`${p} doesn't match godot-build.json's size: rerun the export`);
-  }
-
   const prefix = `${keyRoot}/${manifest.hash}`;
   console.log(`${dryRun ? '[dry run] ' : ''}upload ${manifest.hash} to r2://${BUCKET}/${prefix}/ (${where.join(' ')})`);
 
@@ -90,6 +83,20 @@ export function uploadGodot({ manifestPath, publicRoot, stagingRoot, keyRoot, ar
       process.stderr.write(probe.stderr);
       throw new Error('checking the bucket failed (logged in? does the bucket exist?)');
     }
+  }
+
+  // Checked only once there's something to upload: a build that's already in
+  // the bucket deploys from a checkout that never ran the export. A dry run
+  // can't ask the bucket, so with no local export it says so and stops there.
+  // The client is pinned to this hash, so upload exactly what it names.
+  if (dryRun && !existsSync(dir)) {
+    console.log(`[dry run] no local export in ${dir}: a real run works only if ${manifest.hash} is already in the bucket`);
+    return;
+  }
+  for (const f of manifest.files) {
+    const p = join(dir, f);
+    if (!existsSync(p)) throw new Error(`${p} is missing: rerun the export (or --no-export) so apps/web/public matches godot-build.json`);
+    if (statSync(p).size !== manifest.sizes[f]) throw new Error(`${p} doesn't match godot-build.json's size: rerun the export`);
   }
 
   const staging = join(stagingRoot, manifest.hash);
