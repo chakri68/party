@@ -467,6 +467,7 @@ describe("bots in a game", () => {
     }
     // The first move is a full think; the ones after it, in the same turn, are short.
     expect(gaps[0]).toBeGreaterThanOrEqual(1600);
+    expect(gaps[0]).toBeLessThanOrEqual(2600);
     for (const g of gaps.slice(1)) {
       expect(g).toBeGreaterThanOrEqual(900);
       expect(g).toBeLessThanOrEqual(1300);
@@ -570,7 +571,7 @@ describe("bots in a game", () => {
     for (const d of await delays()) {
       // 4 / 6 of 1.6 to 2.6 s.
       expect(d).toBeGreaterThanOrEqual(1067);
-      expect(d).toBeLessThanOrEqual(1734);
+      expect(d).toBeLessThanOrEqual(1733);
     }
     await setUp(bigGame);
     await table(["Ana"], 7);
@@ -579,6 +580,14 @@ describe("bots in a game", () => {
       expect(d).toBeGreaterThanOrEqual(1000);
       expect(d).toBeLessThanOrEqual(1486);
     }
+  });
+
+  it("the think-time floor holds when the roll is lowest", async () => {
+    await setUp(bigGame);
+    // The lowest roll at 7 bots is round(1600 * 4 / 7) = 914 ms, under the 1000 ms floor.
+    (world as unknown as { rng: (max: number) => number }).rng = () => 0;
+    await table(["Ana"], 7);
+    for (const d of await delays()) expect(d).toBe(1000);
   });
 
   it("bot seats stay ready after results and after back to lobby", async () => {
