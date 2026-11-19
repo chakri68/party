@@ -6,5 +6,7 @@ export const treasureHuntManifest: GameManifest = {
   description: "Explore a new map every round. Read the clues and find the hidden caches. Walk, or drive a buggy.",
   minPlayers: 1,
   maxPlayers: 8,
+  bestMinPlayers: 2,
+  bestMaxPlayers: 4,
   icon: "map",
 };

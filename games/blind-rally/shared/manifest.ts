@@ -7,6 +7,8 @@ export const blindRallyManifest: GameManifest = {
   // One pair is a practice run; four pairs race. Seats past 8 watch.
   minPlayers: 2,
   maxPlayers: 12,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 8,
   icon: "car",
   // Seats are picked inside the game, so people turning up after the host
   // hits Start (and while the cars are out) still get in, as spares.

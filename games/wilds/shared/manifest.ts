@@ -7,5 +7,7 @@ export const wildsManifest: GameManifest = {
   description: "Work together on a strange island. Find 3 key stones and reach the gate before the sun goes down.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
+  bestMinPlayers: 3,
+  bestMaxPlayers: 4,
   icon: "compass",
 };

@@ -6,5 +6,7 @@ export const sevensManifest: GameManifest = {
   description: "Each suit starts with a 7. Players add cards above and below the 7. The first player with no cards left wins.",
   minPlayers: 2,
   maxPlayers: 16,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 7,
   icon: "cards",
 };

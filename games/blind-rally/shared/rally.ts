@@ -28,6 +28,8 @@ export const rallyManifest: GameManifest = {
   // One is a time trial. Eight cars; anyone past that watches until one frees up.
   minPlayers: 1,
   maxPlayers: 12,
+  bestMinPlayers: 3,
+  bestMaxPlayers: 8,
   icon: "car",
   lateJoin: true,
 };

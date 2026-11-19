@@ -7,5 +7,7 @@ export const nightfallManifest: GameManifest = {
   description: "Some players are secret Wolves. Each night, the Wolves attack 1 player. Each day, everyone votes 1 player out. Find the Wolves before they win.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
+  bestMinPlayers: 7,
+  bestMaxPlayers: 10,
   icon: "moon",
 };

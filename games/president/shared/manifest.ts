@@ -6,5 +6,7 @@ export const presidentManifest: GameManifest = {
   description: "Play higher cards on the pile, or pass. The first player with no cards is President. The last player is the Asshole. Next round, the Asshole gives their 2 best cards to the President.",
   minPlayers: 3,
   maxPlayers: 8,
+  bestMinPlayers: 4,
+  bestMaxPlayers: 6,
   icon: "cards",
 };

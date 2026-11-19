@@ -710,7 +710,7 @@ export class RoomView implements View {
     const refreshers: ((room: RoomPublicState) => void)[] = [];
 
     const rows = all.map(([id, entry]) => {
-      const { name, description, minPlayers, maxPlayers } = entry.manifest;
+      const { name, description, minPlayers, maxPlayers, bestMinPlayers, bestMaxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
       // Only the host's rows pick, so only theirs are buttons.
       const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option readonly" });
@@ -730,13 +730,20 @@ export class RoomView implements View {
         const current = id === room.gameId;
         const locked = room.lockedGameIds.includes(id);
         const tooMany = players > maxPlayers;
+        const best = bestMinPlayers !== undefined && bestMaxPlayers !== undefined && players >= bestMinPlayers && players <= bestMaxPlayers;
+        option.classList.toggle("best", best);
         const n = suggestionCounts(room).get(id) ?? 0;
         option.classList.toggle("locked", locked);
         if (current) option.setAttribute("aria-current", "true");
         else option.removeAttribute("aria-current");
         // The host's rows disable when the game can't seat everyone.
         if (option instanceof HTMLButtonElement) option.disabled = tooMany && !current && !locked;
-        replaceChildren(nameLine, [name, current ? h("span", { class: "tag" }, "current") : null, locked ? h("span", { class: "tag" }, "Host Pass") : null]);
+        replaceChildren(nameLine, [
+          name,
+          current ? h("span", { class: "tag" }, "current") : null,
+          locked ? h("span", { class: "tag" }, "Host Pass") : null,
+          best ? h("span", { class: "tag best" }, icon("star"), `Best for ${players}`) : null,
+        ]);
         meta.className = `game-option-meta${tooMany ? " warn" : ""}`;
         meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
         replaceChildren(want, n ? [icon("thumbs-up"), wantLabel(n)] : []);

@@ -6,5 +6,7 @@ export const dontSayItManifest: GameManifest = {
   description: "The game has 2 teams. Describe a word to your team. Do not say the 5 banned words.",
   minPlayers: 4,
   maxPlayers: 12,
+  bestMinPlayers: 6,
+  bestMaxPlayers: 10,
   icon: "speech",
 };

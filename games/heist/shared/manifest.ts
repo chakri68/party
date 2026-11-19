@@ -7,5 +7,7 @@ export const heistManifest: GameManifest = {
   description: "The crew plans 5 jobs. Some players are secret moles. The moles want the jobs to fail.",
   minPlayers: MIN_PLAYERS,
   maxPlayers: MAX_PLAYERS,
+  bestMinPlayers: 6,
+  bestMaxPlayers: 8,
   icon: "key",
 };
