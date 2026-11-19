@@ -147,19 +147,70 @@ img, svg { display: block; }
 .site-nav { display: flex; align-items: center; gap: 18px; font-size: 0.9375rem; }
 .site-nav a:not(.btn) { text-decoration: none; color: var(--muted); }
 .site-nav a:not(.btn):hover { color: var(--ink); }
+/* Nothing in the bar wraps: a two-line button or wordmark runs into its neighbour. */
+.brand, .site-nav a { white-space: nowrap; flex-shrink: 0; }
 @media (max-width: 599px) {
   .nav-wide { display: none; }
   .site-nav { gap: 14px; }
   .brand span { font-size: 1.0625rem; }
 }
+/* Small phones: the wordmark, Account and the button need about 345px. Account is in the footer too. */
+@media (max-width: 399px) {
+  .nav-narrow-hide { display: none; }
+}
 
-/* Hero */
+/* Hero: fills the first screen under the header (68px), content in the middle. */
 .hero {
   display: grid;
   gap: 40px;
   align-items: center;
+  align-content: center;
+  min-height: calc(100svh - 68px);
   padding-top: 32px;
   padding-bottom: 72px;
+}
+
+/* Drifting cards behind the hero. Each card sets its place (x, y), width,
+   tilt, how far it drifts (dx, dy, dr) and how long one drift takes (t). */
+.hero-stage { position: relative; overflow: hidden; isolation: isolate; }
+.hero-drift { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.drift-card {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  aspect-ratio: 30 / 42;
+  border-radius: 14%;
+  transform: rotate(var(--r));
+  opacity: var(--o, 1);
+}
+.drift-card.lime { background: var(--accent); --o: 0.55; }
+.drift-card.paper { background: var(--phone); border: 2px solid var(--line); color: var(--ink); --o: 0.9; }
+.drift-card.paper svg { width: 100%; height: 100%; fill: currentColor; opacity: 0.18; }
+.drift-card.line { border: 2px solid var(--line); }
+.d1 { --x: -44px; --y: 6%; --w: 110px; --r: -18deg; --dx: 18px; --dy: 26px; --dr: 6deg; --t: 19s; }
+.d2 { --x: 44%; --y: 3%; --w: 64px; --r: 12deg; --dx: -14px; --dy: 18px; --dr: -8deg; --t: 23s; }
+.d3 { --x: 50%; --y: 80%; --w: 88px; --r: 20deg; --dx: 22px; --dy: -16px; --dr: 10deg; --t: 17s; }
+.d4 { --x: 86%; --y: 3%; --w: 78px; --r: -8deg; --dx: -18px; --dy: 20px; --dr: -6deg; --t: 21s; }
+.d5 { --x: 93%; --y: 60%; --w: 108px; --r: 14deg; --dx: -20px; --dy: -22px; --dr: 8deg; --t: 25s; }
+.d6 { --x: 7%; --y: 88%; --w: 56px; --r: -26deg; --dx: 16px; --dy: -14px; --dr: -10deg; --t: 15s; }
+.d7 { --x: 59%; --y: 40%; --w: 46px; --r: 30deg; --dx: 12px; --dy: 18px; --dr: 12deg; --t: 18s; }
+/* Phones: the text is the whole width, so fewer, fainter cards, kept to the edges. */
+@media (max-width: 899px) {
+  .d1, .d2, .d7 { display: none; }
+  .drift-card.lime { --o: 0.35; }
+  .d3 { --x: 78%; --y: 46%; --w: 70px; }
+  .d4 { --x: 84%; --y: 1%; --w: 60px; }
+  .d5 { --x: 88%; --y: 82%; --w: 84px; }
+  .d6 { --x: -6%; --y: 64%; --w: 50px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drift-card { animation: card-drift var(--t) ease-in-out infinite alternate; animation-delay: calc(var(--t) * -0.37); }
+  .drift-card:nth-child(even) { animation-delay: calc(var(--t) * -0.71); }
+}
+@keyframes card-drift {
+  from { transform: translate(0, 0) rotate(var(--r)); }
+  to { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--r) + var(--dr))); }
 }
 @media (min-width: 900px) {
   .hero { grid-template-columns: 1.15fr 0.85fr; gap: 56px; padding-top: 56px; padding-bottom: 104px; }
