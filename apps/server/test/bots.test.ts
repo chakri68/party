@@ -322,9 +322,9 @@ describe("bots in a game", () => {
     await toBotTurn();
     const before = a.of("update").length;
     const total = pub(a).total;
-    await world.tick(room, 300);
+    await world.tick(room, 1599);
     expect(a.of("update").length).toBe(before);
-    await world.tick(room, 1400);
+    await world.tick(room, 1001);
     expect(pub(a).total).toBeGreaterThan(total);
 
     await playUntil(() => roomOf(a).phase === "results");
@@ -351,7 +351,7 @@ describe("bots in a game", () => {
     expect(roomOf(a).awaitingPlayerIds).toEqual([]);
     expect(botTimers()).toHaveLength(2);
     const before = a.of("update").length;
-    await world.tick(room, 1600);
+    await world.tick(room, 2600);
     expect(a.of("update").length).toBe(before + 1);
     expect(pub(a).phase).toBe("window");
     expect(pub(a).callers.sort()).toEqual(bots(a).map((b) => b.id).sort());
@@ -400,7 +400,7 @@ describe("bots in a game", () => {
     const a = await table(["Ana"], 1);
     await playUntil(() => pub(a).phase === "window");
     expect(roomOf(a).awaitingPlayerIds).toEqual([]);
-    await world.tick(room, 1600);
+    await world.tick(room, 2600);
     expect(roomOf(a).phase).toBe("lobby");
     expect(a.last("error")).toEqual({ type: "error", code: "game-ended", message: STUCK, fatal: false });
     expect(skipped).toEqual([]);
@@ -416,7 +416,7 @@ describe("bots in a game", () => {
       handleAction: (st: unknown, pid: string, action: unknown, ctx: never) => {
         const res = toyGame.handleAction(st, pid, action, ctx);
         if (!res.ok) return res;
-        const timers = [...(res.transition.timers ?? []), { kind: "set" as const, timerId: "clock", delayMs: 1700 }];
+        const timers = [...(res.transition.timers ?? []), { kind: "set" as const, timerId: "clock", delayMs: 3000 }];
         return { ok: true, transition: { ...res.transition, timers } };
       },
       onTimer: (st: unknown, timerId: string, ctx: never) => {
@@ -434,10 +434,10 @@ describe("bots in a game", () => {
     const version = (data() as unknown as { stateVersion: number }).stateVersion;
 
     // Both are due: the bot moves first, which re-sets the clock.
-    await world.tick(room, 1700);
+    await world.tick(room, 3000);
     expect((data() as unknown as { stateVersion: number }).stateVersion).toBe(version + 1);
     expect(fired).toEqual([]);
-    expect(data().timers["game:clock"]).toBe(world.clock + 1700);
+    expect(data().timers["game:clock"]).toBe(world.clock + 3000);
   });
 
   it("the in-a-row cap: a bot that keeps the turn is skipped, then the game ends", async () => {
@@ -466,10 +466,11 @@ describe("bots in a game", () => {
       await world.tick(room, at - world.clock);
     }
     // The first move is a full think; the ones after it, in the same turn, are short.
-    expect(gaps[0]).toBeGreaterThanOrEqual(800);
+    expect(gaps[0]).toBeGreaterThanOrEqual(1600);
+    expect(gaps[0]).toBeLessThanOrEqual(2600);
     for (const g of gaps.slice(1)) {
-      expect(g).toBeGreaterThanOrEqual(350);
-      expect(g).toBeLessThan(600);
+      expect(g).toBeGreaterThanOrEqual(900);
+      expect(g).toBeLessThanOrEqual(1300);
     }
   });
 
@@ -502,14 +503,14 @@ describe("bots in a game", () => {
     const total = pub(a).total;
     const stored = () => (data() as unknown as { game: { state: { total: number } } }).game.state.total;
     await world.disconnect(room, a);
-    for (let i = 0; i < 5; i++) await world.tick(room, 2000);
+    for (let i = 0; i < 5; i++) await world.tick(room, 3000);
     expect(stored()).toBe(total);
     expect(botTimers()).toEqual([]);
 
     const back = await join(world, room, "Ana", token);
     people = [back];
     expect(pub(back).total).toBe(total);
-    await world.tick(room, 2000);
+    await world.tick(room, 3000);
     expect(pub(back).total).toBeGreaterThan(total);
   });
 
@@ -538,7 +539,7 @@ describe("bots in a game", () => {
     expect(data().seats.filter((s) => s.bot).every((s) => s.presence === "connected")).toBe(true);
     expect(botTimers()).toHaveLength(1);
     room = room2;
-    await world.tick(room2, 2000);
+    await world.tick(room2, 3000);
     expect(pub(a).total).toBeGreaterThan(total);
   });
 
@@ -559,18 +560,34 @@ describe("bots in a game", () => {
     return out;
   }
 
-  it("think time shrinks at big tables", async () => {
+  it("think time shrinks at big tables, down to a floor", async () => {
     await table(["Ana"], 3);
     for (const d of await delays()) {
-      expect(d).toBeGreaterThanOrEqual(800);
-      expect(d).toBeLessThanOrEqual(1600);
+      expect(d).toBeGreaterThanOrEqual(1600);
+      expect(d).toBeLessThanOrEqual(2600);
     }
     await setUp(bigGame);
     await table(["Ana"], 6);
     for (const d of await delays()) {
-      expect(d).toBeGreaterThanOrEqual(400);
-      expect(d).toBeLessThanOrEqual(800);
+      // 4 / 6 of 1.6 to 2.6 s.
+      expect(d).toBeGreaterThanOrEqual(1067);
+      expect(d).toBeLessThanOrEqual(1733);
     }
+    await setUp(bigGame);
+    await table(["Ana"], 7);
+    for (const d of await delays()) {
+      // 4 / 7 of 1.6 to 2.6 s is 0.91 to 1.49 s; the floor holds the low end at 1 s.
+      expect(d).toBeGreaterThanOrEqual(1000);
+      expect(d).toBeLessThanOrEqual(1486);
+    }
+  });
+
+  it("the think-time floor holds when the roll is lowest", async () => {
+    await setUp(bigGame);
+    // The lowest roll at 7 bots is round(1600 * 4 / 7) = 914 ms, under the 1000 ms floor.
+    (world as unknown as { rng: (max: number) => number }).rng = () => 0;
+    await table(["Ana"], 7);
+    for (const d of await delays()) expect(d).toBe(1000);
   });
 
   it("bot seats stay ready after results and after back to lobby", async () => {

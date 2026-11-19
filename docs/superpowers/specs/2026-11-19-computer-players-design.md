@@ -13,7 +13,7 @@ Bots are a try-it and practice table, not the main way to play. Success: one per
 - A host can add and remove computers in the lobby, for games that support them.
 - Bots play the 12 card and dice games: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Oh Hell, Hold'em, Liar's Dice, Farkle, Overheat, Thorns.
 - One level, "plays like an average person": sensible moves, the odd mistake, bluffs sometimes. Losing badly every game is the worst outcome for a first-timer.
-- Bots think for about 1 to 2.5 seconds before each move, so the table feels alive.
+- Bots think for about 1.6 to 2.6 seconds before each move (0.9 to 1.3 seconds for a follow-up move), so the table feels alive.
 - The room machinery (seats, timing, lobby, recap) is written once. A game adds one `decide()` function and its tests.
 
 ## Non-goals
@@ -88,6 +88,8 @@ Bots must never make a person wait on the server, and bot-heavy tables shouldn't
   - shorter when several bots move in a row, so the wait between two of a person's turns stays under about 5 s at a full table of bots.
 - **`decide()` is cheap.** Simple rules and weights, no deep search. Budget: a few milliseconds at most, so it never stalls the room for the other players. Hold'em-style odds use a small fixed number of samples, not open-ended ones.
 - **No extra round trips.** A bot move costs exactly what a person's move costs: one transition, one commit, one broadcast. Several bots due at once fire in the same alarm and share one commit.
+
+*Update 2026-11-19: the pause was too fast to follow. It is now 1.6 to 2.6 s for a normal move (shorter only above 4 bots, never under 1 s) and 0.9 to 1.3 s for a follow-up move by the same bot.*
 
 ### When a bot can't move
 

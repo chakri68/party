@@ -154,6 +154,16 @@ const GRACE_TIMER_PREFIX = "grace:";
 const BOT_TIMER_PREFIX = "bot:";
 /** More moves than this by one bot, with nobody else moving between, is stuck. */
 const BOT_MAX_RUN = 50;
+// Computer players pause long enough that a person can follow each move.
+/** A bot's think time before a normal move: this much, plus up to `SPAN` more. */
+const BOT_THINK_MS = 1600;
+const BOT_THINK_SPAN_MS = 1001;
+/** Think time shrinks by 4 / bots once more than 4 bots are in the game, but never below this. */
+const BOT_THINK_TABLE = 4;
+const BOT_THINK_FLOOR_MS = 1000;
+/** A bot that moved last and has a forced next step waits this much, plus up to `SPAN` more. */
+const BOT_FOLLOW_MS = 900;
+const BOT_FOLLOW_SPAN_MS = 401;
 const BOT_STUCK_MESSAGE = "A computer player got stuck, so the game ended.";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
@@ -854,12 +864,12 @@ export class RoomRuntime {
       if (!wants) continue;
       // This bot moved last and still has a move (a second draw, say): it's a forced step, not a new think.
       if (data.botRun?.seatId === seat.id) {
-        this.setTimer(key, this.host.now() + 350 + this.host.randomInt(250));
+        this.setTimer(key, this.host.now() + BOT_FOLLOW_MS + this.host.randomInt(BOT_FOLLOW_SPAN_MS));
         continue;
       }
       // Feels human at a small table; quicker when many bots move in a row.
-      const think = (800 + this.host.randomInt(801)) * Math.min(1, 3 / botSeats.length);
-      this.setTimer(key, this.host.now() + Math.max(350, Math.round(think)));
+      const think = (BOT_THINK_MS + this.host.randomInt(BOT_THINK_SPAN_MS)) * Math.min(1, BOT_THINK_TABLE / botSeats.length);
+      this.setTimer(key, this.host.now() + Math.max(BOT_THINK_FLOOR_MS, Math.round(think)));
     }
   }
 
