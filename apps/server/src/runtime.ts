@@ -353,7 +353,10 @@ export class RoomRuntime {
       .filter(([, at]) => at <= now)
       .sort((a, b) => a[1] - b[1]);
     const events: GameEventEnvelope<unknown>[] = [];
-    for (const [key] of due) {
+    for (const [key, at] of due) {
+      if (!this.data) return;
+      // An earlier timer in this alarm (a bot's move, say) may have cleared or re-set this one.
+      if (this.data.timers[key] !== at) continue;
       delete this.data.timers[key];
       if (key === CLEANUP_TIMER) {
         // Nobody's been here for hours: forget the room and free its code.
