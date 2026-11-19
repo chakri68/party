@@ -37,6 +37,8 @@ export interface RoomClientEvents {
   chat: { messages: ChatMessage[]; replace: boolean };
   /** A floating emoji from someone in the room (you included). */
   emote: { from: string; emoji: Reaction };
+  /** Round trip to the server in ms, from the last pong; null when there's no live link. */
+  latency: number | null;
 }
 
 export interface RoomClientOptions {
@@ -52,7 +54,8 @@ export interface RoomClientOptions {
 
 type Listener<T> = (payload: T) => void;
 
-const PING_EVERY_MS = 20_000;
+// Often enough for the signal meter to feel live; a ping is a few bytes.
+const PING_EVERY_MS = 10_000;
 
 /** Dev-only network misbehaviour (§41). Zeroes are a no-op, so prod never pays for it. */
 export interface NetworkSimulation {
@@ -71,6 +74,8 @@ export class RoomClient {
   playerId: string | null = null;
   /** serverTime − local time, from the last pong. For §12.2 thresholds. */
   clockOffset = 0;
+  /** Round trip to the server in ms, from the last pong. Null until one lands, and while down. */
+  latency: number | null = null;
   simulate: NetworkSimulation = { latencyMs: 0, dropRate: 0 };
 
   private socket: PartySocket;
@@ -168,12 +173,15 @@ export class RoomClient {
 
   private onClose = () => {
     clearInterval(this.pingTimer);
+    this.setLatency(null);
     if (this.status !== "closed") this.setStatus("reconnecting");
   };
 
   private onWake = () => {
     if (document.visibilityState !== "visible") return;
     if (this.status === "reconnecting") this.socket.reconnect();
+    // Timers sleep with the page; the meter shouldn't show a number from before.
+    else if (this.status === "open") this.ping();
   };
 
   private onMessage = (e: MessageEvent) => {
@@ -216,6 +224,7 @@ export class RoomClient {
         break;
       case "pong":
         this.clockOffset = msg.serverTime - (msg.timestamp + Date.now()) / 2;
+        this.setLatency(Math.max(0, Date.now() - msg.timestamp));
         break;
       case "error":
         if (msg.fatal) {
@@ -232,6 +241,12 @@ export class RoomClient {
   }
 
   private ping = () => this.send({ type: "ping", timestamp: Date.now() });
+
+  private setLatency(ms: number | null) {
+    if (this.latency === ms) return;
+    this.latency = ms;
+    this.emit("latency", ms);
+  }
 
   private setStatus(status: ConnectionStatus) {
     if (this.status === status) return;

@@ -122,6 +122,8 @@ The settings stay on your device.
 
 ## Connection drops and reconnecting
 
+Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is OK (under 300 ms), and one red bar is slow. Tap the bars to see the number.
+
 If your connection goes, the header shows "reconnecting…" and your seat stays yours. The server holds it for **60 seconds**.
 
 - Come back inside that window (same device and browser) and you're back in the seat. Your game, hand and ready state are as you left them.
