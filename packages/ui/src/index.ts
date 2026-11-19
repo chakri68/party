@@ -139,11 +139,17 @@ export function botBadge(seat: { bot?: boolean } | undefined): HTMLElement | nul
 
 /**
  * Pins the robot badge to the avatar's bottom right, like a status dot, if the
- * seat is a computer player. Returns the avatar. The ring around the badge takes
- * `--bot-badge-ring` (default `--surface`): set it to the background behind the
- * avatar so the badge reads as cut out.
+ * seat is a computer player. Returns the avatar. Safe to call twice: an avatar
+ * gets one badge at most.
+ *
+ * The badge CSS lives in the shell's stylesheet (apps/web/src/style.css), which
+ * every game view gets. The ring around the badge takes `--bot-badge-ring`
+ * (default `--surface`), so the badge reads as cut out of the chip. A game whose
+ * lit or current chip has another background sets `--bot-badge-ring` on that
+ * chip's `.bot-badge` in its own styles so the ring matches.
  */
 export function withBotBadge(avatarEl: HTMLElement, seat: { bot?: boolean } | undefined): HTMLElement {
+  if (avatarEl.querySelector(":scope > .bot-badge")) return avatarEl;
   const badge = botBadge(seat);
   if (badge) {
     avatarEl.classList.add("has-bot-badge");
