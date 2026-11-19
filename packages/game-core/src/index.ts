@@ -153,6 +153,22 @@ export interface CreateGameOptions {
   deck?: unknown[];
 }
 
+/** What a computer player sees: the same projections a seated human gets, nothing more. */
+export interface BotView<TPublic, TPrivate> {
+  playerId: string;
+  public: TPublic;
+  private: TPrivate;
+}
+
+export interface BotContext {
+  randomInt(maxExclusive: number): number;
+}
+
+export interface GameBot<TPublic, TPrivate, TAction> {
+  /** One move, or null for "nothing to do right now". Pure: no memory across calls. */
+  decide(view: BotView<TPublic, TPrivate>, ctx: BotContext): TAction | null;
+}
+
 export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TSettings, TEvent> {
   manifest: GameManifest;
 
@@ -227,6 +243,12 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
    * public or private projections (lies nobody caught are the recap's reveal).
    */
   partyStats?(state: TState): PartyStats;
+
+  /**
+   * How a computer player plays this game. It sees only views (see `BotView`),
+   * so it can't peek at what a human couldn't.
+   */
+  bot?: GameBot<TPublicState, TPrivateState, TAction>;
 }
 
 // ---------------------------------------------------------------------------
