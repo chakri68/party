@@ -110,6 +110,8 @@ interface SeatData {
   joinedAt: number;
   owner: boolean;
   suggestion?: string;
+  /** A computer player: always connected and ready, no resume token, never host. */
+  bot?: true;
 }
 
 interface RoomData {
@@ -150,6 +152,9 @@ const CHAT_LIMIT = { burst: 5, windowMs: 5_000 };
 const EMOTE_LIMIT = { burst: 10, windowMs: 3_000 };
 /** Room for 25 Hz input plus edge sends. Scribbl flushes at 25 Hz too. */
 const STREAM_LIMIT = { burst: 40, windowMs: 1_000 };
+
+/** Computer players' names, taken in order, skipping any a seat already uses. */
+const BOT_NAMES = ["Asha", "Ravi", "Meera", "Arjun", "Priya", "Kiran", "Neha", "Vikram", "Divya", "Rahul", "Anjali", "Sanjay"];
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_POLICY = 4000;
@@ -202,7 +207,7 @@ export class RoomRuntime {
       const live = new Set(this.liveConns().map((c) => c.state?.playerId));
       let changed = false;
       for (const seat of this.data.seats) {
-        if (seat.presence === "connected" && !live.has(seat.id)) {
+        if (!seat.bot && seat.presence === "connected" && !live.has(seat.id)) {
           seat.presence = "reconnecting";
           this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
           changed = true;
@@ -407,7 +412,10 @@ export class RoomRuntime {
       }
       // An ended party is only a recap to look at: nobody's dealt in, so no cap.
       if (data.phase !== "ended" && this.activeSeats().length >= this.maxSeats(def)) {
-        return this.fatal(conn, "room-full", "This room is full.");
+        // A person always gets in: the newest computer gives up its seat. Not mid-game.
+        const bot = late ? undefined : this.newestBot();
+        if (!bot) return this.fatal(conn, "room-full", "This room is full.");
+        data.seats = data.seats.filter((s) => s !== bot);
       }
       seat = {
         id: this.host.randomToken().slice(0, 12),
@@ -454,6 +462,7 @@ export class RoomRuntime {
         const def = this.games[msg.gameId];
         if (!def) return this.error(conn, "unknown-game", "That game does not exist.");
         if (this.lockedGameIds().includes(msg.gameId)) return this.needsPass(conn);
+        if (!this.botsAllowed(def)) return this.botsBlock(conn);
         data.gameId = msg.gameId;
         data.settings = def.defaultSettings;
         return this.commit([]);
@@ -610,7 +619,7 @@ export class RoomRuntime {
       case "nudge": {
         if (!inPhase("playing")) return;
         const now = this.host.now();
-        const targets = data.awaiting.filter((id) => id !== seat.id);
+        const targets = data.awaiting.filter((id) => id !== seat.id && !this.isBot(id));
         if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
           return this.error(conn, "too-early", "Wait a little before you remind them.");
         }
@@ -658,6 +667,33 @@ export class RoomRuntime {
         return this.commit(this.removeSeat(target));
       }
 
+      case "add-bot": {
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        const def = this.games[data.gameId]!;
+        if (!def.bot) return this.error(conn, "not-available", "This game can't have computers.");
+        // Not "room-full": that one is fatal and would close the host's socket.
+        if (this.activeSeats().length >= this.maxSeats(def)) return this.error(conn, "not-available", "The table is full.");
+        const taken = new Set(data.seats.map((s) => s.name.toLowerCase()));
+        const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Computer ${data.seats.length + 1}`;
+        data.seats.push({
+          id: "bot-" + this.host.randomToken().slice(0, 8),
+          name,
+          avatarSeed: "bot-" + name,
+          resumeToken: "",
+          ready: true,
+          presence: "connected",
+          joinedAt: this.host.now(),
+          owner: false,
+          bot: true,
+        });
+        return this.commit([]);
+      }
+
+      case "remove-bots":
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        data.seats = data.seats.filter((s) => !s.bot);
+        return this.commit([]);
+
       case "debug-start":
         if (!this.host.devTools) return this.error(conn, "not-available", "Debug tools are off.");
         if (!hostOnly() || !inPhase("lobby", "results")) return;
@@ -674,6 +710,8 @@ export class RoomRuntime {
     const data = this.data!;
     const def = this.games[data.gameId]!;
     if (this.lockedGameIds().includes(data.gameId)) return this.needsPass(conn);
+    // Only a room stored before bots could get here: picking the game is refused already.
+    if (!this.botsAllowed(def)) return this.botsBlock(conn);
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
     data.seats = data.seats.filter((s) => s.presence === "connected");
@@ -784,17 +822,17 @@ export class RoomRuntime {
   }
 
   /**
-   * Notes a finished game for the recap. Only seated players count: computer
-   * players (and anyone else the game names without a seat) can win a game but
-   * not an award.
+   * Notes a finished game for the recap. Only seated people count: computer
+   * players (bot seats, and anyone the game names without a seat) can win a
+   * game but not an award.
    */
   private logGame(def: AnyGameDefinition, state: unknown, outcome: GameOutcome): void {
     const data = this.data!;
     const party = (data.party ??= emptyPartyLog());
     const seats = new Map(data.seats.map((s) => [s.id, s]));
-    const human = (id: string) => seats.has(id) && !(outcome.names && id in outcome.names);
+    const human = (id: string) => seats.has(id) && !seats.get(id)!.bot && !(outcome.names && id in outcome.names);
     const fromStandings = outcome.standings.map((s) => s.playerId).filter(human);
-    const players = fromStandings.length ? fromStandings : data.seats.map((s) => s.id);
+    const players = fromStandings.length ? fromStandings : data.seats.filter((s) => !s.bot).map((s) => s.id);
     const stats: PartyStats = {};
     for (const [id, counts] of Object.entries(def.partyStats?.(state) ?? {})) if (human(id)) stats[id] = { ...counts };
     party.games.push({
@@ -818,7 +856,8 @@ export class RoomRuntime {
   }
 
   private resetReady(): void {
-    for (const s of this.data!.seats) s.ready = false;
+    // Computers are always ready.
+    for (const s of this.data!.seats) s.ready = !!s.bot;
   }
 
   private activeSeats(): SeatData[] {
@@ -828,17 +867,37 @@ export class RoomRuntime {
   /**
    * Host migration (§24). The host keeps the role through their grace period;
    * once they're disconnected or gone, it passes to the longest-seated connected
-   * player. If nobody's connected, it stays put until someone returns.
+   * player. If nobody's connected, it stays put until someone returns. A
+   * computer is never host: with no person to pass it to, nobody is.
    */
   private ensureHost(): void {
     const data = this.data!;
     const host = data.seats.find((s) => s.id === data.hostId);
     if (host && (host.presence === "connected" || host.presence === "reconnecting")) return;
-    const next = this.activeSeats()
-      .filter((s) => s.presence === "connected")
-      .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    const people = this.activeSeats().filter((s) => !s.bot);
+    const next = people.filter((s) => s.presence === "connected").sort((a, b) => a.joinedAt - b.joinedAt)[0];
     if (next) data.hostId = next.id;
-    else if (!host || host.presence === "left") data.hostId = this.activeSeats()[0]?.id ?? null;
+    else if (!host || host.presence === "left") data.hostId = people[0]?.id ?? null;
+  }
+
+  private isBot(id: string): boolean {
+    return !!this.data!.seats.find((s) => s.id === id)?.bot;
+  }
+
+  /** The most recently added computer, the first to give up its seat. */
+  private newestBot(): SeatData | undefined {
+    let newest: SeatData | undefined;
+    for (const s of this.data!.seats) if (s.bot && (!newest || s.joinedAt >= newest.joinedAt)) newest = s;
+    return newest;
+  }
+
+  /** False when computers are seated and this game can't have them. */
+  private botsAllowed(def: AnyGameDefinition): boolean {
+    return !!def.bot || !this.data!.seats.some((s) => s.bot);
+  }
+
+  private botsBlock(conn: Conn): void {
+    this.error(conn, "not-available", "Remove computers to play this");
   }
 
   private onGraceExpired(playerId: string): void {
@@ -961,6 +1020,7 @@ export class RoomRuntime {
       setupProblem: this.setupProblem(),
       tier: this.tier(),
       lockedGameIds: this.lockedGameIds(),
+      botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
       recap: data.phase === "ended" ? buildRecap(data.party ?? emptyPartyLog(), this.host.now()) : null,
     };
