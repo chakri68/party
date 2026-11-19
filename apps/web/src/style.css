@@ -296,6 +296,10 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seats .kick .icon { width: 16px; height: 16px; }
 .suggestion-line .icon { width: 18px; height: 18px; color: var(--accent); }
 .game-option-actions .icon, .invite button.primary .icon { width: 16px; height: 16px; }
+.add-bot { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.add-bot p { margin: 0; font-size: 0.85rem; }
+.bot-blocked { color: var(--danger); flex: 0 0 100%; margin: 0; text-align: center; }
+.game-list > button.small { align-self: flex-start; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .actions > button { flex: 1; }
 .actions > button.link { flex: 0 0 100%; }
