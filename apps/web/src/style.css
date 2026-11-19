@@ -187,6 +187,26 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 .avatar-sm { width: 24px; height: 24px; }
 .avatar-lg { width: 50px; height: 50px; }
 .avatar.ghost { border: 1.5px dashed var(--line); }
+/* A computer player's robot badge, pinned to the avatar like a status dot (@games/ui withBotBadge). */
+.avatar.has-bot-badge { position: relative; }
+.bot-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 2.5px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 2px var(--bot-badge-ring, var(--surface));
+}
+.bot-badge svg { display: block; }
+.avatar-sm .bot-badge { width: 12px; height: 12px; padding: 2px; right: -3px; bottom: -3px; box-shadow: 0 0 0 1.5px var(--bot-badge-ring, var(--surface)); }
+.avatar-lg .bot-badge { width: 20px; height: 20px; padding: 3px; }
 
 /* Face + name + dice (home, and the join prompt) */
 .identity { display: flex; align-items: flex-end; gap: 10px; }
