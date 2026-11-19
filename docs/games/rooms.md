@@ -73,15 +73,15 @@ The host is the first person into the room. The tag next to their name says "hos
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. Each computer shows a "computer" tag and has no ready sign. The host removes one with the **✕** next to its name, with no question asked.
+Some games let the host add computer players, so a small group can still play. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. Each computer shows a "computer" tag and has no ready sign. The host removes one with the **✕** next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
-A person always gets a seat. If the room is full and a person joins, a computer leaves to make space.
+In the lobby, a person always gets a seat. If the room is full, a computer leaves to make space. During a game, a full room stays full.
 
-If you pick a game that has no computers while some are seated, that game is greyed out with "Remove computers to play this". **Remove computers** in the game list takes them all out at once. The start button also stays off until you do.
+While computers are seated, games that can't have computers are greyed out with "Remove computers to play this". **Remove computers** in the game list takes them all out at once. The start button also stays off until you do.
 
-Computers pause when nobody is connected, and carry on when someone comes back. If a computer gets stuck, the game ends for everyone with "A computer player got stuck, so the game ended."
+Computers pause when nobody is connected, and play again when someone comes back. If a computer gets stuck, the game ends for everyone with "A computer player got stuck, so the game ended."
 
 ### Ready and Start
 

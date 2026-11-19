@@ -622,7 +622,7 @@ export class RoomView implements View {
             isHost && s.id !== me
               ? h("button", {
                   type: "button",
-                  class: "kick",
+                  class: s.bot ? "kick bot-kick" : "kick",
                   "aria-label": `Remove ${s.name}`,
                   onclick: () => (s.bot || confirm(`Remove ${s.name} from the room?`)) && this.client?.send({ type: "remove-player", playerId: s.id }),
                 }, icon("close"))
