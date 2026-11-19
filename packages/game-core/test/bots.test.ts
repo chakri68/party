@@ -14,40 +14,52 @@ interface Toy {
 }
 type Action = { type: "add"; n: number } | { type: "pass" };
 
+type Step =
+  | { ok: true; transition: { state: Toy; events: never[]; timers?: { kind: "set"; timerId: string; delayMs: number }[] } }
+  | { ok: false; error: { code: string; message: string } };
+
+function step(s: Toy, id: string, a: Action): Step {
+  if (a.type === "pass") return { ok: true, transition: { state: s, events: [] } };
+  if (s.phase !== "count" || s.players[s.turn] !== id) {
+    return { ok: false, error: { code: "not-your-turn", message: "Not your turn" } };
+  }
+  if (a.n !== 1 && a.n !== 2) return { ok: false, error: { code: "bad-add", message: "Add 1 or 2" } };
+  const total = s.total + a.n;
+  if (total >= 20) {
+    return {
+      ok: true,
+      transition: {
+        state: { ...s, total, phase: "window", winner: id },
+        events: [],
+        timers: [{ kind: "set", timerId: "window", delayMs: 5000 }],
+      },
+    };
+  }
+  return { ok: true, transition: { state: { ...s, total, turn: (s.turn + 1) % s.players.length }, events: [] } };
+}
+
 function makeToy(decide: (view: BotView<any, any>) => Action | null) {
-  const log = { timerRuns: 0 };
+  const log = { timerRuns: 0, current: null as Toy | null };
   const def = {
     manifest: { id: "toy" },
     defaultSettings: {},
-    createGame: (players: { id: string }[]) => ({
-      state: { players: players.map((p) => p.id), total: 0, turn: 0, phase: "count", winner: null, timerRuns: 0 } as Toy,
-      events: [],
-    }),
+    createGame: (players: { id: string }[]) => {
+      const state = { players: players.map((p) => p.id), total: 0, turn: 0, phase: "count", winner: null, timerRuns: 0 } as Toy;
+      log.current = state;
+      return { state, events: [] };
+    },
     handleAction: (s: Toy, id: string, a: Action) => {
-      if (a.type === "pass") return { ok: true, transition: { state: s, events: [] } };
-      if (s.phase !== "count" || s.players[s.turn] !== id) {
-        return { ok: false, error: { code: "not-your-turn", message: "Not your turn" } };
-      }
-      if (a.n !== 1 && a.n !== 2) return { ok: false, error: { code: "bad-add", message: "Add 1 or 2" } };
-      const total = s.total + a.n;
-      if (total >= 20) {
-        return {
-          ok: true,
-          transition: {
-            state: { ...s, total, phase: "window", winner: id },
-            events: [],
-            timers: [{ kind: "set", timerId: "window", delayMs: 5000 }],
-          },
-        };
-      }
-      return { ok: true, transition: { state: { ...s, total, turn: (s.turn + 1) % s.players.length }, events: [] } };
+      const r = step(s, id, a);
+      if (r.ok) log.current = r.transition.state;
+      return r;
     },
     onTimer: (s: Toy) => {
       log.timerRuns++;
-      return { state: { ...s, phase: "done" as const }, events: [] };
+      log.current = { ...s, phase: "done" as const };
+      return { state: log.current, events: [] };
     },
     getPublicState: (s: Toy) => ({ total: s.total, phase: s.phase }),
-    getPrivateState: (_s: Toy, id: string) => ({ me: id }),
+    getPrivateState: (s: Toy, id: string) => ({ me: id, myTurn: s.players[s.turn] === id }),
     getAwaitedPlayerIds: (s: Toy) => (s.phase === "count" ? [s.players[s.turn]!] : []),
     getResult: (s: Toy) =>
       s.phase === "done" && s.winner ? { winnerIds: [s.winner], standings: [] } : null,
@@ -93,16 +105,21 @@ describe("playBots", () => {
 
   it("decide only ever gets views", () => {
     const seen: BotView<any, any>[] = [];
-    const { def } = makeToy((v) => {
+    const checks: unknown[] = [];
+    // `log` is assigned below, before playBots runs.
+    let toy!: ReturnType<typeof makeToy>;
+    toy = makeToy((v) => {
       seen.push(v);
+      const cur = toy.log.current;
+      checks.push({
+        playerId: v.playerId,
+        public: toy.def.getPublicState(cur),
+        private: toy.def.getPrivateState(cur, v.playerId),
+      });
       return adds(v);
     });
-    playBots(def, { players: 2, seed: 1 });
+    playBots(toy.def, { players: 2, seed: 1 });
     expect(seen.length).toBeGreaterThan(0);
-    for (const v of seen) {
-      expect(Object.keys(v).sort()).toEqual(["playerId", "private", "public"]);
-      expect(v.private).toEqual({ me: v.playerId });
-      expect(Object.keys(v.public).sort()).toEqual(["phase", "total"]);
-    }
+    seen.forEach((v, i) => expect(v).toEqual(checks[i]));
   });
 });
