@@ -112,6 +112,11 @@ export function seatName(room: RoomPublicState, playerId: string | null | undefi
   return room.seats.find((s) => s.id === playerId)?.name ?? "Someone";
 }
 
+/** The small "computer" tag for a computer player's seat row; null for a person. */
+export function botTag(seat: { bot?: boolean } | undefined): HTMLElement | null {
+  return seat?.bot ? h("span", { class: "tag bot-tag" }, "computer") : null;
+}
+
 // ---------------------------------------------------------------------------
 // Avatars
 // ---------------------------------------------------------------------------

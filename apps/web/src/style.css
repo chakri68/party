@@ -288,7 +288,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seats li.away { opacity: 0.55; }
 .seats li.empty { background: none; border-style: dashed; }
 .seats .name { font-weight: 600; }
-.seats .tag, .game-option .tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.seats .tag, .game-option .tag, .tag.bot-tag { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .seats .ready { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
 .seats .ready.yes { color: var(--accent); }
 .seats .ready, .seats .kick, .invite button.primary, .game-option-want, .game-option-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
@@ -296,6 +296,10 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seats .kick .icon { width: 16px; height: 16px; }
 .suggestion-line .icon { width: 18px; height: 18px; color: var(--accent); }
 .game-option-actions .icon, .invite button.primary .icon { width: 16px; height: 16px; }
+.add-bot { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.add-bot p { margin: 0; font-size: 0.85rem; }
+.bot-blocked { color: var(--danger); flex: 0 0 100%; margin: 0; text-align: center; }
+.game-list > button.small { margin-bottom: 10px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .actions > button { flex: 1; }
 .actions > button.link { flex: 0 0 100%; }
@@ -582,6 +586,7 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
   background: none;
   color: var(--muted);
 }
+.seats .kick.bot-kick { margin-left: auto; }
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button, input { transition: none; }

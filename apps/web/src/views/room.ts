@@ -8,7 +8,7 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { avatar, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { avatar, botTag, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
 import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
@@ -488,7 +488,7 @@ export class RoomView implements View {
           : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
-    if (target && target.id !== me && !dropped && elapsed >= NUDGE_AFTER_MS) {
+    if (target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
       items.push(
         h("button", {
           type: "button",
@@ -540,6 +540,9 @@ export class RoomView implements View {
     // The room's cap, not the game's: a free room seats fewer than some games allow.
     const max = room.maxSeats || (entry?.manifest.maxPlayers ?? 8);
     const url = `${location.origin}/room/${room.code}`;
+    const botGame = room.botGameIds.includes(room.gameId);
+    const canAddBot = isHost && botGame;
+    const botBlocked = seats.some((s) => s.bot) && !botGame;
 
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
     const canShare = !!nav.share && matchMedia("(pointer: coarse)").matches;
@@ -614,13 +617,14 @@ export class RoomView implements View {
             avatar(s.name, s.avatarSeed),
             h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
+            botTag(s),
+            s.bot ? null : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
             isHost && s.id !== me
               ? h("button", {
                   type: "button",
-                  class: "kick",
+                  class: s.bot ? "kick bot-kick" : "kick",
                   "aria-label": `Remove ${s.name}`,
-                  onclick: () => confirm(`Remove ${s.name} from the room?`) && this.client?.send({ type: "remove-player", playerId: s.id }),
+                  onclick: () => (s.bot || confirm(`Remove ${s.name} from the room?`)) && this.client?.send({ type: "remove-player", playerId: s.id }),
                 }, icon("close"))
               : null,
           ),
@@ -630,6 +634,14 @@ export class RoomView implements View {
           h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
         ),
       ),
+      canAddBot
+        ? h(
+            "div",
+            { class: "add-bot", style: vt("lobby-add-bot") },
+            h("button", { type: "button", disabled: seats.length >= max, onclick: () => this.client?.send({ type: "add-bot" }) }, "Add computer"),
+            h("p", { class: "muted" }, "Computers play by the same rules. They only see their own cards."),
+          )
+        : null,
       h(
         "div",
         { class: "actions", style: vt("lobby-actions") },
@@ -641,12 +653,13 @@ export class RoomView implements View {
         isHost
           ? h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem, onclick: () => this.client?.send({ type: "start-game" }) },
+              { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem || botBlocked, onclick: () => this.client?.send({ type: "start-game" }) },
               // canStart is vague on purpose (the owner gate), so the label is too, but
               // it mustn't claim players are missing when they aren't.
               connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Can't start yet",
             )
           : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
+        isHost && botBlocked ? h("p", { class: "muted warn bot-blocked" }, "Remove computers to play this") : null,
       ),
       h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
       isHost ? this.endPartyControl(vt("lobby-end-party")) : null,
@@ -737,15 +750,16 @@ export class RoomView implements View {
         if (current) option.setAttribute("aria-current", "true");
         else option.removeAttribute("aria-current");
         // The host's rows disable when the game can't seat everyone.
-        if (option instanceof HTMLButtonElement) option.disabled = tooMany && !current && !locked;
+        const botBlock = isHost && !current && !locked && !room.botGameIds.includes(id) && room.seats.some((s) => s.bot && s.presence !== "left");
+        if (option instanceof HTMLButtonElement) option.disabled = (tooMany && !current && !locked) || botBlock;
         replaceChildren(nameLine, [
           name,
           current ? h("span", { class: "tag" }, "current") : null,
           locked ? h("span", { class: "tag" }, "Host Pass") : null,
           best ? h("span", { class: "tag best" }, icon("star"), `Best for ${players}`) : null,
         ]);
-        meta.className = `game-option-meta${tooMany ? " warn" : ""}`;
-        meta.textContent = tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
+        meta.className = `game-option-meta${tooMany || botBlock ? " warn" : ""}`;
+        meta.textContent = botBlock ? "Remove computers to play this" : tooMany ? `Up to ${maxPlayers} players, you have ${players}` : range;
         replaceChildren(want, n ? [icon("thumbs-up"), wantLabel(n)] : []);
         want.hidden = !n;
         // Someone just suggested it: the count gives a little bounce.
@@ -806,10 +820,18 @@ export class RoomView implements View {
       empty.hidden = sections.some((s) => !s.el.hidden);
     });
 
+    const removeBots = h("button", { type: "button", class: "small", onclick: () => this.client?.send({ type: "remove-bots" }) }, "Remove computers");
+    const syncRemoveBots = (room: RoomPublicState) => {
+      removeBots.hidden = !(isHost && room.seats.some((s) => s.bot && s.presence !== "left"));
+    };
+    syncRemoveBots(room0);
+    refreshers.push(syncRemoveBots);
+
     const dlg = h(
       "dialog",
       { class: "dialog game-list", "aria-label": isHost ? "Choose a game" : "All games" },
       h("h2", {}, isHost ? "Choose a game" : "All games"),
+      removeBots,
       isHost ? null : h("p", { class: "muted" }, "The host picks the game. Suggest the one you want."),
       search,
       sections.map((s) => s.el),

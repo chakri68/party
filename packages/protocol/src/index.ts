@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -89,6 +89,8 @@ export interface SeatPublic {
   joinedAt: number;
   /** The game this player wants next, if any. Cleared when a game starts. */
   suggestion?: string;
+  /** A computer player. Always connected and ready; never host. */
+  bot?: true;
 }
 
 /** What a room may do. Rooms without a paywall are always "pass". */
@@ -123,6 +125,8 @@ export interface RoomPublicState {
   tier: RoomTier;
   /** Game ids this room can't select at its tier. Empty on master. */
   lockedGameIds: string[];
+  /** Game ids that can have computer players. */
+  botGameIds: string[];
   /** How many seats the selected game has here: its max, or less in a free room. */
   maxSeats: number;
   /** The night's recap, in `ended`. Null there too when no game finished. */
@@ -154,6 +158,10 @@ export type ClientMessage =
   | { type: "emote"; emoji: Reaction }
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
+  /** Host only, in the lobby or on results: seats a computer player. `remove-player` takes one out. */
+  | { type: "add-bot" }
+  /** Host only, in the lobby or on results: takes every computer player out. */
+  | { type: "remove-bots" }
   | { type: "return-to-lobby" }
   /** Host only, in the lobby or on results: ends the room for everyone and shows the recap. */
   | { type: "end-party" }
@@ -211,7 +219,9 @@ export type ErrorCode =
   | "not-available"
   | "server-error"
   | "cannot-start"
-  | "needs-pass";
+  | "needs-pass"
+  /** The game was ended for everyone (a computer player got stuck); back in the lobby. */
+  | "game-ended";
 
 /** Codes after which the server closes the socket and the client must not auto-reconnect. */
 export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
@@ -302,6 +312,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "return-to-lobby":
     case "end-party":
     case "leave":
+    case "add-bot":
+    case "remove-bots":
       return { type: m.type };
     default:
       return null;

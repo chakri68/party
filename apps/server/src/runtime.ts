@@ -110,6 +110,8 @@ interface SeatData {
   joinedAt: number;
   owner: boolean;
   suggestion?: string;
+  /** A computer player: always connected and ready, no resume token, never host. */
+  bot?: true;
 }
 
 interface RoomData {
@@ -137,12 +139,22 @@ interface RoomData {
   hostKey?: string | null;
   /** The night so far, for the recap. Optional: rooms stored before it existed start one on their next game. */
   party?: PartyLog;
+  /**
+   * The seat that made the latest bot moves, how many in a row, and whether it
+   * has been skipped once already. A person's move or another seat's clears it.
+   */
+  botRun?: { seatId: string; moves: number; skipped: boolean };
 }
 
 const STORAGE_KEY = "room";
 const CLEANUP_TIMER = "cleanup";
 const GAME_TIMER_PREFIX = "game:";
 const GRACE_TIMER_PREFIX = "grace:";
+/** A computer player's next move. The game never sees these. */
+const BOT_TIMER_PREFIX = "bot:";
+/** More moves than this by one bot, with nobody else moving between, is stuck. */
+const BOT_MAX_RUN = 50;
+const BOT_STUCK_MESSAGE = "A computer player got stuck, so the game ended.";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
 /** Flood guards: this many per window, per seat. Emotes are meant to be mashed. */
@@ -150,6 +162,9 @@ const CHAT_LIMIT = { burst: 5, windowMs: 5_000 };
 const EMOTE_LIMIT = { burst: 10, windowMs: 3_000 };
 /** Room for 25 Hz input plus edge sends. Scribbl flushes at 25 Hz too. */
 const STREAM_LIMIT = { burst: 40, windowMs: 1_000 };
+
+/** Computer players' names, taken in order, skipping any a seat already uses. */
+const BOT_NAMES = ["Asha", "Ravi", "Meera", "Arjun", "Priya", "Kiran", "Neha", "Vikram", "Divya", "Rahul", "Anjali", "Sanjay"];
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_POLICY = 4000;
@@ -164,6 +179,8 @@ export class RoomRuntime {
   private queue: Promise<unknown> = Promise.resolve();
   /** "kind:seat" → recent send times. In memory: an eviction forgiving a spammer is fine. */
   private sendTimes = new Map<string, number[]>();
+  /** Why a game just ended early; the next commit sends it to every seat after its update. */
+  private gameEndedNotice: string | null = null;
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -189,6 +206,7 @@ export class RoomRuntime {
    */
   private async recover(err: unknown): Promise<void> {
     this.host.logError(err);
+    this.gameEndedNotice = null;
     this.data = (await this.host.storage.get<RoomData>(STORAGE_KEY)) ?? null;
   }
 
@@ -202,7 +220,7 @@ export class RoomRuntime {
       const live = new Set(this.liveConns().map((c) => c.state?.playerId));
       let changed = false;
       for (const seat of this.data.seats) {
-        if (seat.presence === "connected" && !live.has(seat.id)) {
+        if (!seat.bot && seat.presence === "connected" && !live.has(seat.id)) {
           seat.presence = "reconnecting";
           this.setTimer(GRACE_TIMER_PREFIX + seat.id, this.host.now() + GRACE_MS);
           changed = true;
@@ -338,7 +356,10 @@ export class RoomRuntime {
       .filter(([, at]) => at <= now)
       .sort((a, b) => a[1] - b[1]);
     const events: GameEventEnvelope<unknown>[] = [];
-    for (const [key] of due) {
+    for (const [key, at] of due) {
+      if (!this.data) return;
+      // An earlier timer in this alarm (a bot's move, say) may have cleared or re-set this one.
+      if (this.data.timers[key] !== at) continue;
       delete this.data.timers[key];
       if (key === CLEANUP_TIMER) {
         // Nobody's been here for hours: forget the room and free its code.
@@ -352,6 +373,9 @@ export class RoomRuntime {
       if (key.startsWith(GAME_TIMER_PREFIX)) {
         const timerId = key.slice(GAME_TIMER_PREFIX.length);
         events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
+      }
+      if (key.startsWith(BOT_TIMER_PREFIX)) {
+        events.push(...this.onBotTimer(key.slice(BOT_TIMER_PREFIX.length)));
       }
     }
     await this.commit(events);
@@ -407,7 +431,10 @@ export class RoomRuntime {
       }
       // An ended party is only a recap to look at: nobody's dealt in, so no cap.
       if (data.phase !== "ended" && this.activeSeats().length >= this.maxSeats(def)) {
-        return this.fatal(conn, "room-full", "This room is full.");
+        // A person always gets in: the newest computer gives up its seat. Not mid-game.
+        const bot = late ? undefined : this.newestBot();
+        if (!bot) return this.fatal(conn, "room-full", "This room is full.");
+        data.seats = data.seats.filter((s) => s !== bot);
       }
       seat = {
         id: this.host.randomToken().slice(0, 12),
@@ -454,6 +481,7 @@ export class RoomRuntime {
         const def = this.games[msg.gameId];
         if (!def) return this.error(conn, "unknown-game", "That game does not exist.");
         if (this.lockedGameIds().includes(msg.gameId)) return this.needsPass(conn);
+        if (!this.botsAllowed(def)) return this.botsBlock(conn);
         data.gameId = msg.gameId;
         data.settings = def.defaultSettings;
         return this.commit([]);
@@ -503,6 +531,8 @@ export class RoomRuntime {
           return conn.send({ type: "action-rejected", clientActionId: msg.clientActionId, ...result.error });
         }
         const events = this.applyTransition(result.transition, true);
+        // A person moved: any bot's run of moves in a row is broken.
+        delete data.botRun;
         return this.commit(events);
       }
 
@@ -576,14 +606,7 @@ export class RoomRuntime {
       case "return-to-lobby":
         // Mid-game too: the host can bail on a game that's dragging.
         if (!hostOnly() || !inPhase("playing", "results")) return;
-        data.phase = "lobby";
-        data.game = null;
-        // An abandoned game's timers would otherwise fire into the lobby.
-        for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
-        // Disconnected seats were only kept for the game; their grace is long spent.
-        data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
-        this.resetReady();
-        this.setAwaiting([]);
+        this.endGameToLobby(null);
         return this.commit([]);
 
       case "end-party": {
@@ -610,7 +633,7 @@ export class RoomRuntime {
       case "nudge": {
         if (!inPhase("playing")) return;
         const now = this.host.now();
-        const targets = data.awaiting.filter((id) => id !== seat.id);
+        const targets = data.awaiting.filter((id) => id !== seat.id && !this.isBot(id));
         if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
           return this.error(conn, "too-early", "Wait a little before you remind them.");
         }
@@ -658,6 +681,33 @@ export class RoomRuntime {
         return this.commit(this.removeSeat(target));
       }
 
+      case "add-bot": {
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        const def = this.games[data.gameId]!;
+        if (!def.bot) return this.error(conn, "not-available", "This game can't have computers.");
+        // Not "room-full": that one is fatal and would close the host's socket.
+        if (this.activeSeats().length >= this.maxSeats(def)) return this.error(conn, "not-available", "The table is full.");
+        const taken = new Set(data.seats.map((s) => s.name.toLowerCase()));
+        const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Computer ${data.seats.length + 1}`;
+        data.seats.push({
+          id: "bot-" + this.host.randomToken().slice(0, 8),
+          name,
+          avatarSeed: "bot-" + name,
+          resumeToken: "",
+          ready: true,
+          presence: "connected",
+          joinedAt: this.host.now(),
+          owner: false,
+          bot: true,
+        });
+        return this.commit([]);
+      }
+
+      case "remove-bots":
+        if (!hostOnly() || !inPhase("lobby", "results")) return;
+        data.seats = data.seats.filter((s) => !s.bot);
+        return this.commit([]);
+
       case "debug-start":
         if (!this.host.devTools) return this.error(conn, "not-available", "Debug tools are off.");
         if (!hostOnly() || !inPhase("lobby", "results")) return;
@@ -674,6 +724,8 @@ export class RoomRuntime {
     const data = this.data!;
     const def = this.games[data.gameId]!;
     if (this.lockedGameIds().includes(data.gameId)) return this.needsPass(conn);
+    // Only a room stored before bots could get here: picking the game is refused already.
+    if (!this.botsAllowed(def)) return this.botsBlock(conn);
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
     data.seats = data.seats.filter((s) => s.presence === "connected");
@@ -731,8 +783,137 @@ export class RoomRuntime {
     this.resetReady();
     // Suggestions are for the next pick; once a game starts they've done their job.
     for (const s of data.seats) delete s.suggestion;
+    delete data.botRun;
     const events = this.applyTransition(transition, true);
     return this.commit(events);
+  }
+
+  /**
+   * Ends a game early, back to the lobby, with no recap entry: the host's "Back
+   * to lobby", a stuck computer, or nobody left to play for. `message` goes to
+   * everyone seated when they should be told why.
+   */
+  private endGameToLobby(message: string | null): void {
+    const data = this.data!;
+    data.phase = "lobby";
+    data.game = null;
+    // An abandoned game's timers would otherwise fire into the lobby.
+    for (const key of Object.keys(data.timers)) {
+      if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
+    }
+    // Disconnected seats were only kept for the game; their grace is long spent.
+    data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
+    this.ensureHost();
+    this.resetReady();
+    this.setAwaiting([]);
+    delete data.botRun;
+    // Sent after the commit's update, so the client reads it as the reason, not "the host ended it".
+    if (message) this.gameEndedNotice = message;
+  }
+
+  // ---- computer players ---------------------------------------------------
+
+  /** Some person in the room is connected. Bots only play while someone is. */
+  private personWatching(): boolean {
+    return this.data!.seats.some((s) => !s.bot && s.presence === "connected");
+  }
+
+  /** What a bot may see: the projections a seated person gets, nothing more. */
+  private botDecide(seatId: string): unknown {
+    const game = this.data!.game!;
+    const def = this.games[game.gameId]!;
+    const view = { playerId: seatId, public: def.getPublicState(game.state), private: def.getPrivateState(game.state, seatId) };
+    return def.bot!.decide(view, { randomInt: (max) => this.host.randomInt(max) });
+  }
+
+  /**
+   * Runs as part of every commit while a game is playing. Gives each bot that
+   * is awaited, or wants to make a move, a timer for it. Only asks: the move
+   * itself waits for the timer, so a person's update is never held up by one.
+   */
+  private scheduleBots(): void {
+    const data = this.data!;
+    if (data.phase !== "playing" || !data.game) return;
+    // Only computers are left: nobody to play for.
+    const people = data.seats.filter((s) => !s.bot);
+    if (people.length < data.seats.length && people.every((s) => s.presence === "left")) return this.endGameToLobby(null);
+    if (!this.personWatching() || !this.games[data.game.gameId]!.bot) return;
+
+    const botSeats = data.seats.filter((s) => s.bot && s.presence !== "left");
+    for (const seat of botSeats) {
+      const key = BOT_TIMER_PREFIX + seat.id;
+      if (key in data.timers) continue;
+      let wants = data.awaiting.includes(seat.id);
+      if (!wants) {
+        try {
+          wants = this.botDecide(seat.id) !== null;
+        } catch {
+          // Not awaited, so there's nothing to be stuck on. The game moving on asks again.
+        }
+      }
+      if (!wants) continue;
+      // This bot moved last and still has a move (a second draw, say): it's a forced step, not a new think.
+      if (data.botRun?.seatId === seat.id) {
+        this.setTimer(key, this.host.now() + 350 + this.host.randomInt(250));
+        continue;
+      }
+      // Feels human at a small table; quicker when many bots move in a row.
+      const think = (800 + this.host.randomInt(801)) * Math.min(1, 3 / botSeats.length);
+      this.setTimer(key, this.host.now() + Math.max(350, Math.round(think)));
+    }
+  }
+
+  /** A bot's think time is up: it asks again, now, and makes its move. */
+  private onBotTimer(seatId: string): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    if (data.phase !== "playing" || !data.game) return [];
+    const seat = data.seats.find((s) => s.id === seatId);
+    if (!seat?.bot || seat.presence === "left") return [];
+    // Paused. A person coming back commits, and that schedules the bot again.
+    if (!this.personWatching()) return [];
+    const def = this.games[data.game.gameId]!;
+    if (!def.bot) return [];
+
+    // A throw here must never reach the alarm's rollback: it would just retry forever.
+    let result: ReturnType<AnyGameDefinition["handleAction"]> | null;
+    try {
+      const action = this.botDecide(seatId);
+      result = action === null ? null : def.handleAction(data.game.state, seatId, action, this.ctx());
+    } catch (err) {
+      this.host.logError(err);
+      return this.botStuck(seatId, "threw");
+    }
+    if (!result) return data.awaiting.includes(seatId) ? this.botStuck(seatId, "null") : [];
+    if (!result.ok) return this.botStuck(seatId, `rejected (${result.error.code})`);
+
+    const events = this.applyTransition(result.transition, true);
+    const run = data.botRun?.seatId === seatId ? data.botRun : { seatId, moves: 0, skipped: false };
+    run.moves++;
+    data.botRun = run;
+    if (data.phase === "playing" && run.moves > BOT_MAX_RUN) return [...events, ...this.botStuck(seatId, "run")];
+    return events;
+  }
+
+  /**
+   * Skip the bot once, when it's awaited; if it's stuck again before anyone else
+   * moves, or stuck off its turn, end the game.
+   */
+  private botStuck(seatId: string, reason: string): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    this.host.logError(new Error(`Computer player stuck: game ${data.game?.gameId}, seat ${seatId}, ${reason}`));
+    // Only a seat whose turn it is can be skipped; off-turn, a skip could undo a move (a cast vote).
+    if (!data.botRun?.skipped && data.awaiting.includes(seatId)) {
+      const moves = data.botRun?.seatId === seatId ? data.botRun.moves : 0;
+      data.botRun = { seatId, moves, skipped: true };
+      try {
+        const events = this.applyGameHook((def, st) => def.skipTurn?.(st, seatId, this.ctx()), true);
+        if (events.length) return events;
+      } catch (err) {
+        this.host.logError(err);
+      }
+    }
+    this.endGameToLobby(BOT_STUCK_MESSAGE);
+    return [];
   }
 
   // ---- game plumbing ------------------------------------------------------
@@ -776,7 +957,10 @@ export class RoomRuntime {
       if (def.carryOver) data.match.carry = { gameId: game.gameId, data: def.carryOver(game.state) };
       this.resetReady();
       this.setAwaiting([]);
-      for (const key of Object.keys(data.timers)) if (key.startsWith(GAME_TIMER_PREFIX)) this.clearTimer(key);
+      // A bot timer left over would otherwise fire into the next game.
+      for (const key of Object.keys(data.timers)) {
+        if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
+      }
     } else {
       this.setAwaiting(def.getAwaitedPlayerIds(game.state), acted);
     }
@@ -784,17 +968,17 @@ export class RoomRuntime {
   }
 
   /**
-   * Notes a finished game for the recap. Only seated players count: computer
-   * players (and anyone else the game names without a seat) can win a game but
-   * not an award.
+   * Notes a finished game for the recap. Only seated people count: computer
+   * players (bot seats, and anyone the game names without a seat) can win a
+   * game but not an award.
    */
   private logGame(def: AnyGameDefinition, state: unknown, outcome: GameOutcome): void {
     const data = this.data!;
     const party = (data.party ??= emptyPartyLog());
     const seats = new Map(data.seats.map((s) => [s.id, s]));
-    const human = (id: string) => seats.has(id) && !(outcome.names && id in outcome.names);
+    const human = (id: string) => seats.has(id) && !seats.get(id)!.bot && !(outcome.names && id in outcome.names);
     const fromStandings = outcome.standings.map((s) => s.playerId).filter(human);
-    const players = fromStandings.length ? fromStandings : data.seats.map((s) => s.id);
+    const players = fromStandings.length ? fromStandings : data.seats.filter((s) => !s.bot).map((s) => s.id);
     const stats: PartyStats = {};
     for (const [id, counts] of Object.entries(def.partyStats?.(state) ?? {})) if (human(id)) stats[id] = { ...counts };
     party.games.push({
@@ -818,7 +1002,8 @@ export class RoomRuntime {
   }
 
   private resetReady(): void {
-    for (const s of this.data!.seats) s.ready = false;
+    // Computers are always ready.
+    for (const s of this.data!.seats) s.ready = !!s.bot;
   }
 
   private activeSeats(): SeatData[] {
@@ -828,17 +1013,37 @@ export class RoomRuntime {
   /**
    * Host migration (§24). The host keeps the role through their grace period;
    * once they're disconnected or gone, it passes to the longest-seated connected
-   * player. If nobody's connected, it stays put until someone returns.
+   * player. If nobody's connected, it stays put until someone returns. A
+   * computer is never host: with no person to pass it to, nobody is.
    */
   private ensureHost(): void {
     const data = this.data!;
     const host = data.seats.find((s) => s.id === data.hostId);
     if (host && (host.presence === "connected" || host.presence === "reconnecting")) return;
-    const next = this.activeSeats()
-      .filter((s) => s.presence === "connected")
-      .sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    const people = this.activeSeats().filter((s) => !s.bot);
+    const next = people.filter((s) => s.presence === "connected").sort((a, b) => a.joinedAt - b.joinedAt)[0];
     if (next) data.hostId = next.id;
-    else if (!host || host.presence === "left") data.hostId = this.activeSeats()[0]?.id ?? null;
+    else if (!host || host.presence === "left") data.hostId = people[0]?.id ?? null;
+  }
+
+  private isBot(id: string): boolean {
+    return !!this.data!.seats.find((s) => s.id === id)?.bot;
+  }
+
+  /** The most recently added computer, the first to give up its seat. */
+  private newestBot(): SeatData | undefined {
+    let newest: SeatData | undefined;
+    for (const s of this.data!.seats) if (s.bot && (!newest || s.joinedAt >= newest.joinedAt)) newest = s;
+    return newest;
+  }
+
+  /** False when computers are seated and this game can't have them. */
+  private botsAllowed(def: AnyGameDefinition): boolean {
+    return !!def.bot || !this.data!.seats.some((s) => s.bot);
+  }
+
+  private botsBlock(conn: Conn): void {
+    this.error(conn, "not-available", "Remove computers to play this");
   }
 
   private onGraceExpired(playerId: string): void {
@@ -901,6 +1106,7 @@ export class RoomRuntime {
    */
   private async commit(events: GameEventEnvelope<unknown>[], conns?: Conn[], snapshotFor?: string): Promise<void> {
     const data = this.data!;
+    if (data.phase === "playing") this.scheduleBots();
     data.stateVersion++;
     await this.persist();
 
@@ -925,6 +1131,9 @@ export class RoomRuntime {
         ...(snapshot && def?.getStreamSnapshot && { stream: def.getStreamSnapshot(data.game!.state) }),
       });
     }
+    const notice = this.gameEndedNotice;
+    this.gameEndedNotice = null;
+    if (notice) for (const c of this.liveConns()) if (this.seatOf(c)) this.error(c, "game-ended", notice);
   }
 
   /** Sliding-window rate limit. Records the send when it's allowed. */
@@ -961,6 +1170,7 @@ export class RoomRuntime {
       setupProblem: this.setupProblem(),
       tier: this.tier(),
       lockedGameIds: this.lockedGameIds(),
+      botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
       recap: data.phase === "ended" ? buildRecap(data.party ?? emptyPartyLog(), this.host.now()) : null,
     };
