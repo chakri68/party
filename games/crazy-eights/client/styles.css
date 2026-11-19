@@ -60,8 +60,8 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
-/* accent-soft over surface, so the badge ring matches the lit chip. */
-.ce-opp.current .bot-badge { --bot-badge-ring: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+/* The lit chip is accent-soft (accent at 14%) over the page --bg, so the badge ring matches it. */
+.ce-opp.current .bot-badge { --bot-badge-ring: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
 .ce-opp.away { opacity: 0.55; }
 .ce-opp-text { display: grid; line-height: 1.15; }
 .ce-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
