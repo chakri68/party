@@ -13,6 +13,13 @@ describe("game registry flags", () => {
     for (const [id, def] of Object.entries(on)) expect(def.manifest.id).toBe(id);
   });
 
+  it("lists exactly the games with computer players", () => {
+    // Giving a game a bot changes this list on purpose: add its id here.
+    const all = gamesFor({ blindRally: true, treasureHunt: true });
+    const withBots = Object.keys(all).filter((id) => all[id]!.bot).sort();
+    expect(withBots).toEqual(["crazy-eights"]);
+  });
+
   it("TREASURE_HUNT lists Treasure Hunt, and only with it", () => {
     expect(gamesFor({ blindRally: true, treasureHunt: false })).not.toHaveProperty("treasure-hunt");
     const on = gamesFor({ blindRally: false, treasureHunt: true });

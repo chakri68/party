@@ -6,6 +6,7 @@ import {
   type GameTransition,
 } from "@games/game-core";
 import { crazyEightsManifest } from "../shared/manifest.ts";
+import { crazyEightsBot } from "./bot.ts";
 import {
   compareCards,
   formatRank,
@@ -201,6 +202,7 @@ export const crazyEightsGame: GameDefinition<
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
+  bot: crazyEightsBot,
 
   createGame(players, settings, match, ctx, options) {
     const n = players.length;

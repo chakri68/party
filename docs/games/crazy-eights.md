@@ -2,6 +2,8 @@
 
 Match the suit or the rank. Eights are wild. First to empty their hand wins. 2–10 players.
 
+The host can add computer players. You can play alone against them, or with a few friends.
+
 ## The short version
 
 - Everyone gets 5 cards. The rest is the stock, and its top card is turned up to start the pile.

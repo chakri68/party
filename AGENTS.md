@@ -24,6 +24,16 @@ Words players read: short, plain sentences, basic words, no idioms. Write for so
 
 Set `bestMinPlayers` and `bestMaxPlayers` in the manifest: the head counts the game plays best at, inside `minPlayers`..`maxPlayers`. The game list tags the game "Best for N" when the room has that many. `apps/server/test/games.test.ts` fails for a registered game without them.
 
+## Adding a game: computer players
+
+Computer players are optional. To give a game one:
+
+1. Write `games/<id>/server/bot.ts` with a `GameBot` and set it as `bot` on the definition. `decide(view, ctx)` gets only the public and private views a person gets, never the server state. It must be pure: no memory between calls, and random only through `ctx.randomInt`. Keep it to a few ms.
+2. Return a move whenever the game waits on that seat, including every extra step (like calling a suit). Return `null` only when there is nothing to do. The room treats `null` from a seat it waits on as stuck and ends the game.
+3. Test it: an all-bot `playBots` run (from `@games/game-core/testing`) over many seeds and table sizes, and each setting that changes play. Check that `outcome` is not null, and `rejected` and `stuck` are empty. See `games/crazy-eights/test/bot.test.ts`.
+4. Add the game's id to the list in `apps/server/test/games.test.ts` ("lists exactly the games with computer players").
+5. Add one line to `docs/games/<id>.md` saying computers can play, and name the game in the "Computer players" part of `docs/games/rooms.md`.
+
 ## Adding a game: party recap stats
 
 When the host ends the party, everyone gets a recap with awards like "Biggest liar" and "Most suspicious". The awards come from counts each game keeps. **Every new game reports them from day one.** A test enforces it: `apps/server/test/games.test.ts` fails for any registered game without `partyStats` that isn't on the old exempt list. Don't add to that list.
