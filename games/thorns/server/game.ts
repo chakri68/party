@@ -547,7 +547,7 @@ export const thornsGame: GameDefinition<
       canBid: turns || (phase === "bidding" && isTurn),
       canPass: phase === "bidding" && isTurn,
       canFlip: state.challenge?.challengerId === playerId ? flippable(state) : [],
-      canReady: phase === "result" && !p.ready,
+      canReady: playing && phase === "result" && !p.ready,
       lostDisc: p.lostDisc,
     };
   },
