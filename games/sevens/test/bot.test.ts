@@ -89,7 +89,7 @@ describe("sevensBot", () => {
   });
 
   it("does not count another seven as opened by a seven", () => {
-    const hand = [makeCard("hearts", 7), makeCard("hearts", 7, 1), c("spades", 7), c("spades", 8)];
+    const hand = [c("spades", 7), makeCard("hearts", 7), makeCard("hearts", 7, 1)];
     const v = view(hand, { playable: ["hearts-7", "spades-7"] });
     expect(sevensBot.decide(v, steady)).toEqual({ type: "play-card", cardId: "spades-7" });
   });
@@ -141,6 +141,7 @@ describe("sevensBot", () => {
     for (const [name, s] of settings) check(players, name, s, 50);
   }, 30_000);
   it("all-bot games finish with 16 players", () => {
+    check(16, "defaults", {}, 50);
     for (const [name, s] of settings.slice(0, 3)) check(16, name, s, 50);
   }, 30_000);
 
