@@ -166,6 +166,11 @@ export interface BotContext {
    * A whole number in [0, 100), the same every time this seat asks with this
    * key in this game. For off-turn choices (call a bluff or not): `decide` is
    * asked again on every update, so a fresh roll would change its mind.
+   *
+   * The answer is fixed for the whole game, so the key must name the exact
+   * decision: the round or hand, and the bid or claim being answered, e.g.
+   * `call:${round}:${pileCount}:${claimBy}`. A bare `chance("call")` gives one
+   * answer for the whole game, so the bot calls always or never.
    */
   chance(key: string): number;
 }

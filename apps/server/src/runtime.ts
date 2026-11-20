@@ -842,7 +842,13 @@ export class RoomRuntime {
   private botDecide(seatId: string): unknown {
     const game = this.data!.game!;
     const def = this.games[game.gameId]!;
-    const view = { playerId: seatId, public: def.getPublicState(game.state), private: def.getPrivateState(game.state, seatId) };
+    // Copies, as the wire would carry them: a bot that changes its view can't change the game.
+    const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+    const view = {
+      playerId: seatId,
+      public: copy(def.getPublicState(game.state)),
+      private: copy(def.getPrivateState(game.state, seatId)),
+    };
     // Fixed for one game (the room's code and game number), so asking again gives the same answer.
     const gameKey = `${this.data!.code}:${this.data!.match.roundNumber}`;
     return def.bot!.decide(view, {
