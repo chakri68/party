@@ -43,9 +43,10 @@ export type ToyAction = { type: "add"; n: number } | { type: "call" } | { type: 
  * - "bad-call": plays its turns normally, but in the call window sends an `add`, which is refused.
  * - "shy": plays its turns normally, but never calls in the window.
  * - "throw-off-turn": plays its turns normally; asked off its turn, it throws.
+ * - "meddle": plays normally, but first pushes its id into its view's `callers`.
  */
 export const toyKnobs: {
-  decide: "normal" | "null" | "throw" | "illegal" | "hog" | "bad-call" | "shy" | "throw-off-turn";
+  decide: "normal" | "null" | "throw" | "illegal" | "hog" | "bad-call" | "shy" | "throw-off-turn" | "meddle";
 } = { decide: "normal" };
 
 const err = (code: string, message: string) => ({ ok: false as const, error: { code, message } });
@@ -56,6 +57,7 @@ const ok = (state: ToyState, timers?: { kind: "set"; timerId: string; delayMs: n
 
 function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: BotContext): ToyAction | null {
   const pub = view.public;
+  if (toyKnobs.decide === "meddle") pub.callers.push(view.playerId);
   const myTurn = pub.phase === "count" && pub.turnId === view.playerId;
   if (myTurn) {
     switch (toyKnobs.decide) {
@@ -71,6 +73,7 @@ function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: BotContext): ToyActio
       case "bad-call":
       case "shy":
       case "throw-off-turn":
+      case "meddle":
         return { type: "add", n: 1 + ctx.randomInt(2) };
     }
   }

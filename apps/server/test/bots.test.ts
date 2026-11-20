@@ -375,6 +375,19 @@ describe("bots in a game", () => {
     expect(roomOf(a).phase).toBe("results");
   });
 
+  it("a bot that changes its view can't change the game", async () => {
+    toyKnobs.decide = "meddle";
+    const a = await table(["Ana"], 2);
+    const callers = () => (data() as unknown as { game: { state: { callers: string[] } } }).game.state.callers;
+    // At most 5 counted: still short of 10, so nobody may call yet.
+    await peopleMove();
+    await world.tick(room, 3000);
+    expect(pub(a).phase).toBe("count");
+    expect(pub(a).total).toBeGreaterThan(0);
+    expect(callers()).toEqual([]);
+    expect(pub(a).callers).toEqual([]);
+  });
+
   it("a bot that throws while asked off its turn is logged and gets no timer", async () => {
     const a = await table(["Ana"], 2);
     await playUntil(() => pub(a).turnId === idOf(a));
