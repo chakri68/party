@@ -55,7 +55,7 @@ function view(
 
 describe("liarsDiceBot", () => {
   it("calls a bid that cannot be true", () => {
-    // 3 dice in all, a bid of 3 sixes with no sixes or ones in my cup is possible; 5 sixes of 11 total is wildly high.
+    // 11 sixes of 11 dice, with no sixes or 1s in my cup: it cannot be true. Then 5 sixes of 5 dice, the same.
     const v = view([2, 3, 4], { others: 8, bid: { quantity: 11, face: 6 } });
     expect(liarsDiceBot.decide(v, steady)).toEqual({ type: "liar" });
     const impossible = view([2, 3, 4], { others: 2, bid: { quantity: 5, face: 6 } });
@@ -80,7 +80,7 @@ describe("liarsDiceBot", () => {
   });
 
   it("calls spot on only when allowed", () => {
-    // Odds of exactly 3 more 2s of 9 unknown at 1/3 are about 0.27, so use 3 dice: exact 1 of 3.
+    // 1 die of mine (a 2) plus 3 unknown at 1/3: exactly one more 2 is about 0.44, over the 0.3 floor.
     const v = view([2], { others: 3, bid: { quantity: 2, face: 2 } });
     const roll0 = { randomInt: (m: number) => (m === 4 ? 0 : m - 1), chance: () => 0 };
     expect(liarsDiceBot.decide(v, roll0)).toEqual({ type: "spot-on" });

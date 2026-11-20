@@ -1,4 +1,3 @@
-import { sevensBot } from "./bot.ts";
 import {
   shuffle,
   type GameDefinition,
@@ -6,6 +5,7 @@ import {
   type GameResult,
   type GameTransition,
 } from "@games/game-core";
+import { sevensBot } from "./bot.ts";
 import { sevensManifest } from "../shared/manifest.ts";
 import {
   compareCards,

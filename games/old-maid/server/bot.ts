@@ -1,7 +1,7 @@
 import type { GameBot } from "@games/game-core";
 import type { OldMaidAction, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
 
-/** About 1 pick in this many goes to an end slot, as people like the ends. */
+/** 1 pick in this many goes straight to an end slot; the rest are any slot. */
 const END_SLOT_ODDS = 3;
 
 /**

@@ -2,6 +2,8 @@
 
 Everyone rolls in secret, then bids on what's under all the cups. Raise the bid or call the last bidder a liar. Whoever's wrong loses a die. 2–8 players.
 
+Computer players can fill seats in this game. They count the dice they can see and guess the rest. They call Liar when a bid looks too high. They sometimes bluff.
+
 ## The short version
 
 - Everyone has a cup of dice. Each round, everyone rolls, and you only see your own.
@@ -65,7 +67,3 @@ Host picks these in the lobby.
 - With wild ones on, a die you can't see shows any given face (or a 1) a third of the time. Twelve hidden dice: expect about four of a face, plus whatever's in your own cup.
 - A bid on 1s is half as big but twice as rare. It's a cheap way to jump the table.
 - Spot on is a long shot, but it's the only way to win a die back.
-
-## Computer players
-
-Computer players can fill seats in this game. They count the dice they can see and guess the rest. They call Liar when a bid looks too high. They bluff now and then, so they are not hard to beat.
