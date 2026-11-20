@@ -118,7 +118,7 @@ describe("thornsBot", () => {
     expect(thornsBot.decide(view({ phase: "bidding", bid: 2 }), steady)).toBeNull();
   });
 
-  it("does not tap ready once it is out of discs", () => {
+  it("guard: does not tap ready once it is out of discs, even if canReady were up", () => {
     const v = view({ phase: "result", flags: { canReady: true } });
     const out = { ...v, public: { ...v.public, players: v.public.players.map((p) => (p.id === "me" ? { ...p, out: true } : p)) } };
     expect(thornsBot.decide(out, steady)).toBeNull();

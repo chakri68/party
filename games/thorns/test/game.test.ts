@@ -283,6 +283,8 @@ describe("losing a disc", () => {
     t = ok(act(t.state, "p0", { type: "flip", owner: "p1" }));
     expect(t.events.find((e) => e.event.type === "failure")!.event).toMatchObject({ discsLeft: 0, eliminated: true });
     expect(th.getPublicState(t.state).players[0]).toMatchObject({ discs: 0, out: true });
+    expect(th.getPrivateState(t.state, "p0").canReady).toBe(false);
+    expect(th.getPrivateState(t.state, "p2").canReady).toBe(true);
     const next = th.onTimer!(t.state, "result", ctx()).state;
     expect(th.getAwaitedPlayerIds(next)).toEqual(["p1", "p2", "p3"]);
     expect(err(act(next, "p0", { type: "place", disc: "rose" }))).toBe("out");
