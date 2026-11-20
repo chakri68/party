@@ -1,5 +1,6 @@
 import type { GameContext, GameDefinition, GameEventEnvelope, GameResult, TimerRequest } from "@games/game-core";
 import { thornsManifest } from "../shared/manifest.ts";
+import { thornsBot } from "./bot.ts";
 import { discCount, handOf, lostDiscAt } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
@@ -289,6 +290,7 @@ export const thornsGame: GameDefinition<
   ThornsEvent
 > = {
   manifest: thornsManifest,
+  bot: thornsBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,

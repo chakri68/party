@@ -53,6 +53,10 @@ Host picks these in the lobby.
 - **The host removes a player.** Their stack leaves the table. Mid-round (challenge included), the round doesn't count: discs go back to hands, nobody loses one, and the next player after them starts. During a result, the next round just starts without them. If only one player is left, they win.
 - **Game over.** The host sees Rematch and Back to lobby; everyone else sees Play again.
 
+## Computer players
+
+Computer players can fill seats in this game. They bid on the roses they can safely flip. They avoid a bid that would reach their own thorn.
+
 ## Tips
 
 - Your own stack flips first, so a thorn of your own on the mat makes any bid you win a bad idea. That's also why it works as a bluff.
