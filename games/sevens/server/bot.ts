@@ -12,7 +12,7 @@ function openings(card: Card, hand: readonly Card[]): { count: number; reach: nu
   for (const other of hand) {
     if (other.suit !== card.suit || other.id === card.id) continue;
     const ahead =
-      card.rank === SEVEN ? true : card.rank > SEVEN ? other.rank > card.rank : other.rank < card.rank;
+      card.rank === SEVEN ? other.rank !== SEVEN : card.rank > SEVEN ? other.rank > card.rank : other.rank < card.rank;
     if (!ahead) continue;
     count++;
     reach = Math.max(reach, Math.abs(other.rank - card.rank));
