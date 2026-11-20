@@ -12,6 +12,7 @@ import {
   sortHand,
 } from "../shared/rules.ts";
 import { legalPlays, trickWinnerIndex } from "../shared/tricks.ts";
+import { ohHellBot } from "./bot.ts";
 import {
   DEFAULT_SETTINGS,
   SUMMARY_MS,
@@ -253,6 +254,7 @@ function parseAction(input: unknown): OhHellAction | null {
 export const ohHellGame: GameDefinition<OhHellServerState, OhHellAction, OhHellPublicState, OhHellPrivateState, OhHellSettings, OhHellEvent> = {
   manifest: ohHellManifest,
   defaultSettings: DEFAULT_SETTINGS,
+  bot: ohHellBot,
   parseSettings,
   parseAction,
 
