@@ -1,3 +1,4 @@
+import { sevensBot } from "./bot.ts";
 import {
   shuffle,
   type GameDefinition,
@@ -200,6 +201,7 @@ export const sevensGame: GameDefinition<
   SevensEvent
 > = {
   manifest: sevensManifest,
+  bot: sevensBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
