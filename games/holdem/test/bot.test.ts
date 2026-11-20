@@ -272,6 +272,11 @@ describe("holdemBot hand reading", () => {
     ["quads: the best kicker wins", "9s 9h 9d 9c 2h", "Kd 3c", "Qd Jc", 1],
     ["quads: a kicker on the board ties", "9s 9h 9d 9c Ah", "Kd 3c", "Qd Jc", 0],
     ["a straight flush beats a flush", "5h 6h 7h 8h Kd", "9h 2c", "Ah 2d", 1],
+    ["trips and two pairs: the higher pair plays", "Kh Kd 7c 7d 2s", "Ks 2d", "Kc 3h", 0],
+    ["two trips equal trips and a pair", "Kh Kd 7c 7d 2s", "Ks 7h", "Kc 2d", 0],
+    ["full house: the trips rank counts first", "Kh Kd 7c 7d 2s", "7h 3c", "Ks 3d", -1],
+    ["full house: same trips, the pair decides", "Kh Kd Ks 5c 2d", "Qh Qd", "7h 7d", 1],
+    ["quads and trips: quads, with the best kicker", "9s 9h 9d 9c 7d", "Ks 7h", "7c 7s", 1],
   ] as const)("%s", (_, board, holeA, holeB, want) => {
     const a = c(`${holeA} ${board}`);
     const b = c(`${holeB} ${board}`);
