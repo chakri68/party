@@ -6,6 +6,7 @@ import {
   type GameResult,
   type GameTransition,
 } from "@games/game-core";
+import { presidentBot } from "./bot.ts";
 import { presidentManifest } from "../shared/manifest.ts";
 import {
   bestCards,
@@ -352,6 +353,7 @@ export const presidentGame: GameDefinition<
   PresidentEvent
 > = {
   manifest: presidentManifest,
+  bot: presidentBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
