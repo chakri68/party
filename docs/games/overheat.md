@@ -2,7 +2,7 @@
 
 Flip cards for points. Every card also adds heat. Go over the heat limit and you get nothing for the round. Bank in time, and push cards onto other players. 2–8 players.
 
-Computer players can fill seats in this game. They flip first, bank when the heat limit is close, and aim power cards at the players most likely to bust.
+Computer players can fill seats in this game. They flip first and bank when the heat limit is close. They aim a Shove at the player closest to the limit, and a Fuse at the leader.
 
 ## The short version
 
