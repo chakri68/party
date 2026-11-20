@@ -2,6 +2,8 @@
 
 Ask someone for a rank you hold. Collect all four to make a book. Most books wins. 2–6 players.
 
+Computer players can fill seats in this game. They ask for ranks they hold, and they remember who asked for what.
+
 ## The short version
 
 - Ask another player for a rank you already have in your hand.

@@ -5,6 +5,7 @@ import {
   type GameResult,
   type GameTransition,
 } from "@games/game-core";
+import { goFishBot } from "./bot.ts";
 import { goFishManifest } from "../shared/manifest.ts";
 import { compareCards, handSize, makeDeck, parseCardId, rankPlural, ranksHeld, takeBooks } from "../shared/rules.ts";
 import {
@@ -225,6 +226,7 @@ export const goFishGame: GameDefinition<
   GoFishEvent
 > = {
   manifest: goFishManifest,
+  bot: goFishBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
