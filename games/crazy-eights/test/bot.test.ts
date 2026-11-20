@@ -1,3 +1,4 @@
+import { BOT_MAX_RUN } from "@games/game-core";
 import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
 import { crazyEightsBot } from "../server/bot.ts";
@@ -6,7 +7,7 @@ import { parseCardId } from "../shared/rules.ts";
 import type { CrazyEightsPublicState, Suit } from "../shared/types.ts";
 
 /** Never takes the random move: `randomInt` always answers 1. */
-const steady = { randomInt: () => 1 };
+const steady = { randomInt: () => 1, chance: () => 0 };
 
 /** A view for "me", with `top` on the pile. Playable cards come from the rules, like the server. */
 function view(hand: string[], opts: { top?: string; calledSuit?: Suit | null; turn?: string; canDraw?: boolean } = {}) {
@@ -78,7 +79,7 @@ describe("crazyEightsBot", () => {
 
   it("sometimes plays a random playable card, and an 8 still calls its best suit", () => {
     // randomInt(8) === 0 takes the random move; the next call picks index 0 of the playable cards.
-    const random = { randomInt: () => 0 };
+    const random = { randomInt: () => 0, chance: () => 0 };
     const move = crazyEightsBot.decide(view(["clubs-8", "hearts-2", "spades-3", "spades-4"]), random);
     expect(move).toEqual({ type: "play-card", cardId: "clubs-8", suit: "spades" });
   });
@@ -90,9 +91,11 @@ describe("crazyEightsBot", () => {
         expect(run.rejected, `seed ${seed}, ${emptyStock}`).toEqual([]);
         expect(run.stuck, `seed ${seed}, ${emptyStock}`).toEqual([]);
         expect(run.outcome, `seed ${seed}, ${emptyStock}`).not.toBeNull();
+        expect(run.longestRun, `seed ${seed}, ${emptyStock}`).toBeLessThan(BOT_MAX_RUN);
       }
     }
-  });
+    // 400 games at 7 seats take about 4 s, close to the 5 s default.
+  }, 20_000);
 
   it("stays fast", () => {
     let moves = 0;

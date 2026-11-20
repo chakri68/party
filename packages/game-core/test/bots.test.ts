@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AnyGameDefinition, BotView } from "../src/index.ts";
+import type { AnyGameDefinition, BotContext, BotView } from "../src/index.ts";
 import { playBots } from "../src/testing.ts";
 
 // "Count to 20": players take turns adding 1 or 2. Reaching 20 opens a timed
@@ -11,6 +11,7 @@ interface Toy {
   phase: "count" | "window" | "done";
   winner: string | null;
   timerRuns: number;
+  hand: number[];
 }
 type Action = { type: "add"; n: number } | { type: "pass" };
 
@@ -38,13 +39,13 @@ function step(s: Toy, id: string, a: Action): Step {
   return { ok: true, transition: { state: { ...s, total, turn: (s.turn + 1) % s.players.length }, events: [] } };
 }
 
-function makeToy(decide: (view: BotView<any, any>) => Action | null) {
+function makeToy(decide: (view: BotView<any, any>, ctx: BotContext) => Action | null) {
   const log = { timerRuns: 0, current: null as Toy | null };
   const def = {
     manifest: { id: "toy" },
     defaultSettings: {},
     createGame: (players: { id: string }[]) => {
-      const state = { players: players.map((p) => p.id), total: 0, turn: 0, phase: "count", winner: null, timerRuns: 0 } as Toy;
+      const state = { players: players.map((p) => p.id), total: 0, turn: 0, phase: "count", winner: null, timerRuns: 0, hand: [3, 1, 2] } as Toy;
       log.current = state;
       return { state, events: [] };
     },
@@ -59,7 +60,8 @@ function makeToy(decide: (view: BotView<any, any>) => Action | null) {
       return { state: log.current, events: [] };
     },
     getPublicState: (s: Toy) => ({ total: s.total, phase: s.phase }),
-    getPrivateState: (s: Toy, id: string) => ({ me: id, myTurn: s.players[s.turn] === id }),
+    // `hand` is the live array, as a careless game might hand it out.
+    getPrivateState: (s: Toy, id: string) => ({ me: id, myTurn: s.players[s.turn] === id, hand: s.hand }),
     getAwaitedPlayerIds: (s: Toy) => (s.phase === "count" ? [s.players[s.turn]!] : []),
     getResult: (s: Toy) =>
       s.phase === "done" && s.winner ? { winnerIds: [s.winner], standings: [] } : null,
@@ -121,5 +123,74 @@ describe("playBots", () => {
     playBots(toy.def, { players: 2, seed: 1 });
     expect(seen.length).toBeGreaterThan(0);
     seen.forEach((v, i) => expect(v).toEqual(checks[i]));
+  });
+
+  it("chance is stable per seat and key, and spread over 0 to 99", () => {
+    const seen = new Map<string, number>();
+    const { def } = makeToy((v, ctx) => {
+      for (let k = 0; k < 20; k++) {
+        const key = `call:${k}`;
+        const value = ctx.chance(key);
+        expect(ctx.chance(key)).toBe(value);
+        const at = `${v.playerId}/${key}`;
+        if (seen.has(at)) expect(seen.get(at)).toBe(value);
+        seen.set(at, value);
+      }
+      return adds(v);
+    });
+    const r = playBots(def, { players: 3, seed: 7 });
+    expect(r.outcome).not.toBeNull();
+    const values = [...seen.values()];
+    expect(values).toHaveLength(60);
+    for (const value of values) {
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(100);
+    }
+    // Different keys for one seat, and one key for different seats, don't all agree.
+    expect(new Set([...seen].filter(([at]) => at.startsWith("p1/")).map(([, v]) => v)).size).toBeGreaterThan(5);
+    expect(new Set(["p1", "p2", "p3"].map((p) => seen.get(`${p}/call:0`))).size).toBeGreaterThan(1);
+  });
+
+  it("chance depends on the seed", () => {
+    const first = (seed: number) => {
+      let value = -1;
+      const { def } = makeToy((v, ctx) => {
+        if (value < 0) value = ctx.chance("call");
+        return adds(v);
+      });
+      playBots(def, { players: 2, seed });
+      return value;
+    };
+    expect(first(1)).toBe(first(1));
+    expect(new Set([1, 2, 3, 4, 5, 6].map(first)).size).toBeGreaterThan(1);
+  });
+
+  it("a bot that changes its view throws, and the live state stays unfrozen", () => {
+    const toy = makeToy((v) => {
+      v.private.hand.sort();
+      return adds(v);
+    });
+    expect(() => playBots(toy.def, { players: 2, seed: 1 })).toThrow(TypeError);
+    expect(Object.isFrozen(toy.log.current!.hand)).toBe(false);
+    expect(toy.log.current!.hand).toEqual([3, 1, 2]);
+  });
+
+  it("longestRun counts one seat's moves in a row, not timers", () => {
+    let passes = 0;
+    const { def } = makeToy((v) => {
+      // p1 passes twice, then adds: three accepted moves in a row.
+      if (v.playerId === "p1" && v.private.myTurn && passes < 2) {
+        passes++;
+        return { type: "pass" };
+      }
+      return v.private.myTurn ? adds(v) : null;
+    });
+    const r = playBots(def, { players: 2, seed: 1 });
+    expect(r.outcome).not.toBeNull();
+    expect(r.longestRun).toBe(3);
+
+    const plain = playBots(makeToy((v) => (v.private.myTurn ? adds(v) : null)).def, { players: 2, seed: 1 });
+    expect(plain.longestRun).toBe(1);
   });
 });

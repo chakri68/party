@@ -357,6 +357,40 @@ describe("bots in a game", () => {
     expect(pub(a).callers.sort()).toEqual(bots(a).map((b) => b.id).sort());
   });
 
+  it("a bot with nothing to do when its timer fires sends no update", async () => {
+    const a = await table(["Ana", "Ben"], 2);
+    await playUntil(() => pub(a).phase === "window");
+    expect(botTimers()).toHaveLength(2);
+    // Both bots wanted to call; by the time their timers fire, they don't.
+    toyKnobs.decide = "shy";
+    const version = (data() as unknown as { stateVersion: number }).stateVersion;
+    const sent = people.map((c) => c.inbox.length);
+    await world.tick(room, 2600);
+    expect((data() as unknown as { stateVersion: number }).stateVersion).toBe(version);
+    expect(people.map((c) => c.inbox.length)).toEqual(sent);
+    expect(botTimers()).toEqual([]);
+    // The alarm moves on to the window's own timer, which still ends the game.
+    expect(world.alarm).toBe(data().timers["game:window"]);
+    await world.tick(room, 5000);
+    expect(roomOf(a).phase).toBe("results");
+  });
+
+  it("a bot that throws while asked off its turn is logged and gets no timer", async () => {
+    const a = await table(["Ana"], 2);
+    await playUntil(() => pub(a).turnId === idOf(a));
+    toyKnobs.decide = "throw-off-turn";
+    world.errors.length = 0;
+    await send(room, a, { type: "game-action", clientActionId: "x", action: { type: "add", n: 1 } });
+    // The next seat is a bot on its turn: it gets a timer without being asked. The other throws.
+    const [b1, b2] = bots(a);
+    const onTurn = pub(a).turnId;
+    const off = onTurn === b1!.id ? b2! : b1!;
+    expect(onTurn === b1!.id || onTurn === b2!.id).toBe(true);
+    expect(botTimers().map(([k]) => k)).toEqual([`bot:${onTurn}`]);
+    expect(botTimers().map(([k]) => k)).not.toContain(`bot:${off.id}`);
+    expect(world.errors).toContainEqual(new Error("toy bot broke off its turn"));
+  });
+
   for (const [knob, reason] of [["null", "returns nothing"], ["throw", "throws"], ["illegal", "breaks a rule"]] as const) {
     it(`a bot that ${reason} on its turn: skip first, then back to the lobby`, async () => {
       toyKnobs.decide = knob;
