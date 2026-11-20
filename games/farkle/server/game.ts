@@ -1,4 +1,5 @@
 import type { GameContext, GameDefinition, GameEventEnvelope, GameResult, TimerRequest } from "@games/game-core";
+import { farkleBot } from "./bot.ts";
 import { farkleManifest } from "../shared/manifest.ts";
 import { bestSelection, diceToRoll, formatPoints, isFarkle, scoreDice } from "../shared/rules.ts";
 import {
@@ -217,6 +218,7 @@ export const farkleGame: GameDefinition<
   FarkleEvent
 > = {
   manifest: farkleManifest,
+  bot: farkleBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
