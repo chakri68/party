@@ -7,6 +7,7 @@ import {
   type GameResult,
   type TimerRequest,
 } from "@games/game-core";
+import { cheatBot } from "./bot.ts";
 import { cheatManifest } from "../shared/manifest.ts";
 import { allowedClaims, compareCards, isHonest, makeDeck, parseCardId, resolveDecks } from "../shared/rules.ts";
 import {
@@ -214,6 +215,7 @@ export const cheatGame: GameDefinition<
 > = {
   manifest: cheatManifest,
   defaultSettings: DEFAULT_SETTINGS,
+  bot: cheatBot,
   parseSettings,
   parseAction,
 
@@ -387,6 +389,7 @@ export const cheatGame: GameDefinition<
       })),
       currentPlayerId: playing && state.step === "play" ? current(state).id : null,
       dealerId: state.players[state.dealerIndex]!.id,
+      decks: state.decks,
       step: playing ? state.step : "finished",
       claims: playing && state.step === "play" ? allowedClaims(state.lastClaim, state.settings.claims) : [],
       claimRule: state.settings.claims,
