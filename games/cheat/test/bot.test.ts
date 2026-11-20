@@ -70,6 +70,12 @@ describe("cheatBot play", () => {
     }
   });
 
+  it("lies with one card, not two, with two cards left, even on the low roll", () => {
+    const m = cheatBot.decide(turnView(["hearts-2", "spades-9"]), low) as Extract<CheatAction, { type: "play" }>;
+    expect(m.type).toBe("play");
+    expect(m.cardIds).toHaveLength(1);
+  });
+
   it("can tack one junk card onto an honest play", () => {
     const v = turnView(["hearts-7", "spades-3", "clubs-9", "hearts-2"]);
     const m = cheatBot.decide(v, { randomInt: (max) => (max === 100 ? 0 : max - 1), chance: () => 0 }) as Extract<CheatAction, { type: "play" }>;
