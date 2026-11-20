@@ -56,3 +56,4 @@ Host picks these in the lobby.
 
 - A play is capped at four cards, and four of a kind is the most anyone could honestly hold with one deck.
 - The pile only grows until someone's wrong, so a wrong call late costs more than one early.
+- Computer players can play Cheat. They lie some of the time, and they call some plays.
