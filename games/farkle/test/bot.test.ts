@@ -3,7 +3,7 @@ import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
 import { farkleBot } from "../server/bot.ts";
 import { farkleGame } from "../server/game.ts";
-import { scoreDice } from "../shared/rules.ts";
+import { bestSelection, scoreDice } from "../shared/rules.ts";
 import { DEFAULT_SETTINGS, type FarklePublicState, type FarkleSettings } from "../shared/types.ts";
 
 /** Never jitters. */
@@ -84,10 +84,19 @@ describe("farkleBot", () => {
     expect(keptFaces(roll, move.keep)).toEqual([1, 5]);
   });
 
-  it("adds 5s when that reaches the bank threshold", () => {
-    const roll = [4, 4, 4, 5, 5];
-    const move = farkleBot.decide(view({ roll, turnTotal: 0 }), steady)!;
-    expect(keptFaces(roll, move.keep)).toEqual([4, 4, 4, 5, 5]);
+  it("adds 5s to a triple when that reaches the bank threshold", () => {
+    const roll = [4, 4, 4, 5, 2, 3];
+    const move = farkleBot.decide(view({ roll }), steady)!;
+    expect(keptFaces(roll, move.keep)).toEqual([4, 4, 4, 5]); // 450, 2 dice left: bank at 250
+  });
+
+  it("leaves the 5 when that does not reach the threshold", () => {
+    const roll = [2, 2, 2, 5, 3, 4];
+    // The first draw (0) triggers the jitter, the second (300) raises the threshold by 150.
+    const draws = [0, 300];
+    const ctx = { randomInt: (max: number) => draws.shift() ?? Math.min(1, max - 1), chance: () => 0 };
+    const move = farkleBot.decide(view({ roll }), ctx)!;
+    expect(keptFaces(roll, move.keep)).toEqual([2, 2, 2]); // 250 < 400
   });
 
   it("banks by dice left", () => {
@@ -129,6 +138,14 @@ describe("farkleBot", () => {
     expect(tied.type).toBe("keep-and-roll"); // 4000 does not beat 4000
   });
 
+  it("does not bank past the target while still behind in the final round", () => {
+    const roll = [1, 2, 3, 4, 6, 6];
+    const v = view({ roll, finalRound: true, score: 4000, turnTotal: 900, others: [7000], settings: { target: 5000 } });
+    expect(farkleBot.decide(v, steady)!.type).toBe("keep-and-roll");
+    const ahead = view({ roll, finalRound: true, score: 4000, turnTotal: 900, others: [4500], settings: { target: 5000 } });
+    expect(farkleBot.decide(ahead, steady)!.type).toBe("keep-and-bank");
+  });
+
   it("banks 100 sooner after two busts when the penalty is on", () => {
     const roll = [3, 3, 3, 2, 4, 6]; // 300 with 3 dice left: bank at 350, or 250 when wary
     const type = (farkles: number, threeFarkles: boolean) =>
@@ -142,10 +159,11 @@ describe("farkleBot", () => {
     for (let seed = 0; seed < 300; seed++) {
       const roll = Array.from({ length: 1 + (seed % 6) }, (_, i) => 1 + ((seed * 7 + i * 13 + (seed >> 2)) % 6));
       const ctx = { randomInt: (max: number) => (seed * 11 + 3) % max, chance: () => 0 };
-      const move = farkleBot.decide(view({ roll, turnTotal: seed % 4 === 0 ? 600 : 0 }), ctx);
-      if (!roll.some((f) => scoreDice([f]) > 0 || roll.filter((g) => g === f).length >= 3)) continue;
-      if (!move) continue;
+      const move = farkleBot.decide(view({ roll, turnTotal: seed % 4 === 0 ? 600 : 0 }), ctx)!;
+      if (bestSelection(roll).points === 0) continue;
+      expect(move, `roll ${roll}`).not.toBeNull();
       expect(new Set(move.keep).size).toBe(move.keep.length);
+      expect(move.keep.every((i) => Number.isInteger(i) && i >= 0 && i < roll.length)).toBe(true);
       expect(scoreDice(move.keep.map((i) => roll[i]!))).toBeGreaterThan(0);
     }
   });
