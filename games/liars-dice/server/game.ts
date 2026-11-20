@@ -1,5 +1,6 @@
 import { bumpStat, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { liarsDiceManifest } from "../shared/manifest.ts";
+import { liarsDiceBot } from "./bot.ts";
 import { countMatches, isLegalBid, onesAreWild, ordinal, skipBid, smallestRaise } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
@@ -221,6 +222,7 @@ export const liarsDiceGame: GameDefinition<
   LiarsDiceEvent
 > = {
   manifest: liarsDiceManifest,
+  bot: liarsDiceBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
