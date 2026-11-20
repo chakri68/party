@@ -59,3 +59,7 @@ Host picks these in the lobby.
 - Bidding 0 in a one-card round is the classic trap: it's 10 points if your card is low, and the dealer is the one stuck guessing.
 - A high card in a short suit is a liability when you've bid low. Get rid of it the first time you can't follow.
 - Watch "Bids so far". If it's under the hand size, someone's going to take tricks they didn't want.
+
+## Computer players
+
+Computer players can fill seats in this game. They bid from the strong cards in their hand. They try to win tricks until they make their bid, then try to lose the rest.

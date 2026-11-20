@@ -17,7 +17,7 @@ describe("game registry flags", () => {
     // Giving a game a bot changes this list on purpose: add its id here.
     const all = gamesFor({ blindRally: true, treasureHunt: true });
     const withBots = Object.keys(all).filter((id) => all[id]!.bot).sort();
-    expect(withBots).toEqual(["crazy-eights", "farkle", "go-fish", "old-maid", "overheat", "president", "sevens"]);
+    expect(withBots).toEqual(["crazy-eights", "farkle", "go-fish", "oh-hell", "old-maid", "overheat", "president", "sevens"]);
   });
 
   it("TREASURE_HUNT lists Treasure Hunt, and only with it", () => {
