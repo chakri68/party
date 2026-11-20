@@ -39,7 +39,10 @@ function step(s: Toy, id: string, a: Action): Step {
   return { ok: true, transition: { state: { ...s, total, turn: (s.turn + 1) % s.players.length }, events: [] } };
 }
 
-function makeToy(decide: (view: BotView<any, any>, ctx: BotContext) => Action | null) {
+function makeToy(
+  decide: (view: BotView<any, any>, ctx: BotContext) => Action | null,
+  opts: { startTimer?: boolean } = {},
+) {
   const log = { timerRuns: 0, current: null as Toy | null };
   const def = {
     manifest: { id: "toy" },
@@ -47,7 +50,9 @@ function makeToy(decide: (view: BotView<any, any>, ctx: BotContext) => Action | 
     createGame: (players: { id: string }[]) => {
       const state = { players: players.map((p) => p.id), total: 0, turn: 0, phase: "count", winner: null, timerRuns: 0, hand: [3, 1, 2] } as Toy;
       log.current = state;
-      return { state, events: [] };
+      // A turn clock, as a game with a move timer would set.
+      const timers = opts.startTimer ? [{ kind: "set", timerId: "clock", delayMs: 60_000 }] : [];
+      return { state, events: [], timers };
     },
     handleAction: (s: Toy, id: string, a: Action) => {
       const r = step(s, id, a);
@@ -94,6 +99,20 @@ describe("playBots", () => {
     const r = playBots(def, { players: 2, seed: 1 });
     expect(r.outcome).toBeNull();
     // Ten single adds, two seats: the turn is back on p1.
+    expect(r.stuck).toEqual([{ playerId: "p1", reason: "null-while-awaited" }]);
+  });
+
+  it("reports an awaited null even when a timer is pending", () => {
+    const { def, log } = makeToy((v) => (v.public.total >= 10 ? null : adds(v)), { startTimer: true });
+    const r = playBots(def, { players: 2, seed: 1 });
+    expect(r.stuck).toEqual([{ playerId: "p1", reason: "null-while-awaited" }]);
+    expect(log.timerRuns).toBe(0);
+  });
+
+  it("reports an awaited null even when another seat has a move", () => {
+    // p2 always passes, which is always allowed; p1 stalls on its turn.
+    const { def } = makeToy((v) => (v.playerId === "p2" && v.public.total >= 10 ? { type: "pass" } : v.public.total >= 10 ? null : adds(v)));
+    const r = playBots(def, { players: 2, seed: 1, maxMoves: 200 });
     expect(r.stuck).toEqual([{ playerId: "p1", reason: "null-while-awaited" }]);
   });
 

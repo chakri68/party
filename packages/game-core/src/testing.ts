@@ -84,7 +84,9 @@ function frozenCopy<T>(value: T): T {
  * breaks a rule. Bots get views only, as frozen copies: a bot that changes
  * its view throws, and the throw comes out of `playBots`. Game timers fire in
  * due order when no bot wants to move. Stops on the first rejected move or
- * stuck seat.
+ * stuck seat. A seat is stuck when the game waits on it and its bot returns
+ * null, even if a timer is pending or another seat has a move: the room
+ * treats that null as stuck too.
  */
 export function playBots(
   def: AnyGameDefinition,
@@ -132,6 +134,13 @@ export function playBots(
         ctxFor(id),
       ),
     }));
+    // The room treats null from a seat it waits on as stuck, whatever else is
+    // going on, so a pending timer or another seat's move doesn't excuse it.
+    const nullAwaited = picks.filter((p) => p.action === null && awaited.includes(p.id));
+    if (nullAwaited.length) {
+      for (const p of nullAwaited) result.stuck.push({ playerId: p.id, reason: "null-while-awaited" });
+      break;
+    }
     const pick =
       picks.find((p) => p.action !== null && awaited.includes(p.id)) ?? picks.find((p) => p.action !== null);
 
@@ -151,7 +160,7 @@ export function playBots(
 
     const next = [...timers.entries()].sort((a, b) => a[1] - b[1])[0];
     if (!next || !def.onTimer) {
-      for (const id of awaited) result.stuck.push({ playerId: id, reason: "null-while-awaited" });
+      // Nobody is awaited (that was caught above) and nothing is left to fire.
       break;
     }
     timers.delete(next[0]);
