@@ -51,7 +51,8 @@ export const cheatBot: GameBot<CheatPublicState, CheatPrivateState, CheatAction>
     };
 
     const nearlyOut = hand.length <= NEAR_OUT;
-    if (honestRanks.length === 0) return lie(hand.length > 1 && ctx.randomInt(100) < TWO_CARD_LIE ? 2 : 1);
+    // Nearly out, a lie of two would be the whole hand: keep it to one.
+    if (honestRanks.length === 0) return lie(!nearlyOut && ctx.randomInt(100) < TWO_CARD_LIE ? 2 : 1);
 
     if (!nearlyOut && ctx.randomInt(RANDOM_MOVE_ODDS) === 0) {
       // A slip: one to three cards at random, with any claim that is allowed.
@@ -95,6 +96,6 @@ function decideCall(
   const callers = pub.players.filter((p) => !p.removed && p.id !== last.playerId).length;
   rate = Math.max(1, Math.round(rate / Math.max(1, callers)));
   // Names this window, so asking again gives the same answer.
-  const key = `call:${pub.pileCount}:${last.playerId}:${last.claim}:${last.count}:${owner.cardCount}:${priv.hand.length}`;
+  const key = `call:${pub.window?.endsAt ?? 0}:${pub.pileCount}:${last.playerId}:${last.claim}:${last.count}:${owner.cardCount}:${priv.hand.length}`;
   return chance(key) < rate ? { type: "call" } : { type: "pass" };
 }
