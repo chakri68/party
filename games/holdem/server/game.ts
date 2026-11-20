@@ -9,6 +9,7 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { holdemManifest } from "../shared/manifest.ts";
+import { holdemBot } from "./bot.ts";
 import {
   awardPots,
   bestHand,
@@ -647,6 +648,7 @@ export const holdemGame: GameDefinition<
 > = {
   manifest: holdemManifest,
   defaultSettings: DEFAULT_SETTINGS,
+  bot: holdemBot,
   parseSettings,
   parseAction,
 
