@@ -110,6 +110,20 @@ describe("cheatBot call window", () => {
     expect(cheatBot.decide(windowView(["hearts-2"], { count: 3, pile: 30 }), at(10))).toEqual({ type: "call" });
   });
 
+  it("shares the call rate among the seats that could call", () => {
+    const seven = (roll: number, count = 2) => {
+      const v = windowView(["hearts-2"], { count });
+      const others = Array.from({ length: 5 }, (_, i) => ({ id: `x${i}`, cardCount: 8, removed: false, passed: i < 2 }));
+      v.public = { ...v.public, players: [...v.public.players, ...others] } as CheatPublicState;
+      return cheatBot.decide(v, { randomInt: () => 0, chance: () => roll });
+    };
+    // 6 callers (me and 5 more; the two who passed still count): 12 / 6 = 2 percent, and 30 / 6 = 5.
+    expect(seven(1)).toEqual({ type: "call" });
+    expect(seven(2)).toEqual({ type: "pass" });
+    expect(seven(4, 3)).toEqual({ type: "call" });
+    expect(seven(5, 3)).toEqual({ type: "pass" });
+  });
+
   it("gives no move when it cannot call, even on a sure lie", () => {
     const v = windowView(["hearts-7", "clubs-7"], { count: 3, canCall: false });
     expect(cheatBot.decide(v, high)).toBeNull();
@@ -172,18 +186,16 @@ describe("cheat with computer players: stats", () => {
 });
 
 describe("cheatBot all-bot games", () => {
-  // Table size is capped at 7 (Ruling P2-E). Cheat games are long: a call is only about
-  // 12-30% likely, so a 3 player game takes about 1000 moves and one with two decks at 3 players
-  // takes about 10000. That is why the extra settings run at 4 to 6 players, and why the whole
-  // file takes about two minutes: the seed counts stay at 200 and 50, and the timeouts are raised.
+  // Table size is capped at 7 (Ruling P2-E). Games take 200 to 500 moves (a few thousand at most),
+  // so 200 seeds at each size fit. The extra settings run at 50 seeds: "one deck" is the default at
+  // 4 players, so only near claims and two decks (the default at 7) need their own runs.
   const extras: [string, Partial<CheatSettings>, number][] = [
     ["near claims", { claims: "near" }, 4],
-    ["one deck", { decks: 1 }, 4],
     ["two decks", { decks: 2 }, 6],
   ];
   const check = (players: number, name: string, s: Partial<CheatSettings>, seeds: number) => {
     for (let seed = 1; seed <= seeds; seed++) {
-      const run = playBots(cheatGame, { players, seed, settings: { ...DEFAULT_SETTINGS, ...s }, maxMoves: 30_000 });
+      const run = playBots(cheatGame, { players, seed, settings: { ...DEFAULT_SETTINGS, ...s }, maxMoves: 20_000 });
       const at = `${name} seed ${seed}, ${players} players`;
       expect(run.rejected, at).toEqual([]);
       expect(run.stuck, at).toEqual([]);
@@ -195,11 +207,11 @@ describe("cheatBot all-bot games", () => {
   const sizes = [...new Set([m.minPlayers, m.bestMinPlayers ?? m.minPlayers, Math.min(m.maxPlayers, 7)])];
   it.each(sizes)("games finish with %i players", (players) => {
     check(players, "defaults", {}, 200);
-  }, 180_000);
+  }, 60_000);
 
   it.each(extras)("games finish with %s", (name, s, players) => {
     check(players, name, s, 50);
-  }, 120_000);
+  }, 30_000);
 
   it("stays fast", () => {
     let moves = 0;
