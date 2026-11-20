@@ -82,6 +82,10 @@ Host picks these in the lobby.
 - **The host removes a player.** Mid-hand, their cards fold. What they've already bet stays in the pot; the rest of their stack leaves with them. If only one player is left, they win.
 - **Game over.** The host sees Rematch and Back to lobby; everyone else sees Play again.
 
+## Computer players
+
+Computer players can fill seats in this game. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they bluff now and then. They buy back in when they can.
+
 ## Tips
 
 - Blinds climb fast on Turbo. Waiting for aces gets expensive.
