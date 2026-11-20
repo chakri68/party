@@ -2,6 +2,8 @@
 
 Pair off your cards, take blind from your neighbour. Whoever's left holding the odd one loses. 2–10 players.
 
+Computer players can fill seats in this game. They take a card at random.
+
 ## The short version
 
 - One card in the deck can never be paired: the Old Maid.

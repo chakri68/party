@@ -6,6 +6,7 @@ import {
   type GameResult,
   type GameTransition,
 } from "@games/game-core";
+import { oldMaidBot } from "./bot.ts";
 import { oldMaidManifest } from "../shared/manifest.ts";
 import { compareCards, makeDeck, ordinal, pairOff, parseCardId, rankName } from "../shared/rules.ts";
 import {
@@ -182,6 +183,7 @@ export const oldMaidGame: GameDefinition<
   OldMaidEvent
 > = {
   manifest: oldMaidManifest,
+  bot: oldMaidBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,
