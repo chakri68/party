@@ -2,10 +2,12 @@
 // can be tested with fakes; `index.ts` adapts it to PartyServer.
 
 import {
+  BOT_MAX_RUN,
   buildRecap,
   emptyPartyLog,
   PARTY_LOG_MAX,
   seededRandomInt,
+  stableHash,
   type AnyGameDefinition,
   type CreateGameOptions,
   type GameContext,
@@ -152,8 +154,6 @@ const GAME_TIMER_PREFIX = "game:";
 const GRACE_TIMER_PREFIX = "grace:";
 /** A computer player's next move. The game never sees these. */
 const BOT_TIMER_PREFIX = "bot:";
-/** More moves than this by one bot, with nobody else moving between, is stuck. */
-const BOT_MAX_RUN = 50;
 // Computer players pause long enough that a person can follow each move.
 /** A bot's think time before a normal move: this much, plus up to `SPAN` more. */
 const BOT_THINK_MS = 1600;
@@ -366,6 +366,8 @@ export class RoomRuntime {
       .filter(([, at]) => at <= now)
       .sort((a, b) => a[1] - b[1]);
     const events: GameEventEnvelope<unknown>[] = [];
+    // A bot timer that found nothing to do changes nothing: no update for it.
+    let changed = false;
     for (const [key, at] of due) {
       if (!this.data) return;
       // An earlier timer in this alarm (a bot's move, say) may have cleared or re-set this one.
@@ -378,17 +380,25 @@ export class RoomRuntime {
         return;
       }
       if (key.startsWith(GRACE_TIMER_PREFIX)) {
+        changed = true;
         this.onGraceExpired(key.slice(GRACE_TIMER_PREFIX.length));
       }
       if (key.startsWith(GAME_TIMER_PREFIX)) {
+        changed = true;
         const timerId = key.slice(GAME_TIMER_PREFIX.length);
         events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
       }
       if (key.startsWith(BOT_TIMER_PREFIX)) {
-        events.push(...this.onBotTimer(key.slice(BOT_TIMER_PREFIX.length)));
+        const out = this.onBotTimer(key.slice(BOT_TIMER_PREFIX.length));
+        if (out) {
+          changed = true;
+          events.push(...out);
+        }
       }
     }
-    await this.commit(events);
+    // Still persist: the fired timers are gone, and the alarm moves to the next one.
+    if (changed) await this.commit(events);
+    else await this.persist();
   }
 
   // ---- messages -----------------------------------------------------------
@@ -832,8 +842,19 @@ export class RoomRuntime {
   private botDecide(seatId: string): unknown {
     const game = this.data!.game!;
     const def = this.games[game.gameId]!;
-    const view = { playerId: seatId, public: def.getPublicState(game.state), private: def.getPrivateState(game.state, seatId) };
-    return def.bot!.decide(view, { randomInt: (max) => this.host.randomInt(max) });
+    // Copies, as the wire would carry them: a bot that changes its view can't change the game.
+    const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+    const view = {
+      playerId: seatId,
+      public: copy(def.getPublicState(game.state)),
+      private: copy(def.getPrivateState(game.state, seatId)),
+    };
+    // Fixed for one game (the room's code and game number), so asking again gives the same answer.
+    const gameKey = `${this.data!.code}:${this.data!.match.roundNumber}`;
+    return def.bot!.decide(view, {
+      randomInt: (max) => this.host.randomInt(max),
+      chance: (key) => stableHash(`${gameKey}:${seatId}:${key}`) % 100,
+    });
   }
 
   /**
@@ -857,8 +878,9 @@ export class RoomRuntime {
       if (!wants) {
         try {
           wants = this.botDecide(seat.id) !== null;
-        } catch {
+        } catch (err) {
           // Not awaited, so there's nothing to be stuck on. The game moving on asks again.
+          this.host.logError(err);
         }
       }
       if (!wants) continue;
@@ -873,16 +895,19 @@ export class RoomRuntime {
     }
   }
 
-  /** A bot's think time is up: it asks again, now, and makes its move. */
-  private onBotTimer(seatId: string): GameEventEnvelope<unknown>[] {
+  /**
+   * A bot's think time is up: it asks again, now, and makes its move. Null
+   * when nothing changed (it has nothing to do now), so there's nothing to send.
+   */
+  private onBotTimer(seatId: string): GameEventEnvelope<unknown>[] | null {
     const data = this.data!;
-    if (data.phase !== "playing" || !data.game) return [];
+    if (data.phase !== "playing" || !data.game) return null;
     const seat = data.seats.find((s) => s.id === seatId);
-    if (!seat?.bot || seat.presence === "left") return [];
+    if (!seat?.bot || seat.presence === "left") return null;
     // Paused. A person coming back commits, and that schedules the bot again.
-    if (!this.personWatching()) return [];
+    if (!this.personWatching()) return null;
     const def = this.games[data.game.gameId]!;
-    if (!def.bot) return [];
+    if (!def.bot) return null;
 
     // A throw here must never reach the alarm's rollback: it would just retry forever.
     let result: ReturnType<AnyGameDefinition["handleAction"]> | null;
@@ -893,7 +918,7 @@ export class RoomRuntime {
       this.host.logError(err);
       return this.botStuck(seatId, "threw");
     }
-    if (!result) return data.awaiting.includes(seatId) ? this.botStuck(seatId, "null") : [];
+    if (!result) return data.awaiting.includes(seatId) ? this.botStuck(seatId, "null") : null;
     if (!result.ok) return this.botStuck(seatId, `rejected (${result.error.code})`);
 
     const events = this.applyTransition(result.transition, true);

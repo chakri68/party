@@ -5,6 +5,7 @@ import {
   type GameResult,
   type GameTransition,
 } from "@games/game-core";
+import { sevensBot } from "./bot.ts";
 import { sevensManifest } from "../shared/manifest.ts";
 import {
   compareCards,
@@ -200,6 +201,7 @@ export const sevensGame: GameDefinition<
   SevensEvent
 > = {
   manifest: sevensManifest,
+  bot: sevensBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,

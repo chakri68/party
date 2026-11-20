@@ -2,6 +2,8 @@
 
 Hand sizes change every round. Bid exactly how many tricks you'll take: one more or one fewer scores nothing. 3–7 players.
 
+Computer players can fill seats in this game. They bid from the strong cards in their hand. They try to win tricks until they make their bid, then try to lose the rest.
+
 ## The short version
 
 - Everyone gets the same number of cards. That number climbs and falls over the game: 1, 2, 3 … 7 … 3, 2, 1 by default.

@@ -2,6 +2,8 @@
 
 Put cards down face down and say what they are. Lie if you have to. Get caught and the pile's yours. 3–10 players.
 
+Computer players can fill seats in this game. They lie some of the time, and they call some plays.
+
 ## The short version
 
 - The whole deck is dealt. Get rid of your cards first.

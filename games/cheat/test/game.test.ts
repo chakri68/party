@@ -397,3 +397,12 @@ describe("party stats", () => {
     expect(JSON.stringify(ch.getPrivateState(s, "p1"))).not.toContain("liesTold");
   });
 });
+
+describe("cheat public state: decks", () => {
+  it("shows how many decks are in play", () => {
+    const one = ch.createGame(players(4), DEFAULT_SETTINGS, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    const two = ch.createGame(players(7), DEFAULT_SETTINGS, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    expect(ch.getPublicState(one).decks).toBe(1);
+    expect(ch.getPublicState(two).decks).toBe(2);
+  });
+});

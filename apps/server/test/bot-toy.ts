@@ -5,7 +5,7 @@
 // (an optional move) until the window timer ends the game. `plainGame` is the
 // same game without a bot, for the "this game can't have computers" paths.
 
-import { bumpStat, type AnyGameDefinition, type BotView, type PartyStats } from "@games/game-core";
+import { bumpStat, type AnyGameDefinition, type BotContext, type BotView, type PartyStats } from "@games/game-core";
 
 export const TOY_TARGET = 10;
 export const TOY_WINDOW_MS = 5_000;
@@ -41,8 +41,13 @@ export type ToyAction = { type: "add"; n: number } | { type: "call" } | { type: 
  * - "null": nothing to do. "throw": `decide` throws. "illegal": adds 3.
  * - "hog": keeps the turn forever with `hold`.
  * - "bad-call": plays its turns normally, but in the call window sends an `add`, which is refused.
+ * - "shy": plays its turns normally, but never calls in the window.
+ * - "throw-off-turn": plays its turns normally; asked off its turn, it throws.
+ * - "meddle": plays normally, but first pushes its id into its view's `callers`.
  */
-export const toyKnobs: { decide: "normal" | "null" | "throw" | "illegal" | "hog" | "bad-call" } = { decide: "normal" };
+export const toyKnobs: {
+  decide: "normal" | "null" | "throw" | "illegal" | "hog" | "bad-call" | "shy" | "throw-off-turn" | "meddle";
+} = { decide: "normal" };
 
 const err = (code: string, message: string) => ({ ok: false as const, error: { code, message } });
 const ok = (state: ToyState, timers?: { kind: "set"; timerId: string; delayMs: number }[]) => ({
@@ -50,8 +55,9 @@ const ok = (state: ToyState, timers?: { kind: "set"; timerId: string; delayMs: n
   transition: { state, events: [{ visibility: { kind: "public" as const }, event: { type: "moved", total: state.total } }], ...(timers && { timers }) },
 });
 
-function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: { randomInt(max: number): number }): ToyAction | null {
+function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: BotContext): ToyAction | null {
   const pub = view.public;
+  if (toyKnobs.decide === "meddle") pub.callers.push(view.playerId);
   const myTurn = pub.phase === "count" && pub.turnId === view.playerId;
   if (myTurn) {
     switch (toyKnobs.decide) {
@@ -65,10 +71,15 @@ function decide(view: BotView<ToyPublic, ToyPrivate>, ctx: { randomInt(max: numb
         return { type: "hold" };
       case "normal":
       case "bad-call":
+      case "shy":
+      case "throw-off-turn":
+      case "meddle":
         return { type: "add", n: 1 + ctx.randomInt(2) };
     }
   }
+  if (toyKnobs.decide === "throw-off-turn") throw new Error("toy bot broke off its turn");
   if (pub.phase === "window" && !pub.callers.includes(view.playerId)) {
+    if (toyKnobs.decide === "shy") return null;
     return toyKnobs.decide === "bad-call" ? { type: "add", n: 1 } : { type: "call" };
   }
   return null;

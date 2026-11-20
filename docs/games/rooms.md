@@ -73,7 +73,7 @@ The host is the first person into the room. The tag next to their name says "hos
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. For now, that is Crazy Eights. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the **✕** next to its name, without asking first.
+Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the **✕** next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 

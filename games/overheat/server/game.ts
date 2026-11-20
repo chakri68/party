@@ -1,5 +1,6 @@
 import { shuffle, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { overheatManifest } from "../shared/manifest.ts";
+import { overheatBot } from "./bot.ts";
 import { bankScore, buildDeck, cardFromCode, isAimed } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
@@ -367,6 +368,7 @@ export const overheatGame: GameDefinition<
   OverheatEvent
 > = {
   manifest: overheatManifest,
+  bot: overheatBot,
   defaultSettings: DEFAULT_SETTINGS,
   parseSettings,
   parseAction,

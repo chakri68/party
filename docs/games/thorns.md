@@ -2,6 +2,8 @@
 
 Everyone hides roses and one thorn face down. Bid how many you can flip without pricking yourself, then prove it. 3–6 players.
 
+Computer players can fill seats in this game. They bid on the roses they can safely flip. They avoid a bid that would reach their own thorn.
+
 ## The short version
 
 - You hold four discs: three roses and one thorn. Nobody else sees yours.

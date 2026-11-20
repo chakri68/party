@@ -4,6 +4,8 @@ No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds 
 
 Chips are play chips: no buying, no cash-out, nothing carries over between games.
 
+Computer players can fill seats in this game. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
+
 ## The short version
 
 - Everyone starts with the same stack. Run out and you're out.

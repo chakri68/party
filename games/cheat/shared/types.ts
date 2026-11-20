@@ -116,6 +116,8 @@ export interface CheatPublicState {
   /** Whose turn to play. Null during a window and once it's over. */
   currentPlayerId: string | null;
   dealerId: string;
+  /** How many decks are in play. Fair to show: anyone can count the cards dealt. */
+  decks: number;
   step: Step | "finished";
   /** Ranks the current player may claim. Empty unless it's the play step. */
   claims: Rank[];

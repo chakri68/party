@@ -2,6 +2,8 @@
 
 Everyone rolls in secret, then bids on what's under all the cups. Raise the bid or call the last bidder a liar. Whoever's wrong loses a die. 2–8 players.
 
+Computer players can fill seats in this game. They count the dice they can see and guess the rest. They call Liar when a bid looks too high. They sometimes bluff.
+
 ## The short version
 
 - Everyone has a cup of dice. Each round, everyone rolls, and you only see your own.

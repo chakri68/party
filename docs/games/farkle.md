@@ -2,6 +2,8 @@
 
 Roll six dice, keep the scorers, push your luck or bank. Roll nothing that scores and the turn's points are gone. 2–8 players.
 
+Computer players can fill seats in this game. They keep triples and 1s, and they bank when the turn total is good for the dice left.
+
 ## The short version
 
 - On your turn the six dice roll for you. Keep at least one scoring die, then roll the rest or bank.

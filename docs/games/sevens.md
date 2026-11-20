@@ -2,6 +2,8 @@
 
 Build each suit out from the seven. First to empty their hand wins. 2–16 players.
 
+Computer players can fill seats in this game. They play the card that lets them play more of their own cards later.
+
 ## The short version
 
 - Every card is dealt out. The goal is to get rid of yours first.

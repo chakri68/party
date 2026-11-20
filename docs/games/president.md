@@ -2,6 +2,8 @@
 
 Shed your hand in singles, pairs and up, beating the pile or passing. First out is President; last out is the Asshole, and pays for it next round. 3–8 players.
 
+Computer players can fill seats in this game. They give back their lowest cards and save Aces and 2s for later.
+
 ## The short version
 
 - The whole deck is dealt. Card order, low to high: 3 up to K, then A, then 2 on top.
