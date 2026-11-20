@@ -124,6 +124,23 @@ describe("thornsBot", () => {
     expect(thornsBot.decide(out, steady)).toBeNull();
   });
 
+  it("the slip picks a kind of move first, then a small bid", () => {
+    /** Rolls in order: 0 is the slip, then the kind, then the value. */
+    const rolls = (...seq: number[]) => ({ randomInt: (max: number) => Math.min(max - 1, seq.shift() ?? 0), chance: () => 0 });
+    const v = view({ phase: "bidding", stack: ["rose", "rose"], hand: ["rose", "thorn"], tableTotal: 10, flags: { canBid: true, canPass: true } });
+    // Kinds here: bid, pass. A bid is min or min + 1, never far above.
+    expect(thornsBot.decide(v, rolls(0, 0, 0))).toEqual({ type: "bid", amount: 1 });
+    expect(thornsBot.decide(v, rolls(0, 0, 1))).toEqual({ type: "bid", amount: 2 });
+    expect(thornsBot.decide(v, rolls(0, 1))).toEqual({ type: "pass" });
+    // Min + 1 is kept to the discs on the table.
+    const top = view({ phase: "bidding", stack: ["rose", "rose"], tableTotal: 6, bid: 5, flags: { canBid: true, canPass: true } });
+    expect(thornsBot.decide(top, rolls(0, 0, 1))).toEqual({ type: "bid", amount: 6 });
+    // Kinds when it may place: place, bid. A placed disc comes from the hand.
+    const turn = view({ stack: ["rose", "rose"], hand: ["rose", "thorn"], flags: { canPlace: true, canBid: true } });
+    expect(thornsBot.decide(turn, rolls(0, 0, 1))).toEqual({ type: "place", disc: "thorn" });
+    expect(thornsBot.decide(turn, rolls(0, 1, 0))).toEqual({ type: "bid", amount: 1 });
+  });
+
   it("only returns legal moves, including the slip", () => {
     for (const bid of [0, 1, 4]) {
       const v = view({ phase: "bidding", stack: ["rose", "thorn"], hand: ["rose"], bid, flags: { canBid: true, canPass: true } });

@@ -148,6 +148,13 @@ describe("ohHellBot waiting", () => {
     expect(ohHellBot.decide(view(["clubs-4"], { mode: "wait" }), steady)).toBeNull();
   });
 
+  it("does nothing in the round summary once it can't ready (already ready)", () => {
+    const v = view(["clubs-4"], { mode: "summary" });
+    v.private.canReady = false;
+    expect(v.public.phase).toBe("round-summary");
+    expect(ohHellBot.decide(v, steady)).toBeNull();
+  });
+
   it("does nothing while a trick is held", () => {
     const v = view(["clubs-4"], { mode: "wait" });
     (v.public as { currentPlayerId: string | null }).currentPlayerId = null;

@@ -16,7 +16,7 @@ const BID_AFTER_DISCS = 2;
  */
 export const thornsBot: GameBot<ThornsPublicState, ThornsPrivateState, ThornsAction> = {
   decide({ playerId, public: pub, private: priv }, ctx) {
-    // A player who lost every disc still sees canReady, but the room refuses their Ready.
+    // A player who is out, or removed, has nothing to do.
     const me = pub.players.find((p) => p.id === playerId);
     if (!me || me.out || me.removed) return null;
     if (priv.canReady) return { type: "ready" };
@@ -47,11 +47,17 @@ export const thornsBot: GameBot<ThornsPublicState, ThornsPrivateState, ThornsAct
     };
 
     if (ctx.randomInt(RANDOM_MOVE_ODDS) === 0) {
-      const moves: ThornsAction[] = [];
-      if (priv.canPlace) for (const disc of new Set(priv.hand)) moves.push({ type: "place", disc });
-      if (bidOk) for (let amount = min; amount <= pub.tableTotal; amount++) moves.push({ type: "bid", amount });
-      if (priv.canPass) moves.push({ type: "pass" });
-      if (moves.length) return moves[ctx.randomInt(moves.length)]!;
+      // A slip: a kind of move first, so a big table's many bid sizes don't crowd out the rest.
+      const kinds: ThornsAction["type"][] = [];
+      if (priv.canPlace && priv.hand.length) kinds.push("place");
+      if (bidOk) kinds.push("bid");
+      if (priv.canPass) kinds.push("pass");
+      if (kinds.length) {
+        const kind = kinds[ctx.randomInt(kinds.length)]!;
+        if (kind === "place") return { type: "place", disc: priv.hand[ctx.randomInt(priv.hand.length)]! };
+        if (kind === "bid") return { type: "bid", amount: Math.min(pub.tableTotal, min + ctx.randomInt(2)) };
+        return { type: "pass" };
+      }
     }
 
     // Placing the first disc, and any turn where it can place rather than bid.
