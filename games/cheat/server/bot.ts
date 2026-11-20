@@ -10,7 +10,7 @@ const TWO_CARD_LIE = 25;
 const TACK_ON = 15;
 /** A bot with this many cards or fewer plays honest when it can. */
 const NEAR_OUT = 2;
-/** Percent chance to call a play: usually, and when 3 or 4 cards were claimed. */
+/** Percent chance that someone at the table calls a play: usually, and when 3 or 4 cards were claimed. */
 const CALL_BASE = 12;
 const CALL_BIG_CLAIM = 30;
 /** From this many cards in the pile, the call rate is halved: the pile is costly to take. */
@@ -90,7 +90,10 @@ function decideCall(
   if (last.count + mine > 4 * pub.decks) return { type: "call" };
 
   let rate = last.count >= 3 ? CALL_BIG_CLAIM : CALL_BASE;
-  if (pub.pileCount >= BIG_PILE) rate = Math.floor(rate / 2);
+  if (pub.pileCount >= BIG_PILE) rate = rate / 2;
+  // The rate is for the whole table: each seat that could call takes its share, at least 1 percent.
+  const callers = pub.players.filter((p) => !p.removed && p.id !== last.playerId).length;
+  rate = Math.max(1, Math.round(rate / Math.max(1, callers)));
   // Names this window, so asking again gives the same answer.
   const key = `call:${pub.pileCount}:${last.playerId}:${last.claim}:${last.count}:${owner.cardCount}:${priv.hand.length}`;
   return chance(key) < rate ? { type: "call" } : { type: "pass" };
