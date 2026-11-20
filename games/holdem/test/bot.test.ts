@@ -1,9 +1,9 @@
 import { BOT_MAX_RUN, seededRandomInt, shuffle, type AnyGameDefinition, type BotContext, type BotView, type GameContext } from "@games/game-core";
 import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { equity, handScore, holdemBot, preflopTier } from "../server/bot.ts";
+import { equity, holdemBot, preflopTier, raiseThreshold } from "../server/bot.ts";
 import { holdemGame } from "../server/game.ts";
-import { bestHand, compareHands, makeDeck, parseCardId } from "../shared/rules.ts";
+import { bestHand, compareHands, handScore, makeDeck, parseCardId } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   type HoldemAction,
@@ -191,6 +191,14 @@ describe("holdemBot after the flop", () => {
     }
   });
 
+  it("can raise back with good equity facing a bet, not only go all-in", () => {
+    // Facing a bet with 2 opponents, equity of about 0.77 is under the all-in line (0.8).
+    for (const opponents of [1, 2, 4]) {
+      expect(raiseThreshold(opponents, 100)).toBeLessThan(0.77);
+      expect(raiseThreshold(opponents, 0)).toBeLessThan(raiseThreshold(opponents, 100));
+    }
+  });
+
   it("never makes an illegal move", () => {
     const rng = seededRandomInt(99);
     for (let i = 0; i < 400; i++) {
@@ -241,17 +249,34 @@ describe("holdemBot after the flop", () => {
 });
 
 describe("holdemBot hand reading", () => {
+  // As the table plays it: two hole cards each and five shared board cards.
   it("scores hands in the same order as the game", () => {
     const rng = seededRandomInt(5);
     for (let i = 0; i < 3000; i++) {
       const cards = shuffle(makeDeck(), rng);
-      const size = 5 + (i % 3);
-      const a = cards.slice(0, size);
-      const b = cards.slice(size, 2 * size);
+      const board = cards.slice(4, 9);
+      const a = [...cards.slice(0, 2), ...board];
+      const b = [...cards.slice(2, 4), ...board];
       expect(Math.sign(handScore(a) - handScore(b)), `${a.map((x) => x.id)} vs ${b.map((x) => x.id)}`).toBe(
         Math.sign(compareHands(bestHand(a), bestHand(b))),
       );
     }
+  });
+
+  it.each([
+    ["the board plays: a tie", "As Ks Qd Jc Th", "2c 3d", "4h 5c", 0],
+    ["a wheel (A to 5) beats a pair", "3c 4s 5h Kd 9c", "Ah 2d", "Kh Qd", 1],
+    ["a wheel loses to a 7-high straight", "3c 4s 5h Kd 9c", "Ah 2d", "6c 7d", -1],
+    ["two trips make a full house: the second trips is the pair", "Kh Kd Ks 7c 2d", "7d 7h", "2s Qc", 1],
+    ["a six-card flush counts its top five", "2h 5h 8h Jh Kh", "3h 9c", "4h 9d", -1],
+    ["quads: the best kicker wins", "9s 9h 9d 9c 2h", "Kd 3c", "Qd Jc", 1],
+    ["quads: a kicker on the board ties", "9s 9h 9d 9c Ah", "Kd 3c", "Qd Jc", 0],
+    ["a straight flush beats a flush", "5h 6h 7h 8h Kd", "9h 2c", "Ah 2d", 1],
+  ] as const)("%s", (_, board, holeA, holeB, want) => {
+    const a = c(`${holeA} ${board}`);
+    const b = c(`${holeB} ${board}`);
+    expect(Math.sign(handScore(a) - handScore(b))).toBe(want);
+    expect(Math.sign(compareHands(bestHand(a), bestHand(b)))).toBe(want);
   });
 
   it("uses face-up cards and deals only the hidden ones", () => {
@@ -288,7 +313,8 @@ const passive = (view: View): HoldemAction | null => {
 
 describe("holdemBot all-bot games", () => {
   // Table size is capped at 7 (Ruling P2-E). A game takes about 50 moves heads-up and about 350 at 7
-  // (10 to 40 hands: the blinds go up every 6 hands), so 200 seeds at each size fit in about 30 s.
+  // (10 to 40 hands: the blinds go up every 6 hands). So 200 seeds at 2 and 4 players, and 100 at 7,
+  // the biggest and slowest table. Hold'em may take up to about 60 s for this file; aim well under.
   // Only the rebuy setting adds a move; it runs at 50 seeds.
   const check = (def: AnyGameDefinition, players: number, name: string, s: Partial<HoldemSettings>, seed: number) => {
     const run = playBots(def, { players, seed, settings: { ...DEFAULT_SETTINGS, ...s }, maxMoves: 20_000 });
@@ -301,8 +327,9 @@ describe("holdemBot all-bot games", () => {
   };
   const m = holdemGame.manifest;
   const sizes = [...new Set([m.minPlayers, m.bestMinPlayers ?? m.minPlayers, Math.min(m.maxPlayers, 7)])];
+  const seedsAt = (players: number) => (players >= 7 ? 100 : 200);
   it.each(sizes)("games finish with %i players", (players) => {
-    for (let seed = 1; seed <= 200; seed++) check(holdemGame, players, "defaults", {}, seed);
+    for (let seed = 1; seed <= seedsAt(players); seed++) check(holdemGame, players, "defaults", {}, seed);
   }, 60_000);
 
   it("games finish with rebuys", () => {

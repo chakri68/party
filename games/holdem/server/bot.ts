@@ -1,5 +1,5 @@
 import type { BotContext, GameBot } from "@games/game-core";
-import { makeDeck } from "../shared/rules.ts";
+import { handScore, makeDeck } from "../shared/rules.ts";
 import type { Card, HoldemAction, HoldemPrivateState, HoldemPublicState, LegalActions } from "../shared/types.ts";
 
 /** About 1 decision in this many is a random legal one, as a person's slip would be. */
@@ -24,81 +24,14 @@ const RAISE_EQUITY = 0.65;
 const ALL_IN_EQUITY = 0.8;
 /** Facing a bet, a raise back needs this much more equity: it stops raise wars. */
 const RERAISE_MARGIN = 0.15;
+/** A raise always needs at least this much less equity than all-in does. */
+const RAISE_BELOW_ALL_IN = 0.05;
 /** Calls when equity is at least this share of the pot odds: about 10% looser than break-even. */
 const CALL_LOOSENESS = 0.9;
 /** Percent: a bet when checked to with one or two opponents, whatever the cards. */
 const BLUFF = 9;
 /** A raise this close to the whole stack goes all-in instead. */
 const COMMIT_SHARE = 0.6;
-
-// ---------------------------------------------------------------------------
-// Hand scores: the same order as `bestHand` + `compareHands`, as one number,
-// fast enough for a few hundred deals per decision.
-// ---------------------------------------------------------------------------
-
-const BASE = 16;
-const pack = (category: number, ranks: readonly number[]): number => {
-  let n = category;
-  for (let i = 0; i < 5; i++) n = n * BASE + (ranks[i] ?? 0);
-  return n;
-};
-
-/** Highest straight in a rank bitmask (bit r for rank r, Ace also at bit 1), or 0. */
-function straightIn(mask: number): number {
-  const m = mask & (1 << 14) ? mask | 2 : mask;
-  for (let high = 14; high >= 5; high--) {
-    const run = 0b11111 << (high - 4);
-    if ((m & run) === run) return high;
-  }
-  return 0;
-}
-
-const topRanks = (mask: number, count: number): number[] => {
-  const out: number[] = [];
-  for (let r = 14; r >= 2 && out.length < count; r--) if (mask & (1 << r)) out.push(r);
-  return out;
-};
-
-/** Best five of five to seven cards, as a number: higher wins, equal ties. */
-export function handScore(cards: readonly Card[]): number {
-  const counts = new Array<number>(15).fill(0);
-  const suitMask: Record<string, number> = {};
-  const suitCount: Record<string, number> = {};
-  let mask = 0;
-  for (const c of cards) {
-    counts[c.rank]!++;
-    mask |= 1 << c.rank;
-    suitMask[c.suit] = (suitMask[c.suit] ?? 0) | (1 << c.rank);
-    suitCount[c.suit] = (suitCount[c.suit] ?? 0) + 1;
-  }
-  let flushMask = 0;
-  for (const s in suitCount) if (suitCount[s]! >= 5) flushMask = suitMask[s]!;
-  if (flushMask) {
-    const sf = straightIn(flushMask);
-    if (sf) return pack(8, [sf]);
-  }
-  const quads: number[] = [];
-  const trips: number[] = [];
-  const pairs: number[] = [];
-  for (let r = 14; r >= 2; r--) {
-    if (counts[r] === 4) quads.push(r);
-    else if (counts[r] === 3) trips.push(r);
-    else if (counts[r] === 2) pairs.push(r);
-  }
-  const kickers = (skip: number[], count: number) => topRanks(skip.reduce((m, r) => m & ~(1 << r), mask), count);
-  if (quads.length) return pack(7, [quads[0]!, ...kickers([quads[0]!], 1)]);
-  if (trips.length && trips.length + pairs.length >= 2) {
-    const pair = Math.max(trips[1] ?? 0, pairs[0] ?? 0);
-    return pack(6, [trips[0]!, pair]);
-  }
-  if (flushMask) return pack(5, topRanks(flushMask, 5));
-  const straight = straightIn(mask);
-  if (straight) return pack(4, [straight]);
-  if (trips.length) return pack(3, [trips[0]!, ...kickers([trips[0]!], 2)]);
-  if (pairs.length >= 2) return pack(2, [pairs[0]!, pairs[1]!, ...kickers([pairs[0]!, pairs[1]!], 1)]);
-  if (pairs.length) return pack(1, [pairs[0]!, ...kickers([pairs[0]!], 3)]);
-  return pack(0, topRanks(mask, 5));
-}
 
 /**
  * My share of the pot against these opponents, by random deals of the cards
@@ -228,14 +161,20 @@ function preflop(pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalA
   }
 }
 
+/** After the flop: the equity a raise needs, by opponents still in and chips owed. */
+export function raiseThreshold(opponents: number, owed: number): number {
+  const base = opponents === 1 ? RAISE_EQUITY_HEADS_UP : RAISE_EQUITY;
+  // Kept under the all-in line, so a raise back is not only ever all-in.
+  return Math.min(ALL_IN_EQUITY - RAISE_BELOW_ALL_IN, base + (owed > 0 ? RERAISE_MARGIN : 0));
+}
+
 function postflop(playerId: string, pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalActions, ctx: BotContext): HoldemAction {
   const opponents = pub.players.filter((p) => p.id !== playerId && p.inHand && !p.folded);
   const eq = equity(priv.hole, pub.board, opponents.map((p) => p.cards), EQUITY_TRIALS, ctx.randomInt);
   const owed = legal.call;
   const pot = pub.pot;
   if (eq > ALL_IN_EQUITY) return shove(legal);
-  const raiseAt = (opponents.length === 1 ? RAISE_EQUITY_HEADS_UP : RAISE_EQUITY) + (owed > 0 ? RERAISE_MARGIN : 0);
-  if (eq > raiseAt && legal.minRaiseTo !== null) {
+  if (eq > raiseThreshold(opponents.length, owed) && legal.minRaiseTo !== null) {
     const share = 0.5 + ctx.randomInt(26) / 100;
     return raiseTo(legal, pub.currentBet + share * (pot + owed));
   }
