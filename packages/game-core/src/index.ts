@@ -162,7 +162,16 @@ export interface BotView<TPublic, TPrivate> {
 
 export interface BotContext {
   randomInt(maxExclusive: number): number;
+  /**
+   * A whole number in [0, 100), the same every time this seat asks with this
+   * key in this game. For off-turn choices (call a bluff or not): `decide` is
+   * asked again on every update, so a fresh roll would change its mind.
+   */
+  chance(key: string): number;
 }
+
+/** More accepted moves than this by one bot, with no other seat moving between, is stuck. */
+export const BOT_MAX_RUN = 50;
 
 export interface GameBot<TPublic, TPrivate, TAction> {
   /** One move, or null for "nothing to do right now". Pure: no memory across calls. */

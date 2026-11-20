@@ -3,6 +3,8 @@
 
 import {
   seededRandomInt,
+  stableHash,
+  type BotContext,
   type AnyGameDefinition,
   type GameContext,
   type GameEventEnvelope,
@@ -53,12 +55,36 @@ export interface BotRunResult {
   moves: number;
   rejected: { playerId: string; action: unknown; code: string }[];
   stuck: { playerId: string; reason: "null-while-awaited" }[];
+  /**
+   * The most accepted moves by one seat with no other seat's move between, as
+   * the room counts it. Fired timers neither count nor break a run. The room
+   * calls a bot stuck past `BOT_MAX_RUN`.
+   */
+  longestRun: number;
+}
+
+/**
+ * A copy nothing can change: a bot that writes to its view throws. Copied
+ * through JSON, as the wire would carry it (and far quicker than
+ * `structuredClone` over thousands of moves).
+ */
+function frozenCopy<T>(value: T): T {
+  const copy = JSON.parse(JSON.stringify(value)) as T;
+  const freeze = (v: unknown) => {
+    if (v === null || typeof v !== "object" || Object.isFrozen(v)) return;
+    Object.freeze(v);
+    for (const inner of Object.values(v)) freeze(inner);
+  };
+  freeze(copy);
+  return copy;
 }
 
 /**
  * Plays a whole game with every seat a bot, to catch a bot that stalls or
- * breaks a rule. Bots get views only. Game timers fire in due order when no
- * bot wants to move. Stops on the first rejected move or stuck seat.
+ * breaks a rule. Bots get views only, as frozen copies: a bot that changes
+ * its view throws, and the throw comes out of `playBots`. Game timers fire in
+ * due order when no bot wants to move. Stops on the first rejected move or
+ * stuck seat.
  */
 export function playBots(
   def: AnyGameDefinition,
@@ -71,7 +97,12 @@ export function playBots(
   let clock = 1_000_000;
   const ctx = (): GameContext => ({ now: clock, randomInt, hostId: "p1" });
   const ids = Array.from({ length: opts.players }, (_, i) => `p${i + 1}`);
-  const result: BotRunResult = { outcome: null, moves: 0, rejected: [], stuck: [] };
+  const result: BotRunResult = { outcome: null, moves: 0, rejected: [], stuck: [], longestRun: 0 };
+  let run = { playerId: "", moves: 0 };
+  const ctxFor = (playerId: string): BotContext => ({
+    randomInt,
+    chance: (key) => stableHash(`${opts.seed}:${playerId}:${key}`) % 100,
+  });
 
   const timers = new Map<string, number>();
   const track = (requests: TimerRequest[] | undefined) => {
@@ -92,10 +123,14 @@ export function playBots(
 
   while (!def.getResult(state) && result.moves < maxMoves) {
     const awaited = def.getAwaitedPlayerIds(state) as string[];
-    const publicState = def.getPublicState(state);
+    // Frozen, so one copy serves every seat.
+    const publicState = frozenCopy(def.getPublicState(state));
     const picks = ids.map((id) => ({
       id,
-      action: bot.decide({ playerId: id, public: publicState, private: def.getPrivateState(state, id) }, { randomInt }),
+      action: bot.decide(
+        { playerId: id, public: publicState, private: frozenCopy(def.getPrivateState(state, id)) },
+        ctxFor(id),
+      ),
     }));
     const pick =
       picks.find((p) => p.action !== null && awaited.includes(p.id)) ?? picks.find((p) => p.action !== null);
@@ -109,6 +144,8 @@ export function playBots(
       state = res.transition.state;
       track(res.transition.timers);
       result.moves++;
+      run = run.playerId === pick.id ? { playerId: pick.id, moves: run.moves + 1 } : { playerId: pick.id, moves: 1 };
+      result.longestRun = Math.max(result.longestRun, run.moves);
       continue;
     }
 
