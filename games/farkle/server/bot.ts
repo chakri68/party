@@ -64,13 +64,15 @@ export const farkleBot: GameBot<FarklePublicState, FarklePrivateState, FarkleAct
     const total = pub.turnTotal + scoreDice(keep.map((i) => pub.roll[i]!));
     const left = diceToRoll(pub.roll.length, keep.length);
 
+    const finalChase = pub.finalRound !== null && pub.finalRound.triggerId !== playerId;
     let bank: boolean;
     if (!me.onBoard && total < pub.settings.entry) bank = false;
-    else if (me.score + total >= pub.settings.target) bank = true;
-    else if (pub.finalRound && pub.finalRound.triggerId !== playerId) {
+    else if (finalChase) {
+      // Last turn: only being ahead of everyone counts, even past the target.
       const top = Math.max(...pub.players.filter((p) => p.id !== playerId).map((p) => p.score));
       bank = me.score + total > top;
-    } else bank = total >= thresholdFor(left);
+    } else if (me.score + total >= pub.settings.target) bank = true;
+    else bank = total >= thresholdFor(left);
 
     return { type: bank ? "keep-and-bank" : "keep-and-roll", keep };
   },
