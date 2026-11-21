@@ -2,7 +2,7 @@ import { cheatGame } from "@games/cheat/server";
 import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import { CLEANUP_AFTER_MS, type RoomSetup } from "../src/runtime.ts";
+import { CLEANUP_AFTER_MS, type RoomGrant, type RoomSetup } from "../src/runtime.ts";
 import { join, roomOf, send, World } from "./harness.ts";
 
 const games = { sevens: sevensGame, cheat: cheatGame, scribbl: scribblGame };
@@ -14,10 +14,10 @@ describe("room setup at claim", () => {
     world = new World();
   });
 
-  async function make(setup?: RoomSetup, grant?: Parameters<ReturnType<World["runtime"]>["claim"]>[0]) {
+  async function make(setup?: RoomSetup, grant?: RoomGrant) {
     const room = world.runtime(games);
-    await room.claim(grant, setup);
-    return room;
+    const claimed = await room.claim(grant, setup);
+    return Object.assign(room, { claimed });
   }
   const stored = () => world.store.get("room") as Stored;
   const botCount = () => stored().seats.filter((s) => s.bot).length;
@@ -60,17 +60,12 @@ describe("room setup at claim", () => {
     for (const n of [NaN, Infinity, 2.5]) {
       world = new World();
       await make({ gameId: "cheat", computers: n });
-      expect(botCount()).toBeGreaterThanOrEqual(1);
-      expect(botCount()).toBeLessThanOrEqual(9);
+      expect(botCount(), String(n)).toBe(3);
     }
-    world = new World();
-    await make({ gameId: "cheat", computers: NaN });
-    expect(botCount()).toBe(3);
   });
 
   it("makes the default empty room for an unknown game, a game without computers, or a locked game", async () => {
-    world.tierLimits = { premiumGameIds: ["cheat"], freeMaxPlayers: 8 };
-    const cases: [RoomSetup, Parameters<ReturnType<World["runtime"]>["claim"]>[0]][] = [
+    const cases: [RoomSetup, RoomGrant | undefined][] = [
       [{ gameId: "nope", computers: 2 }, undefined],
       [{ gameId: "scribbl", computers: 2 }, undefined],
       [{ gameId: "cheat", computers: 2 }, { tier: "free", hostKey: "hk" }],
@@ -78,7 +73,7 @@ describe("room setup at claim", () => {
     for (const [setup, grant] of cases) {
       world = new World();
       world.tierLimits = { premiumGameIds: ["cheat"], freeMaxPlayers: 8 };
-      expect(await make(setup, grant)).toBeTruthy();
+      expect((await make(setup, grant)).claimed).toBe(true);
       expect(stored().gameId).toBe("sevens");
       expect(stored().seats).toEqual([]);
     }
@@ -114,8 +109,11 @@ describe("room setup at claim", () => {
     expect(roomOf(b).seats.filter((s) => s.bot)).toHaveLength(2);
   });
 
-  it("still sets the cleanup timer, and computers do not stop it", async () => {
-    await make({ gameId: "cheat" });
+  it("still cleans the room up when the time comes, with computers seated", async () => {
+    const room = await make({ gameId: "cheat" });
     expect(stored().timers.cleanup).toBe(world.clock + CLEANUP_AFTER_MS);
+    expect(world.alarm).toBe(world.clock + CLEANUP_AFTER_MS);
+    await world.tick(room, CLEANUP_AFTER_MS);
+    expect(world.store.size).toBe(0);
   });
 });

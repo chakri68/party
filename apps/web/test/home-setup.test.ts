@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { games } from "../src/games.ts";
-import { createLabel, setupFromUrl, shellConfig } from "../src/shell.ts";
+import { createLabel, roomsPath, setupFromUrl, shellConfig } from "../src/shell.ts";
 
 const url = (q: string) => new URL(`https://party.test/${q}`);
 
@@ -40,6 +40,16 @@ describe("createLabel", () => {
   });
   it("is Create room otherwise", () => {
     expect(createLabel(undefined)).toBe("Create room");
+  });
+});
+
+describe("roomsPath", () => {
+  it("is the plain path with no setup or no count", () => {
+    expect(roomsPath()).toBe("/api/rooms");
+    expect(roomsPath({ gameId: "cheat" })).toBe("/api/rooms?game=cheat");
+  });
+  it("puts the game and count in the query", () => {
+    expect(roomsPath({ gameId: "cheat", computers: 3 })).toBe("/api/rooms?game=cheat&computers=3");
   });
 });
 

@@ -19,7 +19,7 @@ describe("game registry flags", () => {
     const withBots = Object.keys(all).filter((id) => all[id]!.bot).sort();
     expect(withBots).toEqual(["cheat", "crazy-eights", "farkle", "go-fish", "holdem", "liars-dice", "oh-hell", "old-maid", "overheat", "president", "sevens", "thorns"]);
     // The manifest tells the client, with no room, which games have computers.
-    for (const def of Object.values(all)) expect(!!def.manifest.computers).toBe(!!def.bot);
+    for (const [id, def] of Object.entries(all)) expect(!!def.manifest.computers, id).toBe(!!def.bot);
   });
 
   it("TREASURE_HUNT lists Treasure Hunt, and only with it", () => {

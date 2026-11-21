@@ -290,7 +290,7 @@ export class RoomRuntime {
     const most = this.maxSeats(def) - 1;
     if (most < 1) return;
     const asked = Number.isInteger(setup.computers) ? setup.computers! : Math.max(1, (m.bestMinPlayers ?? m.minPlayers) - 1);
-    data.gameId = m.id;
+    data.gameId = setup.gameId;
     data.settings = def.defaultSettings;
     for (let i = Math.min(Math.max(asked, 1), most); i > 0; i--) data.seats.push(this.seatBot());
   }

@@ -62,13 +62,18 @@ export interface ShellOptions {
 type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver">> & Pick<ShellOptions, "partyOver">;
 
 /** Today's behaviour: the owner key opens the room. */
-async function defaultCreateRoom(setup?: RoomSetup): Promise<CreateRoomResult> {
+/** The create-room path, with the setup in the query when there is one. */
+export function roomsPath(setup?: RoomSetup): string {
   const query = new URLSearchParams();
   if (setup) {
     query.set("game", setup.gameId);
     if (setup.computers) query.set("computers", String(setup.computers));
   }
-  const res = await fetch(`/api/rooms${query.size ? `?${query}` : ""}`, {
+  return `/api/rooms${query.size ? `?${query}` : ""}`;
+}
+
+async function defaultCreateRoom(setup?: RoomSetup): Promise<CreateRoomResult> {
+  const res = await fetch(roomsPath(setup), {
     method: "POST",
     headers: { authorization: `Bearer ${getOwnerKey() ?? ""}` },
   });

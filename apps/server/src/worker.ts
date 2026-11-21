@@ -145,8 +145,10 @@ export interface WaitUntil {
 export function parseRoomSetup(url: URL): RoomSetup | undefined {
   const gameId = url.searchParams.get("game");
   if (!gameId) return undefined;
-  const n = Number.parseInt(url.searchParams.get("computers") ?? "", 10);
-  return { gameId, computers: Number.isNaN(n) ? undefined : n };
+  // Same rule as the client (setupFromUrl): digits only, a safe whole number, above 0.
+  const raw = url.searchParams.get("computers") ?? "";
+  const n = /^\d+$/.test(raw) ? Number(raw) : 0;
+  return { gameId, computers: Number.isSafeInteger(n) && n > 0 ? n : undefined };
 }
 
 export function createFetch(opts: WorkerOptions): (request: Request, env: ServerEnv, ctx?: WaitUntil) => Promise<Response> {
