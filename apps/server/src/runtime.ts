@@ -495,9 +495,9 @@ export class RoomRuntime {
       this.ensureHost();
     } else {
       if (data.locked && data.phase !== "ended" && !owner) {
-        const at = msg.resumeToken ? (data.returnTokens ?? []).indexOf(msg.resumeToken) : -1;
-        if (at < 0) return this.fatal(conn, "room-locked", "The host locked this room.");
-        data.returnTokens!.splice(at, 1);
+        if (!msg.resumeToken || !(data.returnTokens ?? []).includes(msg.resumeToken)) {
+          return this.fatal(conn, "room-locked", "The host locked this room.");
+        }
       }
       const def = this.games[data.gameId]!;
       const late = data.phase === "playing";
@@ -510,6 +510,10 @@ export class RoomRuntime {
         const bot = late ? undefined : this.newestBot();
         if (!bot) return this.fatal(conn, "room-full", "This room is full.");
         data.seats = data.seats.filter((s) => s !== bot);
+      }
+      // Used up only now, so a refusal above leaves the way back open.
+      if (data.locked && data.returnTokens && msg.resumeToken) {
+        data.returnTokens = data.returnTokens.filter((t) => t !== msg.resumeToken);
       }
       seat = {
         id: this.host.randomToken().slice(0, 12),

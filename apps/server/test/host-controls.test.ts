@@ -113,6 +113,20 @@ describe("lock room", () => {
     expect(roomOf(a).seats.filter((s) => s.bot)).toHaveLength(3);
   });
 
+  it("a refused join keeps the way back open", async () => {
+    const c = await join(world, room, "Cy");
+    const token = tokenOf(c);
+    await world.disconnect(room, c);
+    await send(room, b, { type: "ready", ready: true });
+    await send(room, a, { type: "start-game" });
+    await lock(a);
+    const early = await join(world, room, "Cy", token);
+    expect(early.last("error")).toMatchObject({ code: "game-in-progress" });
+    await send(room, a, { type: "return-to-lobby" });
+    const c2 = await join(world, room, "Cy", token);
+    expect(roomOf(c2).seats.map((s) => s.name)).toContain("Cy");
+  });
+
   it("unlock lets people in", async () => {
     await lock(a);
     await lock(a, false);
