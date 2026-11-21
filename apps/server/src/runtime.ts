@@ -699,7 +699,25 @@ export class RoomRuntime {
         return this.commit([]);
       }
 
-      case "restart-game":
+      case "restart-game": {
+        if (!hostOnly() || !inPhase("playing")) return;
+        const def = this.games[data.gameId]!;
+        if (this.lockedGameIds().includes(data.gameId)) return this.needsPass(conn);
+        if (!this.botsAllowed(def)) return this.botsBlock(conn);
+        // Refuse before ending anything: a failed restart leaves the game as it was.
+        const kept = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
+        const refusal = this.startCheck(def, kept.length);
+        if (refusal) return this.error(conn, refusal.code, refusal.message);
+        this.endGameToLobby(null);
+        const events = await this.dealGame(def, conn);
+        // Seats still within their grace are dealt in, and the new game is told they're away.
+        for (const s of data.seats) {
+          if (s.presence !== "reconnecting") continue;
+          events!.push(...this.applyGameHook((d, st) => d.onPlayerDisconnected?.(st, s.id, this.ctx())));
+        }
+        return this.commit(events!);
+      }
+
       case "pause-game":
         // Handled in later tasks.
         return this.error(conn, "not-available", "You can't do that right now.");
@@ -821,25 +839,42 @@ export class RoomRuntime {
     data.seats = data.seats.filter((s) => s.presence === "connected");
     this.ensureHost();
 
+    const refusal = this.startCheck(def, data.seats.length);
+    if (refusal) {
+      this.error(conn, refusal.code, refusal.message);
+      return this.commit([]);
+    }
+    const events = await this.dealGame(def, conn, debug);
+    return events ? this.commit(events) : undefined;
+  }
+
+  /** Why a game can't start with `n` seats, or null. The owner gate, the head count, the game's own setup check. */
+  private startCheck(def: AnyGameDefinition, n: number): { code: ErrorCode; message: string } | null {
+    const data = this.data!;
     // The whole point of the owner key: no owner at the table, no game. The copy
     // stays vague on purpose; nobody needs to know why.
-    if (!this.ownerHere()) {
-      this.error(conn, "cannot-start", "Can't start yet.");
-      return this.commit([]);
-    }
-
-    const n = data.seats.length;
+    if (!this.ownerHere()) return { code: "cannot-start", message: "Can't start yet." };
     if (n < def.manifest.minPlayers || n > def.manifest.maxPlayers) {
-      this.error(conn, "not-enough-players", `${def.manifest.name} needs ${def.manifest.minPlayers}–${def.manifest.maxPlayers} players.`);
-      return this.commit([]);
+      return { code: "not-enough-players", message: `${def.manifest.name} needs ${def.manifest.minPlayers}–${def.manifest.maxPlayers} players.` };
     }
-
     const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
     const problem = def.setupProblem?.(settings, n) ?? null;
-    if (problem) {
-      this.error(conn, "bad-setup", problem);
-      return this.commit([]);
-    }
+    return problem ? { code: "bad-setup", message: problem } : null;
+  }
+
+  /**
+   * Deals a new game to the seats as they are: dealer, game number, carry, the
+   * game itself. Returns the events to commit, or null when a bad debug deck
+   * was already answered.
+   */
+  private async dealGame(
+    def: AnyGameDefinition,
+    conn: Conn,
+    debug?: { seed?: number; deck?: string[] },
+  ): Promise<GameEventEnvelope<unknown>[] | null> {
+    const data = this.data!;
+    const n = data.seats.length;
+    const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
 
     // A debug seed makes the whole deal reproducible, dealer included.
     const ctx = debug?.seed === undefined
@@ -865,7 +900,8 @@ export class RoomRuntime {
       if (!debug) throw err;
       // A bad debug deck is the developer's typo, not a server fault; say what's wrong.
       await this.recover(err);
-      return this.error(conn, "bad-message", err instanceof Error ? err.message : "Bad debug deck.");
+      this.error(conn, "bad-message", err instanceof Error ? err.message : "Bad debug deck.");
+      return null;
     }
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
@@ -874,8 +910,7 @@ export class RoomRuntime {
     // Suggestions are for the next pick; once a game starts they've done their job.
     for (const s of data.seats) delete s.suggestion;
     delete data.botRun;
-    const events = this.applyTransition(transition, true);
-    return this.commit(events);
+    return this.applyTransition(transition, true);
   }
 
   /**
