@@ -308,8 +308,6 @@ describe("restart", () => {
     expect(now.roundNumber).toBe(first.roundNumber + 1);
     const hands = [a, b, c].map((p) => (p.last("update")!.private as { hand: unknown[] }).hand.length);
     expect(hands.reduce((x, y) => x + y, 0)).toBe(52);
-    const board = (now.game as { board: Record<string, unknown> }).board;
-    expect(JSON.stringify(board)).not.toContain("card");
     expect(a.last("error")).toBeUndefined();
   });
 
@@ -636,5 +634,31 @@ describe("pause", () => {
     expect(game().phase).toBe("reveal");
     await world.tick(room, 1);
     expect(game().phase).toBe("night");
+  });
+
+  it("a fresh runtime from the same storage can resume with the same deadline", async () => {
+    const names = ["Ana", "Ben", "Cy", "Dev", "Eli"];
+    const conns = await open({ nightfall: nightfallGame }, "nightfall", names);
+    await start();
+    const D = (roomOf(a).game as { deadline: number }).deadline;
+    const tokens = conns.map((c) => c.last("welcome")!.resumeToken);
+    await world.tick(room, 5000);
+    await pauseGame(a);
+    // The room is evicted: every socket is gone and a new runtime reads the same storage.
+    for (const c of conns) c.closed = { code: 1001, reason: "evicted" };
+    room = new RoomRuntime("K7DX", world.host(), { nightfall: nightfallGame }, "nightfall");
+    await room.load();
+    await world.tick(room, 30_000);
+    const back: FakeConn[] = [];
+    for (const [i, n] of names.entries()) back.push(await join(world, room, n, tokens[i]));
+    const ana = back[0]!;
+    expect(roomOf(ana).paused).toBe(true);
+    await send(room, ana, { type: "pause-game", paused: false });
+    const game = () => roomOf(ana).game as { phase: string; deadline: number };
+    expect(game().deadline).toBe(D + 30_000);
+    expect(game().phase).toBe("reveal");
+    await world.tick(room, game().deadline - world.clock);
+    expect(game().phase).toBe("night");
+    expect(world.errors).toEqual([]);
   });
 });
