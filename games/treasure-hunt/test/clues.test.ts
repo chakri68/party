@@ -245,6 +245,7 @@ describe("shadow clues", () => {
     expect(shadowSpots(atMinor, one, rng(1)).some((s) => s.source === p.id)).toBe(false);
   });
 
+  // 200 seeds take about 1 s alone but over the 5 s default in a full run on busy cores.
   it("200 seeds by day: no tip on a pad or at a minor point", () => {
     let n = 0;
     for (let seed = 1; seed <= 200; seed++) {
@@ -256,7 +257,7 @@ describe("shadow clues", () => {
       }
     }
     expect(n).toBeGreaterThan(100);
-  });
+  }, 60_000);
 
   it("only a shadow spot takes a shadow clue", () => {
     expect(clueTexts(l, doorSpot(p), DAY).has("shadow")).toBe(false);

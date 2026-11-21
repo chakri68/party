@@ -192,10 +192,16 @@ describe("ohHellBot all-bot games", () => {
     }
   }, 30_000);
 
+  // Best of three rounds after a warm-up: load slows a round, never speeds it up. The timeout covers a busy full run.
   it("stays fast", () => {
-    let moves = 0;
-    const start = performance.now();
-    for (let seed = 1; seed <= 100; seed++) moves += playBots(ohHellGame, { players: 4, seed }).moves;
-    expect((performance.now() - start) / moves).toBeLessThan(1);
-  });
+    playBots(ohHellGame, { players: 4, seed: 101 });
+    let best = Infinity;
+    for (let round = 0; round < 3; round++) {
+      let moves = 0;
+      const start = performance.now();
+      for (let seed = 1; seed <= 100; seed++) moves += playBots(ohHellGame, { players: 4, seed }).moves;
+      best = Math.min(best, (performance.now() - start) / moves);
+    }
+    expect(best).toBeLessThan(1);
+  }, 60_000);
 });

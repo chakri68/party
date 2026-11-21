@@ -342,6 +342,7 @@ describe("lamps and heights", () => {
 });
 
 describe("1000 seeds", () => {
+  // About 16 s alone, nearly all in makeLayout itself (nothing to share across seeds); a busy full run needs more.
   it("1000 seeds: makeLayout never fails and every map has 10–14 pieces", () => {
     for (let seed = 1; seed <= 1000; seed++) {
       const l = makeLayout(seed);
@@ -349,7 +350,7 @@ describe("1000 seeds", () => {
       expect(l.pieces.length, `seed ${seed}`).toBeGreaterThanOrEqual(10);
       expect(l.pieces.length, `seed ${seed}`).toBeLessThanOrEqual(14);
     }
-  }, 60_000);
+  }, 180_000);
 });
 
 // The M4b built templates: the values in the task-2 brief, word for word.
