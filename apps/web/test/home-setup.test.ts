@@ -1,0 +1,58 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { games } from "../src/games.ts";
+import { createLabel, setupFromUrl, shellConfig } from "../src/shell.ts";
+
+const url = (q: string) => new URL(`https://party.test/${q}`);
+
+describe("setupFromUrl", () => {
+  it("takes a game that has computers", () => {
+    expect(setupFromUrl(url("?game=cheat"))).toEqual({ gameId: "cheat" });
+    expect(setupFromUrl(url("?game=cheat&computers=3"))).toEqual({ gameId: "cheat", computers: 3 });
+  });
+
+  it("ignores an unknown game", () => {
+    expect(setupFromUrl(url("?game=nope&computers=3"))).toBeUndefined();
+    expect(setupFromUrl(url(""))).toBeUndefined();
+  });
+
+  it("ignores a game without computers", () => {
+    const id = Object.keys(games).find((k) => !games[k]!.manifest.computers);
+    if (id) expect(setupFromUrl(url(`?game=${id}`))).toBeUndefined();
+  });
+
+  it("leaves out a bad count", () => {
+    for (const bad of ["0", "-2", "1.5", "abc", "", "3x"]) {
+      expect(setupFromUrl(url(`?game=cheat&computers=${bad}`))).toEqual({ gameId: "cheat" });
+    }
+  });
+});
+
+describe("createLabel", () => {
+  it("names the game when there is a setup", () => {
+    expect(createLabel({ gameId: "cheat" })).toBe("Play Cheat with computers");
+  });
+  it("is Create room otherwise", () => {
+    expect(createLabel(undefined)).toBe("Create room");
+  });
+});
+
+describe("the default creator", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts the setup in the query", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ code: "ABCD" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await shellConfig().createRoom({ gameId: "cheat", computers: 3 });
+    expect(res).toEqual({ code: "ABCD" });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/rooms?game=cheat&computers=3");
+  });
+
+  it("posts to the plain path with no setup, or no count", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ code: "ABCD" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await shellConfig().createRoom();
+    await shellConfig().createRoom({ gameId: "cheat" });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/rooms");
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/rooms?game=cheat");
+  });
+});

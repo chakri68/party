@@ -4,7 +4,7 @@ import { brandMark, icon } from "../brand.ts";
 import { getIdentity, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } from "../identity.ts";
 import { randomName } from "../names.ts";
 import { navigate } from "../router.ts";
-import { shellConfig } from "../shell.ts";
+import { createLabel, type RoomSetup, setupFromUrl, shellConfig } from "../shell.ts";
 
 export function nameInput(value: string) {
   return h("input", {
@@ -120,8 +120,11 @@ export class HomeView implements View {
     "aria-label": "Room code",
   });
   private error = h("p", { class: "form-error", role: "alert" });
+  // Read once, so a failed create leaves the same button for a retry.
+  private setup: RoomSetup | undefined;
 
   mount(container: HTMLElement) {
+    this.setup = setupFromUrl(new URL(location.href));
     this.render();
     container.append(this.root);
     (this.name.value ? this.code : this.name).focus();
@@ -143,7 +146,7 @@ export class HomeView implements View {
     btn.disabled = true;
     this.error.textContent = "";
     try {
-      const res = await shellConfig().createRoom();
+      const res = await shellConfig().createRoom(this.setup);
       if ("error" in res) {
         // Wrong or rotated key: forget it so the unlock form comes back.
         if (res.forgetKey) {
@@ -175,7 +178,7 @@ export class HomeView implements View {
       if (this.takeName()) navigate(`/room/${c}`);
     });
 
-    const create = h("button", { type: "button", class: "primary" }, "Create room");
+    const create = h("button", { type: "button", class: "primary" }, createLabel(this.setup));
     create.addEventListener("click", () => void this.createRoom(create));
 
     const recent = recentRooms();
