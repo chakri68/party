@@ -8,5 +8,6 @@ export const holdemManifest: GameManifest = {
   maxPlayers: 9,
   bestMinPlayers: 4,
   bestMaxPlayers: 7,
+  computers: true,
   icon: "chips",
 };

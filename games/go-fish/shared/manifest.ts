@@ -8,5 +8,6 @@ export const goFishManifest: GameManifest = {
   maxPlayers: 6,
   bestMinPlayers: 3,
   bestMaxPlayers: 5,
+  computers: true,
   icon: "cards",
 };

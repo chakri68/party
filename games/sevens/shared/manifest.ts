@@ -8,5 +8,6 @@ export const sevensManifest: GameManifest = {
   maxPlayers: 16,
   bestMinPlayers: 4,
   bestMaxPlayers: 7,
+  computers: true,
   icon: "cards",
 };

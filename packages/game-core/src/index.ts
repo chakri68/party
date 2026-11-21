@@ -14,6 +14,8 @@ export interface GameManifest {
    */
   bestMinPlayers?: number;
   bestMaxPlayers?: number;
+  /** The game has computer players (its definition sets `bot`). A test keeps the two in step. */
+  computers?: true;
   /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
   /**

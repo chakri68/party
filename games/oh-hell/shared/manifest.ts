@@ -8,5 +8,6 @@ export const ohHellManifest: GameManifest = {
   maxPlayers: 7,
   bestMinPlayers: 4,
   bestMaxPlayers: 5,
+  computers: true,
   icon: "cards",
 };

@@ -8,5 +8,6 @@ export const farkleManifest: GameManifest = {
   maxPlayers: 8,
   bestMinPlayers: 2,
   bestMaxPlayers: 5,
+  computers: true,
   icon: "dice",
 };
