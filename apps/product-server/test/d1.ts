@@ -24,10 +24,15 @@ type SqlValue = null | number | bigint | string;
 export function tripCounter(db: Db) {
   let inFlight = 0;
   let trips = 0;
+  // Held mode: a call does not finish until the test lets it, so what overlaps
+  // is decided by order, not by a timer racing the code under test.
+  let holding = false;
+  let pending: Array<() => void> = [];
   const track = async <T>(fn: () => Promise<T>): Promise<T> => {
     if (inFlight++ === 0) trips++;
     try {
-      await new Promise((r) => setTimeout(r, 1));
+      if (holding) await new Promise<void>((r) => pending.push(r));
+      else await new Promise((r) => setTimeout(r, 1));
       return await fn();
     } finally {
       inFlight--;
@@ -50,6 +55,21 @@ export function tripCounter(db: Db) {
   return {
     db: counted,
     track,
+    /** From now on, calls wait for `release`. Use `waitFor` to see them arrive. */
+    hold() {
+      holding = true;
+    },
+    /** Resolves once `n` calls are waiting (a condition, not a timeout). */
+    async waitFor(n: number) {
+      while (pending.length < n) await new Promise((r) => setImmediate(r));
+    },
+    /** Lets every waiting call finish; returns how many were waiting. */
+    release() {
+      const now = pending;
+      pending = [];
+      for (const r of now) r();
+      return now.length;
+    },
     get trips() {
       return trips;
     },

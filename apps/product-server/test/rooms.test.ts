@@ -183,12 +183,28 @@ describe("room creation policy", () => {
 });
 
 describe("room creation round trips", () => {
+  // Calls to the database and to Turnstile are held until the test lets them go.
+  // A trip is the calls that are waiting together, so the counts come from
+  // order, not from a timer.
+  const step = async (c: NonNullable<ReturnType<typeof setup>["counter"]>, n: number) => {
+    await c.waitFor(n);
+    expect(c.release()).toBe(n);
+  };
+
   it("anonymous: Turnstile and the cap counts overlap, and the record waits for nothing", async () => {
     const s = setup({ trips: true });
-    const res = await s.create({ token: "t" });
+    const c = s.counter!;
+    c.hold();
+    const pending = s.create({ token: "t" });
+    // Turnstile and the counts are both waiting at once: one trip for the two.
+    await step(c, 2);
+    // Nothing else is held up: the response comes back with the record write unfinished.
+    const res = await pending;
     expect(res.status).toBe(200);
-    expect(s.counter!.trips).toBe(1);
+    expect(c.trips).toBe(1);
     expect(s.background).toHaveLength(1);
+    // Only now does the record write get its turn.
+    await step(c, 1);
     await Promise.all(s.background);
     expect(await rows(s.raw)).toHaveLength(1);
   });
@@ -197,7 +213,10 @@ describe("room creation round trips", () => {
     const s = setup({ trips: true });
     const cookie = await s.user(true);
     s.counter!.reset();
-    expect((await s.create({ cookie })).status).toBe(200);
+    s.counter!.hold();
+    const pending = s.create({ cookie });
+    await step(s.counter!, 1);
+    expect((await pending).status).toBe(200);
     expect(s.counter!.trips).toBe(1);
   });
 
@@ -205,7 +224,11 @@ describe("room creation round trips", () => {
     const s = setup({ trips: true });
     const cookie = await s.user(false);
     s.counter!.reset();
-    expect((await s.create({ cookie, token: "t" })).status).toBe(200);
+    s.counter!.hold();
+    const pending = s.create({ cookie, token: "t" });
+    await step(s.counter!, 1);
+    await step(s.counter!, 2);
+    expect((await pending).status).toBe(200);
     expect(s.counter!.trips).toBe(2);
   });
 });
