@@ -186,6 +186,7 @@ describe("room creation round trips", () => {
   // Calls to the database and to Turnstile are held until the test lets them go.
   // A trip is the calls that are waiting together, so the counts come from
   // order, not from a timer.
+  // Waits for at least n calls, then checks that exactly n were released.
   const step = async (c: NonNullable<ReturnType<typeof setup>["counter"]>, n: number) => {
     await c.waitFor(n);
     expect(c.release()).toBe(n);

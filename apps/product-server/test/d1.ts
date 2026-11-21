@@ -59,9 +59,13 @@ export function tripCounter(db: Db) {
     hold() {
       holding = true;
     },
-    /** Resolves once `n` calls are waiting (a condition, not a timeout). */
+    /** Resolves once `n` calls are waiting. Throws after 2 s so a hang fails with a clear message. */
     async waitFor(n: number) {
-      while (pending.length < n) await new Promise((r) => setImmediate(r));
+      const deadline = Date.now() + 2000;
+      while (pending.length < n) {
+        if (Date.now() > deadline) throw new Error(`only ${pending.length} of ${n} calls pending`);
+        await new Promise((r) => setImmediate(r));
+      }
     },
     /** Lets every waiting call finish; returns how many were waiting. */
     release() {
