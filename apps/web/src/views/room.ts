@@ -464,7 +464,7 @@ export class RoomView implements View {
   private renderTurn() {
     const room = this.last?.room;
     const me = this.client?.playerId;
-    if (!room || !me || room.phase !== "playing") return this.turn.set(null);
+    if (!room || !me || room.phase !== "playing" || room.paused) return this.turn.set(null);
     if (this.gameTurn !== undefined) return this.turn.set(this.gameTurn);
     const waiting = room.awaitingPlayerIds;
     const mine = waiting.includes(me) && waiting.length < room.seats.length;
@@ -650,7 +650,7 @@ export class RoomView implements View {
       isHost
         ? h("button", {
             type: "button",
-            class: "small lock-room",
+            class: "lock-room", style: vt("lobby-lock"),
             "aria-pressed": String(room.locked),
             onclick: () => this.client?.send({ type: "lock-room", locked: !room.locked }),
           }, room.locked ? "Unlock room" : "Lock room")
@@ -724,13 +724,6 @@ export class RoomView implements View {
     );
   }
 
-  /**
-   * Everyone can open the game list. The host picks from it; everyone else
-   * reads the rules and suggests. Built to grow: games sit under section
-   * headings, a search box shows up once there are enough games to need one,
-   * and games that can't seat everyone here say so instead of failing at
-   * "Start game". Counts and buttons follow the room while it's open.
-   */
   /** A computer keeps a plain X. A person gets the dots, which open the host's menu. */
   private seatControl(room: RoomPublicState, me: string, s: RoomPublicState["seats"][number]) {
     const actions = seatActions(room, me, s);
@@ -772,6 +765,13 @@ export class RoomView implements View {
     }, icon("more"));
   }
 
+  /**
+   * Everyone can open the game list. The host picks from it; everyone else
+   * reads the rules and suggests. Built to grow: games sit under section
+   * headings, a search box shows up once there are enough games to need one,
+   * and games that can't seat everyone here say so instead of failing at
+   * "Start game". Counts and buttons follow the room while it's open.
+   */
   private openGameList() {
     const room0 = this.last?.room;
     const me = this.client?.playerId;
