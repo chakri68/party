@@ -606,7 +606,7 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
   background: none;
   color: var(--muted);
 }
-.seats .kick.bot-kick, .seats .seat-menu-button { margin-left: auto; }
+.seats .kick.bot-kick { margin-left: auto; }
 .seat-menu .dialog-list { display: flex; flex-direction: column; gap: 8px; }
 .lock-room { align-self: flex-start; }
 .paused-note { font-weight: 600; }
