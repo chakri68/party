@@ -159,6 +159,11 @@ interface RoomData {
    * 64). A locked room lets these people back in, once each.
    */
   returnTokens?: string[];
+  /**
+   * The host paused the game at `at`. `timers` holds each `game:` and `bot:`
+   * timer as ms left; they're out of `timers` until resume. Absent: not paused.
+   */
+  pause?: { at: number; timers: Record<string, number> };
 }
 
 const STORAGE_KEY = "room";
@@ -178,6 +183,7 @@ const BOT_THINK_FLOOR_MS = 1000;
 const BOT_FOLLOW_MS = 900;
 const BOT_FOLLOW_SPAN_MS = 401;
 const BOT_STUCK_MESSAGE = "A computer player got stuck, so the game ended.";
+const PAUSED_MESSAGE = "The game is paused.";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
 /** Flood guards: this many per window, per seat. Emotes are meant to be mashed. */
@@ -601,6 +607,9 @@ export class RoomRuntime {
             message: "No game is running.",
           });
         }
+        if (data.pause) {
+          return conn.send({ type: "action-rejected", clientActionId: msg.clientActionId, code: "wrong-phase", message: PAUSED_MESSAGE });
+        }
         const def = this.games[data.game.gameId]!;
         const action = def.parseAction(msg.action);
         const result = action === null
@@ -617,7 +626,7 @@ export class RoomRuntime {
 
       case "stream": {
         // Best-effort (§35): anything out of place is dropped without a word.
-        if (data.phase !== "playing" || !data.game) return;
+        if (data.phase !== "playing" || !data.game || data.pause) return;
         if (!this.allow("stream", seat.id, STREAM_LIMIT)) return;
         const out = this.games[data.game.gameId]!.onStream?.(data.game.state, seat.id, msg.data, this.ctx());
         if (!out) return;
@@ -718,9 +727,13 @@ export class RoomRuntime {
         return this.commit(events!);
       }
 
-      case "pause-game":
-        // Handled in later tasks.
-        return this.error(conn, "not-available", "You can't do that right now.");
+      case "pause-game": {
+        if (!hostOnly() || !inPhase("playing") || !data.game) return;
+        const def = this.games[data.game.gameId]!;
+        if (!def.pause) return this.error(conn, "not-available", "This game can't pause.");
+        if (!!data.pause === msg.paused) return;
+        return this.commit(msg.paused ? this.pauseGame(def) : this.resumeGame(def));
+      }
 
       case "return-to-lobby":
         // Mid-game too: the host can bail on a game that's dragging.
@@ -751,6 +764,7 @@ export class RoomRuntime {
 
       case "nudge": {
         if (!inPhase("playing")) return;
+        if (data.pause) return this.error(conn, "wrong-phase", PAUSED_MESSAGE);
         const now = this.host.now();
         const targets = data.awaiting.filter((id) => id !== seat.id && !this.isBot(id));
         if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
@@ -769,6 +783,7 @@ export class RoomRuntime {
 
       case "skip-turn": {
         if (!hostOnly() || !inPhase("playing")) return;
+        if (data.pause) return this.error(conn, "wrong-phase", PAUSED_MESSAGE);
         const target = data.seats.find((s) => s.id === msg.playerId);
         if (!target || !data.awaiting.includes(target.id)) {
           return this.error(conn, "not-available", "It isn't their turn.");
@@ -933,8 +948,38 @@ export class RoomRuntime {
     this.resetReady();
     this.setAwaiting([]);
     delete data.botRun;
+    delete data.pause;
     // Sent after the commit's update, so the client reads it as the reason, not "the host ended it".
     if (message) this.gameEndedNotice = message;
+  }
+
+  // ---- pause --------------------------------------------------------------
+
+  /** The game hears first, then every game and bot timer is held by its time left. */
+  private pauseGame(def: AnyGameDefinition): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    const events = this.applyTransition(def.pause!(data.game!.state, true, this.ctx()));
+    if (data.phase !== "playing") return events;
+    const now = this.host.now();
+    const timers: Record<string, number> = {};
+    for (const [key, at] of Object.entries(data.timers)) {
+      if (!key.startsWith(GAME_TIMER_PREFIX) && !key.startsWith(BOT_TIMER_PREFIX)) continue;
+      timers[key] = Math.max(0, at - now);
+      this.clearTimer(key);
+    }
+    data.pause = { at: now, timers };
+    return events;
+  }
+
+  /** Every held timer runs again from now, the idle clock skips the pause, then the game hears, on the real clock. */
+  private resumeGame(def: AnyGameDefinition): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    const pause = data.pause!;
+    const now = this.host.now();
+    for (const [key, left] of Object.entries(pause.timers)) this.setTimer(key, now + left);
+    if (data.awaitingSince !== null) data.awaitingSince = Math.min(now, data.awaitingSince + (now - pause.at));
+    delete data.pause;
+    return this.applyTransition(def.pause!(data.game!.state, false, this.ctx()));
   }
 
   // ---- computer players ---------------------------------------------------
@@ -974,6 +1019,8 @@ export class RoomRuntime {
     // Only computers are left: nobody to play for.
     const people = data.seats.filter((s) => !s.bot);
     if (people.length < data.seats.length && people.every((s) => s.presence === "left")) return this.endGameToLobby(null);
+    // Their timers are held; resume schedules them again.
+    if (data.pause) return;
     if (!this.personWatching() || !this.games[data.game.gameId]!.bot) return;
 
     const botSeats = data.seats.filter((s) => s.bot && s.presence !== "left");
@@ -1010,8 +1057,8 @@ export class RoomRuntime {
     if (data.phase !== "playing" || !data.game) return null;
     const seat = data.seats.find((s) => s.id === seatId);
     if (!seat?.bot || seat.presence === "left") return null;
-    // Paused. A person coming back commits, and that schedules the bot again.
-    if (!this.personWatching()) return null;
+    // Paused. A person coming back (or the host resuming) commits, and that schedules the bot again.
+    if (!this.personWatching() || data.pause) return null;
     const def = this.games[data.game.gameId]!;
     if (!def.bot) return null;
 
@@ -1059,8 +1106,9 @@ export class RoomRuntime {
 
   // ---- game plumbing ------------------------------------------------------
 
+  /** While paused, the game's clock stands still at the pause. */
   private ctx(): GameContext {
-    return { now: this.host.now(), randomInt: (max) => this.host.randomInt(max), hostId: this.data!.hostId };
+    return { now: this.data!.pause?.at ?? this.host.now(), randomInt: (max) => this.host.randomInt(max), hostId: this.data!.hostId };
   }
 
   /** Runs an optional hook against the live game and applies whatever it returns. */
@@ -1085,10 +1133,16 @@ export class RoomRuntime {
     const def = this.games[game.gameId]!;
     game.state = t.state;
 
+    // While paused, a new timer waits with the held ones: its delay is its time left.
+    const held = data.pause?.timers;
     for (const req of t.timers ?? []) {
       const key = GAME_TIMER_PREFIX + req.timerId;
-      if (req.kind === "set") this.setTimer(key, this.host.now() + req.delayMs);
-      else this.clearTimer(key);
+      if (req.kind === "set" && held) held[key] = req.delayMs;
+      else if (req.kind === "set") this.setTimer(key, this.host.now() + req.delayMs);
+      else {
+        if (held) delete held[key];
+        this.clearTimer(key);
+      }
     }
 
     const outcome = def.getResult(game.state);
@@ -1102,6 +1156,7 @@ export class RoomRuntime {
       for (const key of Object.keys(data.timers)) {
         if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
       }
+      delete data.pause;
     } else {
       this.setAwaiting(def.getAwaitedPlayerIds(game.state), acted);
     }
@@ -1320,7 +1375,7 @@ export class RoomRuntime {
       setupProblem: this.setupProblem(),
       tier: this.tier(),
       locked: !!data.locked,
-      paused: false,
+      paused: !!data.pause,
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,

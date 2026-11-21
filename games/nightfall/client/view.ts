@@ -202,13 +202,15 @@ export class NightfallView implements GameView {
       this.bar.style.transform = "scaleX(0)";
       return;
     }
-    const left = Math.max(0, game.deadline - this.api.serverNow());
+    // Paused: the clock and bar stand still at the pause.
+    const paused = game.pausedAt != null;
+    const left = Math.max(0, game.deadline - (game.pausedAt ?? this.api.serverNow()));
     const secs = Math.ceil(left / 1000);
     this.timer.textContent = secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs} s`;
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     const low = secs <= TICK_FROM && (game.phase === "vote" || game.phase === "runoff");
     this.root.classList.toggle("low", low);
-    if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
+    if (low && !paused && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;
       audio.play("tick");
     }

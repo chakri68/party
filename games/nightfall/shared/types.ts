@@ -101,6 +101,8 @@ export interface NightfallServerState {
   seed: number;
   deadline: number;
   phaseMs: number;
+  /** When the host paused the game, or null. Optional: games stored before pause had none. */
+  pausedAt?: number | null;
   /** Nights so far; the day after night n is day n. */
   round: number;
   /** Seat order. */
@@ -131,6 +133,8 @@ export interface NightfallPublicState {
   phase: Phase;
   deadline: number;
   phaseMs: number;
+  /** When the host paused the game, or null. The clock shows this as "now" until resume. */
+  pausedAt: number | null;
   round: number;
   deck: Deck;
   /** `team`: a dead player's, announced when they died. */
