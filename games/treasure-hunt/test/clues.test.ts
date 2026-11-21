@@ -256,7 +256,8 @@ describe("shadow clues", () => {
       }
     }
     expect(n).toBeGreaterThan(100);
-  });
+    // 200 seeds take about 1 s alone but over the 5 s default in a full run on busy cores.
+  }, 60_000);
 
   it("only a shadow spot takes a shadow clue", () => {
     expect(clueTexts(l, doorSpot(p), DAY).has("shadow")).toBe(false);
