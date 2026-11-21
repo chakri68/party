@@ -650,3 +650,36 @@ describe("party stats", () => {
     expect(g.partyStats!(s)).toMatchObject({ p1: { votesAgainst: 8 }, p4: { votesAgainst: 5 } });
   });
 });
+
+describe("pause", () => {
+  it("resume moves the deadline by the time paused", () => {
+    const s = seven();
+    const D = s.deadline;
+    const paused = g.pause!(s, true, ctx(5000));
+    expect(paused.state.pausedAt).toBe(5000);
+    expect(g.getPublicState(paused.state).pausedAt).toBe(5000);
+    expect(paused.events).toEqual([]);
+    expect(paused.timers ?? []).toEqual([]);
+    const resumed = g.pause!(paused.state, false, ctx(65000));
+    expect(resumed.state.deadline).toBe(D + 60000);
+    expect(resumed.state.pausedAt).toBeNull();
+    expect(g.getPublicState(resumed.state).pausedAt).toBeNull();
+    expect(resumed.events).toEqual([]);
+    expect(resumed.timers ?? []).toEqual([]);
+  });
+
+  it("resume with nothing paused changes nothing", () => {
+    const s = seven();
+    const before = structuredClone(s);
+    expect(g.pause!(s, false, ctx(9000)).state).toEqual(before);
+  });
+
+  it("a finished game ignores pause", () => {
+    const FIVE: RoleId[] = ["villager", "wolf", "villager", "villager", "villager"];
+    const s = vote(toVote(ring(toNight(start([...FIVE]).state)).state), { p0: "p1", p2: "p1", p3: "p1", p4: "p1", p1: "p0" }).state;
+    expect(s.phase).toBe("finished");
+    const before = structuredClone(s);
+    expect(g.pause!(s, true, ctx(5000)).state).toEqual(before);
+    expect(g.pause!(s, false, ctx(9000)).state).toEqual(before);
+  });
+});

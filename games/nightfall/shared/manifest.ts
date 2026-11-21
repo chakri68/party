@@ -10,4 +10,5 @@ export const nightfallManifest: GameManifest = {
   bestMinPlayers: 7,
   bestMaxPlayers: 10,
   icon: "moon",
+  pausable: true,
 };

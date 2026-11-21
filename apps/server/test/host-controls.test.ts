@@ -1,9 +1,10 @@
 import { GRACE_MS } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { sevensGame } from "@games/sevens/server";
-import type { AnyGameDefinition } from "@games/game-core";
+import { nightfallGame } from "@games/nightfall/server";
+import type { AnyGameDefinition, GameContext } from "@games/game-core";
 import { RoomRuntime } from "../src/runtime.ts";
-import { plainGame, toyGame, toyKnobs } from "./bot-toy.ts";
+import { plainGame, TOY_WINDOW_MS, toyGame, toyKnobs, type ToyPublic, type ToyState } from "./bot-toy.ts";
 import { FakeConn, join, OWNER_KEY, roomOf, send, World } from "./harness.ts";
 
 const games = { toy: toyGame, plain: plainGame };
@@ -406,5 +407,234 @@ describe("restart", () => {
     expect(roomOf(a).phase).toBe("results");
     await restart(a);
     expect(a.last("error")).toMatchObject({ code: "wrong-phase" });
+  });
+});
+
+describe("pause", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let a: FakeConn;
+  let b: FakeConn;
+
+  /** The room's think time for a bot at a small table, at most. */
+  const BOT_THINK_MAX_MS = 1600 + 1001;
+  const pauseToy: AnyGameDefinition = {
+    ...toyGame,
+    manifest: { ...toyGame.manifest, pausable: true },
+    pause: (s: unknown) => ({ state: s, events: [] }),
+    // Relays every stream, so a dropped one shows.
+    onStream: (s: unknown, _id: string, data: unknown) => ({ state: s, relay: data, persist: false }),
+  } as AnyGameDefinition;
+  const pauseGame = (who: FakeConn, paused = true) => send(room, who, { type: "pause-game", paused });
+  const stored = () =>
+    world.store.get("room") as { timers: Record<string, number>; pause?: { at: number; timers: Record<string, number> } };
+  const loopTimers = () => Object.keys(stored().timers).filter((k) => k.startsWith("game:") || k.startsWith("bot:"));
+  const pub = (c: FakeConn) => roomOf(c).game as ToyPublic;
+  const idOf = (c: FakeConn) => c.last("welcome")!.playerId;
+
+  const open = async (games: Record<string, AnyGameDefinition>, id: string, names = ["Ana", "Ben"]) => {
+    room = new RoomRuntime("K7DX", world.host(), games, id);
+    await room.load();
+    await room.claim();
+    const conns: FakeConn[] = [];
+    for (const n of names) conns.push(await join(world, room, n));
+    [a, b] = conns as [FakeConn, FakeConn];
+    return conns;
+  };
+  const start = async () => {
+    await send(room, a, { type: "start-game" });
+    expect(roomOf(a).phase).toBe("playing");
+  };
+  /** People add 2 in turn until the toy reaches 10 and its window opens. */
+  const playTo10 = async (people = [a, b]) => {
+    for (let i = 0; i < 20 && pub(a).phase === "count"; i++) {
+      const mover = people.find((p) => idOf(p) === pub(a).turnId)!;
+      await send(room, mover, { type: "game-action", clientActionId: `m${i}`, action: { type: "add", n: 2 } });
+    }
+    expect(pub(a).phase).toBe("window");
+  };
+
+  beforeEach(() => {
+    toyKnobs.decide = "normal";
+    world = new World();
+  });
+
+  it("holds the game timer by time left", async () => {
+    await open({ toy: pauseToy }, "toy");
+    await start();
+    await playTo10();
+    await world.tick(room, 2000);
+    await pauseGame(a);
+    expect(roomOf(a).paused).toBe(true);
+    await world.tick(room, 60_000);
+    expect(roomOf(a).phase).toBe("playing");
+    expect(stored().timers).not.toHaveProperty("game:window");
+    await pauseGame(a, false);
+    expect(roomOf(a).paused).toBe(false);
+    await world.tick(room, TOY_WINDOW_MS - 2001);
+    expect(roomOf(a).phase).toBe("playing");
+    await world.tick(room, 1);
+    expect(roomOf(a).phase).toBe("results");
+  });
+
+  it("computers wait while paused", async () => {
+    await open({ toy: pauseToy }, "toy", ["Ana"]);
+    await send(room, a, { type: "add-bot" });
+    await start();
+    const bot = roomOf(a).seats.find((s) => s.bot)!.id;
+    if (pub(a).turnId !== bot) {
+      await send(room, a, { type: "game-action", clientActionId: "m", action: { type: "add", n: 1 } });
+    }
+    expect(pub(a).turnId).toBe(bot);
+    const key = `bot:${bot}`;
+    const left = stored().timers[key]! - world.clock;
+    const total = pub(a).total;
+    await pauseGame(a);
+    await world.tick(room, 10_000);
+    expect(pub(a).total).toBe(total);
+    expect(Object.keys(stored().timers).filter((k) => k.startsWith("bot:"))).toEqual([]);
+    await pauseGame(a, false);
+    expect(stored().timers[key]).toBe(world.clock + left);
+    await world.tick(room, BOT_THINK_MAX_MS);
+    expect(pub(a).total).toBeGreaterThan(total);
+  });
+
+  it("refuses moves while paused", async () => {
+    await open({ toy: pauseToy }, "toy");
+    await start();
+    await pauseGame(a);
+    const version = a.last("update")!.stateVersion;
+    const mover = [a, b].find((p) => idOf(p) === pub(a).turnId)!;
+    const other = mover === a ? b : a;
+    const PAUSED = { code: "wrong-phase", message: "The game is paused." };
+    await send(room, mover, { type: "game-action", clientActionId: "p1", action: { type: "add", n: 1 } });
+    expect(mover.last("action-rejected")).toMatchObject({ clientActionId: "p1", ...PAUSED });
+    await world.tick(room, 120_000);
+    await send(room, a, { type: "skip-turn", playerId: idOf(mover) });
+    expect(a.last("error")).toMatchObject(PAUSED);
+    await send(room, other, { type: "nudge" });
+    expect(other.last("error")).toMatchObject(PAUSED);
+    const inbox = [a.inbox.length, b.inbox.length];
+    await send(room, mover, { type: "stream", data: { x: 1 } });
+    expect([a.inbox.length, b.inbox.length]).toEqual(inbox);
+    expect(a.last("update")!.stateVersion).toBe(version);
+  });
+
+  it("awaitingSince moves on by the time paused", async () => {
+    await open({ toy: pauseToy }, "toy");
+    await start();
+    const t0 = roomOf(a).awaitingSince!;
+    await pauseGame(a);
+    await world.tick(room, 30_000);
+    await pauseGame(a, false);
+    expect(roomOf(a).awaitingSince).toBe(t0 + 30_000);
+  });
+
+  it("only the host, only mid-game, only games that pause", async () => {
+    await open({ toy: pauseToy, plain: { ...plainGame } }, "toy");
+    await pauseGame(a);
+    expect(a.last("error")).toMatchObject({ code: "wrong-phase" });
+    await start();
+    await pauseGame(b);
+    expect(b.last("error")).toMatchObject({ code: "not-host" });
+    expect(roomOf(a).paused).toBe(false);
+    await pauseGame(a);
+    const updates = a.of("update").length;
+    await pauseGame(a);
+    expect(a.of("update")).toHaveLength(updates);
+    await send(room, a, { type: "return-to-lobby" });
+    await send(room, a, { type: "select-game", gameId: "plain" });
+    await start();
+    await pauseGame(a);
+    expect(a.last("error")).toMatchObject({ code: "not-available", message: "This game can't pause." });
+    expect(roomOf(a).paused).toBe(false);
+  });
+
+  it("the new host can resume", async () => {
+    await open({ toy: pauseToy }, "toy", ["Ana", "Ben", "Cy"]);
+    await start();
+    await pauseGame(a);
+    await send(room, a, { type: "leave" });
+    expect(roomOf(b).hostId).toBe(idOf(b));
+    expect(roomOf(b).paused).toBe(true);
+    await pauseGame(b, false);
+    expect(roomOf(b).paused).toBe(false);
+  });
+
+  it("timers set during a pause wait for resume, and hooks see the clock stopped", async () => {
+    const seen: number[] = [];
+    const late: AnyGameDefinition = {
+      ...pauseToy,
+      onPlayerDisconnected: (s: unknown, _id: string, ctx: GameContext) => {
+        seen.push(ctx.now);
+        return { state: s, events: [], timers: [{ kind: "set", timerId: "late", delayMs: 4000 }] };
+      },
+    } as AnyGameDefinition;
+    await open({ toy: late }, "toy");
+    await start();
+    await pauseGame(a);
+    const P = world.clock;
+    await world.tick(room, 10_000);
+    await world.disconnect(room, b);
+    expect(seen).toEqual([P]);
+    expect(stored().timers).not.toHaveProperty("game:late");
+    await pauseGame(a, false);
+    const R = world.clock;
+    expect(stored().timers["game:late"]).toBe(R + 4000);
+  });
+
+  it("a game that ends while paused drops the pause", async () => {
+    const ending: AnyGameDefinition = {
+      ...pauseToy,
+      onPlayerRemoved: (s: ToyState, id: string) => ({
+        state: { ...s, phase: "done" as const, winner: s.players.find((p) => p !== id)! },
+        events: [],
+      }),
+    } as AnyGameDefinition;
+    await open({ toy: ending }, "toy");
+    await start();
+    await pauseGame(a);
+    await send(room, b, { type: "leave" });
+    expect(roomOf(a).phase).toBe("results");
+    expect(roomOf(a).paused).toBe(false);
+    expect(stored().pause).toBeUndefined();
+    expect(loopTimers()).toEqual([]);
+  });
+
+  it("back to lobby and restart clear the pause", async () => {
+    await open({ toy: pauseToy }, "toy");
+    await start();
+    await pauseGame(a);
+    await send(room, a, { type: "return-to-lobby" });
+    expect(roomOf(a).paused).toBe(false);
+    await start();
+    await pauseGame(a);
+    expect(roomOf(a).paused).toBe(true);
+    await send(room, a, { type: "restart-game" });
+    expect(roomOf(a).phase).toBe("playing");
+    expect(roomOf(a).paused).toBe(false);
+    // The new game's timers run.
+    await playTo10();
+    await world.tick(room, TOY_WINDOW_MS);
+    expect(roomOf(a).phase).toBe("results");
+  });
+
+  it("Nightfall through the room", async () => {
+    await open({ nightfall: nightfallGame }, "nightfall", ["Ana", "Ben", "Cy", "Dev", "Eli"]);
+    await start();
+    const game = () => roomOf(a).game as { phase: string; deadline: number; pausedAt: number | null };
+    const D = game().deadline;
+    expect(game().phase).toBe("reveal");
+    await world.tick(room, 5000);
+    await pauseGame(a);
+    expect(game().pausedAt).toBe(world.clock);
+    await world.tick(room, 60_000);
+    await pauseGame(a, false);
+    expect(game().deadline).toBe(D + 60_000);
+    expect(game().pausedAt).toBeNull();
+    await world.tick(room, D + 60_000 - world.clock - 1);
+    expect(game().phase).toBe("reveal");
+    await world.tick(room, 1);
+    expect(game().phase).toBe("night");
   });
 });

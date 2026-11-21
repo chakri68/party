@@ -22,6 +22,15 @@ describe("game registry flags", () => {
     for (const [id, def] of Object.entries(all)) expect(!!def.manifest.computers, id).toBe(!!def.bot);
   });
 
+  it("lists exactly the games that can pause", () => {
+    // Giving a game `pause` changes this list on purpose: add its id here.
+    const all = gamesFor({ blindRally: true, treasureHunt: true });
+    const pausing = Object.keys(all).filter((id) => all[id]!.pause).sort();
+    expect(pausing).toEqual(["nightfall"]);
+    // The manifest tells the client the host gets Pause in this game.
+    for (const [id, def] of Object.entries(all)) expect(!!def.manifest.pausable, id).toBe(!!def.pause);
+  });
+
   it("TREASURE_HUNT lists Treasure Hunt, and only with it", () => {
     expect(gamesFor({ blindRally: true, treasureHunt: false })).not.toHaveProperty("treasure-hunt");
     const on = gamesFor({ blindRally: false, treasureHunt: true });
