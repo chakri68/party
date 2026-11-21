@@ -152,6 +152,13 @@ interface RoomData {
    * has been skipped once already. A person's move or another seat's clears it.
    */
   botRun?: { seatId: string; moves: number; skipped: boolean };
+  /** The host locked the room: new people can't join. Optional: older rooms are open. */
+  locked?: boolean;
+  /**
+   * Resume tokens of seats dropped for being away, kept for the room's life (newest
+   * 64). A locked room lets these people back in, once each.
+   */
+  returnTokens?: string[];
 }
 
 const STORAGE_KEY = "room";
@@ -487,6 +494,11 @@ export class RoomRuntime {
       // A room whose host timed out while nobody else was around gets one now.
       this.ensureHost();
     } else {
+      if (data.locked && data.phase !== "ended" && !owner) {
+        const at = msg.resumeToken ? (data.returnTokens ?? []).indexOf(msg.resumeToken) : -1;
+        if (at < 0) return this.fatal(conn, "room-locked", "The host locked this room.");
+        data.returnTokens!.splice(at, 1);
+      }
       const def = this.games[data.gameId]!;
       const late = data.phase === "playing";
       if (late && !def.manifest.lateJoin) {
@@ -666,6 +678,19 @@ export class RoomRuntime {
         return this.broadcastChat([line]);
       }
 
+      case "lock-room": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        if (!!data.locked === msg.locked) return;
+        data.locked = msg.locked;
+        return this.commit([]);
+      }
+
+      case "transfer-host":
+      case "restart-game":
+      case "pause-game":
+        // Handled in later tasks.
+        return this.error(conn, "not-available", "You can't do that right now.");
+
       case "return-to-lobby":
         // Mid-game too: the host can bail on a game that's dragging.
         if (!hostOnly() || !inPhase("playing", "results")) return;
@@ -730,7 +755,7 @@ export class RoomRuntime {
       case "remove-player": {
         if (!hostOnly()) return;
         const target = data.seats.find((s) => s.id === msg.playerId && s.presence !== "left");
-        if (!target || target.id === seat.id) return this.error(conn, "not-available", "You can't remove them.");
+        if (!target || target.id === seat.id || target.owner) return this.error(conn, "not-available", "You can't remove them.");
         // Mid-game, only once the grace period has run out (§12.1).
         if (data.phase === "playing" && target.presence !== "disconnected") {
           return this.error(conn, "too-early", "This player may come back. Wait until the player shows as disconnected.");
@@ -779,6 +804,7 @@ export class RoomRuntime {
     if (!this.botsAllowed(def)) return this.botsBlock(conn);
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
+    for (const s of data.seats) if (s.presence !== "connected") this.rememberAway(s);
     data.seats = data.seats.filter((s) => s.presence === "connected");
     this.ensureHost();
 
@@ -853,6 +879,7 @@ export class RoomRuntime {
       if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
     }
     // Disconnected seats were only kept for the game; their grace is long spent.
+    for (const s of data.seats) if (s.presence === "disconnected") this.rememberAway(s);
     data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
     this.ensureHost();
     this.resetReady();
@@ -1121,8 +1148,17 @@ export class RoomRuntime {
       seat.presence = "disconnected";
       this.ensureHost();
     } else {
+      this.rememberAway(seat);
       this.removeSeat(seat);
     }
+  }
+
+  /** Keeps the resume token of a seat dropped for being away, so a locked room lets it back in. */
+  private rememberAway(seat: SeatData): void {
+    if (seat.bot || !seat.resumeToken) return;
+    const tokens = ((this.data!.returnTokens ??= []));
+    tokens.push(seat.resumeToken);
+    if (tokens.length > 64) tokens.splice(0, tokens.length - 64);
   }
 
   /**
@@ -1235,6 +1271,8 @@ export class RoomRuntime {
       canStart: this.ownerHere(),
       setupProblem: this.setupProblem(),
       tier: this.tier(),
+      locked: !!data.locked,
+      paused: false,
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,

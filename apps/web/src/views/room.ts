@@ -31,6 +31,7 @@ const FATAL_COPY: Record<string, string> = {
   "game-in-progress": "A game is already going on. You can join after this round.",
   "replaced-by-new-connection": "This room is open in another tab.",
   "protocol-mismatch": "There is a new version. Refresh the page to keep playing.",
+  "room-locked": "The host locked this room.",
   removed: "The host removed you from this room.",
 };
 
