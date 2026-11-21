@@ -689,7 +689,16 @@ export class RoomRuntime {
         return this.commit([]);
       }
 
-      case "transfer-host":
+      case "transfer-host": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        const target = data.seats.find((s) => s.id === msg.playerId);
+        if (!target || target.id === seat.id || target.bot || target.presence !== "connected") {
+          return this.error(conn, "not-available", "You can't make them host.");
+        }
+        data.hostId = target.id;
+        return this.commit([]);
+      }
+
       case "restart-game":
       case "pause-game":
         // Handled in later tasks.

@@ -166,3 +166,82 @@ describe("lock room", () => {
     expect(o.closed).toBeNull();
   });
 });
+
+describe("make host", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let a: FakeConn;
+  let b: FakeConn;
+  let c: FakeConn;
+
+  const idOf = (name: string) => roomOf(a).seats.find((s) => s.name === name)!.id;
+  const give = (from: FakeConn, playerId: string) => send(room, from, { type: "transfer-host", playerId });
+  const CANT = { code: "not-available", message: "You can't make them host.", fatal: false };
+
+  beforeEach(async () => {
+    toyKnobs.decide = "normal";
+    world = new World();
+    room = new RoomRuntime("K7DX", world.host(), games, "toy");
+    await room.load();
+    await room.claim();
+    a = await join(world, room, "Ana");
+    b = await join(world, room, "Ben");
+    c = await join(world, room, "Cy");
+  });
+
+  it("hands the host role over at once", async () => {
+    const before = [a, b, c].map((p) => p.of("update").length);
+    await give(a, idOf("Ben"));
+    expect(roomOf(c).hostId).toBe(idOf("Ben"));
+    expect([a, b, c].map((p) => p.of("update").length)).toEqual(before.map((n) => n + 1));
+  });
+
+  it("refuses what it can't do", async () => {
+    await send(room, a, { type: "add-bot" });
+    const bot = roomOf(a).seats.find((s) => s.bot)!.id;
+    await world.disconnect(room, c);
+    expect(roomOf(a).seats.find((s) => s.name === "Cy")!.presence).toBe("reconnecting");
+    const version = a.last("update")!.stateVersion;
+    for (const id of [idOf("Ana"), bot, idOf("Cy"), "nobody"]) {
+      await give(a, id);
+      expect(a.last("error")).toEqual({ type: "error", ...CANT });
+    }
+    expect(a.last("update")!.stateVersion).toBe(version);
+    expect(roomOf(a).hostId).toBe(idOf("Ana"));
+  });
+
+  it("only the host", async () => {
+    await give(b, idOf("Cy"));
+    expect(b.last("error")).toMatchObject({ code: "not-host" });
+    expect(roomOf(a).hostId).toBe(idOf("Ana"));
+  });
+
+  it("the old host doesn't take it back", async () => {
+    const token = a.last("welcome")!.resumeToken;
+    await give(a, idOf("Ben"));
+    await world.disconnect(room, a);
+    const a2 = await join(world, room, "Ana", token);
+    expect(roomOf(a2).hostId).toBe(idOf("Ben"));
+    await world.disconnect(room, b);
+    await world.tick(room, GRACE_MS);
+    expect(roomOf(a2).seats.map((s) => s.name)).not.toContain("Ben");
+    expect(roomOf(a2).hostId).toBe(idOf("Ana"));
+  });
+
+  it("works mid-game", async () => {
+    await send(room, b, { type: "ready", ready: true });
+    await send(room, c, { type: "ready", ready: true });
+    await send(room, a, { type: "start-game" });
+    expect(roomOf(a).phase).toBe("playing");
+    await give(a, idOf("Ben"));
+    expect(roomOf(a).hostId).toBe(idOf("Ben"));
+    await send(room, a, { type: "return-to-lobby" });
+    expect(a.last("error")).toMatchObject({ code: "not-host" });
+  });
+
+  it("refused in an ended room", async () => {
+    await send(room, a, { type: "end-party" });
+    await give(a, idOf("Ben"));
+    expect(a.last("error")).toMatchObject({ code: "wrong-phase" });
+  });
+});
