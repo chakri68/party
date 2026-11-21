@@ -106,6 +106,7 @@ describe("trails and minor points", () => {
     }
   }, 30_000);
 
+  // About 16 s alone, nearly all in makeLayout itself (nothing to share across seeds); a busy full run needs more.
   it("1000 seeds: 60–80 minor points, few pieces are unjoined, kinds follow biomes", () => {
     let unjoined = 0;
     for (let seed = 1; seed <= 1000; seed++) {
@@ -125,7 +126,7 @@ describe("trails and minor points", () => {
       }
     }
     expect(unjoined / 1000).toBeLessThan(0.5);
-  }, 60_000);
+  }, 180_000);
 
   it("200 seeds: every kind shows on at least half the maps, and kindFor keeps to its biome", () => {
     const seen = new Map<string, number>();
