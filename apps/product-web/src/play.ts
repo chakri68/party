@@ -1,5 +1,5 @@
 import { PRODUCT_NAMES } from "@games/product-server/catalog-data";
-import { startShell } from "@games/web/shell";
+import { roomsPath, startShell } from "@games/web/shell";
 import "@games/web/style.css";
 import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
 import { takeBuyParam } from "./buy.ts";
@@ -20,7 +20,7 @@ const account = me();
 const createRoom = roomCreator(account, {
   me,
   token: getTurnstileToken,
-  create: apiCreateRoom,
+  create: (token, setup) => apiCreateRoom(token, roomsPath(setup)),
   save: saveHostKey,
 });
 // A free host needs Turnstile to make a room: have its script ready before the tap.

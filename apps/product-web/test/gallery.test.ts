@@ -45,9 +45,6 @@ describe("galleryHtml", () => {
   it("has no link for a game without computers", () => {
     expect(html({})).not.toContain("game-try");
   });
-  it("has no link on a game locked for free rooms", () => {
-    expect(html({ computers: true, pass: true })).not.toContain("game-try");
-  });
 });
 
 describe("priceTable", () => {

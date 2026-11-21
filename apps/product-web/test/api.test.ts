@@ -19,9 +19,9 @@ describe("createRoom", () => {
     expect(calls[0].url).toBe("/api/rooms");
   });
 
-  it("puts the game and computers in the query, and keeps the token header", async () => {
+  it("posts to the path it is given, and keeps the token header", async () => {
     const calls = stub();
-    await createRoom("tok", { gameId: "cheat", computers: 3 });
+    await createRoom("tok", "/api/rooms?game=cheat&computers=3");
     expect(calls[0].url).toBe("/api/rooms?game=cheat&computers=3");
     expect(calls[0].headers["x-turnstile-token"]).toBe("tok");
   });

@@ -372,9 +372,8 @@ img, svg { display: block; }
 .game-name { font-weight: 700; font-size: 1.0625rem; }
 .game-desc { color: var(--muted); font-size: 0.9375rem; line-height: 1.4; }
 .game-players { font-size: 0.875rem; font-weight: 500; color: var(--muted); }
-.game-try { justify-self: start; margin-top: 2px; font-size: 0.875rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.game-try { justify-self: start; display: inline-block; min-height: 24px; line-height: 24px; font-size: 0.875rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .game-try:hover { text-decoration-thickness: 2px; }
-.game-try:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .tag-pass {
   padding: 1px 9px;
   border-radius: 999px;

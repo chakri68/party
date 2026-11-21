@@ -62,7 +62,7 @@ export function galleryHtml(model: GallerySection[]): string {
       const items = s.games
         .map((g) => {
           const tag = g.pass ? `<span class="tag-pass">Host Pass</span>` : "";
-          const link = g.computers && !g.pass ? `<a class="game-try" href="/play?game=${encodeURIComponent(g.id)}">Play with computers</a>` : "";
+          const link = g.computers ? `<a class="game-try" href="/play?game=${encodeURIComponent(g.id)}">Play with computers</a>` : "";
           return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}</p>${link}</li>`;
         })
         .join("");
