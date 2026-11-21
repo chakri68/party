@@ -5,7 +5,7 @@ import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
-import { RoomRuntime, type Conn, type ConnState, type RoomGrant, type RoomHost, type TierLimits } from "./runtime.ts";
+import { RoomRuntime, type Conn, type ConnState, type RoomGrant, type RoomHost, type RoomSetup, type TierLimits } from "./runtime.ts";
 import type { AnyGameDefinition } from "@games/game-core";
 
 function randomToken(): string {
@@ -92,8 +92,8 @@ export class RoomBase extends Server<Env> {
   }
 
   /** RPC from the worker's create-room endpoint (§10). */
-  async claim(grant?: RoomGrant): Promise<boolean> {
-    return this.runtime.claim(grant);
+  async claim(grant?: RoomGrant, setup?: RoomSetup): Promise<boolean> {
+    return this.runtime.claim(grant, setup);
   }
 
   /** RPC: lift a free room to pass. Only the room's host key may. */
@@ -123,7 +123,7 @@ export class RoomBase extends Server<Env> {
 
 /** What createFetch needs from a room stub; tests fake it. */
 export interface RoomStub {
-  claim(grant?: RoomGrant): Promise<boolean>;
+  claim(grant?: RoomGrant, setup?: RoomSetup): Promise<boolean>;
 }
 
 export interface WorkerOptions {
@@ -141,6 +141,14 @@ export interface WaitUntil {
   waitUntil(promise: Promise<unknown>): void;
 }
 
+/** `?game=<id>&computers=<n>`. Only the shape is checked here; the room checks the rest. */
+export function parseRoomSetup(url: URL): RoomSetup | undefined {
+  const gameId = url.searchParams.get("game");
+  if (!gameId) return undefined;
+  const n = Number.parseInt(url.searchParams.get("computers") ?? "", 10);
+  return { gameId, computers: Number.isNaN(n) ? undefined : n };
+}
+
 export function createFetch(opts: WorkerOptions): (request: Request, env: ServerEnv, ctx?: WaitUntil) => Promise<Response> {
   const getRoom =
     opts.getRoom ?? ((env: ServerEnv, code: string) => getServerByName(env.Room as DurableObjectNamespace<RoomBase>, code));
@@ -150,11 +158,12 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
     if (url.pathname === "/api/rooms" && request.method === "POST") {
       const decision = await opts.policy.canCreate(request, env);
       if (!decision.ok) return decision.response;
+      const setup = parseRoomSetup(url);
       // ~1M codes, so a collision is rare and three in a row is someone's bad day.
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = generateRoomCode();
         const stub = await getRoom(env, code);
-        if (await stub.claim(decision.grant)) {
+        if (await stub.claim(decision.grant, setup)) {
           // The room is claimed and playable: the record (a database write, far
           // away on a slow route) needn't hold up the host. Awaited without a ctx.
           const record = opts.onRoomCreated?.(code, decision.grant, request);

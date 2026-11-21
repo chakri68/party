@@ -8,7 +8,7 @@ vi.mock("partyserver", () => ({
 }));
 
 import { ownerKeyPolicy, type CreateDecision, type ServerEnv } from "../src/policy.ts";
-import { createFetch } from "../src/worker.ts";
+import { createFetch, parseRoomSetup } from "../src/worker.ts";
 
 const env = (extra: Partial<ServerEnv> = {}) => ({ ...extra }) as ServerEnv;
 const post = (bearer?: string) =>
@@ -84,5 +84,52 @@ describe("createFetch", () => {
     expect(waited).toHaveLength(1);
     finish();
     await waited[0];
+  });
+});
+
+describe("parseRoomSetup", () => {
+  const parse = (q: string) => parseRoomSetup(new URL("https://x.test/api/rooms" + q));
+
+  it("reads the game and the count", () => {
+    expect(parse("?game=cheat&computers=3")).toEqual({ gameId: "cheat", computers: 3 });
+  });
+  it("leaves the count out when it is missing or not a number", () => {
+    expect(parse("?game=cheat")).toEqual({ gameId: "cheat", computers: undefined });
+    expect(parse("?game=cheat&computers=abc")).toEqual({ gameId: "cheat", computers: undefined });
+    expect(parse("?game=cheat&computers=")).toEqual({ gameId: "cheat", computers: undefined });
+  });
+  it("is undefined without a game", () => {
+    expect(parse("?computers=3")).toBeUndefined();
+    expect(parse("")).toBeUndefined();
+    expect(parse("?game=")).toBeUndefined();
+  });
+});
+
+describe("createFetch room setup", () => {
+  const policy = { canCreate: async (): Promise<CreateDecision> => ({ ok: true, grant: { tier: "pass", hostKey: null } }) };
+  const run = async (query: string) => {
+    const calls: unknown[][] = [];
+    const fetch = createFetch({
+      brand: "Test",
+      policy,
+      getRoom: async () => ({
+        claim: async (...args: unknown[]) => {
+          calls.push(args);
+          return true;
+        },
+      }),
+    });
+    const res = await fetch(new Request("https://x.test/api/rooms" + query, { method: "POST" }), env());
+    return { res, calls };
+  };
+
+  it("passes the setup to claim", async () => {
+    const { res, calls } = await run("?game=cheat&computers=3");
+    expect(res.status).toBe(200);
+    expect(calls).toEqual([[{ tier: "pass", hostKey: null }, { gameId: "cheat", computers: 3 }]]);
+  });
+  it("passes no setup without a game", async () => {
+    const { calls } = await run("");
+    expect(calls[0]![1]).toBeUndefined();
   });
 });
