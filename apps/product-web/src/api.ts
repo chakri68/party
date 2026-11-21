@@ -1,3 +1,4 @@
+import { roomsPath, type RoomSetup } from "@games/web/shell";
 import type { PlanId, Provider } from "@games/product-server/billing-plans";
 
 export type Plan = { source: string; startsAt?: number; endsAt: number | null };
@@ -53,9 +54,9 @@ export function loadConfig(): Promise<Config> {
   return config;
 }
 
-export async function createRoom(turnstileToken: string | null): Promise<{ code: string; hostKey: string } | { error: string }> {
+export async function createRoom(turnstileToken: string | null, setup?: RoomSetup): Promise<{ code: string; hostKey: string } | { error: string }> {
   try {
-    const res = await post("/api/rooms", undefined, turnstileToken ? { "x-turnstile-token": turnstileToken } : {});
+    const res = await post(roomsPath(setup), undefined, turnstileToken ? { "x-turnstile-token": turnstileToken } : {});
     const body = (await res.json()) as { code?: string; hostKey?: string; error?: string };
     if (res.ok && body.code && body.hostKey) return { code: body.code, hostKey: body.hostKey };
     return { error: body.error ?? "Could not create a room." };

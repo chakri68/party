@@ -24,8 +24,29 @@ describe("galleryModel", () => {
     expect(model.every((s) => s.games.length > 0)).toBe(true);
   });
 
+  it("marks games with computer players", () => {
+    expect(all.find((g) => g.id === "cheat")).toMatchObject({ computers: true });
+    expect(all.some((g) => g.computers)).toBe(true);
+    expect(all.some((g) => !g.computers)).toBe(true);
+  });
+
   it("writes player counts as a range", () => {
     expect(all.every((g) => /^\d+(–\d+)? players$/.test(g.players))).toBe(true);
+  });
+});
+
+describe("galleryHtml", () => {
+  const game = { id: "cheat", name: "Cheat", description: "d", players: "3–8 players" };
+  const html = (g: object) => galleryHtml([{ id: "cards", section: "Cards", games: [{ ...game, pass: false, computers: false, ...g }] }]);
+
+  it("links a game with computers to its setup", () => {
+    expect(html({ computers: true })).toContain(`<a class="game-try" href="/play?game=cheat">Play with computers</a>`);
+  });
+  it("has no link for a game without computers", () => {
+    expect(html({})).not.toContain("game-try");
+  });
+  it("has no link on a game locked for free rooms", () => {
+    expect(html({ computers: true, pass: true })).not.toContain("game-try");
   });
 });
 

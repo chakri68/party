@@ -13,6 +13,8 @@ export interface GalleryGame {
   description: string;
   players: string;
   pass: boolean;
+  /** Has computer players, and a free room can use it: the card links to a room with them. */
+  computers: boolean;
 }
 
 export interface GallerySection {
@@ -30,7 +32,8 @@ export function galleryModel(): GallerySection[] {
       .filter(([, e]) => e.section === id)
       .map(([gid, e]) => {
         const { name, description, minPlayers: lo, maxPlayers: hi } = e.manifest;
-        return { id: gid, name, description, players: lo === hi ? `${lo} players` : `${lo}–${hi} players`, pass: PREMIUM_GAME_IDS.includes(gid) };
+        const pass = PREMIUM_GAME_IDS.includes(gid);
+        return { id: gid, name, description, players: lo === hi ? `${lo} players` : `${lo}–${hi} players`, pass, computers: e.manifest.computers === true && !pass };
       }),
   })).filter((s) => s.games.length > 0);
 }
@@ -59,7 +62,8 @@ export function galleryHtml(model: GallerySection[]): string {
       const items = s.games
         .map((g) => {
           const tag = g.pass ? `<span class="tag-pass">Host Pass</span>` : "";
-          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}</p></li>`;
+          const link = g.computers && !g.pass ? `<a class="game-try" href="/play?game=${encodeURIComponent(g.id)}">Play with computers</a>` : "";
+          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}</p>${link}</li>`;
         })
         .join("");
       return `<section class="shelf" data-reveal aria-labelledby="shelf-${s.id}"><h3 class="shelf-head" id="shelf-${s.id}"><span class="shelf-icon">${sectionIcon(s.id)}</span><span>${esc(s.section)}</span></h3><ul class="shelf-games">${items}</ul></section>`;

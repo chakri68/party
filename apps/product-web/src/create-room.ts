@@ -1,9 +1,10 @@
+import type { RoomSetup } from "@games/web/shell";
 import type { Me } from "./api.ts";
 
 export interface CreateDeps {
   me(): Promise<Me>;
   token(): Promise<string>;
-  create(token: string | null): Promise<{ code: string; hostKey: string } | { error: string }>;
+  create(token: string | null, setup?: RoomSetup): Promise<{ code: string; hostKey: string } | { error: string }>;
   save(code: string, hostKey: string): void;
 }
 
@@ -18,10 +19,10 @@ const NOT_HUMAN = "Could not check you are human. Please try again.";
  * open. If a pass seen on load has run out, the server says no to the room
  * without a Turnstile token; then it asks again and retries once with one.
  */
-export function roomCreator(atLoad: Promise<Me>, deps: CreateDeps): () => Promise<Created> {
+export function roomCreator(atLoad: Promise<Me>, deps: CreateDeps): (setup?: RoomSetup) => Promise<Created> {
   let known: Promise<Me> | null = atLoad;
   /** `tokenless`: refused without a Turnstile token, which a run-out pass explains. */
-  const attempt = async (account: Promise<Me>): Promise<Created & { tokenless?: boolean }> => {
+  const attempt = async (account: Promise<Me>, setup?: RoomSetup): Promise<Created & { tokenless?: boolean }> => {
     let token: string | null = null;
     if ((await account).tier === "free") {
       try {
@@ -30,16 +31,16 @@ export function roomCreator(atLoad: Promise<Me>, deps: CreateDeps): () => Promis
         return { error: NOT_HUMAN };
       }
     }
-    const r = await deps.create(token);
+    const r = await deps.create(token, setup);
     if ("error" in r) return { error: r.error, tokenless: token === null };
     deps.save(r.code, r.hostKey);
     return { code: r.code };
   };
   const plain = ({ tokenless: _, ...r }: Created & { tokenless?: boolean }): Created => r;
-  return async () => {
+  return async (setup) => {
     const account = known ?? deps.me();
     known = null;
-    const first = await attempt(account);
-    return plain(first.tokenless ? await attempt(deps.me()) : first);
+    const first = await attempt(account, setup);
+    return plain(first.tokenless ? await attempt(deps.me(), setup) : first);
   };
 }
