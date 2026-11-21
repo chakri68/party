@@ -61,7 +61,6 @@ export interface ShellOptions {
 
 type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver">> & Pick<ShellOptions, "partyOver">;
 
-/** Today's behaviour: the owner key opens the room. */
 /** The create-room path, with the setup in the query when there is one. */
 export function roomsPath(setup?: RoomSetup): string {
   const query = new URLSearchParams();
@@ -72,6 +71,7 @@ export function roomsPath(setup?: RoomSetup): string {
   return `/api/rooms${query.size ? `?${query}` : ""}`;
 }
 
+/** Today's behaviour: the owner key opens the room. */
 async function defaultCreateRoom(setup?: RoomSetup): Promise<CreateRoomResult> {
   const res = await fetch(roomsPath(setup), {
     method: "POST",

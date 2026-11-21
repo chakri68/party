@@ -102,7 +102,8 @@ describe("parseRoomSetup", () => {
     for (const bad of ["1.5", "3x", "-2", "+2", " 3", "0", "00", "1e2", "99999999999999999999"]) {
       expect(parse(`?game=cheat&computers=${encodeURIComponent(bad)}`), bad).toEqual({ gameId: "cheat", computers: undefined });
     }
-    expect(parse("?game=cheat&computers=07")).toEqual({ gameId: "cheat", computers: 7 });  });
+    expect(parse("?game=cheat&computers=07")).toEqual({ gameId: "cheat", computers: 7 });
+  });
   it("is undefined without a game", () => {
     expect(parse("?computers=3")).toBeUndefined();
     expect(parse("")).toBeUndefined();
