@@ -13,11 +13,15 @@ describe("setupFromUrl", () => {
   it("ignores an unknown game", () => {
     expect(setupFromUrl(url("?game=nope&computers=3"))).toBeUndefined();
     expect(setupFromUrl(url(""))).toBeUndefined();
+    for (const odd of ["constructor", "__proto__", "toString"]) {
+      expect(setupFromUrl(url(`?game=${odd}`))).toBeUndefined();
+    }
   });
 
   it("ignores a game without computers", () => {
     const id = Object.keys(games).find((k) => !games[k]!.manifest.computers);
-    if (id) expect(setupFromUrl(url(`?game=${id}`))).toBeUndefined();
+    expect(id).toBeDefined();
+    expect(setupFromUrl(url(`?game=${id}`))).toBeUndefined();
   });
 
   it("leaves out a bad count", () => {
@@ -30,6 +34,9 @@ describe("setupFromUrl", () => {
 describe("createLabel", () => {
   it("names the game when there is a setup", () => {
     expect(createLabel({ gameId: "cheat" })).toBe("Play Cheat with computers");
+  });
+  it("does not throw for an odd game name", () => {
+    expect(createLabel({ gameId: "constructor" })).toBe("Play a game with computers");
   });
   it("is Create room otherwise", () => {
     expect(createLabel(undefined)).toBe("Create room");

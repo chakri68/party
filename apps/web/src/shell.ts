@@ -31,7 +31,7 @@ export type CreateRoomResult = { code: string } | { error: string; forgetKey?: b
 /** The setup a link asks for: only for a game that has computers. A bad count is left out. */
 export function setupFromUrl(url: URL): RoomSetup | undefined {
   const gameId = url.searchParams.get("game") ?? "";
-  if (!games[gameId]?.manifest.computers) return undefined;
+  if (!Object.hasOwn(games, gameId) || !games[gameId]?.manifest.computers) return undefined;
   const raw = url.searchParams.get("computers") ?? "";
   const n = /^\d+$/.test(raw) ? Number(raw) : 0;
   return Number.isSafeInteger(n) && n > 0 ? { gameId, computers: n } : { gameId };
@@ -39,7 +39,7 @@ export function setupFromUrl(url: URL): RoomSetup | undefined {
 
 /** The create button's text. */
 export function createLabel(setup: RoomSetup | undefined): string {
-  return setup ? `Play ${games[setup.gameId]?.manifest.name ?? "a game"} with computers` : "Create room";
+  return setup ? `Play ${(Object.hasOwn(games, setup.gameId) && games[setup.gameId]?.manifest.name) || "a game"} with computers` : "Create room";
 }
 
 export interface ShellOptions {
