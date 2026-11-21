@@ -8,5 +8,6 @@ export const presidentManifest: GameManifest = {
   maxPlayers: 8,
   bestMinPlayers: 4,
   bestMaxPlayers: 6,
+  computers: true,
   icon: "cards",
 };

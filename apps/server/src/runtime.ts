@@ -77,6 +77,12 @@ export interface RoomGrant {
   hostKey: string | null;
 }
 
+/** What a room starts as, from a link: a game, with some computers already seated. */
+export interface RoomSetup {
+  gameId: string;
+  computers?: number;
+}
+
 export interface RoomHost {
   storage: RoomStorage;
   connections(): Iterable<Conn>;
@@ -241,7 +247,7 @@ export class RoomRuntime {
   }
 
   /** Claims this room code. False if it's already taken (§10). */
-  claim(grant: RoomGrant = { tier: "pass", hostKey: null }): Promise<boolean> {
+  claim(grant: RoomGrant = { tier: "pass", hostKey: null }, setup?: RoomSetup): Promise<boolean> {
     return this.run(async () => {
       if (this.data) return false;
       const def = this.games[this.defaultGameId]!;
@@ -263,11 +269,48 @@ export class RoomRuntime {
         tier: grant.tier,
         hostKey: grant.hostKey,
       };
+      if (setup) this.applySetup(setup);
       // Covers the room nobody ever joins.
       this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
       await this.persist();
       return true;
     });
+  }
+
+  /**
+   * Start the new room on the asked game with computers seated. A bad setup
+   * (unknown game, no computers in it, locked for this tier) is ignored: the
+   * room stays the normal empty one. Needs `this.data`, for the tier rules.
+   */
+  private applySetup(setup: RoomSetup): void {
+    const data = this.data!;
+    const def = this.games[setup.gameId];
+    if (!def?.bot || this.lockedGameIds().includes(setup.gameId)) return;
+    const m = def.manifest;
+    const most = this.maxSeats(def) - 1;
+    if (most < 1) return;
+    const asked = Number.isInteger(setup.computers) ? setup.computers! : Math.max(1, (m.bestMinPlayers ?? m.minPlayers) - 1);
+    data.gameId = setup.gameId;
+    data.settings = def.defaultSettings;
+    for (let i = Math.min(Math.max(asked, 1), most); i > 0; i--) data.seats.push(this.seatBot());
+  }
+
+  /** A new computer seat, named from the list. The caller adds it to the room. */
+  private seatBot(): SeatData {
+    const data = this.data!;
+    const taken = new Set(data.seats.map((s) => s.name.toLowerCase()));
+    const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Computer ${data.seats.length + 1}`;
+    return {
+      id: "bot-" + this.host.randomToken().slice(0, 8),
+      name,
+      avatarSeed: "bot-" + name,
+      resumeToken: "",
+      ready: true,
+      presence: "connected",
+      joinedAt: this.host.now(),
+      owner: false,
+      bot: true,
+    };
   }
 
   /** free → pass, in place. Never the other way: a lapsed pass can't close an open room. */
@@ -707,19 +750,7 @@ export class RoomRuntime {
         if (!def.bot) return this.error(conn, "not-available", "This game can't have computers.");
         // Not "room-full": that one is fatal and would close the host's socket.
         if (this.activeSeats().length >= this.maxSeats(def)) return this.error(conn, "not-available", "The table is full.");
-        const taken = new Set(data.seats.map((s) => s.name.toLowerCase()));
-        const name = BOT_NAMES.find((n) => !taken.has(n.toLowerCase())) ?? `Computer ${data.seats.length + 1}`;
-        data.seats.push({
-          id: "bot-" + this.host.randomToken().slice(0, 8),
-          name,
-          avatarSeed: "bot-" + name,
-          resumeToken: "",
-          ready: true,
-          presence: "connected",
-          joinedAt: this.host.now(),
-          owner: false,
-          bot: true,
-        });
+        data.seats.push(this.seatBot());
         return this.commit([]);
       }
 

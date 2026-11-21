@@ -8,5 +8,6 @@ export const thornsManifest: GameManifest = {
   maxPlayers: 6,
   bestMinPlayers: 4,
   bestMaxPlayers: 6,
+  computers: true,
   icon: "rose",
 };

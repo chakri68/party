@@ -8,5 +8,6 @@ export const oldMaidManifest: GameManifest = {
   maxPlayers: 10,
   bestMinPlayers: 3,
   bestMaxPlayers: 6,
+  computers: true,
   icon: "cards",
 };

@@ -77,6 +77,8 @@ Some games let the host add computer players, so a small group can still play. F
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
+A link can also start a new room on a game that has computers, with some already seated. The first person to join is still the host. If the game is locked for the room, the room starts as a normal empty one.
+
 In the lobby, a person always gets a seat. If the room is full, a computer leaves to make space. During a game, a full room stays full.
 
 While computers are seated, games that can't have computers are greyed out with "Remove computers to play this". **Remove computers** in the game list takes them all out at once. The start button also stays off until you do.

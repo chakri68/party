@@ -8,5 +8,6 @@ export const cheatManifest: GameManifest = {
   maxPlayers: 10,
   bestMinPlayers: 4,
   bestMaxPlayers: 6,
+  computers: true,
   icon: "cards",
 };

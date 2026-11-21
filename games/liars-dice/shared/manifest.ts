@@ -8,5 +8,6 @@ export const liarsDiceManifest: GameManifest = {
   maxPlayers: 8,
   bestMinPlayers: 3,
   bestMaxPlayers: 6,
+  computers: true,
   icon: "dice",
 };

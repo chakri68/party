@@ -8,5 +8,6 @@ export const overheatManifest: GameManifest = {
   maxPlayers: 8,
   bestMinPlayers: 3,
   bestMaxPlayers: 5,
+  computers: true,
   icon: "cards",
 };
