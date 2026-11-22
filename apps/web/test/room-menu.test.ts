@@ -1,5 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
 import { describe, expect, it } from "vitest";
+import { focusPhase } from "../src/views/focus.ts";
 import { ROOM_MENU_LABELS, roomMenuItems } from "../src/views/room-menu.ts";
 
 const room = (extra: Partial<RoomPublicState> = {}): RoomPublicState =>
@@ -60,10 +61,38 @@ describe("the room menu", () => {
     expect(items).toEqual(["sounds", "reactions", "voice", "settings", "home"]);
   });
 
-  it("empty outside a game", () => {
+  it("lobby and results: the same list, never the host items", () => {
     const o = { board: true, voice: "join", pausable: true } as const;
-    expect(roomMenuItems(room({ phase: "lobby" }), "amy", o)).toEqual([]);
-    expect(roomMenuItems(room({ phase: "results" }), "amy", o)).toEqual([]);
+    for (const phase of ["lobby", "results"] as const) {
+      expect(roomMenuItems(room({ phase }), "amy", o), phase).toEqual(["sounds", "reactions", "join-voice", "settings", "home"]);
+      expect(roomMenuItems(room({ phase }), "ben", o)).toEqual(roomMenuItems(room({ phase }), "amy", o));
+      expect(roomMenuItems(room({ phase, paused: true }), "amy", { ...o, voice: "voice" })).toEqual(["sounds", "reactions", "voice", "settings", "home"]);
+    }
+  });
+
+  it("says when voice does not work here, where Join voice would be, on every room screen", () => {
+    for (const phase of ["lobby", "playing", "results"] as const) {
+      expect(roomMenuItems(room({ phase }), "ben", { board: true, voice: "unsupported", pausable: true }), phase).toEqual([
+        "sounds",
+        "reactions",
+        "no-voice",
+        "settings",
+        "home",
+      ]);
+    }
+  });
+
+  it("empty when the party is over", () => {
+    const o = { board: true, voice: "join", pausable: true } as const;
+    expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual([]);
+  });
+
+  it("focus screens: lobby, playing and results", () => {
+    expect(focusPhase("lobby")).toBe(true);
+    expect(focusPhase("playing")).toBe(true);
+    expect(focusPhase("results")).toBe(true);
+    expect(focusPhase("ended")).toBe(false);
+    expect(focusPhase(null)).toBe(false);
   });
 
   it("labels every item in plain words", () => {
@@ -78,6 +107,7 @@ describe("the room menu", () => {
       restart: "Restart",
       "end-game": "End game",
       home: "Home",
+      "no-voice": "Voice does not work in this browser.",
     });
   });
 });
