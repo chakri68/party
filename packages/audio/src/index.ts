@@ -231,7 +231,9 @@ class Feedback {
       made.addEventListener?.("statechange", () => this.notifyContext(made));
       this.notifyContext(made);
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    // iOS reports "interrupted" (a call, the screen lock); a tap clears it too.
+    const state = this.ctx.state as string;
+    if (state === "suspended" || state === "interrupted") this.ctx.resume().catch(() => {});
   }
 
   /** ~120 KB all in; each one is optional, since the synth covers for it. */
