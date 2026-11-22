@@ -5,6 +5,7 @@ import {
   normalizeRoomCode,
   NUDGE_AFTER_MS,
   SKIP_AFTER_MS,
+  type RoomPhase,
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
@@ -21,11 +22,12 @@ import { resultHeadline } from "./headline.ts";
 import { closedView, recapView } from "./recap.ts";
 import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
-import { SoundBoardView } from "./sound-board.ts";
+import { soundBoardModel, SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
-import { VoiceBar } from "./voice-bar.ts";
+import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
+import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
 import { MeshTransport } from "../voice/mesh.ts";
 import { voicePrefs } from "../voice/prefs.ts";
@@ -84,6 +86,19 @@ export class RoomView implements View {
   private code: string;
   private root = h("main", { class: "room" });
   private header = h("header", { class: "room-header" });
+  /**
+   * The header's rebuilt parts, around the voice mic (in a game, in voice).
+   * The mic sits between them and is never re-inserted, so a held talk press
+   * survives a header update. Both parts are `display: contents`: their
+   * children lay out as the header's own.
+   */
+  private headerStart = h("span", { class: "header-part" });
+  private headerEnd = h("span", { class: "header-part header-end" });
+  /** The phase the header and voice bar show; it trails the room on the results delay. */
+  private shownPhase: RoomPhase | null = null;
+  private menuDialog: HTMLDialogElement | null = null;
+  /** Kept, not rebuilt: panels opened from the menu hand focus back to it. */
+  private menuButton = h("button", { type: "button", class: "icon-btn room-menu-button", "aria-label": "Room menu", "aria-haspopup": "dialog", onclick: () => this.openMenu() }, icon("more"));
   private body = h("div", { class: "room-body" });
   private toast = h("div", { class: "toast", role: "alert" });
 
@@ -130,6 +145,7 @@ export class RoomView implements View {
   }
 
   mount(container: HTMLElement) {
+    this.header.append(this.headerStart, this.headerEnd);
     this.root.append(this.header, this.body, this.toast);
     this.turn.mount(this.root);
     container.append(this.root);
@@ -152,6 +168,7 @@ export class RoomView implements View {
     clearTimeout(this.stuckTimer);
     clearInterval(this.ticker);
     this.detachDebug?.();
+    this.menuDialog?.close();
     this.voice?.stop();
     this.unwatchFrames?.();
     this.ptt?.destroy();
@@ -249,6 +266,8 @@ export class RoomView implements View {
     const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"));
     // Above the body and outside the game host: game swaps never move it.
     this.header.after(bar.el);
+    // Once, in its own slot: renderHeader rebuilds only the parts around it.
+    this.headerStart.after(bar.headerMic);
     this.playback = playback;
     this.voice = voice;
     this.ptt = ptt;
@@ -354,6 +373,10 @@ export class RoomView implements View {
         this.dropGameView();
         if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
+      // The menu was built for that phase and host: it goes, so it never sits over a new screen.
+      if (prev && (prev.room.phase !== u.room.phase || (prev.room.hostId === client.playerId) !== (u.room.hostId === client.playerId))) {
+        this.menuDialog?.close();
+      }
       voice.onRoom(u.room);
       this.soundView?.render(u.room, client.playerId);
       this.render();
@@ -377,7 +400,7 @@ export class RoomView implements View {
     client.on("fatal", ({ code, message }) => {
       // Another tab took over, removed, locked out: the mic goes off here.
       voice.stop();
-      this.voiceBar?.render(null);
+      this.setPhase(null);
       this.soundView?.render(null, null);
       // A seat that no longer exists isn't worth resuming.
       if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
@@ -400,6 +423,8 @@ export class RoomView implements View {
 
   private showStuck() {
     this.stuck = true;
+    // Its host items no longer reach the room.
+    this.menuDialog?.close();
     const screen = h(
       "section",
       { class: "message" },
@@ -439,26 +464,134 @@ export class RoomView implements View {
 
   // ---- rendering ----------------------------------------------------------
 
+  /**
+   * The header's two looks. Lobby and results: the brand, the room code and
+   * every room button. In a game (seated): one slim row, the room code and
+   * signal on the left; the mic (in voice, its own slot), chat and the Room
+   * menu on the right. The board and emote wraps stay in the DOM in a game,
+   * buttons hidden by CSS, so their panels still open (from the menu).
+   */
   private renderHeader() {
     const status = this.client?.status;
+    const seated = !!this.client?.playerId && status !== "closed";
+    const game = seated && this.shownPhase === "playing";
+    this.header.classList.toggle("in-game", game);
+    const conn = status === "reconnecting" || status === "connecting"
+      ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
+      : null;
+    const code = h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code);
+    const signal = status === "open" ? this.signal.el : null;
+    if (game) {
+      replaceChildren(this.headerStart, code, signal, conn);
+      replaceChildren(
+        this.headerEnd,
+        this.chat?.button,
+        this.menuButton,
+        this.soundView?.wrap,
+        this.emotes?.wrap,
+        this.debugToggle,
+      );
+      return;
+    }
     replaceChildren(
-      this.header,
+      this.headerStart,
       h(
         "a",
         { href: shellConfig().brand.homeHref, class: "brand", "aria-label": shellConfig().brand.label },
         brandMark(),
         h("span", {}, shellConfig().brand.wordmark, h("span", { class: "dot" }, ".")),
       ),
-      h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code),
-      status === "open" ? this.signal.el : null,
+      code,
+      signal,
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       // Once seated: before that there's nobody to talk as.
-      this.client?.playerId && status !== "closed" ? [this.soundView?.wrap, this.emotes?.wrap, this.chat?.button] : null,
-      status === "reconnecting" || status === "connecting"
-        ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
-        : null,
+      seated ? [this.soundView?.wrap, this.emotes?.wrap, this.chat?.button] : null,
+      conn,
       this.debugToggle,
     );
+    replaceChildren(this.headerEnd);
+  }
+
+  /**
+   * The screen now shows this phase: the voice bar and the header follow it.
+   * Called inside the screen swap, so a view transition's pictures agree.
+   */
+  private setPhase(phase: RoomPhase | null) {
+    const was = this.shownPhase;
+    this.shownPhase = phase;
+    this.voiceBar?.render(phase);
+    if (was === phase) return;
+    this.menuDialog?.close();
+    // Into or out of a game the reaction bar's anchor moves: it closes, like the sound board does on any phase change.
+    if ((was === "playing") !== (phase === "playing")) this.emotes?.toggle(false);
+    this.renderHeader();
+  }
+
+  /**
+   * The Room menu (in a game): the room's own buttons, each doing exactly what
+   * it does outside a game. What it lists is `roomMenuItems` (tested).
+   */
+  private openMenu() {
+    const u = this.last;
+    const client = this.client;
+    const me = client?.playerId;
+    if (!u || !client || !me || this.menuDialog) return;
+    const room = u.room;
+    // The menu follows the screen: just after the last move the room is on
+    // results but the game is still shown, and the room buttons stay in reach.
+    const items = roomMenuItems({ ...room, phase: this.shownPhase ?? room.phase }, me, {
+      board: soundBoardModel(room, me, this.board?.list() ?? [], audio.settings.sound && audio.settings.roomSounds).button,
+      voice: this.voice ? voiceMenuItem(this.voice.view()) : null,
+      pausable: !!games[room.gameId]?.manifest.pausable,
+      // Only while the game runs and the room can hear us: elsewhere they would do nothing.
+      hostActions: room.phase === "playing" && !this.stuck,
+    });
+    if (!items.length) return;
+    const opener = this.menuButton;
+    const act: Record<RoomMenuItem, () => void> = {
+      sounds: () => this.soundView?.toggle(true, opener),
+      reactions: () => this.emotes?.toggle(true, opener),
+      "join-voice": () => void this.voiceBar?.startJoin(),
+      voice: () => this.voiceBar?.openPanel(),
+      settings: () => this.openSettings(),
+      pause: () => client.send({ type: "pause-game", paused: true }),
+      resume: () => client.send({ type: "pause-game", paused: false }),
+      restart: () => confirm("Restart this game for everyone?") && client.send({ type: "restart-game" }),
+      // The escape hatch for a game that's gone stale: everyone back to the lobby.
+      "end-game": () => confirm("End this game for everyone? Everyone goes back to the lobby.") && client.send({ type: "return-to-lobby" }),
+      home: () => {},
+    };
+    const dlg = h(
+      "dialog",
+      { class: "dialog room-menu", "aria-label": "Room menu" },
+      h("h2", {}, "Room menu"),
+      h(
+        "div",
+        { class: "dialog-list" },
+        items.map((item) =>
+          item === "home"
+            // The same link as the header logo outside a game. The menu closes; the link goes on.
+            ? h("a", { href: shellConfig().brand.homeHref, class: "dialog-link", onclick: () => dlg.close() }, ROOM_MENU_LABELS.home)
+            : h("button", {
+                type: "button",
+                class: item === "end-game" ? "danger" : "",
+                onclick: () => {
+                  dlg.close();
+                  act[item]();
+                },
+              }, ROOM_MENU_LABELS[item]),
+        ),
+      ),
+      h("form", { method: "dialog" }, h("button", {}, "Close")),
+    ) as HTMLDialogElement;
+    this.menuDialog = dlg;
+    dlg.addEventListener("close", () => {
+      if (this.menuDialog === dlg) this.menuDialog = null;
+      dlg.remove();
+    });
+    closeOnBackdrop(dlg);
+    document.body.append(dlg);
+    dlg.showModal();
   }
 
   private render() {
@@ -487,7 +620,7 @@ export class RoomView implements View {
       this.show("lobby", () => {
         this.dropGameView();
         replaceChildren(this.body, lobby);
-        this.voiceBar?.render("lobby");
+        this.setPhase("lobby");
       });
       return;
     }
@@ -507,7 +640,7 @@ export class RoomView implements View {
         const panel = this.results(latest.room, me, !canTransition());
         this.show("results", () => {
           arrange(this.body, panel, this.controls, this.gameHost);
-          this.voiceBar?.render("results");
+          this.setPhase("results");
         });
       });
       return;
@@ -519,7 +652,7 @@ export class RoomView implements View {
     const panel = room.phase === "results" ? this.results(room, me, arriving) : null;
     this.show(room.phase, async () => {
       arrange(this.body, panel, this.controls, this.gameHost);
-      this.voiceBar?.render(room.phase);
+      this.setPhase(room.phase);
       // Awaited so the transition's "after" picture has the game in it.
       const view = await this.ensureGameView(room.gameId);
       if (view && this.last === u) {
@@ -653,25 +786,6 @@ export class RoomView implements View {
           }, `Remove ${s.name}`),
         );
       }
-      if (games[room.gameId]?.manifest.pausable) {
-        items.push(
-          h("button", { type: "button", onclick: () => client.send({ type: "pause-game", paused: !room.paused }) }, room.paused ? "Resume" : "Pause"),
-        );
-      }
-      items.push(
-        h("button", {
-          type: "button",
-          onclick: () => confirm("Restart this game for everyone?") && client.send({ type: "restart-game" }),
-        }, "Restart"),
-      );
-      // The escape hatch for a game that's gone stale: everyone back to the lobby.
-      items.push(
-        h("button", {
-          type: "button",
-          class: "link end-game",
-          onclick: () => confirm("End this game for everyone? Everyone goes back to the lobby.") && client.send({ type: "return-to-lobby" }),
-        }, "End game"),
-      );
     }
     replaceChildren(this.controls, items);
   }
@@ -1189,7 +1303,7 @@ export class RoomView implements View {
     this.show("ended", () => {
       this.dropGameView();
       replaceChildren(this.body, screen);
-      this.voiceBar?.render("ended");
+      this.setPhase("ended");
     });
   }
 

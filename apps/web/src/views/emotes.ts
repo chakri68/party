@@ -23,6 +23,8 @@ export class Emotes {
   private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Send a reaction", "aria-expanded": "false" }, icon("smile"));
   private bar = h("div", { class: "emote-bar", role: "group", "aria-label": "Reactions", hidden: true });
   private opts: EmotesOptions;
+  /** Opened from somewhere else (the room menu, with this button hidden): Escape goes back there. */
+  private from: HTMLElement | null = null;
 
   constructor(opts: EmotesOptions) {
     this.opts = opts;
@@ -31,16 +33,27 @@ export class Emotes {
     this.wrap.append(this.button, this.bar);
     this.wrap.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !this.bar.hidden) {
+        const back = this.from ?? this.button;
         this.toggle(false);
-        this.button.focus();
+        back.focus();
       }
     });
     document.addEventListener("pointerdown", this.onOutside);
   }
 
-  toggle(open = this.bar.hidden) {
+  /**
+   * `from`: opened by another control while the header button is hidden (in a
+   * game). Focus goes into the bar, so Escape works there, and back to `from`.
+   */
+  toggle(open = this.bar.hidden, from?: HTMLElement) {
     this.bar.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
+    this.from = open ? (from ?? null) : null;
+    // Focusable only then: outside a game a tap on the bar leaves focus (and Space) as before.
+    if (open && from) {
+      this.bar.tabIndex = -1;
+      this.bar.focus();
+    } else if (!open) this.bar.removeAttribute("tabindex");
   }
 
   show(from: string, emoji: Reaction) {

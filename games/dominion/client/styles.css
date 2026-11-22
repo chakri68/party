@@ -753,7 +753,7 @@
    to one line, the HUD hugs the corners, and the inspector becomes a sheet
    down the right instead of eating the bottom of an already short map. */
 @media (orientation: landscape) and (max-height: 540px) {
-  /* One thin line of shell: the logo mark, the room's controls beside it, code and buttons on the right. */
+  /* One thin line of shell: code and signal on the left, the room's controls in the middle, mic, chat and the menu on the right. */
   .room:has(.dominion) { position: relative; }
   .room:has(.dominion) .room-header { padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); gap: 8px; }
   .room:has(.dominion) .room-header .brand > span:not(.mark) { display: none; }
@@ -761,7 +761,8 @@
   .room:has(.dominion) .turn-controls:not(:empty) {
     position: absolute;
     top: 4px;
-    left: 56px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 3;
     width: auto;
     min-height: 32px;

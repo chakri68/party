@@ -61,6 +61,8 @@ export class SoundBoardView {
   private switchMessage: ClientMessage | null = null;
   private coolTimer: ReturnType<typeof setTimeout> | undefined;
   private offChange: () => void;
+  /** Opened from somewhere else (the room menu, with this button hidden): Escape goes back there. */
+  private from: HTMLElement | null = null;
 
   constructor(board: BoardPart, opts: SoundBoardViewOptions) {
     this.board = board;
@@ -73,8 +75,9 @@ export class SoundBoardView {
     this.wrap.append(this.button, this.panel);
     this.wrap.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !this.panel.hidden) {
+        const back = this.from ?? this.button;
         this.toggle(false);
-        this.button.focus();
+        back.focus();
       }
     });
     document.addEventListener("pointerdown", this.onOutside);
@@ -84,9 +87,19 @@ export class SoundBoardView {
     });
   }
 
-  toggle(open = this.panel.hidden) {
+  /**
+   * `from`: opened by another control while the header button is hidden (in a
+   * game). Focus goes into the panel, so Escape works there, and back to `from`.
+   */
+  toggle(open = this.panel.hidden, from?: HTMLElement) {
     this.panel.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
+    this.from = open ? (from ?? null) : null;
+    // Focusable only then: outside a game a tap on the panel leaves focus (and Space) as before.
+    if (open && from) {
+      this.panel.tabIndex = -1;
+      this.panel.focus();
+    } else if (!open) this.panel.removeAttribute("tabindex");
   }
 
   render(room: RoomPublicState | null, me: string | null): void {

@@ -173,6 +173,22 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
   .room-header { gap: 8px; }
   .room-header .conn { position: absolute; top: calc(100% - 12px); left: 0; font-size: 0.75rem; line-height: 1; }
 }
+/* The header's rebuilt parts (room.ts): no boxes of their own, so their
+   children lay out as the header's, around the voice mic's fixed slot. */
+.header-part { display: contents; }
+/* In a game: one slim row. The room code and signal on the left; the mic (in
+   voice), chat and the Room menu on the right. At 360 px: 328 px inside the
+   padding; code about 64 + signal 20 + three 40 px buttons + four 8 px gaps,
+   about 236 px. */
+.room-header.in-game .room-code { margin-left: 0; }
+.room-header.in-game .voice-header-mic,
+.room-header.in-game .voice-header-mic[hidden] + .header-end > .chat-btn,
+.room-header.in-game .header-part:first-child + .header-end > .chat-btn { margin-left: auto; }
+/* The board and reaction buttons are in the Room menu in a game. Their wraps
+   stay (so the panels open) but make no box: the panels hang from the
+   header's right edge, and no empty item takes a gap. */
+.room-header.in-game :is(.sound-wrap, .emote-wrap) { display: contents; }
+.room-header.in-game :is(.sound-wrap, .emote-wrap) > .icon-btn { display: none; }
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .game-host { flex: 1; display: flex; flex-direction: column; }
 
@@ -599,13 +615,14 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings input[type="range"] { width: 150px; min-height: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
 .settings label:has(input:disabled) { opacity: 0.6; }
 
-/* Voice (views/voice-bar.ts): above the body, outside the game host. Compact in
-   a game, the full panel in the lobby and on results. Every target is 44 px. */
+/* Voice (views/voice-bar.ts): above the body, outside the game host. The full
+   panel in the lobby and on results; in a game only the tap prompts, and the
+   mic sits in the room header. Every target is 44 px, 40 px in the room header. */
 .voice-bar { display: grid; gap: 8px; margin-bottom: 12px; }
 .voice-bar[data-layout="panel"] { max-width: 480px; width: 100%; margin: 0 auto 16px; padding: 12px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .voice-join { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
 .voice-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.voice-bar .icon-btn {
+:is(.voice-bar, .voice-actions) .icon-btn {
   min-height: 44px;
   min-width: 44px;
   padding: 0;
@@ -614,8 +631,8 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   border-radius: 12px;
   color: var(--muted);
 }
-.voice-bar .icon-btn:hover { color: var(--ink); }
-.voice-bar .icon-btn.pressed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+:is(.voice-bar, .voice-actions) .icon-btn:hover { color: var(--ink); }
+:is(.voice-bar, .voice-actions) .icon-btn.pressed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
 .voice-mic { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; }
 .voice-mic.pressed:not(.hold) { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
 /* A hold button: no text menu or selection on a long press, no scroll from the finger. */
@@ -629,11 +646,13 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .voice-taps { display: flex; flex-wrap: wrap; gap: 8px; }
 .voice-taps button { flex: 1; min-height: 44px; }
 .voice-note { margin: 0; font-size: 0.85rem; }
-/* In a game the note is one fixed line, empty or not: a talk press or a Mute never moves the game. */
-.voice-bar[data-layout="compact"] .voice-note { height: 1.4em; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* In a game and out of voice: one small button, no extra space. */
-.voice-bar[data-layout="compact"][data-show="join"] { margin-bottom: 0; }
-.voice-bar[data-layout="compact"] .voice-join { padding: 0 12px; font-size: 0.9rem; }
+/* In a game, the mic in the room header: its icon only (the label stays as aria-label), with a small dot. */
+.voice-header-mic { position: relative; display: inline-flex; align-items: center; }
+.voice-header-mic .voice-mic { min-height: 40px; min-width: 40px; padding: 0; justify-content: center; border-radius: 12px; }
+.voice-header-mic .voice-mic-label { display: none; }
+.voice-header-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); pointer-events: none; }
+.voice-header-dot[data-state="good"] { background: var(--line); }
+.voice-header-dot.on { background: var(--accent); }
 .voice-people-button { justify-self: start; min-height: 44px; padding: 0 14px; font-size: 0.9rem; }
 /* Read by screen readers, not drawn. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
@@ -667,8 +686,6 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .turn-controls:empty { display: none; }
 .turn-controls p { flex: 0 0 100%; margin: 0; }
 .turn-controls button { flex: 1; }
-/* Sits on its own line under the turn buttons, quiet enough not to be hit by accident. */
-.turn-controls .end-game { flex: 0 0 100%; }
 button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
 .seats .kick {
   min-height: 36px;
@@ -679,7 +696,23 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
   color: var(--muted);
 }
 .seats .kick.bot-kick { margin-left: auto; }
-.seat-menu .dialog-list { display: flex; flex-direction: column; gap: 8px; }
+:is(.seat-menu, .room-menu) .dialog-list { display: flex; flex-direction: column; gap: 8px; }
+.room-menu .dialog-list { min-width: min(280px, 70vw); }
+/* Home in the Room menu: a link, drawn like the buttons around it. */
+.dialog-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.dialog-link:hover { border-color: #4a483f; }
 .lock-room { justify-self: start; min-height: 44px; }
 .paused-note { font-weight: 600; }
 
