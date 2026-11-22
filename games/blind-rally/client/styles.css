@@ -334,10 +334,26 @@
   .room:has(.blind-rally.on-seat) .room-header { padding: 2px 4px; gap: 8px; min-height: 0; }
   .room:has(.blind-rally.on-seat) .room-header .brand > span:not(.mark) { display: none; }
   .room:has(.blind-rally.on-seat) .room-header .brand .mark { width: 22px; height: 22px; }
-  .room:has(.blind-rally.on-seat) .room-header .icon-btn { width: 32px; height: 32px; min-height: 32px; min-width: 32px; }
+  .room:has(.blind-rally.on-seat) .room-header .icon-btn,
+  .room:has(.blind-rally.on-seat) .room-header .voice-header-mic .voice-mic { width: 32px; height: 32px; min-height: 32px; min-width: 32px; }
   .room:has(.blind-rally.on-seat) .room-body { gap: 4px; }
-  .room:has(.blind-rally.on-seat) .turn-controls:not(:empty) { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; }
-  .room:has(.blind-rally.on-seat) .turn-controls button { min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  /* The turn controls sit between the header's two sides, never over them.
+     From the screen edge: room padding 4 (or the safe area) + header padding 4.
+     Left side: code about 70 + gap 8 + signal 26 (32, -6 margin) = 104, + 8 =
+     112 px. Right side: mic, sound board, reactions, chat and menu, five 32 px
+     buttons + four 8 px gaps = 192, + 8 = 200 px (the mic's room is kept even
+     out of voice). */
+  .room:has(.blind-rally.on-seat) .turn-controls:not(:empty) {
+    position: absolute;
+    top: 2px;
+    left: calc(max(4px, env(safe-area-inset-left)) + 4px + 112px);
+    right: calc(max(4px, env(safe-area-inset-right)) + 4px + 200px);
+    z-index: 3;
+    margin: 0;
+    justify-content: center;
+  }
+  .room:has(.blind-rally.on-seat) .turn-controls button { flex: 0 1 auto; min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  .room:has(.blind-rally.on-seat) .turn-controls p { text-align: center; }
   .room:has(.blind-rally.on-seat) .results { max-height: 46dvh; overflow-y: auto; }
 }
 

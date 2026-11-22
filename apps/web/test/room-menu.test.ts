@@ -99,7 +99,7 @@ describe("the room menu", () => {
 
   it("labels every item in plain words", () => {
     expect(ROOM_MENU_LABELS).toEqual({
-        "join-voice": "Join voice",
+      "join-voice": "Join voice",
       voice: "Voice",
       settings: "Sound and vibration",
       pause: "Pause",

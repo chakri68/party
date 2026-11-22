@@ -61,7 +61,7 @@ Top to bottom:
 - **I'm ready** and, for the host, the start button.
 - **Leave room**.
 
-In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button, the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.
+In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.
 
 When the party is over, the header has the logo, the room code, a sound button, an emoji button and a chat button.
 
