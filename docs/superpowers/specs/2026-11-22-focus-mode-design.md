@@ -46,3 +46,12 @@ No change to lobby, results, recap, chat panel, emote floats, sound board panel 
 ## Left to the builder
 
 Menu icon; exact compact mic look; whether the board and emote panels anchor under the "..." button or under the row.
+
+## Addendum 2026-11-22: every room screen (user's call)
+
+After shipping, the user wanted the same cleanup in the lobby and on results, not only in a game ("the clean up of the UI isn't done yet", screenshot of the lobby with the Join voice box and five header icons).
+
+- The slim header and the "..." Room menu apply in `lobby`, `playing` and `results`. The `ended` (party over) screen keeps today's header.
+- The voice row (the Join voice box, and the full bar with People in voice) is gone on these screens. Join voice / Voice live in the menu; once in voice, the mic sits in the header, exactly as in a game. "Tap to turn on sound" / "Tap to talk again." still show as a row.
+- Host items in the menu (Pause/Resume, Restart, End game) still appear only in `playing` and not while stuck. Lobby host controls (Start, Change, Lock, Add computer, seat menus) stay on the page.
+- Still no behaviour change: every control does what it does today, from its new place.
