@@ -16,6 +16,8 @@ export type MicState = "on" | "muted" | "off" | "denied" | "lost";
 
 export interface VoiceMemberView {
   id: string;
+  /** This phone's own seat. */
+  self: boolean;
   selfMuted: boolean;
   hostMuted: boolean;
   speaking: boolean;
@@ -334,6 +336,12 @@ export class VoiceController {
     });
   }
 
+  /** "Tap to turn on sound": unlock the shared context and retry refused plays. Call from the tap itself. */
+  resumeSound(): void {
+    if (this.unsupported) return;
+    this.guard(() => this.deps.playback.resume());
+  }
+
   /** 0..1.5, default 1. Saved for this room by seat id. */
   setVolume(id: string, v: number): void {
     if (this.unsupported) return;
@@ -419,6 +427,7 @@ export class VoiceController {
       mode: this.prefs.mode,
       members: this.roster.map((m) => ({
         id: m.id,
+        self: m.id === selfId,
         selfMuted: m.selfMuted,
         hostMuted: m.hostMuted,
         speaking: this.speaking.get(m.id)?.speaking ?? false,
@@ -431,6 +440,20 @@ export class VoiceController {
       hasTurn: hasTurnServer(this.iceServers),
       canPickOutput,
     };
+  }
+
+  /** The saved settings, for the settings dialog. */
+  settings(): VoicePrefs {
+    return { ...this.prefs };
+  }
+
+  /** The browser's word on the mic, so "Join voice" can skip the explainer. Never throws. */
+  async micPermission(): Promise<"granted" | "denied" | "prompt" | "unknown"> {
+    try {
+      return await this.deps.micPermission();
+    } catch {
+      return "unknown";
+    }
   }
 
   subscribe(fn: () => void): () => void {

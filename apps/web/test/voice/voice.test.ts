@@ -76,7 +76,8 @@ function room(extra: Partial<RoomPublicState> = {}): RoomPublicState {
 interface Opts {
   rtc?: boolean;
   gum?: "ok" | "denied" | "unavailable" | "hang";
-  perm?: "granted" | "denied" | "prompt" | "unknown";
+  /** "throw": the permission query fails. */
+  perm?: "granted" | "denied" | "prompt" | "unknown" | "throw";
   store?: KeyValue;
   /** A transport whose every method throws. */
   badTransport?: boolean;
@@ -120,7 +121,10 @@ function setup(opts: Opts = {}) {
     mic,
     playback,
     prefs,
-    micPermission: async () => opts.perm ?? "prompt",
+    micPermission: async () => {
+      if (opts.perm === "throw") throw new Error("no permissions API");
+      return opts.perm ?? "prompt";
+    },
     newSession: () => `s${++sessions}`,
     clock,
   });
@@ -198,6 +202,7 @@ describe("VoiceController", () => {
     expect(s.t().ops("setPeers").at(-1)?.args[0]).toEqual(["b"]);
     expect(s.t().ops("applyPolicy").at(-1)?.args[0]).toEqual({ canTalk: true, hear: ["b"], sendTo: ["b"], label: "" });
     expect(s.voice.view().members.map((m) => m.id)).toEqual(["me", "b"]);
+    expect(s.voice.view().members.map((m) => m.self)).toEqual([true, false]);
   });
 
   it("mic denied joins listen only with mic denied", async () => {
@@ -676,6 +681,26 @@ describe("VoiceController", () => {
     await s.clock.advance(60_000);
     void refresh();
     expect(s.types().filter((x) => x === "voice-ice-request")).toHaveLength(4);
+  });
+
+  it("settings() gives a copy of the saved settings; micPermission() never throws", async () => {
+    const s = setup({ perm: "granted" });
+    await s.voice.updatePrefs({ mode: "ptt" });
+    const got = s.voice.settings();
+    expect(got.mode).toBe("ptt");
+    got.mode = "open";
+    expect(s.voice.settings().mode).toBe("ptt");
+    await expect(s.voice.micPermission()).resolves.toBe("granted");
+    await expect(setup({ perm: "throw" }).voice.micPermission()).resolves.toBe("unknown");
+  });
+
+  it("resumeSound() unlocks the shared context through Playback", async () => {
+    const s = await joined();
+    const resume = vi.spyOn(s.playback, "resume");
+    s.voice.resumeSound();
+    expect(resume).toHaveBeenCalledTimes(1);
+    resume.mockImplementation(boom);
+    expect(() => s.voice.resumeSound()).not.toThrow();
   });
 
   it("link states show on members, and a transport that throws never reaches the caller", async () => {

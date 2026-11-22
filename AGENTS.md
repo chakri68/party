@@ -44,6 +44,10 @@ Pause is optional. The host can pause a game that has it. To give a game pause:
 3. Add the game's id to the list in `apps/server/test/games.test.ts` ("lists exactly the games that can pause").
 4. Add one line to `docs/games/<id>.md` saying the host can pause, and test it like `Nightfall through the room` in `apps/server/test/host-controls.test.ts`.
 
+## Adding a game: Space
+
+Room voice uses Space for push-to-talk when nothing that takes Space has focus. If your game takes Space with nothing focused (jump, buzz), set `usesSpace: true` on the manifest. Then voice leaves Space alone while your game is on screen, and push-to-talk is the mic button only. Add the game's id to the list in `apps/server/test/games.test.ts` ("lists exactly the games that use Space"). Players never see this flag, so the player docs don't mention it.
+
 ## Adding a game: party recap stats
 
 When the host ends the party, everyone gets a recap with awards like "Biggest liar" and "Most suspicious". The awards come from counts each game keeps. **Every new game reports them from day one.** A test enforces it: `apps/server/test/games.test.ts` fails for any registered game without `partyStats` that isn't on the old exempt list. Don't add to that list.
