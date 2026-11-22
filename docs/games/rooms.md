@@ -163,6 +163,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
+- If voice does not work in your browser, the menu says "Voice does not work in this browser." where **Join voice** would be.
 - Up to 8 people can be in voice. The ninth person sees "Voice is full." and can still play.
 - There is no voice bar. Once you are in voice, your mic button is at the top, next to chat, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.

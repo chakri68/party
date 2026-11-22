@@ -1,6 +1,7 @@
 import type { RoomPublicState } from "@games/protocol";
 import { describe, expect, it } from "vitest";
-import { focusPhase, ROOM_MENU_LABELS, roomMenuItems } from "../src/views/room-menu.ts";
+import { focusPhase } from "../src/views/focus.ts";
+import { ROOM_MENU_LABELS, roomMenuItems } from "../src/views/room-menu.ts";
 
 const room = (extra: Partial<RoomPublicState> = {}): RoomPublicState =>
   ({ hostId: "amy", phase: "playing", paused: false, ...extra }) as RoomPublicState;
@@ -69,6 +70,18 @@ describe("the room menu", () => {
     }
   });
 
+  it("says when voice does not work here, where Join voice would be, on every room screen", () => {
+    for (const phase of ["lobby", "playing", "results"] as const) {
+      expect(roomMenuItems(room({ phase }), "ben", { board: true, voice: "unsupported", pausable: true }), phase).toEqual([
+        "sounds",
+        "reactions",
+        "no-voice",
+        "settings",
+        "home",
+      ]);
+    }
+  });
+
   it("empty when the party is over", () => {
     const o = { board: true, voice: "join", pausable: true } as const;
     expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual([]);
@@ -94,6 +107,7 @@ describe("the room menu", () => {
       restart: "Restart",
       "end-game": "End game",
       home: "Home",
+      "no-voice": "Voice does not work in this browser.",
     });
   });
 });

@@ -48,7 +48,8 @@ describe("voiceBarModel", () => {
       expect(voiceBarModel(view(), phase).menu, phase).toBe("join");
       // Full keeps Join voice, so a player can try again.
       expect(voiceBarModel(view({ status: "full" }), phase).menu).toBe("join");
-      expect(voiceBarModel(view({ status: "unsupported" }), phase).menu).toBeNull();
+      // No Join voice; the menu says why instead.
+      expect(voiceBarModel(view({ status: "unsupported" }), phase).menu).toBe("unsupported");
     }
   });
 
@@ -189,11 +190,11 @@ describe("joining", () => {
 });
 
 describe("voiceMenuItem", () => {
-  it("Join voice out of voice (also when full, to try again), Voice in voice, nothing where voice cannot work", () => {
+  it("Join voice out of voice (also when full, to try again), Voice in voice, a note where voice cannot work", () => {
     expect(voiceMenuItem(view({ status: "off" }))).toBe("join");
     expect(voiceMenuItem(view({ status: "on" }))).toBe("voice");
     expect(voiceMenuItem(view({ status: "joining" }))).toBe("voice");
     expect(voiceMenuItem(view({ status: "full" }))).toBe("join");
-    expect(voiceMenuItem(view({ status: "unsupported" }))).toBeNull();
+    expect(voiceMenuItem(view({ status: "unsupported" }))).toBe("unsupported");
   });
 });

@@ -26,7 +26,8 @@ import { soundBoardModel, SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
-import { focusPhase, ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
+import { focusPhase } from "./focus.ts";
+import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
 import { MeshTransport } from "../voice/mesh.ts";
@@ -561,6 +562,7 @@ export class RoomView implements View {
       // The escape hatch for a game that's gone stale: everyone back to the lobby.
       "end-game": () => confirm("End this game for everyone? Everyone goes back to the lobby.") && client.send({ type: "return-to-lobby" }),
       home: () => {},
+      "no-voice": () => {},
     };
     const dlg = h(
       "dialog",
@@ -570,7 +572,10 @@ export class RoomView implements View {
         "div",
         { class: "dialog-list" },
         items.map((item) =>
-          item === "home"
+          item === "no-voice"
+            // Not a button: it says why there is no Join voice.
+            ? h("p", { class: "muted room-menu-note" }, ROOM_MENU_LABELS["no-voice"])
+            : item === "home"
             // The same link as the header logo (party over). The menu closes; the link goes on.
             ? h("a", { href: shellConfig().brand.homeHref, class: "dialog-link", onclick: () => dlg.close() }, ROOM_MENU_LABELS.home)
             : h("button", {

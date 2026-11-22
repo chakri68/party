@@ -11,7 +11,7 @@ import type { RoomPhase } from "@games/protocol";
 import { closeOnBackdrop, h, openDialog } from "@games/ui";
 import { icon, type IconName } from "../brand.ts";
 import { MAX_GAIN } from "../voice/audio.ts";
-import { focusPhase } from "./room-menu.ts";
+import { focusPhase } from "./focus.ts";
 import type { VoicePrefs } from "../voice/prefs.ts";
 import type { PushToTalk } from "../voice/ptt.ts";
 import type { VoiceController, VoiceMemberView, VoiceView } from "../voice/voice.ts";
@@ -24,7 +24,7 @@ export interface BarModel {
   /** The mic button's accessible name: the label, and the note, as there is no note line. */
   micName: string;
   /** The room menu's voice item (voiceMenuItem). Null off the room screens (party over). */
-  menu: "join" | "voice" | null;
+  menu: "join" | "voice" | "unsupported" | null;
   /** What the live region reads out: the note in the mic name. Never the push-to-talk hint. */
   spoken: string;
   tapSound: boolean;
@@ -41,11 +41,11 @@ export function pttEnabled(v: VoiceView): boolean {
   return v.mode === "ptt" && inVoice(v);
 }
 
-/** The room menu's voice item: Join voice, the Voice panel, or none where voice cannot work. */
-export function voiceMenuItem(v: VoiceView): "join" | "voice" | null {
+/** The room menu's voice item: Join voice, the Voice panel, or (unsupported) a line saying voice does not work here. */
+export function voiceMenuItem(v: VoiceView): "join" | "voice" | "unsupported" {
   if (inVoice(v)) return "voice";
   // Full keeps Join voice, so a player can try again: someone may have left.
-  return v.status === "unsupported" ? null : "join";
+  return v.status === "unsupported" ? "unsupported" : "join";
 }
 
 /** `space`: Space is the talk key here (a keyboard, and no game on screen that uses Space). */

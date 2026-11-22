@@ -683,6 +683,7 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
 .seats .kick.bot-kick { margin-left: auto; }
 :is(.seat-menu, .room-menu) .dialog-list { display: flex; flex-direction: column; gap: 8px; }
 .room-menu .dialog-list { min-width: min(280px, 70vw); }
+.room-menu-note { margin: 0; padding: 8px 0; font-size: 0.9rem; text-align: center; }
 /* Home in the Room menu: a link, drawn like the buttons around it. */
 .dialog-link {
   display: flex;

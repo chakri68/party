@@ -3,16 +3,8 @@
 // clean. What it lists is `roomMenuItems` (tested); RoomView draws it and acts
 // on each item exactly as the old header and turn-control buttons did.
 
-import type { RoomPhase, RoomPublicState } from "@games/protocol";
-
-/**
- * A focus screen: the slim header, the Room menu, and no voice row. Every room
- * screen but the party-over one (`ended`), which keeps its own header. Null is
- * no room screen (a fatal message).
- */
-export function focusPhase(phase: RoomPhase | null): boolean {
-  return phase === "lobby" || phase === "playing" || phase === "results";
-}
+import type { RoomPublicState } from "@games/protocol";
+import { focusPhase } from "./focus.ts";
 
 export type RoomMenuItem =
   | "sounds"
@@ -24,7 +16,9 @@ export type RoomMenuItem =
   | "resume"
   | "restart"
   | "end-game"
-  | "home";
+  | "home"
+  /** Not a button: a muted line where Join voice would be. */
+  | "no-voice";
 
 export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
   sounds: "Sound board",
@@ -37,6 +31,7 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
   restart: "Restart",
   "end-game": "End game",
   home: "Home",
+  "no-voice": "Voice does not work in this browser.",
 };
 
 /**
@@ -44,7 +39,7 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
  * Pause, Restart and End game only in a game: the lobby keeps its host
  * controls on the page.
  * - board: the sound board button would show (`soundBoardModel(...).button`).
- * - voice: `voiceMenuItem(...)`, or null where voice cannot work.
+ * - voice: `voiceMenuItem(...)`: "unsupported" lists a line saying voice does not work here.
  * - pausable: the game's manifest says the host can pause it.
  * - hostActions: false drops Pause, Restart and End game, where they would do
  *   nothing (the "Could not connect" screen, the game just ended). Default true.
@@ -52,7 +47,7 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
 export function roomMenuItems(
   room: RoomPublicState,
   me: string,
-  o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean; hostActions?: boolean },
+  o: { board: boolean; voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean },
 ): RoomMenuItem[] {
   if (!focusPhase(room.phase)) return [];
   const items: RoomMenuItem[] = [];
@@ -60,6 +55,7 @@ export function roomMenuItems(
   items.push("reactions");
   if (o.voice === "join") items.push("join-voice");
   else if (o.voice === "voice") items.push("voice");
+  else if (o.voice === "unsupported") items.push("no-voice");
   items.push("settings");
   if (room.phase === "playing" && room.hostId === me && o.hostActions !== false) {
     if (o.pausable) items.push(room.paused ? "resume" : "pause");
