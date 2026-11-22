@@ -41,7 +41,57 @@ class FakeSender {
   }
 }
 
+/**
+ * One transceiver. Like a browser (JSEP): one made with addTransceiver gets a
+ * mid only from its own offer; a remote offer's m-line with no transceiver
+ * bound to it gets a new "recvonly" one, never an unbound local one.
+ */
+export class FakeTransceiver {
+  mid: string | null = null;
+  /** The direction last put in a local description. */
+  negotiated: RTCRtpTransceiverDirection | null = null;
+  /** ontrack has fired for this one. */
+  tracked = false;
+  readonly sender: FakeSender;
+  readonly origin: "local" | "remote";
+  private dir: RTCRtpTransceiverDirection;
+  private readonly pc: FakePeer;
+
+  constructor(pc: FakePeer, origin: "local" | "remote", direction: RTCRtpTransceiverDirection, log: LogEntry[]) {
+    this.pc = pc;
+    this.origin = origin;
+    this.dir = direction;
+    this.sender = new FakeSender(pc, log);
+  }
+  get direction(): RTCRtpTransceiverDirection {
+    return this.dir;
+  }
+  set direction(d: RTCRtpTransceiverDirection) {
+    if (d === this.dir) return;
+    this.dir = d;
+    this.pc.needNegotiation();
+  }
+}
+
 type Desc = { type: RTCSdpType; sdp: string };
+type MLine = { mid: string; dir: RTCRtpTransceiverDirection };
+
+const sends = (d: string) => d === "sendrecv" || d === "sendonly";
+const receives = (d: string) => d === "sendrecv" || d === "recvonly";
+
+/** The fake's sdp: "<type>:<peer#>:<n>", then "|<mid>=<direction>,..." for its m-lines. */
+export function fakeSdp(type: "offer" | "answer", num: number, n: number, mlines: string[] = ["0=sendrecv"]): string {
+  return `${type}:${num}:${n}${mlines.length ? `|${mlines.join(",")}` : ""}`;
+}
+
+export function mlinesOf(sdp: string | undefined): MLine[] {
+  const part = (sdp ?? "").split("|")[1];
+  if (!part) return [];
+  return part.split(",").map((s) => {
+    const [mid = "", dir = "inactive"] = s.split("=");
+    return { mid, dir: dir as RTCRtpTransceiverDirection };
+  });
+}
 
 export class FakePeer {
   signalingState: RTCSignalingState = "stable";
@@ -55,6 +105,8 @@ export class FakePeer {
 
   /** Offers this peer has made. */
   offers = 0;
+  /** Answers this peer has made. */
+  answers = 0;
   restarts = 0;
   rollbacks = 0;
   closed = false;
@@ -63,17 +115,21 @@ export class FakePeer {
   /** Remote descriptions set, in order. */
   remoteSet: Desc[] = [];
   configs: RTCConfiguration[] = [];
-  transceivers: { direction: string; sender: FakeSender }[] = [];
+  transceivers: FakeTransceiver[] = [];
   /** The mesh id of the other end, known once connected. */
   remoteOwner: string | null = null;
   stats: Map<string, Record<string, unknown>> = new Map();
   /** Makes the next setRemoteDescription reject. */
   failNextRemote = false;
+  /** Makes addIceCandidate reject for these candidate strings. */
+  badCandidates = new Set<string>();
 
   private n = 0;
   private stableLocal: RTCSessionDescription | null = null;
   private negotiationPending = false;
-  private tracked = false;
+  private restartPending = false;
+  /** Mids given out by the local offer not yet answered; a rollback takes them back. */
+  private pendingMids: FakeTransceiver[] = [];
 
   readonly num: number;
   readonly owner: string;
@@ -88,23 +144,45 @@ export class FakePeer {
   }
 
   addTransceiver(_kind: string, init?: RTCRtpTransceiverInit): RTCRtpTransceiver {
-    const t = { direction: init?.direction ?? "sendrecv", sender: new FakeSender(this, this.net.log) };
+    const t = new FakeTransceiver(this, "local", init?.direction ?? "sendrecv", this.net.log);
     this.transceivers.push(t);
     this.needNegotiation();
     return t as unknown as RTCRtpTransceiver;
   }
 
+  getTransceivers(): RTCRtpTransceiver[] {
+    return this.transceivers as unknown as RTCRtpTransceiver[];
+  }
+
   async setLocalDescription(): Promise<void> {
     if (this.closed) throw new Error("closed");
-    const type: RTCSdpType = this.signalingState === "have-remote-offer" ? "answer" : "offer";
-    const desc = { type, sdp: `${type}:${this.num}:${++this.n}` } as RTCSessionDescription;
-    this.localDescription = desc;
-    if (type === "offer") {
-      this.offers++;
-      this.signalingState = "have-local-offer";
-    } else {
+    if (this.signalingState === "have-remote-offer") {
+      const mlines = mlinesOf(this.remoteDescription?.sdp).map(({ mid, dir }) => {
+        const t = this.byMid(mid);
+        if (!t) return `${mid}=inactive`;
+        t.negotiated = t.direction;
+        const s = sends(t.direction) && receives(dir);
+        const r = receives(t.direction) && sends(dir);
+        return `${mid}=${s && r ? "sendrecv" : s ? "sendonly" : r ? "recvonly" : "inactive"}`;
+      });
+      this.localDescription = { type: "answer", sdp: fakeSdp("answer", this.num, ++this.n, mlines) } as RTCSessionDescription;
+      this.answers++;
       this.becomeStable();
+      return;
     }
+    let next = Math.max(-1, ...this.transceivers.map((t) => (t.mid === null ? -1 : Number(t.mid)))) + 1;
+    for (const t of this.transceivers) {
+      if (t.mid !== null) continue;
+      t.mid = String(next++);
+      this.pendingMids.push(t);
+    }
+    const bound = this.transceivers.filter((t) => t.mid !== null).sort((x, y) => Number(x.mid) - Number(y.mid));
+    for (const t of bound) t.negotiated = t.direction;
+    const mlines = bound.map((t) => `${t.mid}=${t.direction}`);
+    this.localDescription = { type: "offer", sdp: fakeSdp("offer", this.num, ++this.n, mlines) } as RTCSessionDescription;
+    this.offers++;
+    this.restartPending = false;
+    this.signalingState = "have-local-offer";
   }
 
   async setRemoteDescription(d: RTCSessionDescriptionInit): Promise<void> {
@@ -117,6 +195,8 @@ export class FakePeer {
     if (desc.type === "offer") {
       if (this.signalingState === "have-local-offer") {
         this.rollbacks++;
+        for (const t of this.pendingMids) t.mid = null;
+        this.pendingMids = [];
         this.localDescription = this.stableLocal;
         this.signalingState = "stable";
       }
@@ -124,10 +204,24 @@ export class FakePeer {
       this.remoteDescription = desc;
       this.remoteSet.push({ type: desc.type, sdp: desc.sdp });
       this.signalingState = "have-remote-offer";
+      for (const { mid, dir } of mlinesOf(desc.sdp)) {
+        let t = this.byMid(mid);
+        if (!t) {
+          t = new FakeTransceiver(this, "remote", "recvonly", this.net.log);
+          t.mid = mid;
+          this.transceivers.push(t);
+        }
+        if (sends(dir)) this.fireTrack(t, desc.sdp);
+      }
     } else if (desc.type === "answer") {
       if (this.signalingState !== "have-local-offer") throw new Error(`answer in ${this.signalingState}`);
       this.remoteDescription = desc;
       this.remoteSet.push({ type: desc.type, sdp: desc.sdp });
+      this.pendingMids = [];
+      for (const { mid, dir } of mlinesOf(desc.sdp)) {
+        const t = this.byMid(mid);
+        if (t && sends(dir)) this.fireTrack(t, desc.sdp);
+      }
       this.becomeStable();
     } else {
       throw new Error(`unexpected ${desc.type}`);
@@ -137,11 +231,13 @@ export class FakePeer {
   async addIceCandidate(c?: RTCIceCandidateInit | null): Promise<void> {
     if (this.closed) throw new Error("closed");
     if (!this.remoteDescription) throw new Error("no remote description");
+    if (c?.candidate && this.badCandidates.has(c.candidate)) throw new Error("bad candidate");
     this.added.push(c ?? {});
   }
 
   restartIce(): void {
     this.restarts++;
+    this.restartPending = true;
     this.needNegotiation();
   }
 
@@ -171,6 +267,11 @@ export class FakePeer {
     return this.transceivers[0]?.sender.track?.id ?? null;
   }
 
+  /** How many m-lines the current local description has. */
+  mlineCount(): number {
+    return mlinesOf(this.localDescription?.sdp).length;
+  }
+
   /** Sets connectionState and fires the change event. */
   setState(s: RTCPeerConnectionState): void {
     if (this.closed || this.connectionState === s) return;
@@ -178,15 +279,30 @@ export class FakePeer {
     this.onconnectionstatechange?.call(this as never, {} as never);
   }
 
-  private needNegotiation(): void {
+  /** Queues a check; like a browser, it fires only in "stable", and only when there is something to negotiate. */
+  needNegotiation(): void {
     queueMicrotask(() => {
       if (this.closed) return;
       if (this.signalingState !== "stable") {
         this.negotiationPending = true;
         return;
       }
-      this.onnegotiationneeded?.call(this as never, {} as never);
+      const needed =
+        this.restartPending || this.transceivers.some((t) => t.mid === null || t.negotiated !== t.direction);
+      if (needed) this.onnegotiationneeded?.call(this as never, {} as never);
     });
+  }
+
+  private byMid(mid: string): FakeTransceiver | undefined {
+    return this.transceivers.find((t) => t.mid === mid);
+  }
+
+  private fireTrack(t: FakeTransceiver, remoteSdp: string): void {
+    if (t.tracked) return;
+    t.tracked = true;
+    const remoteNum = remoteSdp.split(":")[1];
+    const streams = this.net.streamless ? [] : [new FakeStream(`stream:${remoteNum}`)];
+    this.ontrack?.call(this as never, { streams, track: new FakeTrack(`remote:${remoteNum}`), transceiver: t } as never);
   }
 
   private becomeStable(): void {
@@ -217,11 +333,6 @@ export class FakePeer {
   /** Called by the net when this peer and `other` have negotiated. */
   link(other: FakePeer): void {
     this.remoteOwner = other.owner;
-    if (!this.tracked) {
-      this.tracked = true;
-      const stream = new FakeStream(`stream:${other.owner}:${other.num}`);
-      this.ontrack?.call(this as never, { streams: [stream], track: new FakeTrack(`remote:${other.num}`) } as never);
-    }
     this.setState("connected");
   }
 }
@@ -319,6 +430,8 @@ export class FakeNet {
   readonly clock = new FakeClock();
   readonly log: LogEntry[] = [];
   readonly sent: Message[] = [];
+  /** ontrack events carry no stream, like a transceiver added without streams. */
+  streamless = false;
   held: Message[] = [];
   private holding = false;
   private nodes = new Map<string, Node>();

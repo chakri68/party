@@ -5,8 +5,9 @@ import {
   DISCONNECTED_GRACE_MS,
   ICE_NEAR_EXPIRY_MS,
   RESTART_BACKOFF_MS,
+  SETUP_TIMEOUT_MS,
 } from "../../src/voice/mesh.ts";
-import { FakeNet, FakeTrack, fakeState, flush, last, type Node } from "./fake-rtc.ts";
+import { FakeNet, FakeTrack, fakeSdp, fakeState, flush, last, type Node } from "./fake-rtc.ts";
 
 const rule = (hear: string[], sendTo: string[], canTalk = true): VoiceRule => ({ canTalk, hear, sendTo, label: "" });
 
@@ -31,6 +32,11 @@ function signalsFrom(net: FakeNet, from: string, kind: SignalData["kind"]) {
   return net.sent.filter((m) => m.from === from && m.data.kind === kind);
 }
 
+/** "ice" signals that carry candidates (not the polite side's empty hello). */
+function candidatesFrom(net: FakeNet, from: string) {
+  return signalsFrom(net, from, "ice").filter((m) => m.data.kind === "ice" && m.data.candidates.length > 0);
+}
+
 describe("MeshTransport", () => {
   it("two peers connect and each plays the other", async () => {
     const { a, b } = await pair();
@@ -40,24 +46,58 @@ describe("MeshTransport", () => {
     expect(b.playback.count("attach", "a")).toBe(1);
     expect(last(a.states)).toEqual({ peer: "b", state: "connected" });
     expect(last(b.states)).toEqual({ peer: "a", state: "connected" });
-    // One sendrecv transceiver, with no track, and no more.
-    expect(pc(a).transceivers.map((t) => t.direction)).toEqual(["sendrecv"]);
+    // Only b (the higher id) adds a transceiver; a takes the one b's offer made.
+    // One m-line and one offer/answer round per link.
+    expect(pc(b).transceivers.map((t) => [t.origin, t.direction])).toEqual([["local", "sendrecv"]]);
+    expect(pc(a).transceivers.map((t) => [t.origin, t.direction])).toEqual([["remote", "sendrecv"]]);
+    expect([pc(a).mlineCount(), pc(b).mlineCount()]).toEqual([1, 1]);
+    expect([pc(a).offers, pc(a).answers, pc(b).offers, pc(b).answers]).toEqual([0, 1, 1, 0]);
     expect(pc(a).sentTrack()).toBeNull();
   });
 
-  it("simultaneous offers settle with the lower id polite", async () => {
+  it("connects when the higher id joins first, too", async () => {
     const net = new FakeNet();
     const a = net.add("a");
     const b = net.add("b");
-    a.mesh.setPeers(["b"]);
     b.mesh.setPeers(["a"]);
+    await flush();
+    a.mesh.setPeers(["b"]);
+    await flush();
+    expect([pc(a).connectionState, pc(b).connectionState]).toEqual(["connected", "connected"]);
+    expect([a.pcs.length, b.pcs.length]).toEqual([1, 1]);
+    expect([pc(a).mlineCount(), pc(b).mlineCount()]).toEqual([1, 1]);
+    expect(a.playback.count("attach", "b")).toBe(1);
+    expect(b.playback.count("attach", "a")).toBe(1);
+  });
+
+  it("the lower id says hello on each new link and never offers first", async () => {
+    const net = new FakeNet();
+    const a = net.add("a");
+    net.add("b");
+    net.hold();
+    a.mesh.setPeers(["b"]);
+    await flush();
+    expect(net.held.map((m) => [m.from, m.session, m.data])).toEqual([
+      ["a", "sa.0", { kind: "ice", toSession: null, candidates: [] }],
+    ]);
+  });
+
+  it("simultaneous ICE restarts settle with the lower id polite", async () => {
+    const { net, a, b } = await pair();
+    net.hold();
+    fakeState(pc(a), "failed");
+    fakeState(pc(b), "failed");
+    await net.clock.advance(RESTART_BACKOFF_MS[0]!);
+    expect([pc(a).restarts, pc(b).restarts]).toEqual([1, 1]);
+    net.release();
     await flush();
     expect(pc(a).connectionState).toBe("connected");
     expect(pc(b).connectionState).toBe("connected");
     expect(pc(a).rollbacks).toBe(1); // a is polite and gave way
     expect(pc(b).rollbacks).toBe(0); // b is impolite and ignored a's offer
-    expect(a.pcs).toHaveLength(1);
-    expect(b.pcs).toHaveLength(1);
+    expect([a.pcs.length, b.pcs.length]).toEqual([1, 1]);
+    expect([pc(a).transceivers.length, pc(b).transceivers.length]).toEqual([1, 1]);
+    expect([pc(a).mlineCount(), pc(b).mlineCount()]).toEqual([1, 1]);
   });
 
   it("candidates before the remote description are queued and added in order", async () => {
@@ -70,14 +110,30 @@ describe("MeshTransport", () => {
     a.mesh.handleSignal("b", "sb.0", { kind: "ice", toSession: null, candidates: [c3] });
     await flush();
     expect(pc(a).added).toEqual([]);
-    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: null, description: { type: "offer", sdp: "offer:99:1" } });
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: null, description: { type: "offer", sdp: fakeSdp("offer", 99, 1) } });
     await flush();
-    expect(pc(a).remoteSet).toEqual([{ type: "offer", sdp: "offer:99:1" }]);
+    expect(pc(a).remoteSet).toEqual([{ type: "offer", sdp: fakeSdp("offer", 99, 1) }]);
     expect(pc(a).added.map((c) => c.candidate)).toEqual(["c1", "c2", "c3"]);
     // And it answered, bound to b's session.
     const answer = last(signalsFrom(net, "a", "sdp"));
     expect(answer.data).toMatchObject({ toSession: "sb.0", description: { type: "answer" } });
     expect(answer.session).toBe("sa.0");
+  });
+
+  it("a bad candidate is skipped, not a failed link", async () => {
+    const net = new FakeNet();
+    const a = net.add("a");
+    a.mesh.handleSignal("b", "sb.0", { kind: "ice", toSession: null, candidates: [{ candidate: "q1" }, { candidate: "bad1" }] });
+    await flush();
+    pc(a).badCandidates = new Set(["bad1", "bad2"]);
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: null, description: { type: "offer", sdp: fakeSdp("offer", 99, 1) } });
+    a.mesh.handleSignal("b", "sb.0", { kind: "ice", toSession: "sa.0", candidates: [{ candidate: "bad2" }, { candidate: "q2" }] });
+    await flush();
+    expect(pc(a).added.map((c) => c.candidate)).toEqual(["q1", "q2"]);
+    expect(last(signalsFrom(net, "a", "sdp")).data).toMatchObject({ description: { type: "answer" } });
+    await net.clock.advance(SETUP_TIMEOUT_MS - 1);
+    expect(a.pcs).toHaveLength(1);
+    expect(a.states.map((s) => s.state)).not.toContain("reconnecting");
   });
 
   it("sends candidates in batches every 100 ms", async () => {
@@ -89,9 +145,9 @@ describe("MeshTransport", () => {
     await net.clock.advance(25);
     pc(a).emitCandidate({ candidate: "x3", sdpMid: "0" });
     await net.clock.advance(49);
-    expect(signalsFrom(net, "a", "ice")).toHaveLength(0);
+    expect(candidatesFrom(net, "a")).toHaveLength(0);
     await net.clock.advance(1);
-    const ice = signalsFrom(net, "a", "ice");
+    const ice = candidatesFrom(net, "a");
     expect(ice).toHaveLength(1);
     expect(ice[0]?.data).toEqual({
       kind: "ice",
@@ -271,9 +327,10 @@ describe("MeshTransport", () => {
     expect(a.pcs).toHaveLength(2);
     expect(pc(a, 0).closed).toBe(true);
     expect(a.playback.count("detach", "b")).toBe(1);
-    const offer = last(net.held.filter((m) => m.from === "a"));
-    expect(offer.session).toBe("s.1");
-    expect(offer.data).toMatchObject({ kind: "sdp", toSession: "sb.0", description: { type: "offer" } });
+    // a is the lower id: its new link says hello, and b's start-over offers.
+    const hello = last(net.held.filter((m) => m.from === "a"));
+    expect(hello.session).toBe("s.1");
+    expect(hello.data).toEqual({ kind: "ice", toSession: "sb.0", candidates: [] });
   });
 
   it("a connection back before the next try stops the restarts", async () => {
@@ -308,15 +365,100 @@ describe("MeshTransport", () => {
     expect(pc(a).restarts).toBe(0);
   });
 
-  it("a bad remote description takes the restart path, never a throw", async () => {
-    const { net, a } = await pair();
-    net.hold();
+  it("a signaling error on a healthy link rebuilds it at once, never a throw", async () => {
+    const { net, a, b } = await pair();
     pc(a).failNextRemote = true;
-    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: "offer:2:9" } });
+    expect(() =>
+      a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: fakeSdp("offer", 2, 9) } }),
+    ).not.toThrow();
     await flush();
-    expect(last(a.states)).toEqual({ peer: "b", state: "reconnecting" });
-    await net.clock.advance(RESTART_BACKOFF_MS[0]!);
-    expect(pc(a).restarts).toBe(1);
+    expect(pc(a, 0).closed).toBe(true);
+    expect(pc(a, 0).restarts).toBe(0);
+    expect(a.pcs).toHaveLength(2);
+    expect(signalsFrom(net, "a", "ice").some((m) => m.session === "sa.1")).toBe(true);
+    expect(pc(a, 1).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    expect(last(a.states)).toEqual({ peer: "b", state: "connected" });
+  });
+
+  it("a try that finds the link connected again stops recovering", async () => {
+    const { net, a } = await pair();
+    a.mesh.applyPolicy(globalRule("a", ["a", "b"]));
+    await a.mesh.setPublishing(new FakeTrack("t").asTrack());
+    expect(pc(a).sentTrack()).toBe("t");
+    net.hold();
+    fakeState(pc(a), "failed");
+    await flush();
+    expect(pc(a).sentTrack()).toBeNull();
+    // Back without a change event, as a browser may do.
+    pc(a).connectionState = "connected";
+    await net.clock.advance(60_000);
+    expect(pc(a).restarts).toBe(0);
+    expect(a.pcs).toHaveLength(1);
+    expect(last(a.states)).toEqual({ peer: "b", state: "connected" });
+    expect(pc(a).sentTrack()).toBe("t");
+  });
+
+  it("both sides rebuilding at once still connect", async () => {
+    const { net, a, b } = await pair();
+    net.hold();
+    fakeState(pc(a), "failed");
+    fakeState(pc(b), "failed");
+    await net.clock.advance(RESTART_BACKOFF_MS.reduce((x, y) => x + y, 0) + last(RESTART_BACKOFF_MS));
+    expect([a.pcs.length, b.pcs.length]).toEqual([2, 2]);
+    net.release();
+    await flush();
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    expect(b.pcs).toHaveLength(2); // the impolite side keeps its fresh link
+    expect(last(a.states)).toEqual({ peer: "b", state: "connected" });
+    expect(last(b.states)).toEqual({ peer: "a", state: "connected" });
+    // The stream that plays is the new link's: the last attach comes after the last detach.
+    const ops = a.playback.calls.filter((c) => (c.op === "attach" || c.op === "detach") && c.peer === "b").map((c) => c.op);
+    expect(last(ops)).toBe("attach");
+  });
+
+  it("a lost answer: the setup timer rebuilds and the link connects", async () => {
+    expect(SETUP_TIMEOUT_MS).toBe(15_000);
+    const net = new FakeNet();
+    const a = net.add("a");
+    const b = net.add("b");
+    net.hold();
+    a.mesh.setPeers(["b"]);
+    b.mesh.setPeers(["a"]);
+    await flush();
+    const first = net.held;
+    net.release(first);
+    net.hold();
+    await flush();
+    const answers = net.held.filter((m) => m.data.kind === "sdp" && m.data.description.type === "answer");
+    expect(answers).toHaveLength(1);
+    net.release(net.held.filter((m) => !answers.includes(m)));
+    await flush();
+    expect(pc(b).connectionState).not.toBe("connected");
+    await net.clock.advance(SETUP_TIMEOUT_MS - 1);
+    expect([a.pcs.length, b.pcs.length]).toEqual([1, 1]);
+    await net.clock.advance(1);
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    expect(b.pcs.length).toBeGreaterThan(1);
+    expect(net.clock.pending()).toBe(0);
+  });
+
+  it("nothing heard at all: both sides keep trying and connect once the network works", async () => {
+    const net = new FakeNet();
+    const a = net.add("a");
+    const b = net.add("b");
+    net.hold();
+    a.mesh.setPeers(["b"]);
+    b.mesh.setPeers(["a"]);
+    await flush();
+    net.held = [];
+    await net.clock.advance(SETUP_TIMEOUT_MS);
+    net.release();
+    await flush();
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
   });
 
   it("asks for new ICE servers before a restart near expiry", async () => {
@@ -369,6 +511,33 @@ describe("MeshTransport", () => {
     expect(await a.mesh.getStats()).toEqual([{ peerId: "b", rttMs: 43, packetsLost: 7, relayed: true }]);
     pc(a).stats = new Map();
     expect(await a.mesh.getStats()).toEqual([{ peerId: "b", rttMs: null, packetsLost: null, relayed: null }]);
+  });
+
+  it("makes a stream from the track when ontrack has none", async () => {
+    const g = globalThis as { MediaStream?: unknown };
+    const saved = g.MediaStream;
+    class StubStream {
+      tracks: unknown[];
+      constructor(tracks: unknown[]) {
+        this.tracks = tracks;
+      }
+    }
+    g.MediaStream = StubStream;
+    try {
+      const net = new FakeNet();
+      net.streamless = true;
+      const a = net.add("a");
+      const b = net.add("b");
+      a.mesh.setPeers(["b"]);
+      b.mesh.setPeers(["a"]);
+      await flush();
+      const attach = a.playback.calls.find((c) => c.op === "attach");
+      expect(attach?.op === "attach" && attach.stream).toBeInstanceOf(StubStream);
+      expect(attach?.op === "attach" && (attach.stream as unknown as StubStream).tracks).toHaveLength(1);
+      expect(b.playback.count("attach", "a")).toBe(1);
+    } finally {
+      g.MediaStream = saved;
+    }
   });
 
   it("ignores signals it cannot read", async () => {
