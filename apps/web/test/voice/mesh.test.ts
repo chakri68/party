@@ -260,8 +260,9 @@ describe("MeshTransport", () => {
     expect(a.playback.count("attach", "b")).toBe(2);
     expect(pc(a, 1).connectionState).toBe("connected");
     expect(pc(a, 1).remoteOwner).toBe("b");
-    // a's own link session stays the same: only b started over.
-    expect(last(signalsFrom(net, "a", "sdp")).session).toBe("sa.0");
+    // a's new link has a new session, and b did not start over again for it.
+    expect(last(signalsFrom(net, "a", "sdp")).session).toBe("sa.1");
+    expect(b2.pcs).toHaveLength(1);
 
     const before = pc(a, 1).remoteSet.length;
     a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: null, description: { type: "offer", sdp: "offer:99:9" } });
@@ -379,6 +380,98 @@ describe("MeshTransport", () => {
     expect(pc(a, 1).connectionState).toBe("connected");
     expect(last(b.pcs).connectionState).toBe("connected");
     expect(last(a.states)).toEqual({ peer: "b", state: "connected" });
+  });
+
+  it("a setLocalDescription that keeps failing rebuilds with backoff, not in a loop", async () => {
+    const net = new FakeNet();
+    net.failLocal = (p) => p.owner === "b";
+    const a = net.add("a");
+    const b = net.add("b");
+    a.mesh.setPeers(["b"]);
+    b.mesh.setPeers(["a"]);
+    await flush();
+    expect(b.pcs.length).toBeLessThanOrEqual(2); // the first error rebuilds at once, the next waits
+    await net.clock.advance(30_000);
+    // Rebuilds at 0, 1, 3, 7, 15 and 23 s.
+    expect(b.pcs.length).toBeGreaterThanOrEqual(3);
+    expect(b.pcs.length).toBeLessThanOrEqual(8);
+    expect(net.sent.length).toBeLessThan(40);
+  });
+
+  it("a setRemoteDescription that keeps failing rebuilds with backoff, and the count resets on connect", async () => {
+    const net = new FakeNet();
+    net.failRemote = (p) => p.owner === "a";
+    const a = net.add("a");
+    const b = net.add("b");
+    a.mesh.setPeers(["b"]);
+    b.mesh.setPeers(["a"]);
+    await flush();
+    expect(a.pcs.length).toBeLessThanOrEqual(2);
+    await net.clock.advance(30_000);
+    expect(a.pcs.length).toBeLessThanOrEqual(8);
+    expect(b.pcs.length).toBeLessThanOrEqual(10);
+    expect(net.sent.length).toBeLessThan(60);
+
+    net.failRemote = undefined;
+    await net.clock.advance(30_000);
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    // Connected again: the next signaling error rebuilds at once.
+    const before = a.pcs.length;
+    net.failRemote = (p) => p === last(a.pcs);
+    fakeState(last(b.pcs), "failed");
+    await net.clock.advance(RESTART_BACKOFF_MS[0]!);
+    expect(a.pcs.length).toBe(before + 1);
+  });
+
+  it("an older session from the peer does not take the rebuild tie-break", async () => {
+    const net = new FakeNet();
+    const a = net.add("a");
+    // a first hears from b's second link, then rebuilds its own.
+    a.mesh.handleSignal("b", "sb.1", { kind: "ice", toSession: null, candidates: [] });
+    await flush();
+    pc(a).failNextRemote = true;
+    a.mesh.handleSignal("b", "sb.1", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: fakeSdp("offer", 99, 1) } });
+    await flush();
+    expect(a.pcs).toHaveLength(2);
+    // A late signal from b's first link, bound to a's first link: older, so dropped.
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: fakeSdp("offer", 99, 2) } });
+    a.mesh.handleSignal("b", "sb.0", { kind: "ice", toSession: null, candidates: [{ candidate: "old" }] });
+    await flush();
+    expect(a.pcs).toHaveLength(2);
+    expect(pc(a, 1).remoteSet).toEqual([]);
+    // A newer one does.
+    a.mesh.handleSignal("b", "sb.2", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: fakeSdp("offer", 99, 3) } });
+    await flush();
+    expect(a.pcs).toHaveLength(3);
+    expect(pc(a, 2).remoteSet).toEqual([{ type: "offer", sdp: fakeSdp("offer", 99, 3) }]);
+  });
+
+  it("the polite side starts the setup timer again when it answers", async () => {
+    const net = new FakeNet();
+    const a = net.add("a");
+    a.mesh.setPeers(["b"]); // no b on the net: nothing comes back
+    await net.clock.advance(10_000);
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: null, description: { type: "offer", sdp: fakeSdp("offer", 99, 1) } });
+    await flush();
+    expect(last(signalsFrom(net, "a", "sdp")).data).toMatchObject({ description: { type: "answer" } });
+    await net.clock.advance(SETUP_TIMEOUT_MS - 1);
+    expect(a.pcs).toHaveLength(1);
+    await net.clock.advance(1);
+    expect(a.pcs).toHaveLength(2);
+  });
+
+  it("a peer removed and added again gets a never-used link session", async () => {
+    const { net, a, b } = await pair();
+    a.mesh.setPeers([]);
+    a.mesh.setPeers(["b"]);
+    await flush();
+    const sessions = net.sent.filter((m) => m.from === "a").map((m) => m.session);
+    expect(new Set(sessions)).toEqual(new Set(["sa.0", "sa.1"]));
+    expect(last(net.sent.filter((m) => m.from === "a")).session).toBe("sa.1");
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    expect(b.pcs).toHaveLength(2);
   });
 
   it("a try that finds the link connected again stops recovering", async () => {

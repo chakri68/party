@@ -11,7 +11,8 @@
 // restarts). The polite side says hello (an empty "ice" signal) on every new
 // link, so the other side learns it started over.
 //
-// Sessions: every signal carries the sender's link session (`<session>.<rebuilds>`)
+// Sessions: every signal carries the sender's link session (`<session>.<n>`,
+// n counting every link this mesh opens, so no two links share one)
 // and, in its data, the receiver's session it is answering (`toSession`). That
 // lets each side drop signals meant for a link that is gone, and notice when
 // the other side started over.
@@ -102,6 +103,8 @@ interface Link {
   /** The track the sender has now. undefined: unknown, after a failed replaceTrack. */
   sentTrack: MediaStreamTrack | null | undefined;
   playing: boolean;
+  /** The peer session this link has handled a signal from. */
+  heardFrom: string | null;
   /** Incoming signals run one at a time, in arrival order. */
   chain: Promise<void>;
   closed: boolean;
@@ -110,7 +113,10 @@ interface Link {
 /** What the mesh knows about one other seat. Outlives its links. */
 interface Peer {
   id: string;
-  rebuilds: number;
+  /** Every link session of mine used with this peer. */
+  mine: Set<string>;
+  /** Signaling errors since the last connect; the second and later wait before rebuilding. */
+  signalErrors: number;
   /** The other side's link session, null until its first signal. */
   peerSession: string | null;
   retired: Set<string>;
@@ -134,6 +140,8 @@ export class MeshTransport implements VoiceTransport {
   private track: MediaStreamTrack | null = null;
   private refreshing: Promise<void> | null = null;
   private dead = false;
+  /** Links opened so far; gives each a new session. */
+  private linkCount = 0;
 
   private readonly deps: MeshDeps;
 
@@ -181,7 +189,7 @@ export class MeshTransport implements VoiceTransport {
       const late = peer.late;
       if (late && late.peerSession === session && late.mySession === toSession) {
         // Still welcome: see Peer.late.
-      } else if (session !== peer.peerSession && this.isMyOldSession(peer, toSession)) {
+      } else if (this.isNewer(peer, session) && peer.mine.has(toSession)) {
         // Both sides rebuilt at once: each new link addresses the other's old
         // session. The polite side takes the new session and starts over; the
         // impolite side keeps its fresh link (and its offer) and only rebinds.
@@ -196,13 +204,20 @@ export class MeshTransport implements VoiceTransport {
     } else if (peer.peerSession === null) {
       peer.peerSession = session;
     } else if (peer.peerSession !== session) {
-      // The other side started over: so do we, bound to its new session.
+      if (!this.isNewer(peer, session)) return;
       peer.retired.add(peer.peerSession);
       peer.peerSession = session;
-      this.replaceLink(peer, "connecting");
+      // The other side started over. A link that heard from its old session
+      // starts over too, bound to the new one; a fresh link only rebinds (or
+      // the two sides would keep starting over for each other's new sessions).
+      if (peer.link?.heardFrom) {
+        if (toSession !== null) peer.late = { peerSession: session, mySession: toSession };
+        this.replaceLink(peer, "connecting");
+      }
     }
     const link = peer.link;
     if (!link) return;
+    link.heardFrom = session;
     link.chain = link.chain.then(() => this.process(peer, link, signal));
   }
 
@@ -262,7 +277,7 @@ export class MeshTransport implements VoiceTransport {
   // ---- links ----
 
   private addPeer(id: string, peerSession: string | null = null): Peer {
-    const peer: Peer = { id, rebuilds: 0, peerSession, retired: new Set(), late: null, link: null };
+    const peer: Peer = { id, mine: new Set(), signalErrors: 0, peerSession, retired: new Set(), late: null, link: null };
     this.peers.set(id, peer);
     peer.link = this.openLink(peer, "connecting");
     return peer;
@@ -270,7 +285,6 @@ export class MeshTransport implements VoiceTransport {
 
   /** Starts over with a new link session of mine. */
   private rebuild(peer: Peer): void {
-    peer.rebuilds++;
     peer.late = null;
     this.replaceLink(peer, "reconnecting");
   }
@@ -279,12 +293,18 @@ export class MeshTransport implements VoiceTransport {
     return this.opts!.selfId < peer.id;
   }
 
-  /** A session of mine for this peer from before my latest rebuild. */
-  private isMyOldSession(peer: Peer, s: string): boolean {
-    const prefix = `${this.opts!.session}.`;
-    if (!s.startsWith(prefix)) return false;
-    const k = Number(s.slice(prefix.length));
-    return Number.isInteger(k) && k >= 0 && k < peer.rebuilds;
+  /**
+   * A peer session newer than the one we are bound to: a later link of the
+   * same page session, or a session we have not seen before (a new page).
+   */
+  private isNewer(peer: Peer, s: string): boolean {
+    if (peer.retired.has(s)) return false;
+    const now = peer.peerSession;
+    if (now === null) return true;
+    const [nowBase, nowN] = splitSession(now);
+    const [base, n] = splitSession(s);
+    if (base !== nowBase) return s !== now;
+    return nowN !== null && n !== null && n > nowN;
   }
 
   private replaceLink(peer: Peer, state: LinkState): void {
@@ -305,7 +325,7 @@ export class MeshTransport implements VoiceTransport {
     const link: Link = {
       pc,
       sender: null,
-      session: `${opts.session}.${peer.rebuilds}`,
+      session: `${opts.session}.${this.linkCount++}`,
       polite: this.isPolite(peer),
       makingOffer: false,
       ignoreOffer: false,
@@ -322,6 +342,7 @@ export class MeshTransport implements VoiceTransport {
       attached: false,
       sentTrack: null,
       playing: false,
+      heardFrom: null,
       chain: Promise.resolve(),
       closed: false,
     };
@@ -338,6 +359,7 @@ export class MeshTransport implements VoiceTransport {
         return null;
       }
     }
+    peer.mine.add(link.session);
     this.armSetup(peer, link);
     this.report(peer.id, state);
     if (link.polite) this.send(peer, link, { kind: "ice", toSession: peer.peerSession, candidates: [] });
@@ -402,8 +424,7 @@ export class MeshTransport implements VoiceTransport {
       await link.pc.setLocalDescription();
       if (this.live(peer, link)) this.sendDescription(peer, link);
     } catch {
-      // A signaling error is not fixed by an ICE restart.
-      if (this.live(peer, link)) this.rebuild(peer);
+      if (this.live(peer, link)) this.signalingFailed(peer, link);
     } finally {
       link.makingOffer = false;
     }
@@ -413,7 +434,30 @@ export class MeshTransport implements VoiceTransport {
     const d = link.pc.localDescription;
     if (!d) return;
     this.send(peer, link, { kind: "sdp", toSession: peer.peerSession, description: { type: d.type, sdp: d.sdp } });
-    if (d.type === "offer" && !link.everConnected) this.armSetup(peer, link);
+    if (!link.everConnected) this.armSetup(peer, link);
+  }
+
+  /**
+   * A signaling error is not fixed by an ICE restart, so the link is rebuilt:
+   * at once the first time since the last connect, then with backoff, so an
+   * error that keeps coming back cannot loop or flood the server.
+   */
+  private signalingFailed(peer: Peer, link: Link): void {
+    if (link.recovering && link.restartTimer !== null) return;
+    const n = peer.signalErrors++;
+    if (n === 0) return this.rebuild(peer);
+    this.clearTimer(link, "graceTimer");
+    this.clearTimer(link, "restartTimer");
+    link.recovering = true;
+    const wasConnected = link.connected;
+    link.connected = false;
+    this.report(peer.id, "reconnecting");
+    if (wasConnected) void this.runPolicy();
+    const wait = RESTART_BACKOFF_MS[Math.min(n - 1, RESTART_BACKOFF_MS.length - 1)]!;
+    link.restartTimer = this.deps.clock.setTimeout(() => {
+      link.restartTimer = null;
+      if (this.live(peer, link)) this.rebuild(peer);
+    }, wait);
   }
 
   /** (Re)starts the timer that rebuilds a link that never connects. */
@@ -466,8 +510,7 @@ export class MeshTransport implements VoiceTransport {
         for (const c of signal.candidates) await addCandidate(pc, c);
       }
     } catch {
-      // A signaling error is not fixed by an ICE restart.
-      if (this.live(peer, link)) this.rebuild(peer);
+      if (this.live(peer, link)) this.signalingFailed(peer, link);
     }
   }
 
@@ -530,6 +573,7 @@ export class MeshTransport implements VoiceTransport {
     link.connected = true;
     link.everConnected = true;
     link.recovering = false;
+    peer.signalErrors = 0;
     link.attempt = 0;
     this.report(peer.id, "connected");
     void this.runPolicy();
@@ -659,6 +703,14 @@ export class MeshTransport implements VoiceTransport {
 }
 
 // ---- helpers ----
+
+/** "<base>.<n>" as [base, n]; n is null when it is not a count. */
+function splitSession(s: string): [string, number | null] {
+  const i = s.lastIndexOf(".");
+  if (i < 0) return [s, null];
+  const n = Number(s.slice(i + 1));
+  return [s.slice(0, i), Number.isInteger(n) && n >= 0 ? n : null];
+}
 
 /** Read fresh each time: the state can change across an await. */
 function isUp(pc: PeerLike): boolean {

@@ -156,6 +156,7 @@ export class FakePeer {
 
   async setLocalDescription(): Promise<void> {
     if (this.closed) throw new Error("closed");
+    if (this.net.failLocal?.(this)) throw new Error("no local description");
     if (this.signalingState === "have-remote-offer") {
       const mlines = mlinesOf(this.remoteDescription?.sdp).map(({ mid, dir }) => {
         const t = this.byMid(mid);
@@ -187,7 +188,7 @@ export class FakePeer {
 
   async setRemoteDescription(d: RTCSessionDescriptionInit): Promise<void> {
     if (this.closed) throw new Error("closed");
-    if (this.failNextRemote) {
+    if (this.failNextRemote || this.net.failRemote?.(this)) {
       this.failNextRemote = false;
       throw new Error("bad sdp");
     }
@@ -432,6 +433,9 @@ export class FakeNet {
   readonly sent: Message[] = [];
   /** ontrack events carry no stream, like a transceiver added without streams. */
   streamless = false;
+  /** setLocalDescription / setRemoteDescription reject on the peers this picks. */
+  failLocal: ((pc: FakePeer) => boolean) | undefined;
+  failRemote: ((pc: FakePeer) => boolean) | undefined;
   held: Message[] = [];
   private holding = false;
   private nodes = new Map<string, Node>();
