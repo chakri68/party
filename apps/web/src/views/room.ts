@@ -327,7 +327,6 @@ export class RoomView implements View {
         if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
       voice.onRoom(u.room);
-      this.voiceBar?.render(u.room.phase);
       this.render();
       this.refreshGameList?.(u.room);
     });
@@ -380,7 +379,8 @@ export class RoomView implements View {
       h("button", {
         type: "button",
         onclick: () => {
-          this.voice?.stop();
+          // Leaving on purpose: voice is saved as off for this room.
+          this.voice?.leave();
           this.client?.close();
           setResumeToken(this.code, null);
           navigate("/");
@@ -399,8 +399,9 @@ export class RoomView implements View {
     if (this.last?.room.phase === "playing" && !confirm("Leave the game? You will be out for the rest of this round.")) {
       return;
     }
+    // Leaving on purpose: voice is saved as off for this room.
+    this.voice?.leave();
     this.client?.send({ type: "leave" });
-    this.voice?.stop();
     this.client?.close();
     setResumeToken(this.code, null);
     navigate("/");
@@ -452,9 +453,11 @@ export class RoomView implements View {
 
     if (room.phase === "lobby") {
       const lobby = this.lobby(room, me);
+      // The voice bar changes inside the swap, so the transition's pictures agree.
       this.show("lobby", () => {
         this.dropGameView();
         replaceChildren(this.body, lobby);
+        this.voiceBar?.render("lobby");
       });
       return;
     }
@@ -472,7 +475,10 @@ export class RoomView implements View {
         const latest = this.last;
         if (!latest || latest.room.phase !== "results" || this.screen !== "playing") return;
         const panel = this.results(latest.room, me, !canTransition());
-        this.show("results", () => arrange(this.body, panel, this.controls, this.gameHost));
+        this.show("results", () => {
+          arrange(this.body, panel, this.controls, this.gameHost);
+          this.voiceBar?.render("results");
+        });
       });
       return;
     }
@@ -483,6 +489,7 @@ export class RoomView implements View {
     const panel = room.phase === "results" ? this.results(room, me, arriving) : null;
     this.show(room.phase, async () => {
       arrange(this.body, panel, this.controls, this.gameHost);
+      this.voiceBar?.render(room.phase);
       // Awaited so the transition's "after" picture has the game in it.
       const view = await this.ensureGameView(room.gameId);
       if (view && this.last === u) {
@@ -1152,6 +1159,7 @@ export class RoomView implements View {
     this.show("ended", () => {
       this.dropGameView();
       replaceChildren(this.body, screen);
+      this.voiceBar?.render("ended");
     });
   }
 
@@ -1172,7 +1180,7 @@ export class RoomView implements View {
       { class: "message" },
       h("p", {}, message),
       code === "replaced-by-new-connection"
-        ? h("button", { type: "button", class: "primary", onclick: () => (this.client?.reconnect(), this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")))) }, "Use here")
+        ? h("button", { type: "button", class: "primary", onclick: () => (this.voice?.resumeAfterTakeover(), this.client?.reconnect(), this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")))) }, "Use here")
         : null,
       code === "protocol-mismatch"
         ? h("button", { type: "button", class: "primary", onclick: () => location.reload() }, "Refresh")

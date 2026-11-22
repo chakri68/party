@@ -263,6 +263,17 @@ export class VoiceController {
     });
   }
 
+  /**
+   * "Use here" after another tab took the seat: the next welcome is a fresh
+   * start, so voice comes back as on a reload (mic only if already allowed),
+   * and the roster still listing this seat is not taken as "not joining".
+   */
+  resumeAfterTakeover(): void {
+    if (this.unsupported) return;
+    this.welcomed = false;
+    this.welcomeSinceRoster = false;
+  }
+
   setMuted(muted: boolean): void {
     if (this.unsupported) return;
     this.guard(() => {
