@@ -22,6 +22,14 @@ describe("game registry flags", () => {
     for (const [id, def] of Object.entries(all)) expect(!!def.manifest.computers, id).toBe(!!def.bot);
   });
 
+  it("lists exactly the games that use Space", () => {
+    // Space is push-to-talk in voice, except in these games, where it is a game key.
+    // A game that binds Space outside a focused control adds its id here.
+    const all = gamesFor({ blindRally: true, treasureHunt: true });
+    const spacey = Object.keys(all).filter((id) => all[id]!.manifest.usesSpace).sort();
+    expect(spacey).toEqual(["face-off", "treasure-hunt"]);
+  });
+
   it("lists exactly the games that can pause", () => {
     // Giving a game `pause` changes this list on purpose: add its id here.
     const all = gamesFor({ blindRally: true, treasureHunt: true });

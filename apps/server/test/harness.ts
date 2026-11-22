@@ -2,7 +2,7 @@
 // keep what they're sent, and a hand-cranked clock. Shared by every runtime test.
 
 import { seededRandomInt, type AnyGameDefinition } from "@games/game-core";
-import { PROTOCOL_VERSION, type ServerMessage } from "@games/protocol";
+import { PROTOCOL_VERSION, type IceServer, type ServerMessage } from "@games/protocol";
 import { sevensGame } from "@games/sevens/server";
 import { RoomRuntime, type Conn, type ConnState, type RoomHost, type TierLimits } from "../src/runtime.ts";
 
@@ -55,12 +55,19 @@ export class World {
 
   /** Makes the next storage write throw, as a flaky disk would. */
   failNextPut = false;
+  /** Storage writes so far, for tests that count them. */
+  puts = 0;
+  /** Fake TURN minter. Absent: the room hands out STUN only. */
+  turn?: (ttlSeconds: number) => Promise<IceServer[] | null> = undefined;
 
   host(): RoomHost {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const world = this;
     return {
       storage: {
         get: async <T>(k: string) => structuredClone(this.store.get(k)) as T | undefined,
         put: async (k, v) => {
+          this.puts++;
           if (this.failNextPut) {
             this.failNextPut = false;
             throw new Error("storage write failed");
@@ -82,6 +89,10 @@ export class World {
       ownerRequired: this.ownerRequired,
       tierLimits: this.tierLimits,
       filterText: this.filterText,
+      // Read at use, so a test may set `turn` after the room is built.
+      get turnCredentials() {
+        return world.turn;
+      },
     };
   }
 

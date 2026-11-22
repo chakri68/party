@@ -4,8 +4,10 @@ import {
   type ClientMessage,
   type Reaction,
   type ErrorCode,
+  type IceServer,
   type RoomPublicState,
   type ServerMessage,
+  type VoiceMember,
 } from "@games/protocol";
 import { PartySocket } from "partysocket";
 
@@ -37,6 +39,12 @@ export interface RoomClientEvents {
   chat: { messages: ChatMessage[]; replace: boolean };
   /** A floating emoji from someone in the room (you included). */
   emote: { from: string; emoji: Reaction };
+  /** Who is in room voice now. Outside the versioned updates. */
+  "voice-state": { members: VoiceMember[] };
+  /** Another seat's voice signal, relayed by the server. */
+  "voice-signal": { from: string; session: string; data: unknown };
+  /** ICE servers for voice, after a join or a voice-ice-request. */
+  "voice-ice": { iceServers: IceServer[]; expiresAt: number };
   /** Round trip to the server in ms, from the last pong; null when there's no live link. */
   latency: number | null;
 }
@@ -221,6 +229,15 @@ export class RoomClient {
         break;
       case "emote":
         this.emit("emote", msg);
+        break;
+      case "voice-state":
+        this.emit("voice-state", msg);
+        break;
+      case "voice-signal":
+        this.emit("voice-signal", msg);
+        break;
+      case "voice-ice":
+        this.emit("voice-ice", msg);
         break;
       case "pong":
         this.clockOffset = msg.serverTime - (msg.timestamp + Date.now()) / 2;

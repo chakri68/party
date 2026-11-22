@@ -10,6 +10,9 @@ export interface ServerEnv extends GodotEnv {
   ASSETS: Fetcher;
   OWNER_KEY?: string;
   DEV_TOOLS?: string;
+  /** Cloudflare Realtime TURN key. Both unset: voice uses STUN only. */
+  TURN_KEY_ID?: string;
+  TURN_KEY_TOKEN?: string;
 }
 
 export type CreateDecision =

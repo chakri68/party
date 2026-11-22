@@ -16,14 +16,16 @@ const key = (k: string) => (devAs ? `pg:${devAs}:${k}` : `pg:${k}`);
 
 // Storage can throw (private mode, blocked site data). Degrade to memory.
 const memory = new Map<string, string>();
-function read(k: string): string | null {
+/** One stored value, under this tab's prefix. Never throws. */
+export function readLocal(k: string): string | null {
   try {
     return localStorage.getItem(key(k));
   } catch {
     return memory.get(k) ?? null;
   }
 }
-function write(k: string, v: string | null) {
+/** Stores a value (null removes it), under this tab's prefix. Never throws. */
+export function writeLocal(k: string, v: string | null): void {
   try {
     if (v === null) localStorage.removeItem(key(k));
     else localStorage.setItem(key(k), v);
@@ -38,26 +40,26 @@ const newAvatarSeed = () => randomId().slice(0, 8);
 
 export function getIdentity(): LocalIdentity {
   try {
-    const parsed = JSON.parse(read("identity") ?? "null") as LocalIdentity | null;
+    const parsed = JSON.parse(readLocal("identity") ?? "null") as LocalIdentity | null;
     if (parsed?.clientId) return parsed;
   } catch {
     // fall through and mint a fresh one
   }
   const fresh: LocalIdentity = { clientId: randomId(), displayName: devAs ?? "", avatarSeed: newAvatarSeed() };
-  write("identity", JSON.stringify(fresh));
+  writeLocal("identity", JSON.stringify(fresh));
   return fresh;
 }
 
 export function setDisplayName(name: string): LocalIdentity {
   const next = { ...getIdentity(), displayName: name };
-  write("identity", JSON.stringify(next));
+  writeLocal("identity", JSON.stringify(next));
   return next;
 }
 
 /** A new face. The seed is all the avatar is; see `faceSvg`. */
 export function rerollAvatar(): LocalIdentity {
   const next = { ...getIdentity(), avatarSeed: newAvatarSeed() };
-  write("identity", JSON.stringify(next));
+  writeLocal("identity", JSON.stringify(next));
   return next;
 }
 
@@ -69,7 +71,7 @@ interface StoredToken {
 
 function tokens(): Record<string, StoredToken> {
   try {
-    const raw = JSON.parse(read("tokens") ?? "{}") as Record<string, StoredToken | string>;
+    const raw = JSON.parse(readLocal("tokens") ?? "{}") as Record<string, StoredToken | string>;
     // Phase 1 stored bare strings.
     return Object.fromEntries(
       Object.entries(raw).map(([code, v]) => [code, typeof v === "string" ? { token: v, at: 0 } : v]),
@@ -87,7 +89,7 @@ export function setResumeToken(code: string, token: string | null) {
   const all = tokens();
   if (token === null) delete all[code];
   else all[code] = { token, at: Date.now() };
-  write("tokens", JSON.stringify(all));
+  writeLocal("tokens", JSON.stringify(all));
 }
 
 /**
@@ -105,11 +107,11 @@ export function recentRooms(maxAgeMs = 6 * 60 * 60 * 1000): string[] {
 
 /** The owner's key (see OWNER_KEY on the server). Only the owner's devices have one. */
 export function getOwnerKey(): string | null {
-  return read("ownerKey");
+  return readLocal("ownerKey");
 }
 
 export function setOwnerKey(key: string | null) {
-  write("ownerKey", key);
+  writeLocal("ownerKey", key);
 }
 
 /**

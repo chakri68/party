@@ -22,22 +22,27 @@ import {
   cleanChatText,
   FATAL_ERRORS,
   GRACE_MS,
+  ICE_REQUEST_LIMIT,
   normalizeName,
   NUDGE_AFTER_MS,
   NUDGE_COOLDOWN_MS,
   parseClientMessage,
   PROTOCOL_VERSION,
   safeEqual,
+  VOICE_CAP,
   type ChatMessage,
   type ClientMessage,
   type ErrorCode,
+  type IceServer,
   type Presence,
   type RoomPhase,
   type RoomPublicState,
   type RoomTier,
   type ServerMessage,
   SKIP_AFTER_MS,
+  type VoiceMember,
 } from "@games/protocol";
+import { IceCache, pruneVoice, VOICE_SIGNAL_LIMIT } from "./voice.ts";
 
 // ---------------------------------------------------------------------------
 // Host interfaces
@@ -102,6 +107,8 @@ export interface RoomHost {
   tierLimits?: TierLimits;
   /** Optional text filter (e.g. profanity) for names and chat. Absent = identity. */
   filterText?: (text: string) => string;
+  /** Mints TURN servers for `ttlSeconds`. Absent: STUN only. Null or a throw: STUN only this time. */
+  turnCredentials?(ttlSeconds: number): Promise<IceServer[] | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +171,8 @@ interface RoomData {
    * timer as ms left; they're out of `timers` until resume. Absent: not paused.
    */
   pause?: { at: number; timers: Record<string, number> };
+  /** Who is in room voice, in join order. Optional: older rooms have nobody. */
+  voice?: VoiceMember[];
 }
 
 const STORAGE_KEY = "room";
@@ -210,6 +219,10 @@ export class RoomRuntime {
   private sendTimes = new Map<string, number[]>();
   /** Why a game just ended early; the next commit sends it to every seat after its update. */
   private gameEndedNotice: string | null = null;
+  /** JSON of the voice roster last sent to everyone. In memory: a fresh runtime just sends once more. */
+  private lastVoiceSent: string | null = null;
+  /** TURN servers for the room, made on first use. In memory: after an eviction it starts empty. */
+  private iceCache: IceCache | null = null;
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -538,6 +551,10 @@ export class RoomRuntime {
 
     conn.setState({ hello: true, playerId: seat.id });
     conn.send({ type: "welcome", playerId: seat.id, resumeToken: seat.resumeToken });
+    // Outside the versioned updates, and before the first one: voice never waits on the room.
+    const roster = data.voice ?? [];
+    conn.send({ type: "voice-state", members: roster });
+    this.lastVoiceSent ??= JSON.stringify(roster);
     await this.commit(events, undefined, conn.id);
     conn.send({ type: "chat", messages: data.chat?.messages ?? [], replace: true });
   }
@@ -754,6 +771,57 @@ export class RoomRuntime {
         this.resetReady();
         this.setAwaiting([]);
         return this.commit([]);
+      }
+
+      case "voice-join": {
+        if (!inPhase("lobby", "playing", "results")) return;
+        const roster = (data.voice ??= []);
+        const me = roster.find((m) => m.id === seat.id);
+        if (me) me.selfMuted = msg.muted || me.hostMuted;
+        else if (roster.length >= VOICE_CAP) return this.error(conn, "voice-full", "Voice is full.");
+        else roster.push({ id: seat.id, selfMuted: msg.muted, hostMuted: false });
+        await this.persist();
+        this.flushVoice();
+        // Not awaited: a slow TURN fetch must never hold up the room.
+        void this.sendIce(conn, seat.id);
+        return;
+      }
+
+      case "voice-signal": {
+        // Best-effort, like streams: anything out of place is dropped without a word.
+        if (msg.to === seat.id) return;
+        const roster = data.voice;
+        if (!roster?.some((m) => m.id === seat.id) || !roster.some((m) => m.id === msg.to)) return;
+        if (!this.allow("signal", seat.id, VOICE_SIGNAL_LIMIT)) return;
+        for (const c of this.liveConns()) {
+          if (c.state?.playerId === msg.to) c.send({ type: "voice-signal", from: seat.id, session: msg.session, data: msg.data });
+        }
+        return;
+      }
+
+      case "voice-ice-request": {
+        if (!data.voice?.some((m) => m.id === seat.id)) return;
+        if (!this.allow("ice", seat.id, ICE_REQUEST_LIMIT)) return;
+        void this.sendIce(conn, seat.id);
+        return;
+      }
+
+      case "voice-leave": {
+        const at = data.voice?.findIndex((m) => m.id === seat.id) ?? -1;
+        if (at < 0) return;
+        data.voice!.splice(at, 1);
+        await this.persist();
+        return this.flushVoice();
+      }
+
+      case "voice-self-mute": {
+        const me = data.voice?.find((m) => m.id === seat.id);
+        if (!me) return;
+        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you");
+        if (me.selfMuted === msg.muted) return;
+        me.selfMuted = msg.muted;
+        await this.persist();
+        return this.flushVoice();
       }
 
       case "leave": {
@@ -1313,6 +1381,7 @@ export class RoomRuntime {
     const data = this.data!;
     if (data.phase === "playing") this.scheduleBots();
     data.stateVersion++;
+    if (data.voice) data.voice = pruneVoice(data.voice, data.seats, data.phase);
     await this.persist();
 
     const room = this.publicState();
@@ -1339,6 +1408,31 @@ export class RoomRuntime {
     const notice = this.gameEndedNotice;
     this.gameEndedNotice = null;
     if (notice) for (const c of this.liveConns()) if (this.seatOf(c)) this.error(c, "game-ended", notice);
+    this.flushVoice();
+  }
+
+  /** Sends ICE servers to one connection once they are ready. Outside run(): no write, no commit. Never throws. */
+  private async sendIce(conn: Conn, seatId: string): Promise<void> {
+    try {
+      this.iceCache ??= new IceCache(this.host.turnCredentials ? (ttl) => this.host.turnCredentials!(ttl) : undefined, () => this.host.now());
+      const { iceServers, expiresAt } = await this.iceCache.get();
+      const stillHere = this.liveConns().some((c) => c.id === conn.id) && conn.state?.playerId === seatId;
+      if (!stillHere || !this.data?.voice?.some((m) => m.id === seatId)) return;
+      conn.send({ type: "voice-ice", iceServers, expiresAt });
+    } catch {
+      // Voice never breaks the room.
+    }
+  }
+
+  /** Prunes the roster, then tells every seated connection if it changed since the last send. */
+  private flushVoice(): void {
+    const data = this.data!;
+    const members = pruneVoice(data.voice ?? [], data.seats, data.phase);
+    if (data.voice) data.voice = members;
+    const json = JSON.stringify(members);
+    if (json === this.lastVoiceSent) return;
+    this.lastVoiceSent = json;
+    for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "voice-state", members });
   }
 
   /** Sliding-window rate limit. Records the send when it's allowed. */
@@ -1376,6 +1470,7 @@ export class RoomRuntime {
       tier: this.tier(),
       locked: !!data.locked,
       paused: !!data.pause,
+      voice: { mode: data.phase === "ended" ? "off" : "global" },
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,

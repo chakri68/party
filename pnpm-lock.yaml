@@ -261,6 +261,9 @@ importers:
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@games/webrtc':
+        specifier: workspace:*
+        version: link:../../packages/webrtc
       '@games/wilds':
         specifier: workspace:*
         version: link:../../games/wilds

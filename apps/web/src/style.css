@@ -590,6 +590,69 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
 .settings input[type="range"] { width: 150px; min-height: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
 
+/* Voice (views/voice-bar.ts): above the body, outside the game host. Compact in
+   a game, the full panel in the lobby and on results. Every target is 44 px. */
+.voice-bar { display: grid; gap: 8px; margin-bottom: 12px; }
+.voice-bar[data-layout="panel"] { max-width: 480px; width: 100%; margin: 0 auto 16px; padding: 12px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.voice-join { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.voice-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.voice-bar .icon-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--muted);
+}
+.voice-bar .icon-btn:hover { color: var(--ink); }
+.voice-bar .icon-btn.pressed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.voice-mic { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; }
+.voice-mic.pressed:not(.hold) { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+/* A hold button: no text menu or selection on a long press, no scroll from the finger. */
+.voice-mic.hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.voice-mic.talking { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.voice-mic-icon { display: inline-flex; }
+.voice-speaking { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.85rem; color: var(--muted); }
+.voice-speaking.on::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.voice-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
+.voice-dot[data-state="good"] { background: var(--accent); }
+.voice-taps { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-taps button { flex: 1; min-height: 44px; }
+.voice-note { margin: 0; font-size: 0.85rem; }
+/* In a game the note is one fixed line, empty or not: a talk press or a Mute never moves the game. */
+.voice-bar[data-layout="compact"] .voice-note { height: 1.4em; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* In a game and out of voice: one small button, no extra space. */
+.voice-bar[data-layout="compact"][data-show="join"] { margin-bottom: 0; }
+.voice-bar[data-layout="compact"] .voice-join { padding: 0 12px; font-size: 0.9rem; }
+.voice-people-button { justify-self: start; min-height: 44px; padding: 0 14px; font-size: 0.9rem; }
+/* Read by screen readers, not drawn. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* Narrow phones: the mic button is its icon (the label stays as aria-label), so the row fits 360 px. */
+@media (max-width: 400px) {
+  .voice-mic { padding: 0; min-width: 44px; justify-content: center; }
+  .voice-mic-label { display: none; }
+}
+.voice-panel { display: grid; gap: 8px; }
+.voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.voice-actions button { min-height: 44px; }
+.voice-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.voice-person { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 44px; }
+.voice-person .name { flex: 1; min-width: 6em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-person-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.voice-person.speaking .voice-person-dot { background: var(--accent); }
+.voice-person-state { font-size: 0.8rem; }
+.voice-volume { width: 110px; min-height: 44px; padding: 0; border: none; background: none; accent-color: var(--accent); }
+.voice-person button.small { min-height: 44px; padding: 0 12px; font-size: 0.85rem; }
+.voice-person button.small[aria-pressed="true"] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.voice-dialog .voice-panel { min-width: min(320px, 80vw); }
+.voice-dialog p { margin: 0 0 8px; }
+.voice-dialog .dialog-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.voice-dialog .dialog-list button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.voice-settings select { max-width: 60%; }
+.voice-settings label:has(input:disabled) { opacity: 0.6; }
+.voice-settings .setting-hint { margin: -8px 0 0; }
+
 /* Turn controls (§12) */
 .turn-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .turn-controls:empty { display: none; }
@@ -628,6 +691,8 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
    named parts would stay behind as ghosts. */
 /* The room header is the same on every room screen: it stays put. */
 html:is([data-vt="phase"], [data-vt="lobby"]) .room-header { view-transition-name: room-header; }
+/* So is the voice bar: game swaps and lobby updates never move it. */
+html:is([data-vt="phase"], [data-vt="lobby"]) .voice-bar { view-transition-name: voice-bar; }
 /* The table slides under the results panel instead of jumping. */
 html[data-vt="phase"] .game-host { view-transition-name: game-host; }
 /* Lobby blocks and seats carry their name in --vt (see RoomView.lobby). */

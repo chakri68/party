@@ -8,5 +8,6 @@ export const faceOffManifest: GameManifest = {
   maxPlayers: 12,
   bestMinPlayers: 4,
   bestMaxPlayers: 8,
+  usesSpace: true,
   icon: "bolt",
 };
