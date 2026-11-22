@@ -80,7 +80,7 @@ Upload processing:
 - Wire: client `{ type: "sound", id }`; server relays `{ type: "sound", id, by }` to every seat that is connected. The server checks the id is on the room's board, the host switch is on, and the rate limits; otherwise it drops it silently. It is not part of game state and does not bump the state version.
 - Limits: 3 s cooldown per player (the server enforces it; the tile shows the cooldown); at most 3 sounds playing in the room at once (the server drops more inside a 3 s window).
 - Host menu: "Sounds: on" / "Sounds: off" for the room. Off hides the board for everyone.
-- Each phone: sounds follow the game sound volume, and turning game sound off silences room sounds too. A "Play sounds" switch in the room's sound settings dialog (`openSettings` in room.ts, reachable without voice) turns room sounds off just for this person. Saved per phone. (My call.)
+- Each phone: sounds follow the game sound volume, and turning game sound off silences room sounds too. A "Sound board" switch in the room's sound settings dialog (`openSettings` in room.ts, reachable without voice) turns room sounds off just for this person. Saved per phone. (My call.)
 - Sounds play over voice and game audio without ducking (ducking is a separate phase-3 item).
 
 ### 5.4 Host sounds (step 2)
@@ -133,7 +133,7 @@ Manual (phones):
 
 ## 8. Copy
 
-Examples: "Sounds", "Play sounds", "Sounds: on", "Sounds: off", "My sounds", "Add a sound", "Replace", "Remove", "Name", "This sound is too long. We will keep 3 seconds.", "This file is not a sound we can use.", "Wait a moment before the next sound."
+Examples: "Sounds", "Sound board", "Sounds: on", "Sounds: off", "My sounds", "Add a sound", "Replace", "Remove", "Name", "This sound is too long. We will keep 3 seconds.", "This file is not a sound we can use.", "Wait a moment before the next sound."
 
 ## 9. Left to the builder
 
@@ -143,4 +143,4 @@ Tile layout and icons; the exact loudness target; the mp3 encoder library (small
 
 - Meme files live in a private R2 bucket, never in git (user's call).
 - "My sounds" on CouchParty is Host Pass only (user's call), with the rules in 5.4.
-- The room list route, signature sounds being server-driven, and the "Play sounds" switch place are my calls, marked in place.
+- The room list route, signature sounds being server-driven, and the "Sound board" switch place are my calls, marked in place.
