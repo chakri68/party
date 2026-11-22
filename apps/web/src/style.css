@@ -171,7 +171,7 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
    "reconnecting…" sits just under the header instead of pushing it wider. */
 @media (max-width: 400px) {
   .room-header { gap: 8px; }
-  .room-header .conn { position: absolute; top: calc(100% - 12px); left: 0; font-size: 0.75rem; }
+  .room-header .conn { position: absolute; top: calc(100% - 12px); left: 0; font-size: 0.75rem; line-height: 1; }
 }
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .game-host { flex: 1; display: flex; flex-direction: column; }

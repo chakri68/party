@@ -307,7 +307,7 @@ export class RoomView implements View {
     this.soundView = new SoundBoardView(board, {
       send: (msg) => client.send(msg),
       toast: (t) => this.showToast(t),
-      playHere: () => audio.settings.roomSounds,
+      playHere: () => audio.settings.sound && audio.settings.roomSounds,
     });
     client.on("sound", ({ id }) => board.receive(id));
 
@@ -1233,6 +1233,7 @@ export class RoomView implements View {
       volume.disabled = roomSounds.disabled = !sound.checked;
       if (sound.checked) audio.play("card-place");
       this.renderHeader();
+      this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
     });
     volume.disabled = roomSounds.disabled = !audio.settings.sound;
     roomSounds.addEventListener("change", () => {

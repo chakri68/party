@@ -71,6 +71,10 @@ describe("parseSoundArgs", () => {
     ).toEqual({ cmd: "add", input: "a.wav", name: "Rise", pack: "free", start: 0.5, end: 2, source: "x", licence: "CC0", local: true });
   });
 
+  it("accepts --license as --licence", () => {
+    expect(parseSoundArgs(["add", "a.wav", "--name", "Rise", "--pack", "free", "--source", "x", "--license", "CC0"])).toMatchObject({ licence: "CC0" });
+  });
+
   it("gives help with no args or -h", () => {
     expect(parseSoundArgs([])).toEqual({ cmd: "help" });
     expect(parseSoundArgs(["-h"])).toEqual({ cmd: "help" });
@@ -187,8 +191,13 @@ describe("runSound memes", () => {
 
   it("stops on a wrangler error that is not 'missing'", async () => {
     const f = fake({ getStderr: "Authentication error" });
-    await expect(runSound(meme(), f.io)).rejects.toThrow();
+    await expect(runSound(meme(), f.io)).rejects.toThrow("Could not read the memes list. Authentication error");
     expect(wr(f.calls).some((x) => x.includes(" put "))).toBe(false);
+  });
+
+  it("says so when the memes list is not JSON", async () => {
+    const f = fake({ getStatus: 0, getStdout: "<html>oops" });
+    await expect(runSound(meme(), f.io)).rejects.toThrow("The memes list in R2 is not valid JSON.");
   });
 
   it("removes by writing the index first, then deleting the file", async () => {

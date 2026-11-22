@@ -104,6 +104,23 @@ describe("sound board", () => {
     expect(d.last("sound")!.by).toBe(idOf(d));
   });
 
+  it("checks the seat before the room, so a room drop still uses the seat's turn", async () => {
+    const d = await join(world, room, "Dev");
+    await sound(a);
+    await sound(b);
+    await world.tick(room, 1000);
+    await sound(c);
+    await sound(d);
+    expect(heard(d)).toBe(3);
+    await world.tick(room, 2000);
+    await sound(d);
+    expect(heard(d)).toBe(3);
+    await world.tick(room, 1000);
+    await sound(d);
+    expect(heard(d)).toBe(4);
+    expect(d.last("sound")!.by).toBe(idOf(d));
+  });
+
   it("a reconnect does not reset the cooldown", async () => {
     const token = a.last("welcome")!.resumeToken;
     await sound(a);

@@ -128,7 +128,7 @@ Some games have their own guessing or answering built into the screen, and the r
 
 The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
 
-## Sounds
+## Sound board
 
 The board button (four squares) in the header opens **Sound board**, a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
 

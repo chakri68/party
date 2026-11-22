@@ -91,8 +91,9 @@ describe("the free pack", () => {
     for (const f of files) expect(statSync(join(freeDir, f)).size).toBeLessThanOrEqual(40 * 1024);
   });
 
-  it("has no other .mp3 in the repo", () => {
-    const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", "*.mp3"], {
+  it("has no other audio clip in the repo", () => {
+    const exts = ["mp3", "wav", "m4a", "aac", "ogg", "opus", "flac", "webm"];
+    const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", ...exts.map((e) => `*.${e}`)], {
       cwd: repo,
       encoding: "utf8",
     });

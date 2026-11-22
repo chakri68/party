@@ -34,8 +34,8 @@ const HELP = `Sound board clips.
 
   pnpm sound add <file or link> --name "Air horn" [--pack free|memes]
                  [--start 1.5] [--end 3] [--source ...] [--licence ...] [--local]
-  pnpm sound list [--pack free|memes]
-  pnpm sound remove <id> [--pack free|memes]
+  pnpm sound list [--pack free|memes] [--local]
+  pnpm sound remove <id> [--pack free|memes] [--local]
 
 --pack free   goes into the repo (CC0 only, needs --licence).
 --pack memes  goes only to the R2 bucket. --local uses wrangler dev's bucket.`;
@@ -59,6 +59,7 @@ export function parseSoundArgs(argv) {
       end: { type: "string" },
       source: { type: "string" },
       licence: { type: "string" },
+      license: { type: "string" },
       local: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -71,7 +72,7 @@ export function parseSoundArgs(argv) {
   if (cmd === "add") {
     if (arg === undefined) throw new Error("add needs a file or a link.");
     if (values.name === undefined) throw new Error("add needs --name.");
-    const out = { cmd: "add", input: arg, name: values.name, pack, start: seconds(values.start), end: seconds(values.end), source: values.source, licence: values.licence, local };
+    const out = { cmd: "add", input: arg, name: values.name, pack, start: seconds(values.start), end: seconds(values.end), source: values.source, licence: values.licence ?? values.license, local };
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     return out;
   }
@@ -122,7 +123,13 @@ function loadList(pack, io, cmd) {
     return io.exists(path) ? JSON.parse(text(io.readFile(path))).sounds : [];
   }
   const r = wrangler(io, cmd, ["r2", "object", "get", `${MEMES_BUCKET}/${MEMES_PREFIX}index.json`, "--pipe"]);
-  if (r.status === 0) return JSON.parse(r.stdout).sounds;
+  if (r.status === 0) {
+    try {
+      return JSON.parse(r.stdout).sounds;
+    } catch {
+      throw new Error("The memes list in R2 is not valid JSON.");
+    }
+  }
   if (/specified key does not exist/i.test(r.stderr)) return [];
   throw new Error(`Could not read the memes list. ${r.stderr.trim()}`);
 }
