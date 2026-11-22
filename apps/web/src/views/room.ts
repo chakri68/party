@@ -23,6 +23,12 @@ import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
+import { VoiceBar } from "./voice-bar.ts";
+import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
+import { MeshTransport } from "../voice/mesh.ts";
+import { voicePrefs } from "../voice/prefs.ts";
+import { PushToTalk } from "../voice/ptt.ts";
+import { VoiceController } from "../voice/voice.ts";
 
 const STUCK_AFTER_MS = 15_000;
 
@@ -108,6 +114,12 @@ export class RoomView implements View {
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
+  /** Room voice: built once per RoomView, so game switches never touch it. */
+  private voice: VoiceController | null = null;
+  private playback: Playback | null = null;
+  private ptt: PushToTalk | null = null;
+  private voiceBar: VoiceBar | null = null;
+  private unwatchFrames: (() => void) | null = null;
 
   constructor(params: Record<string, string>) {
     this.code = normalizeRoomCode(params.code ?? "");
@@ -136,6 +148,11 @@ export class RoomView implements View {
     clearTimeout(this.stuckTimer);
     clearInterval(this.ticker);
     this.detachDebug?.();
+    this.voice?.stop();
+    this.unwatchFrames?.();
+    this.ptt?.destroy();
+    this.voiceBar?.destroy();
+    this.playback?.destroy();
     this.chat?.destroy();
     this.emotes?.destroy();
     this.client?.close();
@@ -179,9 +196,64 @@ export class RoomView implements View {
     input.focus();
   }
 
+  /**
+   * Voice for this RoomView, before the client's first welcome or voice-state.
+   * Voice code catches its own errors; this only builds browser objects.
+   */
+  private startVoice() {
+    if (this.voice) return;
+    const media = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    const rtcSupported = typeof RTCPeerConnection !== "undefined" && !!media?.getUserMedia;
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const clock = {
+      now: () => Date.now(),
+      setTimeout: (fn: () => void, ms: number) => window.setTimeout(fn, ms),
+      clearTimeout: (id: number) => window.clearTimeout(id),
+    };
+    const playback = new Playback({
+      context: () => audio.context,
+      onContext: (fn) => audio.onContext(fn),
+      createElement: () => document.createElement("audio") as VoiceElement,
+      unlock: () => audio.unlock(),
+    });
+    const voice = new VoiceController({
+      code: this.code,
+      send: (msg) => this.client?.send(msg),
+      selfId: () => this.client?.playerId ?? null,
+      rtcSupported,
+      createTransport: (deps) => new MeshTransport({ ...deps, createPeer: (config) => new RTCPeerConnection(config), clock }),
+      mic: new Mic(rtcSupported ? (c) => media!.getUserMedia(c) : null, isIOS, { context: () => audio.context }),
+      playback,
+      prefs: voicePrefs(),
+      micPermission: async () => {
+        try {
+          const status = await navigator.permissions?.query({ name: "microphone" as PermissionName });
+          return status?.state ?? "unknown";
+        } catch {
+          return "unknown";
+        }
+      },
+      newSession: () => crypto.randomUUID().slice(0, 12),
+      clock,
+    });
+    const ptt = new PushToTalk((held) => voice.setPtt(held));
+    ptt.attach(window);
+    // Godot frames (Treasure Hunt, Blind Rally) catch Space too, with no change to their bridges.
+    this.unwatchFrames = ptt.watchFrames(this.gameHost);
+    const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"));
+    // Above the body and outside the game host: game swaps never move it.
+    this.header.after(bar.el);
+    this.playback = playback;
+    this.voice = voice;
+    this.ptt = ptt;
+    this.voiceBar = bar;
+  }
+
   private connect() {
     const me = getIdentity();
     this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")));
+    this.startVoice();
+    const voice = this.voice!;
     const client = new RoomClient({
       code: this.code,
       name: me.displayName,
@@ -228,7 +300,11 @@ export class RoomView implements View {
     client.on("welcome", ({ resumeToken }) => {
       setResumeToken(this.code, resumeToken);
       this.renderHeader();
+      voice.onWelcome();
     });
+    client.on("voice-state", ({ members }) => voice.onVoiceState(members));
+    client.on("voice-signal", ({ from, session, data }) => voice.onSignal(from, session, data));
+    client.on("voice-ice", ({ iceServers, expiresAt }) => voice.onIce(iceServers, expiresAt));
     client.on("update", (u) => {
       const prev = this.last;
       this.last = u;
@@ -250,6 +326,8 @@ export class RoomView implements View {
         this.dropGameView();
         if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
+      voice.onRoom(u.room);
+      this.voiceBar?.render(u.room.phase);
       this.render();
       this.refreshGameList?.(u.room);
     });
@@ -258,7 +336,10 @@ export class RoomView implements View {
       else if (this.last?.room.phase === "playing") this.streamBacklog.push(m);
     });
     client.on("rejected", ({ clientActionId, message, code }) => this.gameView?.rejected(clientActionId, message, code));
-    client.on("error", ({ message }) => this.showToast(message));
+    client.on("error", ({ code, message }) => {
+      voice.onError(code);
+      this.showToast(code === "voice-full" ? "Voice is full." : message);
+    });
     client.on("nudged", ({ byPlayerId }) => {
       const room = this.last?.room;
       this.showToast(`${room ? seatName(room, byPlayerId) : "Someone"} reminded you. It's your turn!`);
@@ -266,6 +347,9 @@ export class RoomView implements View {
       navigator.vibrate?.([80, 60, 80]);
     });
     client.on("fatal", ({ code, message }) => {
+      // Another tab took over, removed, locked out: the mic goes off here.
+      voice.stop();
+      this.voiceBar?.render(null);
       // A seat that no longer exists isn't worth resuming.
       if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
       if (code === "room-not-found") return this.showClosed(FATAL_COPY[code]!);
@@ -296,6 +380,7 @@ export class RoomView implements View {
       h("button", {
         type: "button",
         onclick: () => {
+          this.voice?.stop();
           this.client?.close();
           setResumeToken(this.code, null);
           navigate("/");
@@ -315,6 +400,7 @@ export class RoomView implements View {
       return;
     }
     this.client?.send({ type: "leave" });
+    this.voice?.stop();
     this.client?.close();
     setResumeToken(this.code, null);
     navigate("/");
@@ -421,6 +507,8 @@ export class RoomView implements View {
     this.gameViewFor = gameId;
     const entry = games[gameId];
     if (!entry) return Promise.resolve(null);
+    // A game that jumps or buzzes on Space keeps it; the mic button still holds to talk.
+    this.voiceBar?.setSpaceKey(!entry.manifest.usesSpace);
     const loading = entry.loadClient().then((mod) => {
       // Navigated away, or dropped for another game, mid-load.
       if (this.gameViewLoading !== loading || !this.client) return null;
@@ -446,6 +534,8 @@ export class RoomView implements View {
   }
 
   private dropGameView() {
+    this.ptt?.release();
+    this.voiceBar?.setSpaceKey(true);
     this.gameView?.destroy();
     this.gameView = null;
     this.gameViewFor = null;
