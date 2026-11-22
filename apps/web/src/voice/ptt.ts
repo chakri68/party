@@ -13,9 +13,9 @@ interface ElementLike {
 
 /**
  * Something Space presses or types into: button, a[href], select, summary,
- * any input, textarea, [role=button], contenteditable, or [tabindex]. A canvas
- * with a tabindex is a game surface, not a control. Read by tag and attribute,
- * not instanceof, so it works for elements inside an iframe too.
+ * any input, textarea, [role=button], contenteditable, or [tabindex]. Read by
+ * tag and attribute, not instanceof, so it works for elements inside an iframe
+ * too. A game that takes Space with nothing focused sets `usesSpace` instead.
  */
 function takesSpace(el: ElementLike): boolean {
   const tag = typeof el.tagName === "string" ? el.tagName.toUpperCase() : "";
@@ -24,12 +24,21 @@ function takesSpace(el: ElementLike): boolean {
   if (tag === "A" && has("href")) return true;
   if (el.getAttribute?.("role") === "button") return true;
   if (has("contenteditable") && el.getAttribute?.("contenteditable") !== "false") return true;
-  return tag !== "CANVAS" && has("tabindex");
+  return has("tabindex");
 }
 
-/** Space, not a repeat, not while typing, not on something Space presses (button, a[href], select, summary, checkbox, radio, [role=button], [tabindex]). */
-export function isPttKey(e: { key: string; repeat?: boolean; target: unknown }): boolean {
-  if (e.key !== " " || e.repeat) return false;
+interface KeyLike {
+  key: string;
+  repeat?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  target: unknown;
+}
+
+/** Space, not a repeat, no Ctrl, Alt or Meta, not while typing, not on something Space presses (button, a[href], select, summary, checkbox, radio, [role=button], [tabindex]). */
+export function isPttKey(e: KeyLike): boolean {
+  if (e.key !== " " || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return false;
   if (isTyping(e.target)) return false;
   // Walk up: the icon inside a button is the button.
   for (let n: unknown = e.target, depth = 0; n && typeof n === "object" && depth < 50; n = (n as ElementLike).parentElement, depth++) {
@@ -38,16 +47,14 @@ export function isPttKey(e: { key: string; repeat?: boolean; target: unknown }):
   return true;
 }
 
-interface KeyEventLike {
-  key: string;
-  repeat?: boolean;
-  target: unknown;
+interface KeyEventLike extends KeyLike {
   preventDefault(): void;
   stopImmediatePropagation(): void;
 }
 
 export class PushToTalk {
   private on = false;
+  private space = true;
   private keyHeld = false;
   private buttonHeld = false;
   private held = false;
@@ -68,6 +75,22 @@ export class PushToTalk {
     if (!v) this.release();
   }
 
+  /**
+   * Space as the talk key. Off while a game that uses Space (`usesSpace` in its
+   * manifest) is on screen: then Space is never caught or stopped, and only the
+   * mic button holds. Turning it off lets go of a held Space.
+   */
+  get spaceEnabled(): boolean {
+    return this.space;
+  }
+  set spaceEnabled(v: boolean) {
+    this.space = v;
+    if (!v && this.keyHeld) {
+      this.keyHeld = false;
+      this.update();
+    }
+  }
+
   /** keydown and keyup in capture on that window; a PTT key gets preventDefault and stopImmediatePropagation, so the game never sees it. blur releases. */
   attach(target: EventTarget): () => void {
     if (this.destroyed) return () => {};
@@ -77,7 +100,7 @@ export class PushToTalk {
     };
     const down = (ev: Event) => {
       const e = ev as unknown as KeyEventLike;
-      if (!this.on || e.key !== " ") return;
+      if (!this.on || !this.space || e.key !== " ") return;
       // Repeats while held are ours too, or the page would scroll.
       if (this.keyHeld) return swallow(e);
       if (!isPttKey(e)) return;

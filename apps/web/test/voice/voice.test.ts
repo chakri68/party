@@ -4,7 +4,7 @@ import type { VoiceConnectOptions, VoicePeerStats, VoiceRule, VoiceTransport } f
 import { METER_HZ, Mic, Playback, SPEAK_HOLD_TICKS } from "../../src/voice/audio.ts";
 import type { MeshDeps } from "../../src/voice/mesh.ts";
 import { voicePrefs, type KeyValue } from "../../src/voice/prefs.ts";
-import { ICE_REFRESH_WAIT_MS, shouldPublish, SIGNAL_QUEUE_MAX, VoiceController } from "../../src/voice/voice.ts";
+import { ICE_REFRESH_WAIT_MS, shouldPublish, SIGNAL_QUEUE_MAX, VOLUME_SAVE_MS, VoiceController } from "../../src/voice/voice.ts";
 import { FakeAudioEnv, FakeTrack, fakeStream } from "./fake-audio.ts";
 import { FakeClock, flush } from "./fake-rtc.ts";
 import { memoryStore } from "./fake-store.ts";
@@ -32,8 +32,14 @@ class FakeTransport implements VoiceTransport {
   setIceServers(servers: RTCIceServer[], expiresAt: number) {
     this.rec("setIceServers", servers, expiresAt);
   }
+  /** Set to make the next setPublishing reject, like a replaceTrack that failed. */
+  rejectNext = false;
   setPublishing(track: MediaStreamTrack | null) {
     this.rec("setPublishing", track);
+    if (this.rejectNext) {
+      this.rejectNext = false;
+      return Promise.reject(new Error("replaceTrack failed"));
+    }
     return Promise.resolve();
   }
   applyPolicy(rule: VoiceRule) {
@@ -358,6 +364,55 @@ describe("VoiceController", () => {
     expect(plain.types()).toEqual(["voice-join"]);
   });
 
+  it("deafened with deafenAlsoMutes, a join starts muted; unmuting hears everyone again", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ deafenAlsoMutes: true });
+    const s = setup({ store });
+    s.voice.setDeafened(true);
+    await s.voice.join(true);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.voice.view().mic).toBe("muted");
+    s.voice.onVoiceState(roster("me", "b"));
+    s.voice.onIce(STUN, 1e12);
+    expect(s.t().lastPublished()).toBe("never");
+    s.voice.setDeafened(false);
+    expect(s.sent.at(-1)).toEqual({ type: "voice-self-mute", muted: false });
+    expect(s.t().lastPublished()).toBe(s.tracks[0]!.asTrack());
+    // Unmuting while deafened also ends the deafen, so the rule holds.
+    const deafen = vi.spyOn(s.playback, "setDeafened");
+    s.voice.setDeafened(true);
+    s.voice.setMuted(false);
+    expect(s.voice.view().deafened).toBe(false);
+    expect(deafen).toHaveBeenLastCalledWith(false);
+    expect(s.voice.view().mic).toBe("on");
+  });
+
+  it("a failed setPublishing is tried again on the next change", async () => {
+    const s = await joined({}, true);
+    // The first send (after the ICE servers came) failed.
+    const t = s.t();
+    t.calls.length = 0;
+    t.rejectNext = true;
+    s.voice.setMuted(true);
+    await flush();
+    expect(t.ops("setPublishing").map((c) => c.args[0])).toEqual([null]);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    expect(t.ops("setPublishing").map((c) => c.args[0])).toEqual([null, null]);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    expect(t.ops("setPublishing")).toHaveLength(2);
+  });
+
+  it("host-muted with no mic: unmute does not ask for the mic", async () => {
+    const s = setup();
+    await s.voice.join(false);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true })]);
+    const before = s.sent.length;
+    s.voice.setMuted(false);
+    await flush();
+    expect(s.gum).not.toHaveBeenCalled();
+    expect(s.sent.length).toBe(before);
+  });
+
   it("Mute for me and volume are saved for this room", async () => {
     const store = memoryStore();
     const s = await joined({ store }, true, ["b", "c"]);
@@ -368,12 +423,14 @@ describe("VoiceController", () => {
     expect(gain).toHaveBeenLastCalledWith("c", 1.5);
     s.voice.setBlocked("b", true);
     expect(gain).toHaveBeenLastCalledWith("b", 0);
+    await s.clock.advance(VOLUME_SAVE_MS);
     expect(voicePrefs(store).room("ABCD")).toMatchObject({ volumes: { b: 0.5, c: 1.5 }, blocked: ["b"] });
     const b = s.voice.view().members.find((m) => m.id === "b")!;
     expect([b.volume, b.blocked]).toEqual([0.5, true]);
     s.voice.setBlocked("b", false);
     expect(gain).toHaveBeenLastCalledWith("b", 0.5);
     s.voice.setBlocked("b", true);
+    s.voice.stop();
 
     // A new page in the same room puts them back.
     const again = setup({ store });
@@ -382,6 +439,27 @@ describe("VoiceController", () => {
     again.voice.onVoiceState(roster("me", "b", "c"));
     expect(gain2).toHaveBeenCalledWith("b", 0);
     expect(gain2).toHaveBeenCalledWith("c", 1.5);
+  });
+
+  it("a volume slider saves once, after it stops moving; leaving saves at once", async () => {
+    const store = memoryStore();
+    const writes: string[] = [];
+    const counted: KeyValue = { read: store.read, write: (k, v) => (writes.push(k), store.write(k, v)) };
+    const s = await joined({ store: counted });
+    const gain = vi.spyOn(s.playback, "setGain");
+    writes.length = 0;
+    for (let i = 1; i <= 20; i++) s.voice.setVolume("b", i / 20);
+    expect(gain).toHaveBeenLastCalledWith("b", 1);
+    expect(s.voice.view().members.find((m) => m.id === "b")!.volume).toBe(1);
+    expect(writes).toEqual([]);
+    await s.clock.advance(VOLUME_SAVE_MS);
+    expect(writes.filter((k) => k === "voice-room:ABCD")).toHaveLength(1);
+    expect(voicePrefs(store).room("ABCD").volumes.b).toBe(1);
+    // stop() sends nothing and writes "on" nowhere, but a pending volume is not lost.
+    s.voice.setVolume("b", 0.25);
+    s.voice.stop();
+    expect(voicePrefs(store).room("ABCD").volumes.b).toBe(0.25);
+    expect(s.clock.pending()).toBe(0);
   });
 
   it("a game switch or restart touches nothing", async () => {

@@ -58,6 +58,8 @@ export const SIGNAL_QUEUE_MAX = 200;
 export const ICE_REFRESH_WAIT_MS = 3_000;
 /** The server's ICE_REQUEST_LIMIT: more than this a minute is dropped there, so it is not sent. */
 export const ICE_REFRESH_LIMIT = { burst: 3, windowMs: 60_000 };
+/** A volume is saved this long after the last change to it. */
+export const VOLUME_SAVE_MS = 300;
 
 /** Talking = joined and not self-muted and not host-muted and rule.canTalk and transport up and (open mic or PTT held) and a live mic track. */
 export function shouldPublish(s: {
@@ -103,8 +105,8 @@ export class VoiceController {
   private up = false;
   private queue: { from: string; session: string; data: unknown }[] = [];
   private iceServers: IceServer[] = [];
-  /** The track last given to setPublishing on this transport. */
-  private published: MediaStreamTrack | null = null;
+  /** The track last given to setPublishing on this transport. undefined: unknown, after a failed call, so the next change sends again. */
+  private published: MediaStreamTrack | null | undefined = null;
 
   private selfMuted = false;
   private micIssue: "denied" | "lost" | null = null;
@@ -117,6 +119,8 @@ export class VoiceController {
   /** Read once; this tab is the only writer that matters while it runs. */
   private prefs: VoicePrefs;
   private roomPrefs: RoomVoice | null = null;
+  /** A volume change waiting to be saved (a slider moves many times a second). */
+  private saveTimer: number | null = null;
   private links = new Map<string, LinkState>();
   private speaking = new Map<string, SpeakState>();
   private meterTimer: number | null = null;
@@ -261,8 +265,18 @@ export class VoiceController {
     if (this.unsupported) return;
     this.guard(() => {
       if (this.phase !== "joined") return;
-      // Unmuting with no live mic means turning it on.
-      if (!muted && !this.micLive()) return void this.turnOnMic();
+      if (!muted) {
+        // Host-muted: no unmute, and no mic prompt for one.
+        if (this.hostMuted()) return;
+        // "Hear no one also mutes my mic": talking again means hearing again.
+        if (this.deafened && this.prefs.deafenAlsoMutes) {
+          this.deafened = false;
+          this.muteBeforeDeafen = null;
+          this.deps.playback.setDeafened(false);
+        }
+        // Unmuting with no live mic means turning it on.
+        if (!this.micLive()) return void this.turnOnMic();
+      }
       this.applyMute(muted);
     });
   }
@@ -324,9 +338,11 @@ export class VoiceController {
   setVolume(id: string, v: number): void {
     if (this.unsupported) return;
     this.guard(() => {
-      const volumes = { ...this.room().volumes, [id]: clampVolume(v) };
-      this.saveRoom({ volumes });
+      const room = this.room();
+      this.roomPrefs = { ...room, volumes: { ...room.volumes, [id]: clampVolume(v) } };
       this.applyGain(id);
+      if (this.saveTimer !== null) this.deps.clock.clearTimeout(this.saveTimer);
+      this.saveTimer = this.deps.clock.setTimeout(() => this.guard(() => this.flushSave()), VOLUME_SAVE_MS);
       this.notify();
     });
   }
@@ -397,7 +413,7 @@ export class VoiceController {
     return {
       status: this.status,
       mic: this.micState(),
-      talking: this.published !== null,
+      talking: !!this.published,
       deafened: this.deafened,
       pttHeld: this.pttHeld,
       mode: this.prefs.mode,
@@ -458,12 +474,17 @@ export class VoiceController {
     }
     const live = this.micLive();
     this.selfMuted = !live;
+    if (this.deafened && this.prefs.deafenAlsoMutes) {
+      // Deafened before joining: join muted, and undeafen puts back the mute it would have had.
+      this.muteBeforeDeafen = this.selfMuted;
+      this.selfMuted = true;
+    }
     this.needsMicTap = tapMic && !live;
     this.phase = "joined";
     // The saved speaker. The browser may refuse until the first tap; the settings can set it again.
     if (this.prefs.outputDeviceId !== null) void this.deps.playback.setOutput(this.prefs.outputDeviceId).catch(() => false);
     this.openSession();
-    this.deps.send({ type: "voice-join", muted: !live });
+    this.deps.send({ type: "voice-join", muted: this.selfMuted });
     this.saveRoom({ on: true });
     // Already listed (a reload): the server sends no roster when nothing changed.
     if (this.isListed()) this.applyRoster();
@@ -514,6 +535,7 @@ export class VoiceController {
 
   /** Everything off, nothing sent. */
   private teardown(): void {
+    this.flushSave();
     this.generation++;
     this.phase = "idle";
     this.closeTransport();
@@ -620,10 +642,13 @@ export class VoiceController {
     const want = on ? this.deps.mic.track : null;
     if (want === this.published) return;
     this.published = want;
+    const failed = () => {
+      if (this.transport === t && this.published === want) this.published = undefined;
+    };
     try {
-      void t.setPublishing(want).catch(() => {});
+      void t.setPublishing(want).catch(failed);
     } catch {
-      // Voice never breaks the room.
+      failed();
     }
   }
 
@@ -633,8 +658,16 @@ export class VoiceController {
     return (this.roomPrefs ??= this.deps.prefs.room(this.deps.code));
   }
 
+  /** Saves now, with any volume still waiting. */
   private saveRoom(patch: Partial<RoomVoice>): void {
-    this.roomPrefs = this.deps.prefs.setRoom(this.deps.code, patch);
+    if (this.saveTimer !== null) this.deps.clock.clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.roomPrefs = this.deps.prefs.setRoom(this.deps.code, { ...this.room(), ...patch });
+  }
+
+  private flushSave(): void {
+    if (this.saveTimer === null) return;
+    this.saveRoom({});
   }
 
   private applyGain(id: string): void {

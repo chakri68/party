@@ -76,13 +76,24 @@ describe("isPttKey", () => {
     expect(isPttKey({ key: " ", target: el("input", { type: "radio" }) })).toBe(false);
     expect(isPttKey({ key: " ", target: el("div", { attrs: { role: "button" } }) })).toBe(false);
     expect(isPttKey({ key: " ", target: el("div", { attrs: { tabindex: "0" } }) })).toBe(false);
-    // A plain link (no href) is not pressed by Space; a game canvas is a surface, not a control.
+    // A plain link (no href) is not pressed by Space; a focusable canvas is like any [tabindex].
     expect(isPttKey({ key: " ", target: el("a") })).toBe(true);
-    expect(isPttKey({ key: " ", target: el("canvas", { attrs: { tabindex: "0" } }) })).toBe(true);
+    expect(isPttKey({ key: " ", target: el("canvas", { attrs: { tabindex: "0" } }) })).toBe(false);
     // The icon inside a button is the button.
     expect(isPttKey({ key: " ", target: el("span", { parent: el("button") }) })).toBe(false);
     expect(isPttKey({ key: " ", target: el("div", { attrs: { contenteditable: "false" } }) })).toBe(true);
     expect(isPttKey({ key: " ", target: el("input", { readOnly: true }) })).toBe(false);
+  });
+
+  it("ignores Space with Ctrl, Alt or Meta held", () => {
+    expect(isPttKey({ key: " ", ctrlKey: true, target: body })).toBe(false);
+    expect(isPttKey({ key: " ", altKey: true, target: body })).toBe(false);
+    expect(isPttKey({ key: " ", metaKey: true, target: body })).toBe(false);
+    const { held, win } = setup();
+    const down = { ...key("keydown"), ctrlKey: true };
+    win.fire(down);
+    expect(held).toEqual([]);
+    expect(down.preventDefault).not.toHaveBeenCalled();
   });
 
   it("ignores key repeat", () => {
@@ -153,6 +164,33 @@ describe("PushToTalk", () => {
     win.fire(key("keydown"));
     win.fire({ type: "visibilitychange" });
     expect(held).toEqual([true, false, true, false]);
+  });
+
+  it("with Space off, Space passes to the game and the mic button still holds", () => {
+    const { held, ptt, win } = setup();
+    ptt.spaceEnabled = false;
+    const down = key("keydown");
+    const up = key("keyup");
+    win.fire(down);
+    win.fire(up);
+    expect(held).toEqual([]);
+    for (const e of [down, up]) {
+      expect(e.preventDefault).not.toHaveBeenCalled();
+      expect(e.stopImmediatePropagation).not.toHaveBeenCalled();
+    }
+    ptt.press();
+    expect(held).toEqual([true]);
+    ptt.release();
+    expect(held).toEqual([true, false]);
+    // Turning Space off while it is held lets go.
+    ptt.spaceEnabled = true;
+    win.fire(key("keydown"));
+    expect(held).toEqual([true, false, true]);
+    ptt.spaceEnabled = false;
+    expect(held).toEqual([true, false, true, false]);
+    const late = key("keyup");
+    win.fire(late);
+    expect(late.preventDefault).not.toHaveBeenCalled();
   });
 
   it("the mic button holds on press and releases on release", () => {
