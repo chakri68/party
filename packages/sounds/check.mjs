@@ -23,6 +23,7 @@ export function soundId(name) {
 export function checkEntries(entries, opts) {
   const { pack, fileExists } = opts;
   const problems = [];
+  if (pack !== "free" && pack !== "memes") problems.push(`pack ${String(pack)}: the pack must be free or memes`);
   const seen = new Set();
   entries.forEach((entry, i) => {
     const e = entry && typeof entry === "object" ? entry : {};

@@ -38,16 +38,43 @@ describe("checkEntries", () => {
   });
 });
 
+describe("checkEntries edge cases", () => {
+  const only = (entry: unknown, pack: "free" | "memes" = "free") => checkEntries([entry], { pack });
+
+  it("flags each rule once", () => {
+    const long = "a".repeat(33);
+    expect(only({ ...good, id: long, file: `${long}.mp3` })).toHaveLength(1);
+    expect(only({ ...good, name: "bad\u0007name" })).toHaveLength(1);
+    expect(only({ ...good, source: "" })).toHaveLength(1);
+    expect(only({ ...good, source: undefined })).toHaveLength(1);
+    const noId = only({ ...good, id: undefined });
+    expect(noId).toHaveLength(1);
+    expect(noId[0]).toMatch(/^entry 1/);
+  });
+
+  it("accepts the limits", () => {
+    const id32 = "a".repeat(32);
+    expect(only({ ...good, ms: 3000 })).toEqual([]);
+    expect(only({ ...good, ms: 1 })).toEqual([]);
+    expect(only({ ...good, name: "x".repeat(24) })).toEqual([]);
+    expect(only({ ...good, id: id32, file: `${id32}.mp3` })).toEqual([]);
+  });
+
+  it("names an unknown pack", () => {
+    const problems = checkEntries([good], { pack: "meme" as "memes" });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("meme");
+  });
+});
+
 describe("soundId", () => {
   it("makes a kebab id", () => {
     expect(soundId("Bruh!")).toBe("bruh");
     expect(soundId("Air Horn")).toBe("air-horn");
     expect(soundId("  Wow  wow ")).toBe("wow-wow");
     expect(soundId("!!!")).toBe("");
-    const long = soundId("abcd efgh ".repeat(4));
-    expect(long.length).toBeLessThanOrEqual(32);
-    expect(long.endsWith("-")).toBe(false);
-    expect(long.length).toBeGreaterThan(0);
+    expect(soundId("a".repeat(31) + " bcd")).toBe("a".repeat(31));
+    expect(soundId("a".repeat(40))).toBe("a".repeat(32));
   });
 });
 
@@ -71,7 +98,7 @@ describe("the free pack", () => {
     });
     const listed = new Set(FREE_SOUNDS.map((s) => `packages/sounds/free/${s.file}`));
     for (const path of out.split("\n").filter(Boolean)) {
-      if (path.startsWith(".claude/")) continue;
+      if (path.startsWith(".claude/worktrees/")) continue;
       const ok = /^packages\/audio\/src\/sounds\/[^/]+\.mp3$/.test(path) || listed.has(path);
       expect(ok, path).toBe(true);
     }
