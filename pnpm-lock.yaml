@@ -102,6 +102,9 @@ importers:
       '@games/short-night':
         specifier: workspace:*
         version: link:../../games/short-night
+      '@games/sounds':
+        specifier: workspace:*
+        version: link:../../packages/sounds
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns

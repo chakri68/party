@@ -39,6 +39,8 @@ export interface RoomClientEvents {
   chat: { messages: ChatMessage[]; replace: boolean };
   /** A floating emoji from someone in the room (you included). */
   emote: { from: string; emoji: Reaction };
+  /** A board sound for the room (you included). `by` is null when the room sent it. */
+  sound: { id: string; by: string | null };
   /** Who is in room voice now. Outside the versioned updates. */
   "voice-state": { members: VoiceMember[] };
   /** Another seat's voice signal, relayed by the server. */
@@ -229,6 +231,9 @@ export class RoomClient {
         break;
       case "emote":
         this.emit("emote", msg);
+        break;
+      case "sound":
+        this.emit("sound", msg);
         break;
       case "voice-state":
         this.emit("voice-state", msg);

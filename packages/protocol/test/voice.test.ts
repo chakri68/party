@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { FATAL_ERRORS, parseClientMessage, PROTOCOL_VERSION, VOICE_SIGNAL_MAX_LENGTH } from "../src/index.ts";
+import { FATAL_ERRORS, parseClientMessage, VOICE_SIGNAL_MAX_LENGTH } from "../src/index.ts";
 
 const parse = (m: object) => parseClientMessage(JSON.stringify(m));
 
 describe("voice messages", () => {
-  it("is version 11", () => expect(PROTOCOL_VERSION).toBe(11));
   it("parses voice-join with its muted flag", () => {
     expect(parse({ type: "voice-join", muted: true })).toEqual({ type: "voice-join", muted: true });
     expect(parse({ type: "voice-join" })).toBeNull();

@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -56,6 +56,22 @@ export function cleanChatText(input: string, max = CHAT_MAX_LENGTH): string {
 }
 
 export const isReaction = (v: unknown): v is Reaction => (REACTIONS as readonly unknown[]).includes(v);
+
+// ---------------------------------------------------------------------------
+// Sound board
+// ---------------------------------------------------------------------------
+
+/** One seat: one sound per this long. The tile shows it. */
+export const SOUND_COOLDOWN_MS = 3000;
+/** The whole room: at most this many sounds in the window. */
+export const ROOM_SOUND_LIMIT = { burst: 3, windowMs: 3000 };
+export const SOUND_ID_MAX_LENGTH = 48;
+
+const SOUND_ID = /^[a-z][a-z0-9-]{0,15}:[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `<pack>:<id>`, by shape only. Whether the room plays it is the room's call. */
+export const isSoundId = (v: unknown): v is string =>
+  typeof v === "string" && v.length <= SOUND_ID_MAX_LENGTH && SOUND_ID.test(v);
 
 // ---------------------------------------------------------------------------
 // Room state (§20)
@@ -160,6 +176,8 @@ export interface RoomPublicState {
   voice: { mode: VoiceMode };
   /** Game ids that can have computer players. */
   botGameIds: string[];
+  /** The host's switch for the sound board. Off: the room drops every sound. */
+  sounds: boolean;
   /** How many seats the selected game has here: its max, or less in a free room. */
   maxSeats: number;
   /** The night's recap, in `ended`. Null there too when no game finished. */
@@ -189,6 +207,10 @@ export type ClientMessage =
   | { type: "react"; messageId: number; emoji: Reaction }
   /** A floating emoji for the whole room. Not kept anywhere. */
   | { type: "emote"; emoji: Reaction }
+  /** Plays a board sound for the room. Dropped without a word when not allowed. */
+  | { type: "sound"; id: string }
+  /** Host only, in the lobby, playing or results: the sound board on or off for everyone. */
+  | { type: "room-sounds"; on: boolean }
   | { type: "skip-turn"; playerId: string }
   | { type: "remove-player"; playerId: string }
   /** Host only, in the lobby or on results: seats a computer player. `remove-player` takes one out. */
@@ -243,6 +265,8 @@ export type ServerMessage =
   | { type: "chat"; messages: ChatMessage[]; replace: boolean }
   /** Echoed to the sender too, so everyone sees the same thing. */
   | { type: "emote"; from: string; emoji: Reaction }
+  /** A board sound, for every seated connection, the sender too. `by` is null when the room sends one itself. */
+  | { type: "sound"; id: string; by: string | null }
   | { type: "voice-state"; members: VoiceMember[] }
   | { type: "voice-signal"; from: string; session: string; data: unknown }
   | { type: "voice-ice"; iceServers: IceServer[]; expiresAt: number }
@@ -345,6 +369,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isNum(m.messageId) && isReaction(m.emoji) ? { type: "react", messageId: m.messageId, emoji: m.emoji } : null;
     case "emote":
       return isReaction(m.emoji) ? { type: "emote", emoji: m.emoji } : null;
+    case "sound":
+      return isSoundId(m.id) ? { type: "sound", id: m.id } : null;
+    case "room-sounds":
+      return typeof m.on === "boolean" ? { type: "room-sounds", on: m.on } : null;
     case "lock-room":
       return typeof m.locked === "boolean" ? { type: "lock-room", locked: m.locked } : null;
     case "pause-game":

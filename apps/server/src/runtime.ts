@@ -28,7 +28,9 @@ import {
   NUDGE_COOLDOWN_MS,
   parseClientMessage,
   PROTOCOL_VERSION,
+  ROOM_SOUND_LIMIT,
   safeEqual,
+  SOUND_COOLDOWN_MS,
   VOICE_CAP,
   type ChatMessage,
   type ClientMessage,
@@ -42,6 +44,7 @@ import {
   SKIP_AFTER_MS,
   type VoiceMember,
 } from "@games/protocol";
+import { onBoard } from "./sounds.ts";
 import { IceCache, pruneVoice, VOICE_SIGNAL_LIMIT } from "./voice.ts";
 
 // ---------------------------------------------------------------------------
@@ -109,6 +112,8 @@ export interface RoomHost {
   filterText?: (text: string) => string;
   /** Mints TURN servers for `ttlSeconds`. Absent: STUN only. Null or a throw: STUN only this time. */
   turnCredentials?(ttlSeconds: number): Promise<IceServer[] | null>;
+  /** Packs besides free whose ids the room relays by shape. Their lists live outside the room. Absent: free only. */
+  soundPacks?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +178,8 @@ interface RoomData {
   pause?: { at: number; timers: Record<string, number> };
   /** Who is in room voice, in join order. Optional: older rooms have nobody. */
   voice?: VoiceMember[];
+  /** The host turned the sound board off. Optional: rooms stored before it have sounds on. */
+  soundsOff?: true;
 }
 
 const STORAGE_KEY = "room";
@@ -695,6 +702,23 @@ export class RoomRuntime {
           if (c.state?.playerId) c.send({ type: "emote", from: seat.id, emoji: msg.emoji });
         }
         return;
+      }
+
+      case "sound": {
+        // Like emotes, anything not allowed just drops. The seat check runs first,
+        // so a tap the room cap drops still costs the seat its turn.
+        if (data.phase === "ended" || data.soundsOff || !onBoard(msg.id, this.host.soundPacks ?? [])) return;
+        if (!this.allow("sound", seat.id, { burst: 1, windowMs: SOUND_COOLDOWN_MS })) return;
+        if (!this.allow("sound-room", "*", ROOM_SOUND_LIMIT)) return;
+        return this.relaySound(msg.id, seat.id);
+      }
+
+      case "room-sounds": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        if (!data.soundsOff === msg.on) return;
+        if (msg.on) delete data.soundsOff;
+        else data.soundsOff = true;
+        return this.commit([]);
       }
 
       case "react": {
@@ -1445,6 +1469,11 @@ export class RoomRuntime {
     return true;
   }
 
+  /** Board sounds ride outside the versioned updates too: never stored, no bump. */
+  private relaySound(id: string, by: string | null): void {
+    for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "sound", id, by });
+  }
+
   /** Like streams, chat rides outside the versioned updates: no bump, just the lines. */
   private broadcastChat(messages: ChatMessage[]): void {
     for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "chat", messages, replace: false });
@@ -1473,6 +1502,7 @@ export class RoomRuntime {
       voice: { mode: data.phase === "ended" ? "off" : "global" },
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
+      sounds: !data.soundsOff,
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
       recap: data.phase === "ended" ? buildRecap(data.party ?? emptyPartyLog(), this.host.now()) : null,
     };
