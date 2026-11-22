@@ -12,9 +12,10 @@
 
 ## Global Constraints
 
+- No behaviour changes, only layout (user's rule): every control does exactly what it does today, from a new place.
 - Only the `playing` phase changes. Lobby, results, recap, chat panel, emote floats, sound board contents and game views stay as they are.
 - In a game the header row is: room code, signal, then (right side) the mic only when in voice, chat, and the "..." button with aria-label "Room menu". No brand logo or wordmark in a game.
-- Menu order: Sound board (only when `soundBoardModel(...).button`), Reactions, Join voice (out of voice, voice supported) or Voice (in voice), Sound and vibration settings, host only: Pause/Resume (pausable games), Restart, End game, then Leave room.
+- Menu order: Sound board (only when `soundBoardModel(...).button`), Reactions, Join voice (out of voice, voice supported) or Voice (in voice), Sound and vibration settings, host only: Pause/Resume (pausable games), Restart, End game, then Home (a link to `shellConfig().brand.homeHref`, exactly what the header logo does today).
 - Host actions keep today's confirms and messages: `pause-game {paused}`, `confirm("Restart this game for everyone?")` then `restart-game`, `confirm("End this game for everyone? Everyone goes back to the lobby.")` then `return-to-lobby`.
 - Turn controls above the game keep only: the lost-connection line, "The game is paused.", Remind X, Skip X's turn, Remove X.
 - "Tap to turn on sound" / "Tap to talk again." still show as a row under the header in a game when needed.
@@ -65,18 +66,18 @@
 
 **Interfaces:**
 - Consumes: Task 1 `voiceMenuItem`, `VoiceBar.headerMic`, `VoiceBar.startJoin()`, `VoiceBar.openPanel()`; existing `Emotes.toggle(open)`, `SoundBoardView.toggle(open)`, `soundBoardModel(...).button`.
-- Produces: `type RoomMenuItem = "sounds" | "reactions" | "join-voice" | "voice" | "settings" | "pause" | "resume" | "restart" | "end-game" | "leave"` and `roomMenuItems(room: RoomPublicState, me: string, o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean }): RoomMenuItem[]` in `room-menu.ts`, plus `ROOM_MENU_LABELS: Record<RoomMenuItem, string>` with: "Sound board", "Reactions", "Join voice", "Voice", "Sound and vibration", "Pause", "Resume", "Restart", "End game", "Leave room".
+- Produces: `type RoomMenuItem = "sounds" | "reactions" | "join-voice" | "voice" | "settings" | "pause" | "resume" | "restart" | "end-game" | "home"` and `roomMenuItems(room: RoomPublicState, me: string, o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean }): RoomMenuItem[]` in `room-menu.ts`, plus `ROOM_MENU_LABELS: Record<RoomMenuItem, string>` with: "Sound board", "Reactions", "Join voice", "Voice", "Sound and vibration", "Pause", "Resume", "Restart", "End game", "Home".
 
 - [ ] **Step 1: Write the failing tests** in `room-menu.test.ts`:
-  - `player menu in a game` — non-host, board true, voice "join": `["sounds","reactions","join-voice","settings","leave"]`.
-  - `host menu, pausable, paused` — host, `room.paused = true`, board true, voice "voice", pausable true: `["sounds","reactions","voice","settings","resume","restart","end-game","leave"]`.
+  - `player menu in a game` — non-host, board true, voice "join": `["sounds","reactions","join-voice","settings","home"]`.
+  - `host menu, pausable, paused` — host, `room.paused = true`, board true, voice "voice", pausable true: `["sounds","reactions","voice","settings","resume","restart","end-game","home"]`.
   - `no pause for a game without it` — host, pausable false: contains `"restart"`, not `"pause"`/`"resume"`.
-  - `no board, no voice` — board false, voice null: `["reactions","settings","leave"]`.
+  - `no board, no voice` — board false, voice null: `["reactions","settings","home"]`.
   - `host handover` — the same room with `hostId` changed from me to someone else drops `restart` and `end-game`.
   - `empty outside a game` — `phase: "lobby"` and `"results"` give `[]`.
 - [ ] **Step 2: Run** `pnpm vitest run apps/web/test/room-menu.test.ts`. Expected: FAIL (module missing).
 - [ ] **Step 3: Implement `roomMenuItems`** per the Global Constraints order.
-- [ ] **Step 4: Wire RoomView.** In `playing` with a seat: `renderHeader` renders room code, signal, `voiceBar.headerMic` (only when the model shows `"header"`), chat button, and a `.icon-btn` "Room menu" button (icon `more`); the brand, settings icon, board and emote buttons are not shown (their wraps stay in the DOM so their panels can open; hide only the buttons). The menu opens as a dialog list like the seat menu (`dialog-list`), each item a button that closes the menu then acts (board: `soundView.toggle(true)`; reactions: `emotes.toggle(true)`; join-voice: `voiceBar.startJoin()`; voice: `voiceBar.openPanel()`; settings: `openSettings()`; host items as in the constraints; leave: `this.leave()`). Close the menu dialog on any phase change. `renderControls` drops Pause/Resume, Restart and End game. Re-render the header when voice show changes (subscribe as the bar does) so the mic appears and goes.
+- [ ] **Step 4: Wire RoomView.** In `playing` with a seat: `renderHeader` renders room code, signal, `voiceBar.headerMic` (only when the model shows `"header"`), chat button, and a `.icon-btn` "Room menu" button (icon `more`); the brand, settings icon, board and emote buttons are not shown (their wraps stay in the DOM so their panels can open; hide only the buttons). The menu opens as a dialog list like the seat menu (`dialog-list`), each item a button that closes the menu then acts (board: `soundView.toggle(true)`; reactions: `emotes.toggle(true)`; join-voice: `voiceBar.startJoin()`; voice: `voiceBar.openPanel()`; settings: `openSettings()`; host items as in the constraints; home: an `<a href={homeHref}>` styled as a list item, same as the logo link). Close the menu dialog on any phase change. `renderControls` drops Pause/Resume, Restart and End game. Re-render the header when voice show changes (subscribe as the bar does) so the mic appears and goes.
 - [ ] **Step 5: CSS.** The board and emote panels anchor under the header's right edge in a game. Check the 360 px header: measure in a Vitest-free way by reasoning on widths, and keep every in-game header item at the existing `.icon-btn` size with the existing 8 px gap under 400 px.
 - [ ] **Step 6: Docs.** `docs/games/rooms.md`: say that in a game the room's buttons are in the menu (the three dots at the top right): sound board, reactions, voice, sound settings, and for the host Pause, Restart and End game. Fix the "Mid-game" host line (~75), the Sound board line (~133, "in the header" becomes "in the menu during a game"), and the voice lines (~155, ~165): in a game Join voice is in the menu, and once in voice the mic button is at the top; the menu's Voice item shows everyone in voice, Hear no one and voice settings.
 - [ ] **Step 7: Run** `pnpm -r typecheck` and `pnpm vitest run apps/web`. Expected: PASS.

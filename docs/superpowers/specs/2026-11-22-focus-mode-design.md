@@ -22,7 +22,9 @@ The "..." menu (a dialog list, like the seat menu) holds, in order:
 - Join voice (out of voice), or Voice (in voice: the people panel, as the people button opens today).
 - Sound and vibration settings.
 - Host only: Pause/Resume (pausable games), Restart, End game, with today's confirms.
-- Leave room (my call: the logo was the way out of a game; it leaves the room).
+- Home: the same link the logo is today (the logo is not shown in a game).
+
+Rule (user): nothing changes in behaviour, only the layout.
 
 Voice in a game:
 - Out of voice: the voice row is hidden (today it shows a small Join voice button).
