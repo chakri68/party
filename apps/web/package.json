@@ -47,7 +47,8 @@
     "@games/short-night": "workspace:*",
     "@games/thorns": "workspace:*",
     "@games/treasure-hunt": "workspace:*",
-    "@games/ui": "workspace:*"
+    "@games/ui": "workspace:*",
+    "@games/webrtc": "workspace:*"
   },
   "devDependencies": {
     "vite": "^8.3.0"
