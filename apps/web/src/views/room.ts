@@ -26,7 +26,7 @@ import { soundBoardModel, SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
-import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
+import { focusPhase, ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
 import { MeshTransport } from "../voice/mesh.ts";
@@ -87,7 +87,7 @@ export class RoomView implements View {
   private root = h("main", { class: "room" });
   private header = h("header", { class: "room-header" });
   /**
-   * The header's rebuilt parts, around the voice mic (in a game, in voice).
+   * The header's rebuilt parts, around the voice mic (on a room screen, in voice).
    * The mic sits between them and is never re-inserted, so a held talk press
    * survives a header update. Both parts are `display: contents`: their
    * children lay out as the header's own.
@@ -465,23 +465,24 @@ export class RoomView implements View {
   // ---- rendering ----------------------------------------------------------
 
   /**
-   * The header's two looks. Lobby and results: the brand, the room code and
-   * every room button. In a game (seated): one slim row, the room code and
-   * signal on the left; the mic (in voice, its own slot), chat and the Room
-   * menu on the right. The board and emote wraps stay in the DOM in a game,
-   * buttons hidden by CSS, so their panels still open (from the menu).
+   * The header's two looks. On a room screen (lobby, game, results; seated):
+   * one slim row, the room code and signal on the left; the mic (in voice,
+   * its own slot), chat and the Room menu on the right. The board and emote
+   * wraps stay in the DOM, buttons hidden by CSS, so their panels still open
+   * (from the menu). Otherwise (party over, before a seat, a fatal message):
+   * the brand, the room code and the room buttons.
    */
   private renderHeader() {
     const status = this.client?.status;
     const seated = !!this.client?.playerId && status !== "closed";
-    const game = seated && this.shownPhase === "playing";
-    this.header.classList.toggle("in-game", game);
+    const focus = seated && focusPhase(this.shownPhase);
+    this.header.classList.toggle("focus", focus);
     const conn = status === "reconnecting" || status === "connecting"
       ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
       : null;
     const code = h("span", { class: "room-code", "aria-label": `Room ${this.code.split("").join(" ")}` }, this.code);
     const signal = status === "open" ? this.signal.el : null;
-    if (game) {
+    if (focus) {
       replaceChildren(this.headerStart, code, signal, conn);
       replaceChildren(
         this.headerEnd,
@@ -522,14 +523,14 @@ export class RoomView implements View {
     this.voiceBar?.render(phase);
     if (was === phase) return;
     this.menuDialog?.close();
-    // Into or out of a game the reaction bar's anchor moves: it closes, like the sound board does on any phase change.
-    if ((was === "playing") !== (phase === "playing")) this.emotes?.toggle(false);
+    // Into or out of the slim header the reaction bar's anchor moves: it closes, like the sound board does on any phase change.
+    if (focusPhase(was) !== focusPhase(phase)) this.emotes?.toggle(false);
     this.renderHeader();
   }
 
   /**
-   * The Room menu (in a game): the room's own buttons, each doing exactly what
-   * it does outside a game. What it lists is `roomMenuItems` (tested).
+   * The Room menu (on a room screen): the room's own buttons, each doing
+   * exactly what it did in the old header. What it lists is `roomMenuItems` (tested).
    */
   private openMenu() {
     const u = this.last;
@@ -538,7 +539,7 @@ export class RoomView implements View {
     if (!u || !client || !me || this.menuDialog) return;
     const room = u.room;
     // The menu follows the screen: just after the last move the room is on
-    // results but the game is still shown, and the room buttons stay in reach.
+    // results but the game is still shown. The host items need a running game.
     const items = roomMenuItems({ ...room, phase: this.shownPhase ?? room.phase }, me, {
       board: soundBoardModel(room, me, this.board?.list() ?? [], audio.settings.sound && audio.settings.roomSounds).button,
       voice: this.voice ? voiceMenuItem(this.voice.view()) : null,
@@ -570,7 +571,7 @@ export class RoomView implements View {
         { class: "dialog-list" },
         items.map((item) =>
           item === "home"
-            // The same link as the header logo outside a game. The menu closes; the link goes on.
+            // The same link as the header logo (party over). The menu closes; the link goes on.
             ? h("a", { href: shellConfig().brand.homeHref, class: "dialog-link", onclick: () => dlg.close() }, ROOM_MENU_LABELS.home)
             : h("button", {
                 type: "button",

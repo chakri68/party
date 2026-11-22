@@ -1,9 +1,18 @@
-// The room menu: in a game, the "..." button at the top right holds the
-// room's own buttons, so the game gets the screen. What it lists is
-// `roomMenuItems` (tested); RoomView draws it and acts on each item exactly as
-// the old header and turn-control buttons did.
+// The room menu: on every room screen (lobby, game, results), the "..."
+// button at the top right holds the room's own buttons, so the screen stays
+// clean. What it lists is `roomMenuItems` (tested); RoomView draws it and acts
+// on each item exactly as the old header and turn-control buttons did.
 
-import type { RoomPublicState } from "@games/protocol";
+import type { RoomPhase, RoomPublicState } from "@games/protocol";
+
+/**
+ * A focus screen: the slim header, the Room menu, and no voice row. Every room
+ * screen but the party-over one (`ended`), which keeps its own header. Null is
+ * no room screen (a fatal message).
+ */
+export function focusPhase(phase: RoomPhase | null): boolean {
+  return phase === "lobby" || phase === "playing" || phase === "results";
+}
 
 export type RoomMenuItem =
   | "sounds"
@@ -31,8 +40,9 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
 };
 
 /**
- * The menu's items, in order, during a game. Empty outside a game: the lobby
- * and results keep their own buttons.
+ * The menu's items, in order, on a focus screen. Empty elsewhere (party over).
+ * Pause, Restart and End game only in a game: the lobby keeps its host
+ * controls on the page.
  * - board: the sound board button would show (`soundBoardModel(...).button`).
  * - voice: `voiceMenuItem(...)`, or null where voice cannot work.
  * - pausable: the game's manifest says the host can pause it.
@@ -44,14 +54,14 @@ export function roomMenuItems(
   me: string,
   o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean; hostActions?: boolean },
 ): RoomMenuItem[] {
-  if (room.phase !== "playing") return [];
+  if (!focusPhase(room.phase)) return [];
   const items: RoomMenuItem[] = [];
   if (o.board) items.push("sounds");
   items.push("reactions");
   if (o.voice === "join") items.push("join-voice");
   else if (o.voice === "voice") items.push("voice");
   items.push("settings");
-  if (room.hostId === me && o.hostActions !== false) {
+  if (room.phase === "playing" && room.hostId === me && o.hostActions !== false) {
     if (o.pausable) items.push(room.paused ? "resume" : "pause");
     items.push("restart", "end-game");
   }

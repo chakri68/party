@@ -88,14 +88,14 @@ export class SoundBoardView {
   }
 
   /**
-   * `from`: opened by another control while the header button is hidden (in a
-   * game). Focus goes into the panel, so Escape works there, and back to `from`.
+   * `from`: opened from the Room menu, as the header button is hidden there
+   * (every room screen). Focus goes into the panel, so Escape works there, and back to `from`.
    */
   toggle(open = this.panel.hidden, from?: HTMLElement) {
     this.panel.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
     this.from = open ? (from ?? null) : null;
-    // Focusable only then: outside a game a tap on the panel leaves focus (and Space) as before.
+    // Focusable only then: opened from its own button, a tap on the panel leaves focus (and Space) as before.
     if (open && from) {
       this.panel.tabIndex = -1;
       this.panel.focus();
