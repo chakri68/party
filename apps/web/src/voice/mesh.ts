@@ -11,11 +11,13 @@
 // restarts). The polite side says hello (an empty "ice" signal) on every new
 // link, so the other side learns it started over.
 //
-// Sessions: every signal carries the sender's link session (`<session>.<n>`,
-// n counting every link this mesh opens, so no two links share one)
+// Sessions: every signal carries the sender's link session (`<session>.<n>`)
 // and, in its data, the receiver's session it is answering (`toSession`). That
 // lets each side drop signals meant for a link that is gone, and notice when
-// the other side started over.
+// the other side started over. n counts up only for my own rebuilds and for a
+// new peer record, so a session is never used twice. When the other side
+// starts over, my new link keeps my session: a start-over never makes a new
+// session, so the two sides cannot keep starting over for each other.
 //
 // Nothing here throws to the caller, and nothing logs SDP or candidates.
 
@@ -103,8 +105,6 @@ interface Link {
   /** The track the sender has now. undefined: unknown, after a failed replaceTrack. */
   sentTrack: MediaStreamTrack | null | undefined;
   playing: boolean;
-  /** The peer session this link has handled a signal from. */
-  heardFrom: string | null;
   /** Incoming signals run one at a time, in arrival order. */
   chain: Promise<void>;
   closed: boolean;
@@ -197,7 +197,7 @@ export class MeshTransport implements VoiceTransport {
         peer.peerSession = session;
         if (!this.isPolite(peer)) return;
         peer.late = { peerSession: session, mySession: toSession };
-        this.replaceLink(peer, "reconnecting");
+        this.replaceLink(peer, "reconnecting", true);
       } else {
         return;
       }
@@ -207,17 +207,12 @@ export class MeshTransport implements VoiceTransport {
       if (!this.isNewer(peer, session)) return;
       peer.retired.add(peer.peerSession);
       peer.peerSession = session;
-      // The other side started over. A link that heard from its old session
-      // starts over too, bound to the new one; a fresh link only rebinds (or
-      // the two sides would keep starting over for each other's new sessions).
-      if (peer.link?.heardFrom) {
-        if (toSession !== null) peer.late = { peerSession: session, mySession: toSession };
-        this.replaceLink(peer, "connecting");
-      }
+      // The other side started over: so do we, bound to its new session,
+      // keeping my session.
+      this.replaceLink(peer, "connecting", true);
     }
     const link = peer.link;
     if (!link) return;
-    link.heardFrom = session;
     link.chain = link.chain.then(() => this.process(peer, link, signal));
   }
 
@@ -286,7 +281,7 @@ export class MeshTransport implements VoiceTransport {
   /** Starts over with a new link session of mine. */
   private rebuild(peer: Peer): void {
     peer.late = null;
-    this.replaceLink(peer, "reconnecting");
+    this.replaceLink(peer, "reconnecting", false);
   }
 
   private isPolite(peer: Peer): boolean {
@@ -307,13 +302,15 @@ export class MeshTransport implements VoiceTransport {
     return nowN !== null && n !== null && n > nowN;
   }
 
-  private replaceLink(peer: Peer, state: LinkState): void {
+  /** keepSession: the new link goes on with my current session (a start-over the other side led). */
+  private replaceLink(peer: Peer, state: LinkState, keepSession: boolean): void {
+    const session = keepSession ? peer.link?.session : undefined;
     if (peer.link) this.closeLink(peer, peer.link);
-    peer.link = this.openLink(peer, state);
+    peer.link = this.openLink(peer, state, session);
     void this.runPolicy();
   }
 
-  private openLink(peer: Peer, state: LinkState): Link | null {
+  private openLink(peer: Peer, state: LinkState, session?: string): Link | null {
     const opts = this.opts!;
     let pc: PeerLike;
     try {
@@ -325,7 +322,7 @@ export class MeshTransport implements VoiceTransport {
     const link: Link = {
       pc,
       sender: null,
-      session: `${opts.session}.${this.linkCount++}`,
+      session: session ?? `${opts.session}.${this.linkCount++}`,
       polite: this.isPolite(peer),
       makingOffer: false,
       ignoreOffer: false,
@@ -342,7 +339,6 @@ export class MeshTransport implements VoiceTransport {
       attached: false,
       sentTrack: null,
       playing: false,
-      heardFrom: null,
       chain: Promise.resolve(),
       closed: false,
     };
