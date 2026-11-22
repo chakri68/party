@@ -82,12 +82,6 @@ export class RoomClient {
   playerId: string | null = null;
   /** serverTime − local time, from the last pong. For §12.2 thresholds. */
   clockOffset = 0;
-  /** Who is in room voice now. Outside the versioned updates. */
-  "voice-state": { members: VoiceMember[] };
-  /** Another seat's voice signal, relayed by the server. */
-  "voice-signal": { from: string; session: string; data: unknown };
-  /** ICE servers for voice, after a join or a voice-ice-request. */
-  "voice-ice": { iceServers: IceServer[]; expiresAt: number };
   /** Round trip to the server in ms, from the last pong. Null until one lands, and while down. */
   latency: number | null = null;
   simulate: NetworkSimulation = { latencyMs: 0, dropRate: 0 };

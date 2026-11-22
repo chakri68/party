@@ -18,6 +18,12 @@ export interface GameManifest {
   computers?: true;
   /** The definition has `pause`, so the host gets Pause in a game. A test keeps the two in step. */
   pausable?: true;
+  /**
+   * The game takes Space with nothing focused (jump, buzz). Voice then leaves
+   * Space alone while the game is on screen, and push-to-talk is the mic button
+   * only. A test lists the games that set it.
+   */
+  usesSpace?: true;
   /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
   /**

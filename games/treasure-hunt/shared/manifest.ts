@@ -8,5 +8,6 @@ export const treasureHuntManifest: GameManifest = {
   maxPlayers: 8,
   bestMinPlayers: 2,
   bestMaxPlayers: 4,
+  usesSpace: true,
   icon: "map",
 };
