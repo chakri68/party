@@ -27,7 +27,12 @@
   // the 25 MiB asset limit, so the hashed dirs live here, one key prefix per
   // game. `pnpm deploy` uploads the current ones (export-godot.mjs --upload). Local dev gets an empty simulated bucket,
   // which is fine: Vite serves the export from apps/web/public instead.
-  "r2_buckets": [{ "binding": "BLIND_RALLY_GODOT", "bucket_name": "party-games-blind-rally" }],
+  // MEMES: the memes sound pack (party-games only, never in git). `pnpm sound add --pack memes`
+  // fills it. CouchParty and self-hosted copies have no MEMES, so /api/packs/memes is a 404 there.
+  "r2_buckets": [
+    { "binding": "BLIND_RALLY_GODOT", "bucket_name": "party-games-blind-rally" },
+    { "binding": "MEMES", "bucket_name": "party-games-memes" }
+  ],
   "durable_objects": {
     "bindings": [{ "name": "Room", "class_name": "Room" }]
   },
