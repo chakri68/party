@@ -55,3 +55,11 @@ After shipping, the user wanted the same cleanup in the lobby and on results, no
 - The voice row (the Join voice box, and the full bar with People in voice) is gone on these screens. Join voice / Voice live in the menu; once in voice, the mic sits in the header, exactly as in a game. "Tap to turn on sound" / "Tap to talk again." still show as a row.
 - Host items in the menu (Pause/Resume, Restart, End game) still appear only in `playing` and not while stuck. Lobby host controls (Start, Change, Lock, Add computer, seat menus) stay on the page.
 - Still no behaviour change: every control does what it does today, from its new place.
+
+## Addendum 2026-11-22: sound board and reactions back in the header (user's call)
+
+The user wanted the Sound board and Reactions buttons back in the header as buttons, not in the Room menu.
+
+- Order on the right: the mic (in voice), the sound board (when its button would show, as before), reactions, chat, "...". The menu no longer lists Sound board or Reactions.
+- Each panel opens from its own button, as before focus mode: outside tap closes it, Escape goes back to the button. The reaction bar hangs from the header's right edge (like the sound board), as chat and the menu now sit to the right of its button.
+- Width: under 400 px the header buttons (and the mic) are 36 px, so the row fits 360 px phones: code about 64 + signal 20 + five 36 px buttons + six 8 px gaps, about 312 of 328 px.

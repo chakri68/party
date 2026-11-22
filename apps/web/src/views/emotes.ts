@@ -23,8 +23,6 @@ export class Emotes {
   private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Send a reaction", "aria-expanded": "false" }, icon("smile"));
   private bar = h("div", { class: "emote-bar", role: "group", "aria-label": "Reactions", hidden: true });
   private opts: EmotesOptions;
-  /** Opened from somewhere else (the room menu, with this button hidden): Escape goes back there. */
-  private from: HTMLElement | null = null;
 
   constructor(opts: EmotesOptions) {
     this.opts = opts;
@@ -33,27 +31,16 @@ export class Emotes {
     this.wrap.append(this.button, this.bar);
     this.wrap.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !this.bar.hidden) {
-        const back = this.from ?? this.button;
         this.toggle(false);
-        back.focus();
+        this.button.focus();
       }
     });
     document.addEventListener("pointerdown", this.onOutside);
   }
 
-  /**
-   * `from`: opened from the Room menu, as the header button is hidden there
-   * (every room screen). Focus goes into the bar, so Escape works there, and back to `from`.
-   */
-  toggle(open = this.bar.hidden, from?: HTMLElement) {
+  toggle(open = this.bar.hidden) {
     this.bar.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
-    this.from = open ? (from ?? null) : null;
-    // Focusable only then: opened from its own button, a tap on the bar leaves focus (and Space) as before.
-    if (open && from) {
-      this.bar.tabIndex = -1;
-      this.bar.focus();
-    } else if (!open) this.bar.removeAttribute("tabindex");
   }
 
   show(from: string, emoji: Reaction) {

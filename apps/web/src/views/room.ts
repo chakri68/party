@@ -22,7 +22,7 @@ import { resultHeadline } from "./headline.ts";
 import { closedView, recapView } from "./recap.ts";
 import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
-import { soundBoardModel, SoundBoardView } from "./sound-board.ts";
+import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
@@ -468,9 +468,8 @@ export class RoomView implements View {
   /**
    * The header's two looks. On a room screen (lobby, game, results; seated):
    * one slim row, the room code and signal on the left; the mic (in voice,
-   * its own slot), chat and the Room menu on the right. The board and emote
-   * wraps stay in the DOM, buttons hidden by CSS, so their panels still open
-   * (from the menu). Otherwise (party over, before a seat, a fatal message):
+   * its own slot), the sound board (when it shows), reactions, chat and the
+   * Room menu on the right. Otherwise (party over, before a seat, a fatal message):
    * the brand, the room code and the room buttons.
    */
   private renderHeader() {
@@ -487,10 +486,10 @@ export class RoomView implements View {
       replaceChildren(this.headerStart, code, signal, conn);
       replaceChildren(
         this.headerEnd,
-        this.chat?.button,
-        this.menuButton,
         this.soundView?.wrap,
         this.emotes?.wrap,
+        this.chat?.button,
+        this.menuButton,
         this.debugToggle,
       );
       return;
@@ -542,17 +541,13 @@ export class RoomView implements View {
     // The menu follows the screen: just after the last move the room is on
     // results but the game is still shown. The host items need a running game.
     const items = roomMenuItems({ ...room, phase: this.shownPhase ?? room.phase }, me, {
-      board: soundBoardModel(room, me, this.board?.list() ?? [], audio.settings.sound && audio.settings.roomSounds).button,
       voice: this.voice ? voiceMenuItem(this.voice.view()) : null,
       pausable: !!games[room.gameId]?.manifest.pausable,
       // Only while the game runs and the room can hear us: elsewhere they would do nothing.
       hostActions: room.phase === "playing" && !this.stuck,
     });
     if (!items.length) return;
-    const opener = this.menuButton;
     const act: Record<RoomMenuItem, () => void> = {
-      sounds: () => this.soundView?.toggle(true, opener),
-      reactions: () => this.emotes?.toggle(true, opener),
       "join-voice": () => void this.voiceBar?.startJoin(),
       voice: () => this.voiceBar?.openPanel(),
       settings: () => this.openSettings(),
