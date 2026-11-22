@@ -1,0 +1,17 @@
+{
+  "name": "@games/sounds",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./list": "./src/list.ts",
+    "./check": "./check.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "vite": "^8.3.0"
+  }
+}

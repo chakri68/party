@@ -1,0 +1,68 @@
+{
+  "sounds": [
+    {
+      "id": "rise",
+      "name": "Rise",
+      "file": "rise.mp3",
+      "ms": 1228,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "drop",
+      "name": "Drop",
+      "file": "drop.mp3",
+      "ms": 1228,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "boop",
+      "name": "Boop",
+      "file": "boop.mp3",
+      "ms": 287,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "ding",
+      "name": "Ding",
+      "file": "ding.mp3",
+      "ms": 1541,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "whoosh",
+      "name": "Whoosh",
+      "file": "whoosh.mp3",
+      "ms": 836,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "buzz",
+      "name": "Buzz",
+      "file": "buzz.mp3",
+      "ms": 731,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "drum",
+      "name": "Drum",
+      "file": "drum.mp3",
+      "ms": 549,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    },
+    {
+      "id": "alarm",
+      "name": "Alarm",
+      "file": "alarm.mp3",
+      "ms": 2038,
+      "source": "made for this project",
+      "licence": "CC0, made for this project"
+    }
+  ]
+}

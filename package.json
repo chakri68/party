@@ -13,7 +13,8 @@
     "typecheck": "pnpm -r --parallel typecheck",
     "host": "node scripts/host.mjs",
     "admin": "node scripts/admin.mjs",
-    "deploy:product": "node scripts/deploy-product.mjs"
+    "deploy:product": "node scripts/deploy-product.mjs",
+    "sound": "node scripts/sound.mjs"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

@@ -59,6 +59,8 @@ export class World {
   puts = 0;
   /** Fake TURN minter. Absent: the room hands out STUN only. */
   turn?: (ttlSeconds: number) => Promise<IceServer[] | null> = undefined;
+  /** Packs besides free the room relays. Set before building the room. */
+  soundPacks: string[] = [];
 
   host(): RoomHost {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -89,6 +91,7 @@ export class World {
       ownerRequired: this.ownerRequired,
       tierLimits: this.tierLimits,
       filterText: this.filterText,
+      soundPacks: this.soundPacks,
       // Read at use, so a test may set `turn` after the room is built.
       get turnCredentials() {
         return world.turn;

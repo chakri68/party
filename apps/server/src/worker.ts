@@ -4,6 +4,7 @@ import { getServerByName, routePartykitRequest, Server, type Connection } from "
 import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
+import { servePacks, soundPacksFor } from "./packs.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { turnMinter } from "./turn.ts";
 import { RoomRuntime, type Conn, type ConnState, type RoomGrant, type RoomHost, type RoomSetup, type TierLimits } from "./runtime.ts";
@@ -83,6 +84,7 @@ export class RoomBase extends Server<Env> {
         ownerRequired: true,
         tierLimits: this.tierLimits(),
         filterText: this.filterText(),
+        soundPacks: soundPacksFor(this.env as ServerEnv),
         ...(turnCredentials && { turnCredentials }),
       };
       this.#runtime = new RoomRuntime(this.name, host, this.games(), "sevens");
@@ -189,6 +191,9 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
       }
       return (await routePartykitRequest(request, env as Env)) ?? new Response("Not Found", { status: 404 });
     }
+
+    const packs = await servePacks(request, env);
+    if (packs) return packs;
 
     const godot = await serveGodot(request, env);
     if (godot) return godot;

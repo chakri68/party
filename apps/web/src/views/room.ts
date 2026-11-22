@@ -21,6 +21,8 @@ import { resultHeadline } from "./headline.ts";
 import { closedView, recapView } from "./recap.ts";
 import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
+import { SoundBoardView } from "./sound-board.ts";
+import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
 import { VoiceBar } from "./voice-bar.ts";
@@ -114,6 +116,8 @@ export class RoomView implements View {
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
+  private board: SoundBoard<AudioBuffer> | null = null;
+  private soundView: SoundBoardView | null = null;
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
   private playback: Playback | null = null;
@@ -155,6 +159,8 @@ export class RoomView implements View {
     this.playback?.destroy();
     this.chat?.destroy();
     this.emotes?.destroy();
+    this.soundView?.destroy();
+    this.board?.destroy();
     this.client?.close();
     this.gameView?.destroy();
     this.turn.destroy();
@@ -283,6 +289,28 @@ export class RoomView implements View {
     this.root.append(emotes.layer);
     client.on("emote", ({ from, emoji }) => emotes.show(from, emoji));
 
+    const board = new SoundBoard<AudioBuffer>({
+      getJson: (url) => fetch(url).then((res) => (res.ok ? res.json() : null)).catch(() => null),
+      getBytes: (url) => fetch(url).then((res) => (res.ok ? res.arrayBuffer() : null)).catch(() => null),
+      decode: (bytes) => audio.decode(bytes),
+      play: (clip) => audio.playClip(clip),
+      // Never unlock here: the first tap anywhere does that.
+      ready: () => !!audio.context,
+      onReady: (fn) => audio.onContext(fn),
+      enabled: () => audio.settings.roomSounds,
+      send: (msg) => client.send(msg),
+      now: Date.now,
+    });
+    this.board = board;
+    // Sound board off: fetch nothing. Turning it on in Settings starts the load.
+    if (audio.settings.roomSounds) void board.load(shellConfig().extraPacks);
+    this.soundView = new SoundBoardView(board, {
+      send: (msg) => client.send(msg),
+      toast: (t) => this.showToast(t),
+      playHere: () => audio.settings.sound && audio.settings.roomSounds,
+    });
+    client.on("sound", ({ id }) => board.receive(id));
+
     client.on("latency", (ms) => this.signal.set(ms));
     client.on("status", (status) => {
       this.renderHeader();
@@ -327,6 +355,7 @@ export class RoomView implements View {
         if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
       voice.onRoom(u.room);
+      this.soundView?.render(u.room, client.playerId);
       this.render();
       this.refreshGameList?.(u.room);
     });
@@ -349,6 +378,7 @@ export class RoomView implements View {
       // Another tab took over, removed, locked out: the mic goes off here.
       voice.stop();
       this.voiceBar?.render(null);
+      this.soundView?.render(null, null);
       // A seat that no longer exists isn't worth resuming.
       if (code === "room-not-found" || code === "removed") setResumeToken(this.code, null);
       if (code === "room-not-found") return this.showClosed(FATAL_COPY[code]!);
@@ -423,7 +453,7 @@ export class RoomView implements View {
       status === "open" ? this.signal.el : null,
       h("button", { type: "button", class: "icon-btn", "aria-label": "Sound and vibration settings", onclick: () => this.openSettings() }, icon(audio.settings.sound ? "sound-on" : "sound-off")),
       // Once seated: before that there's nobody to talk as.
-      this.client?.playerId && status !== "closed" ? [this.emotes?.wrap, this.chat?.button] : null,
+      this.client?.playerId && status !== "closed" ? [this.soundView?.wrap, this.emotes?.wrap, this.chat?.button] : null,
       status === "reconnecting" || status === "connecting"
         ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
         : null,
@@ -1196,14 +1226,21 @@ export class RoomView implements View {
   private openSettings() {
     const sound = h("input", { type: "checkbox", checked: audio.settings.sound });
     const volume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.volume, "aria-label": "Volume" });
+    const roomSounds = h("input", { type: "checkbox", checked: audio.settings.roomSounds });
     const haptics = h("input", { type: "checkbox", checked: audio.settings.haptics });
     sound.addEventListener("change", () => {
       audio.update({ sound: sound.checked });
-      volume.disabled = !sound.checked;
+      volume.disabled = roomSounds.disabled = !sound.checked;
       if (sound.checked) audio.play("card-place");
       this.renderHeader();
+      this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
     });
-    volume.disabled = !audio.settings.sound;
+    volume.disabled = roomSounds.disabled = !audio.settings.sound;
+    roomSounds.addEventListener("change", () => {
+      audio.update({ roomSounds: roomSounds.checked });
+      if (roomSounds.checked) void this.board?.load(shellConfig().extraPacks);
+      this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
+    });
     volume.addEventListener("change", () => {
       audio.update({ volume: Number(volume.value) });
       audio.play("card-place"); // hear what you picked
@@ -1219,6 +1256,7 @@ export class RoomView implements View {
         { class: "settings" },
         h("label", {}, "Sounds", sound),
         h("label", {}, "Volume", volume),
+        h("label", {}, "Sound board", roomSounds),
         audio.canVibrate ? h("label", {}, "Vibration", haptics) : null,
       ),
     );

@@ -60,3 +60,14 @@ describe("RoomClient voice events", () => {
     for (const name of ["voice-state", "voice-signal", "voice-ice"]) expect(Object.hasOwn(client, name), name).toBe(false);
   });
 });
+
+describe("RoomClient sound events", () => {
+  it("sends out sound", async () => {
+    const { RoomClient } = await import("../src/index.ts");
+    const client = new RoomClient({ code: "ABCD", name: "A", avatarSeed: "s", getResumeToken: () => undefined });
+    const got: unknown[] = [];
+    client.on("sound", (p) => got.push(p));
+    sockets[0]!.receive({ type: "sound", id: "free:rise", by: "p2" });
+    expect(got).toEqual([{ type: "sound", id: "free:rise", by: "p2" }]);
+  });
+});
