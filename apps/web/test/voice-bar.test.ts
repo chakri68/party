@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinAllowed, joinLines, pttEnabled, voiceBarModel } from "../src/views/voice-bar.ts";
+import { joinAllowed, joinLines, pttEnabled, voiceBarModel, voiceMenuItem } from "../src/views/voice-bar.ts";
 import type { VoiceMemberView, VoiceView } from "../src/voice/voice.ts";
 
 const member = (id: string, extra: Partial<VoiceMemberView> = {}): VoiceMemberView => ({
@@ -40,13 +40,12 @@ describe("voiceBarModel", () => {
     expect(m.show).toBe("join");
     expect(m.canJoin).toBe(true);
     expect(m.note).toBeNull();
-    expect(voiceBarModel(view(), "playing").show).toBe("join");
   });
 
-  it("in a game, out of voice: only the Join voice button, with no note line", () => {
-    for (const status of ["off", "full"] as const) {
+  it("in a game, out of voice: no row", () => {
+    for (const status of ["off", "full", "unsupported"] as const) {
       const m = voiceBarModel(view({ status }), "playing");
-      expect(m.show).toBe("join");
+      expect(m.show, status).toBe("hidden");
       expect(m.note).toBeNull();
       expect(m.keepNoteRow).toBe(false);
     }
@@ -54,17 +53,52 @@ describe("voiceBarModel", () => {
     expect(voiceBarModel(view({ status: "full" }), "results").note).toBe("Voice is full.");
   });
 
-  it("in a game, the bar keeps its note line, so nothing moves on a press or a Mute", () => {
+  it("in a game, in voice: header mic", () => {
     const states: Partial<VoiceView>[] = [
       { mic: "on" },
       { mic: "muted" },
+      { mic: "off" },
       { mic: "on", mode: "ptt" },
       { mic: "on", mode: "ptt", pttHeld: true },
     ];
-    for (const st of states) expect(voiceBarModel(view({ status: "on", ...st }), "playing").keepNoteRow, JSON.stringify(st)).toBe(true);
-    // The lobby and results have room to spare.
+    for (const st of states) {
+      for (const status of ["on", "joining"] as const) {
+        const m = voiceBarModel(view({ status, ...st }), "playing");
+        expect(m.show, JSON.stringify(st)).toBe("header");
+        expect(m.note).toBeNull();
+        expect(m.keepNoteRow).toBe(false);
+      }
+    }
+    // The lobby and results keep the row.
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "lobby").show).toBe("bar");
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "results").show).toBe("bar");
     expect(voiceBarModel(view({ status: "on", mic: "on" }), "lobby").keepNoteRow).toBe(false);
-    expect(voiceBarModel(view({ status: "on", mic: "on" }), "results").keepNoteRow).toBe(false);
+  });
+
+  it("in a game, the note goes in the mic name", () => {
+    expect(voiceBarModel(view({ status: "on", mic: "muted" }), "playing").micName).toBe("Unmute. Muted: your mic is still on.");
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "playing").micName).toBe("Mute");
+    expect(voiceBarModel(view({ status: "on", mic: "off" }), "playing").micName).toBe("Turn on mic. Your mic is off.");
+    expect(voiceBarModel(view({ status: "joining", mic: "on" }), "playing").micName).toBe("Mute. Connecting voice...");
+    // Push-to-talk: the hint, and the name does not change on every press.
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing").micName).toBe("Talk. Hold to talk.");
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt", pttHeld: true }), "playing", true).micName).toBe("Talk. Hold Space to talk.");
+    // Out of a game: the plain label, the note has its own line.
+    expect(voiceBarModel(view({ status: "on", mic: "muted" }), "lobby").micName).toBe("Unmute");
+  });
+
+  it("in a game, the note in the mic name is still read out, but not the push-to-talk hint", () => {
+    expect(voiceBarModel(view({ status: "on", mic: "muted" }), "playing").spoken).toBe("Muted: your mic is still on.");
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "playing").spoken).toBe("");
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing").spoken).toBe("");
+    expect(voiceBarModel(view({ status: "on", mic: "muted" }), "lobby").spoken).toBe("Muted: your mic is still on. Tap Turn off mic to stop it.");
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "lobby").spoken).toBe("");
+  });
+
+  it("tap prompts still show in a game", () => {
+    const m = voiceBarModel(view({ status: "on", mic: "lost", needsSoundTap: true }), "playing");
+    expect(m.tapSound).toBe(true);
+    expect(m.show).toBe("header");
   });
 
   it("unsupported shows the browser note and no join", () => {
@@ -98,7 +132,7 @@ describe("voiceBarModel", () => {
   });
 
   it("an open mic has a plain Mute button and no note", () => {
-    const m = voiceBarModel(view({ status: "on", mic: "on" }), "playing");
+    const m = voiceBarModel(view({ status: "on", mic: "on" }), "lobby");
     expect(m.show).toBe("bar");
     expect(m.micButton).toEqual({ label: "Mute", pressed: false, hold: false });
     expect(m.note).toBeNull();
@@ -112,11 +146,12 @@ describe("voiceBarModel", () => {
   });
 
   it("push-to-talk makes the mic a hold button", () => {
-    const up = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing");
+    const up = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "lobby");
     expect(up.micButton).toEqual({ label: "Talk", pressed: false, hold: true });
     expect(up.note).toBe("Hold to talk");
-    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing", true).note).toBe("Hold Space to talk");
-    const held = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt", pttHeld: true }), "playing", true);
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "lobby", true).note).toBe("Hold Space to talk");
+    expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt", pttHeld: true }), "playing", true).micButton.pressed).toBe(true);
+    const held = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt", pttHeld: true }), "lobby", true);
     expect(held.micButton.pressed).toBe(true);
     // The line stays while held, so the game does not move on every press.
     expect(held.note).toBe("Talking");
@@ -172,7 +207,7 @@ describe("the people button and the note", () => {
   });
 
   it("the push-to-talk hint is not read out on every press; other notes are", () => {
-    const ptt = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing", true);
+    const ptt = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "lobby", true);
     expect(ptt.note).toBe("Hold Space to talk");
     expect(ptt.noteLive).toBe(false);
     expect(voiceBarModel(view({ status: "on", mic: "muted" }), "lobby").noteLive).toBe(true);
@@ -194,6 +229,16 @@ describe("joining", () => {
     expect(joinAllowed(voiceBarModel(view({ status: "unsupported" }), "lobby"), false)).toBe(false);
   });
 
+  it("in a game, joins from the room menu while out of voice", () => {
+    expect(joinAllowed(voiceBarModel(view(), "playing"), false)).toBe(true);
+    expect(joinAllowed(voiceBarModel(view(), "playing"), true)).toBe(false);
+    expect(joinAllowed(voiceBarModel(view({ status: "joining", mic: "on" }), "playing"), false)).toBe(false);
+    expect(joinAllowed(voiceBarModel(view({ status: "on", mic: "on" }), "playing"), false)).toBe(false);
+    // The menu has no Join voice for these.
+    expect(joinAllowed(voiceBarModel(view({ status: "full" }), "playing"), false)).toBe(false);
+    expect(joinAllowed(voiceBarModel(view({ status: "unsupported" }), "playing"), false)).toBe(false);
+  });
+
   it("the explainer says the browser will ask, unless the mic is blocked", () => {
     expect(joinLines("prompt")).toEqual(["Talk with the room while you play.", "Your browser will ask to use the mic.", "No one records your voice."]);
     expect(joinLines("unknown")).toEqual(joinLines("prompt"));
@@ -201,5 +246,15 @@ describe("joining", () => {
     expect(denied).not.toContain("Your browser will ask to use the mic.");
     expect(denied).toContain("Your browser blocks the mic for this site. To talk, allow the mic in the browser settings.");
     expect(denied).toContain("No one records your voice.");
+  });
+});
+
+describe("voiceMenuItem", () => {
+  it("Join voice out of voice, Voice in voice, nothing where voice cannot work", () => {
+    expect(voiceMenuItem(view({ status: "off" }))).toBe("join");
+    expect(voiceMenuItem(view({ status: "on" }))).toBe("voice");
+    expect(voiceMenuItem(view({ status: "joining" }))).toBe("voice");
+    expect(voiceMenuItem(view({ status: "full" }))).toBeNull();
+    expect(voiceMenuItem(view({ status: "unsupported" }))).toBeNull();
   });
 });

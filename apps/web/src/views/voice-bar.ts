@@ -1,6 +1,6 @@
-// The voice bar: a compact row in games (mic, hear no one, who is speaking,
-// the connection dot), and the full panel with everyone in voice in the lobby
-// and on results. Lives as long as RoomView, outside the game host, so game
+// The voice bar: the full panel with everyone in voice in the lobby and on
+// results. In a game there is no row: the mic sits in the room header
+// (`headerMic`), and Hear no one and Voice settings move into the Voice panel. Lives as long as RoomView, outside the game host, so game
 // switches never touch it. What to show is `voiceBarModel` (tested); the class
 // is DOM glue that keeps its elements and only updates them, so a held talk
 // button or a dragged slider is never swapped out under the finger.
@@ -14,19 +14,23 @@ import type { PushToTalk } from "../voice/ptt.ts";
 import type { VoiceController, VoiceMemberView, VoiceView } from "../voice/voice.ts";
 
 export interface BarModel {
-  show: "hidden" | "join" | "bar";
+  /** header: in a game and in voice; no row, the mic is in the room header. */
+  show: "hidden" | "join" | "bar" | "header";
   /** The Join voice button (false where voice cannot work). */
   canJoin: boolean;
   /** hold: push-to-talk, hold to talk. pressed: muted, or held. */
   micButton: { label: string; pressed: boolean; hold: boolean };
+  /** The mic button's accessible name. In a game the note goes in it, as there is no note line. */
+  micName: string;
+  /** In a game: the room menu's voice item (voiceMenuItem). Null outside a game. */
+  menu: "join" | "voice" | null;
   /** One line under the controls. */
   note: string | null;
   /** Read out when it changes. Not the push-to-talk hint, which changes on every press. */
   noteLive: boolean;
-  /**
-   * In a game: the note line is always there, one line high, even when empty,
-   * so a talk press or a Mute never moves the game below.
-   */
+  /** What the live region reads out: the note, or in a game the note in the mic name. Never the push-to-talk hint. */
+  spoken: string;
+  /** Always false now: a game has no voice row. Kept so the room's layout checks stay simple. */
   keepNoteRow: boolean;
   /** The button that opens everyone in voice. */
   peopleLabel: string;
@@ -44,6 +48,12 @@ export function pttEnabled(v: VoiceView): boolean {
   return v.mode === "ptt" && inVoice(v);
 }
 
+/** The room menu's voice item in a game: Join voice, the Voice panel, or none where voice cannot work. */
+export function voiceMenuItem(v: VoiceView): "join" | "voice" | null {
+  if (inVoice(v)) return "voice";
+  return v.status === "unsupported" || v.status === "full" ? null : "join";
+}
+
 /** `space`: Space is the talk key here (a keyboard, and no game on screen that uses Space). */
 export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): BarModel {
   const joined = inVoice(v);
@@ -59,9 +69,9 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
 
   let show: BarModel["show"];
   if (phase === "ended") show = "hidden";
+  // In a game: no voice row. In voice, the mic is in the header; out of voice, Join voice is in the room menu.
+  else if (phase === "playing") show = joined ? "header" : "hidden";
   else if (joined) show = "bar";
-  // Not worth a line in the middle of a game.
-  else if (v.status === "unsupported") show = phase === "playing" ? "hidden" : "join";
   else show = "join";
 
   let note: string | null = null;
@@ -76,16 +86,31 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
     note = v.pttHeld ? "Talking" : space ? "Hold Space to talk" : "Hold to talk";
     hint = true;
   }
-  // In a game and out of voice: only the small Join voice button.
-  if (phase === "playing" && show === "join") note = null;
+
+  // In the header there is no Turn off mic next to the mic, and the name must not change on every press.
+  let headerNote: string | null = null;
+  let headerHint = false;
+  if (show === "header") {
+    if (!live) headerNote = "Your mic is off.";
+    else if (v.mic === "muted") headerNote = "Muted: your mic is still on.";
+    else if (v.status === "joining") headerNote = "Connecting voice...";
+    else if (hold) {
+      headerNote = space ? "Hold Space to talk." : "Hold to talk.";
+      headerHint = true;
+    }
+  }
+  const shown = show === "hidden" || show === "header" ? null : note;
 
   return {
     show,
     canJoin: v.status !== "unsupported",
     micButton,
-    note: show === "hidden" ? null : note,
-    noteLive: show !== "hidden" && note !== null && !hint,
-    keepNoteRow: show === "bar" && phase === "playing",
+    micName: headerNote ? `${micButton.label}. ${headerNote}` : micButton.label,
+    menu: phase === "playing" ? voiceMenuItem(v) : null,
+    note: shown,
+    noteLive: shown !== null && !hint,
+    spoken: show === "header" ? (headerHint ? "" : (headerNote ?? "")) : shown !== null && !hint ? shown : "",
+    keepNoteRow: false,
     peopleLabel: `People in voice (${v.members.length})`,
     tapSound: joined && v.needsSoundTap,
     tapMic: joined && v.needsMicTap,
@@ -94,9 +119,9 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
   };
 }
 
-/** A join may start: the Join voice button is still up, and the bar is not destroyed. */
+/** A join may start: the Join voice button (or, in a game, the menu's Join voice) is still up, and the bar is not destroyed. */
 export function joinAllowed(model: BarModel | null, destroyed: boolean): boolean {
-  return !destroyed && model?.show === "join" && model.canJoin;
+  return !destroyed && !!model && model.canJoin && (model.show === "join" || model.menu === "join");
 }
 
 /** The "Join voice" explainer. When the browser blocks the mic, it says how to allow it. */
@@ -157,8 +182,7 @@ export class VoiceBar {
   private readonly speaking = h("span", { class: "voice-speaking" });
   private readonly dot = h("span", { class: "voice-dot", role: "img" });
   private readonly settingsButton = h("button", { type: "button", class: "icon-btn", "aria-label": "Voice settings" }, icon("settings"));
-  /** In a game: the dots. In the lobby and on results: a line with the count. */
-  private readonly panelButton = h("button", { type: "button", class: "icon-btn voice-more", "aria-label": "People in voice" }, icon("more"));
+  /** In the lobby and on results: a line with the count. In a game the room menu opens the panel. */
   private readonly peopleButton = h("button", { type: "button", class: "voice-people-button" });
   private readonly controls = h(
     "div",
@@ -168,8 +192,14 @@ export class VoiceBar {
     this.speaking,
     this.dot,
     this.settingsButton,
-    this.panelButton,
   );
+  /** In a game and in voice: speaking (green, lit) and the connection (amber while it waits). */
+  private readonly headerDot = h("span", { class: "voice-header-dot", "aria-hidden": "true" });
+  /**
+   * In a game: the mic (the same button as in the lobby, moved, so a held press
+   * survives) and a small dot. RoomView puts it in the room header.
+   */
+  readonly headerMic = h("div", { class: "voice-header-mic", hidden: true }, this.headerDot);
   private readonly tapSound = h("button", { type: "button", class: "primary" }, "Tap to turn on sound");
   private readonly tapMic = h("button", { type: "button", class: "primary" }, "Tap to talk again.");
   private readonly taps = h("div", { class: "voice-taps" }, this.tapSound, this.tapMic);
@@ -181,7 +211,9 @@ export class VoiceBar {
   private readonly people = h("ul", { class: "voice-people" });
   private readonly rows = new Map<string, Row>();
   /** Only ever shown in its dialog (openPanel). */
-  private readonly panel = h("div", { class: "voice-panel" }, h("div", { class: "voice-actions" }, this.turnOff, this.leave), this.people);
+  /** In a game, Hear no one and Voice settings move in here, as the voice row is gone. */
+  private readonly actions = h("div", { class: "voice-actions" }, this.turnOff, this.leave);
+  private readonly panel = h("div", { class: "voice-panel" }, this.actions, this.people);
 
   constructor(voice: VoiceController, ptt: PushToTalk, nameOf: (id: string) => string) {
     this.voice = voice;
@@ -190,12 +222,12 @@ export class VoiceBar {
     this.coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
     this.el.append(this.join, this.controls, this.taps, this.note, this.peopleButton, this.announce);
     keepKeys(this.el);
+    keepKeys(this.headerMic);
 
     this.join.addEventListener("click", () => void this.startJoin());
     this.wireMic();
     this.deafen.addEventListener("click", () => this.voice.setDeafened(!this.voice.view().deafened));
     this.settingsButton.addEventListener("click", () => this.openSettings());
-    this.panelButton.addEventListener("click", () => this.openPanel());
     this.peopleButton.addEventListener("click", () => this.openPanel());
     this.tapSound.addEventListener("click", () => this.voice.resumeSound());
     this.tapMic.addEventListener("click", () => void this.voice.turnOnMic());
@@ -218,14 +250,16 @@ export class VoiceBar {
     this.sync();
   }
 
-  /** Everyone in voice, with volumes and Mute for me, in a dialog. */
+  /** Everyone in voice, with volumes and Mute for me, in a dialog. In a game also Hear no one and Voice settings. */
   openPanel(): void {
-    if (this.panelDialog || this.model?.show !== "bar") return;
+    const show = this.model?.show;
+    if (this.panelDialog || (show !== "bar" && show !== "header")) return;
     const dlg = this.dialog("Voice", this.panel);
     this.panelDialog = dlg;
     dlg.addEventListener("close", () => {
       this.panelDialog = null;
       this.panel.remove();
+      this.place();
     });
     this.sync();
   }
@@ -247,30 +281,32 @@ export class VoiceBar {
     // The hold button turned into something else (muted, mode change): let go.
     if (!m.micButton.hold) this.letGo();
 
-    this.el.hidden = m.show === "hidden";
+    const taps = m.tapSound || m.tapMic;
+    // In a game the row is only there for the tap prompts: without them voice silently fails.
+    this.el.hidden = m.show === "hidden" || (m.show === "header" && !taps);
     this.el.dataset.layout = this.phase === "playing" ? "compact" : "panel";
     this.el.dataset.show = m.show;
+    this.headerMic.hidden = m.show !== "header";
     this.join.hidden = m.show !== "join" || !m.canJoin;
     this.controls.hidden = m.show !== "bar";
     this.tapSound.hidden = !m.tapSound;
     this.tapMic.hidden = !m.tapMic;
-    this.taps.hidden = !m.tapSound && !m.tapMic;
+    this.taps.hidden = !taps;
     this.note.hidden = m.note === null && !m.keepNoteRow;
     setText(this.note, m.note ?? "");
-    const spoken = m.noteLive ? (m.note ?? "") : "";
-    setText(this.announce, spoken);
+    setText(this.announce, m.spoken);
     // Out of the room (fatal, party over): nothing voice stays open, so no late tap turns the mic on.
-    if (m.show === "hidden") for (const d of [...this.dialogs]) d.close();
-    else if (m.show !== "bar") this.panelDialog?.close();
-    this.panelButton.hidden = this.phase !== "playing";
-    this.peopleButton.hidden = m.show !== "bar" || this.phase === "playing";
+    if (this.phase === null || this.phase === "ended") for (const d of [...this.dialogs]) d.close();
+    else if (m.show !== "bar" && m.show !== "header") this.panelDialog?.close();
+    this.peopleButton.hidden = m.show !== "bar";
     setText(this.peopleButton, m.peopleLabel);
+    this.place();
 
     // The mic: a toggle, or the talk button in push-to-talk. "Tap to talk again." stands in for it.
     this.mic.hidden = m.tapMic;
     const b = m.micButton;
     setText(this.micLabel, b.label);
-    if (this.mic.getAttribute("aria-label") !== b.label) this.mic.setAttribute("aria-label", b.label);
+    if (this.mic.getAttribute("aria-label") !== m.micName) this.mic.setAttribute("aria-label", m.micName);
     const micIcon: IconName = v.mic === "on" ? "mic" : "mic-off";
     if (this.micIcon.dataset.icon !== micIcon) {
       this.micIcon.dataset.icon = micIcon;
@@ -294,9 +330,33 @@ export class VoiceBar {
     this.speaking.classList.toggle("on", names.length > 0);
     this.dot.dataset.state = m.connection;
     this.dot.setAttribute("aria-label", m.connection === "good" ? "Voice is on" : "Connecting voice...");
+    this.headerDot.dataset.state = m.connection;
+    this.headerDot.classList.toggle("on", v.talking || names.length > 0);
 
     this.turnOff.hidden = !(v.mic === "on" || v.mic === "muted");
     this.syncPeople(v);
+  }
+
+  /**
+   * Moves nodes, never copies them: in a game the mic (and the live region) go
+   * to the header, and while the Voice panel is open Hear no one and Voice
+   * settings go in its action row. Otherwise they are in the voice row.
+   */
+  private place(): void {
+    const game = this.phase === "playing";
+    if (game) {
+      if (this.mic.parentNode !== this.headerMic) this.headerMic.prepend(this.mic);
+      if (this.announce.parentNode !== this.headerMic) this.headerMic.append(this.announce);
+    } else {
+      if (this.mic.parentNode !== this.controls) this.controls.prepend(this.mic);
+      if (this.announce.parentNode !== this.el) this.el.append(this.announce);
+    }
+    if (game && this.panelDialog) {
+      if (this.deafen.parentNode !== this.actions) this.actions.prepend(this.deafen, this.settingsButton);
+    } else if (this.deafen.parentNode !== this.controls) {
+      this.speaking.before(this.deafen);
+      this.controls.append(this.settingsButton);
+    }
   }
 
   private syncPeople(v: VoiceView): void {
@@ -427,8 +487,8 @@ export class VoiceBar {
     });
   }
 
-  /** The explainer, unless the browser already allows the mic. */
-  private async startJoin(): Promise<void> {
+  /** The explainer, unless the browser already allows the mic. Also the room menu's Join voice in a game. */
+  async startJoin(): Promise<void> {
     if (this.asking || !joinAllowed(this.model, this.destroyed)) return;
     this.asking = true;
     const permission = await this.voice.micPermission();
