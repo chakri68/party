@@ -16,6 +16,8 @@ export interface GameManifest {
   bestMaxPlayers?: number;
   /** The game has computer players (its definition sets `bot`). A test keeps the two in step. */
   computers?: true;
+  /** The definition has `pause`, so the host gets Pause in a game. A test keeps the two in step. */
+  pausable?: true;
   /** A short key the shell maps to its own drawing. Never an emoji. */
   icon: string;
   /**
@@ -224,6 +226,14 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
   onPlayerJoined?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
 
   skipTurn?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
+
+  /**
+   * The host paused (true) or resumed (false). The room holds every game timer
+   * by time left and sets it again on resume. The game shifts its own deadline
+   * fields here, by the time paused. While paused, every hook sees `ctx.now`
+   * stopped at the moment of the pause.
+   */
+  pause?(state: TState, paused: boolean, ctx: GameContext): GameTransition<TState, TEvent>;
 
   /**
    * High-frequency, best-effort input (drawing strokes, §35). The game checks it

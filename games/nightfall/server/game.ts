@@ -381,6 +381,7 @@ export const nightfallGame: GameDefinition<
       seed: ctx.randomInt(2 ** 31),
       deadline: 0,
       phaseMs: 0,
+      pausedAt: null,
       round: 0,
       players: ids.map((id) => ({ id, dead: false, left: false, abandoned: false, away: false })),
       cards: Object.fromEntries(ids.map((id, i) => [id, cards[i]!])),
@@ -514,6 +515,16 @@ export const nightfallGame: GameDefinition<
     return done(state, out);
   },
 
+  pause(prev, paused, ctx) {
+    if (prev.phase === "finished") return { state: prev, events: [] };
+    if (paused) return { state: { ...prev, pausedAt: ctx.now }, events: [] };
+    const at = prev.pausedAt ?? null;
+    if (at === null) return { state: prev, events: [] };
+    // The room holds the phase timer itself and sets it again by its time left.
+    const deadline = prev.deadline > 0 ? prev.deadline + (ctx.now - at) : prev.deadline;
+    return { state: { ...prev, deadline, pausedAt: null }, events: [] };
+  },
+
   getPublicState(state) {
     const over = state.phase === "finished";
     const b = ballotOf(state);
@@ -521,6 +532,7 @@ export const nightfallGame: GameDefinition<
       phase: state.phase,
       deadline: state.deadline,
       phaseMs: state.phaseMs,
+      pausedAt: state.pausedAt ?? null,
       round: state.round,
       deck: state.deck,
       players: state.players.map((p) => ({

@@ -22,6 +22,7 @@ import { closedView, recapView } from "./recap.ts";
 import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { identityField, nameInput } from "./home.ts";
+import { seatActionMessage, seatActions } from "./host-menu.ts";
 
 const STUCK_AFTER_MS = 15_000;
 
@@ -31,6 +32,7 @@ const FATAL_COPY: Record<string, string> = {
   "game-in-progress": "A game is already going on. You can join after this round.",
   "replaced-by-new-connection": "This room is open in another tab.",
   "protocol-mismatch": "There is a new version. Refresh the page to keep playing.",
+  "room-locked": "The host locked this room.",
   removed: "The host removed you from this room.",
 };
 
@@ -242,6 +244,11 @@ export class RoomView implements View {
           s.id !== client.playerId && s.suggestion && s.suggestion !== prev.room.seats.find((p) => p.id === s.id)?.suggestion);
         const last = fresh.at(-1);
         if (last?.suggestion) this.showToast(`${last.name} wants ${games[last.suggestion]?.manifest.name ?? last.suggestion}.`);
+      }
+      // A restart keeps the phase and bumps the round: the game view starts fresh.
+      if (prev?.room.phase === "playing" && u.room.phase === "playing" && prev.room.roundNumber !== u.room.roundNumber) {
+        this.dropGameView();
+        if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
       this.render();
       this.refreshGameList?.(u.room);
@@ -457,7 +464,7 @@ export class RoomView implements View {
   private renderTurn() {
     const room = this.last?.room;
     const me = this.client?.playerId;
-    if (!room || !me || room.phase !== "playing") return this.turn.set(null);
+    if (!room || !me || room.phase !== "playing" || room.paused) return this.turn.set(null);
     if (this.gameTurn !== undefined) return this.turn.set(this.gameTurn);
     const waiting = room.awaitingPlayerIds;
     const mine = waiting.includes(me) && waiting.length < room.seats.length;
@@ -488,7 +495,8 @@ export class RoomView implements View {
           : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
-    if (target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
+    if (room.paused) items.push(h("p", { class: "muted paused-note", role: "status" }, "The game is paused."));
+    if (!room.paused && target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
       items.push(
         h("button", {
           type: "button",
@@ -499,7 +507,7 @@ export class RoomView implements View {
         }, `Remind ${target.name}`),
       );
     }
-    if (isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
+    if (!room.paused && isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
       items.push(
         h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, `Skip ${target.name}'s turn`),
       );
@@ -518,6 +526,17 @@ export class RoomView implements View {
           }, `Remove ${s.name}`),
         );
       }
+      if (games[room.gameId]?.manifest.pausable) {
+        items.push(
+          h("button", { type: "button", onclick: () => client.send({ type: "pause-game", paused: !room.paused }) }, room.paused ? "Resume" : "Pause"),
+        );
+      }
+      items.push(
+        h("button", {
+          type: "button",
+          onclick: () => confirm("Restart this game for everyone?") && client.send({ type: "restart-game" }),
+        }, "Restart"),
+      );
       // The escape hatch for a game that's gone stale: everyone back to the lobby.
       items.push(
         h("button", {
@@ -586,6 +605,7 @@ export class RoomView implements View {
         h("strong", { class: "big-code", "aria-label": room.code.split("").join(" ") }, room.code),
         h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
         share,
+        room.locked ? h("p", { class: "muted", role: "status" }, "The room is locked. New players can't join.") : null,
       ),
       h(
         "div",
@@ -619,14 +639,7 @@ export class RoomView implements View {
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
             botTag(s),
             s.bot ? null : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
-            isHost && s.id !== me
-              ? h("button", {
-                  type: "button",
-                  class: s.bot ? "kick bot-kick" : "kick",
-                  "aria-label": `Remove ${s.name}`,
-                  onclick: () => (s.bot || confirm(`Remove ${s.name} from the room?`)) && this.client?.send({ type: "remove-player", playerId: s.id }),
-                }, icon("close"))
-              : null,
+            this.seatControl(room, me, s),
           ),
         ),
         // Empty seats up to the minimum make "how many more?" obvious at a glance.
@@ -634,6 +647,14 @@ export class RoomView implements View {
           h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
         ),
       ),
+      isHost
+        ? h("button", {
+            type: "button",
+            class: "lock-room", style: vt("lobby-lock"),
+            "aria-pressed": String(room.locked),
+            onclick: () => this.client?.send({ type: "lock-room", locked: !room.locked }),
+          }, room.locked ? "Unlock room" : "Lock room")
+        : null,
       canAddBot
         ? h(
             "div",
@@ -701,6 +722,47 @@ export class RoomView implements View {
         onclick: () => locked ? shellConfig().onLockedGame(id, this.code) : this.client?.send({ type: "select-game", gameId: id }),
       }, locked ? "Unlock" : "Play it"),
     );
+  }
+
+  /** A computer keeps a plain X. A person gets the dots, which open the host's menu. */
+  private seatControl(room: RoomPublicState, me: string, s: RoomPublicState["seats"][number]) {
+    const actions = seatActions(room, me, s);
+    if (!actions.length) return null;
+    const send = (kind: (typeof actions)[number]["kind"]) => this.client?.send(seatActionMessage(kind, s));
+    if (s.bot) {
+      return h("button", { type: "button", class: "kick bot-kick", "aria-label": `Remove ${s.name}`, onclick: () => send("remove") }, icon("close"));
+    }
+    return h("button", {
+      type: "button",
+      class: "kick seat-menu-button",
+      "aria-label": `Actions for ${s.name}`,
+      onclick: () => {
+        const dlg = h(
+          "dialog",
+          { class: "dialog seat-menu", "aria-label": s.name },
+          h("h2", {}, s.name),
+          h(
+            "div",
+            { class: "dialog-list" },
+            actions.map((a) =>
+              h("button", {
+                type: "button",
+                class: a.danger ? "danger" : "",
+                onclick: () => {
+                  dlg.close();
+                  if (!a.confirm || confirm(a.confirm)) send(a.kind);
+                },
+              }, a.label),
+            ),
+          ),
+          h("form", { method: "dialog" }, h("button", {}, "Cancel")),
+        ) as HTMLDialogElement;
+        dlg.addEventListener("close", () => dlg.remove());
+        closeOnBackdrop(dlg);
+        document.body.append(dlg);
+        dlg.showModal();
+      },
+    }, icon("more"));
   }
 
   /**

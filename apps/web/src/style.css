@@ -607,6 +607,9 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
   color: var(--muted);
 }
 .seats .kick.bot-kick { margin-left: auto; }
+.seat-menu .dialog-list { display: flex; flex-direction: column; gap: 8px; }
+.lock-room { justify-self: start; min-height: 44px; }
+.paused-note { font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button, input { transition: none; }

@@ -45,6 +45,7 @@ You can't get in if:
 | This room is full. | The selected game's player limit is reached. |
 | A game is already underway. You can join once this round ends. | Most games don't take new players mid-round. |
 | This room is open in another tab. | Same seat, newer connection. Tap **Use here** to take it back. |
+| The host locked this room. | The host locked the room to new players. |
 | The host removed you from this room. | Exactly that. |
 | A new version is out. Refresh to keep playing. | Tap **Refresh**. |
 
@@ -55,7 +56,8 @@ Top to bottom:
 - **Room code** in large type, the invite address, and **Copy link** / **Share invite**.
 - The current game with its description. **Rules** opens "How to play" for that game. The host also gets **Change**.
 - The game's settings, if it has any.
-- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready ✓" or "not ready". Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
+- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
+- For the host, **Lock room** (or **Unlock room**). While it is locked, everyone sees "The room is locked. New players can't join."
 - **I'm ready** and, for the host, the start button.
 - **Leave room**.
 
@@ -68,12 +70,13 @@ The host is the first person into the room. The tag next to their name says "hos
 - **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy), each with its player range. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
 - Change the **settings**. Everyone else sees them read-only.
 - **Start game**.
-- Remove a player from the lobby with the **✕** next to their name (after a confirmation).
-- Mid-game: **End game**, **Skip** and **Remove** buttons, covered below.
+- Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
+- **Lock room** in the lobby. While it is locked, new players can't join. Players already in the room can still come back. So can someone whose phone went to sleep and lost their seat. Tap **Unlock room** to open it again.
+- Mid-game: **End game**, **Skip**, **Remove**, **Restart** and **Pause** buttons, covered below.
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the **✕** next to its name, without asking first.
+Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
@@ -153,6 +156,8 @@ An empty room is deleted after 6 hours.
 
 The host role isn't tied to who made the room. If the host disconnects, they keep it through their 60 seconds. After that, or if they leave outright, it passes to whoever has been in the room longest and is still connected. That person gets a toast: "You're the host now." If nobody is connected, the role stays put until someone comes back.
 
+The host can also give the role to someone else with **Make host**. They get "You're the host now."
+
 If the host ends a game, everyone else gets "<name> ended the game." and returns to the lobby.
 
 ## During a game
@@ -162,6 +167,8 @@ The shell adds a few controls below the game when it's waiting on someone:
 - Everyone: **Nudge <name>** appears once the person whose turn it is has been idle for 30 seconds. They get a "nudged you: it's your turn!" toast, a sound and a short buzz. There's a 10 second cooldown between nudges.
 - Host: **Skip <name>'s turn** appears after 60 seconds idle, or straight away if that person has dropped. Not every game can skip.
 - Host: **Remove <name>** for anyone disconnected past their grace (asks to confirm). They're out for the rest of the round.
+- Host: **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
+- Host: **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play.
 - Host: **End game** sends everyone back to the lobby (asks to confirm).
 
 ## Leaving

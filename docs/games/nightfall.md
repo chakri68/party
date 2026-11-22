@@ -114,6 +114,7 @@ With fewer than 5 players in the room, the hint just lists the deck. The host ca
 - **A side is left with nobody because of leavers.** The game ends with no winner: "A side left the game."
 - **A runoff is down to one candidate.** It closes at once and nobody goes.
 - **A timer runs out.** Reveal: night starts. Night: dawn, with whatever picks were made. Day: the vote opens. Vote: it counts what's in. A missing vote just doesn't count. A host stuck at the reveal gets a **Skip** button for anyone still looking.
+- **The host pauses the game.** The timer stops for everyone. Nobody can pick or vote. When the host taps **Resume**, the timer goes on from where it stopped.
 - **Rematch.** Non-hosts tap **Play again**; the host taps **Rematch** or **Back to lobby**. Roles are dealt fresh.
 
 ## Tips

@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -123,6 +123,10 @@ export interface RoomPublicState {
    */
   setupProblem: string | null;
   tier: RoomTier;
+  /** New people can't join. Seats already in, the owner, and seats dropped for being away still can. */
+  locked: boolean;
+  /** The host paused the game. Only in `playing`. */
+  paused: boolean;
   /** Game ids this room can't select at its tier. Empty on master. */
   lockedGameIds: string[];
   /** Game ids that can have computer players. */
@@ -162,6 +166,14 @@ export type ClientMessage =
   | { type: "add-bot" }
   /** Host only, in the lobby or on results: takes every computer player out. */
   | { type: "remove-bots" }
+  /** Host only, in the lobby, playing or results: locks the room against new people, or unlocks it. */
+  | { type: "lock-room"; locked: boolean }
+  /** Host only: hands the host role to another seat. */
+  | { type: "transfer-host"; playerId: string }
+  /** Host only, while playing: starts the same game again from the start. */
+  | { type: "restart-game" }
+  /** Host only, while playing: pauses the game or resumes it. */
+  | { type: "pause-game"; paused: boolean }
   | { type: "return-to-lobby" }
   /** Host only, in the lobby or on results: ends the room for everyone and shows the recap. */
   | { type: "end-party" }
@@ -202,6 +214,7 @@ export type ErrorCode =
   | "room-not-found"
   | "room-full"
   | "game-in-progress"
+  | "room-locked"
   | "replaced-by-new-connection"
   | "protocol-mismatch"
   | "bad-message"
@@ -228,6 +241,7 @@ export const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set([
   "room-not-found",
   "room-full",
   "game-in-progress",
+  "room-locked",
   "replaced-by-new-connection",
   "protocol-mismatch",
   "removed",
@@ -291,8 +305,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isNum(m.messageId) && isReaction(m.emoji) ? { type: "react", messageId: m.messageId, emoji: m.emoji } : null;
     case "emote":
       return isReaction(m.emoji) ? { type: "emote", emoji: m.emoji } : null;
+    case "lock-room":
+      return typeof m.locked === "boolean" ? { type: "lock-room", locked: m.locked } : null;
+    case "pause-game":
+      return typeof m.paused === "boolean" ? { type: "pause-game", paused: m.paused } : null;
     case "skip-turn":
     case "remove-player":
+    case "transfer-host":
       return isStr(m.playerId, 64) ? { type: m.type, playerId: m.playerId } : null;
     case "ping":
       return isNum(m.timestamp) ? { type: "ping", timestamp: m.timestamp } : null;
@@ -314,6 +333,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "leave":
     case "add-bot":
     case "remove-bots":
+    case "restart-game":
       return { type: m.type };
     default:
       return null;

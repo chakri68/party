@@ -152,6 +152,18 @@ interface RoomData {
    * has been skipped once already. A person's move or another seat's clears it.
    */
   botRun?: { seatId: string; moves: number; skipped: boolean };
+  /** The host locked the room: new people can't join. Optional: older rooms are open. */
+  locked?: boolean;
+  /**
+   * Resume tokens of seats dropped for being away, kept for the room's life (newest
+   * 64). A locked room lets these people back in, once each.
+   */
+  returnTokens?: string[];
+  /**
+   * The host paused the game at `at`. `timers` holds each `game:` and `bot:`
+   * timer as ms left; they're out of `timers` until resume. Absent: not paused.
+   */
+  pause?: { at: number; timers: Record<string, number> };
 }
 
 const STORAGE_KEY = "room";
@@ -171,6 +183,7 @@ const BOT_THINK_FLOOR_MS = 1000;
 const BOT_FOLLOW_MS = 900;
 const BOT_FOLLOW_SPAN_MS = 401;
 const BOT_STUCK_MESSAGE = "A computer player got stuck, so the game ended.";
+const PAUSED_MESSAGE = "The game is paused.";
 export const CLEANUP_AFTER_MS = 6 * 60 * 60 * 1000;
 
 /** Flood guards: this many per window, per seat. Emotes are meant to be mashed. */
@@ -487,6 +500,11 @@ export class RoomRuntime {
       // A room whose host timed out while nobody else was around gets one now.
       this.ensureHost();
     } else {
+      if (data.locked && data.phase !== "ended" && !owner) {
+        if (!msg.resumeToken || !(data.returnTokens ?? []).includes(msg.resumeToken)) {
+          return this.fatal(conn, "room-locked", "The host locked this room.");
+        }
+      }
       const def = this.games[data.gameId]!;
       const late = data.phase === "playing";
       if (late && !def.manifest.lateJoin) {
@@ -498,6 +516,10 @@ export class RoomRuntime {
         const bot = late ? undefined : this.newestBot();
         if (!bot) return this.fatal(conn, "room-full", "This room is full.");
         data.seats = data.seats.filter((s) => s !== bot);
+      }
+      // Used up only now, so a refusal above leaves the way back open.
+      if (data.locked && data.returnTokens && msg.resumeToken) {
+        data.returnTokens = data.returnTokens.filter((t) => t !== msg.resumeToken);
       }
       seat = {
         id: this.host.randomToken().slice(0, 12),
@@ -585,6 +607,9 @@ export class RoomRuntime {
             message: "No game is running.",
           });
         }
+        if (data.pause) {
+          return conn.send({ type: "action-rejected", clientActionId: msg.clientActionId, code: "wrong-phase", message: PAUSED_MESSAGE });
+        }
         const def = this.games[data.game.gameId]!;
         const action = def.parseAction(msg.action);
         const result = action === null
@@ -601,7 +626,7 @@ export class RoomRuntime {
 
       case "stream": {
         // Best-effort (§35): anything out of place is dropped without a word.
-        if (data.phase !== "playing" || !data.game) return;
+        if (data.phase !== "playing" || !data.game || data.pause) return;
         if (!this.allow("stream", seat.id, STREAM_LIMIT)) return;
         const out = this.games[data.game.gameId]!.onStream?.(data.game.state, seat.id, msg.data, this.ctx());
         if (!out) return;
@@ -666,6 +691,50 @@ export class RoomRuntime {
         return this.broadcastChat([line]);
       }
 
+      case "lock-room": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        if (!!data.locked === msg.locked) return;
+        data.locked = msg.locked;
+        return this.commit([]);
+      }
+
+      case "transfer-host": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        const target = data.seats.find((s) => s.id === msg.playerId);
+        if (!target || target.id === seat.id || target.bot || target.presence !== "connected") {
+          return this.error(conn, "not-available", "You can't make them host.");
+        }
+        data.hostId = target.id;
+        return this.commit([]);
+      }
+
+      case "restart-game": {
+        if (!hostOnly() || !inPhase("playing")) return;
+        const def = this.games[data.gameId]!;
+        if (this.lockedGameIds().includes(data.gameId)) return this.needsPass(conn);
+        if (!this.botsAllowed(def)) return this.botsBlock(conn);
+        // Refuse before ending anything: a failed restart leaves the game as it was.
+        const kept = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
+        const refusal = this.startCheck(def, kept.length);
+        if (refusal) return this.error(conn, refusal.code, refusal.message);
+        this.endGameToLobby(null);
+        const events = await this.dealGame(def, conn);
+        // Seats still within their grace are dealt in, and the new game is told they're away.
+        for (const s of data.seats) {
+          if (s.presence !== "reconnecting") continue;
+          events!.push(...this.applyGameHook((d, st) => d.onPlayerDisconnected?.(st, s.id, this.ctx())));
+        }
+        return this.commit(events!);
+      }
+
+      case "pause-game": {
+        if (!hostOnly() || !inPhase("playing") || !data.game) return;
+        const def = this.games[data.game.gameId]!;
+        if (!def.pause) return this.error(conn, "not-available", "This game can't pause.");
+        if (!!data.pause === msg.paused) return;
+        return this.commit(msg.paused ? this.pauseGame(def) : this.resumeGame(def));
+      }
+
       case "return-to-lobby":
         // Mid-game too: the host can bail on a game that's dragging.
         if (!hostOnly() || !inPhase("playing", "results")) return;
@@ -695,6 +764,7 @@ export class RoomRuntime {
 
       case "nudge": {
         if (!inPhase("playing")) return;
+        if (data.pause) return this.error(conn, "wrong-phase", PAUSED_MESSAGE);
         const now = this.host.now();
         const targets = data.awaiting.filter((id) => id !== seat.id && !this.isBot(id));
         if (!targets.length || data.awaitingSince === null || now - data.awaitingSince < NUDGE_AFTER_MS) {
@@ -713,6 +783,7 @@ export class RoomRuntime {
 
       case "skip-turn": {
         if (!hostOnly() || !inPhase("playing")) return;
+        if (data.pause) return this.error(conn, "wrong-phase", PAUSED_MESSAGE);
         const target = data.seats.find((s) => s.id === msg.playerId);
         if (!target || !data.awaiting.includes(target.id)) {
           return this.error(conn, "not-available", "It isn't their turn.");
@@ -730,7 +801,7 @@ export class RoomRuntime {
       case "remove-player": {
         if (!hostOnly()) return;
         const target = data.seats.find((s) => s.id === msg.playerId && s.presence !== "left");
-        if (!target || target.id === seat.id) return this.error(conn, "not-available", "You can't remove them.");
+        if (!target || target.id === seat.id || target.owner) return this.error(conn, "not-available", "You can't remove them.");
         // Mid-game, only once the grace period has run out (§12.1).
         if (data.phase === "playing" && target.presence !== "disconnected") {
           return this.error(conn, "too-early", "This player may come back. Wait until the player shows as disconnected.");
@@ -779,28 +850,46 @@ export class RoomRuntime {
     if (!this.botsAllowed(def)) return this.botsBlock(conn);
 
     // Seats whose owner wandered off in the lobby don't get dealt in.
+    for (const s of data.seats) if (s.presence !== "connected") this.rememberAway(s);
     data.seats = data.seats.filter((s) => s.presence === "connected");
     this.ensureHost();
 
+    const refusal = this.startCheck(def, data.seats.length);
+    if (refusal) {
+      this.error(conn, refusal.code, refusal.message);
+      return this.commit([]);
+    }
+    const events = await this.dealGame(def, conn, debug);
+    return events ? this.commit(events) : undefined;
+  }
+
+  /** Why a game can't start with `n` seats, or null. The owner gate, the head count, the game's own setup check. */
+  private startCheck(def: AnyGameDefinition, n: number): { code: ErrorCode; message: string } | null {
+    const data = this.data!;
     // The whole point of the owner key: no owner at the table, no game. The copy
     // stays vague on purpose; nobody needs to know why.
-    if (!this.ownerHere()) {
-      this.error(conn, "cannot-start", "Can't start yet.");
-      return this.commit([]);
-    }
-
-    const n = data.seats.length;
+    if (!this.ownerHere()) return { code: "cannot-start", message: "Can't start yet." };
     if (n < def.manifest.minPlayers || n > def.manifest.maxPlayers) {
-      this.error(conn, "not-enough-players", `${def.manifest.name} needs ${def.manifest.minPlayers}–${def.manifest.maxPlayers} players.`);
-      return this.commit([]);
+      return { code: "not-enough-players", message: `${def.manifest.name} needs ${def.manifest.minPlayers}–${def.manifest.maxPlayers} players.` };
     }
-
     const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
     const problem = def.setupProblem?.(settings, n) ?? null;
-    if (problem) {
-      this.error(conn, "bad-setup", problem);
-      return this.commit([]);
-    }
+    return problem ? { code: "bad-setup", message: problem } : null;
+  }
+
+  /**
+   * Deals a new game to the seats as they are: dealer, game number, carry, the
+   * game itself. Returns the events to commit, or null when a bad debug deck
+   * was already answered.
+   */
+  private async dealGame(
+    def: AnyGameDefinition,
+    conn: Conn,
+    debug?: { seed?: number; deck?: string[] },
+  ): Promise<GameEventEnvelope<unknown>[] | null> {
+    const data = this.data!;
+    const n = data.seats.length;
+    const settings = def.parseSettings(data.settings) ?? def.defaultSettings;
 
     // A debug seed makes the whole deal reproducible, dealer included.
     const ctx = debug?.seed === undefined
@@ -826,7 +915,8 @@ export class RoomRuntime {
       if (!debug) throw err;
       // A bad debug deck is the developer's typo, not a server fault; say what's wrong.
       await this.recover(err);
-      return this.error(conn, "bad-message", err instanceof Error ? err.message : "Bad debug deck.");
+      this.error(conn, "bad-message", err instanceof Error ? err.message : "Bad debug deck.");
+      return null;
     }
     data.phase = "playing";
     data.game = { gameId: def.manifest.id, state: null };
@@ -835,8 +925,7 @@ export class RoomRuntime {
     // Suggestions are for the next pick; once a game starts they've done their job.
     for (const s of data.seats) delete s.suggestion;
     delete data.botRun;
-    const events = this.applyTransition(transition, true);
-    return this.commit(events);
+    return this.applyTransition(transition, true);
   }
 
   /**
@@ -853,13 +942,44 @@ export class RoomRuntime {
       if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
     }
     // Disconnected seats were only kept for the game; their grace is long spent.
+    for (const s of data.seats) if (s.presence === "disconnected") this.rememberAway(s);
     data.seats = data.seats.filter((s) => s.presence === "connected" || s.presence === "reconnecting");
     this.ensureHost();
     this.resetReady();
     this.setAwaiting([]);
     delete data.botRun;
+    delete data.pause;
     // Sent after the commit's update, so the client reads it as the reason, not "the host ended it".
     if (message) this.gameEndedNotice = message;
+  }
+
+  // ---- pause --------------------------------------------------------------
+
+  /** The game hears first, then every game and bot timer is held by its time left. */
+  private pauseGame(def: AnyGameDefinition): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    const events = this.applyTransition(def.pause!(data.game!.state, true, this.ctx()));
+    if (data.phase !== "playing") return events;
+    const now = this.host.now();
+    const timers: Record<string, number> = {};
+    for (const [key, at] of Object.entries(data.timers)) {
+      if (!key.startsWith(GAME_TIMER_PREFIX) && !key.startsWith(BOT_TIMER_PREFIX)) continue;
+      timers[key] = Math.max(0, at - now);
+      this.clearTimer(key);
+    }
+    data.pause = { at: now, timers };
+    return events;
+  }
+
+  /** Every held timer runs again from now, the idle clock skips the pause, then the game hears, on the real clock. */
+  private resumeGame(def: AnyGameDefinition): GameEventEnvelope<unknown>[] {
+    const data = this.data!;
+    const pause = data.pause!;
+    const now = this.host.now();
+    for (const [key, left] of Object.entries(pause.timers)) this.setTimer(key, now + left);
+    if (data.awaitingSince !== null) data.awaitingSince = Math.min(now, data.awaitingSince + (now - pause.at));
+    delete data.pause;
+    return this.applyTransition(def.pause!(data.game!.state, false, this.ctx()));
   }
 
   // ---- computer players ---------------------------------------------------
@@ -899,6 +1019,8 @@ export class RoomRuntime {
     // Only computers are left: nobody to play for.
     const people = data.seats.filter((s) => !s.bot);
     if (people.length < data.seats.length && people.every((s) => s.presence === "left")) return this.endGameToLobby(null);
+    // Their timers are held; resume schedules them again.
+    if (data.pause) return;
     if (!this.personWatching() || !this.games[data.game.gameId]!.bot) return;
 
     const botSeats = data.seats.filter((s) => s.bot && s.presence !== "left");
@@ -935,8 +1057,8 @@ export class RoomRuntime {
     if (data.phase !== "playing" || !data.game) return null;
     const seat = data.seats.find((s) => s.id === seatId);
     if (!seat?.bot || seat.presence === "left") return null;
-    // Paused. A person coming back commits, and that schedules the bot again.
-    if (!this.personWatching()) return null;
+    // Paused. A person coming back (or the host resuming) commits, and that schedules the bot again.
+    if (!this.personWatching() || data.pause) return null;
     const def = this.games[data.game.gameId]!;
     if (!def.bot) return null;
 
@@ -984,8 +1106,9 @@ export class RoomRuntime {
 
   // ---- game plumbing ------------------------------------------------------
 
+  /** While paused, the game's clock stands still at the pause. */
   private ctx(): GameContext {
-    return { now: this.host.now(), randomInt: (max) => this.host.randomInt(max), hostId: this.data!.hostId };
+    return { now: this.data!.pause?.at ?? this.host.now(), randomInt: (max) => this.host.randomInt(max), hostId: this.data!.hostId };
   }
 
   /** Runs an optional hook against the live game and applies whatever it returns. */
@@ -1010,10 +1133,16 @@ export class RoomRuntime {
     const def = this.games[game.gameId]!;
     game.state = t.state;
 
+    // While paused, a new timer waits with the held ones: its delay is its time left.
+    const held = data.pause?.timers;
     for (const req of t.timers ?? []) {
       const key = GAME_TIMER_PREFIX + req.timerId;
-      if (req.kind === "set") this.setTimer(key, this.host.now() + req.delayMs);
-      else this.clearTimer(key);
+      if (req.kind === "set" && held) held[key] = req.delayMs;
+      else if (req.kind === "set") this.setTimer(key, this.host.now() + req.delayMs);
+      else {
+        if (held) delete held[key];
+        this.clearTimer(key);
+      }
     }
 
     const outcome = def.getResult(game.state);
@@ -1027,6 +1156,7 @@ export class RoomRuntime {
       for (const key of Object.keys(data.timers)) {
         if (key.startsWith(GAME_TIMER_PREFIX) || key.startsWith(BOT_TIMER_PREFIX)) this.clearTimer(key);
       }
+      delete data.pause;
     } else {
       this.setAwaiting(def.getAwaitedPlayerIds(game.state), acted);
     }
@@ -1121,8 +1251,17 @@ export class RoomRuntime {
       seat.presence = "disconnected";
       this.ensureHost();
     } else {
+      this.rememberAway(seat);
       this.removeSeat(seat);
     }
+  }
+
+  /** Keeps the resume token of a seat dropped for being away, so a locked room lets it back in. */
+  private rememberAway(seat: SeatData): void {
+    if (seat.bot || !seat.resumeToken) return;
+    const tokens = ((this.data!.returnTokens ??= []));
+    tokens.push(seat.resumeToken);
+    if (tokens.length > 64) tokens.splice(0, tokens.length - 64);
   }
 
   /**
@@ -1235,6 +1374,8 @@ export class RoomRuntime {
       canStart: this.ownerHere(),
       setupProblem: this.setupProblem(),
       tier: this.tier(),
+      locked: !!data.locked,
+      paused: !!data.pause,
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
