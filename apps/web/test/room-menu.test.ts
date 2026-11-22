@@ -55,6 +55,11 @@ describe("the room menu", () => {
     expect(after).toEqual(before.filter((i) => i !== "restart" && i !== "end-game"));
   });
 
+  it("no host actions when they cannot reach the room", () => {
+    const items = roomMenuItems(room(), "amy", { board: true, voice: "voice", pausable: true, hostActions: false });
+    expect(items).toEqual(["sounds", "reactions", "voice", "settings", "home"]);
+  });
+
   it("empty outside a game", () => {
     const o = { board: true, voice: "join", pausable: true } as const;
     expect(roomMenuItems(room({ phase: "lobby" }), "amy", o)).toEqual([]);

@@ -374,7 +374,9 @@ export class RoomView implements View {
         if (u.room.hostId !== client.playerId) this.showToast(`${seatName(u.room, u.room.hostId)} restarted the game.`);
       }
       // The menu was built for that phase and host: it goes, so it never sits over a new screen.
-      if (prev && (prev.room.phase !== u.room.phase || prev.room.hostId !== u.room.hostId)) this.menuDialog?.close();
+      if (prev && (prev.room.phase !== u.room.phase || (prev.room.hostId === client.playerId) !== (u.room.hostId === client.playerId))) {
+        this.menuDialog?.close();
+      }
       voice.onRoom(u.room);
       this.soundView?.render(u.room, client.playerId);
       this.render();
@@ -421,6 +423,8 @@ export class RoomView implements View {
 
   private showStuck() {
     this.stuck = true;
+    // Its host items no longer reach the room.
+    this.menuDialog?.close();
     const screen = h(
       "section",
       { class: "message" },
@@ -533,10 +537,14 @@ export class RoomView implements View {
     const me = client?.playerId;
     if (!u || !client || !me || this.menuDialog) return;
     const room = u.room;
-    const items = roomMenuItems(room, me, {
+    // The menu follows the screen: just after the last move the room is on
+    // results but the game is still shown, and the room buttons stay in reach.
+    const items = roomMenuItems({ ...room, phase: this.shownPhase ?? room.phase }, me, {
       board: soundBoardModel(room, me, this.board?.list() ?? [], audio.settings.sound && audio.settings.roomSounds).button,
       voice: this.voice ? voiceMenuItem(this.voice.view()) : null,
       pausable: !!games[room.gameId]?.manifest.pausable,
+      // Only while the game runs and the room can hear us: elsewhere they would do nothing.
+      hostActions: room.phase === "playing" && !this.stuck,
     });
     if (!items.length) return;
     const opener = this.menuButton;

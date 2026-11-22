@@ -47,7 +47,7 @@ export class SoundBoardView {
   readonly wrap = h("span", { class: "sound-wrap", hidden: true });
 
   private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Sound board", "aria-expanded": "false" }, icon("sound-board"));
-  private panel = h("div", { class: "sound-board", role: "group", "aria-label": "Sound board", tabindex: "-1", hidden: true });
+  private panel = h("div", { class: "sound-board", role: "group", "aria-label": "Sound board", hidden: true });
   private switchBtn = h("button", { type: "button", class: "sound-switch", "aria-label": "Room sounds", "aria-pressed": "false" });
   private note = h("p", { class: "sound-note muted", hidden: true });
   private tiles = h("div", { class: "sound-tiles" });
@@ -95,7 +95,11 @@ export class SoundBoardView {
     this.panel.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
     this.from = open ? (from ?? null) : null;
-    if (open && from) this.panel.focus();
+    // Focusable only then: outside a game a tap on the panel leaves focus (and Space) as before.
+    if (open && from) {
+      this.panel.tabIndex = -1;
+      this.panel.focus();
+    } else if (!open) this.panel.removeAttribute("tabindex");
   }
 
   render(room: RoomPublicState | null, me: string | null): void {

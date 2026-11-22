@@ -21,7 +21,7 @@ export class Emotes {
   readonly layer = h("div", { class: "emote-layer", "aria-hidden": "true" });
 
   private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Send a reaction", "aria-expanded": "false" }, icon("smile"));
-  private bar = h("div", { class: "emote-bar", role: "group", "aria-label": "Reactions", tabindex: "-1", hidden: true });
+  private bar = h("div", { class: "emote-bar", role: "group", "aria-label": "Reactions", hidden: true });
   private opts: EmotesOptions;
   /** Opened from somewhere else (the room menu, with this button hidden): Escape goes back there. */
   private from: HTMLElement | null = null;
@@ -49,7 +49,11 @@ export class Emotes {
     this.bar.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
     this.from = open ? (from ?? null) : null;
-    if (open && from) this.bar.focus();
+    // Focusable only then: outside a game a tap on the bar leaves focus (and Space) as before.
+    if (open && from) {
+      this.bar.tabIndex = -1;
+      this.bar.focus();
+    } else if (!open) this.bar.removeAttribute("tabindex");
   }
 
   show(from: string, emoji: Reaction) {

@@ -61,9 +61,9 @@ Top to bottom:
 - **I'm ready** and, for the host, the start button.
 - **Leave room**.
 
-The header, always there, has the room code, a sound button, a sound board button, an emoji button and a chat button.
+Outside a game, the header has the room code, a sound button, a sound board button, an emoji button and a chat button.
 
-In a game the header is one small row, so the game gets the screen: the room code, the connection bars, your mic (only when you are in voice), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Sound board**, **Reactions**, **Join voice** or **Voice**, **Sound and vibration**, and for the host **Pause** (or **Resume**), **Restart** and **End game**. **Home** in the menu goes to the home page, like the logo does outside a game.
+In a game the header is one small row, so the game has more room: the room code, the connection bars, your mic (only when you are in voice), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Sound board**, **Reactions**, **Join voice** or **Voice**, **Sound and vibration**, and for the host **Pause** (or **Resume**), **Restart** and **End game**. **Home** in the menu goes to the home page, like the logo does outside a game.
 
 ### What only the host can do
 
@@ -196,14 +196,17 @@ If the host ends a game, everyone else gets "<name> ended the game." and returns
 
 ## During a game
 
-The shell adds a few controls above the game when it's waiting on someone. **Restart**, **Pause** and **End game** are in the menu (the three dots at the top right):
+The shell adds a few controls above the game when it's waiting on someone:
 
 - Everyone: **Nudge <name>** appears once the person whose turn it is has been idle for 30 seconds. They get a "nudged you: it's your turn!" toast, a sound and a short buzz. There's a 10 second cooldown between nudges.
 - Host: **Skip <name>'s turn** appears after 60 seconds idle, or straight away if that person has dropped. Not every game can skip.
 - Host: **Remove <name>** for anyone disconnected past their grace (asks to confirm). They're out for the rest of the round.
-- Host: **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- Host: **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play.
-- Host: **End game** sends everyone back to the lobby (asks to confirm).
+
+The host also has these in the menu (the three dots at the top right):
+
+- **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
+- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play.
+- **End game** sends everyone back to the lobby (asks to confirm).
 
 ## Leaving
 

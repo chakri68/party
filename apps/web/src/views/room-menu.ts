@@ -36,11 +36,13 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
  * - board: the sound board button would show (`soundBoardModel(...).button`).
  * - voice: `voiceMenuItem(...)`, or null where voice cannot work.
  * - pausable: the game's manifest says the host can pause it.
+ * - hostActions: false drops Pause, Restart and End game, where they would do
+ *   nothing (the "Could not connect" screen, the game just ended). Default true.
  */
 export function roomMenuItems(
   room: RoomPublicState,
   me: string,
-  o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean },
+  o: { board: boolean; voice: "join" | "voice" | null; pausable: boolean; hostActions?: boolean },
 ): RoomMenuItem[] {
   if (room.phase !== "playing") return [];
   const items: RoomMenuItem[] = [];
@@ -49,7 +51,7 @@ export function roomMenuItems(
   if (o.voice === "join") items.push("join-voice");
   else if (o.voice === "voice") items.push("voice");
   items.push("settings");
-  if (room.hostId === me) {
+  if (room.hostId === me && o.hostActions !== false) {
     if (o.pausable) items.push(room.paused ? "resume" : "pause");
     items.push("restart", "end-game");
   }
