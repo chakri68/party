@@ -6,7 +6,7 @@ Everything that isn't a specific game: your name and face, getting into a room, 
 
 - Pick a name and a face, then create a room or join one with its four-character code.
 - Whoever holds the host role picks the game, tweaks its settings and hits **Start game**. Everyone else taps **I'm ready**.
-- Chat and emoji reactions live in the header. Chat goes read-only during games that have their own chat.
+- Chat and emoji reactions live in the header. In a game, the reactions are in the menu (the three dots at the top right). Chat goes read-only during games that have their own chat.
 - If your connection drops, your seat is held for 60 seconds.
 - When a game ends you get a results screen, then **Play again** (or **Rematch**, for the host).
 
@@ -63,6 +63,8 @@ Top to bottom:
 
 The header, always there, has the room code, a sound button, a sound board button, an emoji button and a chat button.
 
+In a game the header is one small row, so the game gets the screen: the room code, the connection bars, your mic (only when you are in voice), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Sound board**, **Reactions**, **Join voice** or **Voice**, **Sound and vibration**, and for the host **Pause** (or **Resume**), **Restart** and **End game**. **Home** in the menu goes to the home page, like the logo does outside a game.
+
 ### What only the host can do
 
 The host is the first person into the room. The tag next to their name says "host". Only they can:
@@ -72,7 +74,7 @@ The host is the first person into the room. The tag next to their name says "hos
 - **Start game**.
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
 - **Lock room** in the lobby. While it is locked, new players can't join. Players already in the room can still come back. So can someone whose phone went to sleep and lost their seat. Tap **Unlock room** to open it again.
-- Mid-game: **End game**, **Skip**, **Remove**, **Restart** and **Pause** buttons, covered below.
+- Mid-game: **Skip** and **Remove** buttons above the game, and **Pause**, **Restart** and **End game** in the menu (the three dots at the top right). All are covered below.
 - **Sounds: off** at the top of the sound board turns the board off for everyone. Only the host still sees the board button, to turn it on again.
 
 ### Computer players
@@ -126,11 +128,11 @@ Some games have their own guessing or answering built into the screen, and the r
 
 ## Emotes
 
-The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
+The smile button in the header opens a bar of the same six emoji. In a game, tap **Reactions** in the menu. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
 
 ## Sound board
 
-The board button (four squares) in the header opens **Sound board**, a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
+The board button (four squares) in the header opens **Sound board** (in the menu during a game), a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
@@ -152,7 +154,7 @@ The settings stay on your device.
 
 You can talk with the room while you play. Voice usually goes straight from phone to phone. Sometimes it goes through a relay server.
 
-- **Join voice**: the button under the header. In a game it is one small button. Until your browser allows the mic, it first tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your browser asks to use the mic. If you say no, you can still listen, and the bar says "Your mic is off". To talk later, allow the mic in your browser settings.
+- **Join voice**: the button under the header. In a game, **Join voice** is in the menu (the three dots at the top right). Until your browser allows the mic, it first tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your browser asks to use the mic. If you say no, you can still listen, and the bar says "Your mic is off". To talk later, allow the mic in your browser settings.
 - **Mute** stops sending your voice, but your mic is still on. The bar says so. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
 - **Hear no one** (the headphones button) stops all voices for you. Tap it again to hear everyone.
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
@@ -162,7 +164,8 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
 - Up to 8 people can be in voice. The ninth person sees "Voice is full." and can still play.
-- The bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. In a game, the dots button shows everyone in voice. In the lobby and on results, tap **People in voice**. **Turn off mic** and **Leave voice** are there too.
+- The bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. In the lobby and on results, tap **People in voice** to see everyone in voice. **Turn off mic** and **Leave voice** are there too.
+- In a game there is no bar. Once you are in voice, your mic button is at the top, next to chat. Its small dot turns green when someone talks. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 
 The settings button in the bar opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
@@ -193,7 +196,7 @@ If the host ends a game, everyone else gets "<name> ended the game." and returns
 
 ## During a game
 
-The shell adds a few controls below the game when it's waiting on someone:
+The shell adds a few controls above the game when it's waiting on someone. **Restart**, **Pause** and **End game** are in the menu (the three dots at the top right):
 
 - Everyone: **Nudge <name>** appears once the person whose turn it is has been idle for 30 seconds. They get a "nudged you: it's your turn!" toast, a sound and a short buzz. There's a 10 second cooldown between nudges.
 - Host: **Skip <name>'s turn** appears after 60 seconds idle, or straight away if that person has dropped. Not every game can skip.

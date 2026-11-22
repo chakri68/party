@@ -246,6 +246,9 @@ export class VoiceBar {
 
   /** The room's phase; null for screens outside a room (a fatal message). */
   render(phase: RoomPhase | null): void {
+    // Into or out of a game the mic moves (place): let go first, so the model
+    // below is built after the release and the moved mic never looks held.
+    if ((phase === "playing") !== (this.phase === "playing")) this.letGo();
     this.phase = phase;
     this.sync();
   }
