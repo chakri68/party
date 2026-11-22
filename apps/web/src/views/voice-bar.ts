@@ -21,6 +21,10 @@ export interface BarModel {
   micButton: { label: string; pressed: boolean; hold: boolean };
   /** One line under the controls. */
   note: string | null;
+  /** Read out when it changes. Not the push-to-talk hint, which comes and goes on every press. */
+  noteLive: boolean;
+  /** The button that opens everyone in voice. */
+  peopleLabel: string;
   tapSound: boolean;
   tapMic: boolean;
   speakingIds: string[];
@@ -62,18 +66,40 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
   else if (!live) note = "Your mic is off";
   else if (v.mic === "muted") note = "Muted: your mic is still on. Tap Turn off mic to stop it.";
   else if (v.status === "joining") note = "Connecting voice...";
-  else if (hold && !v.pttHeld) note = space ? "Hold Space to talk" : "Hold to talk";
+  let hint = false;
+  if (note === null && hold && !v.pttHeld) {
+    note = space ? "Hold Space to talk" : "Hold to talk";
+    hint = true;
+  }
 
   return {
     show,
     canJoin: v.status !== "unsupported",
     micButton,
     note: show === "hidden" ? null : note,
+    noteLive: show !== "hidden" && note !== null && !hint,
+    peopleLabel: `People in voice (${v.members.length})`,
     tapSound: joined && v.needsSoundTap,
     tapMic: joined && v.needsMicTap,
     speakingIds: joined ? v.members.filter((m) => m.speaking).map((m) => m.id) : [],
     connection: v.status === "on" && v.members.every((m) => m.self || m.link === "connected") ? "good" : "wait",
   };
+}
+
+/** A join may start: the Join voice button is still up, and the bar is not destroyed. */
+export function joinAllowed(model: BarModel | null, destroyed: boolean): boolean {
+  return !destroyed && model?.show === "join" && model.canJoin;
+}
+
+/** The "Join voice" explainer. When the browser blocks the mic, it says how to allow it. */
+export function joinLines(permission: "granted" | "denied" | "prompt" | "unknown"): string[] {
+  return [
+    "Talk with the room while you play.",
+    permission === "denied"
+      ? "Your browser blocks the mic for this site. To talk, allow the mic in the browser settings."
+      : "Your phone will ask to use the mic.",
+    "No one records your voice.",
+  ];
 }
 
 /** No key pressed in voice controls reaches the game. */
@@ -109,19 +135,23 @@ export class VoiceBar {
   private holding = false;
   /** The join explainer is up, or being decided on. */
   private asking = false;
+  private destroyed = false;
   private panelDialog: HTMLDialogElement | null = null;
   private readonly dialogs = new Set<HTMLDialogElement>();
   private readonly unsubscribe: () => void;
 
   private readonly join = h("button", { type: "button", class: "voice-join" }, icon("mic"), "Join voice");
   private readonly micIcon = h("span", { class: "voice-mic-icon" });
-  private readonly micLabel = h("span", {});
+  /** Hidden on narrow phones; the button keeps its aria-label. */
+  private readonly micLabel = h("span", { class: "voice-mic-label", "aria-hidden": "true" });
   private readonly mic = h("button", { type: "button", class: "voice-mic" }, this.micIcon, this.micLabel);
   private readonly deafen = h("button", { type: "button", class: "icon-btn voice-deafen" });
   private readonly speaking = h("span", { class: "voice-speaking" });
   private readonly dot = h("span", { class: "voice-dot", role: "img" });
   private readonly settingsButton = h("button", { type: "button", class: "icon-btn", "aria-label": "Voice settings" }, icon("settings"));
+  /** In a game: the dots. In the lobby and on results: a line with the count. */
   private readonly panelButton = h("button", { type: "button", class: "icon-btn voice-more", "aria-label": "People in voice" }, icon("more"));
+  private readonly peopleButton = h("button", { type: "button", class: "voice-people-button" });
   private readonly controls = h(
     "div",
     { class: "voice-controls" },
@@ -135,12 +165,14 @@ export class VoiceBar {
   private readonly tapSound = h("button", { type: "button", class: "primary" }, "Tap to turn on sound");
   private readonly tapMic = h("button", { type: "button", class: "primary" }, "Tap to talk again.");
   private readonly taps = h("div", { class: "voice-taps" }, this.tapSound, this.tapMic);
-  private readonly note = h("p", { class: "voice-note muted", role: "status" });
+  private readonly note = h("p", { class: "voice-note muted" });
+  /** The live region: only notes that matter are read out. */
+  private readonly announce = h("span", { class: "sr-only", role: "status" });
   private readonly turnOff = h("button", { type: "button" }, "Turn off mic");
   private readonly leave = h("button", { type: "button", class: "link" }, "Leave voice");
   private readonly people = h("ul", { class: "voice-people" });
   private readonly rows = new Map<string, Row>();
-  /** Inline in the lobby and on results; in a dialog in a game. */
+  /** Only ever shown in its dialog (openPanel). */
   private readonly panel = h("div", { class: "voice-panel" }, h("div", { class: "voice-actions" }, this.turnOff, this.leave), this.people);
 
   constructor(voice: VoiceController, ptt: PushToTalk, nameOf: (id: string) => string) {
@@ -148,7 +180,7 @@ export class VoiceBar {
     this.ptt = ptt;
     this.nameOf = nameOf;
     this.coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-    this.el.append(this.join, this.controls, this.taps, this.note, this.panel);
+    this.el.append(this.join, this.controls, this.taps, this.note, this.peopleButton, this.announce);
     keepKeys(this.el);
 
     this.join.addEventListener("click", () => void this.startJoin());
@@ -156,6 +188,7 @@ export class VoiceBar {
     this.deafen.addEventListener("click", () => this.voice.setDeafened(!this.voice.view().deafened));
     this.settingsButton.addEventListener("click", () => this.openSettings());
     this.panelButton.addEventListener("click", () => this.openPanel());
+    this.peopleButton.addEventListener("click", () => this.openPanel());
     this.tapSound.addEventListener("click", () => this.voice.resumeSound());
     this.tapMic.addEventListener("click", () => void this.voice.turnOnMic());
     this.turnOff.addEventListener("click", () => this.voice.turnOffMic());
@@ -184,13 +217,13 @@ export class VoiceBar {
     this.panelDialog = dlg;
     dlg.addEventListener("close", () => {
       this.panelDialog = null;
-      this.el.append(this.panel);
-      this.sync();
+      this.panel.remove();
     });
     this.sync();
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.unsubscribe();
     this.letGo();
     for (const d of [...this.dialogs]) d.close();
@@ -215,14 +248,20 @@ export class VoiceBar {
     this.taps.hidden = !m.tapSound && !m.tapMic;
     this.note.hidden = m.note === null;
     setText(this.note, m.note ?? "");
-    if (m.show !== "bar") this.panelDialog?.close();
-    this.panel.hidden = m.show !== "bar" || (!this.panelDialog && this.phase === "playing");
+    const spoken = m.noteLive ? (m.note ?? "") : "";
+    setText(this.announce, spoken);
+    // Out of the room (fatal, party over): nothing voice stays open, so no late tap turns the mic on.
+    if (m.show === "hidden") for (const d of [...this.dialogs]) d.close();
+    else if (m.show !== "bar") this.panelDialog?.close();
     this.panelButton.hidden = this.phase !== "playing";
+    this.peopleButton.hidden = m.show !== "bar" || this.phase === "playing";
+    setText(this.peopleButton, m.peopleLabel);
 
     // The mic: a toggle, or the talk button in push-to-talk. "Tap to talk again." stands in for it.
     this.mic.hidden = m.tapMic;
     const b = m.micButton;
     setText(this.micLabel, b.label);
+    if (this.mic.getAttribute("aria-label") !== b.label) this.mic.setAttribute("aria-label", b.label);
     const micIcon: IconName = v.mic === "on" ? "mic" : "mic-off";
     if (this.micIcon.dataset.icon !== micIcon) {
       this.micIcon.dataset.icon = micIcon;
@@ -381,23 +420,27 @@ export class VoiceBar {
 
   /** The explainer, unless the browser already allows the mic. */
   private async startJoin(): Promise<void> {
-    if (this.asking) return;
+    if (this.asking || !joinAllowed(this.model, this.destroyed)) return;
     this.asking = true;
-    if ((await this.voice.micPermission()) === "granted") {
+    const permission = await this.voice.micPermission();
+    // The party ended, a fatal came or the room went away while we asked.
+    if (!joinAllowed(this.model, this.destroyed)) {
+      this.asking = false;
+      return;
+    }
+    if (permission === "granted") {
       this.asking = false;
       return void this.voice.join(true);
     }
     const pick = (withMic: boolean) => {
       dlg.close();
-      void this.voice.join(withMic);
+      if (joinAllowed(this.model, this.destroyed)) void this.voice.join(withMic);
     };
     const dlg = h(
       "dialog",
       { class: "dialog voice-dialog", "aria-label": "Join voice" },
       h("h2", {}, "Join voice"),
-      h("p", {}, "Talk with the room while you play."),
-      h("p", {}, "Your phone will ask to use the mic."),
-      h("p", {}, "No one records your voice."),
+      joinLines(permission).map((line) => h("p", {}, line)),
       h(
         "div",
         { class: "dialog-list" },

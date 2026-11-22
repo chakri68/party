@@ -139,9 +139,9 @@ The settings stay on your device.
 
 ## Voice
 
-You can talk with the room while you play. Voice goes straight from phone to phone.
+You can talk with the room while you play. Voice usually goes straight from phone to phone. Sometimes it goes through a relay server.
 
-- **Join voice**: the button under the header. The first time, it tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your phone asks to use the mic. If you say no, you can still listen, and the bar says "Your mic is off".
+- **Join voice**: the button under the header. Until your browser allows the mic, it first tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your phone asks to use the mic. If you say no, you can still listen, and the bar says "Your mic is off". To talk later, allow the mic in your browser settings.
 - **Mute** stops sending your voice, but your mic is still on. The bar says so. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
 - **Hear no one** (the headphones button) stops all voices for you. Tap it again to hear everyone.
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
@@ -149,7 +149,7 @@ You can talk with the room while you play. Voice goes straight from phone to pho
 - If the phone blocks sound, tap **Tap to turn on sound**. If your mic stops (a call, or you pulled out a headset), tap **Tap to talk again.**
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - Up to 8 people can be in voice. The ninth person sees "Voice is full." and can still play.
-- In a game the bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. The dots button shows everyone in voice. In the lobby and on results you see everyone.
+- The bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. In a game, the dots button shows everyone in voice. In the lobby and on results, tap **People in voice**. **Turn off mic** and **Leave voice** are there too.
 
 The settings button in the bar opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my volume even, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 

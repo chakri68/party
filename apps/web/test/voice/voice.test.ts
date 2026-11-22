@@ -526,6 +526,31 @@ describe("VoiceController", () => {
     expect(s.types()).toEqual(["voice-join"]);
   });
 
+  it("after a takeover, Use here rejoins on the next welcome and sends no voice-leave", async () => {
+    const s = await joined({ perm: "granted" });
+    // Another tab took the seat: fatal, voice stops, nothing sent.
+    s.voice.stop();
+    s.sent.length = 0;
+    s.voice.resumeAfterTakeover();
+    s.voice.onWelcome();
+    s.voice.onVoiceState(roster("me", "b"));
+    await flush();
+    expect(s.types()).not.toContain("voice-leave");
+    expect(s.types()).toContain("voice-join");
+    // A new transport, so a new session.
+    expect(s.transports).toHaveLength(2);
+    expect(s.voice.view().mic).toBe("on");
+  });
+
+  it("after a takeover with voice saved off, the next welcome does not join", async () => {
+    const s = await joined();
+    s.voice.leave();
+    s.voice.resumeAfterTakeover();
+    s.voice.onWelcome();
+    await flush();
+    expect(s.voice.view().status).toBe("off");
+  });
+
   it("a fresh page listed but not joining leaves", async () => {
     const s = setup();
     s.voice.onWelcome();

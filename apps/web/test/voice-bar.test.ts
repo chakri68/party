@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pttEnabled, voiceBarModel } from "../src/views/voice-bar.ts";
+import { joinAllowed, joinLines, pttEnabled, voiceBarModel } from "../src/views/voice-bar.ts";
 import type { VoiceMemberView, VoiceView } from "../src/voice/voice.ts";
 
 const member = (id: string, extra: Partial<VoiceMemberView> = {}): VoiceMemberView => ({
@@ -136,5 +136,44 @@ describe("pttEnabled", () => {
     expect(pttEnabled(view({ status: "off", mode: "ptt" }))).toBe(false);
     expect(pttEnabled(view({ status: "full", mode: "ptt" }))).toBe(false);
     expect(pttEnabled(view({ status: "on", mode: "open" }))).toBe(false);
+  });
+});
+
+describe("the people button and the note", () => {
+  it("counts the people in voice", () => {
+    const m = voiceBarModel(view({ status: "on", mic: "on", members: [member("me", { self: true, link: null }), member("ben")] }), "lobby");
+    expect(m.peopleLabel).toBe("People in voice (2)");
+  });
+
+  it("the push-to-talk hint is not read out on every press; other notes are", () => {
+    const ptt = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing", true);
+    expect(ptt.note).toBe("Hold Space to talk");
+    expect(ptt.noteLive).toBe(false);
+    expect(voiceBarModel(view({ status: "on", mic: "muted" }), "lobby").noteLive).toBe(true);
+    expect(voiceBarModel(view({ status: "full" }), "lobby").noteLive).toBe(true);
+  });
+});
+
+describe("joining", () => {
+  it("joins only while the Join voice button is up and the bar is alive", () => {
+    const off = voiceBarModel(view(), "lobby");
+    expect(joinAllowed(off, false)).toBe(true);
+    // The bar was destroyed while the explainer was open.
+    expect(joinAllowed(off, true)).toBe(false);
+    // The party ended, or a fatal hid the bar.
+    expect(joinAllowed(voiceBarModel(view(), "ended"), false)).toBe(false);
+    expect(joinAllowed(null, false)).toBe(false);
+    // Already joining from another tap.
+    expect(joinAllowed(voiceBarModel(view({ status: "joining", mic: "on" }), "lobby"), false)).toBe(false);
+    expect(joinAllowed(voiceBarModel(view({ status: "unsupported" }), "lobby"), false)).toBe(false);
+  });
+
+  it("the explainer says the phone will ask, unless the mic is blocked", () => {
+    expect(joinLines("prompt")).toEqual(["Talk with the room while you play.", "Your phone will ask to use the mic.", "No one records your voice."]);
+    expect(joinLines("unknown")).toEqual(joinLines("prompt"));
+    const denied = joinLines("denied");
+    expect(denied).not.toContain("Your phone will ask to use the mic.");
+    expect(denied).toContain("Your browser blocks the mic for this site. To talk, allow the mic in the browser settings.");
+    expect(denied).toContain("No one records your voice.");
   });
 });
