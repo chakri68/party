@@ -31,6 +31,10 @@ describe("sound packs", () => {
       { ...bruh, id: "e", name: "x".repeat(25) },
       { ...bruh, id: "f", name: "   " },
       { ...bruh, id: "g", ms: 1.5 },
+      { ...bruh, id: "h", url: "/\\x.test/a.mp3" },
+      { ...bruh, id: "i", url: "/\t/x.test/a.mp3" },
+      { ...bruh, id: "j", url: "/\n/x.test/a.mp3" },
+      { ...bruh, id: "k", url: "/a b.mp3" },
     ];
     expect(parsePackList(list([...bad, bruh, { ...bruh, name: "Again" }]))).toEqual([{ ...bruh, id: "memes:bruh" }]);
     expect(parsePackList(list([bruh], "free"))).toEqual([]);
@@ -58,6 +62,11 @@ describe("sound packs", () => {
     const getJson = (url: string) => (url === "/bad" ? Promise.reject(new Error("offline")) : Promise.resolve(bodies[url] ?? null));
     const got = await loadExtraPacks(["/b", "/bad", "/none", "/a"], getJson);
     expect(got.map((s) => s.id)).toEqual(["beta:two", "alpha:one"]);
+    const throws = (url: string) => {
+      if (url === "/bad") throw new Error("sync");
+      return Promise.resolve(bodies[url] ?? null);
+    };
+    expect((await loadExtraPacks(["/bad", "/a"], throws)).map((s) => s.id)).toEqual(["alpha:one"]);
   });
 
   it("the shell has no extra packs by default", () => {

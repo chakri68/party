@@ -3,7 +3,7 @@
 // the view draws the cooldown from `coolingMs()`.
 
 import { type ClientMessage, SOUND_COOLDOWN_MS } from "@games/protocol";
-import { type BoardSound, freeBoard, loadExtraPacks } from "./packs.ts";
+import { type BoardSound, attempt, freeBoard, loadExtraPacks } from "./packs.ts";
 
 /** The tile waits this much past the server's cooldown, so network jitter never drops a tap it allowed. */
 export const COOLDOWN_SLACK_MS = 250;
@@ -28,6 +28,8 @@ export class SoundBoard<Clip> {
   private clips = new Map<string, Clip>();
   /** Fetched bytes that wait for a context. Each leaves here once, to be decoded. */
   private waiting = new Map<string, ArrayBuffer>();
+  /** Decodes run one after another, so a low-end phone isn't asked for dozens at once. */
+  private decodes: Promise<void> = Promise.resolve();
   private listeners = new Set<() => void>();
   private loading: Promise<void> | null = null;
   private coolUntil = 0;
@@ -61,7 +63,7 @@ export class SoundBoard<Clip> {
     this.setList([...this.sounds, ...extra]);
     await Promise.all(
       this.sounds.map(async ({ id, url }) => {
-        const bytes = await this.deps.getBytes(url).catch(() => null);
+        const bytes = await attempt(() => this.deps.getBytes(url)).catch(() => null);
         if (!bytes || this.destroyed) return;
         this.waiting.set(id, bytes);
         if (this.deps.ready()) this.decodeWaiting();
@@ -80,12 +82,11 @@ export class SoundBoard<Clip> {
     if (this.destroyed) return;
     for (const [id, bytes] of this.waiting) {
       this.waiting.delete(id);
-      this.deps.decode(bytes).then(
-        (clip) => {
-          if (clip && !this.destroyed) this.clips.set(id, clip);
-        },
-        () => {},
-      );
+      this.decodes = this.decodes.then(async () => {
+        if (this.destroyed) return;
+        const clip = await attempt(() => this.deps.decode(bytes)).catch(() => null);
+        if (clip && !this.destroyed) this.clips.set(id, clip);
+      });
     }
   }
 

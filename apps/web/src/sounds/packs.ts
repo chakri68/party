@@ -20,6 +20,19 @@ const PACK_NAME = /^[a-z][a-z0-9-]{0,15}$/;
 const RESERVED_PACKS = new Set(["free", "host"]);
 const NAME_MAX = 24;
 const MS_MAX = 3000;
+/** Backslash, spaces and control characters: URL parsers drop or rewrite them, so a path could turn into another host. */
+const UNSAFE_URL_CHAR = /[\\\u0000-\u0020\u007f]/;
+const SAME_ORIGIN = "https://same.invalid";
+
+/** A path on this site only: a list must not point the phone at another site. */
+function isSameOriginPath(url: string): boolean {
+  if (!url.startsWith("/") || url.startsWith("//") || UNSAFE_URL_CHAR.test(url)) return false;
+  try {
+    return new URL(url, SAME_ORIGIN).origin === SAME_ORIGIN;
+  } catch {
+    return false;
+  }
+}
 
 export function freeBoard(): BoardSound[] {
   const out: BoardSound[] = [];
@@ -47,8 +60,7 @@ export function parsePackList(body: unknown): BoardSound[] {
     const label = name.trim();
     if (label.length < 1 || label.length > NAME_MAX) continue;
     if (typeof ms !== "number" || !Number.isInteger(ms) || ms < 1 || ms > MS_MAX) continue;
-    // Same origin only: a list must not point the phone at another site.
-    if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//")) continue;
+    if (typeof url !== "string" || !isSameOriginPath(url)) continue;
     seen.add(wire);
     out.push({ id: wire, name: label, ms, url });
   }
@@ -60,6 +72,15 @@ export function parsePackList(body: unknown): BoardSound[] {
  * 404 where the server has no such pack) is skipped without a word.
  */
 export async function loadExtraPacks(urls: readonly string[], getJson: (url: string) => Promise<unknown>): Promise<BoardSound[]> {
-  const lists = await Promise.all(urls.map((url) => getJson(url).then(parsePackList, () => [])));
+  const lists = await Promise.all(urls.map((url) => attempt(() => getJson(url)).then(parsePackList, () => [])));
   return lists.flat();
+}
+
+/** Runs `fn`, so a throw before it returns a promise becomes a rejection. */
+export function attempt<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return Promise.resolve(fn());
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }

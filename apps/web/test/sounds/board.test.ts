@@ -18,7 +18,7 @@ const PACK = {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[] } = {}) {
+function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[]; throwBytes?: string[]; held?: (() => void)[] } = {}) {
   const state = {
     clock: 1000,
     ready: opts.ready ?? false,
@@ -27,6 +27,8 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[] 
     sent: [] as ClientMessage[],
     played: [] as Clip[],
     decodes: 0,
+    inFlight: 0,
+    maxInFlight: 0,
     jsonGets: 0,
     byteGets: 0,
   };
@@ -38,6 +40,7 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[] 
     },
     getBytes: (url) => {
       state.byteGets++;
+      if (opts.throwBytes?.includes(url)) throw new Error("sync");
       if (opts.badBytes?.includes(url)) return Promise.resolve(null);
       const bytes = new ArrayBuffer(8);
       urlOf.set(bytes, url);
@@ -47,7 +50,16 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[] 
       state.decodes++;
       const url = urlOf.get(bytes)!;
       if (opts.badDecode?.includes(url)) return Promise.reject(new Error("bad file"));
-      return Promise.resolve({ url });
+      const held = opts.held;
+      if (!held) return Promise.resolve({ url });
+      state.inFlight++;
+      state.maxInFlight = Math.max(state.maxInFlight, state.inFlight);
+      return new Promise<Clip>((resolve) =>
+        held.push(() => {
+          state.inFlight--;
+          resolve({ url });
+        }),
+      );
     },
     play: (clip) => {
       state.played.push(clip);
@@ -183,6 +195,32 @@ describe("SoundBoard", () => {
     expect(board.receive(free[2]!.id)).toBe(true);
     expect(board.receive("memes:wow")).toBe(true);
     expect(state.played).toHaveLength(2);
+  });
+
+  it("a getBytes that throws leaves only that sound silent", async () => {
+    const free = freeBoard();
+    const { board, state } = rig({ ready: true, throwBytes: [free[0]!.url] });
+    await expect(board.load(["/p"])).resolves.toBeUndefined();
+    await flush();
+    expect(state.decodes).toBe(board.list().length - 1);
+    expect(board.receive(free[0]!.id)).toBe(false);
+    expect(board.receive(free[1]!.id)).toBe(true);
+  });
+
+  it("decodes one clip at a time", async () => {
+    const held: (() => void)[] = [];
+    const { board, state } = rig({ ready: true, held });
+    await board.load(["/p"]);
+    await flush();
+    let done = 0;
+    while (held.length) {
+      held.shift()!();
+      done++;
+      await flush();
+    }
+    expect(done).toBe(board.list().length);
+    expect(state.maxInFlight).toBe(1);
+    expect(board.receive("memes:wow")).toBe(true);
   });
 
   it("destroy stops listening for the context", async () => {
