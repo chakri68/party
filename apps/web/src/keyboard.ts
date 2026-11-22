@@ -14,11 +14,17 @@
 /** Less than this and it's a browser toolbar sliding, not a keyboard. */
 const MIN_KEYBOARD = 120;
 
-function typing(): boolean {
-  const el = document.activeElement;
-  if (el instanceof HTMLTextAreaElement) return !el.readOnly;
-  if (!(el instanceof HTMLInputElement) || el.readOnly) return false;
-  return !["button", "checkbox", "radio", "range", "color", "file", "submit", "reset", "image"].includes(el.type);
+/**
+ * A text box that takes typed keys. Read by tag, not instanceof, so it also
+ * works for an element inside an iframe (another window's classes).
+ */
+export function isTyping(el: unknown): boolean {
+  if (!el || typeof el !== "object") return false;
+  const e = el as { tagName?: unknown; readOnly?: unknown; type?: unknown };
+  const tag = typeof e.tagName === "string" ? e.tagName.toUpperCase() : "";
+  if (tag === "TEXTAREA") return !e.readOnly;
+  if (tag !== "INPUT" || e.readOnly) return false;
+  return !["button", "checkbox", "radio", "range", "color", "file", "submit", "reset", "image"].includes(String(e.type).toLowerCase());
 }
 
 export function watchKeyboard() {
@@ -31,7 +37,7 @@ export function watchKeyboard() {
     frame = 0;
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     // Pinch-zoom shrinks the visual viewport too; that's not a keyboard.
-    const open = typing() && vv.scale < 1.05 && window.innerHeight - vv.height > MIN_KEYBOARD;
+    const open = isTyping(document.activeElement) && vv.scale < 1.05 && window.innerHeight - vv.height > MIN_KEYBOARD;
     root.style.setProperty("--vvh", `${vv.height}px`);
     root.style.setProperty("--vv-top", `${vv.offsetTop}px`);
     root.style.setProperty("--kb", `${open ? kb : 0}px`);
