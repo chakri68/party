@@ -188,6 +188,32 @@ class Feedback {
   private bed: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   private bedLevel = 0;
   private bedBuffer: AudioBuffer | null = null;
+  private contextListeners = new Set<(ctx: AudioContext) => void>();
+
+  /** The one AudioContext, once a tap made it. Voice plays here too; never closed. */
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  /**
+   * Called with the context when it is made, and on every statechange after.
+   * Returns an unsubscribe. Voice does not go through `master` (that is game
+   * sound, and a later phase ducks it).
+   */
+  onContext(fn: (ctx: AudioContext) => void): () => void {
+    this.contextListeners.add(fn);
+    return () => this.contextListeners.delete(fn);
+  }
+
+  private notifyContext(ctx: AudioContext) {
+    for (const fn of [...this.contextListeners]) {
+      try {
+        fn(ctx);
+      } catch {
+        // A listener's failure must not stop sound or the other listeners.
+      }
+    }
+  }
 
   /**
    * Browsers keep audio locked until a user gesture (§28). Called on the first
@@ -201,6 +227,9 @@ class Feedback {
       this.master.connect(this.ctx.destination);
       this.applyVolume();
       void this.loadSamples(this.ctx);
+      const made = this.ctx;
+      made.addEventListener?.("statechange", () => this.notifyContext(made));
+      this.notifyContext(made);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
