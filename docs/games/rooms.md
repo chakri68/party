@@ -130,7 +130,7 @@ The smile button in the header opens a bar of the same six emoji. Tap one and it
 
 ## Sounds
 
-The board button (four squares) in the header opens **Sounds**, a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
+The board button (four squares) in the header opens **Sound board**, a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.

@@ -46,9 +46,9 @@ type BoardPart = Pick<SoundBoard<unknown>, "list" | "onChange" | "tap" | "coolin
 export class SoundBoardView {
   readonly wrap = h("span", { class: "sound-wrap", hidden: true });
 
-  private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Sounds", "aria-expanded": "false" }, icon("sound-board"));
-  private panel = h("div", { class: "sound-board", role: "group", "aria-label": "Sounds", hidden: true });
-  private switchBtn = h("button", { type: "button", class: "sound-switch", "aria-pressed": "false" });
+  private button = h("button", { type: "button", class: "icon-btn", "aria-label": "Sound board", "aria-expanded": "false" }, icon("sound-board"));
+  private panel = h("div", { class: "sound-board", role: "group", "aria-label": "Sound board", hidden: true });
+  private switchBtn = h("button", { type: "button", class: "sound-switch", "aria-label": "Room sounds", "aria-pressed": "false" });
   private note = h("p", { class: "sound-note muted", hidden: true });
   private tiles = h("div", { class: "sound-tiles" });
   private cool = h("div", { class: "sound-cool", "aria-hidden": "true" });
@@ -90,6 +90,8 @@ export class SoundBoardView {
   }
 
   render(room: RoomPublicState | null, me: string | null): void {
+    // A new phase swaps the screen: the panel must not sit over that.
+    if (room?.phase !== this.room?.phase) this.toggle(false);
     this.room = room;
     this.me = me;
     const model = room && me ? soundBoardModel(room, me, this.board.list(), this.opts.playHere()) : null;

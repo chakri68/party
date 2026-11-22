@@ -145,6 +145,8 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
   flex-direction: column;
 }
 .room-header {
+  /* The sound board panel hangs from the header, so it fits a 360px phone. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -165,6 +167,12 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 @media (max-width: 440px) { .room-header .brand > span:not(.mark) { display: none; } }
 .room-code { margin-left: auto; font-weight: 700; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
 .conn { font-size: 0.8rem; color: var(--accent); }
+/* A 360px phone: tighter gaps keep the seated header on one line, and
+   "reconnecting…" sits just under the header instead of pushing it wider. */
+@media (max-width: 400px) {
+  .room-header { gap: 8px; }
+  .room-header .conn { position: absolute; top: calc(100% - 12px); left: 0; font-size: 0.75rem; }
+}
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .game-host { flex: 1; display: flex; flex-direction: column; }
 
@@ -957,7 +965,6 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 
 /* The sound board. The panel hangs from the header (not the button), so it
    fits a 360px phone whatever sits to the right of the button. */
-.room-header { position: relative; }
 .sound-wrap { display: inline-flex; }
 .sound-board {
   position: absolute;
