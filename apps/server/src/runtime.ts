@@ -22,6 +22,7 @@ import {
   cleanChatText,
   FATAL_ERRORS,
   GRACE_MS,
+  ICE_REQUEST_LIMIT,
   normalizeName,
   NUDGE_AFTER_MS,
   NUDGE_COOLDOWN_MS,
@@ -41,7 +42,7 @@ import {
   SKIP_AFTER_MS,
   type VoiceMember,
 } from "@games/protocol";
-import { ICE_REQUEST_LIMIT, IceCache, pruneVoice, VOICE_SIGNAL_LIMIT } from "./voice.ts";
+import { IceCache, pruneVoice, VOICE_SIGNAL_LIMIT } from "./voice.ts";
 
 // ---------------------------------------------------------------------------
 // Host interfaces

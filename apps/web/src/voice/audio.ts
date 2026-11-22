@@ -353,9 +353,19 @@ export interface MicPrefs {
   autoGainControl: boolean;
 }
 
-export type MicResult = { ok: true; track: MediaStreamTrack } | { ok: false; reason: "denied" | "unavailable" | "cancelled" };
+/** `deviceGone`: the saved mic was not there, so this is the default mic; the caller forgets the saved one. */
+export type MicResult =
+  | { ok: true; track: MediaStreamTrack; deviceGone?: true }
+  | { ok: false; reason: "denied" | "unavailable" | "cancelled" };
 
 type GetUserMedia = (c: MediaStreamConstraints) => Promise<MediaStream>;
+
+const errorName = (err: unknown) => (err as { name?: string } | null)?.name;
+
+function micError(name: string | undefined): MicResult {
+  const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
+  return { ok: false, reason: denied ? "denied" : "unavailable" };
+}
 
 export class Mic {
   private stream: MediaStream | null = null;
@@ -438,13 +448,22 @@ export class Mic {
     };
     if (prefs.deviceId) audio.deviceId = { exact: prefs.deviceId };
     let stream: MediaStream;
+    let deviceGone = false;
     try {
       stream = await this.getUserMedia({ audio });
     } catch (err) {
       if (generation !== this.generation) return { ok: false, reason: "cancelled" };
-      const name = (err as { name?: string } | null)?.name;
-      const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
-      return { ok: false, reason: denied ? "denied" : "unavailable" };
+      const name = errorName(err);
+      // The saved mic is unplugged or its id changed: try once more with any mic.
+      if (!audio.deviceId || (name !== "OverconstrainedError" && name !== "NotFoundError")) return micError(name);
+      delete audio.deviceId;
+      try {
+        stream = await this.getUserMedia({ audio });
+        deviceGone = true;
+      } catch (err2) {
+        if (generation !== this.generation) return { ok: false, reason: "cancelled" };
+        return micError(errorName(err2));
+      }
     }
     if (generation !== this.generation) {
       // stop() or a newer request came first: this mic must not stay on.
@@ -461,7 +480,7 @@ export class Mic {
     this.current = track;
     track.addEventListener("ended", this.onTrackLost);
     track.addEventListener("mute", this.onTrackLost);
-    return { ok: true, track };
+    return deviceGone ? { ok: true, track, deviceGone: true } : { ok: true, track };
   }
 
   private release(): void {

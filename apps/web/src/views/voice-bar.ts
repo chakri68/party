@@ -21,8 +21,13 @@ export interface BarModel {
   micButton: { label: string; pressed: boolean; hold: boolean };
   /** One line under the controls. */
   note: string | null;
-  /** Read out when it changes. Not the push-to-talk hint, which comes and goes on every press. */
+  /** Read out when it changes. Not the push-to-talk hint, which changes on every press. */
   noteLive: boolean;
+  /**
+   * In a game: the note line is always there, one line high, even when empty,
+   * so a talk press or a Mute never moves the game below.
+   */
+  keepNoteRow: boolean;
   /** The button that opens everyone in voice. */
   peopleLabel: string;
   tapSound: boolean;
@@ -67,10 +72,12 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
   else if (v.mic === "muted") note = "Muted: your mic is still on. Tap Turn off mic to stop it.";
   else if (v.status === "joining") note = "Connecting voice...";
   let hint = false;
-  if (note === null && hold && !v.pttHeld) {
-    note = space ? "Hold Space to talk" : "Hold to talk";
+  if (note === null && hold) {
+    note = v.pttHeld ? "Talking" : space ? "Hold Space to talk" : "Hold to talk";
     hint = true;
   }
+  // In a game and out of voice: only the small Join voice button.
+  if (phase === "playing" && show === "join") note = null;
 
   return {
     show,
@@ -78,6 +85,7 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
     micButton,
     note: show === "hidden" ? null : note,
     noteLive: show !== "hidden" && note !== null && !hint,
+    keepNoteRow: show === "bar" && phase === "playing",
     peopleLabel: `People in voice (${v.members.length})`,
     tapSound: joined && v.needsSoundTap,
     tapMic: joined && v.needsMicTap,
@@ -97,7 +105,7 @@ export function joinLines(permission: "granted" | "denied" | "prompt" | "unknown
     "Talk with the room while you play.",
     permission === "denied"
       ? "Your browser blocks the mic for this site. To talk, allow the mic in the browser settings."
-      : "Your phone will ask to use the mic.",
+      : "Your browser will ask to use the mic.",
     "No one records your voice.",
   ];
 }
@@ -241,12 +249,13 @@ export class VoiceBar {
 
     this.el.hidden = m.show === "hidden";
     this.el.dataset.layout = this.phase === "playing" ? "compact" : "panel";
+    this.el.dataset.show = m.show;
     this.join.hidden = m.show !== "join" || !m.canJoin;
     this.controls.hidden = m.show !== "bar";
     this.tapSound.hidden = !m.tapSound;
     this.tapMic.hidden = !m.tapMic;
     this.taps.hidden = !m.tapSound && !m.tapMic;
-    this.note.hidden = m.note === null;
+    this.note.hidden = m.note === null && !m.keepNoteRow;
     setText(this.note, m.note ?? "");
     const spoken = m.noteLive ? (m.note ?? "") : "";
     setText(this.announce, spoken);
@@ -492,7 +501,7 @@ export class VoiceBar {
         speakerSelect ? h("label", {}, "Speaker", speakerSelect) : null,
         check("Remove echo", p.echoCancellation, (on) => set({ echoCancellation: on })),
         check("Remove background noise", p.noiseSuppression, (on) => set({ noiseSuppression: on })),
-        check("Keep my volume even", p.autoGainControl, (on) => set({ autoGainControl: on })),
+        check("Keep my mic volume steady", p.autoGainControl, (on) => set({ autoGainControl: on })),
         check("Push to talk", p.mode === "ptt", (on) => set({ mode: on ? "ptt" : "open" })),
         check("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => set({ deafenAlsoMutes: on })),
         check("Hide my network address", p.relayOnly, (on) => set({ relayOnly: on }), !v.hasTurn),

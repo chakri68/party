@@ -2,7 +2,7 @@ import { GRACE_MS, VOICE_CAP, type IceServer } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { RoomRuntime } from "../src/runtime.ts";
 import { ICE_FAIL_BACKOFF_MS, ICE_REUSE_MARGIN_MS, pruneVoice, STUN_ONLY, TURN_TTL_S, VOICE_SIGNAL_LIMIT } from "../src/voice.ts";
-import { plainGame, toyGame, toyKnobs } from "./bot-toy.ts";
+import { plainGame, TOY_WINDOW_MS, toyGame, toyKnobs } from "./bot-toy.ts";
 import { FakeConn, join, roomOf, send, World } from "./harness.ts";
 
 const games = { toy: toyGame, plain: plainGame };
@@ -162,7 +162,7 @@ describe("voice roster", () => {
     expect(members(a)).toEqual([]);
   });
 
-  it("switching games sends no voice messages", async () => {
+  it("switching games, through results, sends no voice messages", async () => {
     await vjoin(a);
     await vjoin(b);
     const n = voiceCount(a, b);
@@ -170,8 +170,20 @@ describe("voice roster", () => {
     await send(room, a, { type: "return-to-lobby" });
     await send(room, a, { type: "select-game", gameId: "plain" });
     await send(room, a, { type: "start-game" });
-    await send(room, a, { type: "end-game" });
+    // Play it to the end: count to 10, then the call window closes.
+    const turnOf = () => (roomOf(a).game as { turnId: string | null }).turnId;
+    for (let i = 0; i < 20 && roomOf(a).phase === "playing" && turnOf(); i++) {
+      const mover = turnOf() === idOf(a) ? a : b;
+      await send(room, mover, { type: "game-action", clientActionId: `n${i}`, action: { type: "add", n: 2 } });
+    }
+    await world.tick(room, TOY_WINDOW_MS);
+    expect(roomOf(a).phase).toBe("results");
+    await send(room, a, { type: "return-to-lobby" });
+    expect(roomOf(a).phase).toBe("lobby");
+    await send(room, a, { type: "start-game" });
+    expect(roomOf(a).phase).toBe("playing");
     expect(voiceCount(a, b)).toBe(n);
+    expect(members(a).map((x) => x.id)).toEqual([idOf(a), idOf(b)]);
   });
 
   it("roomOf(a).voice.mode is global, and off once the party ends", async () => {

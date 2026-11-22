@@ -5,11 +5,11 @@
 // Voice never breaks the game: every entry point catches its own errors, and
 // nothing here logs signals, ICE servers or the roster.
 
-import type { ClientMessage, ErrorCode, IceServer, RoomPublicState, VoiceMember } from "@games/protocol";
+import { ICE_REQUEST_LIMIT, type ClientMessage, type ErrorCode, type IceServer, type RoomPublicState, type VoiceMember } from "@games/protocol";
 import { globalRule, type LinkState, type VoiceRule, type VoiceTransport } from "@games/webrtc";
-import { MAX_GAIN, METER_HZ, nextSpeaking, type Mic, type MicPrefs, type Playback, type SpeakState } from "./audio.ts";
+import { MAX_GAIN, METER_HZ, nextSpeaking, type Mic, type MicPrefs, type MicResult, type Playback, type SpeakState } from "./audio.ts";
 import type { MeshDeps } from "./mesh.ts";
-import { DEFAULT_VOICE_PREFS, type RoomVoice, type VoicePrefs, type voicePrefs } from "./prefs.ts";
+import { DEFAULT_VOICE_PREFS, type RoomMic, type RoomVoice, type VoicePrefs, type voicePrefs } from "./prefs.ts";
 
 export type VoiceStatus = "off" | "joining" | "on" | "full" | "unsupported";
 export type MicState = "on" | "muted" | "off" | "denied" | "lost";
@@ -58,8 +58,6 @@ export interface VoiceDeps {
 export const SIGNAL_QUEUE_MAX = 200;
 /** A voice-ice-request gives up waiting after this. */
 export const ICE_REFRESH_WAIT_MS = 3_000;
-/** The server's ICE_REQUEST_LIMIT: more than this a minute is dropped there, so it is not sent. */
-export const ICE_REFRESH_LIMIT = { burst: 3, windowMs: 60_000 };
 /** A volume is saved this long after the last change to it. */
 export const VOLUME_SAVE_MS = 300;
 
@@ -97,6 +95,11 @@ export class VoiceController {
   /** Bumped on every teardown: an older join that lands late does nothing. */
   private generation = 0;
   private welcomed = false;
+  /**
+   * The party ended. The server never leaves "ended", so this stays set for
+   * this page, even after "Use here": nothing here turns the mic on again.
+   */
+  private ended = false;
   /** A welcome came since the last roster: the next roster is the server's view after a (re)connect. */
   private welcomeSinceRoster = false;
 
@@ -229,16 +232,18 @@ export class VoiceController {
   onRoom(room: RoomPublicState): void {
     if (this.unsupported) return;
     // Only the end of the party touches voice; game switches, results and restarts do not.
-    if (room.phase === "ended") this.stop();
+    if (room.phase !== "ended") return;
+    this.ended = true;
+    this.stop();
   }
 
   // ---- user actions ----
 
   async join(withMic: boolean): Promise<void> {
-    if (this.unsupported || this.phase !== "idle") return;
+    if (this.unsupported || this.ended || this.phase !== "idle") return;
     try {
       const gen = this.begin();
-      await this.finishJoin(gen, withMic, false);
+      await this.finishJoin(gen, withMic, false, withMic ? "on" : "off");
     } catch {
       // Voice never breaks the room.
     }
@@ -281,12 +286,7 @@ export class VoiceController {
       if (!muted) {
         // Host-muted: no unmute, and no mic prompt for one.
         if (this.hostMuted()) return;
-        // "Hear no one also mutes my mic": talking again means hearing again.
-        if (this.deafened && this.prefs.deafenAlsoMutes) {
-          this.deafened = false;
-          this.muteBeforeDeafen = null;
-          this.deps.playback.setDeafened(false);
-        }
+        this.hearToTalk();
         // Unmuting with no live mic means turning it on.
         if (!this.micLive()) return void this.turnOnMic();
       }
@@ -300,6 +300,7 @@ export class VoiceController {
       this.deps.mic.stop();
       this.micIssue = null;
       this.needsMicTap = false;
+      this.saveMic("off");
       if (this.phase === "joined") this.applyMute(true);
       else this.selfMuted = true;
       this.syncPublishing();
@@ -308,16 +309,20 @@ export class VoiceController {
   }
 
   async turnOnMic(): Promise<void> {
-    if (this.unsupported || this.phase !== "joined") return;
+    if (this.unsupported || this.ended || this.phase !== "joined") return;
     try {
       const gen = this.generation;
       this.needsMicTap = false;
       this.notify();
-      const r = await this.deps.mic.start(this.micPrefs());
+      const r = await this.startMic(false);
       if (gen !== this.generation) return;
       if (r.ok) {
         this.micIssue = null;
-        if (!this.hostMuted()) this.applyMute(false);
+        this.saveMic("on");
+        if (!this.hostMuted()) {
+          this.hearToTalk();
+          this.applyMute(false);
+        }
       } else if (r.reason !== "cancelled") {
         this.micIssue = "denied";
       }
@@ -404,7 +409,7 @@ export class VoiceController {
       this.notify();
       if (micChanged && this.micLive()) {
         const gen = this.generation;
-        const r = await this.deps.mic.restart(this.micPrefs());
+        const r = await this.startMic(true);
         if (gen !== this.generation) return;
         // A failed restart keeps the old track where the browser allows it (not iOS).
         if (!r.ok && r.reason !== "cancelled" && !this.deps.mic.track) this.micIssue = "denied";
@@ -420,7 +425,7 @@ export class VoiceController {
 
   view(): VoiceView {
     const selfId = this.deps.selfId();
-    const room = this.unsupported ? { on: false, volumes: {}, blocked: [] } : this.room();
+    const room: RoomVoice = this.unsupported ? { on: false, mic: "on", volumes: {}, blocked: [] } : this.room();
     let needsSoundTap = false;
     let canPickOutput = false;
     try {
@@ -481,9 +486,15 @@ export class VoiceController {
     return this.generation;
   }
 
-  /** A reload with voice on: the mic only if the browser already allows it, so no prompt pops up by itself. */
+  /**
+   * A reload with voice on, keeping the saved mic choice. The mic starts only
+   * if the browser already allows it, so no prompt pops up by itself. Muted:
+   * the mic starts, but the join is muted. Off (Turn off mic, Listen only): no mic.
+   */
   private async autoJoin(): Promise<void> {
+    if (this.ended) return;
     try {
+      const saved = this.room().mic;
       const gen = this.begin();
       let perm: Awaited<ReturnType<VoiceDeps["micPermission"]>> = "unknown";
       try {
@@ -492,22 +503,24 @@ export class VoiceController {
         // "unknown".
       }
       if (gen !== this.generation) return;
-      await this.finishJoin(gen, perm === "granted", perm !== "granted");
+      const granted = perm === "granted";
+      await this.finishJoin(gen, saved !== "off" && granted, saved === "on" && !granted, saved);
     } catch {
       // Voice never breaks the room.
     }
   }
 
-  private async finishJoin(gen: number, withMic: boolean, tapMic: boolean): Promise<void> {
+  /** `mic`: the choice to save, and "muted" joins muted even with a live mic. */
+  private async finishJoin(gen: number, withMic: boolean, tapMic: boolean, mic: RoomMic): Promise<void> {
     this.micIssue = null;
     if (withMic) {
-      const r = await this.deps.mic.start(this.micPrefs());
+      const r = await this.startMic(false);
       if (gen !== this.generation) return;
       // "cancelled": a newer request or a stop won; no error to show.
       if (!r.ok && r.reason !== "cancelled") this.micIssue = "denied";
     }
     const live = this.micLive();
-    this.selfMuted = !live;
+    this.selfMuted = !live || mic === "muted";
     if (this.deafened && this.prefs.deafenAlsoMutes) {
       // Deafened before joining: join muted, and undeafen puts back the mute it would have had.
       this.muteBeforeDeafen = this.selfMuted;
@@ -519,7 +532,7 @@ export class VoiceController {
     if (this.prefs.outputDeviceId !== null) void this.deps.playback.setOutput(this.prefs.outputDeviceId).catch(() => false);
     this.openSession();
     this.deps.send({ type: "voice-join", muted: this.selfMuted });
-    this.saveRoom({ on: true });
+    this.saveRoom({ on: true, mic });
     // Already listed (a reload): the server sends no roster when nothing changed.
     if (this.isListed()) this.applyRoster();
     this.notify();
@@ -629,6 +642,28 @@ export class VoiceController {
     return { deviceId: p.micDeviceId, echoCancellation: p.echoCancellation, noiseSuppression: p.noiseSuppression, autoGainControl: p.autoGainControl };
   }
 
+  /** Starts (or restarts) the mic. A saved mic that is gone is forgotten, so the next start does not fail on it. */
+  private async startMic(restart: boolean): Promise<MicResult> {
+    const prefs = this.micPrefs();
+    const r = restart ? await this.deps.mic.restart(prefs) : await this.deps.mic.start(prefs);
+    if (r.ok && r.deviceGone) {
+      try {
+        this.prefs = this.deps.prefs.set({ micDeviceId: null });
+      } catch {
+        this.prefs = { ...this.prefs, micDeviceId: null };
+      }
+    }
+    return r;
+  }
+
+  /** "Hear no one also mutes my mic": talking again means hearing again. */
+  private hearToTalk(): void {
+    if (!this.deafened || !this.prefs.deafenAlsoMutes) return;
+    this.deafened = false;
+    this.muteBeforeDeafen = null;
+    this.deps.playback.setDeafened(false);
+  }
+
   private micLive(): boolean {
     const track = this.deps.mic.track;
     return !!track && track.readyState !== "ended" && this.micIssue !== "lost";
@@ -640,13 +675,15 @@ export class VoiceController {
     return this.selfMuted || this.hostMuted() ? "muted" : "on";
   }
 
-  /** Sends voice-self-mute when it changes. Never unmutes while host-muted. */
+  /** Sends voice-self-mute when it changes, and saves it for a reload. Never unmutes while host-muted. */
   private applyMute(muted: boolean): void {
     if (!muted && this.hostMuted()) return;
     if (muted !== this.selfMuted) {
       this.selfMuted = muted;
       this.deps.send({ type: "voice-self-mute", muted });
     }
+    // A mic that is off stays "off" when muted too.
+    this.saveMic(!muted ? "on" : this.room().mic === "off" ? "off" : "muted");
     this.syncPublishing();
     this.notify();
   }
@@ -699,6 +736,13 @@ export class VoiceController {
     this.roomPrefs = this.deps.prefs.setRoom(this.deps.code, { ...this.room(), ...patch });
   }
 
+  /** Saves the mic choice only when it changed (Mute is tapped often). Never throws: a mute must still reach syncPublishing. */
+  private saveMic(mic: RoomMic): void {
+    this.guard(() => {
+      if (this.room().mic !== mic) this.saveRoom({ mic });
+    });
+  }
+
   private flushSave(): void {
     if (this.saveTimer === null) return;
     this.saveRoom({});
@@ -744,13 +788,13 @@ export class VoiceController {
 
   // ---- ICE refresh ----
 
-  /** Sends voice-ice-request; resolves on the next voice-ice, or after 3 s. At most 3 a minute, one at a time. */
+  /** Sends voice-ice-request; resolves on the next voice-ice, or after 3 s. At most ICE_REQUEST_LIMIT (the server's), one at a time. */
   private refreshIce(): Promise<void> {
     if (this.refreshing) return this.refreshing;
     const now = this.deps.clock.now();
-    this.refreshTimes = this.refreshTimes.filter((t) => now - t < ICE_REFRESH_LIMIT.windowMs);
+    this.refreshTimes = this.refreshTimes.filter((t) => now - t < ICE_REQUEST_LIMIT.windowMs);
     // The server would drop it: go on with the servers we have.
-    if (this.refreshTimes.length >= ICE_REFRESH_LIMIT.burst) return Promise.resolve();
+    if (this.refreshTimes.length >= ICE_REQUEST_LIMIT.burst) return Promise.resolve();
     this.refreshTimes.push(now);
     this.refreshing = new Promise<void>((resolve) => {
       this.refreshDone = resolve;

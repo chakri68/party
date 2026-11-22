@@ -75,7 +75,8 @@ function room(extra: Partial<RoomPublicState> = {}): RoomPublicState {
 
 interface Opts {
   rtc?: boolean;
-  gum?: "ok" | "denied" | "unavailable" | "hang";
+  /** "gone": refuses any exact deviceId (the saved mic was unplugged), like Chrome. */
+  gum?: "ok" | "denied" | "unavailable" | "hang" | "gone";
   /** "throw": the permission query fails. */
   perm?: "granted" | "denied" | "prompt" | "unknown" | "throw";
   store?: KeyValue;
@@ -94,7 +95,8 @@ function setup(opts: Opts = {}) {
   const playback = new Playback(env);
   const tracks: FakeTrack[] = [];
   let hang: (() => void) | null = null;
-  const gum = vi.fn(async () => {
+  const gum = vi.fn(async (c: MediaStreamConstraints) => {
+    if (opts.gum === "gone" && (c.audio as MediaTrackConstraints).deviceId) throw Object.assign(new Error("no"), { name: "OverconstrainedError" });
     if (opts.gum === "hang") await new Promise<void>((r) => (hang = r));
     if (opts.gum === "denied") throw Object.assign(new Error("no"), { name: "NotAllowedError" });
     if (opts.gum === "unavailable") throw Object.assign(new Error("no"), { name: "NotFoundError" });
@@ -594,6 +596,161 @@ describe("VoiceController", () => {
     off.voice.onWelcome();
     await flush();
     expect(off.sent).toEqual([]);
+  });
+
+  it("reload after Mute: joins muted, with the mic on but sending nothing", async () => {
+    const store = memoryStore();
+    const before = await joined({ store, perm: "granted" });
+    before.voice.setMuted(true);
+    expect(before.prefs.room("ABCD").mic).toBe("muted");
+    before.voice.stop();
+
+    const s = setup({ store, perm: "granted" });
+    s.voice.onWelcome();
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    await flush();
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.gum).toHaveBeenCalledTimes(1);
+    expect(s.voice.view().mic).toBe("muted");
+    expect(s.voice.view().needsMicTap).toBe(false);
+    s.voice.onIce(STUN, 1e12);
+    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+    // Unmute: sends, and the next reload talks again.
+    s.voice.setMuted(false);
+    expect(s.t().lastPublished()).toBe(s.tracks[0]!.asTrack());
+    expect(s.prefs.room("ABCD").mic).toBe("on");
+
+    // Muted, and the browser would ask: no prompt, no "Tap to talk again."
+    voicePrefs(store).setRoom("ABCD", { mic: "muted" });
+    const prompt = setup({ store, perm: "prompt" });
+    prompt.voice.onWelcome();
+    await flush();
+    expect(prompt.gum).not.toHaveBeenCalled();
+    expect(prompt.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(prompt.voice.view().needsMicTap).toBe(false);
+    expect(prompt.prefs.room("ABCD").mic).toBe("muted");
+  });
+
+  it("reload after Turn off mic: joins with the mic off and no prompt", async () => {
+    const store = memoryStore();
+    const before = await joined({ store, perm: "granted" });
+    before.voice.turnOffMic();
+    expect(before.prefs.room("ABCD").mic).toBe("off");
+    before.voice.stop();
+
+    const s = setup({ store, perm: "granted" });
+    s.voice.onWelcome();
+    await flush();
+    expect(s.gum).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.voice.view().mic).toBe("off");
+    expect(s.voice.view().needsMicTap).toBe(false);
+    expect(s.prefs.room("ABCD").mic).toBe("off");
+    // Turn on mic again: the next reload talks.
+    await s.voice.turnOnMic();
+    expect(s.voice.view().mic).toBe("on");
+    expect(s.prefs.room("ABCD").mic).toBe("on");
+    s.voice.stop();
+    const again = setup({ store, perm: "granted" });
+    again.voice.onWelcome();
+    await flush();
+    expect(again.sent).toEqual([{ type: "voice-join", muted: false }]);
+  });
+
+  it("reload after Listen only: stays listen only, with no Tap to talk again.", async () => {
+    const store = memoryStore();
+    const before = setup({ store });
+    await before.voice.join(false);
+    expect(before.prefs.room("ABCD")).toMatchObject({ on: true, mic: "off" });
+    before.voice.stop();
+
+    for (const perm of ["granted", "prompt"] as const) {
+      const s = setup({ store, perm });
+      s.voice.onWelcome();
+      await flush();
+      expect(s.gum).not.toHaveBeenCalled();
+      expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+      expect(s.voice.view().needsMicTap).toBe(false);
+      expect(s.voice.view().mic).toBe("off");
+    }
+    // Join voice with the mic saves "on" again.
+    const talk = setup({ store });
+    await talk.voice.join(true);
+    expect(talk.prefs.room("ABCD").mic).toBe("on");
+  });
+
+  it("a saved mic that is gone: voice uses any mic and forgets the saved one", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ micDeviceId: "usb" });
+    const s = setup({ store, gum: "gone" });
+    await s.voice.join(true);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(s.voice.view().mic).toBe("on");
+    expect(s.voice.settings().micDeviceId).toBeNull();
+    expect(voicePrefs(store).get().micDeviceId).toBeNull();
+    // Turn on mic after Turn off mic asks with no device now.
+    s.voice.turnOffMic();
+    await s.voice.turnOnMic();
+    expect(s.gum).toHaveBeenCalledTimes(3);
+    expect(s.voice.view().mic).toBe("on");
+
+    // The same from Turn on mic.
+    const store2 = memoryStore();
+    const later = setup({ store: store2, gum: "gone" });
+    await later.voice.join(false);
+    await later.voice.updatePrefs({ micDeviceId: "usb" });
+    await later.voice.turnOnMic();
+    expect(later.voice.view().mic).toBe("on");
+    expect(later.voice.settings().micDeviceId).toBeNull();
+
+    // And from a settings change while the mic is on.
+    const store3 = memoryStore();
+    const live = await joined({ store: store3, gum: "gone" });
+    await live.voice.updatePrefs({ micDeviceId: "usb" });
+    expect(live.voice.view().mic).toBe("on");
+    expect(live.voice.settings().micDeviceId).toBeNull();
+    expect(live.t().lastPublished()).toBe(live.tracks[1]!.asTrack());
+  });
+
+  it("Turn on mic while deafened with Hear no one also mutes my mic: hears everyone again", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ deafenAlsoMutes: true });
+    const s = await joined({ store });
+    s.voice.turnOffMic();
+    const deafen = vi.spyOn(s.playback, "setDeafened");
+    s.voice.setDeafened(true);
+    await s.voice.turnOnMic();
+    expect(s.voice.view().deafened).toBe(false);
+    expect(deafen).toHaveBeenLastCalledWith(false);
+    expect(s.voice.view().mic).toBe("on");
+    // Undeafen later does not put back a mute from before.
+    s.voice.setDeafened(true);
+    expect(s.voice.view().mic).toBe("muted");
+    s.voice.setDeafened(false);
+    expect(s.voice.view().mic).toBe("on");
+  });
+
+  it("after the party ends, nothing turns the mic on", async () => {
+    const store = memoryStore();
+    const s = await joined({ store, perm: "granted" });
+    s.voice.onRoom(room({ phase: "ended", voice: { mode: "off" } }));
+    const sent = s.sent.length;
+    const asked = s.gum.mock.calls.length;
+    await s.voice.join(true);
+    await s.voice.turnOnMic();
+    s.voice.setMuted(false);
+    // A reconnect, or Use here after a takeover, into the ended room.
+    s.voice.onWelcome();
+    s.voice.resumeAfterTakeover();
+    s.voice.onWelcome();
+    s.voice.onRoom(room({ phase: "ended", voice: { mode: "off" } }));
+    await flush();
+    expect(s.sent.length).toBe(sent);
+    expect(s.gum.mock.calls.length).toBe(asked);
+    expect(s.voice.view().status).toBe("off");
+    expect(s.transports).toHaveLength(1);
+    // The saved "in voice" stays, but this page never acts on it.
+    expect(s.prefs.room("ABCD").on).toBe(true);
   });
 
   it("a lost mic track asks for a tap and stops sending", async () => {

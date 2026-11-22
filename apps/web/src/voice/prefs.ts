@@ -1,5 +1,6 @@
 // Voice settings saved on this device: one set for every room, plus per room
-// whether I was in voice, my volume for each person and who I muted for me.
+// whether I was in voice and with what mic choice, my volume for each person
+// and who I muted for me.
 // Nothing here goes to the server.
 
 import { readLocal, writeLocal } from "../identity.ts";
@@ -26,9 +27,13 @@ export const DEFAULT_VOICE_PREFS: VoicePrefs = {
   relayOnly: false,
 };
 
+/** The mic choice a reload keeps: talking, Mute (mic still on), or Turn off mic / Listen only. */
+export type RoomMic = "on" | "muted" | "off";
+
 /** One room's voice settings. `volumes` and `blocked` are by seat id. */
 export interface RoomVoice {
   on: boolean;
+  mic: RoomMic;
   volumes: Record<string, number>;
   blocked: string[];
 }
@@ -79,7 +84,8 @@ function readRoom(raw: Record<string, unknown>): RoomVoice {
     for (const [id, v] of Object.entries(raw.volumes)) if (typeof v === "number" && Number.isFinite(v)) volumes[id] = v;
   }
   const blocked = Array.isArray(raw.blocked) ? raw.blocked.filter((id): id is string => typeof id === "string") : [];
-  return { on: bool(raw.on, false), volumes, blocked };
+  const mic: RoomMic = raw.mic === "muted" || raw.mic === "off" ? raw.mic : "on";
+  return { on: bool(raw.on, false), mic, volumes, blocked };
 }
 
 export function voicePrefs(store: KeyValue = DEFAULT_STORE) {

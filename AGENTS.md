@@ -9,6 +9,7 @@ Party games for a group chat, played on phones. Read this before adding a game o
 - `packages/protocol`: wire messages and room state. Bump `PROTOCOL_VERSION` when either changes shape.
 - `apps/server`: the room runtime (`runtime.ts`, a Durable Object) and the game registry (`games.ts`).
 - `apps/web`: the shell (lobby, results, recap) and the client registry (`src/games.ts`). `src/shell.ts` is the seam a host app uses.
+- `apps/web/src/voice/`: room voice (mesh, audio, controller, push-to-talk). `views/voice-bar.ts` draws it.
 - `docs/games/`: how each game and the room work, for players. Keep it in step with what ships.
 - `apps/product-*` (CouchParty) live only on the `product` branch.
 

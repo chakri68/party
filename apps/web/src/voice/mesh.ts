@@ -14,10 +14,10 @@
 // Sessions: every signal carries the sender's link session (`<session>.<n>`)
 // and, in its data, the receiver's session it is answering (`toSession`). That
 // lets each side drop signals meant for a link that is gone, and notice when
-// the other side started over. n counts up only for my own rebuilds and for a
-// new peer record, so a session is never used twice. When the other side
-// starts over, my new link keeps my session: a start-over never makes a new
-// session, so the two sides cannot keep starting over for each other.
+// the other side started over. n counts up for my own rebuilds and for a new
+// peer record. A start-over the other side led keeps my current session: it
+// never makes a new one, so the two sides cannot keep starting over for each
+// other.
 //
 // Nothing here throws to the caller, and nothing logs SDP or candidates.
 

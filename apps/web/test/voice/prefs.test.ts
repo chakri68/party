@@ -16,7 +16,7 @@ describe("voicePrefs", () => {
       deafenAlsoMutes: false,
       relayOnly: false,
     });
-    expect(prefs.room("ABCD")).toEqual({ on: false, volumes: {}, blocked: [] });
+    expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: {}, blocked: [] });
   });
 
   it("gives the defaults on bad JSON or bad fields", () => {
@@ -25,11 +25,11 @@ describe("voicePrefs", () => {
     store.write("voice-room:ABCD", "[1,2");
     const prefs = voicePrefs(store);
     expect(prefs.get()).toEqual(DEFAULT_VOICE_PREFS);
-    expect(prefs.room("ABCD")).toEqual({ on: false, volumes: {}, blocked: [] });
+    expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: {}, blocked: [] });
     store.write("voice", JSON.stringify({ mode: "loud", echoCancellation: "yes", micDeviceId: 3, relayOnly: true }));
-    store.write("voice-room:ABCD", JSON.stringify({ on: "yes", volumes: { a: "x", b: 0.5 }, blocked: ["c", 4] }));
+    store.write("voice-room:ABCD", JSON.stringify({ on: "yes", mic: "loud", volumes: { a: "x", b: 0.5 }, blocked: ["c", 4] }));
     expect(prefs.get()).toEqual({ ...DEFAULT_VOICE_PREFS, relayOnly: true });
-    expect(prefs.room("ABCD")).toEqual({ on: false, volumes: { b: 0.5 }, blocked: ["c"] });
+    expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: { b: 0.5 }, blocked: ["c"] });
   });
 
   it("set merges and saves", () => {
@@ -44,11 +44,11 @@ describe("voicePrefs", () => {
   it("keeps room settings per code", () => {
     const store = memoryStore();
     const prefs = voicePrefs(store);
-    prefs.setRoom("ABCD", { on: true, volumes: { p1: 0.5 } });
-    prefs.setRoom("WXYZ", { blocked: ["p2"] });
-    expect(prefs.room("ABCD")).toEqual({ on: true, volumes: { p1: 0.5 }, blocked: [] });
-    expect(prefs.room("WXYZ")).toEqual({ on: false, volumes: {}, blocked: ["p2"] });
-    expect(prefs.setRoom("ABCD", { on: false })).toEqual({ on: false, volumes: { p1: 0.5 }, blocked: [] });
+    prefs.setRoom("ABCD", { on: true, mic: "muted", volumes: { p1: 0.5 } });
+    prefs.setRoom("WXYZ", { blocked: ["p2"], mic: "off" });
+    expect(prefs.room("ABCD")).toEqual({ on: true, mic: "muted", volumes: { p1: 0.5 }, blocked: [] });
+    expect(prefs.room("WXYZ")).toEqual({ on: false, mic: "off", volumes: {}, blocked: ["p2"] });
+    expect(prefs.setRoom("ABCD", { on: false })).toEqual({ on: false, mic: "muted", volumes: { p1: 0.5 }, blocked: [] });
     expect(store.map.has("voice-room:ABCD")).toBe(true);
   });
 
