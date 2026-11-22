@@ -61,7 +61,7 @@ Top to bottom:
 - **I'm ready** and, for the host, the start button.
 - **Leave room**.
 
-The header, always there, has the room code, a sound button, an emoji button and a chat button.
+The header, always there, has the room code, a sound button, a sound board button, an emoji button and a chat button.
 
 ### What only the host can do
 
@@ -73,6 +73,7 @@ The host is the first person into the room. The tag next to their name says "hos
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
 - **Lock room** in the lobby. While it is locked, new players can't join. Players already in the room can still come back. So can someone whose phone went to sleep and lost their seat. Tap **Unlock room** to open it again.
 - Mid-game: **End game**, **Skip**, **Remove**, **Restart** and **Pause** buttons, covered below.
+- **Sounds: off** at the top of the sound board turns the board off for everyone. Only the host still sees the board button, to turn it on again.
 
 ### Computer players
 
@@ -127,12 +128,22 @@ Some games have their own guessing or answering built into the screen, and the r
 
 The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
 
+## Sounds
+
+The board button (four squares) in the header opens **Sounds**, a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
+
+- You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
+- The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
+- Sounds follow your volume. If **Sounds** is off in Settings, you hear none. **Sound board** in Settings turns off only board sounds, on this phone.
+- A self-hosted copy has only the free sounds.
+
 ## Sound and vibration
 
 The speaker button opens **Settings**:
 
 - **Sounds**: on or off. The icon in the header shows which.
 - **Volume**: a slider, greyed out when sounds are off.
+- **Sound board**: sound board sounds on this phone. Greyed out when Sounds is off.
 - **Vibration**: only shown on devices that can vibrate.
 
 The settings stay on your device.
