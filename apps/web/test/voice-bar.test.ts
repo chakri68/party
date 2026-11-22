@@ -43,6 +43,30 @@ describe("voiceBarModel", () => {
     expect(voiceBarModel(view(), "playing").show).toBe("join");
   });
 
+  it("in a game, out of voice: only the Join voice button, with no note line", () => {
+    for (const status of ["off", "full"] as const) {
+      const m = voiceBarModel(view({ status }), "playing");
+      expect(m.show).toBe("join");
+      expect(m.note).toBeNull();
+      expect(m.keepNoteRow).toBe(false);
+    }
+    // The lobby and results still say why.
+    expect(voiceBarModel(view({ status: "full" }), "results").note).toBe("Voice is full.");
+  });
+
+  it("in a game, the bar keeps its note line, so nothing moves on a press or a Mute", () => {
+    const states: Partial<VoiceView>[] = [
+      { mic: "on" },
+      { mic: "muted" },
+      { mic: "on", mode: "ptt" },
+      { mic: "on", mode: "ptt", pttHeld: true },
+    ];
+    for (const st of states) expect(voiceBarModel(view({ status: "on", ...st }), "playing").keepNoteRow, JSON.stringify(st)).toBe(true);
+    // The lobby and results have room to spare.
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "lobby").keepNoteRow).toBe(false);
+    expect(voiceBarModel(view({ status: "on", mic: "on" }), "results").keepNoteRow).toBe(false);
+  });
+
   it("unsupported shows the browser note and no join", () => {
     const m = voiceBarModel(view({ status: "unsupported" }), "lobby");
     expect(m.note).toBe("Voice does not work in this browser.");
@@ -94,7 +118,9 @@ describe("voiceBarModel", () => {
     expect(voiceBarModel(view({ status: "on", mic: "on", mode: "ptt" }), "playing", true).note).toBe("Hold Space to talk");
     const held = voiceBarModel(view({ status: "on", mic: "on", mode: "ptt", pttHeld: true }), "playing", true);
     expect(held.micButton.pressed).toBe(true);
-    expect(held.note).toBeNull();
+    // The line stays while held, so the game does not move on every press.
+    expect(held.note).toBe("Talking");
+    expect(held.noteLive).toBe(false);
     // Muted in push-to-talk: unmute first, holding would do nothing.
     expect(voiceBarModel(view({ status: "on", mic: "muted", mode: "ptt" }), "lobby").micButton.hold).toBe(false);
   });
@@ -168,11 +194,11 @@ describe("joining", () => {
     expect(joinAllowed(voiceBarModel(view({ status: "unsupported" }), "lobby"), false)).toBe(false);
   });
 
-  it("the explainer says the phone will ask, unless the mic is blocked", () => {
-    expect(joinLines("prompt")).toEqual(["Talk with the room while you play.", "Your phone will ask to use the mic.", "No one records your voice."]);
+  it("the explainer says the browser will ask, unless the mic is blocked", () => {
+    expect(joinLines("prompt")).toEqual(["Talk with the room while you play.", "Your browser will ask to use the mic.", "No one records your voice."]);
     expect(joinLines("unknown")).toEqual(joinLines("prompt"));
     const denied = joinLines("denied");
-    expect(denied).not.toContain("Your phone will ask to use the mic.");
+    expect(denied).not.toContain("Your browser will ask to use the mic.");
     expect(denied).toContain("Your browser blocks the mic for this site. To talk, allow the mic in the browser settings.");
     expect(denied).toContain("No one records your voice.");
   });

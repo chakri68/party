@@ -813,7 +813,10 @@ Deploy a preview with `TURN_KEY_ID` and `TURN_KEY_TOKEN` set (`wrangler secret p
 5. Lock the phone or switch apps for 30 s, then come back: sound and mic come back, or ask for a tap. Pull out a headset: the mic is lost, then comes back with a tap.
 6. Speakerphone on two phones in one room: echo level with the default processing. Note the result for the spike follow-up.
 7. Mute: the mic light stays on. Turn off mic: the browser's mic light goes off. Leave voice, leave room, end party: the mic light goes off every time.
-8. Push-to-talk: hold Space on desktop, including with focus inside the Treasure Hunt and Blind Rally Godot frames. The game does not react to Space. Typing a space in chat does not talk. Hold the mic button on a phone. Switch tabs while holding: it stops.
+8. Push-to-talk:
+   - Treasure Hunt and Face Off: Space still jumps or buzzes, and the mic button talks.
+   - Blind Rally frame: Space talks. If it does not, check whether Godot gives `#canvas` a `tabindex`. `takesSpace` treats any `[tabindex]` as taking Space (ptt.ts), and the ruling dropped the canvas exception.
+   - Typing a space in chat does not talk. Hold the mic button on a phone. Switch tabs while holding: it stops. In a game, the game does not move up or down on each press.
 9. Per-player volume and "Mute for me" on one person: only you stop hearing them, and it is still set after a reload.
 10. Output device: pick a speaker on desktop Chrome. The setting is hidden on iOS.
 11. Open the room in a second tab: the old tab's mic light goes off, and the new tab's voice reaches everyone.

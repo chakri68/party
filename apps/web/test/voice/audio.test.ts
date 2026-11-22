@@ -431,6 +431,57 @@ describe("Mic", () => {
     expect(await throws.start(prefs)).toEqual({ ok: false, reason: "unavailable" });
   });
 
+  it("a saved mic that is gone: asks once more for any mic, and says the saved one is gone", async () => {
+    for (const name of ["OverconstrainedError", "NotFoundError"]) {
+      const calls: MediaStreamConstraints[] = [];
+      const track = new FakeTrack();
+      const mic = new Mic(async (c) => {
+        calls.push(c);
+        const audio = c.audio as MediaTrackConstraints;
+        if (audio.deviceId) throw Object.assign(new Error("x"), { name });
+        return micStream(track);
+      }, false);
+      expect(await mic.start(prefs)).toEqual({ ok: true, track, deviceGone: true });
+      expect(calls).toHaveLength(2);
+      expect(calls[1]!.audio).toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+      expect(mic.track).toBe(track);
+    }
+    // No saved mic, or a refusal: no second ask.
+    let n = 0;
+    const missing = new Mic(() => (n++, Promise.reject(Object.assign(new Error("x"), { name: "NotFoundError" }))), false);
+    expect(await missing.start({ ...prefs, deviceId: null })).toEqual({ ok: false, reason: "unavailable" });
+    expect(n).toBe(1);
+    n = 0;
+    const denied = new Mic(() => (n++, Promise.reject(Object.assign(new Error("x"), { name: "NotAllowedError" }))), false);
+    expect(await denied.start(prefs)).toEqual({ ok: false, reason: "denied" });
+    expect(n).toBe(1);
+    // The second ask fails too: its reason counts.
+    n = 0;
+    const both = new Mic((c) => {
+      n++;
+      const name = (c.audio as MediaTrackConstraints).deviceId ? "OverconstrainedError" : "NotAllowedError";
+      return Promise.reject(Object.assign(new Error("x"), { name }));
+    }, false);
+    expect(await both.start(prefs)).toEqual({ ok: false, reason: "denied" });
+    expect(n).toBe(2);
+  });
+
+  it("a stop() during the second ask still cancels", async () => {
+    let resolve!: (s: MediaStream) => void;
+    const track = new FakeTrack();
+    const mic = new Mic((c) => {
+      if ((c.audio as MediaTrackConstraints).deviceId) return Promise.reject(Object.assign(new Error("x"), { name: "NotFoundError" }));
+      return new Promise<MediaStream>((r) => (resolve = r));
+    }, false);
+    const pending = mic.start(prefs);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    mic.stop();
+    resolve(micStream(track));
+    expect(await pending).toEqual({ ok: false, reason: "cancelled" });
+    expect(track.stops).toBe(1);
+    expect(mic.track).toBeNull();
+  });
+
   it("a request that fails after stop() is cancelled, not denied", async () => {
     let reject!: (e: unknown) => void;
     const mic = new Mic(() => new Promise<MediaStream>((_, r) => (reject = r)), false);

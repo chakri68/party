@@ -21,7 +21,6 @@ export function pruneVoice(
 
 /** About 20 signals a second, burst 60. */
 export const VOICE_SIGNAL_LIMIT = { burst: 60, windowMs: 3_000 };
-export const ICE_REQUEST_LIMIT = { burst: 3, windowMs: 60_000 };
 export const TURN_TTL_S = 4 * 60 * 60;
 /** A cached credential this close to expiry is fetched again. */
 export const ICE_REUSE_MARGIN_MS = 30 * 60_000;

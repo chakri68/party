@@ -95,6 +95,11 @@ export interface SeatPublic {
 
 /** Most people who can be in voice at once. */
 export const VOICE_CAP = 8;
+/**
+ * voice-ice-request: at most this many per seat in a window. The server drops
+ * the rest, and the client does not send them.
+ */
+export const ICE_REQUEST_LIMIT = { burst: 3, windowMs: 60_000 };
 /** Raw length cap for one voice-signal message. An audio-only SDP is about 3 to 5 KB. */
 export const VOICE_SIGNAL_MAX_LENGTH = 6144;
 
