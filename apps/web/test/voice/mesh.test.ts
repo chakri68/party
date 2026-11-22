@@ -260,8 +260,8 @@ describe("MeshTransport", () => {
     expect(a.playback.count("attach", "b")).toBe(2);
     expect(pc(a, 1).connectionState).toBe("connected");
     expect(pc(a, 1).remoteOwner).toBe("b");
-    // a's new link has a new session, and b did not start over again for it.
-    expect(last(signalsFrom(net, "a", "sdp")).session).toBe("sa.1");
+    // a started over for b but kept its link session, so b2 does not start over again.
+    expect(last(signalsFrom(net, "a", "sdp")).session).toBe("sa.0");
     expect(b2.pcs).toHaveLength(1);
 
     const before = pc(a, 1).remoteSet.length;
@@ -474,6 +474,71 @@ describe("MeshTransport", () => {
     expect(b.pcs).toHaveLength(2);
   });
 
+  it("the polite side rebuilding twice before it hears back does not loop", async () => {
+    const { net, a, b } = await pair();
+    net.hold();
+    // Two signaling errors on a: one rebuild at once (sa.1), one after the backoff (sa.2).
+    pc(a).failNextRemote = true;
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: "sa.0", description: { type: "offer", sdp: fakeSdp("offer", 99, 1) } });
+    await flush();
+    pc(a, 1).failNextRemote = true;
+    a.mesh.handleSignal("b", "sb.0", { kind: "sdp", toSession: "sa.1", description: { type: "offer", sdp: fakeSdp("offer", 99, 2) } });
+    await flush();
+    await net.clock.advance(RESTART_BACKOFF_MS[0]!);
+    expect(a.pcs).toHaveLength(3);
+    const [h1, h2] = net.held;
+    expect([h1?.session, h2?.session]).toEqual(["sa.1", "sa.2"]);
+    net.held = [];
+    // b hears the first hello and starts over; its offer is held.
+    net.release([h1!]);
+    net.hold();
+    await flush();
+    const fromB = net.held;
+    net.held = [];
+    // Then the second hello reaches b, and only after that b's offer reaches a.
+    net.release([h2!]);
+    net.hold();
+    await flush();
+    const more = net.held;
+    net.held = [];
+    const mark = net.sent.length;
+    net.release([...fromB, ...more]);
+    for (let i = 0; i < 20; i++) await flush();
+    await net.clock.advance(1_000);
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+    expect(net.sent.length - mark).toBeLessThan(12);
+    expect(a.pcs.length + b.pcs.length).toBeLessThanOrEqual(8);
+  });
+
+  it("both sides rebuilding at once keep the candidates sent to the polite side's new session", async () => {
+    const { net, a, b } = await pair();
+    net.hold();
+    fakeState(pc(a), "failed");
+    fakeState(pc(b), "failed");
+    await net.clock.advance(RESTART_BACKOFF_MS.reduce((x, y) => x + y, 0) + last(RESTART_BACKOFF_MS));
+    const held = net.held;
+    net.held = [];
+    const aToB = held.filter((m) => m.from === "a");
+    const bToA = held.filter((m) => m.from === "b");
+    // b gets a's new hello first and rebinds to a's new session; then gathers a candidate.
+    net.release(aToB);
+    net.hold();
+    await flush();
+    last(b.pcs).emitCandidate({ candidate: "bc1", sdpMid: "0" });
+    await net.clock.advance(CANDIDATE_BATCH_MS);
+    const later = net.held;
+    net.held = [];
+    expect(later.some((m) => m.data.kind === "ice" && m.data.candidates.length === 1)).toBe(true);
+    // b to a in order: b's offer (to a's old session), then the candidate (to a's new one).
+    net.release([...bToA, ...later]);
+    await flush();
+    await net.clock.advance(CANDIDATE_BATCH_MS);
+    expect(last(a.pcs).added.map((c) => c.candidate)).toContain("bc1");
+    expect(last(a.pcs).connectionState).toBe("connected");
+    expect(last(b.pcs).connectionState).toBe("connected");
+  });
+
   it("a try that finds the link connected again stops recovering", async () => {
     const { net, a } = await pair();
     a.mesh.applyPolicy(globalRule("a", ["a", "b"]));
@@ -641,6 +706,71 @@ describe("MeshTransport", () => {
     await flush();
     expect(pc(a).connectionState).toBe("connected");
     expect(a.pcs).toHaveLength(1);
+  });
+
+  describe("fuzz: delay, drops and failures, then quiet", () => {
+    // A small fixed set of seeds; 100 locked b and c in a start-over loop before.
+    const SEEDS = [1, 2, 100];
+    const rng = (seed: number) => () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+
+    for (const n of [2, 3]) {
+      it(`${n} peers: every link connects and stays put`, async () => {
+        for (const seed of SEEDS) {
+          const r = rng(seed * 7 + n);
+          const net = new FakeNet();
+          const ids = ["a", "b", "c"].slice(0, n);
+          let chaos = true;
+          const lastAt = new Map<string, number>();
+          // In order per pair, 20 to 320 ms late, 8% lost while chaos lasts.
+          net.route = (m, arrive) => {
+            if (chaos && r() < 0.08) return;
+            const key = `${m.from}>${m.to}`;
+            const at = Math.max(net.clock.t + 20 + Math.floor(r() * 300), lastAt.get(key) ?? 0);
+            lastAt.set(key, at);
+            net.clock.setTimeout(arrive, at - net.clock.t);
+          };
+          const nodes = ids.map((id) => net.add(id));
+          for (const node of nodes) {
+            await net.clock.advance(Math.floor(r() * 2000));
+            node.mesh.setPeers(ids);
+          }
+          for (let step = 0; step < 40; step++) {
+            await net.clock.advance(Math.floor(r() * 3000));
+            const node = nodes[Math.floor(r() * n)]!;
+            const p = last(node.pcs);
+            const x = r();
+            if (x < 0.3) fakeState(p, "failed");
+            else if (x < 0.4) fakeState(p, "disconnected");
+            else if (x < 0.5) p.failNextRemote = true;
+            else if (x < 0.55) {
+              const gone = ids[Math.floor(r() * n)];
+              node.mesh.setPeers(ids.filter((i) => i !== gone));
+              await net.clock.advance(500);
+              node.mesh.setPeers(ids);
+            }
+          }
+          chaos = false;
+          await net.clock.advance(120_000);
+          const count = () => nodes.reduce((sum, node) => sum + node.pcs.length, 0);
+          const settled = count();
+          await net.clock.advance(120_000);
+          const where = `seed ${seed}`;
+          expect(count(), where).toBe(settled); // nothing rebuilds in the quiet
+          expect(count(), where).toBeLessThan(40 * n);
+          for (const x of nodes) {
+            for (const y of nodes) {
+              if (x === y) continue;
+              const ok = x.pcs.some((p) => !p.closed && p.connectionState === "connected" && p.remoteOwner === y.id);
+              expect(ok, `${where}: ${x.id} to ${y.id}`).toBe(true);
+            }
+          }
+          for (const node of nodes) node.mesh.disconnect();
+        }
+      }, 20_000);
+    }
   });
 
   it("disconnect closes every link and detaches every stream", async () => {

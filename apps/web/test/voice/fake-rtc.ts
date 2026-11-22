@@ -490,9 +490,14 @@ export class FakeNet {
     for (const m of list) this.deliver(m);
   }
 
+  /** When set, decides when (and whether) each message arrives; `arrive` hands it over. */
+  route: ((m: Message, arrive: () => void) => void) | undefined;
+
   deliver(m: Message): void {
     const copy = JSON.parse(JSON.stringify(m)) as Message;
-    queueMicrotask(() => this.nodes.get(copy.to)?.mesh.handleSignal(copy.from, copy.session, copy.data));
+    const arrive = () => this.nodes.get(copy.to)?.mesh.handleSignal(copy.from, copy.session, copy.data);
+    if (this.route) this.route(copy, arrive);
+    else queueMicrotask(arrive);
   }
 
   checkPairs(): void {
