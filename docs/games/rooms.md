@@ -63,7 +63,7 @@ Top to bottom:
 
 Outside a game, the header has the room code, a sound button, a sound board button, an emoji button and a chat button.
 
-In a game the header is one small row, so the game has more room: the room code, the connection bars, your mic (only when you are in voice), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Sound board**, **Reactions**, **Join voice** or **Voice**, **Sound and vibration**, and for the host **Pause** (or **Resume**), **Restart** and **End game**. **Home** in the menu goes to the home page, like the logo does outside a game.
+In a game the header is one small row, so the game has more space: the room code, the connection bars, your mic (only when you are in voice), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Sound board**, **Reactions**, **Join voice** or **Voice**, **Sound and vibration**, and for the host **Pause** (or **Resume**), **Restart** and **End game**. **Home** in the menu goes to the home page, like the logo does outside a game.
 
 ### What only the host can do
 
@@ -154,8 +154,8 @@ The settings stay on your device.
 
 You can talk with the room while you play. Voice usually goes straight from phone to phone. Sometimes it goes through a relay server.
 
-- **Join voice**: the button under the header. In a game, **Join voice** is in the menu (the three dots at the top right). Until your browser allows the mic, it first tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your browser asks to use the mic. If you say no, you can still listen, and the bar says "Your mic is off". To talk later, allow the mic in your browser settings.
-- **Mute** stops sending your voice, but your mic is still on. The bar says so. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
+- **Join voice**: the button under the header. In a game, **Join voice** is in the menu (the three dots at the top right). Until your browser allows the mic, it first tells you what happens. Pick **Turn on mic** to talk, or **Listen only** to only hear. Your browser asks to use the mic. If you say no, you can still listen, and your mic stays off. Outside a game, the bar says "Your mic is off". In a game, the mic button shows it. To talk later, allow the mic in your browser settings.
+- **Mute** stops sending your voice, but your mic is still on. Outside a game, the bar says so. In a game, the mic button shows it. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
 - **Hear no one** (the headphones button) stops all voices for you. Tap it again to hear everyone.
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
 - **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works.
@@ -165,7 +165,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
 - Up to 8 people can be in voice. The ninth person sees "Voice is full." and can still play.
 - The bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. In the lobby and on results, tap **People in voice** to see everyone in voice. **Turn off mic** and **Leave voice** are there too.
-- In a game there is no bar. Once you are in voice, your mic button is at the top, next to chat. Its small dot turns green when someone talks. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
+- In a game there is no bar. Once you are in voice, your mic button is at the top, next to chat. Its small dot is green when someone talks, and orange while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 
 The settings button in the bar opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
@@ -198,7 +198,7 @@ If the host ends a game, everyone else gets "<name> ended the game." and returns
 
 The shell adds a few controls above the game when it's waiting on someone:
 
-- Everyone: **Nudge <name>** appears once the person whose turn it is has been idle for 30 seconds. They get a "nudged you: it's your turn!" toast, a sound and a short buzz. There's a 10 second cooldown between nudges.
+- Everyone: **Remind <name>** appears once the person whose turn it is has been idle for 30 seconds. They get a "reminded you. It's your turn!" toast, a sound and a short buzz. There's a 10 second cooldown between reminders.
 - Host: **Skip <name>'s turn** appears after 60 seconds idle, or straight away if that person has dropped. Not every game can skip.
 - Host: **Remove <name>** for anyone disconnected past their grace (asks to confirm). They're out for the rest of the round.
 
