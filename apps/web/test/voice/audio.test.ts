@@ -111,6 +111,36 @@ describe("Playback, graph mode", () => {
     expect(ctx!.closed).toBe(false);
   });
 
+  it("detach keeps the user gain, so a rebuilt link is still muted for me", () => {
+    const { ctx, playback } = setup();
+    playback.attach("p1", stream());
+    playback.setAllowed("p1", true);
+    playback.setGain("p1", 0.3);
+    playback.detach("p1");
+    playback.attach("p1", stream());
+    playback.setAllowed("p1", true);
+    expect(ctx!.gains[ctx!.gains.length - 1]!.gain.value).toBeCloseTo(0.3);
+    playback.detach("p1");
+    playback.setGain("p1", 0);
+    playback.attach("p1", stream());
+    playback.setAllowed("p1", true);
+    expect(ctx!.gains[ctx!.gains.length - 1]!.gain.value).toBe(0);
+  });
+
+  it("destroy disconnects voiceOut and survives a throwing onChange listener", async () => {
+    const { env, ctx, playback } = setup();
+    playback.attach("p1", stream());
+    playback.destroy();
+    expect(ctx!.gains[0]!.disconnected).toBe(true);
+    const e2 = new FakeAudioEnv(null);
+    const p2 = new Playback(e2, { mode: "graph" });
+    p2.onChange(() => {
+      throw new Error("listener");
+    });
+    expect(() => e2.makeContext()).not.toThrow();
+    void env;
+  });
+
   it("attaching a new stream for the same peer replaces the old graph", () => {
     const { ctx, playback } = setup();
     playback.attach("p1", stream("a"));
@@ -207,11 +237,11 @@ describe("Playback, element mode (the fallback)", () => {
     const { env, ctx, playback } = setup("element");
     playback.attach("p1", stream());
     const el = env.elements[0]!;
-    expect(el.muted).toBe(false);
     expect(el.plays).toBe(1);
     expect(ctx!.sources).toHaveLength(0);
     expect(el.volume).toBe(0);
     playback.setAllowed("p1", true);
+    expect(el.muted).toBe(false);
     expect(el.volume).toBe(1);
     playback.setGain("p1", 0.4);
     expect(el.volume).toBeCloseTo(0.4);
@@ -219,6 +249,47 @@ describe("Playback, element mode (the fallback)", () => {
     expect(el.volume).toBe(1); // element volume tops out at 1
     playback.setDeafened(true);
     expect(el.volume).toBe(0);
+  });
+
+  it("mutes the element at gain zero, because iOS ignores element.volume", () => {
+    const { env, playback } = setup("element");
+    playback.attach("p1", stream());
+    const el = env.elements[0]!;
+    expect(el.muted).toBe(true); // not allowed yet
+    playback.setAllowed("p1", true);
+    expect(el.muted).toBe(false);
+    playback.setDeafened(true);
+    expect(el.muted).toBe(true);
+    playback.setDeafened(false);
+    playback.setGain("p1", 0);
+    expect(el.muted).toBe(true);
+    playback.setGain("p1", 1);
+    expect(el.muted).toBe(false);
+  });
+
+  it("resume retries a refused play after the context is already running, and unlocks", async () => {
+    let unlocked = 0;
+    const env = new FakeAudioEnv(null, () => {
+      const el = new FakeElementWithSink();
+      el.rejectPlay = true;
+      return el;
+    });
+    env.unlock = () => void unlocked++;
+    const p = new Playback(env, { mode: "element" });
+    p.attach("p1", stream());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.needsTap).toBe(true);
+    env.makeContext(); // first tap: still refused
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.needsTap).toBe(true);
+    (env.elements[0] as FakeElementWithSink).rejectPlay = false;
+    p.resume();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(unlocked).toBe(1);
+    expect(p.needsTap).toBe(false);
   });
 
   it("accepts setAllowed before attach", () => {
@@ -401,6 +472,34 @@ describe("Mic", () => {
     expect(lost).toBe(0);
   });
 
+  it("stop before a pending start resolves leaves no live mic", async () => {
+    const track = new FakeTrack();
+    let resolve!: (s: MediaStream) => void;
+    const mic = new Mic(() => new Promise<MediaStream>((r) => (resolve = r)), false);
+    const pending = mic.start(prefs);
+    mic.stop();
+    resolve(micStream(track));
+    expect((await pending).ok).toBe(false);
+    expect(track.stops).toBe(1);
+    expect(mic.track).toBeNull();
+  });
+
+  it("an older restart cannot overwrite a newer one", async () => {
+    const t1 = new FakeTrack("t1");
+    const t2 = new FakeTrack("t2");
+    const resolvers: ((s: MediaStream) => void)[] = [];
+    const mic = new Mic(() => new Promise<MediaStream>((r) => resolvers.push(r)), false);
+    const first = mic.restart(prefs);
+    const second = mic.restart(prefs);
+    resolvers[1]!(micStream(t2));
+    expect((await second).ok).toBe(true);
+    resolvers[0]!(micStream(t1));
+    expect((await first).ok).toBe(false);
+    expect(t1.stops).toBe(1);
+    expect(mic.track).toBe(t2);
+    expect(t2.stops).toBe(0);
+  });
+
   it("stop stops the track", async () => {
     const track = new FakeTrack();
     const mic = new Mic(async () => micStream(track), false);
@@ -476,7 +575,7 @@ describe("@games/audio shared context", () => {
         (g as unknown as { connect: () => void }).connect = () => {};
         return g;
       }
-      resume = vi.fn(() => Promise.resolve());
+      resume = vi.fn(() => Promise.reject(new Error("refused")));
       addEventListener(type: string, fn: () => void) {
         listeners.set(type, fn);
       }
@@ -496,6 +595,15 @@ describe("@games/audio shared context", () => {
     off();
     listeners.get("statechange")!();
     expect(seen).toHaveLength(2);
+    // iOS "interrupted" clears on a tap too, and a refused resume is not an error.
+    const ctx = made as unknown as FakeContext & { resume: ReturnType<typeof vi.fn> };
+    ctx.resume.mockClear();
+    ctx.state = "interrupted";
+    expect(() => audio.unlock()).not.toThrow();
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    ctx.state = "running";
+    audio.unlock();
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
   });
 });

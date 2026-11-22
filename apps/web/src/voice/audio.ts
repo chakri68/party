@@ -28,6 +28,8 @@ export interface AudioEnv {
   onContext(fn: (ctx: AudioContext) => void): () => void;
   /** A detached, muted <audio> element. Chrome gives Web Audio no sound from a remote stream without one. */
   createElement(): VoiceElement;
+  /** A user tap: make or resume the context (`audio.unlock()`). */
+  unlock?(): void;
 }
 
 export interface VoiceElement {
@@ -70,7 +72,7 @@ export class Playback implements PlaybackSink {
   private readonly env: AudioEnv;
   private readonly mode: PlaybackConfig["mode"];
   private readonly entries = new Map<string, Entry>();
-  private readonly voiceOut = new WeakMap<AudioContext, GainNode>();
+  private readonly voiceOut = new Map<AudioContext, GainNode>();
   private readonly listeners = new Set<() => void>();
   private readonly refused = new Set<string>();
   private readonly offContext: () => void;
@@ -111,7 +113,9 @@ export class Playback implements PlaybackSink {
     const entry = this.entries.get(peerId);
     if (!entry) return;
     this.dropMedia(peerId, entry);
-    this.entries.delete(peerId);
+    // The entry stays: a rebuilt link attaches again and keeps the user's volume
+    // ("Mute for me"). The rule starts over, because the mesh sends it again.
+    entry.allowed = false;
     this.changed();
   }
 
@@ -181,6 +185,17 @@ export class Playback implements PlaybackSink {
     }
   }
 
+  /** The "Tap to turn on sound" tap: unlock the context and retry refused plays. */
+  resume(): void {
+    if (this.destroyed) return;
+    try {
+      this.env.unlock?.();
+    } catch {
+      // Nothing to unlock; the retry below still runs.
+    }
+    this.retryRefused();
+  }
+
   onChange(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -191,6 +206,14 @@ export class Playback implements PlaybackSink {
     this.destroyed = true;
     this.offContext();
     for (const [id, entry] of this.entries) this.dropMedia(id, entry);
+    for (const out of this.voiceOut.values()) {
+      try {
+        out.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+    }
+    this.voiceOut.clear();
     this.entries.clear();
     this.refused.clear();
     this.listeners.clear();
@@ -209,7 +232,11 @@ export class Playback implements PlaybackSink {
   private applyGain(entry: Entry): void {
     const g = this.effective(entry);
     if (entry.nodes) entry.nodes.gain.gain.value = g;
-    if (this.mode === "element" && entry.element) entry.element.volume = Math.min(1, g);
+    if (this.mode === "element" && entry.element) {
+      entry.element.volume = Math.min(1, g);
+      // iOS ignores element.volume, so silence has to be a mute.
+      entry.element.muted = g === 0;
+    }
   }
 
   private play(peerId: string, el: VoiceElement): void {
@@ -285,20 +312,29 @@ export class Playback implements PlaybackSink {
     if (this.mode === "graph") {
       for (const entry of this.entries.values()) this.buildGraph(entry);
     } else {
-      // A tap happened: try the refused plays again.
-      for (const id of [...this.refused]) {
-        const el = this.entries.get(id)?.element;
-        if (el) this.play(id, el);
-      }
+      this.retryRefused();
     }
     this.changed();
+  }
+
+  private retryRefused(): void {
+    for (const id of [...this.refused]) {
+      const el = this.entries.get(id)?.element;
+      if (el) this.play(id, el);
+    }
   }
 
   private changed(): void {
     const now = this.needsTap;
     if (now === this.lastNeedsTap) return;
     this.lastNeedsTap = now;
-    for (const fn of [...this.listeners]) fn();
+    for (const fn of [...this.listeners]) {
+      try {
+        fn();
+      } catch {
+        // A listener's failure must not reach the audio path or a promise callback.
+      }
+    }
   }
 }
 
@@ -320,6 +356,8 @@ type GetUserMedia = (c: MediaStreamConstraints) => Promise<MediaStream>;
 export class Mic {
   private stream: MediaStream | null = null;
   private current: MediaStreamTrack | null = null;
+  /** Bumped by stop() and by each open(): an older request that lands late is dropped. */
+  private generation = 0;
   private readonly lostListeners = new Set<() => void>();
   private meter: { ctx: AudioContext; stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> } | null = null;
   private readonly onTrackLost = () => {
@@ -382,11 +420,13 @@ export class Mic {
 
   /** Stops the track, so the browser's mic light goes off. */
   stop(): void {
+    this.generation++;
     this.release();
   }
 
   private async open(prefs: MicPrefs): Promise<MicResult> {
     if (!this.getUserMedia) return { ok: false, reason: "unavailable" };
+    const generation = ++this.generation;
     const audio: MediaTrackConstraints = {
       echoCancellation: prefs.echoCancellation,
       noiseSuppression: prefs.noiseSuppression,
@@ -397,9 +437,15 @@ export class Mic {
     try {
       stream = await this.getUserMedia({ audio });
     } catch (err) {
+      if (generation !== this.generation) return { ok: false, reason: "unavailable" };
       const name = (err as { name?: string } | null)?.name;
       const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
       return { ok: false, reason: denied ? "denied" : "unavailable" };
+    }
+    if (generation !== this.generation) {
+      // stop() or a newer request came first: this mic must not stay on.
+      for (const t of stream.getTracks?.() ?? []) t.stop();
+      return { ok: false, reason: "unavailable" };
     }
     const track = stream.getAudioTracks()[0];
     if (!track) {

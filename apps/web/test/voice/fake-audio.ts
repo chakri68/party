@@ -101,6 +101,7 @@ export class FakeElementWithSink extends FakeElement {
 
 export class FakeAudioEnv implements AudioEnv {
   ctx: FakeContext | null;
+  unlock?: () => void;
   readonly elements: FakeElement[] = [];
   private readonly listeners = new Set<(ctx: AudioContext) => void>();
   private readonly elementFactory: () => FakeElement;
