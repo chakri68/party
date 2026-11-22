@@ -165,7 +165,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
 - Up to 8 people can be in voice. The ninth person sees "Voice is full." and can still play.
 - The bar is small: the mic, hear no one, who is talking, and a dot that turns green when voice is connected. In the lobby and on results, tap **People in voice** to see everyone in voice. **Turn off mic** and **Leave voice** are there too.
-- In a game there is no bar. Once you are in voice, your mic button is at the top, next to chat. Its small dot is green when someone talks, and orange while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
+- In a game there is no bar. Once you are in voice, your mic button is at the top, next to chat. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 
 The settings button in the bar opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
