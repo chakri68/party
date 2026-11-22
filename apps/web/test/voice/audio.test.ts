@@ -128,7 +128,7 @@ describe("Playback, graph mode", () => {
   });
 
   it("destroy disconnects voiceOut and survives a throwing onChange listener", async () => {
-    const { env, ctx, playback } = setup();
+    const { ctx, playback } = setup();
     playback.attach("p1", stream());
     playback.destroy();
     expect(ctx!.gains[0]!.disconnected).toBe(true);
@@ -138,7 +138,6 @@ describe("Playback, graph mode", () => {
       throw new Error("listener");
     });
     expect(() => e2.makeContext()).not.toThrow();
-    void env;
   });
 
   it("attaching a new stream for the same peer replaces the old graph", () => {
@@ -233,7 +232,7 @@ describe("Playback, graph mode", () => {
 });
 
 describe("Playback, element mode (the fallback)", () => {
-  it("plays through an unmuted element and uses element.volume for gain", () => {
+  it("uses an element, muted at zero, and element.volume for gain", () => {
     const { env, ctx, playback } = setup("element");
     playback.attach("p1", stream());
     const el = env.elements[0]!;
@@ -265,6 +264,44 @@ describe("Playback, element mode (the fallback)", () => {
     expect(el.muted).toBe(true);
     playback.setGain("p1", 1);
     expect(el.muted).toBe(false);
+  });
+
+  it("an element the browser pauses on unmute shows the tap prompt, and resume fixes it", async () => {
+    // Chrome pauses an element that was only allowed to play because it was muted,
+    // when script unmutes it without a gesture. Later play() calls need a gesture.
+    class PausingElement extends FakeElementWithSink {
+      gesture = false;
+      constructor() {
+        super();
+        // The base class has a plain `muted` field; replace it with a watched one.
+        let isMuted = false;
+        Object.defineProperty(this, "muted", {
+          get: () => isMuted,
+          set: (v: boolean) => {
+            if (isMuted && !v && !this.gesture) this.rejectPlay = true;
+            isMuted = v;
+          },
+        });
+      }
+    }
+    const env = new FakeAudioEnv(null, () => new PausingElement());
+    env.unlock = () => {
+      (env.elements[0] as PausingElement).gesture = true;
+      (env.elements[0] as PausingElement).rejectPlay = false;
+    };
+    const p = new Playback(env, { mode: "element" });
+    p.attach("p1", stream());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.needsTap).toBe(false);
+    p.setAllowed("p1", true); // the mesh unmutes it at once
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.needsTap).toBe(true);
+    p.resume();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(p.needsTap).toBe(false);
   });
 
   it("resume retries a refused play after the context is already running, and unlocks", async () => {
@@ -394,6 +431,15 @@ describe("Mic", () => {
     expect(await throws.start(prefs)).toEqual({ ok: false, reason: "unavailable" });
   });
 
+  it("a request that fails after stop() is cancelled, not denied", async () => {
+    let reject!: (e: unknown) => void;
+    const mic = new Mic(() => new Promise<MediaStream>((_, r) => (reject = r)), false);
+    const pending = mic.start(prefs);
+    mic.stop();
+    reject(Object.assign(new Error("x"), { name: "NotAllowedError" }));
+    expect(await pending).toEqual({ ok: false, reason: "cancelled" });
+  });
+
   it("a stream with no audio track is unavailable", async () => {
     const mic = new Mic(async () => fakeStream([]), false);
     expect(await mic.start(prefs)).toEqual({ ok: false, reason: "unavailable" });
@@ -479,7 +525,7 @@ describe("Mic", () => {
     const pending = mic.start(prefs);
     mic.stop();
     resolve(micStream(track));
-    expect((await pending).ok).toBe(false);
+    expect(await pending).toEqual({ ok: false, reason: "cancelled" });
     expect(track.stops).toBe(1);
     expect(mic.track).toBeNull();
   });
@@ -494,7 +540,7 @@ describe("Mic", () => {
     resolvers[1]!(micStream(t2));
     expect((await second).ok).toBe(true);
     resolvers[0]!(micStream(t1));
-    expect((await first).ok).toBe(false);
+    expect(await first).toEqual({ ok: false, reason: "cancelled" });
     expect(t1.stops).toBe(1);
     expect(mic.track).toBe(t2);
     expect(t2.stops).toBe(0);

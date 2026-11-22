@@ -100,12 +100,12 @@ export class Playback implements PlaybackSink {
       el.srcObject = stream;
       if (this.mode === "element" && this.outputId !== null) void el.setSinkId?.(this.outputId)?.catch(() => {});
       entry.element = el;
-      this.applyGain(entry);
+      this.applyGain(peerId, entry);
       this.play(peerId, el);
     } catch {
       // No element: the graph below can still carry the sound.
     }
-    this.buildGraph(entry);
+    this.buildGraph(peerId, entry);
     this.changed();
   }
 
@@ -123,20 +123,20 @@ export class Playback implements PlaybackSink {
   setGain(peerId: string, gain: number): void {
     const entry = this.entry(peerId);
     entry.gain = Math.min(MAX_GAIN, Math.max(0, Number.isFinite(gain) ? gain : 1));
-    this.applyGain(entry);
+    this.applyGain(peerId, entry);
   }
 
   /** The rule. Default false. May come before `attach`. */
   setAllowed(peerId: string, allowed: boolean): void {
     const entry = this.entry(peerId);
     entry.allowed = allowed;
-    this.applyGain(entry);
+    this.applyGain(peerId, entry);
   }
 
   /** Effective gain = allowed && !deafened ? gain : 0. "Mute for me" is gain 0, set by the controller. */
   setDeafened(deafened: boolean): void {
     this.deafened = deafened;
-    for (const entry of this.entries.values()) this.applyGain(entry);
+    for (const [id, entry] of this.entries) this.applyGain(id, entry);
   }
 
   /** Level 0..1 per peer, after its gain, for the speaking dots. Empty in element mode. */
@@ -229,13 +229,17 @@ export class Playback implements PlaybackSink {
     return entry.allowed && !this.deafened ? entry.gain : 0;
   }
 
-  private applyGain(entry: Entry): void {
+  private applyGain(peerId: string, entry: Entry): void {
     const g = this.effective(entry);
     if (entry.nodes) entry.nodes.gain.gain.value = g;
     if (this.mode === "element" && entry.element) {
       entry.element.volume = Math.min(1, g);
       // iOS ignores element.volume, so silence has to be a mute.
+      const wasMuted = entry.element.muted;
       entry.element.muted = g === 0;
+      // A browser pauses an element that script unmutes without a tap. play()
+      // resolves if it still plays, and is refused (so the tap prompt shows) if not.
+      if (wasMuted && g > 0) this.play(peerId, entry.element);
     }
   }
 
@@ -261,7 +265,7 @@ export class Playback implements PlaybackSink {
     );
   }
 
-  private buildGraph(entry: Entry): void {
+  private buildGraph(peerId: string, entry: Entry): void {
     if (this.mode !== "graph" || !entry.stream || entry.nodes) return;
     const ctx = this.env.context();
     if (!ctx) return;
@@ -280,7 +284,7 @@ export class Playback implements PlaybackSink {
       gain.connect(analyser);
       gain.connect(out);
       entry.nodes = { ctx, source, gain, analyser, buf: new Float32Array(new ArrayBuffer(FFT_SIZE * 4)) };
-      this.applyGain(entry);
+      this.applyGain(peerId, entry);
     } catch {
       // A browser that refuses the graph: the entry stays silent, the game goes on.
     }
@@ -310,7 +314,7 @@ export class Playback implements PlaybackSink {
   private onContext(): void {
     if (this.destroyed) return;
     if (this.mode === "graph") {
-      for (const entry of this.entries.values()) this.buildGraph(entry);
+      for (const [id, entry] of this.entries) this.buildGraph(id, entry);
     } else {
       this.retryRefused();
     }
@@ -349,7 +353,7 @@ export interface MicPrefs {
   autoGainControl: boolean;
 }
 
-export type MicResult = { ok: true; track: MediaStreamTrack } | { ok: false; reason: "denied" | "unavailable" };
+export type MicResult = { ok: true; track: MediaStreamTrack } | { ok: false; reason: "denied" | "unavailable" | "cancelled" };
 
 type GetUserMedia = (c: MediaStreamConstraints) => Promise<MediaStream>;
 
@@ -437,7 +441,7 @@ export class Mic {
     try {
       stream = await this.getUserMedia({ audio });
     } catch (err) {
-      if (generation !== this.generation) return { ok: false, reason: "unavailable" };
+      if (generation !== this.generation) return { ok: false, reason: "cancelled" };
       const name = (err as { name?: string } | null)?.name;
       const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
       return { ok: false, reason: denied ? "denied" : "unavailable" };
@@ -445,7 +449,7 @@ export class Mic {
     if (generation !== this.generation) {
       // stop() or a newer request came first: this mic must not stay on.
       for (const t of stream.getTracks?.() ?? []) t.stop();
-      return { ok: false, reason: "unavailable" };
+      return { ok: false, reason: "cancelled" };
     }
     const track = stream.getAudioTracks()[0];
     if (!track) {
