@@ -28,6 +28,7 @@ import {
   parseClientMessage,
   PROTOCOL_VERSION,
   safeEqual,
+  VOICE_CAP,
   type ChatMessage,
   type ClientMessage,
   type ErrorCode,
@@ -37,7 +38,9 @@ import {
   type RoomTier,
   type ServerMessage,
   SKIP_AFTER_MS,
+  type VoiceMember,
 } from "@games/protocol";
+import { pruneVoice } from "./voice.ts";
 
 // ---------------------------------------------------------------------------
 // Host interfaces
@@ -164,6 +167,8 @@ interface RoomData {
    * timer as ms left; they're out of `timers` until resume. Absent: not paused.
    */
   pause?: { at: number; timers: Record<string, number> };
+  /** Who is in room voice, in join order. Optional: older rooms have nobody. */
+  voice?: VoiceMember[];
 }
 
 const STORAGE_KEY = "room";
@@ -210,6 +215,8 @@ export class RoomRuntime {
   private sendTimes = new Map<string, number[]>();
   /** Why a game just ended early; the next commit sends it to every seat after its update. */
   private gameEndedNotice: string | null = null;
+  /** JSON of the voice roster last sent to everyone. In memory: a fresh runtime just sends once more. */
+  private lastVoiceSent: string | null = null;
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -538,6 +545,10 @@ export class RoomRuntime {
 
     conn.setState({ hello: true, playerId: seat.id });
     conn.send({ type: "welcome", playerId: seat.id, resumeToken: seat.resumeToken });
+    // Outside the versioned updates, and before the first one: voice never waits on the room.
+    const roster = data.voice ?? [];
+    conn.send({ type: "voice-state", members: roster });
+    this.lastVoiceSent ??= JSON.stringify(roster);
     await this.commit(events, undefined, conn.id);
     conn.send({ type: "chat", messages: data.chat?.messages ?? [], replace: true });
   }
@@ -754,6 +765,35 @@ export class RoomRuntime {
         this.resetReady();
         this.setAwaiting([]);
         return this.commit([]);
+      }
+
+      case "voice-join": {
+        if (!inPhase("lobby", "playing", "results")) return;
+        const roster = (data.voice ??= []);
+        const me = roster.find((m) => m.id === seat.id);
+        if (me) me.selfMuted = msg.muted || me.hostMuted;
+        else if (roster.length >= VOICE_CAP) return this.error(conn, "voice-full", "Voice is full.");
+        else roster.push({ id: seat.id, selfMuted: msg.muted, hostMuted: false });
+        await this.persist();
+        return this.flushVoice();
+      }
+
+      case "voice-leave": {
+        const at = data.voice?.findIndex((m) => m.id === seat.id) ?? -1;
+        if (at < 0) return;
+        data.voice!.splice(at, 1);
+        await this.persist();
+        return this.flushVoice();
+      }
+
+      case "voice-self-mute": {
+        const me = data.voice?.find((m) => m.id === seat.id);
+        if (!me) return;
+        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you");
+        if (me.selfMuted === msg.muted) return;
+        me.selfMuted = msg.muted;
+        await this.persist();
+        return this.flushVoice();
       }
 
       case "leave": {
@@ -1313,6 +1353,7 @@ export class RoomRuntime {
     const data = this.data!;
     if (data.phase === "playing") this.scheduleBots();
     data.stateVersion++;
+    if (data.voice) data.voice = pruneVoice(data.voice, data.seats, data.phase);
     await this.persist();
 
     const room = this.publicState();
@@ -1339,6 +1380,18 @@ export class RoomRuntime {
     const notice = this.gameEndedNotice;
     this.gameEndedNotice = null;
     if (notice) for (const c of this.liveConns()) if (this.seatOf(c)) this.error(c, "game-ended", notice);
+    this.flushVoice();
+  }
+
+  /** Prunes the roster, then tells every seated connection if it changed since the last send. */
+  private flushVoice(): void {
+    const data = this.data!;
+    const members = pruneVoice(data.voice ?? [], data.seats, data.phase);
+    if (data.voice) data.voice = members;
+    const json = JSON.stringify(members);
+    if (json === this.lastVoiceSent) return;
+    this.lastVoiceSent = json;
+    for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "voice-state", members });
   }
 
   /** Sliding-window rate limit. Records the send when it's allowed. */

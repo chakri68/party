@@ -55,12 +55,15 @@ export class World {
 
   /** Makes the next storage write throw, as a flaky disk would. */
   failNextPut = false;
+  /** Storage writes so far, for tests that count them. */
+  puts = 0;
 
   host(): RoomHost {
     return {
       storage: {
         get: async <T>(k: string) => structuredClone(this.store.get(k)) as T | undefined,
         put: async (k, v) => {
+          this.puts++;
           if (this.failNextPut) {
             this.failNextPut = false;
             throw new Error("storage write failed");
