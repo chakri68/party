@@ -1,10 +1,15 @@
 // Peer-to-peer voice: one RTCPeerConnection per other seat in voice.
 //
-// Each link has one audio transceiver, set up once as sendrecv with no track.
-// Who we send to and who we play is changed only with replaceTrack and
-// playback.setAllowed, never by renegotiating. Offers use "perfect
-// negotiation": the seat whose id sorts first is polite and gives way when
-// both offer at once.
+// Each link has one audio m-line. Only the impolite side (the higher seat id)
+// adds a transceiver, sendrecv with no track, and so makes the first offer.
+// The polite side adds none: it takes the transceiver the offer makes and turns
+// it to sendrecv before answering. (A browser never reuses an addTransceiver
+// transceiver for a remote offer, so if both added one, glare would give two
+// m-lines.) Who we send to and who we play is changed only with replaceTrack
+// and playback.setAllowed, never by renegotiating. Offers use "perfect
+// negotiation": the polite side gives way when both offer at once (ICE
+// restarts). The polite side says hello (an empty "ice" signal) on every new
+// link, so the other side learns it started over.
 //
 // Sessions: every signal carries the sender's link session (`<session>.<rebuilds>`)
 // and, in its data, the receiver's session it is answering (`toSession`). That
@@ -30,6 +35,7 @@ export type PeerLike = Pick<
   | "localDescription"
   | "remoteDescription"
   | "addTransceiver"
+  | "getTransceivers"
   | "setLocalDescription"
   | "setRemoteDescription"
   | "addIceCandidate"
@@ -67,6 +73,8 @@ export const RESTART_BACKOFF_MS = [1_000, 2_000, 4_000, 8_000];
 export const DISCONNECTED_GRACE_MS = 3_000;
 /** Ask for new ICE servers before a restart when they expire within this. */
 export const ICE_NEAR_EXPIRY_MS = 10 * 60_000;
+/** A new link not connected this long after it opened, or after its last offer, is rebuilt. */
+export const SETUP_TIMEOUT_MS = 15_000;
 
 /** One peer connection to one seat. Replaced, never reused, on a rebuild. */
 interface Link {
@@ -84,6 +92,8 @@ interface Link {
   batchTimer: number | null;
   graceTimer: number | null;
   restartTimer: number | null;
+  setupTimer: number | null;
+  everConnected: boolean;
   /** ICE restarts tried since the link last connected. */
   attempt: number;
   recovering: boolean;
@@ -104,6 +114,12 @@ interface Peer {
   /** The other side's link session, null until its first signal. */
   peerSession: string | null;
   retired: Set<string>;
+  /**
+   * After both sides rebuilt at once, the polite side took the other's new
+   * session while that side still addressed my previous one. Its signals
+   * bound to that old session of mine stay welcome.
+   */
+  late: { peerSession: string; mySession: string } | null;
   /** null only when the browser would not make a peer connection. */
   link: Link | null;
 }
@@ -157,11 +173,27 @@ export class MeshTransport implements VoiceTransport {
       // The roster can lag the first offer. A signal bound to one of my
       // sessions is for a link I closed, though, so it opens nothing.
       if (signal.toSession !== null) return;
-      peer = this.addPeer(from);
+      peer = this.addPeer(from, session);
     }
-    if (signal.toSession !== null && signal.toSession !== peer.link?.session) return;
     if (peer.retired.has(session)) return;
-    if (peer.peerSession === null) {
+    const toSession = signal.toSession;
+    if (toSession !== null && toSession !== peer.link?.session) {
+      const late = peer.late;
+      if (late && late.peerSession === session && late.mySession === toSession) {
+        // Still welcome: see Peer.late.
+      } else if (session !== peer.peerSession && this.isMyOldSession(peer, toSession)) {
+        // Both sides rebuilt at once: each new link addresses the other's old
+        // session. The polite side takes the new session and starts over; the
+        // impolite side keeps its fresh link (and its offer) and only rebinds.
+        if (peer.peerSession !== null) peer.retired.add(peer.peerSession);
+        peer.peerSession = session;
+        if (!this.isPolite(peer)) return;
+        peer.late = { peerSession: session, mySession: toSession };
+        this.replaceLink(peer, "reconnecting");
+      } else {
+        return;
+      }
+    } else if (peer.peerSession === null) {
       peer.peerSession = session;
     } else if (peer.peerSession !== session) {
       // The other side started over: so do we, bound to its new session.
@@ -229,11 +261,30 @@ export class MeshTransport implements VoiceTransport {
 
   // ---- links ----
 
-  private addPeer(id: string): Peer {
-    const peer: Peer = { id, rebuilds: 0, peerSession: null, retired: new Set(), link: null };
+  private addPeer(id: string, peerSession: string | null = null): Peer {
+    const peer: Peer = { id, rebuilds: 0, peerSession, retired: new Set(), late: null, link: null };
     this.peers.set(id, peer);
     peer.link = this.openLink(peer, "connecting");
     return peer;
+  }
+
+  /** Starts over with a new link session of mine. */
+  private rebuild(peer: Peer): void {
+    peer.rebuilds++;
+    peer.late = null;
+    this.replaceLink(peer, "reconnecting");
+  }
+
+  private isPolite(peer: Peer): boolean {
+    return this.opts!.selfId < peer.id;
+  }
+
+  /** A session of mine for this peer from before my latest rebuild. */
+  private isMyOldSession(peer: Peer, s: string): boolean {
+    const prefix = `${this.opts!.session}.`;
+    if (!s.startsWith(prefix)) return false;
+    const k = Number(s.slice(prefix.length));
+    return Number.isInteger(k) && k >= 0 && k < peer.rebuilds;
   }
 
   private replaceLink(peer: Peer, state: LinkState): void {
@@ -255,7 +306,7 @@ export class MeshTransport implements VoiceTransport {
       pc,
       sender: null,
       session: `${opts.session}.${peer.rebuilds}`,
-      polite: opts.selfId < peer.id,
+      polite: this.isPolite(peer),
       makingOffer: false,
       ignoreOffer: false,
       queued: [],
@@ -263,6 +314,8 @@ export class MeshTransport implements VoiceTransport {
       batchTimer: null,
       graceTimer: null,
       restartTimer: null,
+      setupTimer: null,
+      everConnected: false,
       attempt: 0,
       recovering: false,
       connected: false,
@@ -276,14 +329,18 @@ export class MeshTransport implements VoiceTransport {
     pc.onicecandidate = (ev) => this.gather(peer, link, ev.candidate);
     pc.ontrack = (ev) => this.onTrack(peer, link, ev);
     pc.onconnectionstatechange = () => this.onState(peer, link);
-    try {
-      link.sender = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
-    } catch {
-      this.shut(link);
-      this.report(peer.id, "closed");
-      return null;
+    if (!link.polite) {
+      try {
+        link.sender = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
+      } catch {
+        this.shut(link);
+        this.report(peer.id, "closed");
+        return null;
+      }
     }
+    this.armSetup(peer, link);
     this.report(peer.id, state);
+    if (link.polite) this.send(peer, link, { kind: "ice", toSession: peer.peerSession, candidates: [] });
     return link;
   }
 
@@ -299,8 +356,10 @@ export class MeshTransport implements VoiceTransport {
 
   private shut(link: Link): void {
     link.closed = true;
-    for (const t of [link.batchTimer, link.graceTimer, link.restartTimer]) if (t !== null) this.deps.clock.clearTimeout(t);
-    link.batchTimer = link.graceTimer = link.restartTimer = null;
+    for (const t of [link.batchTimer, link.graceTimer, link.restartTimer, link.setupTimer]) {
+      if (t !== null) this.deps.clock.clearTimeout(t);
+    }
+    link.batchTimer = link.graceTimer = link.restartTimer = link.setupTimer = null;
     const pc = link.pc;
     pc.onnegotiationneeded = pc.onicecandidate = pc.ontrack = pc.onconnectionstatechange = null;
     try {
@@ -343,7 +402,8 @@ export class MeshTransport implements VoiceTransport {
       await link.pc.setLocalDescription();
       if (this.live(peer, link)) this.sendDescription(peer, link);
     } catch {
-      if (this.live(peer, link)) this.fail(peer, link);
+      // A signaling error is not fixed by an ICE restart.
+      if (this.live(peer, link)) this.rebuild(peer);
     } finally {
       link.makingOffer = false;
     }
@@ -353,6 +413,26 @@ export class MeshTransport implements VoiceTransport {
     const d = link.pc.localDescription;
     if (!d) return;
     this.send(peer, link, { kind: "sdp", toSession: peer.peerSession, description: { type: d.type, sdp: d.sdp } });
+    if (d.type === "offer" && !link.everConnected) this.armSetup(peer, link);
+  }
+
+  /** (Re)starts the timer that rebuilds a link that never connects. */
+  private armSetup(peer: Peer, link: Link): void {
+    this.clearTimer(link, "setupTimer");
+    link.setupTimer = this.deps.clock.setTimeout(() => {
+      link.setupTimer = null;
+      if (this.live(peer, link) && !link.connected) this.rebuild(peer);
+    }, SETUP_TIMEOUT_MS);
+  }
+
+  /** The polite side sends on the transceiver the offer made. */
+  private adoptTransceiver(link: Link): void {
+    const t = link.pc.getTransceivers()[0];
+    if (!t) return;
+    t.direction = "sendrecv";
+    link.sender = t.sender;
+    link.sentTrack = null;
+    void this.runPolicy();
   }
 
   private async process(peer: Peer, link: Link, signal: SignalData): Promise<void> {
@@ -368,9 +448,10 @@ export class MeshTransport implements VoiceTransport {
         if (collision) link.outgoing = [];
         await pc.setRemoteDescription(desc);
         if (!this.live(peer, link)) return;
+        if (desc.type === "offer" && !link.sender) this.adoptTransceiver(link);
         const queued = link.queued;
         link.queued = [];
-        for (const c of queued) await pc.addIceCandidate(c);
+        for (const c of queued) await addCandidate(pc, c);
         if (desc.type === "offer") {
           await pc.setLocalDescription();
           if (this.live(peer, link)) this.sendDescription(peer, link);
@@ -382,10 +463,11 @@ export class MeshTransport implements VoiceTransport {
           link.queued.push(...signal.candidates);
           return;
         }
-        for (const c of signal.candidates) await pc.addIceCandidate(c);
+        for (const c of signal.candidates) await addCandidate(pc, c);
       }
     } catch {
-      if (this.live(peer, link)) this.fail(peer, link);
+      // A signaling error is not fixed by an ICE restart.
+      if (this.live(peer, link)) this.rebuild(peer);
     }
   }
 
@@ -422,13 +504,7 @@ export class MeshTransport implements VoiceTransport {
     if (!this.live(peer, link)) return;
     const state = link.pc.connectionState;
     if (state === "connected") {
-      this.clearTimer(link, "graceTimer");
-      this.clearTimer(link, "restartTimer");
-      link.connected = true;
-      link.recovering = false;
-      link.attempt = 0;
-      this.report(peer.id, "connected");
-      void this.runPolicy();
+      this.markConnected(peer, link);
     } else if (state === "failed") {
       this.fail(peer, link);
     } else if (state === "disconnected") {
@@ -447,7 +523,24 @@ export class MeshTransport implements VoiceTransport {
     }
   }
 
+  private markConnected(peer: Peer, link: Link): void {
+    this.clearTimer(link, "graceTimer");
+    this.clearTimer(link, "restartTimer");
+    this.clearTimer(link, "setupTimer");
+    link.connected = true;
+    link.everConnected = true;
+    link.recovering = false;
+    link.attempt = 0;
+    this.report(peer.id, "connected");
+    void this.runPolicy();
+  }
+
+  /** An ICE failure: restarts with backoff, then a rebuild. */
   private fail(peer: Peer, link: Link): void {
+    if (link.pc.connectionState === "connected") {
+      if (!link.connected) this.markConnected(peer, link);
+      return;
+    }
     if (link.recovering) return;
     link.recovering = true;
     this.clearTimer(link, "graceTimer");
@@ -469,9 +562,13 @@ export class MeshTransport implements VoiceTransport {
   /** One try: an ICE restart while tries are left, then a fresh link. */
   private async recover(peer: Peer, link: Link): Promise<void> {
     if (!this.live(peer, link) || link.connected) return;
+    // Back without a change event: nothing to fix.
+    if (isUp(link.pc)) return this.markConnected(peer, link);
     await this.freshIce();
     if (!this.live(peer, link) || link.connected) return;
-    if (link.attempt < RESTART_BACKOFF_MS.length) {
+    if (isUp(link.pc)) return this.markConnected(peer, link);
+    // A polite link that never got an offer has nothing to restart.
+    if (link.attempt < RESTART_BACKOFF_MS.length && link.sender) {
       link.attempt++;
       try {
         link.pc.restartIce();
@@ -481,8 +578,7 @@ export class MeshTransport implements VoiceTransport {
       this.report(peer.id, "reconnecting");
       this.scheduleRecovery(peer, link);
     } else {
-      peer.rebuilds++;
-      this.replaceLink(peer, "reconnecting");
+      this.rebuild(peer);
     }
   }
 
@@ -505,7 +601,7 @@ export class MeshTransport implements VoiceTransport {
     return this.refreshing;
   }
 
-  private clearTimer(link: Link, key: "batchTimer" | "graceTimer" | "restartTimer"): void {
+  private clearTimer(link: Link, key: "batchTimer" | "graceTimer" | "restartTimer" | "setupTimer"): void {
     const t = link[key];
     if (t === null) return;
     this.deps.clock.clearTimeout(t);
@@ -539,11 +635,11 @@ export class MeshTransport implements VoiceTransport {
   }
 
   private replace(link: Link, track: MediaStreamTrack | null): Promise<void> {
+    if (!link.sender) return Promise.resolve();
     link.sentTrack = track;
     const forget = () => {
       if (link.sentTrack === track) link.sentTrack = undefined;
     };
-    if (!link.sender) return Promise.resolve();
     try {
       return link.sender.replaceTrack(track).catch(forget);
     } catch {
@@ -563,6 +659,20 @@ export class MeshTransport implements VoiceTransport {
 }
 
 // ---- helpers ----
+
+/** Read fresh each time: the state can change across an await. */
+function isUp(pc: PeerLike): boolean {
+  return pc.connectionState === "connected";
+}
+
+/** One bad candidate (say, from an old ICE round) is skipped; it never fails the link. */
+async function addCandidate(pc: PeerLike, c: RTCIceCandidateInit): Promise<void> {
+  try {
+    await pc.addIceCandidate(c);
+  } catch {
+    // Skipped.
+  }
+}
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
