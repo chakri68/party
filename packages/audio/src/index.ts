@@ -14,10 +14,12 @@ export interface FeedbackSettings {
   /** 0–1 */
   volume: number;
   haptics: boolean;
+  /** Sound board sounds on this phone. Game sound off silences them too. */
+  roomSounds: boolean;
 }
 
 const STORAGE_KEY = "pg:feedback";
-const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true };
+const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true, roomSounds: true };
 
 function load(): FeedbackSettings {
   try {
@@ -180,7 +182,7 @@ function rainBuffer(ctx: AudioContext): AudioBuffer {
 // Manager
 // ---------------------------------------------------------------------------
 
-class Feedback {
+export class Feedback {
   settings: FeedbackSettings = typeof localStorage === "undefined" ? { ...DEFAULTS } : load();
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -267,6 +269,29 @@ class Feedback {
     g.gain.value = rec.gain ?? 1;
     src.connect(g).connect(this.master);
     src.start(t, SAMPLES[id].start);
+  }
+
+  /** A sound board clip's bytes, decoded on the shared context. Null before unlock or for a bad file. */
+  async decode(bytes: ArrayBuffer): Promise<AudioBuffer | null> {
+    if (!this.ctx) return null;
+    try {
+      return await this.ctx.decodeAudioData(bytes);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * One sound board clip through `master`, so it follows the volume. False,
+   * with nothing played, when game sound is off or the context isn't running.
+   */
+  playClip(clip: AudioBuffer): boolean {
+    if (!this.settings.sound || !this.ctx || !this.master || this.ctx.state !== "running") return false;
+    const src = this.ctx.createBufferSource();
+    src.buffer = clip;
+    src.connect(this.master);
+    src.start(this.ctx.currentTime + 0.005);
+    return true;
   }
 
   /**

@@ -1,3 +1,3 @@
 import { startShell } from "./shell.ts";
 
-startShell({});
+startShell({ extraPacks: ["/api/packs/memes"] });

@@ -57,6 +57,8 @@ export interface ShellOptions {
    * (`recap: null` there). Without it the shell shows a Home button.
    */
   partyOver?: PartyOverHook;
+  /** URLs of extra sound pack lists, after the free pack. The stock app sets the memes pack. A host app leaves it out. */
+  extraPacks?: string[];
 }
 
 type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver">> & Pick<ShellOptions, "partyOver">;
@@ -91,6 +93,7 @@ const defaults: Config = {
   createRoom: defaultCreateRoom,
   hostKeyFor: () => getOwnerKey(),
   onLockedGame: () => {},
+  extraPacks: [],
 };
 
 let config: Config = defaults;
