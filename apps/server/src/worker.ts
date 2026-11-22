@@ -5,6 +5,7 @@ import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
+import { turnMinter } from "./turn.ts";
 import { RoomRuntime, type Conn, type ConnState, type RoomGrant, type RoomHost, type RoomSetup, type TierLimits } from "./runtime.ts";
 import type { AnyGameDefinition } from "@games/game-core";
 
@@ -63,6 +64,7 @@ export class RoomBase extends Server<Env> {
   private get runtime(): RoomRuntime {
     if (!this.#runtime) {
       const storage = this.ctx.storage;
+      const turnCredentials = turnMinter(this.env as ServerEnv);
       const host: RoomHost = {
         storage: {
           get: (key) => storage.get(key),
@@ -81,6 +83,7 @@ export class RoomBase extends Server<Env> {
         ownerRequired: true,
         tierLimits: this.tierLimits(),
         filterText: this.filterText(),
+        ...(turnCredentials && { turnCredentials }),
       };
       this.#runtime = new RoomRuntime(this.name, host, this.games(), "sevens");
     }
