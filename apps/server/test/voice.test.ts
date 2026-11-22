@@ -1,7 +1,7 @@
-import { GRACE_MS, VOICE_CAP } from "@games/protocol";
+import { GRACE_MS, VOICE_CAP, type IceServer } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { RoomRuntime } from "../src/runtime.ts";
-import { pruneVoice } from "../src/voice.ts";
+import { ICE_FAIL_BACKOFF_MS, ICE_REUSE_MARGIN_MS, pruneVoice, STUN_ONLY, TURN_TTL_S, VOICE_SIGNAL_LIMIT } from "../src/voice.ts";
 import { plainGame, toyGame, toyKnobs } from "./bot-toy.ts";
 import { FakeConn, join, roomOf, send, World } from "./harness.ts";
 
@@ -184,5 +184,156 @@ describe("voice roster", () => {
     const p = world.puts;
     await vjoin(a);
     expect(world.puts).toBe(p + 1);
+  });
+});
+
+const flushPromises = async () => {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+};
+
+describe("voice signals and ICE", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let a: FakeConn;
+  let b: FakeConn;
+  let c: FakeConn;
+  const idOf = (x: FakeConn) => x.last("welcome")!.playerId;
+  const vjoin = async (x: FakeConn) => {
+    await send(room, x, { type: "voice-join", muted: false });
+    await flushPromises();
+  };
+  const sig = (from: FakeConn, to: FakeConn, data: unknown = { sdp: "x" }) =>
+    send(room, from, { type: "voice-signal", to: idOf(to), session: "s1", data });
+  const TURN: IceServer[] = [{ urls: ["turn:t.example:3478"], username: "u", credential: "p" }];
+  let calls: number;
+
+  beforeEach(async () => {
+    toyKnobs.decide = "normal";
+    world = new World();
+    calls = 0;
+    room = new RoomRuntime("K7DX", world.host(), games, "toy");
+    await room.load();
+    await room.claim();
+    a = await join(world, room, "Ana");
+    b = await join(world, room, "Ben");
+    c = await join(world, room, "Cy");
+  });
+
+  it("a signal reaches only its target", async () => {
+    await vjoin(a);
+    await vjoin(b);
+    await vjoin(c);
+    await sig(a, b);
+    expect(b.last("voice-signal")).toEqual({ type: "voice-signal", from: idOf(a), session: "s1", data: { sdp: "x" } });
+    expect(c.of("voice-signal")).toHaveLength(0);
+    expect(a.of("voice-signal")).toHaveLength(0);
+  });
+
+  it("drops a signal to or from a seat not in voice, or to itself", async () => {
+    await vjoin(a);
+    await vjoin(b);
+    await sig(a, c);
+    await sig(c, a);
+    await sig(a, a);
+    expect(a.of("voice-signal")).toHaveLength(0);
+    expect(c.of("voice-signal")).toHaveLength(0);
+    expect(a.of("error")).toHaveLength(0);
+  });
+
+  it("drops signals past the rate limit", async () => {
+    await vjoin(a);
+    await vjoin(b);
+    for (let i = 0; i < VOICE_SIGNAL_LIMIT.burst + 10; i++) await sig(a, b, { i });
+    expect(b.of("voice-signal")).toHaveLength(VOICE_SIGNAL_LIMIT.burst);
+    world.clock += VOICE_SIGNAL_LIMIT.windowMs;
+    await sig(a, b, { late: 1 });
+    expect(b.of("voice-signal")).toHaveLength(VOICE_SIGNAL_LIMIT.burst + 1);
+  });
+
+  it("relaying a signal writes nothing", async () => {
+    await vjoin(a);
+    await vjoin(b);
+    const puts = world.puts;
+    await sig(a, b);
+    await send(room, a, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(world.puts).toBe(puts);
+  });
+
+  it("joining voice with no TURN gives STUN only", async () => {
+    await vjoin(a);
+    expect(a.last("voice-ice")).toEqual({ type: "voice-ice", iceServers: STUN_ONLY, expiresAt: world.clock + TURN_TTL_S * 1000 });
+  });
+
+  it("hands out TURN servers and fetches once for the room", async () => {
+    world.turn = async () => (calls++, TURN);
+    await vjoin(a);
+    await vjoin(b);
+    expect(a.last("voice-ice")!.iceServers).toEqual(TURN);
+    expect(b.last("voice-ice")!.iceServers).toEqual(TURN);
+    expect(calls).toBe(1);
+  });
+
+  it("fetches again when the cached ones are near expiry", async () => {
+    world.turn = async () => (calls++, TURN);
+    await vjoin(a);
+    world.clock += TURN_TTL_S * 1000 - ICE_REUSE_MARGIN_MS - 1;
+    await send(room, a, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(calls).toBe(1);
+    world.clock += 2;
+    await send(room, a, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(calls).toBe(2);
+  });
+
+  it("only members may ask for ICE servers, and not too often", async () => {
+    await send(room, b, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(b.of("voice-ice")).toHaveLength(0);
+    await vjoin(a);
+    for (let i = 0; i < 5; i++) await send(room, a, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(a.of("voice-ice")).toHaveLength(4); // the join, then three requests
+  });
+
+  it("a failed TURN fetch gives STUN only, and waits a minute to retry", async () => {
+    world.turn = async () => (calls++, null);
+    await vjoin(a);
+    expect(a.last("voice-ice")).toEqual({ type: "voice-ice", iceServers: STUN_ONLY, expiresAt: world.clock + ICE_FAIL_BACKOFF_MS });
+    await vjoin(b);
+    expect(calls).toBe(1);
+    expect(b.last("voice-ice")!.iceServers).toEqual(STUN_ONLY);
+    world.clock += ICE_FAIL_BACKOFF_MS;
+    world.turn = async () => (calls++, TURN);
+    await send(room, a, { type: "voice-ice-request" });
+    await flushPromises();
+    expect(calls).toBe(2);
+    expect(a.last("voice-ice")!.iceServers).toEqual(TURN);
+  });
+
+  it("a throwing TURN fetch gives STUN only", async () => {
+    world.turn = async () => {
+      throw new Error("down");
+    };
+    await vjoin(a);
+    expect(a.last("voice-ice")!.iceServers).toEqual(STUN_ONLY);
+  });
+
+  it("a hung TURN fetch does not hold up the room", async () => {
+    world.turn = () => new Promise(() => {});
+    await send(room, a, { type: "voice-join", muted: false });
+    await send(room, a, { type: "ready", ready: true });
+    expect(roomOf(b).seats.find((s) => s.id === idOf(a))!.ready).toBe(true);
+  });
+
+  it("no voice-ice for a seat that left voice before the fetch came back", async () => {
+    let done!: (v: IceServer[]) => void;
+    world.turn = () => new Promise((r) => (done = r));
+    await send(room, a, { type: "voice-join", muted: false });
+    await send(room, a, { type: "voice-leave" });
+    done(TURN);
+    await flushPromises();
+    expect(a.of("voice-ice")).toHaveLength(0);
   });
 });
