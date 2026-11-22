@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -93,6 +93,25 @@ export interface SeatPublic {
   bot?: true;
 }
 
+/** Most people who can be in voice at once. */
+export const VOICE_CAP = 8;
+/** Raw length cap for one voice-signal message. An audio-only SDP is about 3 to 5 KB. */
+export const VOICE_SIGNAL_MAX_LENGTH = 6144;
+
+export type VoiceMode = "off" | "global" | "game";
+
+export interface VoiceMember {
+  id: string;
+  selfMuted: boolean;
+  hostMuted: boolean;
+}
+
+export interface IceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
 /** What a room may do. Rooms without a paywall are always "pass". */
 export type RoomTier = "free" | "pass";
 
@@ -129,6 +148,11 @@ export interface RoomPublicState {
   paused: boolean;
   /** Game ids this room can't select at its tier. Empty on master. */
   lockedGameIds: string[];
+  /**
+   * Voice chat for the room. "off" once the party has ended, "global" otherwise.
+   * "game" is for a later phase.
+   */
+  voice: { mode: VoiceMode };
   /** Game ids that can have computer players. */
   botGameIds: string[];
   /** How many seats the selected game has here: its max, or less in a free room. */
@@ -174,6 +198,13 @@ export type ClientMessage =
   | { type: "restart-game" }
   /** Host only, while playing: pauses the game or resumes it. */
   | { type: "pause-game"; paused: boolean }
+  /** Joins room voice. `muted` is whether the mic starts off. */
+  | { type: "voice-join"; muted: boolean }
+  | { type: "voice-leave" }
+  | { type: "voice-self-mute"; muted: boolean }
+  /** A WebRTC offer, answer or ICE batch for one other seat. Relayed, never stored. */
+  | { type: "voice-signal"; to: string; session: string; data: unknown }
+  | { type: "voice-ice-request" }
   | { type: "return-to-lobby" }
   /** Host only, in the lobby or on results: ends the room for everyone and shows the recap. */
   | { type: "end-party" }
@@ -207,6 +238,9 @@ export type ServerMessage =
   | { type: "chat"; messages: ChatMessage[]; replace: boolean }
   /** Echoed to the sender too, so everyone sees the same thing. */
   | { type: "emote"; from: string; emoji: Reaction }
+  | { type: "voice-state"; members: VoiceMember[] }
+  | { type: "voice-signal"; from: string; session: string; data: unknown }
+  | { type: "voice-ice"; iceServers: IceServer[]; expiresAt: number }
   | { type: "error"; code: ErrorCode; message: string; fatal: boolean }
   | { type: "pong"; timestamp: number; serverTime: number };
 
@@ -233,6 +267,7 @@ export type ErrorCode =
   | "server-error"
   | "cannot-start"
   | "needs-pass"
+  | "voice-full"
   /** The game was ended for everyone (a computer player got stuck); back in the lobby. */
   | "game-ended";
 
@@ -309,6 +344,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return typeof m.locked === "boolean" ? { type: "lock-room", locked: m.locked } : null;
     case "pause-game":
       return typeof m.paused === "boolean" ? { type: "pause-game", paused: m.paused } : null;
+    case "voice-join":
+    case "voice-self-mute":
+      return typeof m.muted === "boolean" ? { type: m.type, muted: m.muted } : null;
+    case "voice-signal":
+      if (raw.length > VOICE_SIGNAL_MAX_LENGTH) return null;
+      return isStr(m.to, 64) && isStr(m.session, 64) && m.session !== "" && isObj(m.data)
+        ? { type: "voice-signal", to: m.to, session: m.session, data: m.data }
+        : null;
     case "skip-turn":
     case "remove-player":
     case "transfer-host":
@@ -334,6 +377,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "add-bot":
     case "remove-bots":
     case "restart-game":
+    case "voice-leave":
+    case "voice-ice-request":
       return { type: m.type };
     default:
       return null;

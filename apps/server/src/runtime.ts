@@ -1376,6 +1376,7 @@ export class RoomRuntime {
       tier: this.tier(),
       locked: !!data.locked,
       paused: !!data.pause,
+      voice: { mode: data.phase === "ended" ? "off" : "global" },
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,

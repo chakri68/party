@@ -39,7 +39,7 @@ Computer players are optional. To give a game one:
 
 Pause is optional. The host can pause a game that has it. To give a game pause:
 
-1. Define `pause` on the definition. It gets the state and the time paused, and shifts your own deadline fields by that time. The room holds the timers and stops `ctx.now` while paused.
+1. Define `pause(state, paused, ctx)` on the definition. It gets the state, whether the room is pausing (`paused` is true) or resuming (false), and `ctx`. When pausing, note `ctx.now` in your state. When resuming, shift your own deadline fields by the time paused (`ctx.now` minus the time you noted), and clear the note. The room holds the timers and stops `ctx.now` while paused. See Nightfall's `pause`.
 2. Set `pausable: true` on the manifest.
 3. Add the game's id to the list in `apps/server/test/games.test.ts` ("lists exactly the games that can pause").
 4. Add one line to `docs/games/<id>.md` saying the host can pause, and test it like `Nightfall through the room` in `apps/server/test/host-controls.test.ts`.
