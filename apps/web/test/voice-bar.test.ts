@@ -234,8 +234,10 @@ describe("joining", () => {
     expect(joinAllowed(voiceBarModel(view(), "playing"), true)).toBe(false);
     expect(joinAllowed(voiceBarModel(view({ status: "joining", mic: "on" }), "playing"), false)).toBe(false);
     expect(joinAllowed(voiceBarModel(view({ status: "on", mic: "on" }), "playing"), false)).toBe(false);
-    // The menu has no Join voice for these.
-    expect(joinAllowed(voiceBarModel(view({ status: "full" }), "playing"), false)).toBe(false);
+    // Full: Join voice stays, like the button today, so a player can try again.
+    expect(joinAllowed(voiceBarModel(view({ status: "full" }), "playing"), false)).toBe(true);
+    expect(joinAllowed(voiceBarModel(view({ status: "full" }), "playing"), false)).toBe(joinAllowed(voiceBarModel(view({ status: "full" }), "lobby"), false));
+    // The menu has no Join voice where voice cannot work.
     expect(joinAllowed(voiceBarModel(view({ status: "unsupported" }), "playing"), false)).toBe(false);
   });
 
@@ -250,11 +252,11 @@ describe("joining", () => {
 });
 
 describe("voiceMenuItem", () => {
-  it("Join voice out of voice, Voice in voice, nothing where voice cannot work", () => {
+  it("Join voice out of voice (also when full, to try again), Voice in voice, nothing where voice cannot work", () => {
     expect(voiceMenuItem(view({ status: "off" }))).toBe("join");
     expect(voiceMenuItem(view({ status: "on" }))).toBe("voice");
     expect(voiceMenuItem(view({ status: "joining" }))).toBe("voice");
-    expect(voiceMenuItem(view({ status: "full" }))).toBeNull();
+    expect(voiceMenuItem(view({ status: "full" }))).toBe("join");
     expect(voiceMenuItem(view({ status: "unsupported" }))).toBeNull();
   });
 });

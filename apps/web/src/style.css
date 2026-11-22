@@ -601,7 +601,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Voice (views/voice-bar.ts): above the body, outside the game host. The full
    panel in the lobby and on results; in a game only the tap prompts, and the
-   mic sits in the room header. Every target is 44 px. */
+   mic sits in the room header. Every target is 44 px, 40 px in the room header. */
 .voice-bar { display: grid; gap: 8px; margin-bottom: 12px; }
 .voice-bar[data-layout="panel"] { max-width: 480px; width: 100%; margin: 0 auto 16px; padding: 12px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .voice-join { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
@@ -632,7 +632,6 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .voice-note { margin: 0; font-size: 0.85rem; }
 /* In a game, the mic in the room header: its icon only (the label stays as aria-label), with a small dot. */
 .voice-header-mic { position: relative; display: inline-flex; align-items: center; }
-.voice-header-mic[hidden] { display: none; }
 .voice-header-mic .voice-mic { min-height: 40px; min-width: 40px; padding: 0; justify-content: center; border-radius: 12px; }
 .voice-header-mic .voice-mic-label { display: none; }
 .voice-header-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); pointer-events: none; }
