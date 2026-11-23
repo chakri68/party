@@ -9,7 +9,7 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { avatar, botTag, closeOnBackdrop, h, openDialog, replaceChildren, seatName, type GameView, type View } from "@games/ui";
+import { avatar, botTag, cancelConfirm, closeOnBackdrop, confirmDialog, h, openDialog, replaceChildren, seatName, type ConfirmOptions, type GameView, updateConfirm, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
 import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
@@ -25,8 +25,10 @@ import { Emotes } from "./emotes.ts";
 import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
-import { seatActionMessage, seatActions } from "./host-menu.ts";
-import { focusPhase } from "./focus.ts";
+import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
+import { lobbyAction, settingsSummary, settingsWarnings } from "./lobby.ts";
+import { slimHeader } from "./focus.ts";
+import { lockGame } from "./pause.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
@@ -62,10 +64,9 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
   }
 }
 
-/**
- * The game's word on why this table can't start (a role deck one card short).
- * It explains a disabled Start, so it sits where the host is looking.
- */
+/** The room's own screens: moving between two of them scrolls to the top. */
+const ROOM_SCREENS = new Set<string | null>(["lobby", "playing", "results", "ended"]);
+
 /** How many players back each game, from the seats still here. */
 function suggestionCounts(room: RoomPublicState): Map<string, number> {
   const counts = new Map<string, number>();
@@ -79,6 +80,11 @@ function wantLabel(n: number): string {
   return n === 1 ? "1 wants this" : `${n} want this`;
 }
 
+/**
+ * The game's word on why this table can't start (a role deck one card short).
+ * It explains a disabled Start, so it sits where the host is looking. In the
+ * lobby the host reads it in the Start bar instead.
+ */
 function setupProblem(room: RoomPublicState, style?: string): HTMLElement | null {
   return room.setupProblem ? h("p", { class: "setting-problem", role: "status", style }, room.setupProblem) : null;
 }
@@ -127,8 +133,13 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
-  private signal = signalMeter((text) => this.showToast(text));
-  private turn = new TurnSignal(() => `${this.code} · ${appTitle()}`);
+  private signal = signalMeter();
+  private turn = new TurnSignal(
+    () => `${this.code} · ${appTitle()}`,
+    // A screen change about to land counts as in view: show() is about to
+    // scroll to the top, but the turn is worked out before that.
+    () => this.screen !== this.last?.room.phase || this.header.getBoundingClientRect().bottom > 0,
+  );
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
@@ -147,7 +158,7 @@ export class RoomView implements View {
 
   mount(container: HTMLElement) {
     this.header.append(this.headerStart, this.headerEnd);
-    this.root.append(this.header, this.body, this.toast);
+    this.root.append(this.header, this.body, this.toast, this.pauseNote);
     this.turn.mount(this.root);
     container.append(this.root);
 
@@ -170,6 +181,7 @@ export class RoomView implements View {
     clearInterval(this.ticker);
     this.detachDebug?.();
     this.menuDialog?.close();
+    cancelConfirm();
     this.voice?.stop();
     this.unwatchFrames?.();
     this.ptt?.destroy();
@@ -191,12 +203,21 @@ export class RoomView implements View {
    * first screen doesn't: it's already inside the router's page transition.
    */
   private show(screen: string, update: () => void | Promise<void>) {
-    const first = this.screen === null;
-    const kind = screen !== this.screen ? "phase" : screen === "lobby" ? "lobby" : null;
+    const was = this.screen;
+    const first = was === null;
+    const kind = screen !== was ? "phase" : screen === "lobby" ? "lobby" : null;
     this.screen = screen;
-    if (first || !kind) void update();
-    else transition(kind, update);
+    if (first || !kind) return void update();
+    // A new room screen opens at its top (the game's header, phase and timer),
+    // not at the old one's scroll. Only between room screens: back from a
+    // reconnect or "connecting" keeps the place. Inside the swap, so the
+    // transition's "after" picture is the top. Same-screen updates keep the scroll.
+    const toTop = kind === "phase" && ROOM_SCREENS.has(was) && ROOM_SCREENS.has(screen);
+    transition(kind, toTop ? () => (scrollTo({ top: 0, behavior: "instant" }), update()) : update);
   }
+
+  /** The round on screen, so a restart (same screen, new round) opens at the top too. */
+  private shownRound: number | null = null;
 
   // ---- connection ---------------------------------------------------------
 
@@ -426,6 +447,7 @@ export class RoomView implements View {
     this.stuck = true;
     // Its host items no longer reach the room.
     this.menuDialog?.close();
+    cancelConfirm();
     const screen = h(
       "section",
       { class: "message" },
@@ -451,8 +473,33 @@ export class RoomView implements View {
     });
   }
 
-  private leave() {
-    if (this.last?.room.phase === "playing" && !confirm("Leave the game? You will be out for the rest of this round.")) {
+  /**
+   * Asks in the page (see `confirmDialog`). True only for a yes while the
+   * question still applies: `valid` is checked on every room update (a no
+   * closes the question) and again on the yes. `retext`, if given, words the
+   * question again on each update, so a detail (a name) stays true in place.
+   */
+  private async ask(text: string, opts: ConfirmOptions, valid: () => boolean, retext?: () => string | null): Promise<boolean> {
+    const answer = confirmDialog(text, opts);
+    const asking = { valid, retext };
+    this.asking = asking;
+    const yes = await answer;
+    if (this.asking === asking) this.asking = null;
+    return yes && valid();
+  }
+
+  /** The room's open question, if it asked one: its check and its rewording. */
+  private asking: { valid: () => boolean; retext?: () => string | null } | null = null;
+
+  private async leave() {
+    const room = this.last?.room;
+    const me = this.client?.playerId;
+    if (!room || !me) return;
+    const question = leaveQuestion(room, me);
+    // Same screen, same role: the question still holds. Who gets the host role can change while it's open; the words follow.
+    const still = () => this.last?.room.phase === room.phase && (this.last.room.hostId === me) === (room.hostId === me);
+    const retext = () => (this.last ? leaveQuestion(this.last.room, me) : null);
+    if (question && !(await this.ask(question, { ok: "Leave", danger: true }, still, retext))) {
       return;
     }
     // Leaving on purpose: voice is saved as off for this room.
@@ -466,16 +513,16 @@ export class RoomView implements View {
   // ---- rendering ----------------------------------------------------------
 
   /**
-   * The header's two looks. On a room screen (lobby, game, results; seated):
+   * The header's two looks. On a room screen (lobby, game, results, party over; seated):
    * one slim row, the room code and signal on the left; the mic (in voice,
    * its own slot), the sound board (when it shows), reactions, chat and the
-   * Room menu on the right. Otherwise (party over, before a seat, a fatal message):
+   * Room menu on the right. Otherwise (before a seat, a fatal message):
    * the brand, the room code and the room buttons.
    */
   private renderHeader() {
     const status = this.client?.status;
     const seated = !!this.client?.playerId && status !== "closed";
-    const focus = seated && focusPhase(this.shownPhase);
+    const focus = seated && slimHeader(this.shownPhase);
     this.header.classList.toggle("focus", focus);
     const conn = status === "reconnecting" || status === "connecting"
       ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
@@ -523,8 +570,10 @@ export class RoomView implements View {
     this.voiceBar?.render(phase);
     if (was === phase) return;
     this.menuDialog?.close();
+    // A question about the old screen (the game's own too) no longer applies.
+    cancelConfirm();
     // Into or out of the slim header the reaction bar's anchor moves: it closes, like the sound board does on any phase change.
-    if (focusPhase(was) !== focusPhase(phase)) this.emotes?.toggle(false);
+    if (slimHeader(was) !== slimHeader(phase)) this.emotes?.toggle(false);
     this.renderHeader();
   }
 
@@ -547,15 +596,19 @@ export class RoomView implements View {
       hostActions: room.phase === "playing" && !this.stuck,
     });
     if (!items.length) return;
+    const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
     const act: Record<RoomMenuItem, () => void> = {
       "join-voice": () => void this.voiceBar?.startJoin(),
       voice: () => this.voiceBar?.openPanel(),
       settings: () => this.openSettings(),
       pause: () => client.send({ type: "pause-game", paused: true }),
       resume: () => client.send({ type: "pause-game", paused: false }),
-      restart: () => confirm("Restart this game for everyone?") && client.send({ type: "restart-game" }),
+      restart: () =>
+        void this.ask("Restart this game for everyone?", { ok: "Restart", danger: true }, hostInGame).then((yes) => yes && client.send({ type: "restart-game" })),
       // The escape hatch for a game that's gone stale: everyone back to the lobby.
-      "end-game": () => confirm("End this game for everyone? Everyone goes back to the lobby.") && client.send({ type: "return-to-lobby" }),
+      "end-game": () =>
+        void this.ask("End this game for everyone? Everyone goes back to the lobby.", { ok: "End game", danger: true }, hostInGame)
+          .then((yes) => yes && client.send({ type: "return-to-lobby" })),
       home: () => {},
       "no-voice": () => {},
     };
@@ -598,9 +651,22 @@ export class RoomView implements View {
   private render() {
     const u = this.last;
     const me = this.client?.playerId;
+    if (this.asking && !this.asking.valid()) cancelConfirm();
+    else if (this.asking?.retext) {
+      const text = this.asking.retext();
+      if (text) updateConfirm(text);
+    }
     if (!u || !me || this.stuck) return;
     const room = u.room;
+    if (room.phase === "playing") {
+      // A restart: the same game screen, a new round. Before the turn pill's check.
+      if (this.screen === "playing" && this.shownRound !== null && this.shownRound !== room.roundNumber) {
+        scrollTo({ top: 0, behavior: "instant" });
+      }
+      this.shownRound = room.roundNumber;
+    }
     this.renderTurn();
+    this.renderPause();
 
     const ownChat = room.phase === "playing" && !!games[room.gameId]?.manifest.ownChat;
     this.chat?.lock(ownChat ? "Chat is off for this game" : null);
@@ -621,6 +687,12 @@ export class RoomView implements View {
       this.show("lobby", () => {
         this.dropGameView();
         replaceChildren(this.body, lobby);
+        // Here, not when built: a tap on the old fold during the transition still counts.
+        const fold = lobby.querySelector<HTMLDetailsElement>(".settings-fold");
+        if (fold) fold.open = this.settingsOpen ?? false;
+        // Toasts on phones rise above the Start bar (style.css).
+        const bar = lobby.querySelector<HTMLElement>(".lobby-actions");
+        if (bar) this.root.style.setProperty("--lobby-bar", `${bar.offsetHeight}px`);
         this.setPhase("lobby");
       });
       return;
@@ -658,6 +730,8 @@ export class RoomView implements View {
       const view = await this.ensureGameView(room.gameId);
       if (view && this.last === u) {
         view.update(props);
+        // A view that mounted during a pause goes under the cover now, not at the next render.
+        lockGame(this.gameHost, this.pauseCover?.el ?? null);
         this.gameViewFed = true;
         const backlog = this.streamBacklog;
         this.streamBacklog = [];
@@ -732,6 +806,55 @@ export class RoomView implements View {
     this.turn.set(mine ? (waiting.length === 1 ? "Your turn" : "Your move") : null);
   }
 
+  /** The pause cover, while one shows, and whether it has the host's Resume. */
+  private pauseCover: { el: HTMLElement; host: boolean } | null = null;
+  /** Says the pause out loud: always mounted, filled on pause, emptied on resume. */
+  private pauseNote = h("span", { class: "sr-only", role: "status" });
+
+  /**
+   * While the host has paused the game, a cover over the game: the board dims
+   * so its timer plainly stands still, and a card says why. The host's card has
+   * Resume (the same as the menu's). Built only when that changes, so the
+   * once-a-second redraw never steals focus from the button.
+   */
+  private renderPause() {
+    const room = this.last?.room;
+    const me = this.client?.playerId;
+    if (!room || !me || room.phase !== "playing" || !room.paused) {
+      if (this.pauseCover) {
+        this.pauseCover.el.remove();
+        this.pauseCover = null;
+        lockGame(this.gameHost, null);
+        this.pauseNote.textContent = "";
+      }
+      return;
+    }
+    // render() never runs while stuck, so this is the menu's rule too.
+    const host = room.hostId === me;
+    if (this.pauseCover?.host !== host) {
+      this.pauseCover?.el.remove();
+      const title = host ? "You paused the game" : "Paused by the host";
+      const line = host ? "The timer is stopped. Nobody can play." : "The timer is stopped. Wait for the host to start it again.";
+      const el = h(
+        "div",
+        { class: "pause-cover" },
+        h(
+          "div",
+          { class: "pause-card" },
+          h("h2", {}, title),
+          h("p", { class: "muted" }, line),
+          host ? h("button", { type: "button", class: "primary", onclick: () => this.client?.send({ type: "pause-game", paused: false }) }, "Resume") : null,
+        ),
+      );
+      this.pauseCover = { el, host };
+      // The live region was mounted empty, so this text is announced.
+      this.pauseNote.textContent = `${title}. ${line}`;
+    }
+    if (this.pauseCover.el.parentNode !== this.gameHost) this.gameHost.append(this.pauseCover.el);
+    // Keyboard and screen readers can't reach the game under the cover either.
+    lockGame(this.gameHost, this.pauseCover.el);
+  }
+
   /**
    * Room-level turn controls (§12). They live in the shell, not the game, since
    * any turn-based game gets them for free.
@@ -756,7 +879,6 @@ export class RoomView implements View {
           : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
-    if (room.paused) items.push(h("p", { class: "muted paused-note", role: "status" }, "The game is paused."));
     if (!room.paused && target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
       items.push(
         h("button", {
@@ -780,9 +902,12 @@ export class RoomView implements View {
             type: "button",
             class: "danger",
             onclick: () => {
-              if (confirm(`Remove ${s.name}? They will be out for the rest of this round.`)) {
-                client.send({ type: "remove-player", playerId: s.id });
-              }
+              const still = () => {
+                const now = this.last?.room;
+                return now?.phase === "playing" && now.hostId === me && now.seats.some((x) => x.id === s.id && x.presence === "disconnected");
+              };
+              void this.ask(`Remove ${s.name}? They will be out for the rest of this round.`, { ok: "Remove", danger: true }, still)
+                .then((yes) => yes && client.send({ type: "remove-player", playerId: s.id }));
             },
           }, `Remove ${s.name}`),
         );
@@ -837,6 +962,17 @@ export class RoomView implements View {
     // the lobby as one piece. Names must be page-unique.
     const vt = (name: string) => `--vt: ${name}`;
 
+    const action = lobbyAction({
+      isHost,
+      ready: !!mySeat?.ready,
+      connected,
+      min,
+      canStart: room.canStart,
+      setupProblem: room.setupProblem ?? null,
+      botBlocked,
+      hostName: seatName(room, room.hostId),
+    });
+
     return h(
       "section",
       { class: "lobby" },
@@ -848,6 +984,30 @@ export class RoomView implements View {
         h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
         share,
         room.locked ? h("p", { class: "muted", role: "status" }, "The room is locked. New players can't join.") : null,
+      ),
+      h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
+      h(
+        "ul",
+        { class: "seats" },
+        seats.map((s) =>
+          h(
+            "li",
+            { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
+            avatar(s.name, s.avatarSeed),
+            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
+            s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
+            botTag(s),
+            // The host starts the game, so their own ready flag means nothing here.
+            s.bot || (s.id === room.hostId && s.presence === "connected")
+              ? null
+              : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
+            this.seatControl(room, me, s),
+          ),
+        ),
+        // Empty seats up to the minimum make "how many more?" obvious at a glance.
+        Array.from({ length: Math.max(0, min - seats.length) }, (_, i) =>
+          h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
+        ),
       ),
       h(
         "div",
@@ -867,28 +1027,7 @@ export class RoomView implements View {
       // The deal skips seats that aren't connected, and so does the server's
       // setupProblem: hints built for the same count agree with its line.
       this.gameSettings(room, isHost, connected, vt("lobby-settings")),
-      setupProblem(room, vt("lobby-setup-problem")),
-      h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
-      h(
-        "ul",
-        { class: "seats" },
-        seats.map((s) =>
-          h(
-            "li",
-            { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
-            avatar(s.name, s.avatarSeed),
-            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
-            s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            botTag(s),
-            s.bot ? null : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
-            this.seatControl(room, me, s),
-          ),
-        ),
-        // Empty seats up to the minimum make "how many more?" obvious at a glance.
-        Array.from({ length: Math.max(0, min - seats.length) }, (_, i) =>
-          h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
-        ),
-      ),
+      isHost ? null : setupProblem(room, vt("lobby-setup-problem")),
       isHost
         ? h("button", {
             type: "button",
@@ -905,26 +1044,20 @@ export class RoomView implements View {
             h("p", { class: "muted" }, "Computers play by the same rules. They only see their own cards."),
           )
         : null,
+      // On phones this sticks to the bottom of the screen (style.css).
       h(
         "div",
-        { class: "actions", style: vt("lobby-actions") },
-        h(
-          "button",
-          { type: "button", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
-          mySeat?.ready ? "Not ready" : "I'm ready",
-        ),
-        isHost
-          ? h(
+        { class: "actions lobby-actions", style: vt("lobby-actions") },
+        action.kind === "start"
+          ? h("button", { type: "button", class: "primary", disabled: action.disabled, onclick: () => this.client?.send({ type: "start-game" }) }, action.label)
+          : h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem || botBlocked, onclick: () => this.client?.send({ type: "start-game" }) },
-              // canStart is vague on purpose (the owner gate), so the label is too, but
-              // it mustn't claim players are missing when they aren't.
-              connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Can't start yet",
-            )
-          : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
-        isHost && botBlocked ? h("p", { class: "muted warn bot-blocked" }, "Remove computers to play this") : null,
+              { type: "button", class: action.primary ? "primary" : "", "aria-pressed": String(action.pressed), onclick: () => this.client?.send({ type: "ready", ready: !action.pressed }) },
+              action.label,
+            ),
+        action.note ? h("p", { class: action.kind === "start" ? "start-blocked" : "muted waiting" }, action.note) : null,
       ),
-      h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
+      h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => void this.leave() }, "Leave room"),
       isHost ? this.endPartyControl(vt("lobby-end-party")) : null,
     );
   }
@@ -992,7 +1125,14 @@ export class RoomView implements View {
                 class: a.danger ? "danger" : "",
                 onclick: () => {
                   dlg.close();
-                  if (!a.confirm || confirm(a.confirm)) send(a.kind);
+                  if (!a.confirm) return send(a.kind);
+                  // Still on offer: the player hasn't left, I'm still host.
+                  const still = () => {
+                    const now = this.last?.room;
+                    const seat = now?.seats.find((x) => x.id === s.id);
+                    return !!now && !!seat && seatActions(now, me, seat).some((x) => x.kind === a.kind);
+                  };
+                  void this.ask(a.confirm, { ok: a.label, danger: a.danger }, still).then((yes) => yes && send(a.kind));
                 },
               }, a.label),
             ),
@@ -1030,7 +1170,7 @@ export class RoomView implements View {
       const { name, description, minPlayers, maxPlayers, bestMinPlayers, bestMaxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
       // Only the host's rows pick, so only theirs are buttons.
-      const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option readonly" });
+      const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option" });
       const meta = h("span", { class: "game-option-meta" });
       const want = h("span", { class: "game-option-want" });
       const nameLine = h("span", { class: "game-option-name" });
@@ -1038,7 +1178,8 @@ export class RoomView implements View {
       const rulesBtn = h("button", {
         type: "button",
         class: "link small",
-        onclick: () => openDialog(`How to play ${name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
+        "aria-label": `Rules for ${name}`,
+        onclick: () => openDialog(`How to play ${name}`, h("p", { class: "muted" }, description), h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
       }, "Rules");
 
       let shownWants = Infinity; // no bounce on the first fill
@@ -1073,7 +1214,7 @@ export class RoomView implements View {
         shownWants = n;
         if (suggest) {
           const mine = room.seats.find((s) => s.id === me)?.suggestion === id;
-          replaceChildren(suggest, mine ? [icon("check"), "Suggested"] : locked ? "Ask host to unlock" : "Suggest");
+          replaceChildren(suggest, [mine ? icon("check") : null, mine ? "Suggested" : locked ? "Ask host to unlock" : "Suggest", h("span", { class: "sr-only" }, ` ${name}`)]);
           suggest.setAttribute("aria-pressed", String(mine));
           suggest.hidden = current;
           suggest.onclick = () => this.client?.send({ type: "suggest-game", gameId: mine ? null : id });
@@ -1095,10 +1236,9 @@ export class RoomView implements View {
         };
       }
       option.append(
-        brandMark("mark game-icon"),
-        h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted" }, description), meta, want),
+        h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted game-option-desc" }, description), meta, want),
       );
-      const row = h("li", {}, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
+      const row = h("li", { class: "game-row" }, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
       return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
 
@@ -1158,37 +1298,66 @@ export class RoomView implements View {
     (dlg.querySelector<HTMLButtonElement>('button.game-option[aria-current="true"]') ?? dlg.querySelector<HTMLButtonElement>(".game-option-actions button"))?.focus();
   }
 
-  /** The game's own settings, rendered from its field descriptions (host edits, others read). */
+  /**
+   * The game's own settings, from its field descriptions, in a fold headed by
+   * a one-line summary. The host edits them; everyone else reads them.
+   * Warnings stay in sight while the fold is shut. The fold's open state is
+   * applied after the lobby is on screen (see render).
+   */
   private gameSettings(room: RoomPublicState, isHost: boolean, players: number, style?: string) {
     const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
     if (!fields.length) return null;
+    this.settingsOpen ??= matchMedia("(min-width: 600px)").matches;
+    // The setup problem has its own line (the Start bar, or under the settings): say it once.
+    const warnings = settingsWarnings(fields.filter((f) => f.hint !== room.setupProblem));
+    const fold = h(
+      "details",
+      { class: "settings-fold" },
+      h(
+        "summary",
+        {},
+        h("span", { class: "settings-fold-title" }, "Settings"),
+        h("span", { class: "settings-summary" }, settingsSummary(fields)),
+      ),
+      h(
+        "div",
+        { class: "game-settings" },
+        fields.map((f) => {
+          const id = `setting-${f.key}`;
+          const value = isHost
+            ? (() => {
+                const select = h(
+                  "select",
+                  { id },
+                  f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
+                );
+                select.addEventListener("change", () => {
+                  const patch = f.options[Number(select.value)]?.patch;
+                  if (patch) this.client?.send({ type: "update-settings", settings: patch });
+                });
+                return select;
+              })()
+            : h("span", { class: "setting-value" }, f.options[f.selected]?.label ?? "");
+          return h(
+            "div",
+            { class: "setting" },
+            // A label points at a control; a guest's row has none to point at.
+            isHost ? h("label", { for: id }, f.label) : h("span", { class: "setting-name" }, f.label),
+            value,
+            f.hint ? h("span", { class: `muted setting-hint${f.warn ? " warn" : ""}` }, f.hint) : null,
+          );
+        }),
+      ),
+    ) as HTMLDetailsElement;
+    fold.addEventListener("toggle", () => {
+      // A fold that was swapped out by a redraw has nothing to say.
+      if (fold.isConnected) this.settingsOpen = fold.open;
+    });
     return h(
       "div",
-      { class: "game-settings", style },
-      fields.map((f) => {
-        const id = `setting-${f.key}`;
-        const value = isHost
-          ? (() => {
-              const select = h(
-                "select",
-                { id },
-                f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
-              );
-              select.addEventListener("change", () => {
-                const patch = f.options[Number(select.value)]?.patch;
-                if (patch) this.client?.send({ type: "update-settings", settings: patch });
-              });
-              return select;
-            })()
-          : h("span", { id, class: "setting-value" }, f.options[f.selected]?.label ?? "");
-        return h(
-          "div",
-          { class: "setting" },
-          h("label", { for: id }, f.label),
-          value,
-          f.hint ? h("span", { class: "muted setting-hint" }, f.hint) : null,
-        );
-      }),
+      { class: "lobby-settings", style },
+      fold,
+      warnings.length ? h("ul", { class: "settings-warnings" }, warnings.map((w) => h("li", {}, w))) : null,
     );
   }
 
@@ -1245,44 +1414,27 @@ export class RoomView implements View {
               { type: "button", class: mySeat?.ready ? "" : "primary", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
               mySeat?.ready ? "Waiting for the host…" : "Play again",
             ),
-        h("button", { type: "button", class: "link", onclick: () => this.leave() }, "Leave room"),
+        h("button", { type: "button", class: "link", onclick: () => void this.leave() }, "Leave room"),
         isHost ? this.endPartyControl() : null,
       ),
     );
   }
 
-  /**
-   * The host's way to close the night. Asks once, inline: a browser dialog
-   * would stop every other tab's updates while it's up.
-   */
+  /** The host's way to close the night. Asks first, in a dialog, so the question shows on any screen size. */
   private endPartyControl(style?: string): HTMLElement {
-    const box = h("div", { class: "end-party", style });
-    // Lobby updates redraw the whole screen; a question half-answered survives them.
     const ask = () => {
-      this.endPartyAsking = true;
-      box.replaceChildren(
-        h("p", {}, "End the party for everyone? You will see the recap."),
-        h(
-          "div",
-          { class: "end-party-buttons" },
-          h("button", { type: "button", class: "danger", onclick: () => this.client?.send({ type: "end-party" }) }, "End party"),
-          h("button", { type: "button", onclick: idle }, "Cancel"),
-        ),
-      );
+      const me = this.client?.playerId;
+      const still = () => this.last?.room.hostId === me && this.last?.room.phase !== "ended";
+      void this.ask("End the party for everyone? You will see the recap.", { ok: "End party", danger: true }, still)
+        .then((yes) => yes && this.client?.send({ type: "end-party" }));
     };
-    const idle = () => {
-      this.endPartyAsking = false;
-      box.replaceChildren(h("button", { type: "button", class: "link", onclick: ask }, "End party"));
-    };
-    if (this.endPartyAsking) ask();
-    else idle();
-    return box;
+    return h("div", { class: "end-party", style }, h("button", { type: "button", class: "link", onclick: ask }, "End party"));
   }
-
-  private endPartyAsking = false;
 
   /** What `showEnded` last drew, so a seat joining doesn't replay the cards. */
   private endedShown: string | null = null;
+  /** The host's settings fold. Null until first shown: then open on wide screens, shut on phones. Kept across redraws. */
+  private settingsOpen: boolean | null = null;
 
   private showEnded(room: RoomPublicState, me: string) {
     const isHost = room.hostId === me;
@@ -1365,7 +1517,7 @@ export class RoomView implements View {
       if (haptics.checked) audio.buzz(30);
     });
     openDialog(
-      "Settings",
+      { title: "Sound and vibration", close: "Done" },
       h(
         "div",
         { class: "settings" },

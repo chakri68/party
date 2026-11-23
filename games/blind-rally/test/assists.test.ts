@@ -54,6 +54,12 @@ describe("assists", () => {
     }
   });
 
+  it("warns in the lobby when the Navigator has no 3D camera", () => {
+    const camera = (on: boolean) => blindRallySettingFields({ assists: "custom", camera3d: on }, 4).find((f) => f.key === "camera3d")!;
+    expect(camera(false).warn).toBe(true);
+    expect(camera(true).warn).toBeUndefined();
+  });
+
   it("the rules preview spells the assists out", () => {
     const line = (raw: unknown) => rulesPreview(raw).find((r) => r.label === "Assists")!.value;
     expect(line({})).toBe("Classic: no live car marker, trip meter, pace notes, 3D camera");

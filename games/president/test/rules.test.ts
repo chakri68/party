@@ -82,9 +82,9 @@ describe("playableRanks", () => {
 
 describe("standing", () => {
   it("titles: vices from four players", () => {
-    expect([1, 2, 3].map((p) => titleFor(p, 3))).toEqual(["President", "Citizen", "Asshole"]);
-    expect([1, 2, 3, 4].map((p) => titleFor(p, 4))).toEqual(["President", "Vice-President", "Vice-Asshole", "Asshole"]);
-    expect([1, 2, 3, 4, 5].map((p) => titleFor(p, 5))).toEqual(["President", "Vice-President", "Citizen", "Vice-Asshole", "Asshole"]);
+    expect([1, 2, 3].map((p) => titleFor(p, 3))).toEqual(["President", "Citizen", "Beggar"]);
+    expect([1, 2, 3, 4].map((p) => titleFor(p, 4))).toEqual(["President", "Vice-President", "Vice-Beggar", "Beggar"]);
+    expect([1, 2, 3, 4, 5].map((p) => titleFor(p, 5))).toEqual(["President", "Vice-President", "Citizen", "Vice-Beggar", "Beggar"]);
   });
 
   it("a point per player beaten", () => {

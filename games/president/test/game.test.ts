@@ -181,7 +181,7 @@ describe("tricks", () => {
 });
 
 describe("rounds and the exchange", () => {
-  /** p1 plays out, leaving p0 and p2; p2 plays out: p0 is the Asshole. */
+  /** p1 plays out, leaving p0 and p2; p2 plays out: p0 is the Beggar. */
   function endOfRound1() {
     const s = stateWith([["hearts-5", "clubs-5"], ["hearts-2"], ["hearts-A"]], { turn: 1, settings: { rounds: 2 } });
     const t1 = ok(act(s, "p1", play("hearts-2")));
@@ -192,27 +192,27 @@ describe("rounds and the exchange", () => {
     const t = endOfRound1();
     const types = eventTypes(t);
     expect(types.slice(0, 4)).toEqual(["played", "went-out", "went-out", "round-over"]);
-    expect(t.events[2]!.event).toMatchObject({ playerId: "p0", place: 3, title: "Asshole" });
+    expect(t.events[2]!.event).toMatchObject({ playerId: "p0", place: 3, title: "Beggar" });
     expect(t.events[3]!.event).toEqual({ type: "round-over", round: 1, order: ["p1", "p2", "p0"], points: { p1: 2, p2: 1, p0: 0 } });
     expect(types.slice(4)).toEqual(["dealt", "swapped", "swap-cards", "swap-cards"]);
     expect(t.state).toMatchObject({ phase: "exchange", round: 2, history: [["p1", "p2", "p0"]] });
-    // The Asshole deals and will lead.
+    // The Beggar deals and will lead.
     expect(t.events[4]!.event).toMatchObject({ dealerId: "p0" });
     expect(t.state.turnIndex).toBe(0);
     expect(cardsInPlay(t.state)).toHaveLength(52);
     expect(pr.getPublicState(t.state).players.map((p) => [p.id, p.points, p.title])).toEqual([
-      ["p0", 0, "Asshole"],
+      ["p0", 0, "Beggar"],
       ["p1", 2, "President"],
       ["p2", 1, "Citizen"],
     ]);
   });
 
-  it("the Asshole's best two go to the President, who gives back any two", () => {
+  it("the Beggar's best two go to the President, who gives back any two", () => {
     const t = endOfRound1();
     const tribute = t.state.exchange[0]!;
     expect(tribute).toMatchObject({ kind: "tribute", fromId: "p0", toId: "p1", count: 2 });
-    const asshole = t.state.players[0]!;
-    expect(ids(bestCards([...asshole.hand, ...tribute.cards!], 2))).toEqual(ids(tribute.cards!));
+    const beggar = t.state.players[0]!;
+    expect(ids(bestCards([...beggar.hand, ...tribute.cards!], 2))).toEqual(ids(tribute.cards!));
     // The cards themselves are private to the two of them.
     const priv = t.events.filter((e) => e.event.type === "swap-cards").map((e) => e.visibility);
     expect(priv).toEqual([{ kind: "private", playerId: "p0" }, { kind: "private", playerId: "p1" }]);
@@ -223,10 +223,10 @@ describe("rounds and the exchange", () => {
     expect(pr.getPrivateState(t.state, "p0")).toMatchObject({ mustGive: 0, gave: tribute.cards });
 
     const pres = t.state.players[1]!.hand;
-    expect(err(act(t.state, "p0", play(asshole.hand[0]!.id)))).toBe("exchanging");
-    expect(err(act(t.state, "p0", { type: "give", cardIds: [asshole.hand[0]!.id] }))).toBe("nothing-to-give");
+    expect(err(act(t.state, "p0", play(beggar.hand[0]!.id)))).toBe("exchanging");
+    expect(err(act(t.state, "p0", { type: "give", cardIds: [beggar.hand[0]!.id] }))).toBe("nothing-to-give");
     expect(err(act(t.state, "p1", { type: "give", cardIds: [pres[0]!.id] }))).toBe("wrong-count");
-    expect(err(act(t.state, "p1", { type: "give", cardIds: [pres[0]!.id, asshole.hand[0]!.id] }))).toBe("card-not-owned");
+    expect(err(act(t.state, "p1", { type: "give", cardIds: [pres[0]!.id, beggar.hand[0]!.id] }))).toBe("card-not-owned");
 
     // Giving one of the tribute cards straight back is allowed.
     const back = [pres[0]!.id, tribute.cards![1]!.id];
@@ -277,7 +277,7 @@ describe("rounds and the exchange", () => {
     expect(r.winnerIds).toEqual(["p1"]);
     expect(r.standings.map((x) => [x.playerId, x.label])).toEqual([
       ["p1", "3 pts · President"],
-      ["p0", "2 pts · Asshole"],
+      ["p0", "2 pts · Beggar"],
       ["p2", "1 pt · Citizen"],
     ]);
 
@@ -349,7 +349,7 @@ describe("host and leavers", () => {
     state = ok(act(state, "p2", play("hearts-A"))).state;
     state = ok(act(state, "p3", play("hearts-K"))).state;
     expect(state.phase).toBe("exchange");
-    // The President leaves: the Asshole's tribute is gone with them, and play starts once the vices are done.
+    // The President leaves: the Beggar's tribute is gone with them, and play starts once the vices are done.
     const t = pr.onPlayerRemoved!(state, "p1", ctx());
     expect(pr.getAwaitedPlayerIds(t.state)).toEqual(["p2"]);
     const g = ok(act(t.state, "p2", { type: "give", cardIds: [t.state.players[2]!.hand[0]!.id] }));

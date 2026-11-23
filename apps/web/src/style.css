@@ -143,6 +143,9 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* The lobby's edge-to-edge Start bar is 100vw, which counts a desktop
+     scrollbar: clip, not hidden, so nothing becomes a scroll box. */
+  overflow-x: clip;
 }
 .room-header {
   /* The sound board panel hangs from the header, so it fits a 360px phone. */
@@ -306,12 +309,13 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
   border-radius: 14px;
   background: var(--surface);
 }
-.setting label { grid-column: 1; font-weight: 600; }
+.setting label, .setting .setting-name { grid-column: 1; font-weight: 600; }
 /* The control sits centred against label + hint together. */
 .setting select, .setting .setting-value { grid-column: 2; grid-row: 1 / span 2; }
 .setting select { width: 100%; }
 .setting .setting-value { justify-self: end; text-align: right; }
 .setting-hint { grid-column: 1; font-size: 0.8rem; }
+.setting-hint.warn { color: var(--danger); }
 .setting-problem { margin: 0; color: var(--danger); font-weight: 600; } /* 7.7:1 on --bg */
 select {
   min-height: 40px;
@@ -350,12 +354,77 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .game-option-actions .icon, .invite button.primary .icon { width: 16px; height: 16px; }
 .add-bot { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .add-bot p { margin: 0; font-size: 0.85rem; }
-.bot-blocked { color: var(--danger); flex: 0 0 100%; margin: 0; text-align: center; }
+/* Why Start is off: computers at a game without them, or the game's setup problem. */
+.start-blocked { color: var(--danger); flex: 0 0 100%; margin: 0; text-align: center; font-weight: 600; }
 .game-list > button.small { margin-bottom: 10px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .actions > button { flex: 1; }
 .actions > button.link { flex: 0 0 100%; }
 .actions .waiting { flex: 1; text-align: center; }
+/* Settings: a fold headed by the chosen values in one line, for everyone. */
+.lobby-settings { display: grid; gap: 8px; }
+.settings-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+}
+.settings-fold > summary::-webkit-details-marker { display: none; }
+.settings-fold-title { font-weight: 600; flex: 0 0 auto; }
+.settings-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+/* Open, the rows say it all. */
+.settings-fold[open] .settings-summary { display: none; }
+.settings-fold > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+}
+.settings-fold[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+.settings-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-fold > .game-settings { margin-top: 8px; }
+/* Warnings stay in sight while the fold is shut; open, each sits on its row. */
+.settings-warnings { list-style: none; margin: 0; padding: 0 4px; display: grid; gap: 4px; font-size: 0.85rem; color: var(--danger); }
+.settings-fold[open] + .settings-warnings { display: none; }
+/* Phones: Start or I'm ready stays at the bottom of the screen while the
+   lobby scrolls. It sits in the page's flow, so at the end of the page it
+   rests above Leave room and End party instead of covering them. */
+@media (max-width: 599px) {
+  .lobby { padding-bottom: 12px; }
+  .lobby-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    /* Edge to edge even where the lobby is narrower than the screen (480-599 px). */
+    margin-inline: calc(50% - 50vw);
+    padding: 10px max(16px, calc(50vw - 50%)) calc(10px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1.5px solid var(--line);
+  }
+  .lobby-actions > button { min-height: 48px; }
+  /* Toasts rise above the bar (its height is set by RoomView). */
+  .room:has(.lobby-actions) .toast { bottom: calc(var(--lobby-bar, 70px) + 12px); }
+}
 
 /* Results */
 .results {
@@ -387,6 +456,10 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .standings .place { width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .standings .name { flex: 1; font-weight: 600; }
 .results .actions { width: 100%; max-width: 360px; }
+/* Stacked, full width: "Play again (2 ready)" and "Back to lobby" don't fit
+   one row on a 360 phone, and the ready count would flip the layout as it
+   changes. */
+.results .actions > button:not(.link) { flex: 0 0 100%; }
 
 /* Dialog */
 .dialog {
@@ -416,20 +489,21 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   text-transform: uppercase;
   color: var(--muted);
 }
+.game-row { display: flex; align-items: stretch; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); min-height: 56px; }
+.game-row:has(> [aria-current="true"]) { border-color: var(--accent); background: var(--accent-soft); }
 .game-option {
-  width: 100%;
-  min-height: 0;
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
+  align-items: center;
+  padding: 8px 4px 8px 12px;
   text-align: left;
   font-weight: 400;
-  background: var(--bg);
-}
-.game-option .game-icon { width: 36px; height: 36px; transition: transform 260ms cubic-bezier(.2, .9, .3, 1.4); }
-@media (hover: hover) and (pointer: fine) {
-  button.game-option:hover:not(:disabled) .game-icon { transform: rotate(-8deg) scale(1.08); }
+  background: none;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: none;
 }
 /* The list comes in a row at a time behind the dialog's pop (capped, so a
    long list doesn't keep you waiting). Fresh dialog each open, so it plays
@@ -439,7 +513,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .game-list[open] .game-options > li { animation: row-in 340ms cubic-bezier(.2, .8, .2, 1) calc(90ms + min(var(--i, 0), 12) * 28ms) backwards; }
 }
 @keyframes row-in { from { opacity: 0; transform: translateY(8px); } }
-.game-option[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.game-option:focus-visible { outline-offset: -3px; }
 .game-option.locked { opacity: 0.6; }
 .game-option.locked .tag { background: var(--line); color: var(--muted); }
 .game-option:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -448,34 +522,40 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The room has the player count this game plays best at. Solid, so it reads before the softer tags. */
 .game-option .tag.best { display: inline-flex; align-items: center; gap: 3px; background: var(--accent); color: var(--accent-ink); }
 .game-option .tag.best .icon { width: 11px; height: 11px; }
-.game-option-text .muted { font-size: 0.88rem; }
+.game-option-text .muted { font-size: 0.85rem; }
+.game-option-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  .game-row:has(> button.game-option:hover:not(:disabled, [aria-current])) { border-color: #4a483f; }
+}
 .game-option-meta { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .game-option-meta.warn { color: var(--danger); }
 .game-option-want { justify-self: start; font-size: 0.78rem; font-weight: 700; color: var(--accent); }
-.game-option.readonly { border: 1.5px solid var(--line); border-radius: 14px; }
-.game-option.readonly[aria-current="true"] { border-color: var(--accent); }
-.game-option-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 2px 4px 0; }
-.game-option-actions:has(> :only-child) { padding: 0 4px; }
-.game-option-actions button.small { min-height: 36px; padding: 0 14px; font-size: 0.85rem; }
-.game-option-actions button.link.small { min-height: 36px; padding: 0 6px; }
+.game-option-actions { display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 2px; padding: 2px 6px 2px 0; flex: none; max-width: 104px; }
+.game-option-actions button.small { min-height: 44px; padding: 0 10px; font-size: 0.85rem; line-height: 1.15; }
+.game-option-actions button.link.small { min-height: 44px; padding: 0 6px; }
 .game-option-actions button.small[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .suggestion-line { flex-basis: 100%; margin: -4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.9rem; }
 .suggestion-line button.link { min-height: 32px; padding: 0 4px; color: var(--accent); }
 .dialog h2 { margin: 0 0 10px; font-size: 1.25rem; letter-spacing: -0.02em; }
 .dialog form { margin-top: 16px; display: flex; justify-content: flex-end; }
+.dialog:focus { outline: none; }
+/* In-app confirm (confirmDialog): the question, then the two answers side by side. */
+.confirm-dialog { width: min(360px, calc(100vw - 32px)); }
+.confirm-text { margin: 0; font-size: 1.05rem; line-height: 1.4; }
+.confirm-buttons { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+.confirm-buttons button { flex: 1 1 120px; min-height: 44px; }
 .rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
 
 /* Home: host your own (main site, no owner key) */
 .host-own {
   display: grid;
-  gap: 12px;
-  padding: 20px;
-  border: 1.5px solid var(--line);
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
 }
-.host-own h2 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
-.host-own p { margin: 0; color: var(--muted); line-height: 1.45; }
+.host-own h2 { margin: 0; font-size: 1rem; letter-spacing: -0.01em; }
+.host-own p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
 .host-own .fine { font-size: 0.85rem; }
 .host-own a { color: var(--ink); text-underline-offset: 3px; }
 .command {
@@ -524,6 +604,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Toast */
 .toast {
   position: fixed;
+  z-index: 10; /* over the lobby's Start bar (5), under the chat panel (20) */
   left: 50%;
   bottom: calc(16px + env(safe-area-inset-bottom));
   transform: translate(-50%, 20px);
@@ -611,12 +692,33 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .room-header .icon-btn:hover { color: var(--ink); }
 .room-code + .icon-btn { margin-left: 4px; }
 /* Ping meter: sits close to the room code, narrower than the other buttons so phones keep one line. */
-.room-header .signal { min-width: 26px; width: 26px; margin-left: -6px; }
+.room-header .signal { min-width: 26px; width: 26px; }
+.signal-wrap { position: relative; display: inline-flex; margin-left: -6px; }
 .room-header .signal svg { width: 16px; height: 14px; }
 .signal rect { fill: var(--line); transition: fill 0.3s; }
 .signal[data-level="good"] rect { fill: var(--accent); }
 .signal[data-level="ok"] :is(.b1, .b2) { fill: var(--warn); }
 .signal[data-level="slow"] .b1 { fill: var(--danger); }
+/* The tap's word (signal.ts): a tip just under the bars. The bars sit near
+   the left edge, so the tip starts at them and runs right. */
+.signal-tip {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 2px);
+  left: 0;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+.signal-tip.show { opacity: 1; }
 .settings { display: grid; gap: 14px; min-width: min(300px, 80vw); }
 .settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
 .settings input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
@@ -708,7 +810,38 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
 }
 .dialog-link:hover { border-color: #4a483f; }
 .lock-room { justify-self: center; min-height: 44px; }
-.paused-note { font-weight: 600; }
+/* Paused by the host (room.ts renderPause): the game dims under a cover, so
+   its timer plainly stands still, and taps on it (refused while paused anyway)
+   land on nothing. The card stays in view on a long board. */
+.room:has(.pause-cover) .game-host { position: relative; }
+.pause-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 0;
+  border-radius: var(--radius);
+  background: rgb(14 14 12 / 0.84); /* --bg, see-through */
+}
+.pause-card {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: min(320px, 100%);
+  padding: 20px 18px;
+  border: 1.5px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+}
+.pause-card h2 { margin: 0; font-size: 1.3rem; letter-spacing: -0.02em; }
+.pause-card p { margin: 0; }
+.pause-card button { min-width: 160px; min-height: 48px; }
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button, input { transition: none; }
@@ -978,6 +1111,8 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
   animation: pop-in 160ms cubic-bezier(.2, .8, .2, 1) both;
 }
+.emote-bar.closing { animation: emote-bar-out 300ms ease forwards; }
+@keyframes emote-bar-out { to { opacity: 0; } }
 .emote-bar button {
   min-height: 44px;
   min-width: 44px;
@@ -1092,8 +1227,6 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 
 /* End party: the host's last word, asked inline. */
 .end-party { display: grid; justify-items: center; gap: 10px; width: 100%; text-align: center; }
-.end-party p { margin: 0; }
-.end-party-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
 /* The recap */
 .recap {

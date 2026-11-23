@@ -112,12 +112,14 @@ describe("deckSettingFields", () => {
   it("with Custom, the preset row's hint is the problem when there is one", () => {
     const [row] = deckSettingFields(custom({ wolf: 2, seer: 1, villager: 4 }), ROLES, PRESETS, RULES, 6);
     expect(row!.hint).toBe("Need exactly 8 role cards (have 7)");
+    expect(row!.warn).toBe(true);
   });
 
   it("below the rules' minimum table, the hint lists the deck instead of a problem", () => {
     const rules: DeckRules = { ...RULES, minPlayers: 5 };
     const [row] = deckSettingFields(custom({ wolf: 2, seer: 1, villager: 4 }), ROLES, PRESETS, rules, 1);
     expect(row!.hint).toBe("2 Werewolf, 1 Seer, 4 Villager");
+    expect(row!.warn).toBeUndefined();
     const [ok] = deckSettingFields(custom({ wolf: 2, seer: 1, villager: 4 }), ROLES, PRESETS, rules, 6);
     expect(ok!.hint).toBe("Need exactly 8 role cards (have 7)");
   });

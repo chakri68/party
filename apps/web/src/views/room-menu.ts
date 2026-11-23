@@ -1,4 +1,4 @@
-// The room menu: on every room screen (lobby, game, results), the "..."
+// The room menu: on every room screen (lobby, game, results, party over), the "..."
 // button at the top right holds the room's own buttons, so the screen stays
 // clean. The sound board and reactions are header buttons, not menu items.
 // What it lists is `roomMenuItems` (tested); RoomView draws it and acts on
@@ -32,7 +32,8 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
 };
 
 /**
- * The menu's items, in order, on a focus screen. Empty elsewhere (party over).
+ * The menu's items, in order, on a focus screen. Party over: only Sound and
+ * vibration and Home (voice is over). Empty elsewhere.
  * Pause, Restart and End game only in a game: the lobby keeps its host
  * controls on the page.
  * - voice: `voiceMenuItem(...)`: "unsupported" lists a line saying voice does not work here.
@@ -45,6 +46,7 @@ export function roomMenuItems(
   me: string,
   o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean },
 ): RoomMenuItem[] {
+  if (room.phase === "ended") return ["settings", "home"];
   if (!focusPhase(room.phase)) return [];
   const items: RoomMenuItem[] = [];
   if (o.voice === "join") items.push("join-voice");

@@ -1,5 +1,5 @@
 import { audio } from "@games/audio";
-import { h, seatName, type GameClientApi } from "@games/ui";
+import { confirmDialog, h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseDash, parseHit } from "../../shared/wire.ts";
 import { awayBanner, teamBadge, teamClock, type RoleProps, type RoleView } from "../role.ts";
 import { teamColor } from "../../shared/types.ts";
@@ -78,7 +78,7 @@ class DriverView implements RoleView {
     this.reset.addEventListener("click", (e) => e.detail === 0 && this.onReset());
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
-    this.end.addEventListener("click", () => confirm("End the race now? Cars still driving get a DNF.") && api.act({ type: "race.end" }));
+    this.end.addEventListener("click", () => void confirmDialog("End the race now? Cars still driving get a DNF.", { ok: "End race", danger: true }).then((yes) => yes && api.act({ type: "race.end" })));
     const fs = fullscreenButton();
     if (fs) this.top.append(fs);
     if (!coarse()) this.msg.textContent = "Use WASD or the arrow keys.";

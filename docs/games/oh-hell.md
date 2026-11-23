@@ -34,7 +34,7 @@ Host picks these in the lobby.
 | Setting | Options | What it changes |
 | --- | --- | --- |
 | Schedule | **Up and down**, Down only, Up only | Hand sizes 1 → biggest → 1, biggest → 1, or 1 → biggest. |
-| Biggest hand | **7**, 10, Most the deck allows | Capped so there's always a card left to turn up: 17 with 3 players, 7 with 7. The hint shows how many rounds that makes, e.g. "13 rounds". |
+| Biggest hand | **7**, 10, Most the deck allows | Capped so there's always a card left to turn up: 17 with 3 players, 7 with 7. The hint shows how many rounds that makes, e.g. "13 rounds". When the cap cuts your choice, it warns, e.g. "Only 7 cards fit 7 players. 13 rounds", and everyone sees the warning in the lobby. |
 | Dealer's restriction | **On**, Off | On: the bids can't add up to the cards in hand, so someone misses. Off: they can. |
 | Missing a bid | **Scores 0**, Costs the difference | Costs the difference: bid 2, take 4, lose 2 points. |
 

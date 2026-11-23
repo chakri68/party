@@ -431,12 +431,8 @@ export class PresidentView implements GameView {
           h(
             "div",
             { class: "pr-opp-text", "aria-hidden": "true" },
-            h(
-              "span",
-              { class: "name" },
-              name,
-              tag ? h("span", { class: `pr-title${p.title === "President" || p.title === "Vice-President" ? " up" : " down"}`, title: p.title! }, tag) : null,
-            ),
+            h("span", { class: "name" }, name),
+            tag ? h("span", { class: `pr-title${p.title === "President" || p.title === "Vice-President" ? " up" : " down"}` }, tag) : null,
             h(
               "span",
               { class: "count" },
@@ -573,7 +569,7 @@ export class PresidentView implements GameView {
         ? h("span", { class: "you" }, `You finished · ${titleFor(mine.place, n)}`)
         : h("span", { class: "you" }, "Your hand"),
       mine?.title && TITLE_TAG[mine.title]
-        ? h("span", { class: `pr-title${mine.title.includes("President") ? " up" : " down"}`, title: mine.title }, TITLE_TAG[mine.title])
+        ? h("span", { class: `pr-title${mine.title.includes("President") ? " up" : " down"}` }, `Last round: ${TITLE_TAG[mine.title]}`)
         : null,
       mine ? h("span", { class: "count" }, mine.place ? pts : `${mine.cardCount} ${mine.cardCount === 1 ? "card" : "cards"} · ${pts}`) : null,
     );

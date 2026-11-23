@@ -88,6 +88,16 @@ function hostYourOwn(): HTMLElement {
   );
 }
 
+export type HomePart = "hero" | "identity" | "create" | "join" | "error" | "recent" | "host";
+
+/**
+ * What the home page shows, top to bottom. Guests came to join, so the join form comes
+ * first and the host card waits below it. The owner gets Create room first.
+ */
+export function homeParts(isOwner: boolean, pitch: boolean): HomePart[] {
+  return ["hero", "identity", ...(isOwner ? (["create"] as const) : []), "join", "error", "recent", ...(pitch ? (["host"] as const) : [])];
+}
+
 /** Logo over a lowercase wordmark with a lime full stop. */
 function hero(tagline: string) {
   return h(
@@ -182,15 +192,13 @@ export class HomeView implements View {
     create.addEventListener("click", () => void this.createRoom(create));
 
     const recent = recentRooms();
-    replaceChildren(
-      this.root,
-      hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
-      pitch ? [hostYourOwn(), h("div", { class: "or" }, "got a room code?")] : null,
-      this.identity,
-      isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
-      joinForm,
-      this.error,
-      recent.length
+    const parts: Record<HomePart, Node | Node[] | null> = {
+      hero: hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
+      identity: this.identity,
+      create: [create, h("div", { class: "or" }, "or join one")],
+      join: joinForm,
+      error: this.error,
+      recent: recent.length
         ? h(
             "div",
             { class: "recent" },
@@ -200,7 +208,9 @@ export class HomeView implements View {
             ),
           )
         : null,
-    );
+      host: [h("div", { class: "or" }, "want your own room?"), hostYourOwn()],
+    };
+    replaceChildren(this.root, ...homeParts(isOwner, pitch).map((k) => parts[k]));
   }
 
   update() {}

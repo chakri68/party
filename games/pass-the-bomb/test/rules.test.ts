@@ -204,6 +204,8 @@ describe("settings fields", () => {
   it("warns when a combination is thin", () => {
     const fields = passTheBombSettingFields({ ...DEFAULT_SETTINGS, ending: true, length: true, category: true });
     expect(fields.find((f) => f.key === "category")!.hint).toMatch(/Only about/);
+    expect(fields.find((f) => f.key === "category")!.warn).toBe(true);
+    expect(passTheBombSettingFields(DEFAULT_SETTINGS).some((f) => f.warn)).toBe(false);
     expect(fields.find((f) => f.key === "reverse")!.hint).toMatch(/ING/);
   });
 });
