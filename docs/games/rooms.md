@@ -54,12 +54,12 @@ You can't get in if:
 Top to bottom:
 
 - **Room code** in large type, the invite address, and **Copy link** / **Share invite**.
+- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". The host has no ready sign. Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
 - The current game with its description. **Rules** opens "How to play" for that game. The host also gets **Change**.
-- The game's settings, if it has any.
-- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
+- The game's settings, if it has any. Other players see them in one line, like "Rounds: 3 · Empty stock: Pass". The host taps **Settings** to open them and change them. On a phone they start closed; on a bigger screen they start open.
 - For the host, **Lock room** (or **Unlock room**). While it is locked, everyone sees "The room is locked. New players can't join."
-- **I'm ready** and, for the host, the start button.
-- **Leave room**.
+- The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll.
+- **Leave room**, and for the host, **End party**.
 
 In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.
 
@@ -93,7 +93,7 @@ Computers pause when nobody is connected, and play again when someone comes back
 
 ### Ready and Start
 
-**I'm ready** toggles to **Not ready**. It's a signal to the host, nothing more. The server doesn't wait for it, and Start works with nobody ready. Ready flags reset when a game starts.
+**I'm ready** toggles to **Not ready**. It's a signal to the host, nothing more, so the host has no such button. The server doesn't wait for it, and Start works with nobody ready. Ready flags reset when a game starts.
 
 The host's button changes with the room:
 

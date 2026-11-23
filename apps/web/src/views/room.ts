@@ -26,6 +26,7 @@ import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
+import { lobbyAction, settingsSummary } from "./lobby.ts";
 import { focusPhase } from "./focus.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
@@ -837,6 +838,17 @@ export class RoomView implements View {
     // the lobby as one piece. Names must be page-unique.
     const vt = (name: string) => `--vt: ${name}`;
 
+    const action = lobbyAction({
+      isHost,
+      ready: !!mySeat?.ready,
+      connected,
+      min,
+      canStart: room.canStart,
+      setupProblem: !!room.setupProblem,
+      botBlocked,
+      hostName: seatName(room, room.hostId),
+    });
+
     return h(
       "section",
       { class: "lobby" },
@@ -848,6 +860,30 @@ export class RoomView implements View {
         h("span", { class: "invite-url" }, url.replace(/^https?:\/\//, "")),
         share,
         room.locked ? h("p", { class: "muted", role: "status" }, "The room is locked. New players can't join.") : null,
+      ),
+      h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
+      h(
+        "ul",
+        { class: "seats" },
+        seats.map((s) =>
+          h(
+            "li",
+            { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
+            avatar(s.name, s.avatarSeed),
+            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
+            s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
+            botTag(s),
+            // The host starts the game, so their own ready flag means nothing here.
+            s.bot || (s.id === room.hostId && s.presence === "connected")
+              ? null
+              : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
+            this.seatControl(room, me, s),
+          ),
+        ),
+        // Empty seats up to the minimum make "how many more?" obvious at a glance.
+        Array.from({ length: Math.max(0, min - seats.length) }, (_, i) =>
+          h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
+        ),
       ),
       h(
         "div",
@@ -868,27 +904,6 @@ export class RoomView implements View {
       // setupProblem: hints built for the same count agree with its line.
       this.gameSettings(room, isHost, connected, vt("lobby-settings")),
       setupProblem(room, vt("lobby-setup-problem")),
-      h("h3", { class: "seats-title", style: vt("lobby-seats-title") }, `Players `, h("span", { class: "muted" }, `${seats.length}/${max}`)),
-      h(
-        "ul",
-        { class: "seats" },
-        seats.map((s) =>
-          h(
-            "li",
-            { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
-            avatar(s.name, s.avatarSeed),
-            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
-            s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
-            botTag(s),
-            s.bot ? null : h("span", { class: `ready ${s.ready ? "yes" : ""}` }, s.presence !== "connected" ? "reconnecting…" : s.ready ? ["ready", icon("check")] : "not ready"),
-            this.seatControl(room, me, s),
-          ),
-        ),
-        // Empty seats up to the minimum make "how many more?" obvious at a glance.
-        Array.from({ length: Math.max(0, min - seats.length) }, (_, i) =>
-          h("li", { class: "empty", style: vt(`seat-empty-${i}`) }, h("span", { class: "avatar avatar-md ghost", "aria-hidden": "true" }), h("span", { class: "muted" }, "Waiting for a player…")),
-        ),
-      ),
       isHost
         ? h("button", {
             type: "button",
@@ -905,24 +920,18 @@ export class RoomView implements View {
             h("p", { class: "muted" }, "Computers play by the same rules. They only see their own cards."),
           )
         : null,
+      // On phones this sticks to the bottom of the screen (style.css).
       h(
         "div",
-        { class: "actions", style: vt("lobby-actions") },
-        h(
-          "button",
-          { type: "button", "aria-pressed": String(!!mySeat?.ready), onclick: () => this.client?.send({ type: "ready", ready: !mySeat?.ready }) },
-          mySeat?.ready ? "Not ready" : "I'm ready",
-        ),
-        isHost
-          ? h(
+        { class: "actions lobby-actions", style: vt("lobby-actions") },
+        action.kind === "start"
+          ? h("button", { type: "button", class: "primary", disabled: action.disabled, onclick: () => this.client?.send({ type: "start-game" }) }, action.label)
+          : h(
               "button",
-              { type: "button", class: "primary", disabled: connected < min || !room.canStart || !!room.setupProblem || botBlocked, onclick: () => this.client?.send({ type: "start-game" }) },
-              // canStart is vague on purpose (the owner gate), so the label is too, but
-              // it mustn't claim players are missing when they aren't.
-              connected < min ? `Need ${min - connected} more` : room.canStart ? "Start game" : "Can't start yet",
-            )
-          : h("p", { class: "muted waiting" }, `Waiting for ${seatName(room, room.hostId)} to start.`),
-        isHost && botBlocked ? h("p", { class: "muted warn bot-blocked" }, "Remove computers to play this") : null,
+              { type: "button", class: action.primary ? "primary" : "", "aria-pressed": String(action.pressed), onclick: () => this.client?.send({ type: "ready", ready: !action.pressed }) },
+              action.label,
+            ),
+        action.note ? h("p", { class: action.kind === "start" ? "muted warn bot-blocked" : "muted waiting" }, action.note) : null,
       ),
       h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
       isHost ? this.endPartyControl(vt("lobby-end-party")) : null,
@@ -1158,38 +1167,50 @@ export class RoomView implements View {
     (dlg.querySelector<HTMLButtonElement>('button.game-option[aria-current="true"]') ?? dlg.querySelector<HTMLButtonElement>(".game-option-actions button"))?.focus();
   }
 
-  /** The game's own settings, rendered from its field descriptions (host edits, others read). */
+  /**
+   * The game's own settings, from its field descriptions. Others read one
+   * summary line; the host edits them in a fold headed by that same line.
+   */
   private gameSettings(room: RoomPublicState, isHost: boolean, players: number, style?: string) {
     const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
     if (!fields.length) return null;
-    return h(
-      "div",
-      { class: "game-settings", style },
-      fields.map((f) => {
-        const id = `setting-${f.key}`;
-        const value = isHost
-          ? (() => {
-              const select = h(
-                "select",
-                { id },
-                f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
-              );
-              select.addEventListener("change", () => {
-                const patch = f.options[Number(select.value)]?.patch;
-                if (patch) this.client?.send({ type: "update-settings", settings: patch });
-              });
-              return select;
-            })()
-          : h("span", { id, class: "setting-value" }, f.options[f.selected]?.label ?? "");
-        return h(
-          "div",
-          { class: "setting" },
-          h("label", { for: id }, f.label),
-          value,
-          f.hint ? h("span", { class: "muted setting-hint" }, f.hint) : null,
-        );
-      }),
-    );
+    const summary = settingsSummary(fields);
+    if (!isHost) return h("p", { class: "settings-summary", style }, summary);
+    this.settingsOpen ??= matchMedia("(min-width: 600px)").matches;
+    const fold = h(
+      "details",
+      { class: "settings-fold", style },
+      h("summary", {}, h("span", { class: "settings-fold-title" }, "Settings"), h("span", { class: "settings-summary" }, summary)),
+      h(
+        "div",
+        { class: "game-settings" },
+        fields.map((f) => {
+          const id = `setting-${f.key}`;
+          const select = h(
+            "select",
+            { id },
+            f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
+          );
+          select.addEventListener("change", () => {
+            const patch = f.options[Number(select.value)]?.patch;
+            if (patch) this.client?.send({ type: "update-settings", settings: patch });
+          });
+          return h(
+            "div",
+            { class: "setting" },
+            h("label", { for: id }, f.label),
+            select,
+            f.hint ? h("span", { class: "muted setting-hint" }, f.hint) : null,
+          );
+        }),
+      ),
+    ) as HTMLDetailsElement;
+    fold.open = this.settingsOpen;
+    fold.addEventListener("toggle", () => {
+      // A fold that was swapped out by a redraw has nothing to say.
+      if (fold.isConnected) this.settingsOpen = fold.open;
+    });
+    return fold;
   }
 
   private results(room: RoomPublicState, me: string, pop: boolean) {
@@ -1283,6 +1304,8 @@ export class RoomView implements View {
 
   /** What `showEnded` last drew, so a seat joining doesn't replay the cards. */
   private endedShown: string | null = null;
+  /** The host's settings fold. Null until first shown: then open on wide screens, shut on phones. Kept across redraws. */
+  private settingsOpen: boolean | null = null;
 
   private showEnded(room: RoomPublicState, me: string) {
     const isHost = room.hostId === me;

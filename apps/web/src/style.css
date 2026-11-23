@@ -308,9 +308,7 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
 }
 .setting label { grid-column: 1; font-weight: 600; }
 /* The control sits centred against label + hint together. */
-.setting select, .setting .setting-value { grid-column: 2; grid-row: 1 / span 2; }
-.setting select { width: 100%; }
-.setting .setting-value { justify-self: end; text-align: right; }
+.setting select { grid-column: 2; grid-row: 1 / span 2; width: 100%; }
 .setting-hint { grid-column: 1; font-size: 0.8rem; }
 .setting-problem { margin: 0; color: var(--danger); font-weight: 600; } /* 7.7:1 on --bg */
 select {
@@ -356,6 +354,51 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .actions > button { flex: 1; }
 .actions > button.link { flex: 0 0 100%; }
 .actions .waiting { flex: 1; text-align: center; }
+/* The chosen settings in one line: all a guest sees, and the head of the host's fold. */
+.settings-summary { font-size: 0.9rem; color: var(--muted); }
+.settings-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+  list-style: none;
+}
+.settings-fold > summary::-webkit-details-marker { display: none; }
+.settings-fold-title { font-weight: 600; }
+.settings-fold > summary .settings-summary { flex: 1; min-width: 0; text-align: right; }
+.settings-fold > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+}
+.settings-fold[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+.settings-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-fold > .game-settings { margin-top: 8px; }
+/* Phones: Start or I'm ready stays at the bottom of the screen while the
+   lobby scrolls. It sits in the page's flow, so at the end of the page it
+   rests above Leave room and End party instead of covering them. */
+@media (max-width: 599px) {
+  .lobby { padding-bottom: 12px; }
+  .lobby-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -16px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1.5px solid var(--line);
+  }
+  .lobby-actions > button { min-height: 48px; }
+}
 
 /* Results */
 .results {
