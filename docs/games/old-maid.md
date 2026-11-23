@@ -18,12 +18,12 @@ Computer players can fill seats in this game. They take a card at random.
 3. The player left of the dealer goes first. You take one card from the player before you, picking from their face-down fan. When it's your turn the status says "Your turn: take one from <name>".
 4. Pick a card in the fan. On a mouse, clicking takes it straight away; on touch, tap once to select, then tap again or press **Take it**. If the new card matches something in your hand, the pair goes down.
 5. Your fan is shuffled whenever you receive a card, so the next taker can't tell where anything came from.
-6. If you have no cards, you're out and safe. That includes having your last card taken. You see "You're out · 1st" (or 2nd, 3rd...), and you watch the rest.
+6. If you have no cards, you're out and safe. That includes having your last card taken. You see "You won · first out" (or "out 2nd", "out 3rd"...), and you watch the rest.
 7. Play goes round, skipping players who are out, until one player is left.
 
 ## Winning and scoring
 
-The last player holding cards loses: they're "stuck with" the Old Maid. Everyone else wins. Standings show the order people got out, then the loser.
+The last player holding cards loses: they're "stuck with" the Old Maid. Everyone else wins. Standings show the order people got out ("won, first out", "won, out 2nd"...), then the loser.
 
 ## Settings
 
@@ -37,7 +37,7 @@ Host picks these in the lobby.
 
 - **The fan.** The cards you're taking from, face down. On your turn it's the player to your right; otherwise you can watch whose fan is being picked from.
 - **Discard pile.** Shows how many pairs are down and the latest pair.
-- **Other players.** Card count, a "D" for the dealer, and their finishing place once they're out.
+- **Other players.** Card count, a "D" for the dealer, and "won" with their place once they're out. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
 - **Your hand.** Sorted by rank, always visible to you only. You'll see "You took ..." when you pick a card, and when a card is taken from you.
 - **Take it.** On touch, appears once you've selected a card from the fan.
 - With the joker, you get an "Uh oh" bubble when you take it and "Good riddance" when someone takes it from you. "Out!" marks anyone who goes out.

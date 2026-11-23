@@ -8,7 +8,7 @@ import {
 } from "@games/game-core";
 import { oldMaidBot } from "./bot.ts";
 import { oldMaidManifest } from "../shared/manifest.ts";
-import { compareCards, makeDeck, ordinal, pairOff, parseCardId, rankName } from "../shared/rules.ts";
+import { compareCards, makeDeck, outText, pairOff, parseCardId, rankName } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   type Card,
@@ -322,7 +322,7 @@ export const oldMaidGame: GameDefinition<
             : p.id === state.loserId
               ? `left with ${cardName(p.hand[0]!)}`
               : out >= 0
-                ? `out ${ordinal(out + 1)}`
+                ? `won, ${outText(out + 1)}`
                 : `holding ${p.hand.length}`;
           return { playerId: p.id, value: p.hand.length, label };
         }),

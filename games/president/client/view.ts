@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { checkPlay, compareCards, ordinal, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG } from "./cards.ts";
@@ -48,7 +48,7 @@ function describe(e: PresidentEvent, props: GameViewProps): string | null {
     case "skipped":
       return e.playerId === me ? "Same rank played. You miss this turn." : `Same rank played. ${who(e.playerId)} misses this turn.`;
     case "cleared":
-      return `The pile is empty. ${who(e.leaderId)} ${e.leaderId === me ? "lead" : "leads"}.`;
+      return `The pile is empty. ${who(e.leaderId)} ${e.leaderId === me ? "play" : "plays"} first.`;
     case "went-out":
       return e.playerId === me ? `You finished ${ordinal(e.place)}. You are ${the(e.title)}.` : `${who(e.playerId)} finished ${ordinal(e.place)}: ${the(e.title)}.`;
     case "round-over":
@@ -83,7 +83,7 @@ export class PresidentView implements GameView {
 
   private root = h("div", { class: "president" });
   private status = h("div", { class: "pr-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "pr-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "pr-opponents row-fade", role: "list", "aria-label": "Other players" });
   private roundLabel = h("p", { class: "pr-round" });
   private pile = h("div", { class: "pr-pile" });
   private pileCaption = h("p", { class: "pr-pile-caption" });
@@ -236,17 +236,17 @@ export class PresidentView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.auto ? "Can't beat" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.auto ? "Can't beat" : "Pass", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "cleared":
           await this.sweepPile();
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${e.title}!` : e.title);
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${e.title}!` : e.title, undefined, undefined, e.playerId !== props.playerId);
           break;
         case "round-over":
           // Hold the table on the result before the next deal wipes it.
@@ -256,7 +256,7 @@ export class PresidentView implements GameView {
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -394,10 +394,10 @@ export class PresidentView implements GameView {
     replaceChildren(
       this.status,
       myTurn
-        ? h("span", {}, leading ? "You lead" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
+        ? h("span", {}, leading ? "You play first" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
         : [
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "leads" : "must play"}`),
+            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "plays first" : "is playing"}`),
           ],
     );
   }
@@ -467,7 +467,7 @@ export class PresidentView implements GameView {
     this.pileCaption.textContent = top
       ? `${seatName(room, top.playerId)}: ${setName(top.cards.length, top.cards[0]!.rank)}`
       : game.phase === "playing"
-        ? `${game.currentPlayerId === props.playerId ? "You lead" : `${seatName(room, game.currentPlayerId)} leads`}: any cards`
+        ? `${game.currentPlayerId === props.playerId ? "You play first" : `${seatName(room, game.currentPlayerId)} plays first`}: any cards`
         : "";
     this.pile.setAttribute("role", "img");
     this.pile.setAttribute("aria-label", top ? `To beat: ${top.cards.map(cardLabel).join(", ")}` : "The pile is empty");
@@ -550,6 +550,10 @@ export class PresidentView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // The picked card, or else the first one you can play: in the row's view, without moving the page.
+    const picked = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? null;
+    const firstPlayable = [...this.cards.values()].find((b) => b.classList.contains("playable")) ?? this.hand.firstElementChild;
+    keepInRow(this.hand, picked, firstPlayable);
   }
 
   private handButton(card: Card): HTMLButtonElement {
@@ -597,7 +601,7 @@ export class PresidentView implements GameView {
               { type: "button", class: "primary", disabled: !!why, title: why ?? undefined, onclick: () => this.playSelected() },
               `Play ${setName(picked.length, picked[0]!.rank).replace(/^a /, "")}`,
             )
-          : h("span", { class: "hint strong" }, game.top ? "Choose cards to beat the pile" : "Choose cards to lead"),
+          : h("span", { class: "hint strong" }, game.top ? "Pick cards to beat the pile" : "Pick cards to play first"),
       ].filter((x): x is HTMLElement => !!x);
     }
     replaceChildren(this.action, action);

@@ -42,10 +42,24 @@ export function createLabel(setup: RoomSetup | undefined): string {
   return setup ? `Play ${(Object.hasOwn(games, setup.gameId) && games[setup.gameId]?.manifest.name) || "a game"} with computers` : "Create room";
 }
 
+/** The home page's own words, for a host app. Each part is optional. */
+export interface ShellHome {
+  /** Replaces the logo and wordmark in the home hero with this heading. */
+  title?: string;
+  /** Replaces the line under the hero heading. */
+  subtitle?: string;
+  /** The browser tab title on the home page. */
+  pageTitle?: string;
+}
+
 export interface ShellOptions {
   homePath?: string;
   brand?: ShellBrand;
   appTitle?: string;
+  /** The home Create button's text when there is no room setup. A setup (computers) keeps its own `createLabel` text. */
+  createText?: string;
+  /** The home page's heading, subtitle and tab title. Without it, the logo and the usual lines show. */
+  home?: ShellHome;
   canCreate?: () => boolean;
   createRoom?: (setup?: RoomSetup) => Promise<CreateRoomResult>;
   hostKeyFor?: (code: string) => string | null;
@@ -61,7 +75,8 @@ export interface ShellOptions {
   extraPacks?: string[];
 }
 
-type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver">> & Pick<ShellOptions, "partyOver">;
+type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver" | "createText" | "home">> &
+  Pick<ShellOptions, "partyOver" | "createText" | "home">;
 
 /** The create-room path, with the setup in the query when there is one. */
 export function roomsPath(setup?: RoomSetup): string {

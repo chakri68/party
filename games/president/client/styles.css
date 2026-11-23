@@ -235,25 +235,32 @@
 /* After the game the results panel leads; the hand is just for the record. */
 .president.finished .pr-dock { position: static; background: none; }
 
+/* Buttons too wide to sit beside "Your hand" take their own row, not a squeeze. */
 .pr-dock-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   min-height: 44px;
 }
-.pr-me { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 2px; min-width: 0; }
+/* Room for "13 cards · 0 pts" on one line; the hint beside it wraps instead. */
+.pr-me { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 2px; min-width: 0; flex: 1 0 7.5rem; }
 .pr-me .pr-title { order: 3; }
 .pr-me .count { white-space: normal; }
 .pr-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
-.pr-action { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-.pr-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; }
+.pr-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.pr-action button { padding-inline: 14px; }
+.pr-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; text-wrap: balance; }
 .pr-action .hint.strong { color: var(--ink); font-weight: 700; }
 .pr-action button { min-width: 72px; }
 
 .pr-hand {
   display: flex;
   overflow-x: auto;
+  /* Cards rise in from below when dealt (right as the swap starts): without
+     this the row grows a vertical scrollbar and reads as an empty, broken hand. */
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
   scrollbar-width: thin;
@@ -278,6 +285,23 @@
   .pr-card .pip { font-size: 2.4rem; }
   .pr-pile .pr-card + .pr-card { margin-left: -26px; }
   .pr-hand { justify-content: safe center; }
+}
+
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .president { --card-w: 58px; --card-h: 84px; --card-overlap: -26px; --table-card-w: 58px; --table-card-h: 84px; gap: 8px; }
+  .pr-card .corner { font-size: 0.95rem; }
+  .pr-card .pip { font-size: 1.9rem; }
+  .pr-pile .pr-card + .pr-card { margin-left: -22px; }
+  .pr-table { padding: 8px 12px; min-height: 0; }
+  .pr-status { min-height: 40px; }
+  .pr-me { flex: 0 0 auto; }
+  .pr-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .pr-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
+  .pr-action { flex-wrap: wrap; justify-content: flex-start; }
+  .pr-action .hint { text-align: left; }
+  .pr-hand { grid-column: 2; grid-row: 1 / span 2; }
 }
 
 /* ---- Feedback ------------------------------------------------------------- */

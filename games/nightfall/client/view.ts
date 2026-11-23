@@ -137,6 +137,8 @@ export class NightfallView implements GameView {
     const me = this.props?.private as Priv | null | undefined;
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
+      // Seen it: turn it face down for them.
+      this.card?.hide();
       this.api.act({ type: "ack" });
     } else if (game.phase === "night" && me.picking && !this.confirmed && this.chosen) {
       // Everyone confirms; only an acting card sends it (ruling 6). A pick the
@@ -341,7 +343,7 @@ export class NightfallView implements GameView {
       case "reveal": {
         const left = this.living(game).length - game.acked;
         headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Keep it secret.";
+        sub = me?.acked ? `${left} still reading` : "Open your card and read it. Keep it secret.";
         if (me?.role && !me.acked) button = "Got it";
         break;
       }

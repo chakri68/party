@@ -2,7 +2,7 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { compareCards, ordinal } from "../shared/rules.ts";
+import { compareCards, ordinal, outText } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort } from "./cards.ts";
 
@@ -41,7 +41,7 @@ function describe(e: OldMaidEvent, props: GameViewProps): string | null {
     case "taken-from-you":
       return `${who(e.byId)} took your ${cardShort(e.card)}.`;
     case "went-out":
-      return e.playerId === me ? `You have no cards left. You are safe. Place: ${ordinal(e.place)}.` : `${who(e.playerId)} is out.`;
+      return e.playerId === me ? `You won. You got out ${e.place === 1 ? "first" : ordinal(e.place)}.` : `${who(e.playerId)} is out.`;
     case "turn-skipped":
       return e.playerId === me ? "The host skipped your turn. The game took a card for you." : `The host skipped ${who(e.playerId)}'s turn. The game took a card for them.`;
     case "player-removed":
@@ -76,7 +76,7 @@ export class OldMaidView implements GameView {
 
   private root = h("div", { class: "old-maid" });
   private status = h("div", { class: "om-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "om-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "om-opponents row-fade", role: "list", "aria-label": "Other players" });
   private fanLabel = h("p", { class: "om-fan-label" });
   private fan = h("div", { class: "om-fan", role: "toolbar" });
   private pile = h("div", { class: "om-pile" });
@@ -249,11 +249,11 @@ export class OldMaidView implements GameView {
           await this.flyPairs(e.playerId, e.pairs);
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "You're out!" : "Out!");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "You're out!" : "Out!", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -442,7 +442,7 @@ export class OldMaidView implements GameView {
         const current = p.id === game.currentPlayerId;
         const source = p.id === game.sourceId;
         const loser = p.id === game.loserId;
-        const holding = p.removed ? "left" : p.outPlace ? `out ${ordinal(p.outPlace)}` : `${p.cardCount} cards`;
+        const holding = p.removed ? "left" : p.outPlace ? `won, ${outText(p.outPlace)}` : `${p.cardCount} cards`;
         return h(
           "div",
           {
@@ -484,7 +484,7 @@ export class OldMaidView implements GameView {
     }
 
     const whose = source.id === props.playerId ? "Your" : `${seatName(room, source.id)}'s`;
-    this.fanLabel.textContent = myTurn ? `${whose} cards. Choose 1.` : `${whose} cards`;
+    this.fanLabel.textContent = myTurn ? `${whose} cards. Pick 1.` : `${whose} cards`;
     this.fan.setAttribute("aria-label", myTurn ? `Take a card from ${seatName(room, source.id)}` : `${whose} cards, face down`);
 
     this.slots = Array.from({ length: source.cardCount }, (_, i) => {
@@ -578,7 +578,7 @@ export class OldMaidView implements GameView {
     replaceChildren(
       this.me,
       mine?.outPlace
-        ? h("span", { class: "you" }, `You're out · ${ordinal(mine.outPlace)}`)
+        ? h("span", { class: "you" }, `You won · ${outText(mine.outPlace)}`)
         : [
             h("span", { class: "you" }, "Your hand"),
             mine ? h("span", { class: "count" }, `${mine.cardCount} ${mine.cardCount === 1 ? "card" : "cards"}`) : null,
@@ -590,7 +590,7 @@ export class OldMaidView implements GameView {
     if (game.currentPlayerId === null) action = null;
     else if (!myTurn) action = mine?.outPlace ? h("span", { class: "hint" }, "Watching") : h("span", { class: "hint" }, "Not your turn yet");
     else if (this.selected !== null) action = h("button", { type: "button", class: "primary", onclick: () => this.takeSelected() }, "Take it");
-    else action = h("span", { class: "hint strong" }, directPlay() ? "Click a card above" : "Tap a card above");
+    else action = h("span", { class: "hint strong" }, "Pick a card above");
     replaceChildren(this.action, action);
   }
 

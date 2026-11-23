@@ -70,6 +70,23 @@ export const TERRAIN_NAME: Record<Terrain, string> = {
 };
 const RUIN_NAME: Record<RuinId, string> = { shrine: "Sunken Shrine", tower: "Star Tower", cave: "Root Cave" };
 
+/** A small key under the board: the gate and the 3 ruins, which show even in fog. */
+export function mapKey(): HTMLElement {
+  const items: [string, string][] = [
+    [TERRAIN_ICON.gate, "Gate"],
+    ...(Object.keys(RUIN_ICON) as RuinId[]).map((r): [string, string] => [RUIN_ICON[r], RUIN_NAME[r]]),
+  ];
+  const ul = document.createElement("ul");
+  ul.className = "wd-key";
+  ul.setAttribute("aria-label", "Map key");
+  for (const [d, name] of items) {
+    const li = document.createElement("li");
+    li.append(el("svg", { viewBox: "-5 -5 10 10", width: 16, height: 16, "aria-hidden": "true" }, el("path", { class: "wd-key-icon", d })), ` ${name}`);
+    ul.append(li);
+  }
+  return ul;
+}
+
 /** Where each token sits when several share a tile. */
 function fan(n: number): { x: number; y: number; r: number }[] {
   if (n <= 1) return [{ x: 0, y: 0, r: S * 0.42 }];

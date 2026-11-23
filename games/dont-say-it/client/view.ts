@@ -62,6 +62,7 @@ export class DontSayItView implements GameView {
   private buttons = h("div", { class: "dsi-buttons" });
   private log = h("ol", { class: "dsi-log", "aria-label": "This turn's cards" });
   private roster = h("div", { class: "dsi-roster" });
+  private captainNote = h("p", { class: "dsi-note" }, "Captain: decides when the other team says your team's buzz is not fair.");
 
   private queue = new AnimationQueue();
   private lastTick = -1;
@@ -79,6 +80,7 @@ export class DontSayItView implements GameView {
       this.buttons,
       this.log,
       this.roster,
+      this.captainNote,
     );
     this.clock = setInterval(() => this.renderClock(), 200);
   }
@@ -274,7 +276,11 @@ export class DontSayItView implements GameView {
       case "turn": {
         if (youDescribe) {
           headline = "Describe the word. Don't say any word on the card.";
-          buttons.push({ label: "Got it", action: "got", kind: "primary", wide: true }, { label: "Skip", action: "skip" }, { label: "Oops", action: "oops", kind: "danger" });
+          buttons.push(
+            { label: `Got it (${signed(OUTCOME_POINTS.got)})`, action: "got", kind: "primary", wide: true },
+            { label: `Skip (${signed(OUTCOME_POINTS.skip)})`, action: "skip" },
+            { label: `Oops (${signed(OUTCOME_POINTS.oops)})`, action: "oops", kind: "danger" },
+          );
         } else if (me?.role === "watcher") {
           headline = `${describer} is describing`;
           sub = ["If you hear a word from the card, press Buzz."];
@@ -363,6 +369,7 @@ export class DontSayItView implements GameView {
   }
 
   private renderRoster(props: GameViewProps, game: Pub) {
+    this.captainNote.hidden = game.phase === "finished";
     replaceChildren(
       this.roster,
       game.teams.map((t) =>

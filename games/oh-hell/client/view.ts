@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { Card, OhHellEvent, OhHellPrivateState, OhHellPublicPlayer, OhHellPublicState, Suit, TrickPlay } from "../shared/types.ts";
 import { SUIT_NAME, SUIT_SYMBOL, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
 
@@ -92,7 +92,7 @@ export class OhHellView implements GameView {
   private root = h("div", { class: "oh-hell" });
   private status = h("div", { class: "oh-status", role: "status", "aria-live": "polite" });
   private round = h("div", { class: "oh-round" });
-  private players = h("div", { class: "oh-players", role: "list", "aria-label": "Other players" });
+  private players = h("div", { class: "oh-players row-fade", role: "list", "aria-label": "Other players" });
   private tableHead = h("div", { class: "oh-table-head" });
   private tableBody = h("div", { class: "oh-table-body" });
   private table = h("div", { class: "oh-table", role: "group", "aria-label": "Table" }, this.tableHead, this.tableBody);
@@ -238,7 +238,7 @@ export class OhHellView implements GameView {
           break;
         case "bid":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), `Bid ${e.tricks}`, "anim-bubble", 900);
+          await bubble(this.anchorFor(e.playerId, props), `Bid ${e.tricks}`, "anim-bubble", 900, e.playerId !== props.playerId);
           break;
         case "played":
           await this.flyPlay(e.playerId, e.card, props);
@@ -254,7 +254,7 @@ export class OhHellView implements GameView {
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -319,7 +319,7 @@ export class OhHellView implements GameView {
       audio.play("correct");
       audio.buzz(30);
     }
-    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "You win" : "Wins it", "anim-bubble", 900);
+    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "You win" : "Wins it", "anim-bubble", 900, winnerId !== props.playerId);
   }
 
   /** The trick sweeps over to whoever took it. */
@@ -381,8 +381,8 @@ export class OhHellView implements GameView {
     else if (priv?.legal.length) {
       const led = game.trick[0]?.card.suit;
       const following = led && priv.legal.every((id) => id.startsWith(`${led}-`));
-      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You lead");
-    } else content = them(game.trick.length ? "must play" : "leads");
+      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You play first");
+    } else content = them(game.trick.length ? "is playing" : "plays first");
     replaceChildren(this.status, content);
   }
 
@@ -543,7 +543,8 @@ export class OhHellView implements GameView {
             return h(
               "tr",
               { class: `${made ? "made" : "missed"}${r.playerId === props.playerId ? " me" : ""}` },
-              h("th", { scope: "row" }, h("span", { class: "nm" }, this.name(r.playerId, props)), p?.ready ? h("span", { class: "oh-ready" }, h("span", { "aria-hidden": "true" }, " ✓"), h("span", { class: "oh-sr" }, ", ready")) : null),
+              // "Ready" in words, not a tick: a green tick here reads as "made the bid".
+              h("th", { scope: "row" }, h("span", { class: "oh-name-cell" }, h("span", { class: "nm" }, this.name(r.playerId, props)), p?.ready ? h("span", { class: "oh-ready" }, h("span", { class: "oh-sr" }, ", "), "ready") : null)),
               h("td", {}, String(r.bid)),
               h("td", {}, String(r.tricks)),
               h("td", { class: "pts" }, r.points > 0 ? `+${r.points}` : String(r.points)),
@@ -617,13 +618,16 @@ export class OhHellView implements GameView {
       btn.setAttribute("aria-pressed", String(lifted));
       btn.setAttribute(
         "aria-label",
-        `${cardLabel(card)}${card.suit === game.trump.suit ? ", trump" : ""}${playing && !ok ? ", can't play" : ""}${lifted ? ", tap again to play" : ""}`,
+        `${cardLabel(card)}${card.suit === game.trump.suit ? ", trump" : ""}${playing && !ok ? ", can't play" : ""}${lifted ? ", pick again to play" : ""}`,
       );
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
     // Roving tabindex: one tab stop into the hand, arrows within it.
     const focusTarget = (this.lifted && this.cards.get(this.lifted)) || this.hand.querySelector(".playable") || this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // The lifted card, or else the first one you can play: in the row's view, without moving the page.
+    const lifted = (this.lifted && this.cards.get(this.lifted)) || null;
+    keepInRow(this.hand, lifted, this.hand.querySelector(".playable") ?? this.hand.firstElementChild);
   }
 
   private renderDock(props: GameViewProps, game: OhHellPublicState, priv: OhHellPrivateState | null) {
@@ -654,7 +658,7 @@ export class OhHellView implements GameView {
       const card = this.lifted ? priv.hand.find((c) => c.id === this.lifted) : undefined;
       action = card
         ? h("button", { type: "button", class: "primary", onclick: () => this.playLifted() }, `Play ${cardShort(card)}`)
-        : hint("Tap a card twice", true);
+        : hint("Pick a card, then play it", true);
     } else if (game.trickWinnerId) action = null;
     else action = hint(game.phase === "bidding" ? "Waiting for bids" : "Not your turn yet");
     replaceChildren(this.action, action);

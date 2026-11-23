@@ -2,7 +2,7 @@ import { AnimationQueue } from "@games/animation";
 import { audio } from "@games/audio";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { cleanDefinition, cleanFake, definitionShapeProblem, fakeShapeProblem } from "../shared/rules.ts";
-import { type BluffEvent, type BluffPrivateState, type BluffPublicState, MAX_DEFINITION, MAX_FAKE, type Variant } from "../shared/types.ts";
+import { type BluffEvent, type BluffPrivateState, type BluffPublicState, FOOLED_POINTS, FOUND_POINTS, MAX_DEFINITION, MAX_FAKE, type Variant } from "../shared/types.ts";
 
 type Pub = BluffPublicState;
 type Priv = BluffPrivateState;
@@ -53,6 +53,8 @@ export class BluffView implements GameView {
 
   private options = h("ul", { class: "bl-options", "aria-label": "Which one is real?" });
   private table = h("ul", { class: "bl-table", "aria-label": "Players" });
+  /** What the "+N" by each name means, under the scores at the reveal. */
+  private legend = h("p", { class: "bl-legend" });
 
   private queue = new AnimationQueue();
   private pending: string | null = null;
@@ -83,6 +85,7 @@ export class BluffView implements GameView {
       this.button,
       this.note,
       this.table,
+      this.legend,
     );
     this.form.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -308,12 +311,12 @@ export class BluffView implements GameView {
         break;
       case "vote":
         headline = fake ? "Which word is real?" : "Which meaning is real?";
-        sub = !playing ? "" : me?.vote ? "You voted. You can change your vote." : me?.choices.length ? "Tap one. You cannot choose your own." : `Waiting for ${waiting}`;
+        sub = !playing ? "" : me?.vote ? "You voted. You can change your vote." : me?.choices.length ? "Pick one. You cannot choose your own." : `Waiting for ${waiting}`;
         break;
       case "reveal": {
         const got = me && game.gained ? (game.gained[props.playerId] ?? 0) : 0;
         headline = game.noFakes ? "No fakes this round" : me?.vote && me.vote === game.realId ? "You found it" : me?.vote ? "You chose a fake" : "The real answer";
-        sub = got ? `+${got} for you` : "";
+        sub = got ? this.gainText(game, me, got) : "";
         if (this.isHost()) button = game.round >= game.rounds ? "Finish" : "Next round";
         break;
       }
@@ -366,8 +369,24 @@ export class BluffView implements GameView {
     );
   }
 
+  /** "+2 for finding the real one. +1 because 1 player chose your fake." Falls back to the plain total. */
+  private gainText(game: Pub, me: Priv | null, got: number): string {
+    const found = !!me?.vote && me.vote === game.realId ? FOUND_POINTS : 0;
+    const chose = me?.mineId ? Object.values(game.votes ?? {}).filter((v) => v === me.mineId).length : 0;
+    if (found + chose * FOOLED_POINTS !== got) return `+${got} for you`;
+    const parts = [
+      found ? `+${found} for finding the real one.` : "",
+      chose ? `+${chose * FOOLED_POINTS} because ${chose} ${chose === 1 ? "player" : "players"} chose your fake.` : "",
+    ];
+    return parts.filter(Boolean).join(" ");
+  }
+
   private renderTable(props: GameViewProps, game: Pub) {
     const ticking = game.phase === "write" || game.phase === "vote";
+    this.legend.textContent =
+      game.phase === "reveal" && !game.noFakes
+        ? `Found the real one: +${FOUND_POINTS}. Each player who chose your fake: +${FOOLED_POINTS}.`
+        : "";
     replaceChildren(
       this.table,
       game.players.map((p) => {

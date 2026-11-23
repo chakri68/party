@@ -31,6 +31,9 @@
 
 .hz-board { display: grid; gap: 6px; }
 .hz-jobs { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 8px; }
+.hz-job-cell { display: grid; justify-items: center; gap: 2px; }
+.hz-job-name { font-size: 0.7rem; color: var(--muted); }
+.hz-legend { margin: 0; font-size: 0.78rem; color: var(--muted); }
 .hz-pip {
   width: 44px;
   height: 44px;

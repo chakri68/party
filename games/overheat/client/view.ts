@@ -26,7 +26,7 @@ const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const an = (label: string) => (/^[AEIOU]/.test(label) ? `an ${label}` : `a ${label}`);
 
 function shapeEl(colour: Colour): HTMLElement {
-  const s = h("span", { class: "oh-shape", "aria-hidden": "true" });
+  const s = h("span", { class: "ov-shape", "aria-hidden": "true" });
   s.innerHTML = `<svg viewBox="0 0 24 24">${SHAPES[colour]}</svg>`;
   return s;
 }
@@ -38,11 +38,11 @@ function cardText(e: EngineCard): string {
 /** An engine card. A button when it can be picked (Wrench). */
 function engineCard(e: EngineCard, onPick?: () => void): HTMLElement {
   const parts = [
-    h("b", { class: "oh-val", "aria-hidden": "true" }, String(e.card.value)),
+    h("b", { class: "ov-val", "aria-hidden": "true" }, String(e.card.value)),
     shapeEl(e.card.colour),
-    e.mult === 2 ? h("i", { class: "oh-x2", "aria-hidden": "true" }, "×2") : null,
+    e.mult === 2 ? h("i", { class: "ov-x2", "aria-hidden": "true" }, "×2") : null,
   ];
-  const cls = `oh-card oh-${e.card.colour}`;
+  const cls = `ov-card ov-${e.card.colour}`;
   if (onPick) {
     return h("button", { type: "button", class: `${cls} pickable`, "data-card": e.card.id, "aria-label": cardText(e), onclick: onPick }, parts);
   }
@@ -52,7 +52,7 @@ function engineCard(e: EngineCard, onPick?: () => void): HTMLElement {
 /** Any card face, for flights and the short look at a flipped power card. */
 function cardFace(card: Card, mult: 1 | 2 = 1): HTMLElement {
   if (card.kind === "number") return engineCard({ card, mult });
-  return h("span", { class: "oh-card oh-power", role: "img", "aria-label": cardLabel(card) }, h("b", { class: "oh-pname" }, cardLabel(card)));
+  return h("span", { class: "ov-card ov-power", role: "img", "aria-label": cardLabel(card) }, h("b", { class: "ov-pname" }, cardLabel(card)));
 }
 
 /** Who the pending card can be aimed at: other players still flipping (Wrench: with cards). */
@@ -73,32 +73,32 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
       return `Round ${e.round}. The heat limit is ${e.gauge}.`;
     case "flip": {
       const x2 = e.mult === 2 ? " (counts double)" : "";
-      if (e.by) return `${who(e.by)} shoved ${an(cardLabel(e.card))}${x2} onto ${whom(e.playerId)}.`;
+      if (e.by) return `${who(e.by)} pushed ${an(cardLabel(e.card))}${x2} onto ${whom(e.playerId)}.`;
       if (e.card.kind === "power" && !isAimed(e.card.power)) return null;
       return `${who(e.playerId)} flipped ${an(cardLabel(e.card))}${x2}.`;
     }
     case "vent":
-      return `Vent: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
+      return `Cool: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "turbo":
-      return `Turbo: the next number card for ${whom(e.playerId)} counts double.`;
+      return `Double: the next number card for ${whom(e.playerId)} counts double.`;
     case "shove":
       return null; // The flip that follows says it.
     case "wrench":
       return `${who(e.playerId)} gave ${whom(e.targetId)} ${an(cardLabel(e.gave.card))} and took ${an(cardLabel(e.got.card))}.`;
     case "fuse":
-      return `${who(e.playerId)} put a Fuse on ${whom(e.targetId)}. Each Fuse adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
+      return `${who(e.playerId)} put a Burn on ${whom(e.targetId)}. Each Burn adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
     case "fuse-tick":
-      return `Fuse: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
+      return `Burn: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "heatwave":
-      return `Heatwave! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
+      return `Limit down! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
     case "fizzle":
       return e.card ? `Nobody to aim the ${cardLabel(e.card)} at. It does nothing.` : "No cards left to flip.";
     case "bust":
-      return `Bust! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;
+      return `Too hot! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;
     case "redline":
       return `${who(e.playerId)} hit the limit exactly. +10!`;
     case "bank":
-      return `${who(e.playerId)} banked ${e.points}. Score: ${e.score}.`;
+      return `${who(e.playerId)} saved ${e.points} points. Score: ${e.score}.`;
     case "reshuffle":
       return "The used cards were shuffled into a new deck.";
     case "round-end":
@@ -129,16 +129,16 @@ export class OverheatView implements GameView {
   private props: GameViewProps | null = null;
 
   private root = h("div", { class: "overheat" });
-  private status = h("div", { class: "oh-status", role: "status", "aria-live": "polite" });
-  private head = h("div", { class: "oh-head" });
-  private roundEl = h("span", { class: "oh-round" });
-  private gaugeEl = h("span", { class: "oh-gauge" });
-  private deckEl = h("span", { class: "oh-deck" });
-  private targetEl = h("span", { class: "oh-muted" });
-  private rows = h("ul", { class: "oh-rows", "aria-label": "Players" });
-  private log = h("p", { class: "oh-log", "aria-live": "polite" });
-  private actions = h("div", { class: "oh-actions" });
-  private note = h("p", { class: "oh-note" });
+  private status = h("div", { class: "ov-status", role: "status", "aria-live": "polite" });
+  private head = h("div", { class: "ov-head" });
+  private roundEl = h("span", { class: "ov-round" });
+  private gaugeEl = h("span", { class: "ov-gauge" });
+  private deckEl = h("span", { class: "ov-deck" });
+  private targetEl = h("span", { class: "ov-muted" });
+  private rows = h("ul", { class: "ov-rows", "aria-label": "Players" });
+  private log = h("p", { class: "ov-log", "aria-live": "polite" });
+  private actions = h("div", { class: "ov-actions" });
+  private note = h("p", { class: "ov-note" });
   private clock = 0;
 
   /** Sent and not yet answered: the buttons stay locked meanwhile. */
@@ -156,9 +156,9 @@ export class OverheatView implements GameView {
     this.root.append(
       this.status,
       this.head,
-      h("section", { class: "oh-table", "aria-label": "Table" }, this.rows),
+      h("section", { class: "ov-table", "aria-label": "Table" }, this.rows),
       this.log,
-      h("div", { class: "oh-dock" }, this.note, this.actions),
+      h("div", { class: "ov-dock" }, this.note, this.actions),
     );
   }
 
@@ -246,7 +246,7 @@ export class OverheatView implements GameView {
       !mine ? null
       : choice?.kind === "wrench" ? "Pick 2 cards"
       : choice ? "Pick a player"
-      : "Flip or bank",
+      : "Flip or save",
     );
 
     this.renderStatus(props, game, mine);
@@ -284,7 +284,7 @@ export class OverheatView implements GameView {
     this.root.classList.remove("round-over");
     if (game.step === "round-end") {
       this.root.classList.add("round-over");
-      replaceChildren(this.status, h("span", {}, `Round ${game.round} is over. `), h("span", { class: "oh-clock" }, this.countdown(game)));
+      replaceChildren(this.status, h("span", {}, `Round ${game.round} is over. `), h("span", { class: "ov-clock" }, this.countdown(game)));
       return;
     }
     const pending = game.pending;
@@ -292,10 +292,10 @@ export class OverheatView implements GameView {
     if (mine && game.step === "choosing" && pending) {
       text =
         pending.kind === "wrench" ? "Pick one of your cards and one of theirs."
-        : pending.kind === "fuse" ? "Pick a player to get the Fuse."
-        : "Pick a player to shove a card onto.";
+        : pending.kind === "fuse" ? "Pick a player to get the Burn."
+        : "Pick a player to push a card onto.";
     } else if (mine) {
-      text = "Your turn. Flip a card or bank.";
+      text = "Your turn. Flip a card or save.";
     } else {
       const id = game.awaitedId ?? game.currentPlayerId;
       const seat = props.room.seats.find((s) => s.id === id);
@@ -316,13 +316,13 @@ export class OverheatView implements GameView {
   private tick() {
     const game = this.props?.game as OverheatPublicState | undefined;
     if (game?.step !== "round-end") return;
-    const el = this.status.querySelector(".oh-clock");
+    const el = this.status.querySelector(".ov-clock");
     if (el) el.textContent = this.countdown(game);
   }
 
   private renderHead(game: OverheatPublicState) {
     this.roundEl.textContent = `Round ${game.round}`;
-    replaceChildren(this.gaugeEl, "Starting limit ", h("b", {}, String(game.gauge)));
+    replaceChildren(this.gaugeEl, "Limit ", h("b", {}, String(game.gauge)));
     this.gaugeEl.setAttribute("aria-label", `Heat limit this round: ${game.gauge}`);
     replaceChildren(this.deckEl, "Deck ", h("b", {}, String(game.deckCount)));
     this.deckEl.setAttribute("aria-label", `${game.deckCount} cards in the deck`);
@@ -331,8 +331,8 @@ export class OverheatView implements GameView {
 
   private statusText(p: OverheatPlayerState): string {
     if (p.removed || p.status === "out") return "Left";
-    if (p.status === "busted") return "Bust";
-    if (p.status === "banked") return `${p.redline ? "Redline" : "Banked"} +${p.roundPoints}`;
+    if (p.status === "busted") return "Too hot";
+    if (p.status === "banked") return `${p.redline ? "Perfect" : "Saved"} +${p.roundPoints}`;
     return "Flipping";
   }
 
@@ -352,7 +352,7 @@ export class OverheatView implements GameView {
         const acting = game.step !== "round-end" && game.step !== "finished" && p.id === game.awaitedId;
         const status = this.statusText(p);
         const cls = [
-          "oh-row",
+          "ov-row",
           p.id === me && "me",
           acting && "current",
           `st-${p.removed ? "out" : p.status}`,
@@ -372,37 +372,37 @@ export class OverheatView implements GameView {
               el.setAttribute("aria-pressed", String(picked));
               return el;
             })
-          : [h("span", { class: "oh-empty" }, p.status === "flipping" ? "No cards yet" : "")];
+          : [h("span", { class: "ov-empty" }, p.status === "flipping" ? "No cards yet" : "")];
 
         const bar = h(
           "div",
-          { class: "oh-heat" },
-          h("span", { class: "oh-track", "aria-hidden": "true" }, h("span", { class: "oh-fill" }), h("span", { class: "oh-mark" })),
-          h("span", { class: "oh-heat-text" }),
+          { class: "ov-heat" },
+          h("span", { class: "ov-track", "aria-hidden": "true" }, h("span", { class: "ov-fill" }), h("span", { class: "ov-mark" })),
+          h("span", { class: "ov-heat-text" }),
         );
         const parts = [
           h(
             "div",
-            { class: "oh-row-top" },
+            { class: "ov-row-top" },
             seat ? avatar(name, seat.avatarSeed, "sm") : null,
             h(
               "span",
-              { class: "oh-who" },
-              h("span", { class: "oh-name" }, name, away ? h("span", { class: "oh-muted" }, ` (${PRESENCE_LABEL[seat!.presence]})`) : null),
+              { class: "ov-who" },
+              h("span", { class: "ov-name" }, name, away ? h("span", { class: "ov-muted" }, ` (${PRESENCE_LABEL[seat!.presence]})`) : null),
               h(
                 "span",
-                { class: "oh-tags" },
-                h("span", { class: "oh-chip" }, status),
-                p.turbo && p.status === "flipping" ? h("span", { class: "oh-chip oh-turbo" }, "Next ×2") : null,
-                h("span", { class: "oh-fuse", hidden: p.fuses === 0 || p.status !== "flipping", "aria-hidden": "true" }, h("span", { class: "oh-fuse-icon" }), `×${p.fuses}`),
+                { class: "ov-tags" },
+                h("span", { class: "ov-chip" }, status),
+                p.turbo && p.status === "flipping" ? h("span", { class: "ov-chip ov-turbo" }, "Next ×2") : null,
+                h("span", { class: "ov-fuse", hidden: p.fuses === 0 || p.status !== "flipping", "aria-hidden": "true" }, h("span", { class: "ov-fuse-icon" }), `×${p.fuses}`),
               ),
             ),
-            h("span", { class: "oh-score", "aria-hidden": "true" }, String(p.score)),
+            h("span", { class: "ov-score", "aria-hidden": "true" }, String(p.score)),
           ),
           bar,
-          h("div", { class: "oh-engine" }, cards),
+          h("div", { class: "ov-engine" }, cards),
         ];
-        const fuseIcon = parts[0]!.querySelector(".oh-fuse-icon");
+        const fuseIcon = parts[0]!.querySelector(".ov-fuse-icon");
         if (fuseIcon) fuseIcon.innerHTML = FUSE_SVG;
 
         const label = [
@@ -410,16 +410,16 @@ export class OverheatView implements GameView {
           `score ${p.score}`,
           status,
           p.status === "flipping" || p.engine.length ? `heat ${p.heat} of ${p.gauge}` : "",
-          p.fuses ? `${p.fuses} fuse${p.fuses > 1 ? "s" : ""}` : "",
+          p.fuses ? `${p.fuses} burn${p.fuses > 1 ? "s" : ""}` : "",
           p.turbo && p.status === "flipping" ? "next number card counts double" : "",
           acting ? "playing now" : "",
           away ? PRESENCE_LABEL[seat!.presence] : "",
         ].filter(Boolean).join(", ");
 
-        const verb = choice?.kind === "fuse" ? "Put the Fuse on" : "Shove a card onto";
+        const verb = choice?.kind === "fuse" ? "Put the Burn on" : "Push a card onto";
         const body = aimable.has(p.id) && choice?.kind !== "wrench"
-          ? h("button", { type: "button", class: "oh-row-body", "aria-label": `${verb} ${name}. ${label}`, onclick: () => this.onTarget(p.id) }, parts)
-          : h("div", { class: "oh-row-body" }, parts);
+          ? h("button", { type: "button", class: "ov-row-body", "aria-label": `${verb} ${name}. ${label}`, onclick: () => this.onTarget(p.id) }, parts)
+          : h("div", { class: "ov-row-body" }, parts);
         const li = h("li", { class: cls, "data-player": p.id, "aria-label": aimable.has(p.id) && choice?.kind !== "wrench" ? null : label, "aria-current": acting ? "true" : null }, body);
         li.dataset.heat = String(p.heat);
         li.dataset.gauge = String(p.gauge);
@@ -435,15 +435,15 @@ export class OverheatView implements GameView {
     const heat = Number(row.dataset.heat);
     const gauge = Number(row.dataset.gauge);
     const flipping = row.dataset.flipping === "true";
-    const bar = row.querySelector<HTMLElement>(".oh-heat");
+    const bar = row.querySelector<HTMLElement>(".ov-heat");
     if (!bar) return;
     const scale = Math.max(roundGauge, gauge, heat, 1);
-    bar.style.setProperty("--oh-fill", String(Math.min(1, heat / scale)));
-    bar.style.setProperty("--oh-mark", String(gauge / scale));
-    bar.style.setProperty("--oh-t", String(Math.min(1, heat / Math.max(gauge, 1))));
+    bar.style.setProperty("--ov-fill", String(Math.min(1, heat / scale)));
+    bar.style.setProperty("--ov-mark", String(gauge / scale));
+    bar.style.setProperty("--ov-t", String(Math.min(1, heat / Math.max(gauge, 1))));
     bar.classList.toggle("near", flipping && heat <= gauge && gauge - heat <= 3);
     bar.classList.toggle("over", heat > gauge);
-    const text = bar.querySelector(".oh-heat-text");
+    const text = bar.querySelector(".ov-heat-text");
     if (text) text.textContent = `${heat} / ${gauge}`;
   }
 
@@ -481,22 +481,22 @@ export class OverheatView implements GameView {
       replaceChildren(
         this.actions,
         hint(
-          pick.mine === null && !pick.theirs ? "Tap one of your cards"
-          : pick.mine === null ? `Theirs: ${card(pick.theirs?.id, pick.theirs?.targetId)}. Now tap one of yours`
-          : `Yours: ${card(pick.mine, props.playerId)}. Now tap one of theirs`,
+          pick.mine === null && !pick.theirs ? "Pick one of your cards"
+          : pick.mine === null ? `Theirs: ${card(pick.theirs?.id, pick.theirs?.targetId)}. Now pick one of yours`
+          : `Yours: ${card(pick.mine, props.playerId)}. Now pick one of theirs`,
         ),
       );
       return;
     }
     if (choice) {
-      replaceChildren(this.actions, hint(choice.kind === "fuse" ? "Tap a player to get the Fuse" : "Tap a player to shove a card onto"));
+      replaceChildren(this.actions, hint(choice.kind === "fuse" ? "Pick a player to get the Burn" : "Pick a player to push a card onto"));
       return;
     }
     const points = bankScore(me.engine, false);
     replaceChildren(
       this.actions,
-      h("button", { type: "button", class: "oh-flip-btn", onclick: () => this.send({ type: "flip" }) }, "Flip"),
-      h("button", { type: "button", class: "primary oh-bank-btn", disabled: !me.flipped, onclick: () => this.send({ type: "bank" }) }, `Bank +${points}`),
+      h("button", { type: "button", class: "ov-flip-btn", onclick: () => this.send({ type: "flip" }) }, "Flip"),
+      h("button", { type: "button", class: "primary ov-bank-btn", disabled: !me.flipped, onclick: () => this.send({ type: "bank" }) }, `Save +${points}`),
     );
     if (!me.flipped) this.note.textContent = "You must flip first.";
     else {
@@ -582,7 +582,7 @@ export class OverheatView implements GameView {
         replaceChildren(this.actions);
         audio.play("shuffle");
         once(this.gaugeEl, "pop");
-        await bubble(this.gaugeEl, `Limit ${e.gauge}`, "anim-bubble oh-callout", 1100);
+        await bubble(this.gaugeEl, `Limit ${e.gauge}`, "anim-bubble ov-callout", 1100);
         break;
       case "flip":
         await this.showFlip(e);
@@ -590,16 +590,16 @@ export class OverheatView implements GameView {
       case "shove":
         audio.play("deal");
         once(this.row(e.targetId) ?? this.rows, "aimed");
-        await bubble(this.anchorFor(e.playerId), `Shove → ${e.targetId === me ? "you" : seatName(props.room, e.targetId)}`, "anim-bubble oh-callout", 1000);
+        await bubble(this.anchorFor(e.playerId), `Push → ${e.targetId === me ? "you" : seatName(props.room, e.targetId)}`, "anim-bubble ov-callout", 1000);
         break;
       case "vent":
         audio.play("pass");
         this.setHeat(e.playerId, e.heat);
-        await bubble(this.anchorFor(e.playerId), `Vent −${VENT_HEAT}`, "anim-bubble oh-cool", 900);
+        await bubble(this.anchorFor(e.playerId), `Cool −${VENT_HEAT}`, "anim-bubble ov-cool", 900);
         break;
       case "turbo":
         audio.play("nudge");
-        await bubble(this.anchorFor(e.playerId), "Turbo: next ×2", "anim-bubble oh-callout", 900);
+        await bubble(this.anchorFor(e.playerId), "Double: next ×2", "anim-bubble ov-callout", 900);
         break;
       case "heatwave": {
         audio.play("nudge");
@@ -608,30 +608,30 @@ export class OverheatView implements GameView {
           const row = this.row(id);
           if (!row) continue;
           this.setHeat(id, Number(row.dataset.heat), Number(row.dataset.gauge) - HEATWAVE_DROP);
-          const mark = row.querySelector(".oh-heat");
+          const mark = row.querySelector(".ov-heat");
           if (mark) once(mark, "flash");
         }
-        await bubble(this.gaugeEl, `Heatwave! Limit −${HEATWAVE_DROP}`, "anim-bubble oh-hot", 1200);
+        await bubble(this.gaugeEl, `Limit −${HEATWAVE_DROP}`, "anim-bubble ov-hot", 1200);
         await wait(300);
         break;
       }
       case "fuse": {
         audio.play("deal");
-        const fuse = this.row(e.targetId)?.querySelector<HTMLElement>(".oh-fuse");
+        const fuse = this.row(e.targetId)?.querySelector<HTMLElement>(".ov-fuse");
         if (fuse) {
           fuse.hidden = false;
           fuse.lastChild!.textContent = `×${e.fuses}`;
           once(fuse, "pulse");
         }
-        await bubble(this.anchorFor(e.targetId), "Fuse!", "anim-bubble oh-hot", 1000);
+        await bubble(this.anchorFor(e.targetId), "Burn!", "anim-bubble ov-hot", 1000);
         break;
       }
       case "fuse-tick": {
         audio.play("tick");
-        const fuse = this.row(e.playerId)?.querySelector(".oh-fuse");
+        const fuse = this.row(e.playerId)?.querySelector(".ov-fuse");
         if (fuse) once(fuse, "pulse");
         this.setHeat(e.playerId, e.heat);
-        await bubble(this.anchorFor(e.playerId), `Fuse +${e.fuses}`, "anim-bubble oh-hot", 900);
+        await bubble(this.anchorFor(e.playerId), `Burn +${e.fuses}`, "anim-bubble ov-hot", 900);
         break;
       }
       case "wrench":
@@ -651,10 +651,10 @@ export class OverheatView implements GameView {
           row.classList.add("st-busted");
           row.classList.remove("st-flipping");
           once(row, "shake");
-          const chip = row.querySelector(".oh-chip");
-          if (chip) chip.textContent = "Bust";
+          const chip = row.querySelector(".ov-chip");
+          if (chip) chip.textContent = "Too hot";
         }
-        await bubble(this.anchorFor(e.playerId), "Bust!", "anim-bubble oh-loss", 1100);
+        await bubble(this.anchorFor(e.playerId), "Too hot!", "anim-bubble ov-loss", 1100);
         await wait(300);
         break;
       }
@@ -663,23 +663,23 @@ export class OverheatView implements GameView {
         if (e.playerId === me) audio.buzz([30, 30, 30]);
         const row = this.row(e.playerId);
         if (row) once(row, "redline");
-        await bubble(this.anchorFor(e.playerId), "Redline! +10", "anim-bubble oh-gain", 1100);
+        await bubble(this.anchorFor(e.playerId), "Perfect! +10", "anim-bubble ov-gain", 1100);
         break;
       }
       case "bank": {
         audio.play("correct");
         if (e.playerId === me) audio.buzz(30);
         const row = this.row(e.playerId);
-        void bubble(this.anchorFor(e.playerId), `+${e.points}`, "anim-bubble oh-gain", 1000);
+        void bubble(this.anchorFor(e.playerId), `+${e.points}`, "anim-bubble ov-gain", 1000);
         await wait(250);
         if (row) {
           row.dataset.flipping = "false";
           this.paintBar(row, this.roundGauge());
           row.classList.add("st-banked");
           row.classList.remove("st-flipping");
-          const chip = row.querySelector(".oh-chip");
-          if (chip) chip.textContent = `${e.redline ? "Redline" : "Banked"} +${e.points}`;
-          const score = row.querySelector<HTMLElement>(".oh-score");
+          const chip = row.querySelector(".ov-chip");
+          if (chip) chip.textContent = `${e.redline ? "Perfect" : "Saved"} +${e.points}`;
+          const score = row.querySelector<HTMLElement>(".ov-score");
           if (score) {
             score.textContent = String(e.score);
             once(score, "pop");
@@ -709,10 +709,10 @@ export class OverheatView implements GameView {
   /** The card comes off the deck (or from the shover) and lands in the row. */
   private async showFlip(e: Extract<OverheatEvent, { type: "flip" }>) {
     const row = this.row(e.playerId);
-    const engine = row?.querySelector<HTMLElement>(".oh-engine");
+    const engine = row?.querySelector<HTMLElement>(".ov-engine");
     if (!row || !engine) return;
     const from = (e.by ? this.anchorFor(e.by) : this.deckEl).getBoundingClientRect();
-    engine.querySelector(".oh-empty")?.remove();
+    engine.querySelector(".ov-empty")?.remove();
     const spot = cardFace(e.card, e.mult);
     spot.style.visibility = "hidden";
     engine.append(spot);
@@ -725,7 +725,7 @@ export class OverheatView implements GameView {
       await wait(200);
     } else {
       // Power cards don't stay: a short look, then it goes.
-      await bubble(spot, cardLabel(e.card), "anim-bubble oh-callout", 900);
+      await bubble(spot, cardLabel(e.card), "anim-bubble ov-callout", 900);
       await wait(250);
       spot.classList.add("leaving");
       await wait(200);
@@ -738,8 +738,8 @@ export class OverheatView implements GameView {
     audio.play("card-place");
     const mineRow = this.row(e.playerId);
     const theirRow = this.row(e.targetId);
-    const a = mineRow?.querySelector<HTMLElement>(`.oh-card[data-card="${e.gave.card.id}"]`);
-    const b = theirRow?.querySelector<HTMLElement>(`.oh-card[data-card="${e.got.card.id}"]`);
+    const a = mineRow?.querySelector<HTMLElement>(`.ov-card[data-card="${e.gave.card.id}"]`);
+    const b = theirRow?.querySelector<HTMLElement>(`.ov-card[data-card="${e.got.card.id}"]`);
     const worth = (x: EngineCard) => x.card.value * x.mult;
     if (a && b && mineRow && theirRow) {
       const ra = a.getBoundingClientRect();

@@ -71,7 +71,10 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
   const verb = (id: string, you: string, they: string) => (id === me ? you : they);
   switch (e.type) {
     case "hand-start":
-      return `Hand ${e.handNumber}. Blinds ${formatChips(e.sb)}/${formatChips(e.bb)}. ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
+      // Says what the blinds are where they first show: the two bets made before any cards.
+      // What was really posted: a short stack can put in less than the blind.
+      const posted = e.blinds.map((b) => `${who(b.playerId)} ${verb(b.playerId, "put", "puts")} in ${formatChips(b.amount)}`);
+      return `Hand ${e.handNumber}. ${posted.length ? `Blinds: ${posted.join(" and ")} before the cards. ` : ""}${who(e.buttonId)} ${verb(e.buttonId, "deal", "deals")} this hand.`;
     case "level-up":
       return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":
@@ -840,6 +843,9 @@ export class HoldemView implements GameView {
     this.actions.classList.toggle("bet-row", !!legal && !this.raiseOpen);
     this.actions.classList.toggle("raise-row", !!legal && this.raiseOpen);
     replaceChildren(this.actions, nodes);
+    // Waiting on the server, not unavailable: the shell keeps busy buttons lime.
+    this.actions.setAttribute("aria-busy", String(busy));
+    this.raisePanel.setAttribute("aria-busy", String(busy));
     this.raisePanel.hidden = !(legal && this.raiseOpen);
     if (legal && this.raiseOpen) this.renderRaise(game, legal);
   }

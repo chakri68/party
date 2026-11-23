@@ -175,12 +175,15 @@
   margin: 0;
   padding: 2px;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* About 2 rows of chips; a big room scrolls inside. */
+  max-height: 80px;
+  overflow-y: auto;
 }
 .sb-player {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -191,7 +194,7 @@
   font-size: 0.9rem;
   transition: border-color 150ms, background 150ms;
 }
-.sb-player .name { font-weight: 600; }
+.sb-player .name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-player .score { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
 .sb-player .tag { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .sb-player.drawer { border-style: dashed; border-color: var(--accent); }
@@ -244,7 +247,7 @@
   }
   /* Sized by the page next to it, not by how much chat there's been. */
   .sb-side { contain: size; }
-  .sb-players { flex-direction: column; overflow: visible; }
+  .sb-players { flex-direction: column; flex-wrap: nowrap; overflow: visible; max-height: none; }
   .sb-player { padding: 3px 12px 3px 3px; }
   .sb-log { max-height: none; flex: 1; }
 }
@@ -260,7 +263,7 @@
     grid-template-areas: "top top" "stage tools" "stage side";
   }
   .sb-side { contain: size; min-height: 120px; }
-  .sb-players { flex-wrap: wrap; overflow: visible; }
+  .sb-players { flex-wrap: wrap; overflow: visible; max-height: none; }
   .sb-log { max-height: none; flex: 1; min-height: 0; }
   .sb-palette { gap: 5px; }
   .sb-swatch { width: 34px; height: 34px; }

@@ -303,9 +303,9 @@ export class SamePageView implements GameView {
         this.locked,
         h("span", { class: "sp-locked-k" }, "Your answer"),
         h("strong", { class: "sp-locked-v" }, mine),
-        h("span", { class: "sp-locked-k" }, answering ? "tap to change" : ""),
+        h("span", { class: "sp-locked-k" }, answering ? "change it" : ""),
       );
-      this.locked.setAttribute("aria-label", `Your answer: ${mine}. Tap to change.`);
+      this.locked.setAttribute("aria-label", `Your answer: ${mine}. Change it.`);
       this.locked.disabled = !answering;
     }
     const live = game.players.filter((p) => !p.removed);
@@ -316,6 +316,7 @@ export class SamePageView implements GameView {
   private renderTicks(props: GameViewProps, game: Pub) {
     this.ticks.hidden = game.phase !== "answering";
     if (this.ticks.hidden) return;
+    const top = Math.max(0, ...game.players.filter((p) => !p.removed).map((p) => p.score));
     replaceChildren(
       this.ticks,
       game.players
@@ -325,9 +326,10 @@ export class SamePageView implements GameView {
           const away = seat && seat.presence !== "connected";
           return h(
             "li",
-            { class: ["sp-tick", p.answered && "in", away && "away", p.id === props.playerId && "me"].filter(Boolean).join(" ") },
+            { class: ["sp-tick", p.answered && "in", away && "away", p.id === props.playerId && "me", top > 0 && p.score === top && "lead"].filter(Boolean).join(" ") },
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "sp-tick-name" }, this.name(p.id, props)),
+            h("span", { class: "sp-tick-score", "aria-label": `${p.score} points` }, `${p.score} pts`),
             h("span", { class: "sp-tick-mark", "aria-label": p.answered ? "answered" : "thinking" }, p.answered ? "✓" : "…"),
           );
         }),
@@ -451,6 +453,9 @@ export class SamePageView implements GameView {
     const ranked = [...live].sort((a, b) => b.score - a.score);
     const top = ranked[0]?.score ?? 0;
     const reveal = game.phase === "reveal" || game.phase === "over";
+    // While answering, the ticks carry each score: one list of players, not two.
+    this.board.hidden = game.phase === "answering";
+    if (this.board.hidden) return;
     replaceChildren(
       this.board,
       ranked.map((p) => {
@@ -485,8 +490,8 @@ export class SamePageView implements GameView {
         if (!this.isHost(props)) text = `${host} is joining answers with the same meaning.`;
         else if (this.pick) {
           const label = game.groups?.find((g) => g.id === this.pick)?.label ?? "";
-          text = `Now tap the group to join with “${label}”.`;
-        } else text = "Do 2 groups mean the same thing? Tap 1 group. Then tap the other group.";
+          text = `Pick the group to join with “${label}”.`;
+        } else text = "Do 2 groups mean the same thing? Pick 1 group. Then pick the other group.";
         break;
       case "reveal":
       case "over": {

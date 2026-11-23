@@ -372,6 +372,17 @@ button.th-ready { min-width: 120px; }
   .th-hand { gap: 14px; }
 }
 
+/* Phone held sideways: a short screen. Smaller discs, and your discs beside their
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .thorns { --disc: 36px; --disc-overlap: -16px; --hand-disc: 48px; gap: 8px; }
+  .th-table { padding: 10px 12px; }
+  .th-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); gap: 4px 16px; }
+  .th-dock-head { flex-direction: column; align-items: flex-start; max-width: 280px; }
+  .th-controls { grid-column: 1; justify-content: flex-start; min-height: 0; }
+  .th-hand { grid-column: 2; grid-row: 1 / span 2; }
+}
+
 /* ---- Feedback -------------------------------------------------------------- */
 
 .thorns .shake { animation: th-shake 300ms ease; }

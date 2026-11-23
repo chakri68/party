@@ -34,7 +34,7 @@ Computer players can fill seats in this game. They count the dice they can see a
 
 ## Winning and scoring
 
-Run out of dice and you're out. The last player with dice wins. The results list the winner with their dice left, then everyone else, latest out first ("out 3rd", "out 2nd", "out 1st"). Anyone the host removed comes last.
+Run out of dice and you're out. The last player with dice wins. The results list the winner with their dice left, then everyone else, latest out first, each with their place: "2nd place", "3rd place", and "out first (last place)" for the first player out. Anyone the host removed comes last.
 
 ## Settings
 
@@ -48,10 +48,10 @@ Host picks these in the lobby.
 
 ## On your screen
 
-- **The others.** A row of players, each with a little face-down die per die they hold. The bidder is highlighted.
+- **The others.** A row of players, each with a little face-down die per die they hold. The bidder is highlighted. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more. This round's earlier bids scroll the same way.
 - **The table.** How many dice are in play, whether 1s are wild, the standing bid in big type (a number and a die), and this round's earlier bids.
 - **Your cup.** Your own dice at the bottom. Nobody else sees them until a call.
-- **Your turn.** A stepper for the quantity, six face buttons, and **Liar!**, **Spot on** and **Bid**. It starts on the smallest legal raise, so a nervous bid is one tap. Faces that can't beat the bid are greyed out, and the stepper won't go below what's legal.
+- **Your turn.** A stepper for the quantity, six face buttons, and **Liar!**, **Spot on** and **Bid**. A short line over them says what the two calls mean ("Liar: the bid is too high. Spot on: the bid is exact."). It starts on the smallest legal raise, so a nervous bid is one tap. Faces that can't beat the bid are greyed out, and the stepper won't go below what's legal.
 - **The reveal.** Every cup turns over. Dice that count light up green; wild 1s get an outline. The count climbs against the bid, then the verdict ("Liar!", "It's there", "Spot on!", "Not quite") and who pays. The lost die is crossed out. A bar drains until the next round.
 - Sounds and vibration cue the roll, bids, calls, your turn and the ending.
 
