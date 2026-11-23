@@ -147,7 +147,11 @@ button.bl-pick { cursor: pointer; }
 /* Up to twelve fakes: the list scrolls inside itself, the scores stay put. */
 .bluff[data-phase="reveal"] .bl-options { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }
 .bluff[data-phase="reveal"] .bl-table { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-.bluff[data-phase="reveal"] .bl-row { min-height: 34px; padding: 2px 10px 2px 4px; }
+.bluff[data-phase="reveal"] .bl-row { min-height: 34px; padding: 2px 8px 2px 4px; gap: 6px; }
+/* Two scores to a line: let a name take two lines rather than cut it. */
+.bluff[data-phase="reveal"] .bl-row .name { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 0.9rem; }
+.bl-legend { margin: 0; font-size: 0.8rem; color: var(--muted); text-align: center; }
+.bl-legend:empty { display: none; }
 .bluff[data-phase="reveal"] .bl-note:empty { display: none; }
 
 @media (prefers-reduced-motion: reduce) {

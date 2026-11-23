@@ -12,7 +12,7 @@ Here's a real word nobody knows. Make up what it means, and spot the real meanin
 ## How it plays
 1. **Write (60 seconds).** You see "An uncommon English word" and the word. Type a made-up meaning (15 to 180 characters) and tap **Send**. A counter shows how long yours is. The round moves on early once everyone who's here has sent one.
 2. **Vote (30 seconds).** The real meaning and all the fakes appear in random order with no names. Your own is tagged "yours" and can't be picked. Tap another to vote. You can change your vote until everyone has voted or the clock ends.
-3. **The reveal (12 seconds).** The real meaning is marked "Real", each fake shows "Fake by <name>", and each option lists who it fooled or who found it. Points land, with a short note on where the word comes from.
+3. **The reveal (12 seconds).** The real meaning is marked "Real", each fake shows "Fake by <name>", and each option lists who it fooled or who found it. Points land. Each "+N" by a name is what that player got this round. A line under the scores says how points work ("Found the real one: +2. Each vote for your fake: +1."). Under the headline you see why you got yours ("+2 for finding the real one"). There is also a short note on where the word comes from.
 4. The next round starts by itself. The host can tap **Next round** to skip the wait (**Finish** on the last round).
 
 ## Winning and scoring

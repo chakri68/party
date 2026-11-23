@@ -445,7 +445,7 @@ export class SevensView implements GameView {
       action = pass;
     } else {
       action = [
-        h("span", { class: "hint" }, directPlay() ? "Click a bright card" : "Tap a bright card"),
+        h("span", { class: "hint" }, "Pick a bright card"),
         pass,
       ];
     }

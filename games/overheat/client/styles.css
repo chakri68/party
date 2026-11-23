@@ -100,7 +100,7 @@ button.oh-row-body {
   cursor: pointer;
 }
 .oh-row.aim button.oh-row-body::after {
-  content: "Tap to aim";
+  content: "Pick";
   justify-self: end;
   font-size: 0.75rem;
   font-weight: 700;
@@ -351,6 +351,35 @@ button.oh-card:focus-visible { outline: 3px solid var(--accent); }
   25% { transform: translateX(-6px); }
   50% { transform: translateX(6px); }
   75% { transform: translateX(-3px); }
+}
+
+/* ---- Phones: 4 players fit one 360x780 screen ---------------------------------
+   Name and chips share one line, the cards are a bit smaller, and "Tap to aim"
+   sits in the corner of the card row instead of on a line of its own. */
+
+@media (max-width: 699px) {
+  .overheat {
+    --oh-card-w: 28px;
+    --oh-card-h: 38px;
+    gap: 8px;
+  }
+  .overheat .oh-status { min-height: 46px; }
+  .overheat .oh-head { flex-wrap: nowrap; gap: 4px 10px; font-size: 0.82rem; white-space: nowrap; }
+  .overheat .oh-gauge b { font-size: 0.95rem; }
+  .overheat .oh-rows { gap: 6px; }
+  .overheat .oh-row-body { position: relative; gap: 4px; padding: 6px 10px 8px; }
+  .overheat .oh-who { display: flex; align-items: center; gap: 6px; }
+  .overheat .oh-name { flex: 0 1 auto; }
+  .overheat .oh-tags { flex-wrap: nowrap; }
+  .overheat .oh-score { font-size: 1.15rem; }
+  .overheat .oh-val { font-size: 0.95rem; }
+  .overheat .oh-shape svg { width: 10px; height: 10px; }
+  .overheat .oh-row.aim .oh-engine { padding-right: 86px; }
+  .overheat .oh-row.aim button.oh-row-body::after {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+  }
 }
 
 /* ---- Bigger screens ---------------------------------------------------------- */

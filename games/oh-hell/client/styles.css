@@ -218,7 +218,19 @@
 .oh-score tr.made .pts { color: var(--accent); font-weight: 700; }
 .oh-score tr.missed .pts { color: var(--muted); }
 .oh-score .total { font-weight: 700; }
-.oh-ready { color: var(--accent); }
+.oh-score .oh-name-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.oh-score .oh-name-cell .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.oh-ready {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .oh-countdown { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.3em; }
 
 /* ---- Cards --------------------------------------------------------------- */

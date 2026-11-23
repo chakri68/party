@@ -137,8 +137,8 @@ describe("taking", () => {
     expect(r.loserIds).toEqual(["p2"]);
     expect(r.winnerIds.sort()).toEqual(["p0", "p1"]);
     expect(r.standings.map((s) => [s.playerId, s.label])).toEqual([
-      ["p0", "out 1st"],
-      ["p1", "out 2nd"],
+      ["p0", "won, first out"],
+      ["p1", "won, out 2nd"],
       ["p2", "left with the Queen of Hearts"],
     ]);
     expect(om.getPublicState(t.state).loserCard?.id).toBe("hearts-Q");

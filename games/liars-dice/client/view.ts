@@ -215,14 +215,14 @@ export class LiarsDiceView implements GameView {
           break;
         case "bid":
           audio.play("card-place");
-          await bubble(this.anchorFor(e.playerId, props), bidText(e.quantity, e.face), "anim-bubble ld-bid-bubble", 1000);
+          await bubble(this.anchorFor(e.playerId, props), bidText(e.quantity, e.face), "anim-bubble ld-bid-bubble", 1000, this.below(e.playerId, props));
           break;
         case "called":
           await this.showCall(e, props);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, this.below(e.playerId, props));
           break;
         default:
           break;
@@ -245,6 +245,11 @@ export class LiarsDiceView implements GameView {
   private anchorFor(playerId: string, props: GameViewProps): Element {
     if (playerId === props.playerId) return this.myDice.firstElementChild ?? this.me;
     return this.opponents.querySelector(`[data-player="${CSS.escape(playerId)}"] .avatar`) ?? this.status;
+  }
+
+  /** Opponents sit right under the status banner: their bubbles drop down over the table instead of covering it. */
+  private below(playerId: string, props: GameViewProps): boolean {
+    return playerId !== props.playerId;
   }
 
   /** Cups shaken: every die you can see tumbles, with a rattle. */
@@ -283,7 +288,7 @@ export class LiarsDiceView implements GameView {
   private async showCall(e: Called, props: GameViewProps) {
     audio.play("nudge");
     audio.buzz(30);
-    await bubble(this.anchorFor(e.callerId, props), e.call === "liar" ? "Liar!" : "Spot on!", "anim-bubble ld-shout", 1100);
+    await bubble(this.anchorFor(e.callerId, props), e.call === "liar" ? "Liar!" : "Spot on!", "anim-bubble ld-shout", 1100, this.below(e.callerId, props));
 
     const built = this.buildReveal(e, props, true);
     this.table.dataset.key = "";
@@ -632,7 +637,11 @@ export class LiarsDiceView implements GameView {
         ? h("button", { type: "button", class: "primary ld-raise", onclick: () => this.send({ type: "bid", quantity, face }) }, `Bid ${bidText(quantity, face)}`)
         : null,
     );
-    return priv.canBid ? [stepper, faces, moves] : [moves];
+    // What the two calls mean, said once where they show.
+    const calls = priv.canCallLiar
+      ? h("p", { class: "ld-calls-hint" }, priv.canSpotOn ? "Liar: too high. Spot on: exactly right." : "Liar: the bid is too high.")
+      : null;
+    return [...(priv.canBid ? [stepper, faces] : []), ...(calls ? [calls] : []), moves];
   }
 
   private send(action: unknown) {

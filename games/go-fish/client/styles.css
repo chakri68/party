@@ -115,6 +115,8 @@
   box-shadow: 2px 2px 0 -1px var(--card-ink), 3px 3px 0 -1px var(--accent), 0 4px 10px rgb(0 0 0 / 0.45);
 }
 .gf-pond-count, .gf-book-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* "Pond: 24 cards to draw" says what the pond is; it may take two lines. */
+.gf-pond-count { white-space: normal; text-align: center; max-width: 16ch; }
 
 /* A book, fanned so all four read. */
 .gf-book { position: relative; width: calc(var(--card-w) + 3 * var(--book-step)); height: var(--card-h); }

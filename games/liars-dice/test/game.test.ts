@@ -351,8 +351,8 @@ describe("the end", () => {
       winnerIds: ["p2"],
       standings: [
         { playerId: "p2", value: 2, label: "2 dice left" },
-        { playerId: "p1", value: 0, label: "out 2nd" },
-        { playerId: "p0", value: 0, label: "out 1st" },
+        { playerId: "p1", value: 0, label: "out 2nd (2nd place)" },
+        { playerId: "p0", value: 0, label: "out first (last place)" },
       ],
     });
     expect(err(act(end.state, "p2", { type: "ready" }))).toBe("game-finished");

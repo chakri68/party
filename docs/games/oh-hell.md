@@ -45,7 +45,7 @@ Host picks these in the lobby.
 - **Bidding.** The table shows "Bids so far" against the hand size. On your bid, a row of numbers sits above your hand; the dealer's forbidden number is struck out and can't be pressed. Tap a number, then tap it again (or press **Bid N**) to send it.
 - **The trick.** One slot per player in play order, with names under the cards. The one that takes it lifts and the rest dim. **Last trick** opens the previous trick.
 - **Your hand.** Sorted by suit, trump first, low to high. Trump cards have a lime stripe. On your turn, cards you can't play are dimmed (the server says which). Tap a card to lift it, then tap it again or press **Play** to put it down. Two taps on purpose: there's no taking a card back. A long hand scrolls sideways. It moves to show the card you lifted, or the first one you can play.
-- **Round summary.** Bid, won, points and total for everyone, a tick by whoever's ready, and the countdown.
+- **Round summary.** Bid, won, points and total for everyone, the word "Ready" by whoever's ready, and the countdown.
 - Sounds and vibration cue the deal, plays, tricks you take, your turn, and whether you made your bid.
 
 ## When things go sideways

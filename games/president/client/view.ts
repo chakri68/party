@@ -397,7 +397,7 @@ export class PresidentView implements GameView {
         ? h("span", {}, leading ? "You lead" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
         : [
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "leads" : "must play"}`),
+            h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "plays first" : "is playing"}`),
           ],
     );
   }

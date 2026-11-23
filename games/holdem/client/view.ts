@@ -71,7 +71,8 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
   const verb = (id: string, you: string, they: string) => (id === me ? you : they);
   switch (e.type) {
     case "hand-start":
-      return `Hand ${e.handNumber}. Blinds ${formatChips(e.sb)}/${formatChips(e.bb)}. ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
+      // Says what the blinds are where they first show: the two bets made before any cards.
+      return `Hand ${e.handNumber}. Blinds: ${who(e.sbId)} ${verb(e.sbId, "put", "puts")} in ${formatChips(e.sb)} and ${who(e.bbId)} ${verb(e.bbId, "put", "puts")} in ${formatChips(e.bb)} before the cards. ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
     case "level-up":
       return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":

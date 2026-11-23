@@ -4,13 +4,13 @@ import { DEFAULT_SETTINGS, TARGET_OPTIONS, type OverheatSettings } from "./types
 /** Plain-language rules for the lobby's Rules button. */
 export const overheatRules: string[] = [
   "Each round has a heat limit. Everyone can see it.",
-  "On your turn, flip a card or bank.",
+  "On your turn, flip a card or save.",
   "A number card adds its number to your heat and to your points.",
-  "If your heat goes over the limit, you bust. You get 0 points for the round.",
-  "Bank to keep your points. After you bank, other players' cards can't hurt you.",
-  "If your heat is exactly the limit, you get 10 extra points and bank.",
+  "If your heat goes over the limit, you are too hot. You get 0 points for the round.",
+  "Save to keep your points. After you save, other players' cards can't hurt you.",
+  "If your heat is exactly the limit, that is Perfect: you get 10 extra points and save.",
   "3 cards of one colour: +5. All 4 colours: +5.",
-  "Power cards can cool you, help you, or hit other players.",
+  "Power cards: Cool (heat −5), Double (your next number card counts double), Push (a player gets the next card), Swap (swap a card with a player), Burn (a player gets +1 heat at the start of each turn), Limit down (the limit goes down by 3 for everyone still flipping).",
   "The first player to reach the target score at the end of a round wins.",
 ];
 

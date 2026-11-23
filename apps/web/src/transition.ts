@@ -52,6 +52,13 @@ export function transition(kind: TransitionKind, update: Update): void {
   const root = document.documentElement;
   root.dataset.vt = kind;
   const vt = document.startViewTransition(update);
+  // The browser skips a transition when the viewport changes size mid-way (a
+  // phone turned sideways) or the tab is hidden: `ready` rejects, the update
+  // still ran, only the animation is lost. Catch exactly that; anything else
+  // stays an error.
+  vt.ready.catch((e: unknown) => {
+    if (!isSkip(e)) throw e;
+  });
   void vt.finished.finally(() => {
     running = false;
     delete root.dataset.vt;
@@ -59,4 +66,9 @@ export function transition(kind: TransitionKind, update: Update): void {
     waiting = null;
     if (next) transition(next.kind, next.update);
   });
+}
+
+/** The rejection a skipped view transition gives: the DOM change landed, the animation didn't. */
+export function isSkip(e: unknown): boolean {
+  return typeof DOMException !== "undefined" && e instanceof DOMException && (e.name === "InvalidStateError" || e.name === "AbortError");
 }

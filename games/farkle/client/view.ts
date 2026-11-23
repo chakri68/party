@@ -569,7 +569,7 @@ export class FarkleView implements GameView {
     let line = "";
     if (finished) line = "";
     else if (bust) line = `No dice score.${lost ? ` ${pts(lost)} lost.` : ""}`;
-    else if (!picks.length) line = myTurn ? "Tap the dice you want to keep" : `${name} is picking dice…`;
+    else if (!picks.length) line = myTurn ? "Pick the dice you want to keep" : `${name} is picking dice…`;
     else if (dead.size) line = deadText([...dead].map((i) => game.roll[i]!));
     else {
       const all = picks.length === game.roll.length;

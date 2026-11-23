@@ -355,6 +355,7 @@ button.ld-liar {
 }
 button.ld-liar:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a; }
 button.ld-spot { border-color: var(--danger); color: var(--danger); }
+.ld-calls-hint { margin: 0; text-align: center; font-size: 0.8rem; color: var(--muted); }
 
 /* ---- Bubbles ------------------------------------------------------------------------ */
 
@@ -370,7 +371,8 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-die.big { width: 72px; height: 72px; }
   .ld-bid-main b { font-size: 3.6rem; }
   .ld-action.picking { grid-template-columns: auto 1fr; align-items: center; }
-  .ld-action.picking .ld-moves { grid-column: 1 / -1; }
+  .ld-action.picking .ld-moves, .ld-action.picking .ld-calls-hint { grid-column: 1 / -1; }
+  .ld-calls-hint { text-align: right; }
   button.ld-face .ld-die { width: 38px; height: 38px; }
   .ld-moves { justify-content: flex-end; }
   .ld-moves button { flex: 0 1 auto; min-width: 120px; }
@@ -388,6 +390,7 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-dock-head { flex-direction: column; align-items: flex-start; max-width: 220px; min-height: 0; gap: 6px; }
   .ld-my-dice { justify-content: flex-start; }
   .ld-action.picking { gap: 6px; }
+  .ld-calls-hint { display: none; }
   button.ld-face, button.ld-step, .ld-moves button { min-height: 44px; }
   button.ld-face .ld-die { width: 30px; height: 30px; }
 }

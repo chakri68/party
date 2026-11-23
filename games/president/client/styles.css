@@ -258,6 +258,9 @@
 .pr-hand {
   display: flex;
   overflow-x: auto;
+  /* Cards rise in from below when dealt (right as the swap starts): without
+     this the row grows a vertical scrollbar and reads as an empty, broken hand. */
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
   scrollbar-width: thin;

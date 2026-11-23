@@ -66,7 +66,7 @@ Host picks these in the lobby.
 
 ## On your screen
 
-- **Top line.** Hand number, the blinds, and the next level with how many hands until it arrives. Time-capped games add the minutes left.
+- **Top line.** Hand number, the blinds, and the next level with how many hands until it arrives. At the start of each hand the log says who puts in the blinds, for example "Blinds: Ravi puts in 10 and Meera puts in 20 before the cards." Time-capped games add the minutes left.
 - **Status.** Whose turn it is, or "Your turn · 40 to call" when it's yours.
 - **Seats.** Everyone else, from your left: name, stack, what they've bet this round, D/SB/BB markers, and Folded, All-in or Out. Whoever's acting is highlighted, with their clock draining along the bottom of the seat.
 - **The table.** The five shared cards, the pot, and main and side pots once there are any. Below that, the last hand: who won what, with what.

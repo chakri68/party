@@ -500,7 +500,7 @@ export class CrazyEightsView implements GameView {
       action = priv?.canDraw ? drawBtn(true) : null;
     } else {
       action = [
-        h("span", { class: "hint" }, directPlay() ? "Click a card" : "Tap a card"),
+        h("span", { class: "hint" }, "Pick a card"),
         priv?.canDraw ? drawBtn(false) : null,
       ].filter((n): n is HTMLElement => !!n);
     }

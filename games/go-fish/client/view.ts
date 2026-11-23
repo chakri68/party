@@ -546,7 +546,7 @@ export class GoFishView implements GameView {
     replaceChildren(
       this.pond,
       game.pondCount ? cardBackFull() : h("span", { class: "gf-card slot", "aria-hidden": "true" }),
-      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond · ${game.pondCount}` : "Pond empty"),
+      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond: ${game.pondCount} ${game.pondCount === 1 ? "card" : "cards"} to draw` : "Pond empty: nothing to draw"),
     );
 
     // Already showing (it just landed): leave it be, landing and all.
@@ -643,7 +643,7 @@ export class GoFishView implements GameView {
         `Ask ${seatName(props.room, this.target)} for ${plural(this.rank)}`,
       );
     } else if (this.rank !== null) action = h("span", { class: "hint strong" }, "Now choose a player");
-    else action = h("span", { class: "hint strong" }, directPlay() ? "Click a card to ask for" : "Tap a card to ask for");
+    else action = h("span", { class: "hint strong" }, "Pick a card to ask for");
     replaceChildren(this.action, action);
   }
 

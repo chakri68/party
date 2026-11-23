@@ -73,32 +73,32 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
       return `Round ${e.round}. The heat limit is ${e.gauge}.`;
     case "flip": {
       const x2 = e.mult === 2 ? " (counts double)" : "";
-      if (e.by) return `${who(e.by)} shoved ${an(cardLabel(e.card))}${x2} onto ${whom(e.playerId)}.`;
+      if (e.by) return `${who(e.by)} pushed ${an(cardLabel(e.card))}${x2} onto ${whom(e.playerId)}.`;
       if (e.card.kind === "power" && !isAimed(e.card.power)) return null;
       return `${who(e.playerId)} flipped ${an(cardLabel(e.card))}${x2}.`;
     }
     case "vent":
-      return `Vent: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
+      return `Cool: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "turbo":
-      return `Turbo: the next number card for ${whom(e.playerId)} counts double.`;
+      return `Double: the next number card for ${whom(e.playerId)} counts double.`;
     case "shove":
       return null; // The flip that follows says it.
     case "wrench":
       return `${who(e.playerId)} gave ${whom(e.targetId)} ${an(cardLabel(e.gave.card))} and took ${an(cardLabel(e.got.card))}.`;
     case "fuse":
-      return `${who(e.playerId)} put a Fuse on ${whom(e.targetId)}. Each Fuse adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
+      return `${who(e.playerId)} put a Burn on ${whom(e.targetId)}. Each Burn adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
     case "fuse-tick":
-      return `Fuse: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
+      return `Burn: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "heatwave":
-      return `Heatwave! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
+      return `Limit down! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
     case "fizzle":
       return e.card ? `Nobody to aim the ${cardLabel(e.card)} at. It does nothing.` : "No cards left to flip.";
     case "bust":
-      return `Bust! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;
+      return `Too hot! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;
     case "redline":
       return `${who(e.playerId)} hit the limit exactly. +10!`;
     case "bank":
-      return `${who(e.playerId)} banked ${e.points}. Score: ${e.score}.`;
+      return `${who(e.playerId)} saved ${e.points} points. Score: ${e.score}.`;
     case "reshuffle":
       return "The used cards were shuffled into a new deck.";
     case "round-end":
@@ -246,7 +246,7 @@ export class OverheatView implements GameView {
       !mine ? null
       : choice?.kind === "wrench" ? "Pick 2 cards"
       : choice ? "Pick a player"
-      : "Flip or bank",
+      : "Flip or save",
     );
 
     this.renderStatus(props, game, mine);
@@ -292,10 +292,10 @@ export class OverheatView implements GameView {
     if (mine && game.step === "choosing" && pending) {
       text =
         pending.kind === "wrench" ? "Pick one of your cards and one of theirs."
-        : pending.kind === "fuse" ? "Pick a player to get the Fuse."
-        : "Pick a player to shove a card onto.";
+        : pending.kind === "fuse" ? "Pick a player to get the Burn."
+        : "Pick a player to push a card onto.";
     } else if (mine) {
-      text = "Your turn. Flip a card or bank.";
+      text = "Your turn. Flip a card or save.";
     } else {
       const id = game.awaitedId ?? game.currentPlayerId;
       const seat = props.room.seats.find((s) => s.id === id);
@@ -331,8 +331,8 @@ export class OverheatView implements GameView {
 
   private statusText(p: OverheatPlayerState): string {
     if (p.removed || p.status === "out") return "Left";
-    if (p.status === "busted") return "Bust";
-    if (p.status === "banked") return `${p.redline ? "Redline" : "Banked"} +${p.roundPoints}`;
+    if (p.status === "busted") return "Too hot";
+    if (p.status === "banked") return `${p.redline ? "Perfect" : "Saved"} +${p.roundPoints}`;
     return "Flipping";
   }
 
@@ -410,13 +410,13 @@ export class OverheatView implements GameView {
           `score ${p.score}`,
           status,
           p.status === "flipping" || p.engine.length ? `heat ${p.heat} of ${p.gauge}` : "",
-          p.fuses ? `${p.fuses} fuse${p.fuses > 1 ? "s" : ""}` : "",
+          p.fuses ? `${p.fuses} burn${p.fuses > 1 ? "s" : ""}` : "",
           p.turbo && p.status === "flipping" ? "next number card counts double" : "",
           acting ? "playing now" : "",
           away ? PRESENCE_LABEL[seat!.presence] : "",
         ].filter(Boolean).join(", ");
 
-        const verb = choice?.kind === "fuse" ? "Put the Fuse on" : "Shove a card onto";
+        const verb = choice?.kind === "fuse" ? "Put the Burn on" : "Push a card onto";
         const body = aimable.has(p.id) && choice?.kind !== "wrench"
           ? h("button", { type: "button", class: "oh-row-body", "aria-label": `${verb} ${name}. ${label}`, onclick: () => this.onTarget(p.id) }, parts)
           : h("div", { class: "oh-row-body" }, parts);
@@ -481,22 +481,22 @@ export class OverheatView implements GameView {
       replaceChildren(
         this.actions,
         hint(
-          pick.mine === null && !pick.theirs ? "Tap one of your cards"
-          : pick.mine === null ? `Theirs: ${card(pick.theirs?.id, pick.theirs?.targetId)}. Now tap one of yours`
-          : `Yours: ${card(pick.mine, props.playerId)}. Now tap one of theirs`,
+          pick.mine === null && !pick.theirs ? "Pick one of your cards"
+          : pick.mine === null ? `Theirs: ${card(pick.theirs?.id, pick.theirs?.targetId)}. Now pick one of yours`
+          : `Yours: ${card(pick.mine, props.playerId)}. Now pick one of theirs`,
         ),
       );
       return;
     }
     if (choice) {
-      replaceChildren(this.actions, hint(choice.kind === "fuse" ? "Tap a player to get the Fuse" : "Tap a player to shove a card onto"));
+      replaceChildren(this.actions, hint(choice.kind === "fuse" ? "Pick a player to get the Burn" : "Pick a player to push a card onto"));
       return;
     }
     const points = bankScore(me.engine, false);
     replaceChildren(
       this.actions,
       h("button", { type: "button", class: "oh-flip-btn", onclick: () => this.send({ type: "flip" }) }, "Flip"),
-      h("button", { type: "button", class: "primary oh-bank-btn", disabled: !me.flipped, onclick: () => this.send({ type: "bank" }) }, `Bank +${points}`),
+      h("button", { type: "button", class: "primary oh-bank-btn", disabled: !me.flipped, onclick: () => this.send({ type: "bank" }) }, `Save +${points}`),
     );
     if (!me.flipped) this.note.textContent = "You must flip first.";
     else {
@@ -590,16 +590,16 @@ export class OverheatView implements GameView {
       case "shove":
         audio.play("deal");
         once(this.row(e.targetId) ?? this.rows, "aimed");
-        await bubble(this.anchorFor(e.playerId), `Shove → ${e.targetId === me ? "you" : seatName(props.room, e.targetId)}`, "anim-bubble oh-callout", 1000);
+        await bubble(this.anchorFor(e.playerId), `Push → ${e.targetId === me ? "you" : seatName(props.room, e.targetId)}`, "anim-bubble oh-callout", 1000);
         break;
       case "vent":
         audio.play("pass");
         this.setHeat(e.playerId, e.heat);
-        await bubble(this.anchorFor(e.playerId), `Vent −${VENT_HEAT}`, "anim-bubble oh-cool", 900);
+        await bubble(this.anchorFor(e.playerId), `Cool −${VENT_HEAT}`, "anim-bubble oh-cool", 900);
         break;
       case "turbo":
         audio.play("nudge");
-        await bubble(this.anchorFor(e.playerId), "Turbo: next ×2", "anim-bubble oh-callout", 900);
+        await bubble(this.anchorFor(e.playerId), "Double: next ×2", "anim-bubble oh-callout", 900);
         break;
       case "heatwave": {
         audio.play("nudge");
@@ -611,7 +611,7 @@ export class OverheatView implements GameView {
           const mark = row.querySelector(".oh-heat");
           if (mark) once(mark, "flash");
         }
-        await bubble(this.gaugeEl, `Heatwave! Limit −${HEATWAVE_DROP}`, "anim-bubble oh-hot", 1200);
+        await bubble(this.gaugeEl, `Limit −${HEATWAVE_DROP}`, "anim-bubble oh-hot", 1200);
         await wait(300);
         break;
       }
@@ -623,7 +623,7 @@ export class OverheatView implements GameView {
           fuse.lastChild!.textContent = `×${e.fuses}`;
           once(fuse, "pulse");
         }
-        await bubble(this.anchorFor(e.targetId), "Fuse!", "anim-bubble oh-hot", 1000);
+        await bubble(this.anchorFor(e.targetId), "Burn!", "anim-bubble oh-hot", 1000);
         break;
       }
       case "fuse-tick": {
@@ -631,7 +631,7 @@ export class OverheatView implements GameView {
         const fuse = this.row(e.playerId)?.querySelector(".oh-fuse");
         if (fuse) once(fuse, "pulse");
         this.setHeat(e.playerId, e.heat);
-        await bubble(this.anchorFor(e.playerId), `Fuse +${e.fuses}`, "anim-bubble oh-hot", 900);
+        await bubble(this.anchorFor(e.playerId), `Burn +${e.fuses}`, "anim-bubble oh-hot", 900);
         break;
       }
       case "wrench":
@@ -652,9 +652,9 @@ export class OverheatView implements GameView {
           row.classList.remove("st-flipping");
           once(row, "shake");
           const chip = row.querySelector(".oh-chip");
-          if (chip) chip.textContent = "Bust";
+          if (chip) chip.textContent = "Too hot";
         }
-        await bubble(this.anchorFor(e.playerId), "Bust!", "anim-bubble oh-loss", 1100);
+        await bubble(this.anchorFor(e.playerId), "Too hot!", "anim-bubble oh-loss", 1100);
         await wait(300);
         break;
       }
@@ -663,7 +663,7 @@ export class OverheatView implements GameView {
         if (e.playerId === me) audio.buzz([30, 30, 30]);
         const row = this.row(e.playerId);
         if (row) once(row, "redline");
-        await bubble(this.anchorFor(e.playerId), "Redline! +10", "anim-bubble oh-gain", 1100);
+        await bubble(this.anchorFor(e.playerId), "Perfect! +10", "anim-bubble oh-gain", 1100);
         break;
       }
       case "bank": {
@@ -678,7 +678,7 @@ export class OverheatView implements GameView {
           row.classList.add("st-banked");
           row.classList.remove("st-flipping");
           const chip = row.querySelector(".oh-chip");
-          if (chip) chip.textContent = `${e.redline ? "Redline" : "Banked"} +${e.points}`;
+          if (chip) chip.textContent = `${e.redline ? "Perfect" : "Saved"} +${e.points}`;
           const score = row.querySelector<HTMLElement>(".oh-score");
           if (score) {
             score.textContent = String(e.score);

@@ -382,7 +382,7 @@ export class OhHellView implements GameView {
       const led = game.trick[0]?.card.suit;
       const following = led && priv.legal.every((id) => id.startsWith(`${led}-`));
       content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You lead");
-    } else content = them(game.trick.length ? "must play" : "leads");
+    } else content = them(game.trick.length ? "is playing" : "plays first");
     replaceChildren(this.status, content);
   }
 
@@ -543,7 +543,8 @@ export class OhHellView implements GameView {
             return h(
               "tr",
               { class: `${made ? "made" : "missed"}${r.playerId === props.playerId ? " me" : ""}` },
-              h("th", { scope: "row" }, h("span", { class: "nm" }, this.name(r.playerId, props)), p?.ready ? h("span", { class: "oh-ready" }, h("span", { "aria-hidden": "true" }, " ✓"), h("span", { class: "oh-sr" }, ", ready")) : null),
+              // "Ready" in words, not a tick: a green tick here reads as "made the bid".
+              h("th", { scope: "row" }, h("span", { class: "oh-name-cell" }, h("span", { class: "nm" }, this.name(r.playerId, props)), p?.ready ? h("span", { class: "oh-ready" }, h("span", { class: "oh-sr" }, ", "), "ready") : null)),
               h("td", {}, String(r.bid)),
               h("td", {}, String(r.tricks)),
               h("td", { class: "pts" }, r.points > 0 ? `+${r.points}` : String(r.points)),
@@ -657,7 +658,7 @@ export class OhHellView implements GameView {
       const card = this.lifted ? priv.hand.find((c) => c.id === this.lifted) : undefined;
       action = card
         ? h("button", { type: "button", class: "primary", onclick: () => this.playLifted() }, `Play ${cardShort(card)}`)
-        : hint("Tap a card twice", true);
+        : hint("Pick a card, then play it", true);
     } else if (game.trickWinnerId) action = null;
     else action = hint(game.phase === "bidding" ? "Waiting for bids" : "Not your turn yet");
     replaceChildren(this.action, action);

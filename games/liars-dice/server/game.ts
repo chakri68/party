@@ -421,18 +421,21 @@ export const liarsDiceGame: GameDefinition<
     // The winner, then the latest out first, then leavers.
     const outAt = (p: Player) => state.outOrder.indexOf(p.id);
     const rank = (p: Player) => (p.id === state.winnerId ? -1 : p.removed ? 1000 : inPlay(p) ? 0 : 100 - outAt(p));
+    const sorted = [...state.players].sort((a, b) => rank(a) - rank(b));
+    const placed = sorted.filter((p) => !p.removed).length;
     return {
       winnerIds: state.winnerId ? [state.winnerId] : [],
-      standings: [...state.players]
-        .sort((a, b) => rank(a) - rank(b))
-        .map((p) => {
-          const label = p.removed
-            ? "left"
-            : p.count > 0
-              ? `${p.count} ${p.count === 1 ? "die" : "dice"} left`
-              : `out ${ordinal(outAt(p) + 1)}`;
-          return { playerId: p.id, value: p.count, label };
-        }),
+      standings: sorted.map((p, i) => {
+        // Out first is the worst place here, so say the place too.
+        const out = outAt(p) + 1;
+        const place = i + 1 === placed ? "last place" : `${ordinal(i + 1)} place`;
+        const label = p.removed
+          ? "left"
+          : p.count > 0
+            ? `${p.count} ${p.count === 1 ? "die" : "dice"} left`
+            : `out ${out === 1 ? "first" : ordinal(out)} (${place})`;
+        return { playerId: p.id, value: p.count, label };
+      }),
     };
   },
 };
