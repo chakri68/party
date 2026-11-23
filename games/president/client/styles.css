@@ -63,7 +63,8 @@
 }
 .pr-opp.passed { opacity: 0.7; }
 .pr-opp.away { opacity: 0.55; }
-.pr-opp-text { display: grid; line-height: 1.15; justify-items: start; }
+/* min-height keeps room for the title tag line, so chips do not grow when titles appear. */
+.pr-opp-text { display: grid; line-height: 1.15; justify-items: start; align-content: center; min-height: calc(1.15 * 1.7rem + 2px); }
 .pr-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
 .pr-opp .count, .pr-me .count {
   display: flex;
@@ -241,7 +242,9 @@
   gap: 8px;
   min-height: 44px;
 }
-.pr-me { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.pr-me { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 2px; min-width: 0; }
+.pr-me .pr-title { order: 3; }
+.pr-me .count { white-space: normal; }
 .pr-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
 .pr-action { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .pr-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; }
