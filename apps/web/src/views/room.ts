@@ -1184,7 +1184,8 @@ export class RoomView implements View {
     const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
     if (!fields.length) return null;
     this.settingsOpen ??= matchMedia("(min-width: 600px)").matches;
-    const warnings = settingsWarnings(fields);
+    // The setup problem has its own line (the Start bar, or under the settings): say it once.
+    const warnings = settingsWarnings(fields.filter((f) => f.hint !== room.setupProblem));
     const fold = h(
       "details",
       { class: "settings-fold" },
@@ -1212,11 +1213,12 @@ export class RoomView implements View {
                 });
                 return select;
               })()
-            : h("span", { id, class: "setting-value" }, f.options[f.selected]?.label ?? "");
+            : h("span", { class: "setting-value" }, f.options[f.selected]?.label ?? "");
           return h(
             "div",
             { class: "setting" },
-            h("label", { for: id }, f.label),
+            // A label points at a control; a guest's row has none to point at.
+            isHost ? h("label", { for: id }, f.label) : h("span", { class: "setting-name" }, f.label),
             value,
             f.hint ? h("span", { class: `muted setting-hint${f.warn ? " warn" : ""}` }, f.hint) : null,
           );
