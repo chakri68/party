@@ -1,6 +1,6 @@
 import { bubble, motionAllowed } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { parseDrawOp } from "../shared/rules.ts";
 import {
   MAX_CHUNK,
@@ -65,7 +65,7 @@ export class ScribblView implements GameView {
   private root = h("div", { class: "scribbl" });
   private round = h("span", { class: "sb-round" });
   private word = h("div", { class: "sb-word", "aria-live": "polite" });
-  private timer = h("span", { class: "sb-timer", role: "timer" });
+  private timer = countdown();
   /** Time warnings for screen readers; the ticking number itself stays quiet. */
   private said = h("span", { class: "sb-sr", "aria-live": "polite" });
   private bar = h("div", { class: "sb-bar" });
@@ -107,7 +107,7 @@ export class ScribblView implements GameView {
     });
 
     this.root.append(
-      h("div", { class: "sb-top" }, this.round, this.word, this.timer, this.bar, this.said),
+      h("div", { class: "sb-top" }, this.round, this.word, this.timer.el, this.bar, this.said),
       this.stage,
       this.tools,
       h("div", { class: "sb-side" }, this.players, h("div", { class: "sb-chat" }, this.log, form)),
@@ -472,14 +472,13 @@ export class ScribblView implements GameView {
   private renderClock() {
     const game = this.props?.game as ScribblPublicState | undefined;
     if (!game || game.phase === "finished" || !game.phaseMs) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, game.endsAt - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = String(secs);
-    this.timer.classList.toggle("low", game.phase === "drawing" && secs <= 10);
+    this.timer.set(left);
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     this.bar.classList.toggle("low", game.phase === "drawing" && secs <= 10);
     if (game.phase === "drawing" && SAY_AT.includes(secs) && secs !== this.lastSaid) {

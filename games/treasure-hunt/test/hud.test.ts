@@ -1,31 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hotColdView, hotColdOpensText, clockLabel, clueItems, clueListKey, photoView, countdownText, formatLeft, scoreText } from "../client/hud.ts";
+import { hotColdView, hotColdOpensText, clockLabel, clueItems, clueListKey, photoView, countdownText, scoreText } from "../client/hud.ts";
 import type { THPrivate } from "../shared/types.ts";
-
-describe("formatLeft", () => {
-  it("shows zero as 0:00", () => {
-    expect(formatLeft(0)).toBe("0:00");
-  });
-
-  it("shows 61 s as 1:01", () => {
-    expect(formatLeft(61_000)).toBe("1:01");
-  });
-
-  it("clamps a negative time to 0:00", () => {
-    expect(formatLeft(-5_000)).toBe("0:00");
-  });
-
-  it("rounds a part second up, so 0:00 only shows at the end", () => {
-    expect(formatLeft(59_001)).toBe("1:00");
-    expect(formatLeft(400)).toBe("0:01");
-  });
-
-  it("shows a full hour as minutes", () => {
-    expect(formatLeft(60 * 60_000)).toBe("60:00");
-  });
-});
 
 describe("scoreText", () => {
   it("reads 3 of 6 found", () => {

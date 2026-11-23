@@ -27,6 +27,16 @@ const CLOCK_SVG =
   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' +
   "</svg>";
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** "45 seconds", "1 minute 5 seconds", "2 minutes", for screen readers. */
+function spoken(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  if (!m) return plural(s, "second");
+  return s ? `${plural(m, "minute")} ${plural(s, "second")}` : plural(m, "minute");
+}
+
 /** Screen readers hear the time at most once per this many seconds. */
 const LABEL_STEP = 10;
 
@@ -78,7 +88,7 @@ export function countdown(): Countdown {
       setText(formatSeconds(left));
       const secs = Math.ceil(left / 1000);
       if (labelSecs === null || secs > labelSecs || labelSecs - secs >= LABEL_STEP) {
-        setLabel(`Time left: ${secs} ${secs === 1 ? "second" : "seconds"}`, secs);
+        setLabel(`Time left: ${spoken(secs)}`, secs);
       }
     },
   };

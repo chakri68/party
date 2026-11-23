@@ -1,6 +1,6 @@
 import { audio } from "@games/audio";
 import { roleReveal } from "@games/hidden-roles/reveal";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { describeNightEntry, describeResult, list, nextPicks, wakingLine } from "../shared/describe.ts";
 import { type RoleId, roleById } from "../shared/roles.ts";
 import {
@@ -36,7 +36,7 @@ export class ShortNightView implements GameView {
   private root = h("div", { class: "short-night" });
   private phaseLabel = h("span", { class: "sn-phase" });
   private stepLabel = h("span", { class: "sn-step" });
-  private timer = h("span", { class: "sn-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "sn-bar" });
 
   private card: ReturnType<typeof roleReveal> | null = null;
@@ -63,7 +63,7 @@ export class ShortNightView implements GameView {
   constructor(api: GameClientApi) {
     this.api = api;
     this.root.append(
-      h("div", { class: "sn-top" }, this.phaseLabel, this.stepLabel, this.timer),
+      h("div", { class: "sn-top" }, this.phaseLabel, this.stepLabel, this.timer.el),
       h("div", { class: "sn-track", "aria-hidden": "true" }, this.bar),
       this.cardSlot,
       this.headline,
@@ -170,13 +170,13 @@ export class ShortNightView implements GameView {
   private renderClock() {
     const game = this.props?.game as Pub | undefined;
     if (!game || game.phase === "finished" || !game.phaseMs) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs} s`;
+    this.timer.set(left);
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     const low = secs <= TICK_FROM && (game.phase === "vote" || game.phase === "runoff");
     this.root.classList.toggle("low", low);

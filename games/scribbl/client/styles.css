@@ -35,16 +35,12 @@
   background: var(--surface);
 }
 .sb-round { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.sb-timer {
-  justify-self: end;
-  min-width: 2.2em;
-  text-align: right;
-  font-weight: 700;
-  font-size: 1.3rem;
-  font-variant-numeric: tabular-nums;
-  transition: color 150ms;
+.sb-top > .countdown { justify-self: end; }
+/* A phone's top row is tight: the hidden word needs the room more than the clock icon. */
+@media (max-width: 480px) {
+  .sb-top > .countdown { padding-inline: 8px; }
+  .sb-top > .countdown .countdown-icon { display: none; }
 }
-.sb-timer.low { color: var(--danger); }
 .sb-word { display: flex; align-items: baseline; gap: 8px; justify-content: center; min-width: 0; }
 .sb-letters { display: flex; gap: 4px; font-weight: 700; font-size: 1.25rem; letter-spacing: 0; }
 .sb-letters .l { display: inline-block; min-width: 0.7em; text-align: center; text-transform: lowercase; }

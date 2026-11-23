@@ -37,7 +37,7 @@ Host picks these in the lobby.
 ## On your screen
 - **Your card:** your own category and score. It's face up to everyone else too.
 - **The table:** every player with their score and category. Duelists are highlighted, and the leader is marked.
-- **Header:** "First to 10", and a countdown such as "3:20 left", which changes to "Last duel" when the clock has fallen.
+- **Header:** "First to 10", and a clock such as "3:20", which changes to "Last duel" when the clock has fallen.
 - **During a duel:** if you're in it, "Say out loud", the category you're naming from, and your own category as a reminder of what the other player has to name. The **Buzz** button sits underneath. After the first buzz it stays there, greyed out, so a late tap does nothing. Everyone else sees who's naming from whose card.
 - **During the call:** the two "Point to" buttons, and a count of how many have voted. You see how many, never how.
 - **After a duel:** the result: "<name> +1", "Nobody buzzed", or "Duel cancelled", with the votes (both sides, when the other side got some) and who draws a new card.

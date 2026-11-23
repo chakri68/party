@@ -1,5 +1,5 @@
 import { audio } from "@games/audio";
-import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { EVENTS } from "../shared/events.ts";
 import { N } from "../shared/numbers.ts";
 import { ROLE_ATTRS } from "../shared/roll.ts";
@@ -76,7 +76,7 @@ export class WildsView implements GameView {
   private roundLabel = h("span", { class: "wd-round" });
   private sunLabel = h("span", { class: "wd-sun" });
   private stones = h("span", { class: "wd-stones" });
-  private timer = h("span", { class: "wd-timer", role: "timer" });
+  private timer = countdown();
   private eventBox = h("section", { class: "wd-event", "aria-label": "This round's event" });
   private pendingBar = h("p", { class: "wd-pending-bar" });
   private boardWrap = h("div", { class: "wd-board-wrap" });
@@ -114,7 +114,7 @@ export class WildsView implements GameView {
     // Phones: one column, the plan right under the map. Wide screens: the map on the
     // left, the event, plan and team on the right, so nothing sits below the fold.
     this.root.append(
-      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, h("span", { class: "wd-stones-wrap" }, h("span", { class: "wd-stones-label", "aria-hidden": "true" }, "Stones"), this.stones), this.timer),
+      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, h("span", { class: "wd-stones-wrap" }, h("span", { class: "wd-stones-label", "aria-hidden": "true" }, "Stones"), this.stones), this.timer.el),
       this.eventBox,
       this.pendingBar,
       h("div", { class: "wd-main" }, this.boardWrap, this.legend, mapKey(), this.caption),
@@ -189,11 +189,12 @@ export class WildsView implements GameView {
   private renderClock() {
     const g = this.props?.game as Pub | undefined;
     if (!g || g.phase === "over" || !g.deadline) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       return;
     }
-    const secs = Math.ceil(Math.max(0, g.deadline - this.api.serverNow()) / 1000);
-    this.timer.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    const left = Math.max(0, g.deadline - this.api.serverNow());
+    const secs = Math.ceil(left / 1000);
+    this.timer.set(left);
     const low = secs <= TICK_FROM && this.planning();
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {

@@ -1,6 +1,6 @@
 import { AnimationQueue } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import {
   MAX_ANSWER,
   type PublicGroup,
@@ -41,7 +41,7 @@ export class SamePageView implements GameView {
 
   private root = h("div", { class: "sp" });
   private roundLabel = h("span", { class: "sp-round" });
-  private secs = h("span", { class: "sp-secs", role: "timer", "aria-live": "off" });
+  private secs = countdown();
   private bar = h("div", { class: "sp-bar", "aria-hidden": "true" }, h("span"));
   private prompt = h("p", { class: "sp-prompt", id: "sp-prompt" });
   private status = h("p", { class: "sp-status", role: "status", "aria-live": "polite" });
@@ -102,7 +102,7 @@ export class SamePageView implements GameView {
       this.submit();
     });
     this.root.append(
-      h("div", { class: "sp-top" }, this.roundLabel, this.secs),
+      h("div", { class: "sp-top" }, this.roundLabel, this.secs.el),
       this.bar,
       this.prompt,
       this.status,
@@ -224,13 +224,13 @@ export class SamePageView implements GameView {
     const timed = game.phase !== "over" && game.deadline > 0;
     this.bar.hidden = !timed;
     if (!timed) {
-      this.secs.textContent = "";
+      this.secs.set(null);
       return;
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
     (this.bar.firstElementChild as HTMLElement).style.transform = `scaleX(${Math.min(1, left / Math.max(game.phaseMs, 1))})`;
-    this.secs.textContent = `${secs} s`;
+    this.secs.set(left);
     const answering = game.phase === "answering";
     this.bar.classList.toggle("low", answering && secs <= TICK_FROM);
     if (!answering) return;

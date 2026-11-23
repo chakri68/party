@@ -1,6 +1,6 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import {
   type DontSayItEvent,
   type DontSayItPrivateState,
@@ -53,7 +53,7 @@ export class DontSayItView implements GameView {
   private scoreA = h("span", { class: "dsi-score amber" });
   private scoreB = h("span", { class: "dsi-score teal" });
   private turnLabel = h("span", { class: "dsi-turn" });
-  private timer = h("span", { class: "dsi-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "dsi-bar" });
 
   private card = h("section", { class: "dsi-card", "aria-label": "The card" });
@@ -73,7 +73,7 @@ export class DontSayItView implements GameView {
     this.api = api;
     this.root.append(
       h("div", { class: "dsi-top" }, this.scoreA, this.turnLabel, this.scoreB),
-      h("div", { class: "dsi-clock" }, this.timer, h("div", { class: "dsi-track", "aria-hidden": "true" }, this.bar)),
+      h("div", { class: "dsi-clock" }, h("div", { class: "dsi-timer" }, this.timer.el), h("div", { class: "dsi-track", "aria-hidden": "true" }, this.bar)),
       this.card,
       this.headline,
       this.sub,
@@ -157,7 +157,7 @@ export class DontSayItView implements GameView {
     const game = this.game();
     const phase = game?.phase;
     if (!game || phase === "teams" || phase === "finished" || phase === "ready") {
-      this.timer.textContent = phase === "ready" ? `${game!.turnMs / 1000} s` : "";
+      this.timer.set(phase === "ready" ? game!.turnMs : null);
       this.bar.style.transform = phase === "ready" ? "scaleX(1)" : "scaleX(0)";
       this.root.classList.remove("low", "frozen");
       return;
@@ -168,12 +168,12 @@ export class DontSayItView implements GameView {
     const secs = Math.ceil(left / 1000);
     this.root.classList.toggle("frozen", frozen);
     if (phase === "turn-result") {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       this.root.classList.remove("low");
       return;
     }
-    this.timer.textContent = frozen ? `${secs} s, paused` : `${secs} s`;
+    this.timer.set(left, { paused: frozen });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.turnMs)})`;
     const low = !frozen && secs <= TICK_FROM;
     this.root.classList.toggle("low", low);
@@ -183,9 +183,8 @@ export class DontSayItView implements GameView {
     }
     if (frozen) {
       // The dispute's own clock, in the sub line.
-      const d = Math.max(0, Math.ceil((game.deadline - now) / 1000));
       const el = this.sub.querySelector(".dsi-dispute-clock");
-      if (el) el.textContent = `${d} s`;
+      if (el) el.textContent = formatSeconds(game.deadline - now);
     }
   }
 

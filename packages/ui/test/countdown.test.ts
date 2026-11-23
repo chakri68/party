@@ -136,6 +136,15 @@ describe("countdown", () => {
     expect(el.getAttribute("aria-label")).toBe("Time left: 1 second");
   });
 
+  it("says minutes in the label from 60 s", () => {
+    const { c, el } = pill();
+    c.set(65_000);
+    expect(el.textContent).toBe("1:05");
+    expect(el.getAttribute("aria-label")).toBe("Time left: 1 minute 5 seconds");
+    c.set(120_000);
+    expect(el.getAttribute("aria-label")).toBe("Time left: 2 minutes");
+  });
+
   it("owns no timer of its own", () => {
     const src = readFileSync(new URL("../src/countdown.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/);

@@ -51,7 +51,7 @@ Host picks these in the lobby.
 - **Header:** "Turn 3 of 6", or "Extra turn".
 - **Teams:** both scores, members, and a highlight on whose turn it is. Tags show who is "describing" and each team's "captain".
 - **This turn's cards:** a running list of results (Got it, Skipped, Banned word, Buzzed, Buzz accepted, Time up, Turn ended).
-- **Timer:** the turn clock with a bar. It freezes during a dispute and shows the time left on the 20-second dispute clock.
+- **Timer:** the turn clock with a bar. During a dispute it stops and says "Paused", and the line under the card shows the time left on the 20-second dispute clock.
 - **Sounds:** a tick near the end of the clock, a chime when it's your turn to describe, a ding for Got it, a thud for Oops and buzzes. Your phone buzzes on your turn and on a buzz.
 
 ## When things go sideways

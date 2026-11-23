@@ -1,6 +1,6 @@
 import { audio } from "@games/audio";
 import { roleReveal } from "@games/hidden-roles/reveal";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { JOB_NAMES, JOBS, MAX_HEAT } from "../shared/rules.ts";
 import type { Card, HeistEvent, HeistPrivateState, HeistPublicState, JobRecord, Phase, ProposalRecord, Vote } from "../shared/types.ts";
 
@@ -32,7 +32,7 @@ export class HeistView implements GameView {
   private root = h("div", { class: "heist" });
   private phaseLabel = h("span", { class: "hz-phase" });
   private jobLabel = h("span", { class: "hz-job" });
-  private timer = h("span", { class: "hz-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "hz-bar" });
   private board = h("div", { class: "hz-board" });
 
@@ -56,7 +56,7 @@ export class HeistView implements GameView {
   constructor(api: GameClientApi) {
     this.api = api;
     this.root.append(
-      h("div", { class: "hz-top" }, this.phaseLabel, this.jobLabel, this.timer),
+      h("div", { class: "hz-top" }, this.phaseLabel, this.jobLabel, this.timer.el),
       h("div", { class: "hz-track", "aria-hidden": "true" }, this.bar),
       this.board,
       this.cardSlot,
@@ -167,13 +167,13 @@ export class HeistView implements GameView {
   private renderClock() {
     const game = this.props?.game as Pub | undefined;
     if (!game || game.phase === "finished" || !game.phaseMs) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs} s`;
+    this.timer.set(left);
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     const low = secs <= TICK_FROM && (game.phase === "vote" || game.phase === "job" || this.leading());
     this.root.classList.toggle("low", low);

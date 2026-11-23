@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, formatSeconds, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { Card, OhHellEvent, OhHellPrivateState, OhHellPublicPlayer, OhHellPublicState, Suit, TrickPlay } from "../shared/types.ts";
 import { SUIT_NAME, SUIT_SYMBOL, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
 
@@ -562,8 +562,7 @@ export class OhHellView implements GameView {
     const game = this.props?.game as OhHellPublicState | undefined;
     const el = this.tableBody.querySelector<HTMLElement>(".oh-countdown");
     if (!el || !game?.summaryEndsAt) return;
-    const secs = Math.max(0, Math.ceil((game.summaryEndsAt - this.api.serverNow()) / 1000));
-    const text = `${el.dataset.last ? "Final scores" : "Next round"} in ${secs}`;
+    const text = `${el.dataset.last ? "Final scores" : "Next round"} in ${formatSeconds(game.summaryEndsAt - this.api.serverNow())}`;
     if (el.textContent !== text) el.textContent = text;
   }
 

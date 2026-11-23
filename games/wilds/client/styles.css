@@ -55,8 +55,6 @@
 .wd-stone path { fill: none; stroke: var(--muted); stroke-width: 2; }
 .wd-stone.half path { fill: var(--accent-soft); stroke: var(--wd-stone); }
 .wd-stone.found path { fill: var(--wd-stone); stroke: var(--wd-stone); }
-.wd-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
-.wilds.low .wd-timer { color: var(--danger); }
 
 /* ---- Layout: map, then plan --------------------------------------------------
    Phones: one column, the plan right under the map, the team after it.
