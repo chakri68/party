@@ -26,7 +26,7 @@ import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { seatActionMessage, seatActions } from "./host-menu.ts";
-import { lobbyAction, settingsSummary } from "./lobby.ts";
+import { lobbyAction, settingsSummary, settingsWarnings } from "./lobby.ts";
 import { focusPhase } from "./focus.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
@@ -63,10 +63,6 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
   }
 }
 
-/**
- * The game's word on why this table can't start (a role deck one card short).
- * It explains a disabled Start, so it sits where the host is looking.
- */
 /** How many players back each game, from the seats still here. */
 function suggestionCounts(room: RoomPublicState): Map<string, number> {
   const counts = new Map<string, number>();
@@ -80,6 +76,11 @@ function wantLabel(n: number): string {
   return n === 1 ? "1 wants this" : `${n} want this`;
 }
 
+/**
+ * The game's word on why this table can't start (a role deck one card short).
+ * It explains a disabled Start, so it sits where the host is looking. In the
+ * lobby the host reads it in the Start bar instead.
+ */
 function setupProblem(room: RoomPublicState, style?: string): HTMLElement | null {
   return room.setupProblem ? h("p", { class: "setting-problem", role: "status", style }, room.setupProblem) : null;
 }
@@ -622,6 +623,12 @@ export class RoomView implements View {
       this.show("lobby", () => {
         this.dropGameView();
         replaceChildren(this.body, lobby);
+        // Here, not when built: a tap on the old fold during the transition still counts.
+        const fold = lobby.querySelector<HTMLDetailsElement>(".settings-fold");
+        if (fold) fold.open = this.settingsOpen ?? false;
+        // Toasts on phones rise above the Start bar (style.css).
+        const bar = lobby.querySelector<HTMLElement>(".lobby-actions");
+        if (bar) this.root.style.setProperty("--lobby-bar", `${bar.offsetHeight}px`);
         this.setPhase("lobby");
       });
       return;
@@ -844,7 +851,7 @@ export class RoomView implements View {
       connected,
       min,
       canStart: room.canStart,
-      setupProblem: !!room.setupProblem,
+      setupProblem: room.setupProblem ?? null,
       botBlocked,
       hostName: seatName(room, room.hostId),
     });
@@ -903,7 +910,7 @@ export class RoomView implements View {
       // The deal skips seats that aren't connected, and so does the server's
       // setupProblem: hints built for the same count agree with its line.
       this.gameSettings(room, isHost, connected, vt("lobby-settings")),
-      setupProblem(room, vt("lobby-setup-problem")),
+      isHost ? null : setupProblem(room, vt("lobby-setup-problem")),
       isHost
         ? h("button", {
             type: "button",
@@ -931,7 +938,7 @@ export class RoomView implements View {
               { type: "button", class: action.primary ? "primary" : "", "aria-pressed": String(action.pressed), onclick: () => this.client?.send({ type: "ready", ready: !action.pressed }) },
               action.label,
             ),
-        action.note ? h("p", { class: action.kind === "start" ? "muted warn bot-blocked" : "muted waiting" }, action.note) : null,
+        action.note ? h("p", { class: action.kind === "start" ? "start-blocked" : "muted waiting" }, action.note) : null,
       ),
       h("button", { type: "button", class: "link", style: vt("lobby-leave"), onclick: () => this.leave() }, "Leave room"),
       isHost ? this.endPartyControl(vt("lobby-end-party")) : null,
@@ -1168,49 +1175,64 @@ export class RoomView implements View {
   }
 
   /**
-   * The game's own settings, from its field descriptions. Others read one
-   * summary line; the host edits them in a fold headed by that same line.
+   * The game's own settings, from its field descriptions, in a fold headed by
+   * a one-line summary. The host edits them; everyone else reads them.
+   * Warnings stay in sight while the fold is shut. The fold's open state is
+   * applied after the lobby is on screen (see render).
    */
   private gameSettings(room: RoomPublicState, isHost: boolean, players: number, style?: string) {
     const fields = games[room.gameId]?.settingFields(room.settings, players) ?? [];
     if (!fields.length) return null;
-    const summary = settingsSummary(fields);
-    if (!isHost) return h("p", { class: "settings-summary", style }, summary);
     this.settingsOpen ??= matchMedia("(min-width: 600px)").matches;
+    const warnings = settingsWarnings(fields);
     const fold = h(
       "details",
-      { class: "settings-fold", style },
-      h("summary", {}, h("span", { class: "settings-fold-title" }, "Settings"), h("span", { class: "settings-summary" }, summary)),
+      { class: "settings-fold" },
+      h(
+        "summary",
+        {},
+        h("span", { class: "settings-fold-title" }, "Settings"),
+        h("span", { class: "settings-summary" }, settingsSummary(fields)),
+      ),
       h(
         "div",
         { class: "game-settings" },
         fields.map((f) => {
           const id = `setting-${f.key}`;
-          const select = h(
-            "select",
-            { id },
-            f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
-          );
-          select.addEventListener("change", () => {
-            const patch = f.options[Number(select.value)]?.patch;
-            if (patch) this.client?.send({ type: "update-settings", settings: patch });
-          });
+          const value = isHost
+            ? (() => {
+                const select = h(
+                  "select",
+                  { id },
+                  f.options.map((o, i) => h("option", { value: i, selected: i === f.selected }, o.label)),
+                );
+                select.addEventListener("change", () => {
+                  const patch = f.options[Number(select.value)]?.patch;
+                  if (patch) this.client?.send({ type: "update-settings", settings: patch });
+                });
+                return select;
+              })()
+            : h("span", { id, class: "setting-value" }, f.options[f.selected]?.label ?? "");
           return h(
             "div",
             { class: "setting" },
             h("label", { for: id }, f.label),
-            select,
-            f.hint ? h("span", { class: "muted setting-hint" }, f.hint) : null,
+            value,
+            f.hint ? h("span", { class: `muted setting-hint${f.warn ? " warn" : ""}` }, f.hint) : null,
           );
         }),
       ),
     ) as HTMLDetailsElement;
-    fold.open = this.settingsOpen;
     fold.addEventListener("toggle", () => {
       // A fold that was swapped out by a redraw has nothing to say.
       if (fold.isConnected) this.settingsOpen = fold.open;
     });
-    return fold;
+    return h(
+      "div",
+      { class: "lobby-settings", style },
+      fold,
+      warnings.length ? h("ul", { class: "settings-warnings" }, warnings.map((w) => h("li", {}, w))) : null,
+    );
   }
 
   private results(room: RoomPublicState, me: string, pop: boolean) {

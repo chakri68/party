@@ -11,7 +11,8 @@ export interface LobbyActionInput {
   connected: number;
   min: number;
   canStart: boolean;
-  setupProblem: boolean;
+  /** The game's word on why this table can't start (a role deck one card short). */
+  setupProblem: string | null;
   /** Computers sit at a game that has none. */
   botBlocked: boolean;
   hostName: string;
@@ -28,8 +29,9 @@ export function lobbyAction(a: LobbyActionInput): LobbyAction {
       // canStart is vague on purpose (the owner gate), so the label is too, but
       // it mustn't claim players are missing when they aren't.
       label: a.connected < a.min ? `Need ${a.min - a.connected} more` : a.canStart ? "Start game" : "Can't start yet",
-      disabled: a.connected < a.min || !a.canStart || a.setupProblem || a.botBlocked,
-      note: a.botBlocked ? "Remove computers to play this" : null,
+      disabled: a.connected < a.min || !a.canStart || !!a.setupProblem || a.botBlocked,
+      // A disabled Start says why, right under it.
+      note: a.botBlocked ? "Remove computers to play this" : a.setupProblem,
     };
   }
   return {
@@ -50,4 +52,9 @@ export function settingsSummary(fields: SettingField[]): string {
     })
     .filter((s): s is string => !!s)
     .join(" · ");
+}
+
+/** Hints that warn (a choice that won't apply as picked, or a risky one), each named after its setting. */
+export function settingsWarnings(fields: SettingField[]): string[] {
+  return fields.filter((f) => f.warn && f.hint).map((f) => `${f.label}: ${f.hint}`);
 }

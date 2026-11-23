@@ -53,6 +53,12 @@ export interface SettingField {
   options: { label: string; patch: Record<string, unknown> }[];
   /** A short consequence of the current choice, e.g. "13 cards each". */
   hint?: string;
+  /**
+   * The hint is a warning: the choice won't apply as picked ("Too small for
+   * 5. Using 6×6") or is risky ("This is very hard"). The lobby shows it
+   * even while the settings are folded away.
+   */
+  warn?: boolean;
 }
 
 export interface GamePlayer {

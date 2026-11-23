@@ -56,9 +56,9 @@ Top to bottom:
 - **Room code** in large type, the invite address, and **Copy link** / **Share invite**.
 - **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". The host has no ready sign. Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
 - The current game with its description. **Rules** opens "How to play" for that game. The host also gets **Change**.
-- The game's settings, if it has any. Other players see them in one line, like "Rounds: 3 · Empty stock: Pass". The host taps **Settings** to open them and change them. On a phone they start closed; on a bigger screen they start open.
+- The game's settings, if it has any, in one line like "Rounds: 3 · Empty stock: Pass". Tap **Settings** to see them all. Only the host can change them. On a phone they start closed; on a bigger screen they start open. A warning about a setting, like "Map: Too small for 5. Using 6×6", shows even when they are closed.
 - For the host, **Lock room** (or **Unlock room**). While it is locked, everyone sees "The room is locked. New players can't join."
-- The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll.
+- The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll. If the settings or the computers stop the game from starting, the reason shows under the start button.
 - **Leave room**, and for the host, **End party**.
 
 In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.

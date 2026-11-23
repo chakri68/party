@@ -1,6 +1,6 @@
 import type { SettingField } from "@games/game-core";
 import { describe, expect, it } from "vitest";
-import { lobbyAction, settingsSummary, type LobbyActionInput } from "../src/views/lobby.ts";
+import { lobbyAction, settingsSummary, settingsWarnings, type LobbyActionInput } from "../src/views/lobby.ts";
 
 const base: LobbyActionInput = {
   isHost: false,
@@ -8,7 +8,7 @@ const base: LobbyActionInput = {
   connected: 3,
   min: 2,
   canStart: true,
-  setupProblem: false,
+  setupProblem: null,
   botBlocked: false,
   hostName: "Asha",
 };
@@ -28,11 +28,19 @@ describe("the lobby's main action", () => {
 
   it("holds Start when the room can't start yet", () => {
     expect(lobbyAction({ ...base, isHost: true, canStart: false })).toMatchObject({ label: "Can't start yet", disabled: true });
-    expect(lobbyAction({ ...base, isHost: true, setupProblem: true })).toMatchObject({ label: "Start game", disabled: true });
+  });
+
+  it("shows the game's setup problem under a held Start", () => {
+    expect(lobbyAction({ ...base, isHost: true, setupProblem: "Needs at least one Wolf card" })).toMatchObject({
+      label: "Start game",
+      disabled: true,
+      note: "Needs at least one Wolf card",
+    });
   });
 
   it("tells the host to remove computers from a game without them", () => {
     expect(lobbyAction({ ...base, isHost: true, botBlocked: true })).toMatchObject({ disabled: true, note: "Remove computers to play this" });
+    expect(lobbyAction({ ...base, isHost: true, botBlocked: true, setupProblem: "Too few" })).toMatchObject({ note: "Remove computers to play this" });
   });
 
   it("gives a guest a loud I'm ready, then a quiet Not ready", () => {
@@ -56,5 +64,14 @@ describe("the settings summary", () => {
   it("is empty with no settings, and skips a field with no valid choice", () => {
     expect(settingsSummary([])).toBe("");
     expect(settingsSummary([field("Rounds", ["3"], 4)])).toBe("");
+  });
+
+  it("lists only the warning hints, each with its setting's name", () => {
+    const fields: SettingField[] = [
+      { ...field("Map", ["4×4", "6×6"], 0), hint: "Too small for 5. Using 6×6", warn: true },
+      { ...field("Victory", ["Conquest"], 0), hint: "About 20 min" },
+      { ...field("Teams", ["Off", "2 teams"], 1), warn: true },
+    ];
+    expect(settingsWarnings(fields)).toEqual(["Map: Too small for 5. Using 6×6"]);
   });
 });
