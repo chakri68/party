@@ -211,7 +211,7 @@ The host also has these in the menu (the three dots at the top right):
 
 A main button you can't press right now is grey with a dashed edge, not lime.
 
-In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards or dice, with your hand beside its buttons. That keeps the table in view.
+In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
 
 ## Leaving
 

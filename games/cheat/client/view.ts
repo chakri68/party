@@ -564,8 +564,9 @@ export class CheatView implements GameView {
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget = (this.selected[0] && this.cards.get(this.selected[0])) || this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
-    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
-    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
+    // New cards from the pile or the picked card, else the first card: in the row's view, without moving the page.
+    const picked = (this.selected[0] && this.cards.get(this.selected[0])) || null;
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? picked, this.hand.firstElementChild);
   }
 
   private handButton(card: Card): HTMLButtonElement {

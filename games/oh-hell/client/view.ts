@@ -624,8 +624,9 @@ export class OhHellView implements GameView {
     // Roving tabindex: one tab stop into the hand, arrows within it.
     const focusTarget = (this.lifted && this.cards.get(this.lifted)) || this.hand.querySelector(".playable") || this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
-    // The picked card, or else the first one you can play: in the row's view, without moving the page.
-    keepInRow(this.hand, focusTarget);
+    // The lifted card, or else the first one you can play: in the row's view, without moving the page.
+    const lifted = (this.lifted && this.cards.get(this.lifted)) || null;
+    keepInRow(this.hand, lifted, this.hand.querySelector(".playable") ?? this.hand.firstElementChild);
   }
 
   private renderDock(props: GameViewProps, game: OhHellPublicState, priv: OhHellPrivateState | null) {

@@ -456,8 +456,10 @@ export class CrazyEightsView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
-    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
-    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
+    // A drawn card or the picked one, else the first playable: in the row's view, without moving the page.
+    const picked = (this.selected && this.cards.get(this.selected)) || null;
+    const firstPlayable = [...this.cards.values()].find((b) => b.classList.contains("playable")) ?? this.hand.firstElementChild;
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? picked, firstPlayable);
   }
 
   private handButton(card: Card): HTMLButtonElement {

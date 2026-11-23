@@ -551,7 +551,9 @@ export class PresidentView implements GameView {
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
     // The picked card, or else the first one you can play: in the row's view, without moving the page.
-    keepInRow(this.hand, focusTarget);
+    const picked = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? null;
+    const firstPlayable = [...this.cards.values()].find((b) => b.classList.contains("playable")) ?? this.hand.firstElementChild;
+    keepInRow(this.hand, picked, firstPlayable);
   }
 
   private handButton(card: Card): HTMLButtonElement {

@@ -49,7 +49,7 @@ button {
 }
 button:hover:not(:disabled) { border-color: #4a483f; }
 button:active:not(:disabled) { transform: scale(0.98); }
-button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.primary {
   background: var(--accent);
   color: var(--accent-ink);
@@ -57,8 +57,9 @@ button.primary {
 }
 button.primary:hover:not(:disabled) { background: #d4ff4a; border-color: #d4ff4a; }
 /* Off, not dim lime: lime means "you can press this". Grey and dashed, still readable
-   (muted on surface-2 is 6:1), no press motion. */
-button.primary:disabled {
+   (muted on surface-2 is 6:1). A button only waiting on the server (aria-busy on it or
+   a parent) keeps the dim lime, so it doesn't flash grey on every move. */
+button.primary:disabled:not([aria-busy="true"], [aria-busy="true"] *) {
   opacity: 1;
   background: var(--surface-2);
   border-color: var(--line);

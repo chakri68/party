@@ -604,8 +604,9 @@ export class GoFishView implements GameView {
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
-    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
-    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
+    // New cards or the picked one, else the first card: in the row's view, without moving the page.
+    const picked = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? null;
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? picked, this.hand.firstElementChild);
   }
 
   private handButton(card: Card): HTMLButtonElement {

@@ -840,6 +840,9 @@ export class HoldemView implements GameView {
     this.actions.classList.toggle("bet-row", !!legal && !this.raiseOpen);
     this.actions.classList.toggle("raise-row", !!legal && this.raiseOpen);
     replaceChildren(this.actions, nodes);
+    // Waiting on the server, not unavailable: the shell keeps busy buttons lime.
+    this.actions.setAttribute("aria-busy", String(busy));
+    this.raisePanel.setAttribute("aria-busy", String(busy));
     this.raisePanel.hidden = !(legal && this.raiseOpen);
     if (legal && this.raiseOpen) this.renderRaise(game, legal);
   }
