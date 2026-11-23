@@ -160,8 +160,8 @@ export function slideDetails(root: ParentNode = document): void {
 }
 
 /**
- * Plays a section's entrance (CSS, keyed on `.in`) the first time it scrolls
- * into view. Sets --col on each card and --i on each list row so the CSS can
+ * Plays a section's entrance (CSS, keyed on `.in`) the first time it comes
+ * near the screen. Sets --col on each card and --i on each list row so the CSS can
  * stagger them.
  */
 export function revealOnScroll(root: ParentNode = document): void {
@@ -181,7 +181,9 @@ export function revealOnScroll(root: ParentNode = document): void {
         io.unobserve(e.target);
       }
     },
-    { threshold: 0.15 },
+    // Starts a little before the box comes on screen, from either side, so a
+    // quick scroll never lands on a blank space that is still waiting.
+    { threshold: 0, rootMargin: "20% 0px 20% 0px" },
   );
   // Not under the page fade, or the entrance plays where nobody can see it.
   whenSettled(() => boxes.forEach((b) => io.observe(b)));

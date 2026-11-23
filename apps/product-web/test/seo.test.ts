@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { listWords, passGameNames } from "../src/gallery.ts";
 import { prerender } from "../src/prerender.ts";
 import { faqPairs, ldScript, passLd, sitemapXml } from "../src/seo.ts";
 
@@ -14,6 +15,25 @@ describe("prerender", () => {
     expect(out).toContain('<span class="game-name">Doodle Dash</span>');
     const cards = out.match(/<li class="game/g)!.length;
     expect(out).toContain(`<span data-game-count>${cards}</span>`);
+  });
+
+  it("lists the Host Pass games from PREMIUM_GAME_IDS on the landing and pricing pages", () => {
+    const names = listWords(passGameNames());
+    for (const name of ["index", "pricing"]) {
+      const out = prerender(page(name), name, false);
+      expect(out, name).toContain(`<li data-pass-games>${names}</li>`);
+    }
+    expect(names).toContain("The Wilds");
+  });
+
+  it("says buying is not open yet right above the prices", () => {
+    for (const name of ["index", "pricing"]) {
+      expect(page(name), name).toMatch(/<p class="prices-soon" data-soon><strong>Buying opens soon\.<\/strong>[^<]*<\/p>\s*<ul class="prices[^"]*" data-prices/);
+    }
+  });
+
+  it("links the landing FAQ to pricing", () => {
+    expect(page("index").match(/<div class="faq">[\s\S]*?<\/section>/)![0]).toContain('href="/pricing"');
   });
 
   it("gives the home page who we are plus its FAQ", () => {

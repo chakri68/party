@@ -3,7 +3,7 @@ import { roomsPath, startShell } from "@games/web/shell";
 import "@games/web/style.css";
 import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
 import { takeBuyParam } from "./buy.ts";
-import { mountHeader } from "./header.ts";
+import { mountFooter, mountHeader, mountPlayHead } from "./header.ts";
 import { fadeIn } from "./motion.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
 import { partyOver } from "./party-over.ts";
@@ -15,7 +15,7 @@ import { roomCreator } from "./create-room.ts";
 
 const whenIdle = (f: () => void) => ("requestIdleCallback" in window ? requestIdleCallback(() => f(), { timeout: 3000 }) : setTimeout(f, 1500));
 
-// One account check on load: the header shows it, and the first "Create room" uses it.
+// One account check on load: the header shows it, and the first new room uses it.
 const account = me();
 const createRoom = roomCreator(account, {
   me,
@@ -53,6 +53,8 @@ startShell({
     // The shell's views append into #app, so the HTML's loader goes by hand.
     outlet.querySelector(".cp-loader")?.remove();
     mountHeader(outlet, account);
+    mountPlayHead(outlet);
+    mountFooter(outlet);
     // The shell draws its first screen after the page has already faded in
     // empty; fade the content up too so it doesn't just appear.
     fadeIn(outlet);

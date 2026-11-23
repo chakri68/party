@@ -5,8 +5,8 @@
     <link rel="stylesheet" href="/page-motion.css" />
     <script src="/page-motion.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>CouchParty</title>
-    <meta name="description" content="Play party games with friends on any phone. You only need a room code." />
+    <title>Start a room - CouchParty</title>
+    <meta name="description" content="Start a free party game room and send the link to your friends. Everyone plays on their own phone. No app. No sign-up for players." />
     <meta property="og:site_name" content="CouchParty" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Join my room on CouchParty" />
@@ -20,8 +20,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" />
-    <meta name="theme-color" content="#0e0e0c" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e0c" />
+    <!-- Rooms are always dark. The start page (/play) follows the phone, like
+         the rest of the site: product.css keys its light colours on cp-start. -->
+    <script>
+      if (location.pathname === "/play") {
+        document.documentElement.classList.add("cp-start");
+        document.querySelector('meta[name="color-scheme"]').content = "light dark";
+        if (matchMedia("(prefers-color-scheme: light)").matches) document.querySelector('meta[name="theme-color"]').content = "#fffdf8";
+      }
+    </script>
   </head>
   <body>
     <div id="app"><div class="cp-loader" role="status" aria-label="Loading"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="rotate(-14 32 36)"><rect x="11" y="10" width="30" height="42" rx="5" fill="#c6f432"/></g><g transform="rotate(10 32 36)"><rect x="23" y="12" width="30" height="42" rx="5" fill="#fffdf8"/><path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#0e0e0c"/></g></svg></div></div>

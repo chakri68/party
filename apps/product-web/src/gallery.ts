@@ -2,7 +2,7 @@
 // and writes the list into index.html, so crawlers and link previews see every
 // game without running any JS. The browser never loads this file.
 
-import { PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
+import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS, PRODUCT_NAMES } from "@games/product-server/catalog-data";
 import { GAME_SECTIONS, games, overrideGameNames } from "@games/web/games";
 
 overrideGameNames(PRODUCT_NAMES);
@@ -11,7 +11,10 @@ export interface GalleryGame {
   id: string;
   name: string;
   description: string;
+  /** What the room this game needs allows: a free room stops at FREE_MAX_PLAYERS, a Host Pass room uses the game's own max. */
   players: string;
+  /** Only for a free game that takes more players than a free room: its max with Host Pass. */
+  passPlayers?: string;
   pass: boolean;
   /** Has computer players, and a free room can use it: the card links to a room with them. */
   computers: boolean;
@@ -33,9 +36,32 @@ export function galleryModel(): GallerySection[] {
       .map(([gid, e]) => {
         const { name, description, minPlayers: lo, maxPlayers: hi } = e.manifest;
         const pass = PREMIUM_GAME_IDS.includes(gid);
-        return { id: gid, name, description, players: lo === hi ? `${lo} players` : `${lo}–${hi} players`, pass, computers: e.manifest.computers === true && !pass };
+        return { id: gid, name, description, ...playerCounts(lo, hi, pass), pass, computers: e.manifest.computers === true && !pass };
       }),
   })).filter((s) => s.games.length > 0);
+}
+
+const count = (lo: number, hi: number) => (lo === hi ? `${lo} players` : `${lo} to ${hi} players`);
+
+/**
+ * The counts a card shows. A Host Pass game is played in a pass room, so it
+ * gets its own range. A free game is capped at what a free room takes, with
+ * the bigger pass room noted when there is one. No game needs more than a
+ * free room holds (gallery.test.ts checks), so the range is never empty.
+ */
+export function playerCounts(lo: number, hi: number, pass: boolean, cap = FREE_MAX_PLAYERS): Pick<GalleryGame, "players" | "passPlayers"> {
+  if (pass || hi <= cap) return { players: count(lo, hi) };
+  return { players: count(lo, cap), passPlayers: `Up to ${hi} with Host Pass` };
+}
+
+/** The Host Pass games' names, in PREMIUM_GAME_IDS order, for the Host Pass card. Games not built are left out. */
+export function passGameNames(): string[] {
+  return PREMIUM_GAME_IDS.filter((id) => Object.hasOwn(games, id)).map((id) => games[id]!.manifest.name);
+}
+
+/** "A, B and C". */
+export function listWords(words: string[]): string {
+  return words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
 }
 
 // Small line drawings, one per section. Same stroke style as the shell's icons.
@@ -63,7 +89,7 @@ export function galleryHtml(model: GallerySection[]): string {
         .map((g) => {
           const tag = g.pass ? `<span class="tag-pass">Host Pass</span>` : "";
           const link = g.computers ? `<a class="game-try" href="/play?game=${encodeURIComponent(g.id)}">Play with computers</a>` : "";
-          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}</p>${link}</li>`;
+          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}${g.passPlayers ? `<span class="game-more">${esc(g.passPlayers)}</span>` : ""}</p>${link}</li>`;
         })
         .join("");
       return `<section class="shelf" data-reveal aria-labelledby="shelf-${s.id}"><h3 class="shelf-head" id="shelf-${s.id}"><span class="shelf-icon">${sectionIcon(s.id)}</span><span>${esc(s.section)}</span></h3><ul class="shelf-games">${items}</ul></section>`;

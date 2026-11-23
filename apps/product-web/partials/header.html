@@ -7,7 +7,17 @@
       <nav class="site-nav" aria-label="Main">
         <a class="nav-wide" href="/#games">Games</a>
         <a class="nav-wide" href="/pricing">Host Pass</a>
-        <a class="nav-narrow-hide" href="/account">Account</a>
+        <a class="nav-account" href="/account">Account</a>
         <a class="btn btn-small" href="/play">Start a room</a>
+        <!-- Phones, with JS (src/menu.ts): the links above fold into this menu. -->
+        <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-menu" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="site-menu" id="site-menu" hidden>
+          <a href="/#games">Games</a>
+          <a href="/pricing">Host Pass</a>
+          <a href="/account">Account</a>
+        </div>
       </nav>
     </header>
+    <script type="module" src="/src/menu.ts"></script>

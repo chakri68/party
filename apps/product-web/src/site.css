@@ -144,19 +144,66 @@ img, svg { display: block; }
 }
 .brand-mark { width: 34px; height: 34px; }
 .brand-card { stroke: var(--brand-card-stroke); stroke-width: 2.5; }
+.site-bar { position: relative; }
 .site-nav { display: flex; align-items: center; gap: 18px; font-size: 0.9375rem; }
-.site-nav a:not(.btn) { text-decoration: none; color: var(--muted); }
-.site-nav a:not(.btn):hover { color: var(--ink); }
+/* 40px tall, so a thumb hits them. */
+.site-nav > a:where(:not(.btn)) { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; color: var(--muted); }
+.site-nav > a:where(:not(.btn)):hover { color: var(--ink); }
 /* Nothing in the bar wraps: a two-line button or wordmark runs into its neighbour. */
 .brand, .site-nav a { white-space: nowrap; flex-shrink: 0; }
-@media (max-width: 599px) {
-  .nav-wide { display: none; }
-  .site-nav { gap: 14px; }
-  .brand span { font-size: 1.0625rem; }
+
+/* Phone menu (src/menu.ts). Shown only with JS; without it the bar keeps Account. */
+.menu-btn {
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
 }
-/* Small phones: the wordmark, Account and the button need about 345px. Account is in the footer too. */
+.menu-btn svg { width: 22px; height: 22px; }
+.menu-btn[aria-expanded="true"] { background: var(--surface); }
+.site-menu {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  right: var(--gutter);
+  left: var(--gutter);
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 18px 40px -20px rgb(14 14 12 / 0.45);
+}
+.site-menu a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.site-menu a:hover { background: var(--surface); }
+@media (max-width: 599px) {
+  .site-nav > .nav-wide { display: none; }
+  .site-nav { gap: 8px; }
+  .brand span { font-size: 1.0625rem; }
+  html.js .menu-btn { display: grid; }
+  html.js .site-nav > .nav-account { display: none; }
+}
+@media (min-width: 600px) {
+  .site-menu { display: none !important; }
+}
+/* Small phones, no JS: the wordmark, Account and the button need about 345px. Account is in the footer too. */
 @media (max-width: 399px) {
-  .nav-narrow-hide { display: none; }
+  .site-nav > .nav-account { display: none; }
 }
 
 /* Hero: fills the first screen under the header (68px), content in the middle. */
@@ -204,6 +251,10 @@ img, svg { display: block; }
   .d5 { --x: 88%; --y: 82%; --w: 84px; }
   .d6 { --x: -6%; --y: 64%; --w: 50px; }
 }
+/* Narrow phones: the headline reaches the right edge, and d4 sat on it. */
+@media (max-width: 599px) {
+  .d4 { display: none; }
+}
 @media (prefers-reduced-motion: no-preference) {
   .drift-card { animation: card-drift var(--t) ease-in-out infinite alternate; animation-delay: calc(var(--t) * -0.37); }
   .drift-card:nth-child(even) { animation-delay: calc(var(--t) * -0.71); }
@@ -229,6 +280,9 @@ img, svg { display: block; }
 .hero-lead { margin-top: 24px; font-size: 1.25rem; max-width: 30ch; }
 .hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 32px; }
 .hero-cta .btn { min-height: 58px; padding: 0 32px; font-size: 1.125rem; }
+/* A short way down to the games, which sit a few screens below on a phone. */
+.hero-games { display: inline-block; padding: 10px 0; font-weight: 600; text-underline-offset: 4px; }
+.hero-note { margin-top: 16px; }
 
 /* The group chat: the page's one illustration. */
 .chat {
@@ -372,7 +426,9 @@ img, svg { display: block; }
 .game-name { font-weight: 700; font-size: 1.0625rem; }
 .game-desc { color: var(--muted); font-size: 0.9375rem; line-height: 1.4; }
 .game-players { font-size: 0.875rem; font-weight: 500; color: var(--muted); }
-.game-try { justify-self: start; display: inline-block; min-height: 24px; line-height: 24px; font-size: 0.875rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.game-more { font-weight: 400; white-space: nowrap; }
+.game-more::before { content: " · " / ""; }
+.game-try { justify-self: start; display: inline-flex; align-items: center; min-height: 40px; font-size: 0.875rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .game-try:hover { text-decoration-thickness: 2px; }
 .tag-pass {
   padding: 1px 9px;
@@ -421,6 +477,21 @@ img, svg { display: block; }
 .price-amount { font-size: clamp(1.75rem, 6vw, 2.75rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; }
 .price-length { font-size: 0.8125rem; color: var(--band-muted); }
 .prices-note { margin-top: 16px; color: var(--band-muted); }
+/* Until buying opens: said once, plainly, right above the prices. */
+.prices-soon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 32px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--accent);
+  border-radius: 16px;
+  color: var(--band-ink);
+}
+.prices-soon strong { color: var(--accent); font-size: 1.125rem; }
+.prices-soon + .prices { margin-top: 12px; }
+.band-card > .prices-soon:first-child { margin-top: 0; }
 .prices-note a { color: var(--band-ink); text-underline-offset: 3px; }
 
 /* Host Pass band, small motions. Hover ones only where there is a real
@@ -497,8 +568,8 @@ img, svg { display: block; }
   gap: 18px;
 }
 @media (min-width: 760px) { .foot-inner { grid-template-columns: auto 1fr auto; align-items: center; gap: 32px; } }
-.foot-links { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 0.9375rem; }
-.foot-links a { color: var(--muted); text-decoration: none; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 0 20px; font-size: 0.9375rem; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 40px; color: var(--muted); text-decoration: none; }
 .foot-links a:hover { color: var(--ink); text-decoration: underline; }
 .foot-note { color: var(--muted); font-size: 0.875rem; }
 
@@ -663,9 +734,9 @@ img, svg { display: block; }
 .link-text { display: block; }
 @media (max-width: 599px) {
   .btn-small { padding: 0 12px; }
-  /* 28 games with blurbs is a long scroll on a phone: names and counts only. */
-  .shelf-games { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
-  .game-desc { display: none; }
+  /* Phones: one game a row, its blurb cut to two lines so the list stays short. */
+  .shelf-games { gap: 18px; }
+  .game-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 }
 
 /* Short pages keep the footer at the bottom. */

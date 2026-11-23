@@ -1,17 +1,69 @@
-/* Product chrome on top of the shell stylesheet. Uses the shell's tokens. */
+/* Product chrome on top of the shell stylesheet. Uses the shell's tokens.
+   Class names start with cp- so they never meet the shell's (.brand, .hero). */
+
+/* The start page (/play, html.cp-start from play.html) wears the site's
+   colours: light when the phone is light, as site.css does. Rooms stay dark.
+   The loader counts as the start page, so nothing flips while it loads. */
+@media (prefers-color-scheme: light) {
+  html.cp-start:is(:has(main.home), :has(.cp-loader)) {
+    color-scheme: light;
+    --bg: #fffdf8;
+    --surface: #f2f1ea;
+    --surface-2: #e9e7de;
+    --line: #e2dfd4;
+    --ink: #0e0e0c;
+    --muted: #5c594f;
+    --accent-soft: rgb(74 102 0 / 0.12);
+    --danger: #b3261e;
+    --cp-focus: #4a6600;
+  }
+  html.cp-start:has(main.home) :is(button, input, a):focus-visible { outline-color: var(--cp-focus); }
+  html.cp-start:has(main.home) input:focus { border-color: var(--cp-focus); }
+  html.cp-start:has(main.home) input::placeholder { color: rgb(92 89 79 / 0.6); }
+  html.cp-start:has(main.home) button:hover:not(:disabled):not(.primary) { border-color: var(--muted); }
+  html.cp-start:has(main.home) .cp-mark-card { stroke: #0e0e0c; stroke-width: 2.5; }
+}
+
+/* Header: the site's bar. */
 .cp-bar {
+  position: relative;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  font-size: 14px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  font-size: 0.9375rem;
 }
-.cp-wordmark { color: var(--ink); font-weight: 700; text-decoration: none; letter-spacing: 0.01em; }
+.cp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cp-mark { width: 34px; height: 34px; display: block; }
+@media (min-width: 720px) { .cp-bar { padding-left: 32px; padding-right: 32px; } }
+.cp-nav { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.cp-nav-wide, .cp-signin, .cp-email {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cp-signin, .cp-email { overflow: hidden; text-overflow: ellipsis; }
+.cp-email { display: block; line-height: 40px; }
+.cp-nav-wide:hover, .cp-signin:hover, .cp-email:hover { color: var(--ink); }
 .cp-bar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cp-signin, .cp-email { color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-signin:hover, .cp-email:hover { color: var(--ink); }
 .cp-badge {
   padding: 2px 8px;
   border-radius: 999px;
@@ -21,6 +73,77 @@
   font-weight: 600;
   white-space: nowrap;
 }
+html.cp-start .cp-badge { color: var(--ink); }
+/* The phone menu (menu.ts). The shell styles every button; this one is its own. */
+button.cp-menu-btn {
+  display: none;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+}
+.cp-menu-btn svg { width: 22px; height: 22px; }
+.cp-menu-btn[aria-expanded="true"] { background: var(--surface); }
+.cp-menu {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 18px 40px -20px rgb(0 0 0 / 0.45);
+}
+.cp-menu a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+.cp-menu a:hover { background: var(--surface); }
+@media (max-width: 599px) {
+  .cp-nav-wide { display: none; }
+  .cp-nav { gap: 10px; }
+  button.cp-menu-btn { display: grid; }
+}
+@media (min-width: 600px) {
+  .cp-menu { display: none !important; }
+}
+/* In a room the game needs the space: logo and the account part only, as before. */
+html:not(:has(main.home)) .cp-bar { padding-top: 8px; padding-bottom: 8px; }
+html:not(:has(main.home)) .cp-mark { width: 26px; height: 26px; }
+html:not(:has(main.home)) :is(.cp-nav-wide, .cp-menu-btn, .cp-menu) { display: none !important; }
+
+/* The start page's heading, in place of the shell's logo and wordmark. */
+.home > .hero { display: none; }
+.cp-play-head { display: grid; gap: 10px; margin-bottom: 8px; }
+.cp-play-head h1 { margin: 0; font-size: clamp(2.5rem, 11vw, 3.25rem); letter-spacing: -0.045em; line-height: 0.95; }
+.cp-play-head p { margin: 0; color: var(--muted); }
+
+/* Footer: the site's, on the start page only. */
+.cp-foot { display: none; width: 100%; border-top: 1px solid var(--line); margin-top: 24px; }
+html:has(main.home) .cp-foot { display: block; }
+/* Short screens keep the footer at the bottom, as on the site. */
+html:has(main.home) body { display: flex; flex-direction: column; min-height: 100dvh; }
+html:has(main.home) #app { flex: 1 0 auto; min-height: 0; }
+.cp-foot-inner { max-width: 1120px; margin: 0 auto; padding: 32px 16px 40px; display: grid; gap: 18px; }
+@media (min-width: 760px) { .cp-foot-inner { grid-template-columns: auto 1fr auto; align-items: center; gap: 32px; padding-left: 32px; padding-right: 32px; } }
+.cp-foot-links { display: flex; flex-wrap: wrap; gap: 0 20px; font-size: 0.9375rem; }
+.cp-foot-links a { display: inline-flex; align-items: center; min-height: 40px; color: var(--muted); text-decoration: none; }
+.cp-foot-links a:hover { color: var(--ink); text-decoration: underline; }
+.cp-foot-note { margin: 0; color: var(--muted); font-size: 0.875rem; }
 
 .cp-sheet {
   width: min(92vw, 420px);

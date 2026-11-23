@@ -150,6 +150,8 @@ function showPrices(): void {
     .then(async (c) => {
       // Prices first, so they never wait on /api/me.
       renderPrices(c.country ?? null, shown);
+      // Buying is open: the "opens soon" line goes, even for someone who can't buy more.
+      if (c.billing) document.querySelectorAll("[data-soon]").forEach((s) => s.remove());
       clearTimeout(timer);
       reveal();
       // A pass with no end can't get more time, so its holder sees the strip as

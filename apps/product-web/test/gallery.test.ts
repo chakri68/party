@@ -1,7 +1,9 @@
 import { GAME_SECTIONS } from "@games/web/games";
 import { describe, expect, it } from "vitest";
 import { outErrorMessage, planFacts } from "../src/account.ts";
-import { galleryHtml, galleryModel } from "../src/gallery.ts";
+import { FREE_MAX_PLAYERS, PREMIUM_GAME_IDS } from "@games/product-server/catalog-data";
+import { games } from "@games/web/games";
+import { galleryHtml, galleryModel, listWords, passGameNames, playerCounts } from "../src/gallery.ts";
 import { priceTable } from "../src/landing.ts";
 
 describe("galleryModel", () => {
@@ -31,12 +33,50 @@ describe("galleryModel", () => {
   });
 
   it("writes player counts as a range", () => {
-    expect(all.every((g) => /^\d+(–\d+)? players$/.test(g.players))).toBe(true);
+    expect(all.every((g) => /^\d+( to \d+)? players$/.test(g.players))).toBe(true);
+  });
+
+  it("never shows a free game with more players than a free room takes", () => {
+    for (const g of all.filter((g) => !g.pass)) {
+      const top = Number(g.players.match(/(\d+) players$/)![1]);
+      expect(top, g.id).toBeLessThanOrEqual(FREE_MAX_PLAYERS);
+    }
+  });
+
+  it("has no game that needs more players than a free room takes", () => {
+    expect(Object.values(games).every((e) => e.manifest.minPlayers <= FREE_MAX_PLAYERS)).toBe(true);
+  });
+});
+
+describe("playerCounts", () => {
+  it("caps a free game at the free room, and says what Host Pass allows", () => {
+    expect(playerCounts(2, 12, false, 8)).toEqual({ players: "2 to 8 players", passPlayers: "Up to 12 with Host Pass" });
+    expect(playerCounts(3, 8, false, 8)).toEqual({ players: "3 to 8 players" });
+    expect(playerCounts(2, 6, false, 8)).toEqual({ players: "2 to 6 players" });
+    expect(playerCounts(8, 8, false, 8)).toEqual({ players: "8 players" });
+  });
+
+  it("gives a Host Pass game its own range: it is played in a pass room", () => {
+    expect(playerCounts(2, 16, true, 8)).toEqual({ players: "2 to 16 players" });
+  });
+});
+
+describe("passGameNames", () => {
+  it("names every built Host Pass game, in PREMIUM_GAME_IDS order", () => {
+    const built = PREMIUM_GAME_IDS.filter((id) => id in games);
+    expect(passGameNames()).toEqual(built.map((id) => games[id]!.manifest.name));
+    expect(passGameNames()).toEqual(expect.arrayContaining(["Frontier", "Long Trail", "The Wilds"]));
+  });
+
+  it("joins names with commas and a last 'and'", () => {
+    expect(listWords(["A", "B", "C"])).toBe("A, B and C");
+    expect(listWords(["A", "B"])).toBe("A and B");
+    expect(listWords(["A"])).toBe("A");
   });
 });
 
 describe("galleryHtml", () => {
-  const game = { id: "cheat", name: "Cheat", description: "d", players: "3–8 players" };
+  const game = { id: "cheat", name: "Cheat", description: "d", players: "3 to 8 players" };
   const html = (g: object) => galleryHtml([{ id: "cards", section: "Cards", games: [{ ...game, pass: false, computers: false, ...g }] }]);
 
   it("links a game with computers to its setup", () => {
@@ -44,6 +84,11 @@ describe("galleryHtml", () => {
   });
   it("has no link for a game without computers", () => {
     expect(html({})).not.toContain("game-try");
+  });
+  it("adds the Host Pass count under a capped free game", () => {
+    expect(html({ players: "2 to 8 players", passPlayers: "Up to 12 with Host Pass" })).toContain(
+      `<p class="game-players">2 to 8 players<span class="game-more">Up to 12 with Host Pass</span></p>`,
+    );
   });
 });
 

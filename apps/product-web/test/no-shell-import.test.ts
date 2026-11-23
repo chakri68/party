@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const SHELL_IMPORT = /^import (?!type)[^;]*from "@games\/web/m;
 
 describe("pages outside the room", () => {
-  for (const file of ["api", "landing", "account", "buy", "header", "turnstile", "motion"]) {
+  for (const file of ["api", "landing", "account", "buy", "header", "turnstile", "motion", "menu"]) {
     it(`${file}.ts has no runtime import from the shell`, () => {
       const src = readFileSync(new URL(`../src/${file}.ts`, import.meta.url), "utf8");
       expect(src).not.toMatch(SHELL_IMPORT);

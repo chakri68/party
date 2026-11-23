@@ -1,28 +1,132 @@
 import { h } from "@games/ui";
 import { me, type Me } from "./api.ts";
+import { wireMenu } from "./menu.ts";
 import { swapIn } from "./motion.ts";
 
-/** A thin bar above the shell: wordmark, then sign-in or the signed-in email. */
+/** The logo, as in partials/header.html. */
+const MARK = `<svg class="cp-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><g transform="rotate(-14 32 36)"><rect x="11" y="10" width="30" height="42" rx="5" fill="#c6f432"/></g><g transform="rotate(10 32 36)"><rect x="23" y="12" width="30" height="42" rx="5" fill="#fffdf8" class="cp-mark-card"/><path d="M38 44s-9-5.6-11.6-10.6C24.5 29.6 26.8 25 31.2 25c2.6 0 4.6 1.4 6.8 3.8 2.2-2.4 4.2-3.8 6.8-3.8 4.4 0 6.7 4.6 4.8 8.4C47 38.4 38 44 38 44z" fill="#0e0e0c"/></g></svg>`;
+const MENU_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+
+function svg(markup: string): Element {
+  const t = document.createElement("template");
+  t.innerHTML = markup;
+  return t.content.firstElementChild!;
+}
+
+/** The footer's links, the same as partials/footer.html (header.test.ts checks). */
+export const FOOT_LINKS: ReadonlyArray<readonly [label: string, href: string]> = [
+  ["Host Pass", "/pricing"],
+  ["Account", "/account"],
+  ["Terms", "/terms"],
+  ["Privacy", "/privacy"],
+  ["Refunds", "/refunds"],
+  ["hello@couchpartygames.com", "mailto:hello@couchpartygames.com"],
+];
+
+/** The tab and search title of /play's start page (play.html has it too; header.test.ts checks). */
+export const PLAY_TITLE = "Start a room - CouchParty";
+
+/** A link to the account page that comes back here after sign-in. */
+function accountLink(cls: string, text: string): HTMLAnchorElement {
+  const link = h("a", { class: cls }, text) as HTMLAnchorElement;
+  // The shell moves between rooms without a page load, so the room to come
+  // back to is read when the link is used (or hovered, focused, copied).
+  const aim = () => void (link.href = `/account?next=${encodeURIComponent(location.pathname + location.search)}`);
+  aim();
+  for (const ev of ["pointerenter", "focus", "pointerdown", "click", "contextmenu"]) link.addEventListener(ev, aim);
+  return link;
+}
+
+const brand = () => h("a", { class: "cp-brand", href: "/", "aria-label": "CouchParty home" }, svg(MARK), h("span", {}, "CouchParty"));
+
+/**
+ * The site's header above the shell: logo, Games, Host Pass, then sign-in or
+ * the signed-in email. On phones Games and Host Pass fold into a menu. In a
+ * room (product.css) only the logo and the account part show, so the game
+ * keeps its space.
+ */
 export function mountHeader(outlet: HTMLElement, account: Promise<Me> = me()): void {
   const right = h("span", { class: "cp-bar-right" });
-  const bar = h(
-    "header",
-    { class: "cp-bar" },
-    h("a", { class: "cp-wordmark", href: "/" }, "CouchParty"),
-    right,
+  const menuAccount = h("a", { href: "/account" }, "Account");
+  const panel = h(
+    "div",
+    { class: "cp-menu", id: "cp-menu", hidden: true },
+    h("a", { href: "/#games" }, "Games"),
+    h("a", { href: "/pricing" }, "Host Pass"),
+    menuAccount,
   );
-  outlet.before(bar);
+  const button = h(
+    "button",
+    { type: "button", class: "cp-menu-btn", "aria-expanded": "false", "aria-controls": "cp-menu", "aria-label": "Menu" },
+    svg(MENU_ICON),
+  );
+  const nav = h(
+    "nav",
+    { class: "cp-nav", "aria-label": "Main" },
+    h("a", { class: "cp-nav-wide", href: "/#games" }, "Games"),
+    h("a", { class: "cp-nav-wide", href: "/pricing" }, "Host Pass"),
+    right,
+    button,
+    panel,
+  );
+  outlet.before(h("header", { class: "cp-bar" }, brand(), nav));
+  wireMenu(button, panel, nav);
   void account.then((m) => {
     if (m.email === null) {
-      const link = h("a", { class: "cp-signin" }, "Sign in") as HTMLAnchorElement;
-      // The shell moves between rooms without a page load, so the room to come
-      // back to is read when the link is used (or hovered, focused, copied).
-      const aim = () => void (link.href = `/account?next=${encodeURIComponent(location.pathname + location.search)}`);
-      aim();
-      for (const ev of ["pointerenter", "focus", "pointerdown", "click", "contextmenu"]) link.addEventListener(ev, aim);
-      swapIn(right, link);
+      menuAccount.replaceWith(accountLink("", "Sign in"));
+      swapIn(right, accountLink("cp-signin", "Sign in"));
       return;
     }
     swapIn(right, h("a", { class: "cp-email", href: "/account" }, m.email), ...(m.tier === "pass" ? [h("span", { class: "cp-badge" }, "Host Pass")] : []));
   });
+}
+
+/** The site's footer under the shell. product.css shows it on the start page only. */
+export function mountFooter(outlet: HTMLElement): void {
+  outlet.after(
+    h(
+      "footer",
+      { class: "cp-foot" },
+      h(
+        "div",
+        { class: "cp-foot-inner" },
+        brand(),
+        h("nav", { class: "cp-foot-links", "aria-label": "Footer" }, FOOT_LINKS.map(([label, href]) => h("a", { href }, label))),
+        h("p", { class: "cp-foot-note" }, "© 2026 CouchParty"),
+      ),
+    ),
+  );
+}
+
+/**
+ * The start page's own heading, in place of the shell's logo and wordmark
+ * (the header has them now; product.css hides the shell's). It sits at the
+ * top of the shell's home view and goes back there whenever that view
+ * redraws. The tab title follows it.
+ */
+export function mountPlayHead(outlet: HTMLElement): void {
+  const head = h(
+    "div",
+    { class: "cp-play-head" },
+    h("h1", {}, "Start a room"),
+    h("p", {}, "Type your name. Then start a new room, or join a friend's room with its code."),
+  );
+  let home: Element | null = null;
+  const place = () => {
+    if (home && home.firstElementChild !== head) home.prepend(head);
+  };
+  const inner = new MutationObserver(place);
+  const sync = () => {
+    const now = outlet.querySelector(":scope > main.home");
+    if (now === home) return;
+    inner.disconnect();
+    home = now;
+    if (!home) return void head.remove();
+    place();
+    inner.observe(home, { childList: true });
+    // The router names the tab before the view mounts; this runs after.
+    document.title = PLAY_TITLE;
+  };
+  new MutationObserver(sync).observe(outlet, { childList: true });
+  sync();
 }
