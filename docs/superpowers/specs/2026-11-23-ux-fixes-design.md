@@ -31,7 +31,7 @@ Players are Indian, often reading English as a second language, on mid-range And
 - **Guest home:** Name, Code and Join come first. "Host your own room" moves below, smaller.
 - **Long Trail:** while the leader plans, the plan controls come before the report and scene on phones.
 - **Confirm pop-ups:** one in-app confirm dialog in `packages/ui` replaces every native `confirm()`. The host's Leave room also asks first.
-- **Reactions:** the wire values stay the same emoji strings, so there is no protocol change. The client draws an SVG icon for each one: thumbs up, laughing face, heart, surprised face, crying face, fire. The bar closes after a send.
+- **Reactions:** stay as emoji (user, 2026-11-23: emoji are fine for reactions). The bar closes after a send.
 - **Sound board icon:** a speaker with waves, not a 2x2 grid.
 - **Game picker:** compact rows with no repeated icon, and each game's Rules link inside its own row.
 - **Pause:** a clear banner across the game saying "Paused by the host". The host gets a Resume button in the banner, so they don't need the menu.

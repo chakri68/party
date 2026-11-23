@@ -690,7 +690,8 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .room-header .icon-btn:hover { color: var(--ink); }
 .room-code + .icon-btn { margin-left: 4px; }
 /* Ping meter: sits close to the room code, narrower than the other buttons so phones keep one line. */
-.room-header .signal { min-width: 26px; width: 26px; margin-left: -6px; }
+.room-header .signal { min-width: 26px; width: 26px; }
+.signal-wrap { position: relative; display: inline-flex; margin-left: -6px; }
 .room-header .signal svg { width: 16px; height: 14px; }
 .signal rect { fill: var(--line); transition: fill 0.3s; }
 .signal[data-level="good"] rect { fill: var(--accent); }
@@ -698,12 +699,11 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .signal[data-level="slow"] .b1 { fill: var(--danger); }
 /* The tap's word (signal.ts): a tip just under the bars. The bars sit near
    the left edge, so the tip starts at them and runs right. */
-.room-header .signal { position: relative; }
 .signal-tip {
   position: absolute;
   z-index: 12;
   top: calc(100% + 2px);
-  left: -6px;
+  left: 0;
   padding: 6px 10px;
   border: 1.5px solid var(--line);
   border-radius: 10px;

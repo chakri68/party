@@ -63,7 +63,7 @@ Top to bottom:
 
 In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
 
-When the screen changes (the game starts, the results come, back to the lobby), the new screen opens at its top.
+When the screen changes (the game starts or restarts, the results come, back to the lobby), the new screen opens at its top.
 
 ### What only the host can do
 
@@ -206,7 +206,7 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game goes dark under a card: everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
+- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 ## Leaving

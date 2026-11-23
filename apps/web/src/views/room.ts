@@ -63,6 +63,9 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
   }
 }
 
+/** The room's own screens: moving between two of them scrolls to the top. */
+const ROOM_SCREENS = new Set<string | null>(["lobby", "playing", "results", "ended"]);
+
 /** How many players back each game, from the seats still here. */
 function suggestionCounts(room: RoomPublicState): Map<string, number> {
   const counts = new Map<string, number>();
@@ -132,7 +135,9 @@ export class RoomView implements View {
   private signal = signalMeter();
   private turn = new TurnSignal(
     () => `${this.code} · ${appTitle()}`,
-    () => this.header.getBoundingClientRect().bottom > 0,
+    // A screen change about to land counts as in view: show() is about to
+    // scroll to the top, but the turn is worked out before that.
+    () => this.screen !== this.last?.room.phase || this.header.getBoundingClientRect().bottom > 0,
   );
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
@@ -152,7 +157,7 @@ export class RoomView implements View {
 
   mount(container: HTMLElement) {
     this.header.append(this.headerStart, this.headerEnd);
-    this.root.append(this.header, this.body, this.toast);
+    this.root.append(this.header, this.body, this.toast, this.pauseNote);
     this.turn.mount(this.root);
     container.append(this.root);
 
@@ -197,15 +202,21 @@ export class RoomView implements View {
    * first screen doesn't: it's already inside the router's page transition.
    */
   private show(screen: string, update: () => void | Promise<void>) {
-    const first = this.screen === null;
-    const kind = screen !== this.screen ? "phase" : screen === "lobby" ? "lobby" : null;
+    const was = this.screen;
+    const first = was === null;
+    const kind = screen !== was ? "phase" : screen === "lobby" ? "lobby" : null;
     this.screen = screen;
     if (first || !kind) return void update();
-    // A new screen opens at its top (the game's header, phase and timer), not
-    // at the old screen's scroll. Inside the swap, so the transition's "after"
-    // picture is the top. Same-screen updates keep the scroll.
-    transition(kind, kind === "phase" ? () => (scrollTo({ top: 0, behavior: "instant" }), update()) : update);
+    // A new room screen opens at its top (the game's header, phase and timer),
+    // not at the old one's scroll. Only between room screens: back from a
+    // reconnect or "connecting" keeps the place. Inside the swap, so the
+    // transition's "after" picture is the top. Same-screen updates keep the scroll.
+    const toTop = kind === "phase" && ROOM_SCREENS.has(was) && ROOM_SCREENS.has(screen);
+    transition(kind, toTop ? () => (scrollTo({ top: 0, behavior: "instant" }), update()) : update);
   }
+
+  /** The round on screen, so a restart (same screen, new round) opens at the top too. */
+  private shownRound: number | null = null;
 
   // ---- connection ---------------------------------------------------------
 
@@ -646,6 +657,13 @@ export class RoomView implements View {
     }
     if (!u || !me || this.stuck) return;
     const room = u.room;
+    if (room.phase === "playing") {
+      // A restart: the same game screen, a new round. Before the turn pill's check.
+      if (this.screen === "playing" && this.shownRound !== null && this.shownRound !== room.roundNumber) {
+        scrollTo({ top: 0, behavior: "instant" });
+      }
+      this.shownRound = room.roundNumber;
+    }
     this.renderTurn();
     this.renderPause();
 
@@ -787,6 +805,8 @@ export class RoomView implements View {
 
   /** The pause cover, while one shows, and whether it has the host's Resume. */
   private pauseCover: { el: HTMLElement; host: boolean } | null = null;
+  /** Says the pause out loud: always mounted, filled on pause, emptied on resume. */
+  private pauseNote = h("span", { class: "sr-only", role: "status" });
 
   /**
    * While the host has paused the game, a cover over the game: the board dims
@@ -798,28 +818,39 @@ export class RoomView implements View {
     const room = this.last?.room;
     const me = this.client?.playerId;
     if (!room || !me || room.phase !== "playing" || !room.paused) {
-      this.pauseCover?.el.remove();
-      this.pauseCover = null;
+      if (this.pauseCover) {
+        this.pauseCover.el.remove();
+        this.pauseCover = null;
+        for (const c of this.gameHost.children) (c as HTMLElement).inert = false;
+        this.pauseNote.textContent = "";
+      }
       return;
     }
-    // As the menu: only while the room can hear us.
-    const host = room.hostId === me && !this.stuck;
+    // render() never runs while stuck, so this is the menu's rule too.
+    const host = room.hostId === me;
     if (this.pauseCover?.host !== host) {
       this.pauseCover?.el.remove();
+      const title = host ? "You paused the game" : "Paused by the host";
+      const line = host ? "The timer is stopped. Nobody can play." : "The timer is stopped. Wait for the host to start it again.";
       const el = h(
         "div",
         { class: "pause-cover" },
         h(
           "div",
-          { class: "pause-card", role: "status" },
-          h("h2", {}, host ? "You paused the game" : "Paused by the host"),
-          h("p", { class: "muted" }, host ? "The timer is stopped. Nobody can play." : "The timer is stopped. Wait for the host to start it again."),
+          { class: "pause-card" },
+          h("h2", {}, title),
+          h("p", { class: "muted" }, line),
           host ? h("button", { type: "button", class: "primary", onclick: () => this.client?.send({ type: "pause-game", paused: false }) }, "Resume") : null,
         ),
       );
       this.pauseCover = { el, host };
+      // The live region was mounted empty, so this text is announced.
+      this.pauseNote.textContent = `${title}. ${line}`;
     }
     if (this.pauseCover.el.parentNode !== this.gameHost) this.gameHost.append(this.pauseCover.el);
+    // Keyboard and screen readers can't reach the game under the cover either.
+    // Every call: the game's view may mount under it after the pause.
+    for (const c of this.gameHost.children) (c as HTMLElement).inert = c !== this.pauseCover.el;
   }
 
   /**
