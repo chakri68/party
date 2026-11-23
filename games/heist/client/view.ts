@@ -114,6 +114,8 @@ export class HeistView implements GameView {
     const me = this.props?.private as Priv | null | undefined;
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
+      // Seen it: turn it face down for them.
+      this.card?.hide();
       this.api.act({ type: "ack" });
     } else if (game.phase === "propose" && this.leading() && this.chosen.length === game.sizes[game.job]) {
       this.api.act({ type: "propose", crew: this.chosen });

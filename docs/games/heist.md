@@ -96,7 +96,7 @@ Moles: usual is 2 at 5–6 players, 3 at 7–8, 4 at 9–10. There are always at
 ## On your screen
 
 - **The board.** Five job pips with their crew sizes, turned into a tick (came off), a cross (sabotaged) or a flame (lost to heat). Below, the score ("Crew 1 · Moles 2"), the heat dots and the mole count.
-- **Your card.** Face down. Tap to reveal, tap to hide. It hides itself when you switch tabs or apps.
+- **Your card.** Face down. Tap to reveal, tap to hide. It hides itself when you switch tabs or apps. After you tap **Got it**, it's turned face down for you.
 - **Leader.** On your lead you get the list of players; tap to pick and tap again to remove. Tap **Propose** when the count's right. "That's N. Tap someone to take them off."
 - **Last vote and last job.** After the first one, the previous vote shows by name, with a note if someone missed it, and the last job shows its crew and how many Sabotage cards went in.
 - **Debrief.** At the end: who was who, every job, every proposal with its votes. Never a card.

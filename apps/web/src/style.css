@@ -49,13 +49,22 @@ button {
 }
 button:hover:not(:disabled) { border-color: #4a483f; }
 button:active:not(:disabled) { transform: scale(0.98); }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 button.primary {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
 }
 button.primary:hover:not(:disabled) { background: #d4ff4a; border-color: #d4ff4a; }
+/* Off, not dim lime: lime means "you can press this". Grey and dashed, still readable
+   (muted on surface-2 is 6:1), no press motion. */
+button.primary:disabled {
+  opacity: 1;
+  background: var(--surface-2);
+  border-color: var(--line);
+  border-style: dashed;
+  color: var(--muted);
+}
 button.link {
   min-height: 44px;
   background: none;
@@ -1261,3 +1270,24 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 }
 .message.closed { text-align: center; justify-items: center; }
 .message.closed .party-over { justify-self: stretch; max-width: none; }
+
+/* A sideways row that scrolls (other players in the card games): the edge with more
+   behind it fades out, so players see there is more. The fade goes once the row is
+   scrolled to that end, and a row that fits has none. Browsers without scroll
+   timelines just show no fade. */
+@property --row-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --row-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes row-fade {
+  from { --row-fade-start: 0px; --row-fade-end: 36px; }
+  8% { --row-fade-start: 36px; }
+  92% { --row-fade-end: 36px; }
+  to { --row-fade-start: 36px; --row-fade-end: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .row-fade {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--row-fade-start), #000 calc(100% - var(--row-fade-end)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--row-fade-start), #000 calc(100% - var(--row-fade-end)), transparent);
+    animation: row-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}

@@ -54,7 +54,7 @@ export class ImposterView implements GameView {
   private reveal: ReturnType<typeof roleReveal> | null = null;
   /** Which deal the card belongs to; a new key deals a fresh, face-down card. */
   private cardKey = "";
-  /** Bumped to turn the card over: "Got it", and a round dealt again. */
+  /** Bumped when a round is dealt again: same round number, a fresh face-down card. */
   private flips = 0;
 
   private headline = h("p", { class: "im-headline", role: "status", "aria-live": "polite" });
@@ -212,7 +212,7 @@ export class ImposterView implements GameView {
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
       // Seen it: turn it face down for them.
-      this.flips++;
+      this.reveal?.hide();
       this.api.act({ type: "ack" });
     } else if (game.phase === "guess" && me.guessing && game.mode === "spoken") {
       if (this.picked && !this.pending) this.pending = this.api.act({ type: "guess-place", placeId: this.picked });

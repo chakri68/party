@@ -29,6 +29,8 @@ function el(tag: string, cls: string, ...children: (Node | string)[]): HTMLEleme
 export function roleReveal(opts: { title: string; body: Node | string; warning?: string }): {
   el: HTMLElement;
   update(body: Node | string): void;
+  /** Turn it face down, as a tab switch does: call it when the player says "Got it". */
+  hide(): void;
   destroy(): void;
 } {
   let state: RevealState = "hidden";
@@ -77,6 +79,9 @@ export function roleReveal(opts: { title: string; body: Node | string; warning?:
     update(next) {
       body = next;
       if (state === "shown") render();
+    },
+    hide() {
+      send("background");
     },
     destroy() {
       document.removeEventListener("visibilitychange", onVisibility);
