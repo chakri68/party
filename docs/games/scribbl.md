@@ -36,7 +36,7 @@ Host picks these in the lobby.
 - **Canvas:** the drawing, live. Draw with a mouse, finger or pen.
 - **Drawer's tools (only you see them):** 14 colours, four brush sizes, Eraser, Undo, Clear.
 - **Drawing limits:** a drawing can use up to 16,000 points and 1,500 strokes. Undo and Clear don't give the ink back.
-- **Players list:** scores, a "drawing" tag on the drawer and "got it" on anyone who's guessed.
+- **Players list:** scores, a "drawing" tag on the drawer and "guessed" on anyone who's guessed.
 - **Chat box:** type guesses here. Case, accents, spaces and hyphens don't matter, so "Ice-cream", "ice cream" and "icecream" are the same guess. Messages are capped at 60 characters.
 - **"close!":** if your guess is one typo off a word of 4+ letters, you get a "close!" line that only you see.
 - **After you guess it:** your messages only go to the drawer and other people who've got it. They show as a separate, spoiler-safe line. People who haven't guessed can't read them.

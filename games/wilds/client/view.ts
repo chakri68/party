@@ -7,7 +7,7 @@ import { RUINS } from "../shared/ruins.ts";
 import type {
   Attr, ItemId, PendingBargain, Role, RuinId, TileId, WildsEvent, WildsPrivateState, WildsPublicState,
 } from "../shared/types.ts";
-import { ARROW_LABEL, BoardView, hasArrow } from "./board.ts";
+import { ARROW_LABEL, BoardView, hasArrow, mapKey } from "./board.ts";
 import { ATTR_NAME, ITEM_NAME, PlanTray, signed } from "./plan.ts";
 import { animate, buildFrames, fillNames, fitFrames, Playback, rollBox, voteResult, type Frame } from "./report.ts";
 
@@ -62,6 +62,9 @@ export function pendingLine(p: PendingBargain, round: number): string {
   return `The stone hand: noise on this bridge in ${n} ${n === 1 ? "round" : "rounds"}.`;
 }
 
+/** A plain heart, for the Hearts on each explorer. */
+const HEART_ICON = "M12 21 C5 15.5 2 12 2 8.2 C2 5.3 4.3 3 7 3 C9 3 10.8 4.1 12 5.8 C13.2 4.1 15 3 17 3 C19.7 3 22 5.3 22 8.2 C22 12 19 15.5 12 21 Z";
+
 const reducedMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -108,16 +111,14 @@ export class WildsView implements GameView {
     // Tap anywhere on the playback to jump to the end.
     this.boardWrap.addEventListener("click", () => this.playback.skip());
     this.caption.addEventListener("click", () => this.playback.skip());
+    // Phones: one column, the plan right under the map. Wide screens: the map on the
+    // left, the event, plan and team on the right, so nothing sits below the fold.
     this.root.append(
-      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, this.stones, this.timer),
+      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, h("span", { class: "wd-stones-wrap" }, h("span", { class: "wd-stones-label" }, "Stones"), this.stones), this.timer),
       this.eventBox,
       this.pendingBar,
-      this.boardWrap,
-      this.legend,
-      this.caption,
-      this.team,
-      this.note,
-      this.panel,
+      h("div", { class: "wd-main" }, this.boardWrap, this.legend, mapKey(), this.caption),
+      h("div", { class: "wd-side" }, this.note, this.panel, this.team),
     );
     this.clock = setInterval(() => this.renderClock(), 250);
   }
@@ -283,11 +284,11 @@ export class WildsView implements GameView {
       g.order.map((id) => {
         const e = g.explorers.find((x) => x.id === id);
         if (!e) return null;
-        const hearts = h(
-          "span",
-          { class: "wd-hearts", "aria-label": e.down ? "Down" : `${e.hearts} of ${N.hearts} Hearts` },
-          Array.from({ length: N.hearts }, (_, i) => h("span", { class: i < e.hearts ? "on" : "", "aria-hidden": "true" })),
-        );
+        const hearts = h("span", { class: "wd-hearts", role: "img", "aria-label": e.down ? "Down" : `${e.hearts} of ${N.hearts} Hearts` });
+        hearts.innerHTML = Array.from(
+          { length: N.hearts },
+          (_, i) => `<svg class="${i < e.hearts ? "on" : ""}" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="${HEART_ICON}"/></svg>`,
+        ).join("");
         return h(
           "li",
           { class: ["wd-explorer", e.down && "down", id === me && "me"].filter(Boolean).join(" ") },

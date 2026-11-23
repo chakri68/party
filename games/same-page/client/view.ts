@@ -328,6 +328,7 @@ export class SamePageView implements GameView {
             { class: ["sp-tick", p.answered && "in", away && "away", p.id === props.playerId && "me"].filter(Boolean).join(" ") },
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "sp-tick-name" }, this.name(p.id, props)),
+            h("span", { class: "sp-tick-score", "aria-label": `${p.score} points` }, String(p.score)),
             h("span", { class: "sp-tick-mark", "aria-label": p.answered ? "answered" : "thinking" }, p.answered ? "✓" : "…"),
           );
         }),
@@ -451,6 +452,9 @@ export class SamePageView implements GameView {
     const ranked = [...live].sort((a, b) => b.score - a.score);
     const top = ranked[0]?.score ?? 0;
     const reveal = game.phase === "reveal" || game.phase === "over";
+    // While answering, the ticks carry each score: one list of players, not two.
+    this.board.hidden = game.phase === "answering";
+    if (this.board.hidden) return;
     replaceChildren(
       this.board,
       ranked.map((p) => {

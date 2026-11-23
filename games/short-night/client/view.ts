@@ -253,7 +253,7 @@ export class ShortNightView implements GameView {
       case "reveal": {
         const left = game.players.filter((p) => !p.left).length - game.acked;
         headline = me?.acked ? "Waiting for the others" : "Check your card";
-        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Keep it secret.";
+        sub = me?.acked ? `${left} still reading` : "Open your card and read it. Keep it secret.";
         if (me?.role && !me.acked) button = "Got it";
         break;
       }
