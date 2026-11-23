@@ -4,7 +4,7 @@ import type { Presence } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { checkPlay, compareCards, ordinal, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG, titleNow } from "./cards.ts";
+import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -20,10 +20,7 @@ const RECAP_MS = 2200;
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-const the = (raw: Title) => {
-  const title = titleNow(raw);
-  return title === "Citizen" ? "a Citizen" : `the ${title}`;
-};
+const the = (title: Title) => (title === "Citizen" ? "a Citizen" : `the ${title}`);
 
 function describe(e: PresidentEvent, props: GameViewProps): string | null {
   const me = props.playerId;
@@ -249,7 +246,7 @@ export class PresidentView implements GameView {
           await this.sweepPile();
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${titleNow(e.title)}!` : titleNow(e.title));
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${e.title}!` : e.title);
           break;
         case "round-over":
           // Hold the table on the result before the next deal wipes it.
@@ -416,8 +413,7 @@ export class PresidentView implements GameView {
         const name = seat?.name ?? "?";
         const current = p.id === game.currentPlayerId;
         const owes = game.exchange.some((s) => s.kind === "return" && s.fromId === p.id && !s.done);
-        const ptitle = p.title ? titleNow(p.title) : null;
-        const tag = ptitle ? TITLE_TAG[ptitle] : null;
+        const tag = p.title ? TITLE_TAG[p.title] : null;
         const holding = p.removed
           ? "left"
           : p.place
@@ -429,18 +425,14 @@ export class PresidentView implements GameView {
             class: `pr-opp${current || owes ? " current" : ""}${p.passed ? " passed" : ""}${p.place ? " out" : ""}${away || p.removed ? " away" : ""}`,
             role: "listitem",
             "data-player": p.id,
-            "aria-label": `${name}${ptitle ? `, ${ptitle}` : ""}: ${holding}, ${p.points} points${current ? ", playing now" : ""}${owes ? ", giving cards back" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
+            "aria-label": `${name}${p.title ? `, ${p.title}` : ""}: ${holding}, ${p.points} points${current ? ", playing now" : ""}${owes ? ", giving cards back" : ""}${away ? `, ${PRESENCE_LABEL[seat!.presence]}` : ""}`,
           },
           seat ? avatar(name, seat.avatarSeed) : null,
           h(
             "div",
             { class: "pr-opp-text", "aria-hidden": "true" },
-            h(
-              "span",
-              { class: "name" },
-              name,
-              tag ? h("span", { class: `pr-title${ptitle === "President" || ptitle === "Vice-President" ? " up" : " down"}`, title: ptitle! }, tag) : null,
-            ),
+            h("span", { class: "name" }, name),
+            tag ? h("span", { class: `pr-title${p.title === "President" || p.title === "Vice-President" ? " up" : " down"}` }, tag) : null,
             h(
               "span",
               { class: "count" },
@@ -576,8 +568,8 @@ export class PresidentView implements GameView {
       mine?.place
         ? h("span", { class: "you" }, `You finished · ${titleFor(mine.place, n)}`)
         : h("span", { class: "you" }, "Your hand"),
-      mine?.title && TITLE_TAG[titleNow(mine.title)]
-        ? h("span", { class: `pr-title${titleNow(mine.title).includes("President") ? " up" : " down"}`, title: titleNow(mine.title) }, TITLE_TAG[titleNow(mine.title)])
+      mine?.title && TITLE_TAG[mine.title]
+        ? h("span", { class: `pr-title${mine.title.includes("President") ? " up" : " down"}` }, `Last round: ${TITLE_TAG[mine.title]}`)
         : null,
       mine ? h("span", { class: "count" }, mine.place ? pts : `${mine.cardCount} ${mine.cardCount === 1 ? "card" : "cards"} · ${pts}`) : null,
     );

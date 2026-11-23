@@ -62,9 +62,3 @@ export function cardBackFull(): HTMLElement {
 export function cardBackMini(): HTMLElement {
   return h("span", { class: "pr-back-mini", "aria-hidden": "true" });
 }
-
-/** A game saved before the rename may still carry the old words. Show the new ones. */
-// Spelled in parts so a search for the old words in the repo stays empty.
-const OLD = "Ass" + "hole";
-const OLD_TITLE: Record<string, Title> = { [OLD]: "Beggar", [`Vice-${OLD}`]: "Vice-Beggar" };
-export const titleNow = (t: Title): Title => OLD_TITLE[t] ?? t;

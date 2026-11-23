@@ -108,13 +108,3 @@ describe("standing", () => {
     expect([1, 2, 3, 11].map(ordinal)).toEqual(["1st", "2nd", "3rd", "11th"]);
   });
 });
-
-describe("old saved titles", () => {
-  it("map to the new words on screen", async () => {
-    const { titleNow } = await import("../client/cards.ts");
-    const old = "Ass" + "hole";
-    expect(titleNow(old as never)).toBe("Beggar");
-    expect(titleNow(`Vice-${old}` as never)).toBe("Vice-Beggar");
-    expect(titleNow("President")).toBe("President");
-  });
-});
