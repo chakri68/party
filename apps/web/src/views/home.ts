@@ -103,9 +103,9 @@ export function heroWords(home: ShellHome | undefined, tagline: string): { title
   return { title: home?.title ?? null, tagline: home?.subtitle ?? tagline };
 }
 
-/** The create button's text: the host app's, else by room setup. */
+/** The create button's text: a room setup always names its game; else the host app's text, else "Create room". */
 export function createText(setup: RoomSetup | undefined): string {
-  return shellConfig().createText ?? createLabel(setup);
+  return setup ? createLabel(setup) : (shellConfig().createText ?? createLabel(setup));
 }
 
 /** Logo over a lowercase wordmark with a lime full stop, or the host app's own title. */

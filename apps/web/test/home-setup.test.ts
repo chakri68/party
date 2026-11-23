@@ -100,9 +100,10 @@ describe("host app home options", async () => {
     expect(createText({ gameId: "cheat" })).toBe("Play Cheat with computers");
     expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: null, tagline: "Hi" });
   });
-  it("uses createText over the setup label", () => {
+  it("uses createText only without a setup", () => {
     configure({ createText: "Start a room" });
-    expect(createText({ gameId: "cheat" })).toBe("Start a room");
+    expect(createText(undefined)).toBe("Start a room");
+    expect(createText({ gameId: "cheat" })).toBe("Play Cheat with computers");
   });
   it("uses the home title and subtitle", () => {
     configure({ home: { title: "Start a room", subtitle: "Type your name." } });

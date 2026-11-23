@@ -56,7 +56,7 @@ export interface ShellOptions {
   homePath?: string;
   brand?: ShellBrand;
   appTitle?: string;
-  /** The home Create button's text. Without it, `createLabel` picks it from the room setup. */
+  /** The home Create button's text when there is no room setup. A setup (computers) keeps its own `createLabel` text. */
   createText?: string;
   /** The home page's heading, subtitle and tab title. Without it, the logo and the usual lines show. */
   home?: ShellHome;
