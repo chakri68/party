@@ -753,16 +753,24 @@
    to one line, the HUD hugs the corners, and the inspector becomes a sheet
    down the right instead of eating the bottom of an already short map. */
 @media (orientation: landscape) and (max-height: 540px) {
-  /* One thin line of shell: code and signal on the left, the room's controls in the middle, mic, chat and the menu on the right. */
+  /* One thin line of shell: code and signal on the left, the room's controls in
+     the middle, mic, sound board, reactions, chat and the menu on the right.
+     Header buttons are 32 px. The controls sit between the two sides, never
+     over them: left side code about 70 + gap 8 + signal 20 (26, -6 margin)
+     = 98, + 8 = 106 px; right side five 32 px buttons + four 8 px gaps = 192,
+     + 8 = 200 px (the mic's room is kept even out of voice). Both from the
+     header's content edge: the header is min(900px, 100% - 32px) centered,
+     with 8 px (or the safe area) padding. */
   .room:has(.dominion) { position: relative; }
   .room:has(.dominion) .room-header { padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); gap: 8px; }
   .room:has(.dominion) .room-header .brand > span:not(.mark) { display: none; }
-  .room:has(.dominion) .room-header .icon-btn { width: 32px; height: 32px; }
+  .room:has(.dominion) .room-header .icon-btn:not(.signal),
+  .room:has(.dominion) .room-header .voice-header-mic .voice-mic { width: 32px; height: 32px; min-width: 32px; min-height: 32px; }
   .room:has(.dominion) .turn-controls:not(:empty) {
     position: absolute;
     top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: calc((100% - min(900px, 100% - 32px)) / 2 + max(8px, env(safe-area-inset-left)) + 106px);
+    right: calc((100% - min(900px, 100% - 32px)) / 2 + max(8px, env(safe-area-inset-right)) + 200px);
     z-index: 3;
     width: auto;
     min-height: 32px;
@@ -770,7 +778,8 @@
     font-size: 0.75rem;
     gap: 4px 10px;
   }
-  .room:has(.dominion) .turn-controls button { min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  .room:has(.dominion) .turn-controls button { flex: 0 1 auto; min-height: 28px; padding: 0 10px; font-size: 0.75rem; }
+  .room:has(.dominion) .turn-controls p { text-align: center; }
   /* Results stay readable without hiding the map they're about. */
   .room:has(.dominion) .results { max-height: 46dvh; overflow-y: auto; padding-block: 10px; }
 
