@@ -24,7 +24,7 @@ If you open a room link without a name set, you're asked for one first ("Joining
 
 Room creation is gated by an owner key, so who can do it depends on where you are.
 
-- **The hosted copy.** Only the owner can create rooms. Their device holds the key; everyone else sees a **Host your own** panel instead of a **Create room** button, plus a "got a room code?" join box. Rooms there are invite-only.
+- **The hosted copy.** Only the owner can create rooms. Their device holds the key; everyone else sees a join box first and a **Host your own** panel below it ("want your own room?") instead of a **Create room** button. Rooms there are invite-only.
 - **A self-hosted copy.** Run `npx github:chakri68/party` (needs Node.js 22+; see "Host your own" in the README). It prints a host link with the owner key in it and opens it. That link shows **Create room**. Friends open the room link and just join. Keep the terminal open while you play, and keep the host link to yourself.
 
 Either way, rooms are only ever created from the **Create room** button. After that you land in the lobby and share the invite from there.
@@ -119,7 +119,7 @@ The speech-bubble button in the header opens the chat. You need a seat first; th
 - Messages are trimmed to 200 characters. The room keeps the last 100. People who join later see them.
 - Five messages in five seconds is the limit. Past that, "Easy there. Give it a second."
 - A short run of emoji (three or fewer, nothing else) is shown big.
-- A badge on the button counts unread lines (9+ past nine). If the panel is shut when a line comes in, it also pops up as a brief toast.
+- A badge on the button counts new messages (9+ past nine). A screen reader reads it as "1 new message" or "3 new messages". If the panel is shut when a line comes in, it also pops up as a brief toast.
 - To react to a message, tap the smile beside it and pick one of 👍 😂 ❤️ 😮 😭 🔥. Tap a reaction pill to add or remove yours. Hover a pill to see who sent it.
 
 ### When chat goes read-only
@@ -136,12 +136,12 @@ The sound board button in the header opens a grid of short sounds. Tap one and e
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
-- Sounds follow your volume. If **Sounds** is off in Settings, you hear none. **Sound board** in Settings turns off only board sounds, on this phone.
+- Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
 - A self-hosted copy has only the free sounds.
 
 ## Sound and vibration
 
-**Sound and vibration** in the menu opens **Settings** (when the party is over, it is the speaker button in the header):
+**Sound and vibration** in the menu opens the sound settings (when the party is over, it is the speaker button in the header). **Done** closes them.
 
 - **Sounds**: on or off. When the party is over, the speaker icon in the header shows which.
 - **Volume**: a slider, greyed out when sounds are off.
@@ -211,7 +211,11 @@ The host also has these in the menu (the three dots at the top right):
 
 ## Leaving
 
-**Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You'll be out for the rest of this round." You can't resume a seat you left on purpose.
+**Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You will be out for the rest of this round." You can't resume a seat you left on purpose.
+
+The host is asked every time, and told who gets the host role, like "Leave the room? Ben will be the host." That is the person who has been in the room longest and is still connected. If nobody else is here, it says so: the room stays open for a few hours, then it is deleted.
+
+Every question like this opens as a small box on the page, with a button that names the action (**Leave**, **Restart**, **Remove**, **End game**, **End party**) and **Cancel**. **Cancel**, a tap outside the box, or the Escape key all mean no. If the question stops making sense while it is open (say the player you want to remove comes back), the box closes by itself.
 
 ## Late joining
 
@@ -235,7 +239,7 @@ Rematch doesn't wait for everyone to be ready. The count is information, not a g
 
 ## Ending the party
 
-When the night is done, the host taps **End party**, under the lobby or the results. It asks once, on the page: "End the party for everyone? You will see the recap."
+When the night is done, the host taps **End party**, under the lobby or the results. It asks once: "End the party for everyone? You will see the recap."
 
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 
