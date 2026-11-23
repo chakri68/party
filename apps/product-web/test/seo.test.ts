@@ -26,6 +26,12 @@ describe("prerender", () => {
     expect(names).toContain("The Wilds");
   });
 
+  it("fails the build when a page loses its Host Pass list or free cap slot", () => {
+    expect(() => prerender(page("index").replace("<li data-pass-games>", "<li>"), "index", false)).toThrow(/data-pass-games/);
+    expect(() => prerender(page("pricing").replace(/<span data-free-cap>/g, "<span>"), "pricing", false)).toThrow(/data-free-cap/);
+    expect(() => prerender(page("terms"), "terms", false)).not.toThrow();
+  });
+
   it("says buying is not open yet right above the prices", () => {
     for (const name of ["index", "pricing"]) {
       expect(page(name), name).toMatch(/<p class="prices-soon" data-soon><strong>Buying opens soon\.<\/strong>[^<]*<\/p>\s*<ul class="prices[^"]*" data-prices/);

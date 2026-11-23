@@ -427,7 +427,6 @@ img, svg { display: block; }
 .game-desc { color: var(--muted); font-size: 0.9375rem; line-height: 1.4; }
 .game-players { font-size: 0.875rem; font-weight: 500; color: var(--muted); }
 .game-more { font-weight: 400; white-space: nowrap; }
-.game-more::before { content: " · " / ""; }
 .game-try { justify-self: start; display: inline-flex; align-items: center; min-height: 40px; font-size: 0.875rem; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
 .game-try:hover { text-decoration-thickness: 2px; }
 .tag-pass {
@@ -492,6 +491,11 @@ img, svg { display: block; }
 .prices-soon strong { color: var(--accent); font-size: 1.125rem; }
 .prices-soon + .prices { margin-top: 12px; }
 .band-card > .prices-soon:first-child { margin-top: 0; }
+/* With JS, held back (its space kept) until /api/config says whether buying
+   is open: landing.ts shows it or takes it out. If the script never runs, it
+   shows after 5s anyway. Without JS it just shows. */
+html.js [data-soon]:not(.ready) { visibility: hidden; animation: soon-fallback 0s 5s forwards; }
+@keyframes soon-fallback { to { visibility: visible; } }
 .prices-note a { color: var(--band-ink); text-underline-offset: 3px; }
 
 /* Host Pass band, small motions. Hover ones only where there is a real

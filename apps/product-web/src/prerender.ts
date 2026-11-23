@@ -17,6 +17,12 @@ export function prerender(html: string, page: string, onSale: boolean): string {
       .replace(/<span data-game-count>\d*<\/span>/g, `<span data-game-count>${gameCount(model)}</span>`);
   }
   // The Host Pass card names the paid games from PREMIUM_GAME_IDS, so it can't fall behind the list.
+  // A page that should have the slots but lost them fails the build instead of shipping a stale list.
+  if (page === "index" || page === "pricing") {
+    for (const marker of ["<li data-pass-games>", "<span data-free-cap>"]) {
+      if (!out.includes(marker)) throw new Error(`${page}.html has no ${marker}`);
+    }
+  }
   out = out
     .replace(/<li data-pass-games>[^<]*<\/li>/g, `<li data-pass-games>${listWords(passGameNames())}</li>`)
     .replace(/<span data-free-cap>\d*<\/span>/g, `<span data-free-cap>${FREE_MAX_PLAYERS}</span>`);

@@ -87,7 +87,7 @@ describe("galleryHtml", () => {
   });
   it("adds the Host Pass count under a capped free game", () => {
     expect(html({ players: "2 to 8 players", passPlayers: "Up to 12 with Host Pass" })).toContain(
-      `<p class="game-players">2 to 8 players<span class="game-more">Up to 12 with Host Pass</span></p>`,
+      `<p class="game-players">2 to 8 players<span class="game-more"><span aria-hidden="true"> · </span>Up to 12 with Host Pass</span></p>`,
     );
   });
 });

@@ -99,6 +99,18 @@ export function mountFooter(outlet: HTMLElement): void {
 }
 
 /**
+ * The start page follows the phone's light or dark (product.css keys on
+ * html.cp-start); a room is always dark. play.html sets this once on load;
+ * the shell moves between them without a load, so it is set again on each move.
+ */
+function startColours(start: boolean): void {
+  document.documentElement.classList.toggle("cp-start", start);
+  const light = start && matchMedia("(prefers-color-scheme: light)").matches;
+  document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')?.setAttribute("content", start ? "light dark" : "dark");
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", light ? "#fffdf8" : "#0e0e0c");
+}
+
+/**
  * The start page's own heading, in place of the shell's logo and wordmark
  * (the header has them now; product.css hides the shell's). It sits at the
  * top of the shell's home view and goes back there whenever that view
@@ -121,6 +133,7 @@ export function mountPlayHead(outlet: HTMLElement): void {
     if (now === home) return;
     inner.disconnect();
     home = now;
+    startColours(!!home);
     if (!home) return void head.remove();
     place();
     inner.observe(home, { childList: true });

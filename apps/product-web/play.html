@@ -29,6 +29,8 @@
         document.documentElement.classList.add("cp-start");
         document.querySelector('meta[name="color-scheme"]').content = "light dark";
         if (matchMedia("(prefers-color-scheme: light)").matches) document.querySelector('meta[name="theme-color"]').content = "#fffdf8";
+      } else {
+        document.title = "Join a room - CouchParty";
       }
     </script>
   </head>

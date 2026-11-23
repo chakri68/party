@@ -89,7 +89,7 @@ export function galleryHtml(model: GallerySection[]): string {
         .map((g) => {
           const tag = g.pass ? `<span class="tag-pass">Host Pass</span>` : "";
           const link = g.computers ? `<a class="game-try" href="/play?game=${encodeURIComponent(g.id)}">Play with computers</a>` : "";
-          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}${g.passPlayers ? `<span class="game-more">${esc(g.passPlayers)}</span>` : ""}</p>${link}</li>`;
+          return `<li class="${g.pass ? "game game-pass" : "game"}"><div class="game-top"><span class="game-name">${esc(g.name)}</span>${tag}</div><p class="game-desc">${esc(g.description)}</p><p class="game-players">${esc(g.players)}${g.passPlayers ? `<span class="game-more"><span aria-hidden="true"> · </span>${esc(g.passPlayers)}</span>` : ""}</p>${link}</li>`;
         })
         .join("");
       return `<section class="shelf" data-reveal aria-labelledby="shelf-${s.id}"><h3 class="shelf-head" id="shelf-${s.id}"><span class="shelf-icon">${sectionIcon(s.id)}</span><span>${esc(s.section)}</span></h3><ul class="shelf-games">${items}</ul></section>`;

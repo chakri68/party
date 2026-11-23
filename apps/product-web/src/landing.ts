@@ -151,7 +151,9 @@ function showPrices(): void {
       // Prices first, so they never wait on /api/me.
       renderPrices(c.country ?? null, shown);
       // Buying is open: the "opens soon" line goes, even for someone who can't buy more.
+      // Not open: it shows.
       if (c.billing) document.querySelectorAll("[data-soon]").forEach((s) => s.remove());
+      else showSoon();
       clearTimeout(timer);
       reveal();
       // A pass with no end can't get more time, so its holder sees the strip as
@@ -161,8 +163,13 @@ function showPrices(): void {
       const root = document.querySelector<HTMLElement>("[data-prices]");
       if (wanted && billing && root && plansFor(billing.provider).includes(wanted)) void startBuy(wanted, root);
     })
-    .catch(() => {})
+    .catch(showSoon)
     .finally(reveal);
+}
+
+/** The "Buying opens soon" box, held back by site.css until the config call answers. */
+function showSoon(): void {
+  document.querySelectorAll("[data-soon]").forEach((s) => s.classList.add("ready"));
 }
 
 /** False for a signed-in forever-pass holder. A failed /api/me sells, as before. */
