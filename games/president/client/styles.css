@@ -94,6 +94,8 @@
   border-radius: 4px;
   color: var(--muted);
   white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .pr-title.up { border-color: var(--accent); color: var(--accent); }
 .pr-title.down { border-color: var(--danger); color: var(--danger); }

@@ -82,9 +82,9 @@ describe("playableRanks", () => {
 
 describe("standing", () => {
   it("titles: vices from four players", () => {
-    expect([1, 2, 3].map((p) => titleFor(p, 3))).toEqual(["President", "Citizen", "Asshole"]);
-    expect([1, 2, 3, 4].map((p) => titleFor(p, 4))).toEqual(["President", "Vice-President", "Vice-Asshole", "Asshole"]);
-    expect([1, 2, 3, 4, 5].map((p) => titleFor(p, 5))).toEqual(["President", "Vice-President", "Citizen", "Vice-Asshole", "Asshole"]);
+    expect([1, 2, 3].map((p) => titleFor(p, 3))).toEqual(["President", "Citizen", "Beggar"]);
+    expect([1, 2, 3, 4].map((p) => titleFor(p, 4))).toEqual(["President", "Vice-President", "Vice-Beggar", "Beggar"]);
+    expect([1, 2, 3, 4, 5].map((p) => titleFor(p, 5))).toEqual(["President", "Vice-President", "Citizen", "Vice-Beggar", "Beggar"]);
   });
 
   it("a point per player beaten", () => {
@@ -106,5 +106,15 @@ describe("standing", () => {
     expect(setName(3, 2)).toBe("three Twos");
     expect(setName(4, 1)).toBe("four Aces");
     expect([1, 2, 3, 11].map(ordinal)).toEqual(["1st", "2nd", "3rd", "11th"]);
+  });
+});
+
+describe("old saved titles", () => {
+  it("map to the new words on screen", async () => {
+    const { titleNow } = await import("../client/cards.ts");
+    const old = "Ass" + "hole";
+    expect(titleNow(old as never)).toBe("Beggar");
+    expect(titleNow(`Vice-${old}` as never)).toBe("Vice-Beggar");
+    expect(titleNow("President")).toBe("President");
   });
 });

@@ -112,7 +112,7 @@ function swap(state: State, swap: Swap, cards: Card[], events: Events): void {
   );
 }
 
-/** Every return's in (or called off): the Asshole leads. */
+/** Every return's in (or called off): the Beggar leads. */
 function maybeStartPlay(state: State): void {
   if (state.phase !== "exchange" || pending(state).length) return;
   state.phase = "playing";
@@ -123,7 +123,7 @@ function maybeStartPlay(state: State): void {
 /**
  * Deals a round to everyone still seated, clockwise from the dealer's left,
  * then collects the tributes. Round 1 is led by the 3♣; after that the
- * Asshole deals and leads.
+ * Beggar deals and leads.
  */
 function startRound(state: State, ctx: GameContext, events: Events, deck?: Card[]): void {
   const prev = lastOrder(state);

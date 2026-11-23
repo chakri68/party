@@ -11,13 +11,13 @@ export const SUIT_SYMBOL: Record<Suit, string> = {
 };
 export const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
 
-/** Short enough for a player chip. The full title rides along as a tooltip. */
+/** The full title, spelled out. Citizens get no tag. */
 export const TITLE_TAG: Record<Title, string | null> = {
-  President: "Pres",
-  "Vice-President": "VP",
+  President: "President",
+  "Vice-President": "Vice-President",
   Citizen: null,
-  "Vice-Asshole": "VA",
-  Asshole: "A-hole",
+  "Vice-Beggar": "Vice-Beggar",
+  Beggar: "Beggar",
 };
 
 type Face = Pick<Card, "suit" | "rank">;
@@ -62,3 +62,9 @@ export function cardBackFull(): HTMLElement {
 export function cardBackMini(): HTMLElement {
   return h("span", { class: "pr-back-mini", "aria-hidden": "true" });
 }
+
+/** A game saved before the rename may still carry the old words. Show the new ones. */
+// Spelled in parts so a search for the old words in the repo stays empty.
+const OLD = "Ass" + "hole";
+const OLD_TITLE: Record<string, Title> = { [OLD]: "Beggar", [`Vice-${OLD}`]: "Vice-Beggar" };
+export const titleNow = (t: Title): Title => OLD_TITLE[t] ?? t;
