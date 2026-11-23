@@ -92,14 +92,17 @@ export function passTheBombSettingFields(raw: unknown): SettingField[] {
     modeField(settings, "ending", "Letters are", "Anywhere", "At the end", modes.ending ? "ING at the end: RUNNING is fine, SINGER is not" : "ING anywhere: SINGER or RUNNING"),
     modeField(settings, "reverse", "Bomb shows", "Normal letters", "Backwards letters", modes.reverse ? "The bomb shows GNI, you type ING" : "The bomb shows ING, you type ING"),
     modeField(settings, "length", "Word length", "3 or more", `${LENGTH_MIN} to ${LENGTH_MAX}`, modes.length ? `Words must have ${LENGTH_MIN} to ${LENGTH_MAX} letters` : "3 letters or more"),
-    modeField(
-      settings,
-      "category",
-      "Words from",
-      "Anywhere",
-      "A topic",
-      thin ?? (modes.category ? "One topic at a time: animals, food, body, home, nature or jobs" : "Any word in the dictionary"),
-    ),
+    {
+      ...modeField(
+        settings,
+        "category",
+        "Words from",
+        "Anywhere",
+        "A topic",
+        thin ?? (modes.category ? "One topic at a time: animals, food, body, home, nature or jobs" : "Any word in the dictionary"),
+      ),
+      warn: !!thin || undefined,
+    },
     {
       key: "unknown",
       label: "Unknown words",

@@ -55,7 +55,8 @@ export function ohHellSettingFields(raw: unknown, players: number): SettingField
         label: b === "max" ? `Max (${biggestHand("max", n)})` : `${b} cards`,
         patch: { biggest: b },
       })),
-      hint: `${rounds} rounds${capped ? ` · max ${big} for ${n} players` : ""}`,
+      hint: capped ? `Only ${big} cards fit ${n} players. ${rounds} rounds` : `${rounds} rounds`,
+      warn: capped || undefined,
     },
     {
       key: "dealerRule",

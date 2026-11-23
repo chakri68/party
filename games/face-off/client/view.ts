@@ -163,6 +163,8 @@ export class FaceOffView implements GameView {
   }
 
   private buzz() {
+    // The button stays in place (disabled) after the first buzz: a late tap or key must not send.
+    if (!(this.props?.private as Priv | null | undefined)?.canBuzz) return;
     this.buzzer.classList.add("pressed");
     this.send({ type: "buzz" });
   }
@@ -210,12 +212,24 @@ export class FaceOffView implements GameView {
     );
   }
 
+  /** "Votes: Asha 1, Meena 1." Claimer first, in both cases. Empty when nobody voted. */
+  private votesLine(o: Outcome, props: GameViewProps): string {
+    if (!o.confirm && !o.overturn) return "";
+    const claimer = o.kind === "point" ? o.winnerId : o.loserId;
+    const other = o.kind === "point" ? o.loserId : o.winnerId;
+    if (!(o.kind === "point" ? o.overturn : o.confirm)) {
+      const n = o.kind === "point" ? o.confirm : o.overturn;
+      return ` ${n} ${n === 1 ? "vote" : "votes"} for ${this.lower(o.winnerId!, props)}.`;
+    }
+    return ` Votes: ${this.lower(claimer!, props)} ${o.confirm}, ${this.lower(other!, props)} ${o.overturn}.`;
+  }
+
   private outcomeText(o: Outcome, props: GameViewProps): [string, string] {
     switch (o.kind) {
       case "point":
-        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${o.confirm ? ` Votes: ${o.confirm} yes, ${o.overturn} no.` : ""}`];
+        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${this.votesLine(o, props)}`];
       case "overturned":
-        return [`Rejected. ${this.name(o.winnerId, props)} +1`, `Votes: ${o.overturn} no, ${o.confirm} yes. ${this.does(o.loserId!, "get", props)} a new card.`];
+        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${this.votesLine(o, props)}`];
       case "void":
         return ["Nobody buzzed", `${this.name(o.a, props)} and ${this.lower(o.b, props)} get new cards.`];
       case "left":
@@ -318,7 +332,9 @@ export class FaceOffView implements GameView {
     }
 
     const canBuzz = !confirm && !!me?.canBuzz;
-    this.buzzer.hidden = !canBuzz;
+    // Keep the box in place for the duelists in confirm, so Redo does not slide under a late tap.
+    this.buzzer.hidden = !(mine || canBuzz);
+    this.buzzer.disabled = !canBuzz;
     if (!confirm) {
       tail.push(h("p", { class: "fo-note" }, canBuzz ? "Said it? Press Buzz, Enter or Space." : "Listen. The first player to answer and buzz gets the point."));
     } else {
@@ -333,8 +349,8 @@ export class FaceOffView implements GameView {
             label,
           );
         tail.push(
-          h("div", { class: "fo-votes" }, choice("confirm", `Accept: ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Reject: ${seatName(props.room, other)}`, "danger")),
-          h("p", { class: "fo-note" }, `Did ${seatName(props.room, claim)} say a right answer first? ${d.voted} of ${d.voters} voted.`),
+          h("div", { class: "fo-votes" }, choice("confirm", `Point to ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Point to ${seatName(props.room, other)}`, "")),
+          h("p", { class: "fo-note" }, `Who gets the point? Did ${seatName(props.room, claim)} say a correct answer first? ${d.voted} of ${d.voters} voted.`),
         );
       } else {
         tail.push(h("p", { class: "fo-note" }, d.voters ? `The others are voting: ${d.voted} of ${d.voters} voted.` : "The others are voting."));

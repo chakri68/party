@@ -24,7 +24,7 @@ If you open a room link without a name set, you're asked for one first ("Joining
 
 Room creation is gated by an owner key, so who can do it depends on where you are.
 
-- **The hosted copy.** Only the owner can create rooms. Their device holds the key; everyone else sees a **Host your own** panel instead of a **Create room** button, plus a "got a room code?" join box. Rooms there are invite-only.
+- **The hosted copy.** Only the owner can create rooms. Their device holds the key; everyone else sees a join box first and a **Host your own** panel below it ("want your own room?") instead of a **Create room** button. Rooms there are invite-only.
 - **A self-hosted copy.** Run `npx github:chakri68/party` (needs Node.js 22+; see "Host your own" in the README). It prints a host link with the owner key in it and opens it. That link shows **Create room**. Friends open the room link and just join. Keep the terminal open while you play, and keep the host link to yourself.
 
 Either way, rooms are only ever created from the **Create room** button. After that you land in the lobby and share the invite from there.
@@ -54,22 +54,22 @@ You can't get in if:
 Top to bottom:
 
 - **Room code** in large type, the invite address, and **Copy link** / **Share invite**.
+- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". The host has no ready sign. Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
 - The current game with its description. **Rules** opens "How to play" for that game. The host also gets **Change**.
-- The game's settings, if it has any.
-- **Players**, with a count like `3/8`. Each row shows the face, name, "(you)" next to yours, a "host" tag, and "ready" or "not ready". Someone who has dropped shows "reconnecting…". Empty slots up to the game's minimum read "Waiting for a player…".
+- The game's settings, if it has any, in one line like "Rounds: 3 · Empty stock: Pass". Tap **Settings** to see them all. Only the host can change them. On a phone they start closed; on a bigger screen they start open. A warning about a setting, like "Map: Too small for 5. Using 6×6", shows even when they are closed.
 - For the host, **Lock room** (or **Unlock room**). While it is locked, everyone sees "The room is locked. New players can't join."
-- **I'm ready** and, for the host, the start button.
-- **Leave room**.
+- The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll. If the settings or the computers stop the game from starting, the reason shows under the start button. Other players see it under the settings.
+- **Leave room**, and for the host, **End party**.
 
-In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.
+In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile; the reaction bar closes after you send one), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
 
-When the party is over, the header has the logo, the room code, a sound button, an emoji button and a chat button.
+When the screen changes (the game starts or restarts, the results come, back to the lobby), the new screen opens at its top.
 
 ### What only the host can do
 
 The host is the first person into the room. The tag next to their name says "host". Only they can:
 
-- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy), each with its player range. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
+- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy). Each game is one short row with its name, a one-line description and its player range. Tap the row to pick it. **Rules** is in the same row. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
 - Change the **settings**. Everyone else sees them read-only.
 - **Start game**.
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
@@ -93,7 +93,7 @@ Computers pause when nobody is connected, and play again when someone comes back
 
 ### Ready and Start
 
-**I'm ready** toggles to **Not ready**. It's a signal to the host, nothing more. The server doesn't wait for it, and Start works with nobody ready. Ready flags reset when a game starts.
+**I'm ready** toggles to **Not ready**. It's a signal to the host, nothing more, so the host has no such button. The server doesn't wait for it, and Start works with nobody ready. Ready flags reset when a game starts.
 
 The host's button changes with the room:
 
@@ -119,7 +119,7 @@ The speech-bubble button in the header opens the chat. You need a seat first; th
 - Messages are trimmed to 200 characters. The room keeps the last 100. People who join later see them.
 - Five messages in five seconds is the limit. Past that, "Easy there. Give it a second."
 - A short run of emoji (three or fewer, nothing else) is shown big.
-- A badge on the button counts unread lines (9+ past nine). If the panel is shut when a line comes in, it also pops up as a brief toast.
+- A badge on the button counts new messages (9+ past nine). A screen reader reads it as "1 new message" or "3 new messages". If the panel is shut when a line comes in, it also pops up as a brief toast.
 - To react to a message, tap the smile beside it and pick one of 👍 😂 ❤️ 😮 😭 🔥. Tap a reaction pill to add or remove yours. Hover a pill to see who sent it.
 
 ### When chat goes read-only
@@ -128,22 +128,22 @@ Some games have their own guessing or answering built into the screen, and the r
 
 ## Emotes
 
-The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
+The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar closes after you send one. Tap the smile again to send another. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
 
 ## Sound board
 
-The sound board button in the header opens a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
+The sound board button in the header (a speaker) opens a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
-- Sounds follow your volume. If **Sounds** is off in Settings, you hear none. **Sound board** in Settings turns off only board sounds, on this phone.
+- Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
 - A self-hosted copy has only the free sounds.
 
 ## Sound and vibration
 
-**Sound and vibration** in the menu opens **Settings** (when the party is over, it is the speaker button in the header):
+**Sound and vibration** in the menu opens the sound settings. **Done** closes them.
 
-- **Sounds**: on or off. When the party is over, the speaker icon in the header shows which.
+- **Sounds**: on or off.
 - **Volume**: a slider, greyed out when sounds are off.
 - **Sound board**: sound board sounds on this phone. Greyed out when Sounds is off.
 - **Vibration**: only shown on devices that can vibrate.
@@ -174,7 +174,7 @@ The settings stay on your device. No one records your voice.
 
 ## Connection drops and reconnecting
 
-Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is OK (under 300 ms), and one red bar is slow. Tap the bars to see the number.
+Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is weak (under 300 ms), and one red bar is bad. Tap the bars and a small note under them says it in a word: "Connection: Good", "Weak" or "Bad".
 
 If your connection goes, the header shows "reconnecting…" and your seat stays yours. The server holds it for **60 seconds**.
 
@@ -189,7 +189,7 @@ An empty room is deleted after 6 hours.
 
 ## When the host leaves
 
-The host role isn't tied to who made the room. If the host disconnects, they keep it through their 60 seconds. After that, or if they leave outright, it passes to whoever has been in the room longest and is still connected. That person gets a toast: "You're the host now." If nobody is connected, the role stays put until someone comes back.
+The host role isn't tied to who made the room. If the host disconnects, they keep it through their 60 seconds. After that, or if they leave outright, it passes to whoever has been in the room longest and is still connected. That person gets a toast: "You're the host now." If nobody is connected: in a game, a host who dropped keeps the role until someone comes back. A host who leaves, or drops outside a game, passes it to the first person still in the room.
 
 The host can also give the role to someone else with **Make host**. They get "You're the host now."
 
@@ -206,12 +206,16 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play.
+- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 ## Leaving
 
-**Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You'll be out for the rest of this round." You can't resume a seat you left on purpose.
+**Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You will be out for the rest of this round." You can't resume a seat you left on purpose.
+
+The host is asked every time, and told who gets the host role, like "Leave the room? Ben will be the host." That is the person who has been in the room longest and is still connected. If nobody is connected, it goes to the first person still in the room. If no other person is here (computers don't count), it says so: the room stays open for a few hours, then it is deleted.
+
+Every question like this opens as a small box on the page, with a button that names the action (**Leave**, **Restart**, **Remove**, **End game**, **End party**) and **Cancel**. **Cancel**, a tap outside the box, or the Escape key all mean no. If the question stops making sense while it is open (say the player you want to remove comes back), the box closes by itself.
 
 ## Late joining
 
@@ -235,7 +239,7 @@ Rematch doesn't wait for everyone to be ready. The count is information, not a g
 
 ## Ending the party
 
-When the night is done, the host taps **End party**, under the lobby or the results. It asks once, on the page: "End the party for everyone? You will see the recap."
+When the night is done, the host taps **End party**, under the lobby or the results. It asks once: "End the party for everyone? You will see the recap."
 
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 

@@ -176,20 +176,99 @@ export function avatar(name: string, seed: string, size: "sm" | "md" | "lg" = "m
 // Dialog
 // ---------------------------------------------------------------------------
 
-/** Opens a modal <dialog> (focus trap and Esc for free) and removes it on close. */
-export function openDialog(title: string, ...body: (Child | Child[])[]): HTMLDialogElement {
+/**
+ * Opens a modal <dialog> (focus trap and Esc for free) and removes it on close.
+ * `title` can carry the close button's word (default "Got it").
+ *
+ * The dialog itself takes focus, not its first button: a long body (the rules)
+ * then opens at the top, not scrolled down to the button. Tab goes on to the
+ * button; Escape still closes.
+ */
+export function openDialog(title: string | { title: string; close?: string }, ...body: (Child | Child[])[]): HTMLDialogElement {
+  const { title: name, close = "Got it" } = typeof title === "string" ? { title } : title;
   const dlg = h(
     "dialog",
-    { class: "dialog", "aria-label": title },
-    h("h2", {}, title),
+    { class: "dialog", "aria-label": name, tabindex: -1 },
+    h("h2", {}, name),
     h("div", { class: "dialog-body" }, ...body),
-    h("form", { method: "dialog" }, h("button", { class: "primary" }, "Got it")),
+    h("form", { method: "dialog" }, h("button", { class: "primary" }, close)),
   );
   dlg.addEventListener("close", () => dlg.remove());
   closeOnBackdrop(dlg);
   document.body.append(dlg);
   dlg.showModal();
+  // showModal puts focus on the first control, which can be far down.
+  dlg.focus({ preventScroll: true });
+  dlg.scrollTop = 0;
   return dlg;
+}
+
+export interface ConfirmOptions {
+  /** The word on the yes button: says the action ("Restart", "Remove"). */
+  ok: string;
+  /** The word on the no button. Default "Cancel". */
+  cancel?: string;
+  /** The action can't be taken back: the yes button looks dangerous. */
+  danger?: boolean;
+}
+
+/** The confirm on screen, if any. One at a time. */
+let openConfirm: HTMLDialogElement | null = null;
+let confirmCount = 0;
+
+/**
+ * Asks a yes or no question in the page, in place of `confirm()` (which some
+ * in-app browsers block, and which freezes the page while it's up). Resolves
+ * true for the yes button only: Cancel, Escape, a tap outside and
+ * `cancelConfirm()` all give false. Focus starts on Cancel, so a stray Enter
+ * does nothing harmful. A new question closes the one before (as a no).
+ *
+ * It sits on `document.body`, so a screen redraw leaves it alone. The caller
+ * checks, when it resolves, that the action still makes sense.
+ */
+export function confirmDialog(text: string, opts: ConfirmOptions): Promise<boolean> {
+  openConfirm?.close();
+  return new Promise((resolve) => {
+    let answer = false;
+    const no = h("button", { type: "button", onclick: () => dlg.close() }, opts.cancel ?? "Cancel");
+    const yes = h("button", {
+      type: "button",
+      class: opts.danger ? "danger" : "primary",
+      onclick: () => {
+        answer = true;
+        dlg.close();
+      },
+    }, opts.ok);
+    // Named by its question, so a screen reader reads it once.
+    const id = `confirm-text-${++confirmCount}`;
+    const dlg = h(
+      "dialog",
+      { class: "dialog confirm-dialog", role: "alertdialog", "aria-labelledby": id },
+      h("p", { class: "confirm-text", id }, text),
+      h("div", { class: "confirm-buttons" }, yes, no),
+    );
+    dlg.addEventListener("close", () => {
+      if (openConfirm === dlg) openConfirm = null;
+      dlg.remove();
+      resolve(answer);
+    });
+    closeOnBackdrop(dlg);
+    document.body.append(dlg);
+    openConfirm = dlg;
+    dlg.showModal();
+    no.focus();
+  });
+}
+
+/** Rewords the confirm on screen, if any (a detail in it changed). */
+export function updateConfirm(text: string): void {
+  const p = openConfirm?.querySelector(".confirm-text");
+  if (p && p.textContent !== text) p.textContent = text;
+}
+
+/** Closes the confirm on screen, if any, as a no. For when its question no longer applies. */
+export function cancelConfirm(): void {
+  openConfirm?.close();
 }
 
 /**

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { games } from "../src/games.ts";
+import { homeParts } from "../src/views/home.ts";
 import { createLabel, roomsPath, setupFromUrl, shellConfig } from "../src/shell.ts";
 
 const url = (q: string) => new URL(`https://party.test/${q}`);
@@ -71,5 +72,19 @@ describe("the default creator", () => {
     await shellConfig().createRoom({ gameId: "cheat" });
     expect(fetchMock.mock.calls[0]![0]).toBe("/api/rooms");
     expect(fetchMock.mock.calls[1]![0]).toBe("/api/rooms?game=cheat");
+  });
+});
+
+describe("homeParts", () => {
+  it("puts the join form before the host card for a guest", () => {
+    const parts = homeParts(false, true);
+    expect(parts.indexOf("join")).toBeLessThan(parts.indexOf("host"));
+    expect(parts).not.toContain("create");
+  });
+  it("keeps the owner home with Create room and no host card", () => {
+    expect(homeParts(true, false)).toEqual(["hero", "identity", "create", "join", "error", "recent"]);
+  });
+  it("shows no host card on a self-hosted copy", () => {
+    expect(homeParts(false, false)).not.toContain("host");
   });
 });

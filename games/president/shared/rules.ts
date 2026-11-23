@@ -113,9 +113,9 @@ export function playableRanks(hand: readonly Card[], top: Play | null, matchSkip
  */
 export function titleFor(place: number, n: number): Title {
   if (place === 1) return "President";
-  if (place === n) return "Asshole";
+  if (place === n) return "Beggar";
   if (n >= 4 && place === 2) return "Vice-President";
-  if (n >= 4 && place === n - 1) return "Vice-Asshole";
+  if (n >= 4 && place === n - 1) return "Vice-Beggar";
   return "Citizen";
 }
 

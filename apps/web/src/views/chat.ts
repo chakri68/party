@@ -161,7 +161,7 @@ export class RoomChat {
       icon("chat"),
       this.unread ? h("span", { class: "chat-badge" }, this.unread > 9 ? "9+" : String(this.unread)) : null,
     );
-    this.button.setAttribute("aria-label", this.unread ? `Chat, ${this.unread} unread` : "Chat");
+    this.button.setAttribute("aria-label", this.unread ? `Chat, ${this.unread} new ${this.unread === 1 ? "message" : "messages"}` : "Chat");
   }
 
   private line(m: ChatMessage, prev: ChatMessage | undefined): HTMLLIElement {

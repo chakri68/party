@@ -196,6 +196,7 @@ export class LongTrailView implements GameView {
       this.note.textContent = "";
     }
     this.root.dataset.phase = g.phase;
+    this.root.dataset.leading = String(this.leading());
     const pre = g.phase === "reveal";
     this.dayLabel.textContent = g.phase === "recap" || g.phase === "over" ? "" : `Day ${this.shownDay()} of ${g.deadlineDay}`;
     this.phaseLabel.textContent = PHASE_LABEL[g.phase];

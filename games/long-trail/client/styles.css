@@ -10,6 +10,16 @@
 }
 .long-trail > * { min-width: 0; }
 
+/* The leader has about 45 s to plan: on a phone the plan comes right after the day header,
+   before the scene and the report. Only the order changes. */
+@media (max-width: 599px) {
+  .long-trail[data-phase="plan"][data-leading="true"] > .lt-top { order: -5; }
+  .long-trail[data-phase="plan"][data-leading="true"] > .lt-track { order: -4; }
+  .long-trail[data-phase="plan"][data-leading="true"] > .lt-stock { order: -3; }
+  .long-trail[data-phase="plan"][data-leading="true"] > .lt-prompt { order: -2; }
+  .long-trail[data-phase="plan"][data-leading="true"] > .lt-panel { order: -1; }
+}
+
 .lt-top {
   display: flex;
   justify-content: space-between;

@@ -6,15 +6,19 @@
 //
 //   - a frame around the whole screen: pulses as the turn arrives, then stays
 //     as a thin edge until you've moved, wherever you've scrolled to
-//   - a pill at the top that says so, for a couple of seconds
+//   - a pill at the top that says so, for a couple of seconds, but only when
+//     you've scrolled the room header (and so the game's status line) off the
+//     screen. At the top, the game's own line already says it, and the pill
+//     would sit on the header buttons and repeat it.
 //   - the tab title, which blinks while the tab's in the background, so a
 //     laptop player in another tab sees it
 //
-// Screen readers hear it once, politely, through the pill.
+// Screen readers hear it once, politely, through the pill, shown or not.
+// Sound and buzz are the game's, not this.
 
 import { h } from "@games/ui";
 
-const PILL_MS = 2600;
+const PILL_MS = 2000;
 const BLINK_MS = 1000;
 
 export class TurnSignal {
@@ -26,9 +30,12 @@ export class TurnSignal {
   private blink: ReturnType<typeof setInterval> | undefined;
 
   private titleOf: () => string;
+  private headerInView: () => boolean;
 
-  constructor(titleOf: () => string) {
+  /** `headerInView`: is the room header on screen? Then the pill stays hidden. */
+  constructor(titleOf: () => string, headerInView: () => boolean) {
     this.titleOf = titleOf;
+    this.headerInView = headerInView;
     document.addEventListener("visibilitychange", this.onVisibility);
   }
 
@@ -55,9 +62,12 @@ export class TurnSignal {
       void this.frame.offsetWidth;
       this.frame.classList.add("arrive");
       this.pill.textContent = label;
-      this.pill.classList.add("show");
       clearTimeout(this.pillTimer);
-      this.pillTimer = setTimeout(() => this.pill.classList.remove("show"), PILL_MS);
+      if (this.headerInView()) this.pill.classList.remove("show");
+      else {
+        this.pill.classList.add("show");
+        this.pillTimer = setTimeout(() => this.pill.classList.remove("show"), PILL_MS);
+      }
     } else if (label === null) {
       clearTimeout(this.pillTimer);
       this.pill.classList.remove("show");

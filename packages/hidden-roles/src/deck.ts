@@ -126,6 +126,7 @@ export function deckSettingFields(
 ): SettingField[] {
   const isCustom = settings.preset === CUSTOM;
   const deck = deckFor(settings, roles, presets, players);
+  const problem = players >= (rules.minPlayers ?? 0) && deckProblem(deck, roles, rules, players);
   const customPatch: Record<string, unknown> = isCustom
     ? { preset: CUSTOM }
     : { preset: CUSTOM, ...Object.fromEntries(roles.map((r) => [countKey(r.id), deck[r.id] ?? 0])) };
@@ -138,7 +139,8 @@ export function deckSettingFields(
       ...presets.map((p) => ({ label: p.label, patch: { preset: p.id } })),
       { label: "Custom", patch: customPatch },
     ],
-    hint: (players >= (rules.minPlayers ?? 0) && deckProblem(deck, roles, rules, players)) || deckList(deck, roles),
+    hint: problem || deckList(deck, roles),
+    warn: !!problem || undefined,
   };
   if (!isCustom) return [presetRow];
 

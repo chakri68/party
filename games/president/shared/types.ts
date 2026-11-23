@@ -29,7 +29,7 @@ export interface PresidentSettings {
 
 export const DEFAULT_SETTINGS: PresidentSettings = { rounds: 3, matchSkips: false };
 
-export type Title = "President" | "Vice-President" | "Citizen" | "Vice-Asshole" | "Asshole";
+export type Title = "President" | "Vice-President" | "Citizen" | "Vice-Beggar" | "Beggar";
 
 /** One set on the pile: a single, pair, triple or quad of one rank. */
 export interface Play {

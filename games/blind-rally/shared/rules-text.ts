@@ -276,7 +276,7 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
           ],
           ...(k === "liveMarker" && { hint: s[k] ? "The Navigator's map shows the car" : "The map does not show the car" }),
           ...(k === "tripMeter" && { hint: "Shows metres driven. Wrong turns count too" }),
-          ...(k === "camera3d" && { hint: s[k] ? "The Navigator sees the car and the road" : "The Navigator only gets the map. This is very hard" }),
+          ...(k === "camera3d" && { hint: s[k] ? "The Navigator sees the car and the road" : "The Navigator only gets the map. This is very hard", warn: !s[k] || undefined }),
         }))
       : []),
     {

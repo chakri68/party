@@ -13,7 +13,7 @@ export interface EmotesOptions {
 
 /**
  * Floating emoji for the whole room. A header button opens a bar of the six;
- * the bar stays open so you can mash. What floats is whatever the server
+ * the bar closes after a send, so it never covers the game. What floats is whatever the server
  * echoes back, so everyone sees the same thing, rate limit included.
  */
 export class Emotes {
@@ -26,7 +26,10 @@ export class Emotes {
 
   constructor(opts: EmotesOptions) {
     this.opts = opts;
-    this.bar.append(...REACTIONS.map((r) => h("button", { type: "button", "aria-label": `Send ${r}`, onclick: () => this.opts.send(r) }, r)));
+    this.bar.append(...REACTIONS.map((r) => h("button", { type: "button", "aria-label": `Send ${r}`, onclick: () => {
+      this.opts.send(r);
+      this.fadeOut();
+    } }, r)));
     this.button.addEventListener("click", () => this.toggle());
     this.wrap.append(this.button, this.bar);
     this.wrap.addEventListener("keydown", (e) => {
@@ -38,7 +41,24 @@ export class Emotes {
     document.addEventListener("pointerdown", this.onOutside);
   }
 
+  /**
+   * After a send the bar fades and hides. For that short moment it still
+   * catches taps, so a quick second tap sends again instead of landing on the
+   * game under it. Escape, an outside tap or toggling close it at once.
+   */
+  private fadeOut() {
+    this.button.focus();
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return this.toggle(false);
+    this.bar.classList.add("closing");
+    clearTimeout(this.closeTimer);
+    this.closeTimer = setTimeout(() => this.toggle(false), 300);
+  }
+
+  private closeTimer: ReturnType<typeof setTimeout> | undefined;
+
   toggle(open = this.bar.hidden) {
+    clearTimeout(this.closeTimer);
+    this.bar.classList.remove("closing");
     this.bar.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
   }
@@ -74,6 +94,7 @@ export class Emotes {
   }
 
   destroy() {
+    clearTimeout(this.closeTimer);
     document.removeEventListener("pointerdown", this.onOutside);
     this.layer.remove();
   }

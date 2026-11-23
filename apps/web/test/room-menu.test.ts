@@ -1,6 +1,6 @@
 import type { RoomPublicState } from "@games/protocol";
 import { describe, expect, it } from "vitest";
-import { focusPhase } from "../src/views/focus.ts";
+import { focusPhase, slimHeader } from "../src/views/focus.ts";
 import { ROOM_MENU_LABELS, roomMenuItems } from "../src/views/room-menu.ts";
 
 const room = (extra: Partial<RoomPublicState> = {}): RoomPublicState =>
@@ -84,9 +84,9 @@ describe("the room menu", () => {
     }
   });
 
-  it("empty when the party is over", () => {
+  it("party over: sound settings and home only, no voice or host items", () => {
     const o = { voice: "join", pausable: true } as const;
-    expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual([]);
+    expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual(["settings", "home"]);
   });
 
   it("focus screens: lobby, playing and results", () => {
@@ -95,6 +95,14 @@ describe("the room menu", () => {
     expect(focusPhase("results")).toBe(true);
     expect(focusPhase("ended")).toBe(false);
     expect(focusPhase(null)).toBe(false);
+  });
+
+  it("slim header on the focus screens and party over", () => {
+    expect(slimHeader("lobby")).toBe(true);
+    expect(slimHeader("playing")).toBe(true);
+    expect(slimHeader("results")).toBe(true);
+    expect(slimHeader("ended")).toBe(true);
+    expect(slimHeader(null)).toBe(false);
   });
 
   it("labels every item in plain words", () => {

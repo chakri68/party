@@ -25,3 +25,31 @@ export function seatActions(room: RoomPublicState, me: string, seat: SeatPublic)
 export function seatActionMessage(kind: SeatActionKind, seat: SeatPublic): ClientMessage {
   return kind === "make-host" ? { type: "transfer-host", playerId: seat.id } : { type: "remove-player", playerId: seat.id };
 }
+
+/**
+ * Who gets the host role if the host leaves now. Mirrors the server's
+ * `ensureHost`: the connected person who joined first; with nobody connected,
+ * the first other person still seated. Null when no other person is here
+ * (computers are never host).
+ */
+export function nextHost(room: RoomPublicState, me: string): SeatPublic | null {
+  const people = room.seats.filter((s) => s.id !== me && !s.bot && s.presence !== "left");
+  const connected = people.filter((s) => s.presence === "connected").sort((a, b) => a.joinedAt - b.joinedAt);
+  return connected[0] ?? people[0] ?? null;
+}
+
+/**
+ * What to ask before you leave the room, or null to leave at once. A player
+ * leaving a game drops out of it; the host leaving hands the room on.
+ */
+export function leaveQuestion(room: RoomPublicState, me: string): string | null {
+  const playing = room.phase === "playing";
+  const host = room.hostId === me && room.phase !== "ended";
+  if (!playing && !host) return null;
+  const lines = [playing ? "Leave the game? You will be out for the rest of this round." : "Leave the room?"];
+  if (host) {
+    const next = nextHost(room, me);
+    lines.push(next ? `${next.name} will be the host.` : "No other person is here. The room stays open for a few hours.");
+  }
+  return lines.join(" ");
+}

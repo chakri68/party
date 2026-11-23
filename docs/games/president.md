@@ -1,6 +1,6 @@
 # President
 
-Shed your hand in singles, pairs and up, beating the pile or passing. First out is President; last out is the Asshole, and pays for it next round. 3–8 players.
+Shed your hand in singles, pairs and up, beating the pile or passing. First out is President; last out is the Beggar, and pays for it next round. 3–8 players.
 
 Computer players can fill seats in this game. They give back their lowest cards and save Aces and 2s for later.
 
@@ -9,12 +9,12 @@ Computer players can fill seats in this game. They give back their lowest cards 
 - The whole deck is dealt. Card order, low to high: 3 up to K, then A, then 2 on top.
 - Lead a single, a pair, three or four of a kind. Everyone after you plays the same number of cards, of a higher rank, or passes.
 - When everyone else has passed, the pile clears and the last player to play leads.
-- First out is the President, last is the Asshole. Each round you score a point for every player you finished ahead of. Most points after the last round wins.
+- First out is the President, last is the Beggar. Each round you score a point for every player you finished ahead of. Most points after the last round wins.
 
 ## How it plays
 
 1. The deck is dealt out, clockwise from the dealer's left. Some hands are a card bigger.
-2. In round 1, whoever holds the 3 of clubs leads. In later rounds the Asshole deals and leads (after the exchange below).
+2. In round 1, whoever holds the 3 of clubs leads. In later rounds the Beggar deals and leads (after the exchange below).
 3. The leader plays one to four cards of one rank. This sets the size of the trick.
 4. Going round, each player plays the same number of cards of a higher rank, or passes. If nothing in your hand can beat it, you're passed automatically ("Can't beat").
 5. Once you've passed, you're out of that trick until it clears.
@@ -24,22 +24,22 @@ Computer players can fill seats in this game. They give back their lowest cards 
 
 ### Titles and the exchange
 
-Titles come from where you finished. Vice titles only exist with four or more players; with three, it's President, Citizen, Asshole.
+Titles come from where you finished. Vice titles only exist with four or more players; with three, it's President, Citizen, Beggar.
 
 | Finished | Title |
 | --- | --- |
 | First | President |
 | Second (4+ players) | Vice-President |
 | In between | Citizen |
-| Second-last (4+ players) | Vice-Asshole |
-| Last | Asshole |
+| Second-last (4+ players) | Vice-Beggar |
+| Last | Beggar |
 
 From round 2, before play starts:
 
-1. The Asshole's two best cards go to the President, automatically.
-2. From four players, the Vice-Asshole's best card goes to the Vice-President.
+1. The Beggar's two best cards go to the President, automatically.
+2. From four players, the Vice-Beggar's best card goes to the Vice-President.
 3. The President (and Vice-President) pick cards from their hand to give back, as many as they received. The button reads "Pick N to give", then "Give ...".
-4. Play starts once all returns are in. The Asshole leads.
+4. Play starts once all returns are in. The Beggar leads.
 
 ## Winning and scoring
 
@@ -73,4 +73,4 @@ Host picks these in the lobby.
 ## Tips
 
 - With Match to skip on, a pair of the same rank as the top set skips the next player.
-- Finishing last costs you your two best cards next round, so the Asshole's cost goes beyond zero points.
+- Finishing last costs you your two best cards next round, so the Beggar's cost goes beyond zero points.

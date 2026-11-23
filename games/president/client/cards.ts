@@ -11,13 +11,13 @@ export const SUIT_SYMBOL: Record<Suit, string> = {
 };
 export const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
 
-/** Short enough for a player chip. The full title rides along as a tooltip. */
+/** The full title, spelled out. Citizens get no tag. */
 export const TITLE_TAG: Record<Title, string | null> = {
-  President: "Pres",
-  "Vice-President": "VP",
+  President: "President",
+  "Vice-President": "Vice-President",
   Citizen: null,
-  "Vice-Asshole": "VA",
-  Asshole: "A-hole",
+  "Vice-Beggar": "Vice-Beggar",
+  Beggar: "Beggar",
 };
 
 type Face = Pick<Card, "suit" | "rank">;

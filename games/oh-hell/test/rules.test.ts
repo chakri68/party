@@ -73,7 +73,9 @@ describe("schedule", () => {
     const at = (biggest: unknown, n: number) => ohHellSettingFields({ ...DEFAULT_SETTINGS, biggest }, n).find((f) => f.key === "biggest")!;
     expect(at(7, 4).hint).toBe("13 rounds");
     expect(at("max", 3).hint).toBe("33 rounds");
-    expect(at(10, 7).hint).toBe("13 rounds · max 7 for 7 players");
+    expect(at(10, 7).hint).toBe("Only 7 cards fit 7 players. 13 rounds");
+    expect(at(10, 7).warn).toBe(true);
+    expect(at(7, 4).warn).toBeUndefined();
     expect(at("max", 4).options[2]!.label).toBe("Max (12)");
   });
 });

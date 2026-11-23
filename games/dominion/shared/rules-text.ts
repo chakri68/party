@@ -149,6 +149,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
         bots !== settings.bots
           ? bots > settings.bots ? "You are alone, so 1 computer joins" : `Only ${bots} fit with ${humans} people`
           : undefined,
+      warn: bots !== settings.bots || undefined,
     },
     {
       key: "victory",
@@ -170,6 +171,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
         patch: { mapSize: s },
       })),
       hint: settings.mapSize !== "auto" && size !== settings.mapSize ? `Too small for ${n}. Using ${size}×${size}` : undefined,
+      warn: (settings.mapSize !== "auto" && size !== settings.mapSize) || undefined,
     },
     {
       key: "mapType",
@@ -229,6 +231,7 @@ export function dominionSettingFields(raw: unknown, players: number): SettingFie
     selected: pickIndex(teamCounts, settings.teams),
     options: teamCounts.map((t) => ({ label: t ? `${t} teams` : "Off", patch: { teams: t } })),
     hint: settings.teams && !teams ? `Needs at least ${settings.teams} players` : teams ? "Players join teams in turn order" : undefined,
+    warn: (!!settings.teams && !teams) || undefined,
   });
   if (teams) {
     fields.push({
