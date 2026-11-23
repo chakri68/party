@@ -515,7 +515,7 @@ export class PlanTray {
         cancel,
       );
     }
-    const what = p.kind === "move" ? "Tap a lit tile to move there." : p.kind === "act" ? "Tap a lit tile to act there." : `Tap a lit tile for the ${ITEM_NAME[p.item]}.`;
+    const what = p.kind === "move" ? "Pick a lit tile to move there." : p.kind === "act" ? "Pick a lit tile to act there." : `Pick a lit tile for the ${ITEM_NAME[p.item]}.`;
     return h("div", { class: "wd-pick" }, h("p", {}, what), cancel);
   }
 

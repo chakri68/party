@@ -16,7 +16,7 @@ Two teams. Describe the word without the five words that would make it easy. 4â€
    - **Got it (+1)** when the team gets it.
    - **Skip (0)** to pass on the card.
    - **Oops (âˆ’1)** if they said a forbidden word themselves.
-   Each button shows its points.
+
    Each tap deals the next card.
 5. **Buzz.** The other team sees the card too. If they hear a slip, anyone on that team taps **Buzz**. The turn clock freezes (see below).
 6. **Turn over.** When the clock ends, a summary shows every card played and the points the turn moved the score by. It moves on after 8 seconds, or the host can tap **Next turn**.

@@ -316,6 +316,7 @@ export class SamePageView implements GameView {
   private renderTicks(props: GameViewProps, game: Pub) {
     this.ticks.hidden = game.phase !== "answering";
     if (this.ticks.hidden) return;
+    const top = Math.max(0, ...game.players.filter((p) => !p.removed).map((p) => p.score));
     replaceChildren(
       this.ticks,
       game.players
@@ -325,10 +326,10 @@ export class SamePageView implements GameView {
           const away = seat && seat.presence !== "connected";
           return h(
             "li",
-            { class: ["sp-tick", p.answered && "in", away && "away", p.id === props.playerId && "me"].filter(Boolean).join(" ") },
+            { class: ["sp-tick", p.answered && "in", away && "away", p.id === props.playerId && "me", top > 0 && p.score === top && "lead"].filter(Boolean).join(" ") },
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", { class: "sp-tick-name" }, this.name(p.id, props)),
-            h("span", { class: "sp-tick-score", "aria-label": `${p.score} points` }, String(p.score)),
+            h("span", { class: "sp-tick-score", "aria-label": `${p.score} points` }, `${p.score} pts`),
             h("span", { class: "sp-tick-mark", "aria-label": p.answered ? "answered" : "thinking" }, p.answered ? "✓" : "…"),
           );
         }),

@@ -136,7 +136,7 @@ export class HeistView implements GameView {
     else if (this.chosen.length < want) this.chosen = [...this.chosen, id];
     else if (want === 1) this.chosen = [id];
     else {
-      this.note.textContent = `You have ${want}. Pick a chosen player to take them off.`;
+      this.note.textContent = `You have ${want}. Take a player off first.`;
       return;
     }
     this.note.textContent = "";
@@ -244,7 +244,7 @@ export class HeistView implements GameView {
         ),
         h("span", { class: "hz-moles" }, plural(game.moleCount, "mole")),
       ),
-      game.phase === "finished" ? null : h("p", { class: "hz-legend" }, `Each failed vote adds 1 heat. At ${MAX_HEAT} heat, the moles win the job.`),
+      game.phase === "finished" ? null : h("p", { class: "hz-legend" }, `Each failed vote adds 1 heat. At ${MAX_HEAT} heat, the moles win the job. Heat goes back to 0 after each job.`),
     );
   }
 

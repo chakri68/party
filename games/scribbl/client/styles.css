@@ -177,6 +177,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  /* About 2 rows of chips; a big room scrolls inside. */
+  max-height: 80px;
+  overflow-y: auto;
 }
 .sb-player {
   flex: 0 1 auto;
@@ -244,7 +247,7 @@
   }
   /* Sized by the page next to it, not by how much chat there's been. */
   .sb-side { contain: size; }
-  .sb-players { flex-direction: column; flex-wrap: nowrap; overflow: visible; }
+  .sb-players { flex-direction: column; flex-wrap: nowrap; overflow: visible; max-height: none; }
   .sb-player { padding: 3px 12px 3px 3px; }
   .sb-log { max-height: none; flex: 1; }
 }
@@ -260,7 +263,7 @@
     grid-template-areas: "top top" "stage tools" "stage side";
   }
   .sb-side { contain: size; min-height: 120px; }
-  .sb-players { flex-wrap: wrap; overflow: visible; }
+  .sb-players { flex-wrap: wrap; overflow: visible; max-height: none; }
   .sb-log { max-height: none; flex: 1; min-height: 0; }
   .sb-palette { gap: 5px; }
   .sb-swatch { width: 34px; height: 34px; }

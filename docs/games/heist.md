@@ -95,9 +95,9 @@ Moles: usual is 2 at 5–6 players, 3 at 7–8, 4 at 9–10. There are always at
 
 ## On your screen
 
-- **The board.** Five job circles, each named "Job 1" to "Job 5", with their crew sizes ("The number in each circle is the team size."), turned into a tick (came off), a cross (sabotaged) or a flame (lost to heat). Below, the score ("Crew 1 · Moles 2"), the heat dots with a count ("Heat 1 of 3"), the mole count, and a line on what heat does.
+- **The board.** Five job circles, each named "Job 1" to "Job 5", with their crew sizes ("The number in each circle is the team size."), turned into a tick (came off), a cross (sabotaged) or a flame (lost to heat). Below, the score ("Crew 1 · Moles 2"), the heat dots with a count ("Heat 1 of 3"), the mole count, and a line on what heat does ("Each failed vote adds 1 heat. At 3 heat, the moles win the job. Heat goes back to 0 after each job.").
 - **Your card.** Face down. Tap to reveal, tap to hide. It hides itself when you switch tabs or apps. After you tap **Got it**, it's turned face down for you.
-- **Leader.** On your lead you get the list of players; tap to pick and tap again to remove. Tap **Propose** when the count's right. "You have N. Pick a chosen player to take them off."
+- **Leader.** On your lead you get the list of players; tap to pick and tap again to remove. Tap **Propose** when the count's right. "You have N. Take a player off first."
 - **Last vote and last job.** After the first one, the previous vote shows by name, with a note if someone missed it, and the last job shows its crew and how many Sabotage cards went in.
 - **Debrief.** At the end: who was who, every job, every proposal with its votes. Never a card.
 - **Sounds and buzzes** mark your turn to lead, the crew being proposed, vote results, job results, and the end.

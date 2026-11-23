@@ -114,7 +114,7 @@ export class WildsView implements GameView {
     // Phones: one column, the plan right under the map. Wide screens: the map on the
     // left, the event, plan and team on the right, so nothing sits below the fold.
     this.root.append(
-      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, h("span", { class: "wd-stones-wrap" }, h("span", { class: "wd-stones-label" }, "Stones"), this.stones), this.timer),
+      h("div", { class: "wd-top" }, this.roundLabel, this.sunLabel, h("span", { class: "wd-stones-wrap" }, h("span", { class: "wd-stones-label", "aria-hidden": "true" }, "Stones"), this.stones), this.timer),
       this.eventBox,
       this.pendingBar,
       h("div", { class: "wd-main" }, this.boardWrap, this.legend, mapKey(), this.caption),

@@ -71,6 +71,19 @@
     grid-template-areas: "top top" "main event" "main pending" "main side";
     align-items: start;
   }
+  /* No event or bargain bar: their rows go, gap and all. */
+  .wilds:has(> .wd-pending-bar[hidden]) {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "top top" "main event" "main side";
+  }
+  .wilds:has(> .wd-event[hidden]) {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "top top" "main pending" "main side";
+  }
+  .wilds:has(> .wd-event[hidden]):has(> .wd-pending-bar[hidden]) {
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "top top" "main side";
+  }
   .wd-top { grid-area: top; }
   .wd-event { grid-area: event; }
   .wd-pending-bar { grid-area: pending; }
@@ -317,5 +330,5 @@
   .wd-key { font-size: 0.72rem; gap: 2px 8px; }
   .wd-card { min-height: 0; padding: 6px 4px; }
   .wd-card small { font-size: 0.66rem; }
-  .wd-tray > .wd-wide.primary { position: sticky; bottom: 8px; z-index: 2; box-shadow: 0 0 0 6px var(--bg); }
+  .wd-tray > .wd-wide.primary { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 2; box-shadow: 0 0 0 6px var(--bg); }
 }
