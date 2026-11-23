@@ -395,6 +395,17 @@
   .he-actions { grid-column: 2; grid-row: 3; min-width: 0; }
 }
 
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .holdem { --card-w: 50px; --card-h: 72px; --hole-w: 50px; --hole-h: 72px; gap: 8px; }
+  .he-card .corner, .he-hole .he-card .corner { font-size: 0.95rem; }
+  .he-card .pip { font-size: 1.9rem; }
+  .he-card .pip.face { font-size: 1.6rem; }
+  .he-table { padding: 10px 12px 8px; gap: 8px; }
+  .he-dock { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); row-gap: 4px; }
+}
+
 /* ---- Feedback ------------------------------------------------------------------ */
 
 .holdem .shake { animation: he-shake 300ms ease; }

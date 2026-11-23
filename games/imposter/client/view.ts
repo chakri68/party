@@ -54,7 +54,7 @@ export class ImposterView implements GameView {
   private reveal: ReturnType<typeof roleReveal> | null = null;
   /** Which deal the card belongs to; a new key deals a fresh, face-down card. */
   private cardKey = "";
-  /** Bumped to turn the card over: "Got it", and a round dealt again. */
+  /** Bumped when a round is dealt again: same round number, a fresh face-down card. */
   private flips = 0;
 
   private headline = h("p", { class: "im-headline", role: "status", "aria-live": "polite" });
@@ -212,7 +212,7 @@ export class ImposterView implements GameView {
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
       // Seen it: turn it face down for them.
-      this.flips++;
+      this.reveal?.hide();
       this.api.act({ type: "ack" });
     } else if (game.phase === "guess" && me.guessing && game.mode === "spoken") {
       if (this.picked && !this.pending) this.pending = this.api.act({ type: "guess-place", placeId: this.picked });
@@ -346,7 +346,7 @@ export class ImposterView implements GameView {
     if (!show) return;
     const guessing = game.phase === "guess" && !!me?.guessing;
     this.places.classList.toggle("choosing", guessing);
-    this.placeCount.textContent = guessing ? "Where are we? Tap a place." : `All places (${PLACES.length})`;
+    this.placeCount.textContent = guessing ? "Where are we? Pick a place." : `All places (${PLACES.length})`;
     replaceChildren(
       this.placeList,
       SORTED_PLACES.map((p) =>
@@ -451,7 +451,7 @@ export class ImposterView implements GameView {
       case "vote":
       case "runoff":
         headline = game.phase === "runoff" ? `Tie. Vote again: ${game.tied.map((id) => this.name(id, props)).join(" or ")}` : "Vote for the Imposter";
-        sub = me?.vote ? `You voted for ${this.name(me.vote, props)}. You can change your vote.` : me?.choices.length ? "Tap a player. You cannot choose yourself." : `Waiting for ${waiting}`;
+        sub = me?.vote ? `You voted for ${this.name(me.vote, props)}. You can change your vote.` : me?.choices.length ? "Pick a player. You cannot choose yourself." : `Waiting for ${waiting}`;
         break;
       case "reveal-role":
         headline = game.accusedId
@@ -462,7 +462,7 @@ export class ImposterView implements GameView {
       case "guess":
         if (spoken && me?.guessing) {
           headline = game.early ? "You stopped the clock. Where are we?" : "You were caught. Where are we?";
-          sub = this.picked ? "Are you sure? You get 1 try." : "Tap a place on the list. If you are right, you win the round.";
+          sub = this.picked ? "Are you sure? You get 1 try." : "Pick a place on the list. If you are right, you win the round.";
           if (this.picked) button = `It's the ${placeById(this.picked)?.name ?? ""}`;
         } else if (spoken && game.early) {
           headline = "The Imposter stopped the clock";

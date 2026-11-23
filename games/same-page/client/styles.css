@@ -105,7 +105,7 @@
 }
 .sp-tick {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
@@ -113,6 +113,8 @@
   border-radius: 12px;
   background: var(--surface);
 }
+.sp-tick-score { font-size: 0.8rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp-tick.lead .sp-tick-score { color: var(--accent); }
 .sp-tick-name { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-tick-mark { color: var(--muted); font-weight: 800; }
 .sp-tick.in { border-color: var(--accent); }

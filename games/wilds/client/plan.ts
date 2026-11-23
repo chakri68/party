@@ -150,7 +150,7 @@ function whoWhy(pub: Pub, me: string, from: TileId, kind: "help" | "medkit", t: 
   const here = people(pub, me, from, kind).filter((p) => pub.explorers.find((e) => e.id === p.id)!.tile === t);
   if (here.some((p) => p.why === null)) return null;
   if (here.length) return here[0]!.why;
-  return kind === "help" ? "Nobody to help here. Tap a friend, or a name below." : "Nobody here. Tap a player, or a name below.";
+  return kind === "help" ? "Nobody to help here. Pick a friend, or a name below." : "Nobody here. Pick a player, or a name below.";
 }
 
 /** Which tiles a card can name, and why the others are off. */
@@ -515,7 +515,7 @@ export class PlanTray {
         cancel,
       );
     }
-    const what = p.kind === "move" ? "Tap a lit tile to move there." : p.kind === "act" ? "Tap a lit tile to act there." : `Tap a lit tile for the ${ITEM_NAME[p.item]}.`;
+    const what = p.kind === "move" ? "Pick a lit tile to move there." : p.kind === "act" ? "Pick a lit tile to act there." : `Pick a lit tile for the ${ITEM_NAME[p.item]}.`;
     return h("div", { class: "wd-pick" }, h("p", {}, what), cancel);
   }
 

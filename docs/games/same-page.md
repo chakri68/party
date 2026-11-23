@@ -12,7 +12,7 @@ Everyone answers the same prompt in secret. Score for matching the room, not for
 ## How it plays
 
 1. A prompt appears for everyone, with a draining bar for the answer time.
-2. Type an answer and press **Lock in** (or Enter). You see "Locked in: pizza, tap to change", and can change it until time's up. Everyone sees who's answered (ticks, never the text).
+2. Type an answer and press **Send** (or Enter). You see "Your answer: pizza" with "change it" under it, and can change it until time's up. Everyone sees who's answered (ticks, never the text).
 3. Once everyone's in, the clock drops to 5 seconds, so a change of heart still fits but nobody waits out the rest.
 4. Answers are grouped automatically (see Matching below). If there are at least two groups, the host gets about 20 seconds to tidy them up. Everyone can see the groups from here; the host's moves show live.
 5. **Tidying (host only).** Tap one group, then the group it belongs with: "telly" goes into "tv". A group with something merged into it gets a **Split** button that undoes those merges. **Done, reveal** ends tidying early.
@@ -53,9 +53,9 @@ Prompts never repeat within a game, and a rematch draws ones the last game didn'
 - **The prompt.** Big, in a lime-edged card.
 - **Answer box.** Lock in with the button or Enter. Locked in, it becomes a card showing your answer; tap it to change. Typed something and forgot to press Enter? It goes in by itself just before time's up.
 - **Phones.** While the keyboard is up, the game shrinks to the clock, the prompt and the box, all above the keyboard. Scores and ticks come back when it closes.
-- **Ticks.** Who's answered so far, and a count ("4 of 7 in").
+- **Ticks.** Each player once, with their score and a tick once they have answered, and a count ("4 of 7 in"). While you answer, this list stands in for the scoreboard.
 - **Groups.** During tidying and the reveal: the label, how many, names, and what each person typed when it differs from the label.
-- **Scoreboard.** Everyone's total, leader in lime, with this round's +1 or −1 at the reveal.
+- **Scoreboard.** After the answers are in: everyone's total, leader in lime, with this round's +1 or −1 at the reveal.
 - Sounds and vibration cue a new prompt, locking in, the tidy-up, the reveal and the ending.
 
 ## When things go sideways

@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatRank, rowBounds, SEVEN } from "../shared/rules.ts";
 import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState, type Suit } from "../shared/types.ts";
 import { cardBack, cardLabel, cardShort, fullCard, isRed, miniCard, SUIT_NAME, SUIT_SYMBOL } from "./cards.ts";
@@ -62,7 +62,7 @@ export class SevensView implements GameView {
 
   private root = h("div", { class: "sevens" });
   private status = h("div", { class: "sv-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "sv-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "sv-opponents row-fade", role: "list", "aria-label": "Other players" });
   private board = h("div", { class: "sv-board", role: "group", "aria-label": "Board" });
   private log = h("p", { class: "sv-log", "aria-live": "polite" });
   private me = h("div", { class: "sv-me" });
@@ -199,11 +199,11 @@ export class SevensView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId && e.auto ? "No card to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId && e.auto ? "No card to play" : "Pass", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -407,6 +407,10 @@ export class SevensView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // The picked card, or else the first one you can play: in the row's view, without moving the page.
+    const picked = (this.selected && this.cards.get(this.selected)) || null;
+    const firstPlayable = [...this.cards.values()].find((b) => b.classList.contains("playable")) ?? this.hand.firstElementChild;
+    keepInRow(this.hand, picked, firstPlayable);
   }
 
   private renderDock(props: GameViewProps, game: SevensPublicState, priv: SevensPrivateState | null, myTurn: boolean) {
@@ -441,7 +445,7 @@ export class SevensView implements GameView {
       action = pass;
     } else {
       action = [
-        h("span", { class: "hint" }, directPlay() ? "Click a bright card" : "Tap a bright card"),
+        h("span", { class: "hint" }, "Pick a bright card"),
         pass,
       ];
     }

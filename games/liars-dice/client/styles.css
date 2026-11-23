@@ -355,6 +355,7 @@ button.ld-liar {
 }
 button.ld-liar:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a; }
 button.ld-spot { border-color: var(--danger); color: var(--danger); }
+.ld-calls-hint { margin: 0; text-align: center; font-size: 0.8rem; color: var(--muted); }
 
 /* ---- Bubbles ------------------------------------------------------------------------ */
 
@@ -370,11 +371,30 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-die.big { width: 72px; height: 72px; }
   .ld-bid-main b { font-size: 3.6rem; }
   .ld-action.picking { grid-template-columns: auto 1fr; align-items: center; }
-  .ld-action.picking .ld-moves { grid-column: 1 / -1; }
+  .ld-action.picking .ld-moves, .ld-action.picking .ld-calls-hint { grid-column: 1 / -1; }
+  .ld-calls-hint { text-align: right; }
   button.ld-face .ld-die { width: 38px; height: 38px; }
   .ld-moves { justify-content: flex-end; }
   .ld-moves button { flex: 0 1 auto; min-width: 120px; }
   .ld-moves button.ld-raise { flex: 0 1 auto; min-width: 200px; }
+}
+
+/* Phone held sideways: a short screen. Smaller dice, and your dice beside their
+   label and buttons, so the dock leaves the table in view. Opponents stay on one
+   row that scrolls sideways, as on a phone held upright (the 700 px rule wraps them). */
+@media (orientation: landscape) and (max-height: 500px) {
+  .liars-dice { --die-dock: 32px; --die-row: 22px; gap: 8px; }
+  .ld-opponents { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; }
+  .ld-table { padding: 10px 12px; gap: 8px; }
+  .ld-die.big { width: 52px; height: 52px; }
+  .ld-bid-main b { font-size: 2.6rem; }
+  .ld-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); gap: 6px 16px; }
+  .ld-dock-head { flex-direction: column; align-items: flex-start; max-width: 220px; min-height: 0; gap: 6px; }
+  .ld-my-dice { justify-content: flex-start; }
+  .ld-action.picking { gap: 6px; }
+  .ld-calls-hint { text-align: left; font-size: 0.75rem; }
+  button.ld-face, button.ld-step, .ld-moves button { min-height: 44px; }
+  button.ld-face .ld-die { width: 30px; height: 30px; }
 }
 
 /* ---- Feedback ------------------------------------------------------------------------- */

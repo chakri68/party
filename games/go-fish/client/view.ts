@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { compareCards, formatRank, makeCard, rankName, rankPlural } from "../shared/rules.ts";
 import { SUITS, type AskRecord, type Card, type GoFishEvent, type GoFishPrivateState, type GoFishPublicState, type Rank } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
@@ -107,7 +107,7 @@ export class GoFishView implements GameView {
 
   private root = h("div", { class: "go-fish" });
   private status = h("div", { class: "gf-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "gf-opponents", role: "group", "aria-label": "Other players" });
+  private opponents = h("div", { class: "gf-opponents row-fade", role: "group", "aria-label": "Other players" });
   private pond = h("div", { class: "gf-pond", role: "img" });
   private book = h("div", { class: "gf-book", role: "img" });
   private bookCount = h("span", { class: "gf-book-count" });
@@ -268,7 +268,7 @@ export class GoFishView implements GameView {
           break;
         case "asked": {
           const text = e.targetId === me ? `Any ${plural(e.rank)}?` : `${seatName(props.room, e.targetId)}, any ${plural(e.rank)}?`;
-          await bubble(this.anchorFor(e.playerId, props), text, "anim-bubble", 1100);
+          await bubble(this.anchorFor(e.playerId, props), text, "anim-bubble", 1100, e.playerId !== props.playerId);
           break;
         }
         case "handed":
@@ -277,13 +277,13 @@ export class GoFishView implements GameView {
           break;
         case "go-fish":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Go fish!");
+          await bubble(this.anchorFor(e.playerId, props), "Go fish!", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "drew": {
           const next = events[i + 1];
           const mine = e.playerId === me && next?.type === "you-drew" ? next.cards : null;
           await this.flyFromPond(e.playerId, mine ?? (e.shown ? [e.shown] : null), e.count);
-          if (e.shown) await bubble(this.anchorFor(e.playerId, props), `${howMany(1, e.shown.rank).replace(/^a/, "A")}!`);
+          if (e.shown) await bubble(this.anchorFor(e.playerId, props), `${howMany(1, e.shown.rank).replace(/^a/, "A")}!`, undefined, undefined, e.playerId !== props.playerId);
           break;
         }
         case "booked":
@@ -291,11 +291,11 @@ export class GoFishView implements GameView {
           if (e.playerId === me) audio.buzz([20, 40, 20]);
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), "Out");
+          await bubble(this.anchorFor(e.playerId, props), "Out", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -546,7 +546,7 @@ export class GoFishView implements GameView {
     replaceChildren(
       this.pond,
       game.pondCount ? cardBackFull() : h("span", { class: "gf-card slot", "aria-hidden": "true" }),
-      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond · ${game.pondCount}` : "Pond empty"),
+      h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond: ${game.pondCount} ${game.pondCount === 1 ? "card" : "cards"} to draw` : "Pond empty: nothing to draw"),
     );
 
     // Already showing (it just landed): leave it be, landing and all.
@@ -600,11 +600,13 @@ export class GoFishView implements GameView {
       btn.setAttribute("aria-label", `${cardLabel(card)}${myTurn ? `. Ask for ${plural(card.rank)}` : ""}`);
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
-    (fresh as HTMLButtonElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // New cards or the picked one, else the first card: in the row's view, without moving the page.
+    const picked = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? null;
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? picked, this.hand.firstElementChild);
   }
 
   private handButton(card: Card): HTMLButtonElement {
@@ -641,7 +643,7 @@ export class GoFishView implements GameView {
         `Ask ${seatName(props.room, this.target)} for ${plural(this.rank)}`,
       );
     } else if (this.rank !== null) action = h("span", { class: "hint strong" }, "Now choose a player");
-    else action = h("span", { class: "hint strong" }, directPlay() ? "Click a card to ask for" : "Tap a card to ask for");
+    else action = h("span", { class: "hint strong" }, "Pick a card to ask for");
     replaceChildren(this.action, action);
   }
 

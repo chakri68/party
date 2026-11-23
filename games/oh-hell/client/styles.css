@@ -218,7 +218,19 @@
 .oh-score tr.made .pts { color: var(--accent); font-weight: 700; }
 .oh-score tr.missed .pts { color: var(--muted); }
 .oh-score .total { font-weight: 700; }
-.oh-ready { color: var(--accent); }
+.oh-score .oh-name-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.oh-score .oh-name-cell .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.oh-ready {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .oh-countdown { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.3em; }
 
 /* ---- Cards --------------------------------------------------------------- */
@@ -382,6 +394,23 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
   .oh-card.sm { --oh-card-w: 48px; --oh-card-h: 68px; }
   .oh-sched { height: 32px; }
   .oh-hand { justify-content: safe center; }
+}
+
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .oh-hell { --oh-card-w: 58px; --oh-card-h: 84px; --oh-overlap: -18px; --oh-trick-w: 50px; --oh-trick-h: 72px; gap: 8px; }
+  .oh-card .corner { font-size: 0.95rem; }
+  .oh-card .pip { font-size: 1.9rem; }
+  .oh-slot .oh-card .corner { font-size: 0.95rem; }
+  .oh-slot .oh-card .pip { font-size: 1.9rem; }
+  .oh-table { padding: 6px 12px 10px; }
+  .oh-status { min-height: 40px; }
+  .oh-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .oh-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
+  .oh-action { flex-wrap: wrap; justify-content: flex-start; }
+  .oh-hand { grid-column: 2; grid-row: 1 / span 3; }
+  .oh-bids { grid-column: 1; justify-content: flex-start; max-width: 280px; }
 }
 
 /* ---- Feedback ------------------------------------------------------------ */

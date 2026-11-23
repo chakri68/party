@@ -27,10 +27,10 @@ The game ends when all 13 books are down. Most books wins, and ties share the wi
 
 ## On your screen
 
-- **Other players.** Card count, books (hover for which ranks), a "D" for the dealer, and who's asking.
-- **The table.** The pond, with its count ("Pond's empty" at zero), and "N of 13 books down".
+- **Other players.** Card count, books (hover for which ranks), a "D" for the dealer, and who's asking. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
+- **The table.** The pond, the face-down cards you draw from, with its count ("Pond: 24 cards to draw", "Pond empty: nothing to draw" at zero), and "N of 13 books down".
 - **Recent asks.** A short log of the last eight asks and what each got, so you don't have to remember.
-- **Your hand.** Sorted by rank so a rank's cards sit together. Only ranks you hold can be asked for.
+- **Your hand.** Sorted by rank so a rank's cards sit together. Only ranks you hold can be asked for. A long hand scrolls sideways. It moves to show new cards, or the card you picked.
 - **Status line.** "Your turn: ask someone", or "<name> is asking". When you're out of cards you see "Out of cards" and "Watching".
 - Sounds and vibration cue the deal, hand-overs, books, your turn and the ending.
 

@@ -114,6 +114,8 @@ export class HeistView implements GameView {
     const me = this.props?.private as Priv | null | undefined;
     if (!game || !me) return;
     if (game.phase === "reveal" && !me.acked) {
+      // Seen it: turn it face down for them.
+      this.card?.hide();
       this.api.act({ type: "ack" });
     } else if (game.phase === "propose" && this.leading() && this.chosen.length === game.sizes[game.job]) {
       this.api.act({ type: "propose", crew: this.chosen });
@@ -134,7 +136,7 @@ export class HeistView implements GameView {
     else if (this.chosen.length < want) this.chosen = [...this.chosen, id];
     else if (want === 1) this.chosen = [id];
     else {
-      this.note.textContent = `You have ${want}. Tap a player to remove that player.`;
+      this.note.textContent = `You have ${want}. Take a player off first.`;
       return;
     }
     this.note.textContent = "";
@@ -217,19 +219,32 @@ export class HeistView implements GameView {
       const label = done
         ? `Job ${k + 1}: ${done.winner === "crew" ? "done" : done.heat ? "lost to heat" : "failed"}`
         : `Job ${k + 1}: team of ${game.sizes[k]}`;
-      return h("li", { class: cls, "aria-label": label, "aria-current": now ? "step" : null }, done ? (done.winner === "crew" ? "✓" : done.heat ? "♨\uFE0E" : "✗") : String(game.sizes[k]));
+      return h(
+        "li",
+        { class: "hz-job-cell", "aria-label": label, "aria-current": now ? "step" : null },
+        h("span", { class: cls, "aria-hidden": "true" }, done ? (done.winner === "crew" ? "✓" : done.heat ? "♨\uFE0E" : "✗") : String(game.sizes[k])),
+        h("span", { class: "hz-job-name", "aria-hidden": "true" }, `Job ${k + 1}`),
+      );
     });
     const heat = Array.from({ length: MAX_HEAT }, (_, i) => h("span", { class: i < game.heat ? "hz-heat-dot on" : "hz-heat-dot" }));
     replaceChildren(
       this.board,
+      game.phase === "finished" ? null : h("p", { class: "hz-legend" }, "The number in each circle is the team size."),
       h("ol", { class: "hz-jobs", "aria-label": "Jobs" }, jobs),
       h(
         "div",
         { class: "hz-meta" },
         h("span", { class: "hz-score" }, `Crew ${game.score.crew} · Moles ${game.score.mole}`),
-        h("span", { class: "hz-heat", role: "img", "aria-label": `Heat ${game.heat} of ${MAX_HEAT}` }, "Heat ", heat),
+        h(
+          "span",
+          { class: "hz-heat", role: "img", "aria-label": `Heat ${game.heat} of ${MAX_HEAT}. At ${MAX_HEAT} heat, the moles win the job.` },
+          "Heat ",
+          heat,
+          ` ${game.heat} of ${MAX_HEAT}`,
+        ),
         h("span", { class: "hz-moles" }, plural(game.moleCount, "mole")),
       ),
+      game.phase === "finished" ? null : h("p", { class: "hz-legend" }, `Each failed vote adds 1 heat. At ${MAX_HEAT} heat, the moles win the job. Heat goes back to 0 after each job.`),
     );
   }
 
@@ -274,7 +289,7 @@ export class HeistView implements GameView {
       case "reveal": {
         const left = game.players.filter((p) => !p.left).length - game.acked;
         headline = me?.acked ? "Waiting for the others" : "Look at your card";
-        sub = me?.acked ? `${left} still reading` : "Tap your card and read it. Do not show anyone.";
+        sub = me?.acked ? `${left} still reading` : "Open your card and read it. Do not show anyone.";
         if (me?.alignment && !me.acked) button = "Got it";
         break;
       }

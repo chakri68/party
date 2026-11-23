@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { compareCards } from "../shared/rules.ts";
 import {
   EIGHT,
@@ -76,7 +76,7 @@ export class CrazyEightsView implements GameView {
 
   private root = h("div", { class: "crazy-eights" });
   private status = h("div", { class: "ce-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "ce-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "ce-opponents row-fade", role: "list", "aria-label": "Other players" });
   private stock = h("button", { type: "button", class: "ce-stock" });
   private pile = h("div", { class: "ce-pile" });
   private suitBadge = h("div", { class: "ce-suit-badge" });
@@ -233,11 +233,11 @@ export class CrazyEightsView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "No card to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "No card to play" : "Pass", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -449,7 +449,6 @@ export class CrazyEightsView implements GameView {
       btn.setAttribute("aria-pressed", String(picked));
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
-    (fresh as HTMLButtonElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget =
@@ -457,6 +456,10 @@ export class CrazyEightsView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // A drawn card or the picked one, else the first playable: in the row's view, without moving the page.
+    const picked = (this.selected && this.cards.get(this.selected)) || null;
+    const firstPlayable = [...this.cards.values()].find((b) => b.classList.contains("playable")) ?? this.hand.firstElementChild;
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? picked, firstPlayable);
   }
 
   private handButton(card: Card): HTMLButtonElement {
@@ -497,7 +500,7 @@ export class CrazyEightsView implements GameView {
       action = priv?.canDraw ? drawBtn(true) : null;
     } else {
       action = [
-        h("span", { class: "hint" }, directPlay() ? "Click a card" : "Tap a card"),
+        h("span", { class: "hint" }, "Pick a card"),
         priv?.canDraw ? drawBtn(false) : null,
       ].filter((n): n is HTMLElement => !!n);
     }

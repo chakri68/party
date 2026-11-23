@@ -85,3 +85,8 @@ export function ordinal(n: number): string {
   const suffix = teen ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
   return `${n}${suffix}`;
 }
+
+/** When a player got out, in words: "first out", "out 2nd". Getting out is winning here. */
+export function outText(place: number): string {
+  return place === 1 ? "first out" : `out ${ordinal(place)}`;
+}

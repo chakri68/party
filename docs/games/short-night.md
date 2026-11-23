@@ -125,7 +125,7 @@ With fewer than 4 players in the room, the Roles hint just lists the deck instea
 
 ## On your screen
 
-- **Your card.** Face down. Tap to reveal, tap to hide again. It hides itself the moment you switch tabs or apps, so a phone left on a table doesn't leak your role. It shows your role, your team, a one-line description, and (once it's your step) your night result.
+- **Your card.** Face down. Tap to reveal, tap to hide again. It hides itself the moment you switch tabs or apps, so a phone left on a table doesn't leak your role. After you tap **Got it**, it's turned face down for you. It shows your role, your team, a one-line description, and (once it's your step) your night result.
 - **Night order.** During the reveal and the night, the steps in the deck are listed and the current one is marked.
 - **The timer and bar** run along the top. The last 5 seconds of a vote or runoff tick out loud.
 - **Vote.** Tap a name, or **Nobody goes**. Highlighted means chosen.

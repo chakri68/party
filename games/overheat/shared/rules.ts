@@ -63,6 +63,16 @@ export function bankScore(engine: EngineCard[], redline: boolean): number {
 
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** What players see for each power card. Plain words; the wire values stay as they are. */
+export const POWER_NAMES: Record<PowerKind, string> = {
+  vent: "Cool",
+  turbo: "Double",
+  shove: "Push",
+  wrench: "Swap",
+  fuse: "Burn",
+  heatwave: "Limit down",
+};
+
 export function cardLabel(card: Card): string {
-  return card.kind === "number" ? `${title(card.colour)} ${card.value}` : title(card.power);
+  return card.kind === "number" ? `${title(card.colour)} ${card.value}` : POWER_NAMES[card.power];
 }

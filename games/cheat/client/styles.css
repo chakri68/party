@@ -262,17 +262,22 @@
 /* After the game the results panel leads; the hand is just for the record. */
 .cheat.finished .ch-dock { position: static; background: none; }
 
+/* Buttons too wide to sit beside "Your hand" take their own row, not a squeeze. */
 .ch-dock-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   min-height: 44px;
 }
-.ch-me { display: flex; align-items: baseline; gap: 8px; flex: 0 0 auto; }
+/* "Your hand" on its own line, so the hint and buttons get the width on a 360 px phone. */
+.ch-me { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; align-items: baseline; gap: 0 8px; flex: 0 0 auto; }
+.ch-me .you { grid-column: 1 / -1; }
 .ch-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
-.ch-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
-.ch-action .hint { color: var(--muted); font-size: 0.9rem; }
+.ch-action { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.ch-action button { padding-inline: 14px; }
+.ch-action .hint { color: var(--muted); font-size: 0.9rem; text-wrap: balance; }
 .ch-action .hint.strong { color: var(--ink); font-weight: 700; }
 /* Three claims side by side: narrow enough for a phone. */
 .ch-action.claims button { padding-inline: 10px; }
@@ -315,6 +320,21 @@ button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a
   .ch-card .pip { font-size: 2.4rem; }
   .ch-play .ch-card + .ch-card { margin-left: -36px; }
   .ch-hand { justify-content: safe center; }
+}
+
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .cheat { --card-w: 58px; --card-h: 84px; --card-overlap: -18px; gap: 8px; }
+  .ch-card .corner { font-size: 0.95rem; }
+  .ch-card .pip { font-size: 1.9rem; }
+  .ch-play .ch-card + .ch-card { margin-left: -28px; }
+  .ch-table { gap: 16px; padding: 8px 12px; }
+  .ch-status { min-height: 40px; }
+  .ch-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .ch-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
+  .ch-action { flex-wrap: wrap; justify-content: flex-start; }
+  .ch-hand { grid-column: 2; grid-row: 1 / span 2; }
 }
 
 /* ---- Feedback ------------------------------------------------------------- */

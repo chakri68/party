@@ -134,8 +134,12 @@ export function once<T extends Element>(el: T, className: string): T {
   return el;
 }
 
-/** A short-lived bubble over an element ("Pass"), without moving layout. */
-export async function bubble(anchor: Element, text: string, className = "anim-bubble", duration = 900): Promise<void> {
+/**
+ * A short-lived bubble over an element ("Pass"), without moving layout.
+ * `below` drops it under the element instead, for anchors that sit right
+ * under something the bubble must not cover (a status banner).
+ */
+export async function bubble(anchor: Element, text: string, className = "anim-bubble", duration = 900, below = false): Promise<void> {
   const r = anchor.getBoundingClientRect();
   const el = document.createElement("span");
   el.className = className;
@@ -144,17 +148,17 @@ export async function bubble(anchor: Element, text: string, className = "anim-bu
   Object.assign(el.style, {
     position: "fixed",
     left: `${r.left + r.width / 2}px`,
-    top: `${r.top}px`,
+    top: `${below ? r.bottom : r.top}px`,
     zIndex: "50",
     pointerEvents: "none",
   });
   document.body.append(el);
   const anim = el.animate(
     [
-      { transform: "translate(-50%, 0) scale(.6)", opacity: 0 },
-      { transform: "translate(-50%, -110%) scale(1)", opacity: 1, offset: 0.25 },
-      { transform: "translate(-50%, -130%) scale(1)", opacity: 1, offset: 0.75 },
-      { transform: "translate(-50%, -150%) scale(.95)", opacity: 0 },
+      { transform: `translate(-50%, ${below ? "-100%" : "0"}) scale(.6)`, opacity: 0 },
+      { transform: `translate(-50%, ${below ? "10%" : "-110%"}) scale(1)`, opacity: 1, offset: 0.25 },
+      { transform: `translate(-50%, ${below ? "30%" : "-130%"}) scale(1)`, opacity: 1, offset: 0.75 },
+      { transform: `translate(-50%, ${below ? "50%" : "-150%"}) scale(.95)`, opacity: 0 },
     ],
     { duration, easing: "ease-out" },
   );

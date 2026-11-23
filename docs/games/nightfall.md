@@ -99,7 +99,7 @@ With fewer than 5 players in the room, the hint just lists the deck. The host ca
 
 ## On your screen
 
-- **Your card.** Face down. Tap to reveal, tap to hide. It hides itself the moment you switch tabs or apps. It shows your role, your team, a one-line description, and what only you know (the pack, readings, last shelter, tonight's pick).
+- **Your card.** Face down. Tap to reveal, tap to hide. It hides itself the moment you switch tabs or apps. After you tap **Got it**, it's turned face down for you. It shows your role, your team, a one-line description, and what only you know (the pack, readings, last shelter, tonight's pick).
 - **Round label.** "Night 2" or "Day 2" along the top, with the timer. The last 5 seconds of a vote or runoff tick out loud.
 - **News.** By day, the dawn's news. By night, the last verdict.
 - **So far.** The public record of each night's casualty and each day's votes by name.

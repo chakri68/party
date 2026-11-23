@@ -336,12 +336,12 @@ export class ThornsView implements GameView {
         ? h("span", {}, "Put down your first disc")
         : h("span", {}, waiting.length === 1 ? `Waiting for ${this.name(props, waiting[0]!.id)}` : `Waiting for ${waiting.length} players`);
     } else if (game.phase === "turns") {
-      body = mine ? h("span", {}, priv?.hand.length ? "Your turn. Put down a disc or bid." : "No discs in your hand. You must bid.") : them("must put down a disc or bid");
+      body = mine ? h("span", {}, priv?.hand.length ? "Your turn. Put down a disc or bid." : "No discs in your hand. You must bid.") : them("is putting down a disc or bidding");
     } else if (game.phase === "bidding" && game.bid) {
-      body = mine ? h("span", {}, `Say more than ${game.bid.amount}, or pass`) : them(`must say more than ${game.bid.amount} or pass`);
+      body = mine ? h("span", {}, `Say more than ${game.bid.amount}, or pass`) : them(`is bidding: more than ${game.bid.amount}, or pass`);
     } else if (game.phase === "flipping" && c) {
       const left = c.amount - c.flips.length;
-      body = mine ? h("span", {}, `Turn over ${left} more. Tap a mat.`) : them(`is turning over discs: ${c.flips.length} of ${c.amount}`);
+      body = mine ? h("span", {}, `Turn over ${left} more. Pick a mat.`) : them(`is turning over discs: ${c.flips.length} of ${c.amount}`);
     } else if (game.phase === "result" && game.result) {
       const r = game.result;
       body = h("span", {}, r.outcome === "success" ? `${this.name(props, r.challengerId)} made ${r.amount}` : `Thorn! ${this.name(props, r.challengerId)} lost a disc`);
@@ -527,7 +527,7 @@ export class ThornsView implements GameView {
       lost && (game.phase === "result" || game.phase === "over")
         ? h("span", { class: "th-lost" }, discEl(lost), lost === "rose" ? "You lost a rose" : "You lost your thorn")
         : placeable
-          ? hint(game.phase === "placing-first" ? "Tap a disc to put it down" : "Tap a disc or bid", true)
+          ? hint(game.phase === "placing-first" ? "Pick a disc to put it down" : "Pick a disc, or bid", true)
           : null,
     );
 
@@ -553,7 +553,7 @@ export class ThornsView implements GameView {
         h("button", { type: "button", class: "primary th-bid", onclick: () => this.send({ type: "bid", amount: this.bidValue }) }, this.bidValue === max ? `Bid all ${max}` : `Bid ${this.bidValue}`),
         priv.canPass ? h("button", { type: "button", class: "th-pass", onclick: () => this.send({ type: "pass" }) }, "Pass") : null,
       ];
-    } else if (priv?.canFlip.length) controls = hint("Tap a mat marked Flip. Its top disc turns over.", true);
+    } else if (priv?.canFlip.length) controls = hint("Pick a mat marked Flip. Its top disc turns over.", true);
     else if (game.phase === "result") {
       controls = [
         this.bar,

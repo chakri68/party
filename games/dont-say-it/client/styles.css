@@ -105,6 +105,7 @@
 
 /* ---- The teams ------------------------------------------------------------ */
 
+.dsi-note { margin: -4px 0 0; font-size: 0.8rem; color: var(--muted); }
 .dsi-roster { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
 .dsi-team { border: 1.5px solid var(--line); border-radius: 14px; padding: 8px; background: var(--surface); min-width: 0; }
 .dsi-team.amber { --tc: var(--amber); }

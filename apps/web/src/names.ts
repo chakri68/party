@@ -1,16 +1,15 @@
 // Random names for the dice button. Adjective + animal, always under
 // MAX_NAME_LENGTH (20), never the same two picks twice in a row.
 
+// Plain words an English-as-second-language reader knows. No slang.
 const ADJECTIVES = [
-  "Lucky", "Sneaky", "Wild", "Crafty", "Sleepy", "Bold", "Dapper", "Jolly", "Cheeky", "Quiet",
-  "Mighty", "Fuzzy", "Swift", "Grumpy", "Sly", "Brave", "Cosmic", "Salty", "Zesty", "Plucky",
-  "Bluffing", "Shifty", "Humble", "Dramatic", "Suspicious", "Smug", "Chaotic", "Polite",
+  "Happy", "Brave", "Quick", "Lucky", "Sleepy", "Clever", "Calm", "Kind", "Bright", "Gentle",
+  "Strong", "Funny", "Proud", "Silent", "Sunny", "Wise",
 ];
 
 const ANIMALS = [
-  "Otter", "Badger", "Panda", "Fox", "Raven", "Moose", "Walrus", "Gecko", "Lemur", "Yak",
-  "Heron", "Ferret", "Penguin", "Llama", "Koala", "Newt", "Toad", "Bison", "Marmot", "Puffin",
-  "Capybara", "Goose", "Hedgehog", "Owl", "Crab", "Wombat",
+  "Tiger", "Elephant", "Peacock", "Parrot", "Monkey", "Lion", "Deer", "Rabbit", "Panda", "Camel",
+  "Owl", "Dolphin", "Squirrel", "Turtle", "Horse", "Eagle",
 ];
 
 const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)]!;

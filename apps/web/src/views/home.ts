@@ -4,7 +4,7 @@ import { brandMark, icon } from "../brand.ts";
 import { getIdentity, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } from "../identity.ts";
 import { randomName } from "../names.ts";
 import { navigate } from "../router.ts";
-import { createLabel, type RoomSetup, setupFromUrl, shellConfig } from "../shell.ts";
+import { createLabel, type RoomSetup, type ShellHome, setupFromUrl, shellConfig } from "../shell.ts";
 
 export function nameInput(value: string) {
   return h("input", {
@@ -98,8 +98,20 @@ export function homeParts(isOwner: boolean, pitch: boolean): HomePart[] {
   return ["hero", "identity", ...(isOwner ? (["create"] as const) : []), "join", "error", "recent", ...(pitch ? (["host"] as const) : [])];
 }
 
-/** Logo over a lowercase wordmark with a lime full stop. */
-function hero(tagline: string) {
+/** The hero's words: a host app's own title and subtitle when set, else the logo and the usual line. */
+export function heroWords(home: ShellHome | undefined, tagline: string): { title: string | null; tagline: string } {
+  return { title: home?.title ?? null, tagline: home?.subtitle ?? tagline };
+}
+
+/** The create button's text: a room setup always names its game; else the host app's text, else "Create room". */
+export function createText(setup: RoomSetup | undefined): string {
+  return setup ? createLabel(setup) : (shellConfig().createText ?? createLabel(setup));
+}
+
+/** Logo over a lowercase wordmark with a lime full stop, or the host app's own title. */
+function hero(usual: string) {
+  const { title, tagline } = heroWords(shellConfig().home, usual);
+  if (title !== null) return h("header", { class: "hero" }, h("h1", {}, title), h("p", { class: "tagline" }, tagline));
   return h(
     "header",
     { class: "hero" },
@@ -136,6 +148,8 @@ export class HomeView implements View {
   mount(container: HTMLElement) {
     this.setup = setupFromUrl(new URL(location.href));
     this.render();
+    const pageTitle = shellConfig().home?.pageTitle;
+    if (pageTitle) document.title = pageTitle;
     container.append(this.root);
     (this.name.value ? this.code : this.name).focus();
   }
@@ -154,6 +168,8 @@ export class HomeView implements View {
   private async createRoom(btn: HTMLButtonElement) {
     if (!this.takeName()) return;
     btn.disabled = true;
+    // Waiting on the server: stays lime, not the greyed "can't press" look.
+    btn.setAttribute("aria-busy", "true");
     this.error.textContent = "";
     try {
       const res = await shellConfig().createRoom(this.setup);
@@ -169,6 +185,7 @@ export class HomeView implements View {
     } catch (e) {
       this.error.textContent = e instanceof Error && e.message ? e.message : "Couldn't create a room.";
       btn.disabled = false;
+      btn.removeAttribute("aria-busy");
     }
   }
 
@@ -188,7 +205,7 @@ export class HomeView implements View {
       if (this.takeName()) navigate(`/room/${c}`);
     });
 
-    const create = h("button", { type: "button", class: "primary" }, createLabel(this.setup));
+    const create = h("button", { type: "button", class: "primary" }, createText(this.setup));
     create.addEventListener("click", () => void this.createRoom(create));
 
     const recent = recentRooms();
