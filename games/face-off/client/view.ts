@@ -212,16 +212,24 @@ export class FaceOffView implements GameView {
     );
   }
 
-  private votesFor(n: number): string {
-    return `${n} ${n === 1 ? "vote" : "votes"}`;
+  /** "Votes: Asha 1, Meena 1." Claimer first, in both cases. Empty when nobody voted. */
+  private votesLine(o: Outcome, props: GameViewProps): string {
+    if (!o.confirm && !o.overturn) return "";
+    const claimer = o.kind === "point" ? o.winnerId : o.loserId;
+    const other = o.kind === "point" ? o.loserId : o.winnerId;
+    if (!(o.kind === "point" ? o.overturn : o.confirm)) {
+      const n = o.kind === "point" ? o.confirm : o.overturn;
+      return ` ${n} ${n === 1 ? "vote" : "votes"} for ${this.lower(o.winnerId!, props)}.`;
+    }
+    return ` Votes: ${this.lower(claimer!, props)} ${o.confirm}, ${this.lower(other!, props)} ${o.overturn}.`;
   }
 
   private outcomeText(o: Outcome, props: GameViewProps): [string, string] {
     switch (o.kind) {
       case "point":
-        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${o.confirm ? ` ${this.votesFor(o.confirm)} for ${this.name(o.winnerId, props)}.` : ""}`];
+        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${this.votesLine(o, props)}`];
       case "overturned":
-        return [`${this.name(o.winnerId, props)} +1`, `${this.votesFor(o.overturn)} for ${this.name(o.winnerId, props)}. ${this.does(o.loserId!, "get", props)} a new card.`];
+        return [`${this.name(o.winnerId, props)} +1`, `${this.does(o.loserId!, "get", props)} a new card.${this.votesLine(o, props)}`];
       case "void":
         return ["Nobody buzzed", `${this.name(o.a, props)} and ${this.lower(o.b, props)} get new cards.`];
       case "left":
@@ -341,8 +349,8 @@ export class FaceOffView implements GameView {
             label,
           );
         tail.push(
-          h("div", { class: "fo-votes" }, choice("confirm", `Point to ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Point to ${seatName(props.room, other)}`, "danger")),
-          h("p", { class: "fo-note" }, `Did ${seatName(props.room, claim)} say a right answer first? ${d.voted} of ${d.voters} voted.`),
+          h("div", { class: "fo-votes" }, choice("confirm", `Point to ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Point to ${seatName(props.room, other)}`, "")),
+          h("p", { class: "fo-note" }, `Who gets the point? Did ${seatName(props.room, claim)} say a correct answer first? ${d.voted} of ${d.voters} voted.`),
         );
       } else {
         tail.push(h("p", { class: "fo-note" }, d.voters ? `The others are voting: ${d.voted} of ${d.voters} voted.` : "The others are voting."));

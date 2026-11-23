@@ -14,7 +14,7 @@ Two of you are called out. Name something from the other's card, out loud, and b
 3. **The duel (8 seconds).** Both of you say something from the other's category, out loud. When you've said one, tap **Buzz** (Enter or Space works on a keyboard). The first buzz claims the point.
 4. **The call (6 seconds).** Everyone not in the duel sees two buttons: **Point to <the claimer>** and **Point to <the other duelist>**. The duelists can't vote.
    - More votes for the other duelist than for the claimer: the point goes to the other duelist.
-   - Otherwise, including ties and no votes at all, the claim stands.
+   - Otherwise, including ties and no votes at all, the claim stands. A tie goes to the player who buzzed.
    It closes early once every connected voter has voted.
 5. **After.** The duelist who lost the point draws a new card. Then the quiet starts again.
 
@@ -40,13 +40,13 @@ Host picks these in the lobby.
 - **Header:** "First to 10", and a countdown such as "3:20 left", which changes to "Last duel" when the clock has fallen.
 - **During a duel:** if you're in it, "Say out loud", the category you're naming from, and your own category as a reminder of what the other player has to name. The **Buzz** button sits underneath. After the first buzz it stays there, greyed out, so a late tap does nothing. Everyone else sees who's naming from whose card.
 - **During the call:** the two "Point to" buttons, and a count of how many have voted. You see how many, never how.
-- **After a duel:** the result: "<name> +1", "Nobody buzzed", or "Duel off", with how many votes the winner got and who draws a new card.
+- **After a duel:** the result: "<name> +1", "Nobody buzzed", or "Duel cancelled", with the votes (both sides, when the other side got some) and who draws a new card.
 - **Sounds:** a chime and a buzz when you are called out (a softer nudge for everyone else), a bang and a buzz on a buzz, a shuffle on a redo, and a ding when you win a duel.
 
 ## When things go sideways
 - **Nobody buzzes in 8 seconds:** nobody scores and both duelists draw new cards.
 - **A duelist leaves:** the duel is called off with no score, and nobody draws.
-- **A duelist drops mid-duel, before anyone buzzes:** the duel is called off on the spot ("Duel off"), with no score, and nobody draws. There's no grace period: whoever's offline can't buzz, so any time it ran on would be a one-sided race.
+- **A duelist drops mid-duel, before anyone buzzes:** the duel is called off on the spot ("Duel cancelled"), with no score, and nobody draws. There's no grace period: whoever's offline can't buzz, so any time it ran on would be a one-sided race.
 - **A duelist drops after the buzz:** the vote carries on. The table's call stands either way.
 - **Offline players:** duels only pick players who are connected, so they're skipped until they're back. The host can skip a duelist who's holding things up (the duel is voided, both draw).
 - **A voter drops:** they stop holding the call open. If nobody is left to vote, the claim stands.
@@ -57,4 +57,4 @@ Host picks these in the lobby.
 ## Tips
 - You won't be called out often, and the same pair doesn't come up twice in a row. A player who just dueled is also less likely to be picked again.
 - Learn your own card well, and read the table. You can see everyone else's.
-- If you're sure the other player buzzed with a miss, point to the other player. The table is the only check.
+- If the player who buzzed said a wrong answer, give the point to the other player. The table is the only check.
