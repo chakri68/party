@@ -65,3 +65,7 @@ The user wanted the Sound board and Reactions buttons back in the header as butt
 - Width: under 400 px the header buttons (and the mic) are 36 px, so the row fits 360 px phones: code about 64 + signal 20 + five 36 px buttons + six 8 px gaps, about 312 of 328 px.
 - Trade-off, on purpose: 36 px is below the 40 px header and the 44 px used elsewhere. It is the cost of five buttons on one row at 360 px.
 - Dominion and Blind Rally, phone held sideways: the header buttons and mic are 32 px, and the turn controls sit between the left side (code, signal) and the right side (mic to "..."), wrapping instead of covering the buttons.
+
+## Addendum 2026-11-23: party over gets the slim header (UI/UX review)
+
+The 2026-11-23 UI/UX review found the party-over top row differed from every other room screen. It now uses the same slim header and "..." Room menu (`slimHeader` in `views/focus.ts`). Voice stays over there: `focusPhase("ended")` is still false, so the voice bar, the header mic and Join voice stay off. The menu lists only Sound and vibration and Home, which replace the old header's speaker button and logo link.

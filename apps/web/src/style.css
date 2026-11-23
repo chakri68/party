@@ -456,6 +456,10 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .standings .place { width: 1.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .standings .name { flex: 1; font-weight: 600; }
 .results .actions { width: 100%; max-width: 360px; }
+/* Stacked, full width: "Play again (2 ready)" and "Back to lobby" don't fit
+   one row on a 360 phone, and the ready count would flip the layout as it
+   changes. */
+.results .actions > button:not(.link) { flex: 0 0 100%; }
 
 /* Dialog */
 .dialog {
@@ -692,6 +696,27 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .signal[data-level="good"] rect { fill: var(--accent); }
 .signal[data-level="ok"] :is(.b1, .b2) { fill: var(--warn); }
 .signal[data-level="slow"] .b1 { fill: var(--danger); }
+/* The tap's word (signal.ts): a tip just under the bars. The bars sit near
+   the left edge, so the tip starts at them and runs right. */
+.room-header .signal { position: relative; }
+.signal-tip {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 2px);
+  left: -6px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+.signal-tip.show { opacity: 1; }
 .settings { display: grid; gap: 14px; min-width: min(300px, 80vw); }
 .settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
 .settings input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
@@ -783,7 +808,38 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
 }
 .dialog-link:hover { border-color: #4a483f; }
 .lock-room { justify-self: center; min-height: 44px; }
-.paused-note { font-weight: 600; }
+/* Paused by the host (room.ts renderPause): the game dims under a cover, so
+   its timer plainly stands still, and taps on it (refused while paused anyway)
+   land on nothing. The card stays in view on a long board. */
+.room:has(.pause-cover) .game-host { position: relative; }
+.pause-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 0;
+  border-radius: var(--radius);
+  background: rgb(14 14 12 / 0.84); /* --bg, see-through */
+}
+.pause-card {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: min(320px, 100%);
+  padding: 20px 18px;
+  border: 1.5px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+}
+.pause-card h2 { margin: 0; font-size: 1.3rem; letter-spacing: -0.02em; }
+.pause-card p { margin: 0; }
+.pause-card button { min-width: 160px; min-height: 48px; }
 
 @media (prefers-reduced-motion: reduce) {
   .toast, button, input { transition: none; }

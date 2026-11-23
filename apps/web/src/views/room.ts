@@ -27,7 +27,7 @@ import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings } from "./lobby.ts";
-import { focusPhase } from "./focus.ts";
+import { slimHeader } from "./focus.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
@@ -129,8 +129,11 @@ export class RoomView implements View {
   /** Which screen the body shows, so we know when a change deserves motion. */
   private screen: string | null = null;
   private chat: RoomChat | null = null;
-  private signal = signalMeter((text) => this.showToast(text));
-  private turn = new TurnSignal(() => `${this.code} · ${appTitle()}`);
+  private signal = signalMeter();
+  private turn = new TurnSignal(
+    () => `${this.code} · ${appTitle()}`,
+    () => this.header.getBoundingClientRect().bottom > 0,
+  );
   /** What the game said about whose turn it is; `undefined` until it says anything. */
   private gameTurn: string | null | undefined = undefined;
   private emotes: Emotes | null = null;
@@ -197,8 +200,11 @@ export class RoomView implements View {
     const first = this.screen === null;
     const kind = screen !== this.screen ? "phase" : screen === "lobby" ? "lobby" : null;
     this.screen = screen;
-    if (first || !kind) void update();
-    else transition(kind, update);
+    if (first || !kind) return void update();
+    // A new screen opens at its top (the game's header, phase and timer), not
+    // at the old screen's scroll. Inside the swap, so the transition's "after"
+    // picture is the top. Same-screen updates keep the scroll.
+    transition(kind, kind === "phase" ? () => (scrollTo({ top: 0, behavior: "instant" }), update()) : update);
   }
 
   // ---- connection ---------------------------------------------------------
@@ -495,16 +501,16 @@ export class RoomView implements View {
   // ---- rendering ----------------------------------------------------------
 
   /**
-   * The header's two looks. On a room screen (lobby, game, results; seated):
+   * The header's two looks. On a room screen (lobby, game, results, party over; seated):
    * one slim row, the room code and signal on the left; the mic (in voice,
    * its own slot), the sound board (when it shows), reactions, chat and the
-   * Room menu on the right. Otherwise (party over, before a seat, a fatal message):
+   * Room menu on the right. Otherwise (before a seat, a fatal message):
    * the brand, the room code and the room buttons.
    */
   private renderHeader() {
     const status = this.client?.status;
     const seated = !!this.client?.playerId && status !== "closed";
-    const focus = seated && focusPhase(this.shownPhase);
+    const focus = seated && slimHeader(this.shownPhase);
     this.header.classList.toggle("focus", focus);
     const conn = status === "reconnecting" || status === "connecting"
       ? h("span", { class: "conn" }, status === "connecting" ? "connecting…" : "reconnecting…")
@@ -555,7 +561,7 @@ export class RoomView implements View {
     // A question about the old screen (the game's own too) no longer applies.
     cancelConfirm();
     // Into or out of the slim header the reaction bar's anchor moves: it closes, like the sound board does on any phase change.
-    if (focusPhase(was) !== focusPhase(phase)) this.emotes?.toggle(false);
+    if (slimHeader(was) !== slimHeader(phase)) this.emotes?.toggle(false);
     this.renderHeader();
   }
 
@@ -641,6 +647,7 @@ export class RoomView implements View {
     if (!u || !me || this.stuck) return;
     const room = u.room;
     this.renderTurn();
+    this.renderPause();
 
     const ownChat = room.phase === "playing" && !!games[room.gameId]?.manifest.ownChat;
     this.chat?.lock(ownChat ? "Chat is off for this game" : null);
@@ -778,6 +785,43 @@ export class RoomView implements View {
     this.turn.set(mine ? (waiting.length === 1 ? "Your turn" : "Your move") : null);
   }
 
+  /** The pause cover, while one shows, and whether it has the host's Resume. */
+  private pauseCover: { el: HTMLElement; host: boolean } | null = null;
+
+  /**
+   * While the host has paused the game, a cover over the game: the board dims
+   * so its timer plainly stands still, and a card says why. The host's card has
+   * Resume (the same as the menu's). Built only when that changes, so the
+   * once-a-second redraw never steals focus from the button.
+   */
+  private renderPause() {
+    const room = this.last?.room;
+    const me = this.client?.playerId;
+    if (!room || !me || room.phase !== "playing" || !room.paused) {
+      this.pauseCover?.el.remove();
+      this.pauseCover = null;
+      return;
+    }
+    // As the menu: only while the room can hear us.
+    const host = room.hostId === me && !this.stuck;
+    if (this.pauseCover?.host !== host) {
+      this.pauseCover?.el.remove();
+      const el = h(
+        "div",
+        { class: "pause-cover" },
+        h(
+          "div",
+          { class: "pause-card", role: "status" },
+          h("h2", {}, host ? "You paused the game" : "Paused by the host"),
+          h("p", { class: "muted" }, host ? "The timer is stopped. Nobody can play." : "The timer is stopped. Wait for the host to start it again."),
+          host ? h("button", { type: "button", class: "primary", onclick: () => this.client?.send({ type: "pause-game", paused: false }) }, "Resume") : null,
+        ),
+      );
+      this.pauseCover = { el, host };
+    }
+    if (this.pauseCover.el.parentNode !== this.gameHost) this.gameHost.append(this.pauseCover.el);
+  }
+
   /**
    * Room-level turn controls (§12). They live in the shell, not the game, since
    * any turn-based game gets them for free.
@@ -802,7 +846,6 @@ export class RoomView implements View {
           : `${target.name} lost connection. Waiting for them to come back…`),
       );
     }
-    if (room.paused) items.push(h("p", { class: "muted paused-note", role: "status" }, "The game is paused."));
     if (!room.paused && target && target.id !== me && !target.bot && !dropped && elapsed >= NUDGE_AFTER_MS) {
       items.push(
         h("button", {

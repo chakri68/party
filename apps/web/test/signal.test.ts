@@ -12,7 +12,9 @@ describe("ping meter", () => {
   });
 
   it("says it in words", () => {
-    expect(signalText(84.4)).toBe("Connection: Good (84 ms)");
+    expect(signalText(84.4)).toBe("Connection: Good");
+    expect(signalText(200)).toBe("Connection: Weak");
+    expect(signalText(450)).toBe("Connection: Bad");
     expect(signalText(null)).toBe("Connection: not connected yet");
   });
 });

@@ -61,9 +61,9 @@ Top to bottom:
 - The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll. If the settings or the computers stop the game from starting, the reason shows under the start button. Other players see it under the settings.
 - **Leave room**, and for the host, **End party**.
 
-In the lobby, in a game and on results, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page.
+In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
 
-When the party is over, the header has the logo, the room code, a sound button, an emoji button and a chat button.
+When the screen changes (the game starts, the results come, back to the lobby), the new screen opens at its top.
 
 ### What only the host can do
 
@@ -141,9 +141,9 @@ The sound board button in the header opens a grid of short sounds. Tap one and e
 
 ## Sound and vibration
 
-**Sound and vibration** in the menu opens the sound settings (when the party is over, it is the speaker button in the header). **Done** closes them.
+**Sound and vibration** in the menu opens the sound settings. **Done** closes them.
 
-- **Sounds**: on or off. When the party is over, the speaker icon in the header shows which.
+- **Sounds**: on or off.
 - **Volume**: a slider, greyed out when sounds are off.
 - **Sound board**: sound board sounds on this phone. Greyed out when Sounds is off.
 - **Vibration**: only shown on devices that can vibrate.
@@ -174,7 +174,7 @@ The settings stay on your device. No one records your voice.
 
 ## Connection drops and reconnecting
 
-Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is OK (under 300 ms), and one red bar is slow. Tap the bars to see the number.
+Next to the room code, three bars show your connection to the server: green is good (under 150 ms), yellow is weak (under 300 ms), and one red bar is bad. Tap the bars and a small note under them says it in a word: "Connection: Good", "Weak" or "Bad".
 
 If your connection goes, the header shows "reconnecting…" and your seat stays yours. The server holds it for **60 seconds**.
 
@@ -206,7 +206,7 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play.
+- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game goes dark under a card: everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 ## Leaving
