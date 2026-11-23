@@ -390,7 +390,7 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-dock-head { flex-direction: column; align-items: flex-start; max-width: 220px; min-height: 0; gap: 6px; }
   .ld-my-dice { justify-content: flex-start; }
   .ld-action.picking { gap: 6px; }
-  .ld-calls-hint { display: none; }
+  .ld-calls-hint { text-align: left; font-size: 0.75rem; }
   button.ld-face, button.ld-step, .ld-moves button { min-height: 44px; }
   button.ld-face .ld-die { width: 30px; height: 30px; }
 }

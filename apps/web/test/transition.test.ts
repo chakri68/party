@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isSkip, transition } from "../src/transition.ts";
+import { isSkip, rethrowUnlessSkip, transition } from "../src/transition.ts";
 
 type Fake = { ready: Promise<void>; finished: Promise<void>; updateCallbackDone: Promise<void> };
 
@@ -22,7 +22,14 @@ describe("page transitions", () => {
   it("knows the browser's skip from a real error", () => {
     expect(isSkip(new DOMException("Transition was aborted because of invalid state. Viewport size changed", "InvalidStateError"))).toBe(true);
     expect(isSkip(new DOMException("Skipped", "AbortError"))).toBe(true);
+    expect(isSkip(new DOMException("The update took too long", "TimeoutError"))).toBe(true);
     expect(isSkip(new TypeError("boom"))).toBe(false);
+  });
+
+  it("lets any other rejection surface", () => {
+    const boom = new TypeError("boom");
+    expect(() => rethrowUnlessSkip(boom)).toThrow(boom);
+    expect(() => rethrowUnlessSkip(new DOMException("x", "TimeoutError"))).not.toThrow();
   });
 
   it("swallows a skipped transition: the update still runs and nothing is left unhandled", async () => {

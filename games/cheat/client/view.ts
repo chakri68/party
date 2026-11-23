@@ -405,7 +405,7 @@ export class CheatView implements GameView {
       this.status,
       myTurn
         ? h("span", {}, `Your turn: ${claimList(game.claims)}`)
-        : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away} must play: ${claimList(game.claims)}`)],
+        : [seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, `${seat?.name ?? "Someone"}${away}'s turn. Play: ${claimList(game.claims)}`)],
     );
   }
 

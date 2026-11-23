@@ -394,7 +394,7 @@ export class PresidentView implements GameView {
     replaceChildren(
       this.status,
       myTurn
-        ? h("span", {}, leading ? "You lead" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
+        ? h("span", {}, leading ? "You play first" : `Your turn: beat ${setName(game.top!.cards.length, game.top!.cards[0]!.rank)}`)
         : [
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
             h("span", {}, `${seat?.name ?? "Someone"}${away} ${leading ? "plays first" : "is playing"}`),
@@ -467,7 +467,7 @@ export class PresidentView implements GameView {
     this.pileCaption.textContent = top
       ? `${seatName(room, top.playerId)}: ${setName(top.cards.length, top.cards[0]!.rank)}`
       : game.phase === "playing"
-        ? `${game.currentPlayerId === props.playerId ? "You lead" : `${seatName(room, game.currentPlayerId)} leads`}: any cards`
+        ? `${game.currentPlayerId === props.playerId ? "You play first" : `${seatName(room, game.currentPlayerId)} plays first`}: any cards`
         : "";
     this.pile.setAttribute("role", "img");
     this.pile.setAttribute("aria-label", top ? `To beat: ${top.cards.map(cardLabel).join(", ")}` : "The pile is empty");

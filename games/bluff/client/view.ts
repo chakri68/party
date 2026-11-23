@@ -385,7 +385,7 @@ export class BluffView implements GameView {
     const ticking = game.phase === "write" || game.phase === "vote";
     this.legend.textContent =
       game.phase === "reveal" && !game.noFakes
-        ? `Found the real one: +${FOUND_POINTS}. Each vote for your fake: +${FOOLED_POINTS}.`
+        ? `Found the real one: +${FOUND_POINTS}. Each player who chose your fake: +${FOOLED_POINTS}.`
         : "";
     replaceChildren(
       this.table,

@@ -2,7 +2,7 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { compareCards, outText } from "../shared/rules.ts";
+import { compareCards, ordinal, outText } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort } from "./cards.ts";
 
@@ -41,7 +41,7 @@ function describe(e: OldMaidEvent, props: GameViewProps): string | null {
     case "taken-from-you":
       return `${who(e.byId)} took your ${cardShort(e.card)}.`;
     case "went-out":
-      return e.playerId === me ? `You have no cards left, so you win. You are ${outText(e.place)}.` : `${who(e.playerId)} is out.`;
+      return e.playerId === me ? `You won. You got out ${e.place === 1 ? "first" : ordinal(e.place)}.` : `${who(e.playerId)} is out.`;
     case "turn-skipped":
       return e.playerId === me ? "The host skipped your turn. The game took a card for you." : `The host skipped ${who(e.playerId)}'s turn. The game took a card for them.`;
     case "player-removed":

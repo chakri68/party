@@ -381,7 +381,7 @@ export class OhHellView implements GameView {
     else if (priv?.legal.length) {
       const led = game.trick[0]?.card.suit;
       const following = led && priv.legal.every((id) => id.startsWith(`${led}-`));
-      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You lead");
+      content = h("span", {}, following ? `Your turn: follow ${SUIT_NAME[led]} ${SUIT_SYMBOL[led]}` : game.trick.length ? "Your turn: play any card" : "You play first");
     } else content = them(game.trick.length ? "is playing" : "plays first");
     replaceChildren(this.status, content);
   }

@@ -639,7 +639,7 @@ export class LiarsDiceView implements GameView {
     );
     // What the two calls mean, said once where they show.
     const calls = priv.canCallLiar
-      ? h("p", { class: "ld-calls-hint" }, priv.canSpotOn ? "Liar: too high. Spot on: exactly right." : "Liar: the bid is too high.")
+      ? h("p", { class: "ld-calls-hint" }, priv.canSpotOn ? "Liar: the bid is too high. Spot on: the bid is exact." : "Liar: the bid is too high.")
       : null;
     return [...(priv.canBid ? [stepper, faces] : []), ...(calls ? [calls] : []), moves];
   }

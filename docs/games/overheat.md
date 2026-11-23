@@ -63,7 +63,7 @@ Host picks these in the lobby.
 
 - **Header.** The round, the heat limit for the round, how many cards are left in the deck, and the target.
 - **One row per player.** Name, score, and a chip: Flipping, Saved +N, Perfect +N, Too hot or Left. A burn icon with a count shows their Burns. "Next ×2" means a Double is waiting.
-- **Heat bar.** It fills as heat goes up and turns from blue to red. The line is that player's limit, with the numbers next to it (`17 / 24`). After a Limit down, the line moves left. When a player is 3 or less away from the limit, the bar shakes.
+- **Heat bar.** It fills as heat goes up and turns from blue to red. The line is that player's limit, with the numbers next to it (`17 / 24`). After a Limit down card, the line moves left. When a player is 3 or less away from the limit, the bar shakes.
 - **Cards.** Each card shows its number, its colour and a shape: red circle, amber triangle, blue square, green diamond. A "×2" mark means it counts double.
 - **Buttons.** Flip and Save +N, where N is what you would score now. Save is greyed out on your first turn.
 - **Aiming.** For Push and Burn, the rows you can aim at get a red border and the word "Pick". Pick one. For Swap, pick one of your cards and one of theirs.

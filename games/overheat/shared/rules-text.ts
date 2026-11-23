@@ -10,7 +10,7 @@ export const overheatRules: string[] = [
   "Save to keep your points. After you save, other players' cards can't hurt you.",
   "If your heat is exactly the limit, that is Perfect: you get 10 extra points and save.",
   "3 cards of one colour: +5. All 4 colours: +5.",
-  "Power cards: Cool (heat −5), Double (your next number card counts double), Push (a player gets the next card), Swap (swap a card with a player), Burn (a player gets +1 heat at the start of each turn), Limit down (the limit goes down by 3 for everyone still flipping).",
+  "Power cards: Cool (heat −5), Double (your next number card counts double), Push (a player gets the next card), Swap (swap a card with a player), Burn (a player gets +1 heat at the start of each of their turns), Limit down (the limit goes down by 3 for everyone still flipping).",
   "The first player to reach the target score at the end of a round wins.",
 ];
 

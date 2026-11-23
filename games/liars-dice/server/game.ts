@@ -426,14 +426,14 @@ export const liarsDiceGame: GameDefinition<
     return {
       winnerIds: state.winnerId ? [state.winnerId] : [],
       standings: sorted.map((p, i) => {
-        // Out first is the worst place here, so say the place too.
+        // Out first is the worst place here: say so, and give everyone else their place.
         const out = outAt(p) + 1;
         const place = i + 1 === placed ? "last place" : `${ordinal(i + 1)} place`;
         const label = p.removed
           ? "left"
           : p.count > 0
             ? `${p.count} ${p.count === 1 ? "die" : "dice"} left`
-            : `out ${out === 1 ? "first" : ordinal(out)} (${place})`;
+            : out === 1 ? `out first (${place})` : `${ordinal(i + 1)} place`;
         return { playerId: p.id, value: p.count, label };
       }),
     };

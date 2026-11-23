@@ -284,6 +284,19 @@
   .om-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
   .om-action { flex-wrap: wrap; justify-content: flex-start; }
   .om-hand { grid-column: 2; grid-row: 1 / span 2; }
+  /* Smaller cards, label beside the fan, count beside the pile: the table has
+     to end above the dock, or the dock covers the fan you pick from. */
+  .om-table { padding: 6px 12px; }
+  .om-fan, .om-pile-wrap { --card-w: 44px; --card-h: 64px; }
+  .om-fan-wrap { grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); align-items: center; gap: 12px; }
+  .om-fan-label { text-align: left; }
+  .om-pile-wrap { width: auto; grid-auto-flow: column; align-items: center; gap: 8px; }
+  .om-pile-count { max-width: 9ch; text-align: left; }
+  .om-pile .om-card .corner { font-size: 0.75rem; }
+  .om-pile .om-card .pip { font-size: 1.3rem; }
+  .om-hand { --card-w: 48px; --card-h: 70px; --card-overlap: -14px; }
+  .om-hand .om-card .corner { font-size: 0.85rem; }
+  .om-hand .om-card .pip { font-size: 1.5rem; }
 }
 
 /* ---- Feedback ------------------------------------------------------------- */

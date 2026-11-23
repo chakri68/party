@@ -72,7 +72,9 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
   switch (e.type) {
     case "hand-start":
       // Says what the blinds are where they first show: the two bets made before any cards.
-      return `Hand ${e.handNumber}. Blinds: ${who(e.sbId)} ${verb(e.sbId, "put", "puts")} in ${formatChips(e.sb)} and ${who(e.bbId)} ${verb(e.bbId, "put", "puts")} in ${formatChips(e.bb)} before the cards. ${who(e.buttonId)} ${verb(e.buttonId, "have", "has")} the button.`;
+      // What was really posted: a short stack can put in less than the blind.
+      const posted = e.blinds.map((b) => `${who(b.playerId)} ${verb(b.playerId, "put", "puts")} in ${formatChips(b.amount)}`);
+      return `Hand ${e.handNumber}. ${posted.length ? `Blinds: ${posted.join(" and ")} before the cards. ` : ""}${who(e.buttonId)} ${verb(e.buttonId, "deal", "deals")} this hand.`;
     case "level-up":
       return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":
