@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cancelConfirm, confirmDialog, openDialog } from "../src/index.ts";
+import { cancelConfirm, confirmDialog, openDialog, updateConfirm } from "../src/index.ts";
 
 /**
  * Just enough DOM for the dialogs: the tests run in Node. A real browser fires
@@ -32,6 +32,20 @@ class FakeEl extends EventTarget {
   }
   get textContent(): string {
     return this.children.map((c) => (typeof c === "string" ? c : c.textContent)).join("");
+  }
+  set textContent(t: string) {
+    this.children = [t];
+  }
+  /** Only ".class" selectors. */
+  querySelector(sel: string): FakeEl | null {
+    const cls = sel.slice(1);
+    for (const c of this.children) {
+      if (typeof c === "string") continue;
+      if ((c.getAttribute("class") ?? "").split(" ").includes(cls)) return c;
+      const deep = c.querySelector(sel);
+      if (deep) return deep;
+    }
+    return null;
   }
   showModal() {
     this.open = true;
@@ -116,6 +130,19 @@ describe("confirmDialog", () => {
     cancelConfirm();
     await expect(second).resolves.toBe(false);
     expect(dialogs()).toEqual([]);
+  });
+
+  it("is named by its question once, and can be reworded in place", async () => {
+    const answer = confirmDialog("Leave the room? Ben will be the host.", { ok: "Leave" });
+    const [dlg] = dialogs();
+    const text = dlg.querySelector(".confirm-text")!;
+    expect(dlg.getAttribute("aria-label")).toBeNull();
+    expect(dlg.getAttribute("aria-labelledby")).toBe(text.getAttribute("id"));
+    updateConfirm("Leave the room? Cat will be the host.");
+    expect(text.textContent).toBe("Leave the room? Cat will be the host.");
+    expect(dialogs()).toHaveLength(1);
+    cancelConfirm();
+    await expect(answer).resolves.toBe(false);
   });
 });
 

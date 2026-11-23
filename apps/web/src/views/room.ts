@@ -9,7 +9,7 @@ import {
   type RoomPublicState,
 } from "@games/protocol";
 import { RoomClient, type RoomUpdate } from "@games/room-client";
-import { avatar, botTag, cancelConfirm, closeOnBackdrop, confirmDialog, h, openDialog, replaceChildren, seatName, type ConfirmOptions, type GameView, type View } from "@games/ui";
+import { avatar, botTag, cancelConfirm, closeOnBackdrop, confirmDialog, h, openDialog, replaceChildren, seatName, type ConfirmOptions, type GameView, updateConfirm, type View } from "@games/ui";
 import { brandMark, icon } from "../brand.ts";
 import { GAME_SECTIONS, games } from "../games.ts";
 import { getIdentity, getResumeToken, setDisplayName, setResumeToken } from "../identity.ts";
@@ -429,6 +429,7 @@ export class RoomView implements View {
     this.stuck = true;
     // Its host items no longer reach the room.
     this.menuDialog?.close();
+    cancelConfirm();
     const screen = h(
       "section",
       { class: "message" },
@@ -457,27 +458,30 @@ export class RoomView implements View {
   /**
    * Asks in the page (see `confirmDialog`). True only for a yes while the
    * question still applies: `valid` is checked on every room update (a no
-   * closes the question) and again on the yes.
+   * closes the question) and again on the yes. `retext`, if given, words the
+   * question again on each update, so a detail (a name) stays true in place.
    */
-  private async ask(text: string, opts: ConfirmOptions, valid: () => boolean): Promise<boolean> {
+  private async ask(text: string, opts: ConfirmOptions, valid: () => boolean, retext?: () => string | null): Promise<boolean> {
     const answer = confirmDialog(text, opts);
-    this.askValid = valid;
+    const asking = { valid, retext };
+    this.asking = asking;
     const yes = await answer;
-    if (this.askValid === valid) this.askValid = null;
+    if (this.asking === asking) this.asking = null;
     return yes && valid();
   }
 
-  /** The open question's check, if the room asked one. */
-  private askValid: (() => boolean) | null = null;
+  /** The room's open question, if it asked one: its check and its rewording. */
+  private asking: { valid: () => boolean; retext?: () => string | null } | null = null;
 
   private async leave() {
     const room = this.last?.room;
     const me = this.client?.playerId;
-    const question = room && me ? leaveQuestion(room, me) : null;
-    if (question && !(await this.ask(question, { ok: "Leave", danger: true }, () => {
-      const now = this.last?.room;
-      return !!now && !!me && leaveQuestion(now, me) === question;
-    }))) {
+    if (!room || !me) return;
+    const question = leaveQuestion(room, me);
+    // Same screen, same role: the question still holds. Who gets the host role can change while it's open; the words follow.
+    const still = () => this.last?.room.phase === room.phase && (this.last.room.hostId === me) === (room.hostId === me);
+    const retext = () => (this.last ? leaveQuestion(this.last.room, me) : null);
+    if (question && !(await this.ask(question, { ok: "Leave", danger: true }, still, retext))) {
       return;
     }
     // Leaving on purpose: voice is saved as off for this room.
@@ -629,7 +633,11 @@ export class RoomView implements View {
   private render() {
     const u = this.last;
     const me = this.client?.playerId;
-    if (this.askValid && !this.askValid()) cancelConfirm();
+    if (this.asking && !this.asking.valid()) cancelConfirm();
+    else if (this.asking?.retext) {
+      const text = this.asking.retext();
+      if (text) updateConfirm(text);
+    }
     if (!u || !me || this.stuck) return;
     const room = u.room;
     this.renderTurn();

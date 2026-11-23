@@ -49,7 +49,7 @@ export function leaveQuestion(room: RoomPublicState, me: string): string | null 
   const lines = [playing ? "Leave the game? You will be out for the rest of this round." : "Leave the room?"];
   if (host) {
     const next = nextHost(room, me);
-    lines.push(next ? `${next.name} will be the host.` : "Nobody else is here. The room stays open for a few hours.");
+    lines.push(next ? `${next.name} will be the host.` : "No other person is here. The room stays open for a few hours.");
   }
   return lines.join(" ");
 }

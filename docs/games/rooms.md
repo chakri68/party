@@ -189,7 +189,7 @@ An empty room is deleted after 6 hours.
 
 ## When the host leaves
 
-The host role isn't tied to who made the room. If the host disconnects, they keep it through their 60 seconds. After that, or if they leave outright, it passes to whoever has been in the room longest and is still connected. That person gets a toast: "You're the host now." If nobody is connected, the role stays put until someone comes back.
+The host role isn't tied to who made the room. If the host disconnects, they keep it through their 60 seconds. After that, or if they leave outright, it passes to whoever has been in the room longest and is still connected. That person gets a toast: "You're the host now." If nobody is connected: in a game, a host who dropped keeps the role until someone comes back. A host who leaves, or drops outside a game, passes it to the first person still in the room.
 
 The host can also give the role to someone else with **Make host**. They get "You're the host now."
 
@@ -213,7 +213,7 @@ The host also has these in the menu (the three dots at the top right):
 
 **Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You will be out for the rest of this round." You can't resume a seat you left on purpose.
 
-The host is asked every time, and told who gets the host role, like "Leave the room? Ben will be the host." That is the person who has been in the room longest and is still connected. If nobody else is here, it says so: the room stays open for a few hours, then it is deleted.
+The host is asked every time, and told who gets the host role, like "Leave the room? Ben will be the host." That is the person who has been in the room longest and is still connected. If nobody is connected, it goes to the first person still in the room. If no other person is here (computers don't count), it says so: the room stays open for a few hours, then it is deleted.
 
 Every question like this opens as a small box on the page, with a button that names the action (**Leave**, **Restart**, **Remove**, **End game**, **End party**) and **Cancel**. **Cancel**, a tap outside the box, or the Escape key all mean no. If the question stops making sense while it is open (say the player you want to remove comes back), the box closes by itself.
 

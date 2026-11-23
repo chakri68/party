@@ -214,6 +214,7 @@ export interface ConfirmOptions {
 
 /** The confirm on screen, if any. One at a time. */
 let openConfirm: HTMLDialogElement | null = null;
+let confirmCount = 0;
 
 /**
  * Asks a yes or no question in the page, in place of `confirm()` (which some
@@ -238,10 +239,12 @@ export function confirmDialog(text: string, opts: ConfirmOptions): Promise<boole
         dlg.close();
       },
     }, opts.ok);
+    // Named by its question, so a screen reader reads it once.
+    const id = `confirm-text-${++confirmCount}`;
     const dlg = h(
       "dialog",
-      { class: "dialog confirm-dialog", role: "alertdialog", "aria-label": text },
-      h("p", { class: "confirm-text" }, text),
+      { class: "dialog confirm-dialog", role: "alertdialog", "aria-labelledby": id },
+      h("p", { class: "confirm-text", id }, text),
       h("div", { class: "confirm-buttons" }, yes, no),
     );
     dlg.addEventListener("close", () => {
@@ -255,6 +258,12 @@ export function confirmDialog(text: string, opts: ConfirmOptions): Promise<boole
     dlg.showModal();
     no.focus();
   });
+}
+
+/** Rewords the confirm on screen, if any (a detail in it changed). */
+export function updateConfirm(text: string): void {
+  const p = openConfirm?.querySelector(".confirm-text");
+  if (p && p.textContent !== text) p.textContent = text;
 }
 
 /** Closes the confirm on screen, if any, as a no. For when its question no longer applies. */

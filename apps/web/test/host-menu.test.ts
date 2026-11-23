@@ -75,7 +75,7 @@ describe("leaving the room", () => {
 
   it("the host in the lobby is told who gets the room", () => {
     expect(leaveQuestion(at("lobby", [amy, seat("ben")]), "amy")).toBe("Leave the room? Ben will be the host.");
-    expect(leaveQuestion(at("lobby", [amy]), "amy")).toBe("Leave the room? Nobody else is here. The room stays open for a few hours.");
+    expect(leaveQuestion(at("lobby", [amy]), "amy")).toBe("Leave the room? No other person is here. The room stays open for a few hours.");
   });
 
   it("in a game, everyone is asked; the host also hears who gets the room", () => {
