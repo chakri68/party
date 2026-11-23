@@ -56,7 +56,8 @@ export function signalMeter(): { el: HTMLElement; button: HTMLButtonElement; set
     last = ms;
     button.dataset.level = signalLevel(ms);
     button.setAttribute("aria-label", signalText(ms));
-    if (tip.classList.contains("show")) tip.textContent = signalText(ms);
+    // Only a new word: rewriting the same text would make the live region speak again.
+    if (tip.classList.contains("show") && tip.textContent !== signalText(ms)) tip.textContent = signalText(ms);
   };
   set(null);
   return { el, button, set };
