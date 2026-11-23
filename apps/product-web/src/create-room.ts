@@ -13,7 +13,7 @@ type Created = { code: string } | { error: string };
 const NOT_HUMAN = "Could not check you are human. Please try again.";
 
 /**
- * "Create room". The first one uses the account check the page made on load
+ * "Start a room". The first one uses the account check the page made on load
  * (the header needs it anyway), so the tap doesn't wait on another trip to
  * the server. Later ones ask again: a pass can start or end while the page is
  * open. If a pass seen on load has run out, the server says no to the room

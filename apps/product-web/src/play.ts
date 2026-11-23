@@ -3,7 +3,7 @@ import { roomsPath, startShell } from "@games/web/shell";
 import "@games/web/style.css";
 import { createRoom as apiCreateRoom, me, upgradeRoom } from "./api.ts";
 import { takeBuyParam } from "./buy.ts";
-import { mountFooter, mountHeader, mountPlayHead } from "./header.ts";
+import { mountFooter, mountHeader, PLAY_CREATE_TEXT, PLAY_HOME, watchStartPage } from "./header.ts";
 import { fadeIn } from "./motion.ts";
 import { hostKeyFor, saveHostKey } from "./host-keys.ts";
 import { partyOver } from "./party-over.ts";
@@ -49,11 +49,13 @@ startShell({
   onLockedGame: openPassSheet,
   partyOver,
   nameOverrides: PRODUCT_NAMES,
+  createText: PLAY_CREATE_TEXT,
+  home: PLAY_HOME,
   beforeStart: (outlet) => {
     // The shell's views append into #app, so the HTML's loader goes by hand.
     outlet.querySelector(".cp-loader")?.remove();
     mountHeader(outlet, account);
-    mountPlayHead(outlet);
+    watchStartPage(outlet);
     mountFooter(outlet);
     // The shell draws its first screen after the page has already faded in
     // empty; fade the content up too so it doesn't just appear.

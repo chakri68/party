@@ -127,11 +127,10 @@ html:not(:has(main.home)) .cp-bar { padding-block: 0; }
 html:not(:has(main.home)) .cp-mark { width: 26px; height: 26px; }
 html:not(:has(main.home)) :is(.cp-nav-wide, .cp-menu-btn, .cp-menu) { display: none !important; }
 
-/* The start page's heading, in place of the shell's logo and wordmark. */
-.home > .hero { display: none; }
-.cp-play-head { display: grid; gap: 10px; margin-bottom: 8px; }
-.cp-play-head h1 { margin: 0; font-size: clamp(2.5rem, 11vw, 3.25rem); letter-spacing: -0.045em; line-height: 0.95; }
-.cp-play-head p { margin: 0; color: var(--muted); }
+/* The start page's heading (ShellOptions.home): left-aligned like the site's
+   page heads, not the shell's centred logo and wordmark. */
+.home > .hero { justify-items: start; text-align: left; gap: 10px; margin-bottom: 8px; }
+.home > .hero h1 { font-size: clamp(2.5rem, 11vw, 3.25rem); letter-spacing: -0.045em; line-height: 0.95; }
 
 /* Footer: the site's, on the start page only. */
 .cp-foot { display: none; width: 100%; border-top: 1px solid var(--line); margin-top: 24px; }

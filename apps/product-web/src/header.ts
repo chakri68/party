@@ -1,4 +1,5 @@
 import { h } from "@games/ui";
+import type { ShellHome } from "@games/web/shell";
 import { me, type Me } from "./api.ts";
 import { wireMenu } from "./menu.ts";
 import { swapIn } from "./motion.ts";
@@ -110,35 +111,25 @@ function startColours(start: boolean): void {
   document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", light ? "#fffdf8" : "#0e0e0c");
 }
 
+/** The start page's words, passed to the shell as `home` and `createText` (play.ts). */
+export const PLAY_HOME = {
+  title: "Start a room",
+  subtitle: "Type your name. Then start a new room, or join a friend's room with its code.",
+  pageTitle: PLAY_TITLE,
+} satisfies ShellHome;
+export const PLAY_CREATE_TEXT = "Start a room";
+
 /**
- * The start page's own heading, in place of the shell's logo and wordmark
- * (the header has them now; product.css hides the shell's). It sits at the
- * top of the shell's home view and goes back there whenever that view
- * redraws. The tab title follows it.
+ * Keeps the start page's colours in step as the shell moves between /play
+ * and a room without a page load (see startColours).
  */
-export function mountPlayHead(outlet: HTMLElement): void {
-  const head = h(
-    "div",
-    { class: "cp-play-head" },
-    h("h1", {}, "Start a room"),
-    h("p", {}, "Type your name. Then start a new room, or join a friend's room with its code."),
-  );
+export function watchStartPage(outlet: HTMLElement): void {
   let home: Element | null = null;
-  const place = () => {
-    if (home && home.firstElementChild !== head) home.prepend(head);
-  };
-  const inner = new MutationObserver(place);
   const sync = () => {
     const now = outlet.querySelector(":scope > main.home");
     if (now === home) return;
-    inner.disconnect();
     home = now;
     startColours(!!home);
-    if (!home) return void head.remove();
-    place();
-    inner.observe(home, { childList: true });
-    // The router names the tab before the view mounts; this runs after.
-    document.title = PLAY_TITLE;
   };
   new MutationObserver(sync).observe(outlet, { childList: true });
   sync();
