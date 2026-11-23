@@ -48,7 +48,7 @@ Host picks these in the lobby.
 
 ## On your screen
 
-- **The others.** A row of players, each with a little face-down die per die they hold. The bidder is highlighted.
+- **The others.** A row of players, each with a little face-down die per die they hold. The bidder is highlighted. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more. This round's earlier bids scroll the same way.
 - **The table.** How many dice are in play, whether 1s are wild, the standing bid in big type (a number and a die), and this round's earlier bids.
 - **Your cup.** Your own dice at the bottom. Nobody else sees them until a call.
 - **Your turn.** A stepper for the quantity, six face buttons, and **Liar!**, **Spot on** and **Bid**. It starts on the smallest legal raise, so a nervous bid is one tap. Faces that can't beat the bid are greyed out, and the stepper won't go below what's legal.

@@ -46,8 +46,8 @@ Host picks these in the lobby.
 ## On your screen
 
 - **The table.** The stock on one side (with its count), the pile with its top card on the other. After an eight, a badge shows the called suit.
-- **Other players.** Each shows a card count. A "D" marks the dealer.
-- **Your hand.** Playable cards are highlighted. Eights sit at the end of your hand.
+- **Other players.** Each shows a card count. A "D" marks the dealer. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
+- **Your hand.** Playable cards are highlighted. Eights sit at the end of your hand. A long hand scrolls sideways. It moves to show a card you draw, the card you picked, or the first one you can play.
   - On a mouse, click a card to play it.
   - On touch, tap to select, then tap again or press **Play**.
 - **Call a suit.** Playing an eight opens the picker. **Cancel** takes the eight back.

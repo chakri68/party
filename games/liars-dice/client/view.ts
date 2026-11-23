@@ -85,7 +85,7 @@ export class LiarsDiceView implements GameView {
 
   private root = h("div", { class: "liars-dice" });
   private status = h("div", { class: "ld-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "ld-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "ld-opponents row-fade", role: "list", "aria-label": "Other players" });
   private table = h("div", { class: "ld-table", role: "group", "aria-label": "Table" });
   private bar = h("div", { class: "ld-bar", "aria-hidden": "true" }, h("span"));
   private log = h("p", { class: "ld-log", "aria-live": "polite" });
@@ -507,7 +507,7 @@ export class LiarsDiceView implements GameView {
       history.length
         ? h(
             "ol",
-            { class: "ld-history", "aria-label": "Earlier bids this round" },
+            { class: "ld-history row-fade", "aria-label": "Earlier bids this round" },
             history.map((b) =>
               h(
                 "li",

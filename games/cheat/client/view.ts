@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { claimText, rankPlural } from "../shared/rules.ts";
 import { MAX_PLAY, type Card, type CheatEvent, type CheatPrivateState, type CheatPublicState, type Rank } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
@@ -77,7 +77,7 @@ export class CheatView implements GameView {
 
   private root = h("div", { class: "cheat" });
   private status = h("div", { class: "ch-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "ch-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "ch-opponents row-fade", role: "list", "aria-label": "Other players" });
   private pile = h("div", { class: "ch-pile" });
   private pileCount = h("span", { class: "ch-pile-count" });
   private playLabel = h("p", { class: "ch-play-label" });
@@ -560,11 +560,12 @@ export class CheatView implements GameView {
       btn.setAttribute("aria-pressed", String(picked));
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
-    (fresh as HTMLButtonElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget = (this.selected[0] && this.cards.get(this.selected[0])) || this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
   }
 
   private handButton(card: Card): HTMLButtonElement {

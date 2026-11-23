@@ -37,9 +37,10 @@ Host picks these in the lobby.
 
 ## On your screen
 
+- **Other players.** Card count each, and a "D" for the dealer. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
 - **The pile.** A face-down stack with its count, and the last play: who, how many, and the claim ("one Seven", "three Sevens").
 - **Your own play.** While it's on top, you can see the cards you actually put down.
-- **Your hand.** Sorted by rank. Tap up to 4 cards to select them.
+- **Your hand.** Sorted by rank. Tap up to 4 cards to select them. A long hand scrolls sideways. It moves to show cards you pick up, or the first card you selected.
 - **Claim buttons.** One button if only one rank is allowed. With the near rule, one button per rank.
 - **During a window.** If you can call: **Let it go** and **Cheat!**. The play's owner sees "Straight face...". Players who let it go see "You let it go".
 - **The clock.** A bar drains over the window's length. It ticks audibly near the end for anyone who can still call.

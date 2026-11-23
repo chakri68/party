@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { Card, OhHellEvent, OhHellPrivateState, OhHellPublicPlayer, OhHellPublicState, Suit, TrickPlay } from "../shared/types.ts";
 import { SUIT_NAME, SUIT_SYMBOL, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
 
@@ -92,7 +92,7 @@ export class OhHellView implements GameView {
   private root = h("div", { class: "oh-hell" });
   private status = h("div", { class: "oh-status", role: "status", "aria-live": "polite" });
   private round = h("div", { class: "oh-round" });
-  private players = h("div", { class: "oh-players", role: "list", "aria-label": "Other players" });
+  private players = h("div", { class: "oh-players row-fade", role: "list", "aria-label": "Other players" });
   private tableHead = h("div", { class: "oh-table-head" });
   private tableBody = h("div", { class: "oh-table-body" });
   private table = h("div", { class: "oh-table", role: "group", "aria-label": "Table" }, this.tableHead, this.tableBody);
@@ -624,6 +624,8 @@ export class OhHellView implements GameView {
     // Roving tabindex: one tab stop into the hand, arrows within it.
     const focusTarget = (this.lifted && this.cards.get(this.lifted)) || this.hand.querySelector(".playable") || this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // The picked card, or else the first one you can play: in the row's view, without moving the page.
+    keepInRow(this.hand, focusTarget);
   }
 
   private renderDock(props: GameViewProps, game: OhHellPublicState, priv: OhHellPrivateState | null) {

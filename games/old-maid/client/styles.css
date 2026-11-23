@@ -271,6 +271,20 @@
   .om-hand { justify-content: safe center; }
 }
 
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .old-maid { --card-w: 58px; --card-h: 84px; --card-overlap: -18px; gap: 8px; }
+  .om-card .corner { font-size: 0.95rem; }
+  .om-card .pip { font-size: 1.9rem; }
+  .om-table { gap: 16px; padding: 8px 12px; }
+  .om-status { min-height: 40px; }
+  .om-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .om-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
+  .om-action { flex-wrap: wrap; justify-content: flex-start; }
+  .om-hand { grid-column: 2; grid-row: 1 / span 2; }
+}
+
 /* ---- Feedback ------------------------------------------------------------- */
 
 .old-maid .shake { animation: om-shake 300ms ease; }

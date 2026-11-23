@@ -3,6 +3,7 @@ import { faceColor, faceSvg } from "./faces.ts";
 
 export { faceColor, faceSvg };
 export { dieSvg, diePlural, DIE_NAMES, type DieOptions } from "./dice.ts";
+export { keepInRow, rowScrollDelta } from "./row.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)

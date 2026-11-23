@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { compareCards } from "../shared/rules.ts";
 import {
   EIGHT,
@@ -76,7 +76,7 @@ export class CrazyEightsView implements GameView {
 
   private root = h("div", { class: "crazy-eights" });
   private status = h("div", { class: "ce-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "ce-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "ce-opponents row-fade", role: "list", "aria-label": "Other players" });
   private stock = h("button", { type: "button", class: "ce-stock" });
   private pile = h("div", { class: "ce-pile" });
   private suitBadge = h("div", { class: "ce-suit-badge" });
@@ -449,7 +449,6 @@ export class CrazyEightsView implements GameView {
       btn.setAttribute("aria-pressed", String(picked));
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
-    (fresh as HTMLButtonElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget =
@@ -457,6 +456,8 @@ export class CrazyEightsView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
   }
 
   private handButton(card: Card): HTMLButtonElement {

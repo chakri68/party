@@ -48,8 +48,8 @@ Host picks these in the lobby.
 ## On your screen
 
 - **The board.** One row per suit (and per deck). Played cards show up; empty slots are outlines, with the seven slot marked.
-- **Other players.** Each shows their card count. A "D" marks the dealer, and the player whose turn it is is highlighted.
-- **Your hand.** Playable cards are highlighted.
+- **Other players.** Each shows their card count. A "D" marks the dealer, and the player whose turn it is is highlighted. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
+- **Your hand.** Playable cards are highlighted. A long hand scrolls sideways. It moves to show the card you picked, or the first one you can play.
   - On a mouse, click a card to play it.
   - On touch, tap once to select, then tap again or press the **Play** button.
 - **Pass.** Only appears when you're allowed to pass. On *Only when stuck* that's when nothing fits, which the game usually handles for you. On *Any time* it's there your whole turn, next to Play.

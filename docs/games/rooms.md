@@ -209,6 +209,10 @@ The host also has these in the menu (the three dots at the top right):
 - **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
+A main button you can't press right now is grey with a dashed edge, not lime.
+
+In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards or dice, with your hand beside its buttons. That keeps the table in view.
+
 ## Leaving
 
 **Leave room** goes back to the home screen and gives up your seat. Mid-game it asks first: "Leave the game? You will be out for the rest of this round." You can't resume a seat you left on purpose.

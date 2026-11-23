@@ -57,9 +57,9 @@ Host picks these in the lobby.
 ## On your screen
 
 - **The pile.** The set to beat, and who played it. When you lead, it says "Your lead".
-- **Other players.** Card count, points, title tag from last round, and a "D" for the dealer.
+- **Other players.** Card count, points, title tag from last round, and a "D" for the dealer. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
 - **Round line.** "Round 2 of 3", plus "match to skip" if that's on.
-- **Your hand.** Sorted from 3 up to 2. Tap cards to pick a set; the **Play** button names the set, and is disabled with a reason if the pick doesn't beat the pile.
+- **Your hand.** Sorted from 3 up to 2. Tap cards to pick a set; the **Play** button names the set, and is disabled with a reason if the pick doesn't beat the pile. A long hand scrolls sideways. It moves to show the card you picked, or the first one you can play.
 - **Pass.** Only shown when there's something to pass on. You can't pass when leading.
 - **Recap.** Between rounds, a list of the finish order and titles.
 - Bubbles show "Can't beat", "Pass", "Skipped" and titles as people go out. Sounds and vibration cue the deal, plays, swaps, your turn and the ending.

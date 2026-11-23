@@ -377,6 +377,21 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-moves button.ld-raise { flex: 0 1 auto; min-width: 200px; }
 }
 
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .liars-dice { --die-dock: 32px; --die-row: 22px; gap: 8px; }
+  .ld-table { padding: 10px 12px; gap: 8px; }
+  .ld-die.big { width: 52px; height: 52px; }
+  .ld-bid-main b { font-size: 2.6rem; }
+  .ld-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); gap: 6px 16px; }
+  .ld-dock-head { flex-direction: column; align-items: flex-start; max-width: 220px; min-height: 0; gap: 6px; }
+  .ld-my-dice { justify-content: flex-start; }
+  .ld-action.picking { gap: 6px; }
+  button.ld-face, button.ld-step, .ld-moves button { min-height: 44px; }
+  button.ld-face .ld-die { width: 30px; height: 30px; }
+}
+
 /* ---- Feedback ------------------------------------------------------------------------- */
 
 .liars-dice .shake { animation: ld-shake 300ms ease; }

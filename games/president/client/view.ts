@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { checkPlay, compareCards, ordinal, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG } from "./cards.ts";
@@ -83,7 +83,7 @@ export class PresidentView implements GameView {
 
   private root = h("div", { class: "president" });
   private status = h("div", { class: "pr-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "pr-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "pr-opponents row-fade", role: "list", "aria-label": "Other players" });
   private roundLabel = h("p", { class: "pr-round" });
   private pile = h("div", { class: "pr-pile" });
   private pileCaption = h("p", { class: "pr-pile-caption" });
@@ -550,6 +550,8 @@ export class PresidentView implements GameView {
       [...this.cards.values()].find((b) => b.classList.contains("playable")) ||
       this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // The picked card, or else the first one you can play: in the row's view, without moving the page.
+    keepInRow(this.hand, focusTarget);
   }
 
   private handButton(card: Card): HTMLButtonElement {

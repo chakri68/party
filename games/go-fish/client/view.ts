@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { compareCards, formatRank, makeCard, rankName, rankPlural } from "../shared/rules.ts";
 import { SUITS, type AskRecord, type Card, type GoFishEvent, type GoFishPrivateState, type GoFishPublicState, type Rank } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
@@ -107,7 +107,7 @@ export class GoFishView implements GameView {
 
   private root = h("div", { class: "go-fish" });
   private status = h("div", { class: "gf-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "gf-opponents", role: "group", "aria-label": "Other players" });
+  private opponents = h("div", { class: "gf-opponents row-fade", role: "group", "aria-label": "Other players" });
   private pond = h("div", { class: "gf-pond", role: "img" });
   private book = h("div", { class: "gf-book", role: "img" });
   private bookCount = h("span", { class: "gf-book-count" });
@@ -600,11 +600,12 @@ export class GoFishView implements GameView {
       btn.setAttribute("aria-label", `${cardLabel(card)}${myTurn ? `. Ask for ${plural(card.rank)}` : ""}`);
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
-    (fresh as HTMLButtonElement | null)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
     // Roving tabindex: one tab stop into the hand, arrows within it (§38).
     const focusTarget = [...this.cards.values()].find((b) => b.classList.contains("selected")) ?? this.hand.firstElementChild;
     for (const btn of this.cards.values()) btn.tabIndex = btn === focusTarget ? 0 : -1;
+    // New cards from the pile, or else the card to look at: in the row's view, without moving the page.
+    keepInRow(this.hand, (fresh as HTMLButtonElement | null) ?? focusTarget);
   }
 
   private handButton(card: Card): HTMLButtonElement {

@@ -41,10 +41,10 @@ Host picks these in the lobby.
 ## On your screen
 
 - **Trump and the round.** The turned-up card, "Round 4 of 13 · 4 cards", and a strip of bars, one per round, as tall as its hand. Played rounds are faded, the current one's lit.
-- **Other players.** A chip each: name, a **D** on the dealer, score, cards left, and "bid 2 · won 1". It goes lime when they've hit their bid exactly and red once they're over.
+- **Other players.** A chip each: name, a **D** on the dealer, score, cards left, and "bid 2 · won 1". It goes lime when they've hit their bid exactly and red once they're over. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
 - **Bidding.** The table shows "Bids so far" against the hand size. On your bid, a row of numbers sits above your hand; the dealer's forbidden number is struck out and can't be pressed. Tap a number, then tap it again (or press **Bid N**) to send it.
 - **The trick.** One slot per player in play order, with names under the cards. The one that takes it lifts and the rest dim. **Last trick** opens the previous trick.
-- **Your hand.** Sorted by suit, trump first, low to high. Trump cards have a lime stripe. On your turn, cards you can't play are dimmed (the server says which). Tap a card to lift it, then tap it again or press **Play** to put it down. Two taps on purpose: there's no taking a card back.
+- **Your hand.** Sorted by suit, trump first, low to high. Trump cards have a lime stripe. On your turn, cards you can't play are dimmed (the server says which). Tap a card to lift it, then tap it again or press **Play** to put it down. Two taps on purpose: there's no taking a card back. A long hand scrolls sideways. It moves to show the card you lifted, or the first one you can play.
 - **Round summary.** Bid, won, points and total for everyone, a tick by whoever's ready, and the countdown.
 - Sounds and vibration cue the deal, plays, tricks you take, your turn, and whether you made your bid.
 

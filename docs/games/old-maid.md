@@ -37,7 +37,7 @@ Host picks these in the lobby.
 
 - **The fan.** The cards you're taking from, face down. On your turn it's the player to your right; otherwise you can watch whose fan is being picked from.
 - **Discard pile.** Shows how many pairs are down and the latest pair.
-- **Other players.** Card count, a "D" for the dealer, and their finishing place once they're out.
+- **Other players.** Card count, a "D" for the dealer, and their finishing place once they're out. If they don't all fit, the row scrolls sideways, and a faded edge shows there are more.
 - **Your hand.** Sorted by rank, always visible to you only. You'll see "You took ..." when you pick a card, and when a card is taken from you.
 - **Take it.** On touch, appears once you've selected a card from the fan.
 - With the joker, you get an "Uh oh" bubble when you take it and "Good riddance" when someone takes it from you. "Out!" marks anyone who goes out.

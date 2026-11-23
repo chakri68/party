@@ -76,7 +76,7 @@ export class OldMaidView implements GameView {
 
   private root = h("div", { class: "old-maid" });
   private status = h("div", { class: "om-status", role: "status", "aria-live": "polite" });
-  private opponents = h("div", { class: "om-opponents", role: "list", "aria-label": "Other players" });
+  private opponents = h("div", { class: "om-opponents row-fade", role: "list", "aria-label": "Other players" });
   private fanLabel = h("p", { class: "om-fan-label" });
   private fan = h("div", { class: "om-fan", role: "toolbar" });
   private pile = h("div", { class: "om-pile" });

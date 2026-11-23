@@ -249,17 +249,21 @@
 /* After the game the results panel leads; the hand is just for the record. */
 .crazy-eights.finished .ce-dock { position: static; background: none; }
 
+/* Buttons too wide to sit beside "Your hand" take their own row, not a squeeze. */
 .ce-dock-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   min-height: 44px;
 }
-.ce-me { display: flex; align-items: baseline; gap: 8px; }
+/* "Your hand" on its own line, so the hint and buttons get the width on a 360 px phone. */
+.ce-me { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; align-items: baseline; gap: 0 8px; flex: 0 0 auto; }
+.ce-me .you { grid-column: 1 / -1; }
 .ce-me .you { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
-.ce-action { display: flex; align-items: center; gap: 10px; }
-.ce-action .hint { color: var(--muted); font-size: 0.9rem; }
+.ce-action { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; flex: 1 1 auto; }
+.ce-action .hint { color: var(--muted); font-size: 0.9rem; text-align: right; text-wrap: balance; }
 .ce-action .hint.strong { color: var(--ink); font-weight: 700; }
 .ce-action button:not(.link) { min-width: 96px; }
 
@@ -308,6 +312,24 @@
   .ce-table .ce-card .pip, .ce-card.on-table .pip { font-size: 3rem; }
   .ce-hand { justify-content: safe center; }
   .ce-picker { max-width: 420px; justify-self: end; width: 100%; }
+}
+
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .crazy-eights { --card-w: 58px; --card-h: 84px; --card-overlap: -18px; --table-card-w: 58px; --table-card-h: 84px; gap: 8px; }
+  .ce-card .corner { font-size: 0.95rem; }
+  .ce-card .pip { font-size: 1.9rem; }
+  .ce-table .ce-card .pip, .ce-card.on-table .pip { font-size: 1.9rem; }
+  .ce-table .ce-card .corner, .ce-card.on-table .corner { font-size: 0.95rem; }
+  .ce-table { column-gap: 28px; padding: 8px 12px; }
+  .ce-status { min-height: 40px; }
+  .ce-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .ce-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
+  .ce-action { flex-wrap: wrap; justify-content: flex-start; }
+  .ce-hand { grid-column: 2; grid-row: 1 / span 3; }
+  .ce-picker { grid-column: 1; margin-bottom: 0; max-width: 280px; }
+  .ce-pick { min-height: 44px; }
 }
 
 /* ---- Feedback ------------------------------------------------------------- */
