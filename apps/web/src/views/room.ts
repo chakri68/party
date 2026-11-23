@@ -28,6 +28,7 @@ import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
+import { lockGame } from "./pause.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
@@ -729,6 +730,8 @@ export class RoomView implements View {
       const view = await this.ensureGameView(room.gameId);
       if (view && this.last === u) {
         view.update(props);
+        // A view that mounted during a pause goes under the cover now, not at the next render.
+        lockGame(this.gameHost, this.pauseCover?.el ?? null);
         this.gameViewFed = true;
         const backlog = this.streamBacklog;
         this.streamBacklog = [];
@@ -821,7 +824,7 @@ export class RoomView implements View {
       if (this.pauseCover) {
         this.pauseCover.el.remove();
         this.pauseCover = null;
-        for (const c of this.gameHost.children) (c as HTMLElement).inert = false;
+        lockGame(this.gameHost, null);
         this.pauseNote.textContent = "";
       }
       return;
@@ -849,8 +852,7 @@ export class RoomView implements View {
     }
     if (this.pauseCover.el.parentNode !== this.gameHost) this.gameHost.append(this.pauseCover.el);
     // Keyboard and screen readers can't reach the game under the cover either.
-    // Every call: the game's view may mount under it after the pause.
-    for (const c of this.gameHost.children) (c as HTMLElement).inert = c !== this.pauseCover.el;
+    lockGame(this.gameHost, this.pauseCover.el);
   }
 
   /**
