@@ -88,3 +88,26 @@ describe("homeParts", () => {
     expect(homeParts(false, false)).not.toContain("host");
   });
 });
+
+describe("host app home options", async () => {
+  const { configure } = await import("../src/shell.ts");
+  const { createText, heroWords } = await import("../src/views/home.ts");
+  afterEach(() => configure({}));
+
+  it("keeps today's words by default", () => {
+    configure({});
+    expect(createText(undefined)).toBe("Create room");
+    expect(createText({ gameId: "cheat" })).toBe("Play Cheat with computers");
+    expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: null, tagline: "Hi" });
+  });
+  it("uses createText over the setup label", () => {
+    configure({ createText: "Start a room" });
+    expect(createText({ gameId: "cheat" })).toBe("Start a room");
+  });
+  it("uses the home title and subtitle", () => {
+    configure({ home: { title: "Start a room", subtitle: "Type your name." } });
+    expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: "Start a room", tagline: "Type your name." });
+    configure({ home: { subtitle: "Only this" } });
+    expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: null, tagline: "Only this" });
+  });
+});
