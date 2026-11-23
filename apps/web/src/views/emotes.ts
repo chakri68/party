@@ -13,7 +13,7 @@ export interface EmotesOptions {
 
 /**
  * Floating emoji for the whole room. A header button opens a bar of the six;
- * the bar stays open so you can mash. What floats is whatever the server
+ * the bar closes after a send, so it never covers the game. What floats is whatever the server
  * echoes back, so everyone sees the same thing, rate limit included.
  */
 export class Emotes {
@@ -26,7 +26,11 @@ export class Emotes {
 
   constructor(opts: EmotesOptions) {
     this.opts = opts;
-    this.bar.append(...REACTIONS.map((r) => h("button", { type: "button", "aria-label": `Send ${r}`, onclick: () => this.opts.send(r) }, r)));
+    this.bar.append(...REACTIONS.map((r) => h("button", { type: "button", "aria-label": `Send ${r}`, onclick: () => {
+      this.opts.send(r);
+      this.toggle(false);
+      this.button.focus();
+    } }, r)));
     this.button.addEventListener("click", () => this.toggle());
     this.wrap.append(this.button, this.bar);
     this.wrap.addEventListener("keydown", (e) => {

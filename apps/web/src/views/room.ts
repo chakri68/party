@@ -1176,6 +1176,7 @@ export class RoomView implements View {
       const rulesBtn = h("button", {
         type: "button",
         class: "link small",
+        "aria-label": `Rules for ${name}`,
         onclick: () => openDialog(`How to play ${name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
       }, "Rules");
 
@@ -1233,10 +1234,9 @@ export class RoomView implements View {
         };
       }
       option.append(
-        brandMark("mark game-icon"),
-        h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted" }, description), meta, want),
+        h("span", { class: "game-option-text" }, nameLine, h("span", { class: "muted game-option-desc" }, description), meta, want),
       );
-      const row = h("li", {}, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
+      const row = h("li", { class: "game-row" }, option, h("div", { class: "game-option-actions" }, rulesBtn, suggest));
       return { row, section: entry.section, text: `${name} ${description}`.toLowerCase() };
     });
 

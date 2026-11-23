@@ -61,7 +61,7 @@ Top to bottom:
 - The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll. If the settings or the computers stop the game from starting, the reason shows under the start button. Other players see it under the settings.
 - **Leave room**, and for the host, **End party**.
 
-In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
+In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile; the reaction bar closes after you send one), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
 
 When the screen changes (the game starts or restarts, the results come, back to the lobby), the new screen opens at its top.
 
@@ -69,7 +69,7 @@ When the screen changes (the game starts or restarts, the results come, back to 
 
 The host is the first person into the room. The tag next to their name says "host". Only they can:
 
-- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy), each with its player range. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
+- **Change** the game. This opens "Pick a game": games sit under headings (Cards, Words and drawing, Hidden roles, Racing, Strategy). Each game is one short row with its name, a one-line description and its player range. Tap the row to pick it. **Rules** is in the same row. A game that plays best with the number of people in the room right now gets a "Best for N" tag. A search box appears once there are more than six games. A game that can't seat everyone currently in the room is greyed out with "Up to N players, you're M". Picking a different game resets the settings to that game's defaults.
 - Change the **settings**. Everyone else sees them read-only.
 - **Start game**.
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
@@ -132,7 +132,7 @@ The smile button in the header opens a bar of the same six emoji. Tap one and it
 
 ## Sound board
 
-The sound board button in the header opens a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
+The sound board button in the header (a speaker) opens a grid of short sounds. Tap one and everyone in the room hears it, in voice or not.
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.

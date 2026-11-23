@@ -24,7 +24,7 @@ const STROKE = 'fill="none" stroke="currentColor" stroke-width="2" stroke-lineca
 const ICONS = {
   "sound-on": `<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>`,
   "sound-off": `<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>`,
-  "sound-board": `<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>`,
+  "sound-board": `<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>`,
   "arrow-right": `<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>`,
   dice: `<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>`,
   chat: `<path d="M20.5 11.5a8 8 0 0 1-11.9 7L4 19.5l1.1-4.3a8 8 0 1 1 15.4-3.7z"/>`,

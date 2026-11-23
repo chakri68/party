@@ -489,20 +489,21 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   text-transform: uppercase;
   color: var(--muted);
 }
+.game-row { display: flex; align-items: stretch; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); min-height: 56px; }
+.game-row:has(> [aria-current="true"]) { border-color: var(--accent); background: var(--accent-soft); }
 .game-option {
-  width: 100%;
-  min-height: 0;
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
+  align-items: center;
+  padding: 8px 4px 8px 12px;
   text-align: left;
   font-weight: 400;
-  background: var(--bg);
-}
-.game-option .game-icon { width: 36px; height: 36px; transition: transform 260ms cubic-bezier(.2, .9, .3, 1.4); }
-@media (hover: hover) and (pointer: fine) {
-  button.game-option:hover:not(:disabled) .game-icon { transform: rotate(-8deg) scale(1.08); }
+  background: none;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: none;
 }
 /* The list comes in a row at a time behind the dialog's pop (capped, so a
    long list doesn't keep you waiting). Fresh dialog each open, so it plays
@@ -512,7 +513,7 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .game-list[open] .game-options > li { animation: row-in 340ms cubic-bezier(.2, .8, .2, 1) calc(90ms + min(var(--i, 0), 12) * 28ms) backwards; }
 }
 @keyframes row-in { from { opacity: 0; transform: translateY(8px); } }
-.game-option[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.game-option:focus-visible { outline-offset: -3px; }
 .game-option.locked { opacity: 0.6; }
 .game-option.locked .tag { background: var(--line); color: var(--muted); }
 .game-option:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -521,16 +522,14 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The room has the player count this game plays best at. Solid, so it reads before the softer tags. */
 .game-option .tag.best { display: inline-flex; align-items: center; gap: 3px; background: var(--accent); color: var(--accent-ink); }
 .game-option .tag.best .icon { width: 11px; height: 11px; }
-.game-option-text .muted { font-size: 0.88rem; }
+.game-option-text .muted { font-size: 0.85rem; }
+.game-option-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-option-meta { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .game-option-meta.warn { color: var(--danger); }
 .game-option-want { justify-self: start; font-size: 0.78rem; font-weight: 700; color: var(--accent); }
-.game-option.readonly { border: 1.5px solid var(--line); border-radius: 14px; }
-.game-option.readonly[aria-current="true"] { border-color: var(--accent); }
-.game-option-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 2px 4px 0; }
-.game-option-actions:has(> :only-child) { padding: 0 4px; }
-.game-option-actions button.small { min-height: 36px; padding: 0 14px; font-size: 0.85rem; }
-.game-option-actions button.link.small { min-height: 36px; padding: 0 6px; }
+.game-option-actions { display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 2px; padding: 2px 6px 2px 0; flex: none; max-width: 104px; }
+.game-option-actions button.small { min-height: 44px; padding: 0 10px; font-size: 0.85rem; line-height: 1.15; }
+.game-option-actions button.link.small { min-height: 44px; padding: 0 6px; }
 .game-option-actions button.small[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .suggestion-line { flex-basis: 100%; margin: -4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.9rem; }
 .suggestion-line button.link { min-height: 32px; padding: 0 4px; color: var(--accent); }
