@@ -4,6 +4,7 @@ import { faceColor, faceSvg } from "./faces.ts";
 export { faceColor, faceSvg };
 export { dieSvg, diePlural, DIE_NAMES, type DieOptions } from "./dice.ts";
 export { keepInRow, rowScrollDelta, rowTarget, type RowMemo } from "./row.ts";
+export { countdown, formatSeconds, type Countdown, type CountdownOptions } from "./countdown.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)
