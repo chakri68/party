@@ -1,5 +1,5 @@
 import { audio } from "@games/audio";
-import { h, seatName, type GameClientApi } from "@games/ui";
+import { confirmDialog, h, seatName, type GameClientApi } from "@games/ui";
 import { formatClock, parseControl, parseGhost } from "../../shared/wire.ts";
 import type { NavigatorSession, PublicTeam } from "../../shared/types.ts";
 import { awayBanner, startNote, teamBadge, runClock, teamClock, type RoleProps, type RoleView } from "../role.ts";
@@ -164,7 +164,7 @@ class NavigatorView implements RoleView {
     });
     this.back.addEventListener("click", () => api.act({ type: "player.ready", ready: false }));
     this.start.addEventListener("click", () => api.act({ type: "race.start" }));
-    this.end.addEventListener("click", () => confirm("End the race now? Cars still driving get a DNF.") && api.act({ type: "race.end" }));
+    this.end.addEventListener("click", () => void confirmDialog("End the race now? Cars still driving get a DNF.", { ok: "End race", danger: true }).then((yes) => yes && api.act({ type: "race.end" })));
     this.notesBtn.addEventListener("click", () => {
       this.notes.hidden = !this.notes.hidden;
       this.notesBtn.setAttribute("aria-expanded", String(!this.notes.hidden));

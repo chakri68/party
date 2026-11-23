@@ -532,6 +532,12 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .suggestion-line button.link { min-height: 32px; padding: 0 4px; color: var(--accent); }
 .dialog h2 { margin: 0 0 10px; font-size: 1.25rem; letter-spacing: -0.02em; }
 .dialog form { margin-top: 16px; display: flex; justify-content: flex-end; }
+.dialog:focus { outline: none; }
+/* In-app confirm (confirmDialog): the question, then the two answers side by side. */
+.confirm-dialog { width: min(360px, calc(100vw - 32px)); }
+.confirm-text { margin: 0; font-size: 1.05rem; line-height: 1.4; }
+.confirm-buttons { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+.confirm-buttons button { flex: 1 1 120px; min-height: 44px; }
 .rules { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
 
 /* Home: host your own (main site, no owner key) */
@@ -1161,8 +1167,6 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 
 /* End party: the host's last word, asked inline. */
 .end-party { display: grid; justify-items: center; gap: 10px; width: 100%; text-align: center; }
-.end-party p { margin: 0; }
-.end-party-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
 /* The recap */
 .recap {

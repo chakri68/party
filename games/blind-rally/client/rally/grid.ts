@@ -1,5 +1,5 @@
 import type { RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
+import { avatar, confirmDialog, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
 import { rallyBriefing, rallyPreview } from "../../shared/rally.ts";
 import { trackName } from "../../shared/tracks-public.ts";
 import { formatClock } from "../../shared/wire.ts";
@@ -123,7 +123,7 @@ export class RallyGrid implements Lobby {
     } else if (editable) {
       host.push(h("p", { class: "br-blocker" }, blocker ?? "Everyone is ready. Waiting for the host."));
     } else if (isHost && game.phase !== "finished") {
-      host.push(h("button", { type: "button", class: "link", onclick: () => confirm("End the race now? Cars still driving get a DNF.") && this.api.act({ type: "race.end" }) }, "End race"));
+      host.push(h("button", { type: "button", class: "link", onclick: () => void confirmDialog("End the race now? Cars still driving get a DNF.", { ok: "End race", danger: true }).then((yes) => yes && this.api.act({ type: "race.end" })) }, "End race"));
     }
 
     this.picker.update(game, me, editable);
