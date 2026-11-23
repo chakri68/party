@@ -239,14 +239,14 @@ export class CheatView implements GameView {
         }
         case "passed":
           // No waiting on it: passes come in quick and nobody needs a show.
-          if (e.playerId !== props.playerId) void bubble(this.anchorFor(e.playerId, props), "Pass", "anim-bubble", 700);
+          if (e.playerId !== props.playerId) void bubble(this.anchorFor(e.playerId, props), "Pass", "anim-bubble", 700, true);
           break;
         case "called":
           await this.showCall(e, props);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -322,7 +322,7 @@ export class CheatView implements GameView {
     this.bar.hidden = true;
     audio.play("nudge");
     audio.buzz(30);
-    await bubble(this.anchorFor(e.callerId, props), "Cheat!", "anim-bubble ch-shout", 1100);
+    await bubble(this.anchorFor(e.callerId, props), "Cheat!", "anim-bubble ch-shout", 1100, e.callerId !== props.playerId);
 
     // Turn the play over, card by card.
     replaceChildren(

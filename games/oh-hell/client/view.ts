@@ -238,7 +238,7 @@ export class OhHellView implements GameView {
           break;
         case "bid":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), `Bid ${e.tricks}`, "anim-bubble", 900);
+          await bubble(this.anchorFor(e.playerId, props), `Bid ${e.tricks}`, "anim-bubble", 900, e.playerId !== props.playerId);
           break;
         case "played":
           await this.flyPlay(e.playerId, e.card, props);
@@ -254,7 +254,7 @@ export class OhHellView implements GameView {
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -319,7 +319,7 @@ export class OhHellView implements GameView {
       audio.play("correct");
       audio.buzz(30);
     }
-    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "You win" : "Wins it", "anim-bubble", 900);
+    await bubble(this.anchorFor(winnerId, props), winnerId === props.playerId ? "You win" : "Wins it", "anim-bubble", 900, winnerId !== props.playerId);
   }
 
   /** The trick sweeps over to whoever took it. */
@@ -618,7 +618,7 @@ export class OhHellView implements GameView {
       btn.setAttribute("aria-pressed", String(lifted));
       btn.setAttribute(
         "aria-label",
-        `${cardLabel(card)}${card.suit === game.trump.suit ? ", trump" : ""}${playing && !ok ? ", can't play" : ""}${lifted ? ", tap again to play" : ""}`,
+        `${cardLabel(card)}${card.suit === game.trump.suit ? ", trump" : ""}${playing && !ok ? ", can't play" : ""}${lifted ? ", pick again to play" : ""}`,
       );
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });

@@ -229,7 +229,7 @@ export class HeistView implements GameView {
     const heat = Array.from({ length: MAX_HEAT }, (_, i) => h("span", { class: i < game.heat ? "hz-heat-dot on" : "hz-heat-dot" }));
     replaceChildren(
       this.board,
-      h("p", { class: "hz-legend" }, "The number in each circle is the team size."),
+      game.phase === "finished" ? null : h("p", { class: "hz-legend" }, "The number in each circle is the team size."),
       h("ol", { class: "hz-jobs", "aria-label": "Jobs" }, jobs),
       h(
         "div",

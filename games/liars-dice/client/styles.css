@@ -379,10 +379,12 @@ button.ld-spot { border-color: var(--danger); color: var(--danger); }
   .ld-moves button.ld-raise { flex: 0 1 auto; min-width: 200px; }
 }
 
-/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
-   label and buttons, so the dock leaves the table in view. */
+/* Phone held sideways: a short screen. Smaller dice, and your dice beside their
+   label and buttons, so the dock leaves the table in view. Opponents stay on one
+   row that scrolls sideways, as on a phone held upright (the 700 px rule wraps them). */
 @media (orientation: landscape) and (max-height: 500px) {
   .liars-dice { --die-dock: 32px; --die-row: 22px; gap: 8px; }
+  .ld-opponents { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; }
   .ld-table { padding: 10px 12px; gap: 8px; }
   .ld-die.big { width: 52px; height: 52px; }
   .ld-bid-main b { font-size: 2.6rem; }

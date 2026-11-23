@@ -372,7 +372,7 @@ button.th-ready { min-width: 120px; }
   .th-hand { gap: 14px; }
 }
 
-/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+/* Phone held sideways: a short screen. Smaller discs, and your discs beside their
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
   .thorns { --disc: 36px; --disc-overlap: -16px; --hand-disc: 48px; gap: 8px; }

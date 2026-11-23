@@ -268,7 +268,7 @@ export class GoFishView implements GameView {
           break;
         case "asked": {
           const text = e.targetId === me ? `Any ${plural(e.rank)}?` : `${seatName(props.room, e.targetId)}, any ${plural(e.rank)}?`;
-          await bubble(this.anchorFor(e.playerId, props), text, "anim-bubble", 1100);
+          await bubble(this.anchorFor(e.playerId, props), text, "anim-bubble", 1100, e.playerId !== props.playerId);
           break;
         }
         case "handed":
@@ -277,13 +277,13 @@ export class GoFishView implements GameView {
           break;
         case "go-fish":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Go fish!");
+          await bubble(this.anchorFor(e.playerId, props), "Go fish!", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "drew": {
           const next = events[i + 1];
           const mine = e.playerId === me && next?.type === "you-drew" ? next.cards : null;
           await this.flyFromPond(e.playerId, mine ?? (e.shown ? [e.shown] : null), e.count);
-          if (e.shown) await bubble(this.anchorFor(e.playerId, props), `${howMany(1, e.shown.rank).replace(/^a/, "A")}!`);
+          if (e.shown) await bubble(this.anchorFor(e.playerId, props), `${howMany(1, e.shown.rank).replace(/^a/, "A")}!`, undefined, undefined, e.playerId !== props.playerId);
           break;
         }
         case "booked":
@@ -291,11 +291,11 @@ export class GoFishView implements GameView {
           if (e.playerId === me) audio.buzz([20, 40, 20]);
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), "Out");
+          await bubble(this.anchorFor(e.playerId, props), "Out", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;

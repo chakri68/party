@@ -303,9 +303,9 @@ export class SamePageView implements GameView {
         this.locked,
         h("span", { class: "sp-locked-k" }, "Your answer"),
         h("strong", { class: "sp-locked-v" }, mine),
-        h("span", { class: "sp-locked-k" }, answering ? "tap to change" : ""),
+        h("span", { class: "sp-locked-k" }, answering ? "change it" : ""),
       );
-      this.locked.setAttribute("aria-label", `Your answer: ${mine}. Tap to change.`);
+      this.locked.setAttribute("aria-label", `Your answer: ${mine}. Change it.`);
       this.locked.disabled = !answering;
     }
     const live = game.players.filter((p) => !p.removed);
@@ -490,8 +490,8 @@ export class SamePageView implements GameView {
         if (!this.isHost(props)) text = `${host} is joining answers with the same meaning.`;
         else if (this.pick) {
           const label = game.groups?.find((g) => g.id === this.pick)?.label ?? "";
-          text = `Now tap the group to join with “${label}”.`;
-        } else text = "Do 2 groups mean the same thing? Tap 1 group. Then tap the other group.";
+          text = `Pick the group to join with “${label}”.`;
+        } else text = "Do 2 groups mean the same thing? Pick 1 group. Then pick the other group.";
         break;
       case "reveal":
       case "over": {

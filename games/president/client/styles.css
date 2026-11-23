@@ -300,6 +300,7 @@
   .pr-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
   .pr-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
   .pr-action { flex-wrap: wrap; justify-content: flex-start; }
+  .pr-action .hint { text-align: left; }
   .pr-hand { grid-column: 2; grid-row: 1 / span 2; }
 }
 

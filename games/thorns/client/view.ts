@@ -336,9 +336,9 @@ export class ThornsView implements GameView {
         ? h("span", {}, "Put down your first disc")
         : h("span", {}, waiting.length === 1 ? `Waiting for ${this.name(props, waiting[0]!.id)}` : `Waiting for ${waiting.length} players`);
     } else if (game.phase === "turns") {
-      body = mine ? h("span", {}, priv?.hand.length ? "Your turn. Put down a disc or bid." : "No discs in your hand. You must bid.") : them("must put down a disc or bid");
+      body = mine ? h("span", {}, priv?.hand.length ? "Your turn. Put down a disc or bid." : "No discs in your hand. You must bid.") : them("is putting down a disc or bidding");
     } else if (game.phase === "bidding" && game.bid) {
-      body = mine ? h("span", {}, `Say more than ${game.bid.amount}, or pass`) : them(`must say more than ${game.bid.amount} or pass`);
+      body = mine ? h("span", {}, `Say more than ${game.bid.amount}, or pass`) : them(`is bidding: more than ${game.bid.amount}, or pass`);
     } else if (game.phase === "flipping" && c) {
       const left = c.amount - c.flips.length;
       body = mine ? h("span", {}, `Turn over ${left} more. Pick a mat.`) : them(`is turning over discs: ${c.flips.length} of ${c.amount}`);

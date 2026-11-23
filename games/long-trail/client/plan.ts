@@ -162,10 +162,13 @@ export class PlanForm {
           type: "button",
           class: "primary lt-action",
           disabled: !!problem || this.sent,
+          // Sent and waiting on the server: stays lime, not the greyed "can't press" look.
+          "aria-busy": this.sent ? "true" : null,
           onclick: (e: Event) => {
             if (this.sent) return;
             this.sent = true;
             (e.currentTarget as HTMLButtonElement).disabled = true;
+            (e.currentTarget as HTMLButtonElement).setAttribute("aria-busy", "true");
             x.propose(this.plan(game));
           },
         },

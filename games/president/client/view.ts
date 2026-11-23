@@ -48,7 +48,7 @@ function describe(e: PresidentEvent, props: GameViewProps): string | null {
     case "skipped":
       return e.playerId === me ? "Same rank played. You miss this turn." : `Same rank played. ${who(e.playerId)} misses this turn.`;
     case "cleared":
-      return `The pile is empty. ${who(e.leaderId)} ${e.leaderId === me ? "lead" : "leads"}.`;
+      return `The pile is empty. ${who(e.leaderId)} ${e.leaderId === me ? "play" : "plays"} first.`;
     case "went-out":
       return e.playerId === me ? `You finished ${ordinal(e.place)}. You are ${the(e.title)}.` : `${who(e.playerId)} finished ${ordinal(e.place)}: ${the(e.title)}.`;
     case "round-over":
@@ -236,17 +236,17 @@ export class PresidentView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.auto ? "Can't beat" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.auto ? "Can't beat" : "Pass", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "cleared":
           await this.sweepPile();
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${e.title}!` : e.title);
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? `You're ${e.title}!` : e.title, undefined, undefined, e.playerId !== props.playerId);
           break;
         case "round-over":
           // Hold the table on the result before the next deal wipes it.
@@ -256,7 +256,7 @@ export class PresidentView implements GameView {
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -601,7 +601,7 @@ export class PresidentView implements GameView {
               { type: "button", class: "primary", disabled: !!why, title: why ?? undefined, onclick: () => this.playSelected() },
               `Play ${setName(picked.length, picked[0]!.rank).replace(/^a /, "")}`,
             )
-          : h("span", { class: "hint strong" }, game.top ? "Choose cards to beat the pile" : "Choose cards to lead"),
+          : h("span", { class: "hint strong" }, game.top ? "Pick cards to beat the pile" : "Pick cards to play first"),
       ].filter((x): x is HTMLElement => !!x);
     }
     replaceChildren(this.action, action);

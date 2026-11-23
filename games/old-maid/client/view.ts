@@ -249,11 +249,11 @@ export class OldMaidView implements GameView {
           await this.flyPairs(e.playerId, e.pairs);
           break;
         case "went-out":
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "You're out!" : "Out!");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "You're out!" : "Out!", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;
@@ -484,7 +484,7 @@ export class OldMaidView implements GameView {
     }
 
     const whose = source.id === props.playerId ? "Your" : `${seatName(room, source.id)}'s`;
-    this.fanLabel.textContent = myTurn ? `${whose} cards. Choose 1.` : `${whose} cards`;
+    this.fanLabel.textContent = myTurn ? `${whose} cards. Pick 1.` : `${whose} cards`;
     this.fan.setAttribute("aria-label", myTurn ? `Take a card from ${seatName(room, source.id)}` : `${whose} cards, face down`);
 
     this.slots = Array.from({ length: source.cardCount }, (_, i) => {

@@ -233,11 +233,11 @@ export class CrazyEightsView implements GameView {
           break;
         case "passed":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "No card to play" : "Pass");
+          await bubble(this.anchorFor(e.playerId, props), e.playerId === props.playerId ? "No card to play" : "Pass", undefined, undefined, e.playerId !== props.playerId);
           break;
         case "turn-skipped":
           audio.play("pass");
-          await bubble(this.anchorFor(e.playerId, props), "Skipped");
+          await bubble(this.anchorFor(e.playerId, props), "Skipped", undefined, undefined, e.playerId !== props.playerId);
           break;
         default:
           break;

@@ -154,6 +154,8 @@ export class HomeView implements View {
   private async createRoom(btn: HTMLButtonElement) {
     if (!this.takeName()) return;
     btn.disabled = true;
+    // Waiting on the server: stays lime, not the greyed "can't press" look.
+    btn.setAttribute("aria-busy", "true");
     this.error.textContent = "";
     try {
       const res = await shellConfig().createRoom(this.setup);
@@ -169,6 +171,7 @@ export class HomeView implements View {
     } catch (e) {
       this.error.textContent = e instanceof Error && e.message ? e.message : "Couldn't create a room.";
       btn.disabled = false;
+      btn.removeAttribute("aria-busy");
     }
   }
 
