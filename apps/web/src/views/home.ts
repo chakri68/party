@@ -185,7 +185,6 @@ export class HomeView implements View {
     replaceChildren(
       this.root,
       hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
-      pitch ? [hostYourOwn(), h("div", { class: "or" }, "got a room code?")] : null,
       this.identity,
       isOwner ? [create, h("div", { class: "or" }, "or join one")] : null,
       joinForm,
@@ -200,6 +199,8 @@ export class HomeView implements View {
             ),
           )
         : null,
+      // Guests came to join: the host card waits below the join form.
+      pitch ? [h("div", { class: "or" }, "want your own room?"), hostYourOwn()] : null,
     );
   }
 
