@@ -28,8 +28,7 @@ export class Emotes {
     this.opts = opts;
     this.bar.append(...REACTIONS.map((r) => h("button", { type: "button", "aria-label": `Send ${r}`, onclick: () => {
       this.opts.send(r);
-      this.toggle(false);
-      this.button.focus();
+      this.fadeOut();
     } }, r)));
     this.button.addEventListener("click", () => this.toggle());
     this.wrap.append(this.button, this.bar);
@@ -42,7 +41,24 @@ export class Emotes {
     document.addEventListener("pointerdown", this.onOutside);
   }
 
+  /**
+   * After a send the bar fades and hides. For that short moment it still
+   * catches taps, so a quick second tap sends again instead of landing on the
+   * game under it. Escape, an outside tap or toggling close it at once.
+   */
+  private fadeOut() {
+    this.button.focus();
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return this.toggle(false);
+    this.bar.classList.add("closing");
+    clearTimeout(this.closeTimer);
+    this.closeTimer = setTimeout(() => this.toggle(false), 300);
+  }
+
+  private closeTimer: ReturnType<typeof setTimeout> | undefined;
+
   toggle(open = this.bar.hidden) {
+    clearTimeout(this.closeTimer);
+    this.bar.classList.remove("closing");
     this.bar.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
   }
@@ -78,6 +94,7 @@ export class Emotes {
   }
 
   destroy() {
+    clearTimeout(this.closeTimer);
     document.removeEventListener("pointerdown", this.onOutside);
     this.layer.remove();
   }

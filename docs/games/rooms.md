@@ -128,7 +128,7 @@ Some games have their own guessing or answering built into the screen, and the r
 
 ## Emotes
 
-The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar stays open so you can mash. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
+The smile button in the header opens a bar of the same six emoji. Tap one and it floats up everyone's screen with your name under it. The bar closes after you send one. Tap the smile again to send another. The cap is 10 per 3 seconds per person; extras are quietly dropped. The screen also stops adding new ones past 40 at a time.
 
 ## Sound board
 

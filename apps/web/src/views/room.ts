@@ -1170,7 +1170,7 @@ export class RoomView implements View {
       const { name, description, minPlayers, maxPlayers, bestMinPlayers, bestMaxPlayers } = entry.manifest;
       const range = minPlayers === maxPlayers ? `${minPlayers} players` : `${minPlayers}–${maxPlayers} players`;
       // Only the host's rows pick, so only theirs are buttons.
-      const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option readonly" });
+      const option: HTMLElement = isHost ? h("button", { type: "button", class: "game-option" }) : h("div", { class: "game-option" });
       const meta = h("span", { class: "game-option-meta" });
       const want = h("span", { class: "game-option-want" });
       const nameLine = h("span", { class: "game-option-name" });
@@ -1179,7 +1179,7 @@ export class RoomView implements View {
         type: "button",
         class: "link small",
         "aria-label": `Rules for ${name}`,
-        onclick: () => openDialog(`How to play ${name}`, h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
+        onclick: () => openDialog(`How to play ${name}`, h("p", { class: "muted" }, description), h("ul", { class: "rules" }, entry.rules.map((r) => h("li", {}, r)))),
       }, "Rules");
 
       let shownWants = Infinity; // no bounce on the first fill
@@ -1214,7 +1214,7 @@ export class RoomView implements View {
         shownWants = n;
         if (suggest) {
           const mine = room.seats.find((s) => s.id === me)?.suggestion === id;
-          replaceChildren(suggest, mine ? [icon("check"), "Suggested"] : locked ? "Ask host to unlock" : "Suggest");
+          replaceChildren(suggest, [mine ? icon("check") : null, mine ? "Suggested" : locked ? "Ask host to unlock" : "Suggest", h("span", { class: "sr-only" }, ` ${name}`)]);
           suggest.setAttribute("aria-pressed", String(mine));
           suggest.hidden = current;
           suggest.onclick = () => this.client?.send({ type: "suggest-game", gameId: mine ? null : id });
