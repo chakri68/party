@@ -12,6 +12,8 @@ export function formatSeconds(ms: number): string {
 export interface CountdownOptions {
   /** The room is paused: say so, and don't count. */
   paused?: boolean;
+  /** This clock alone is held (a dispute): show the time it stopped at, muted. */
+  stopped?: boolean;
   /** Ms left at or under which the pill turns to the warning colour. Default 10 s. */
   lowAt?: number;
 }
@@ -73,6 +75,7 @@ export function countdown(): Countdown {
       if (opts.paused) {
         el.hidden = false;
         el.classList.toggle("low", false);
+        el.classList.toggle("stopped", false);
         setText("Paused");
         setLabel("Timer paused", null);
         return;
@@ -84,9 +87,15 @@ export function countdown(): Countdown {
         return;
       }
       el.hidden = false;
-      el.classList.toggle("low", left <= (opts.lowAt ?? 10_000));
-      setText(formatSeconds(left));
       const secs = Math.ceil(left / 1000);
+      el.classList.toggle("stopped", !!opts.stopped);
+      setText(formatSeconds(left));
+      if (opts.stopped) {
+        el.classList.toggle("low", false);
+        setLabel(`Paused. Time left: ${spoken(secs)}`, null);
+        return;
+      }
+      el.classList.toggle("low", left <= (opts.lowAt ?? 10_000));
       if (labelSecs === null || secs > labelSecs || labelSecs - secs >= LABEL_STEP) {
         setLabel(`Time left: ${spoken(secs)}`, secs);
       }

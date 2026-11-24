@@ -173,9 +173,11 @@ export class HeistView implements GameView {
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.set(left);
+    // Red only when this player has something to do now.
+    const act = game.phase === "vote" || game.phase === "job" || this.leading();
+    this.timer.set(left, { lowAt: act ? undefined : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
-    const low = secs <= TICK_FROM && (game.phase === "vote" || game.phase === "job" || this.leading());
+    const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;

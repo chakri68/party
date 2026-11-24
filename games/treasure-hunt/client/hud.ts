@@ -1,4 +1,4 @@
-import { formatSeconds, h } from "@games/ui";
+import { countdown, formatSeconds, h } from "@games/ui";
 import { clockText } from "../shared/sky.ts";
 import type { PhotoCam, THMode, THPrivate } from "../shared/types.ts";
 
@@ -105,7 +105,7 @@ export interface HudState {
 }
 
 export class Hud {
-  readonly timer = h("span", { class: "th-timer", role: "timer", hidden: true });
+  readonly timer = countdown();
   readonly clock = h("span", { class: "th-clock", title: "Time in the game", hidden: true });
   readonly score = h("span", { class: "th-score", hidden: true });
   readonly race = h("span", { class: "th-race", hidden: true });
@@ -134,8 +134,7 @@ export class Hud {
 
   /** Runs every 250 ms tick, so text is only written when it changed. */
   render(s: HudState) {
-    this.timer.hidden = s.left === null;
-    if (s.left !== null) setText(this.timer, formatSeconds(s.left));
+    this.timer.set(s.left);
 
     const clock = clockLabel(s.clock);
     this.clock.hidden = clock === "";

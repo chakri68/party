@@ -478,7 +478,7 @@ export class ScribblView implements GameView {
     }
     const left = Math.max(0, game.endsAt - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.set(left);
+    this.timer.set(left, { lowAt: game.phase === "drawing" ? undefined : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     this.bar.classList.toggle("low", game.phase === "drawing" && secs <= 10);
     if (game.phase === "drawing" && SAY_AT.includes(secs) && secs !== this.lastSaid) {

@@ -1314,3 +1314,4 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 }
 .countdown-icon { display: inline-flex; flex: none; width: 14px; height: 14px; }
 .countdown.low { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.countdown.stopped { color: var(--muted); }

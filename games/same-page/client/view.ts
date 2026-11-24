@@ -230,8 +230,8 @@ export class SamePageView implements GameView {
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
     (this.bar.firstElementChild as HTMLElement).style.transform = `scaleX(${Math.min(1, left / Math.max(game.phaseMs, 1))})`;
-    this.secs.set(left);
     const answering = game.phase === "answering";
+    this.secs.set(left, { lowAt: answering ? undefined : 0 });
     this.bar.classList.toggle("low", answering && secs <= TICK_FROM);
     if (!answering) return;
     const me = this.props?.private as Priv | null;

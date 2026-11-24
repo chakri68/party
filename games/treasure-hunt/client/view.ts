@@ -518,7 +518,7 @@ export class TreasureHuntView implements GameView {
   private help = h("p", { class: "th-help" }, HELP);
   private end = h("button", { type: "button", class: "th-end", hidden: true }, "End round");
   private mapBtn = h("button", { type: "button", class: "th-map-toggle", "aria-pressed": "false", hidden: true }, "Map");
-  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.meter, this.hud.score, this.hud.race, this.hud.clock, this.hud.timer, this.mapBtn, this.hud.toggle, this.end));
+  private bar = h("div", { class: "th-bar", hidden: true }, this.help, h("div", { class: "th-bar-right" }, this.hud.meter, this.hud.score, this.hud.race, this.hud.clock, this.hud.timer.el, this.mapBtn, this.hud.toggle, this.end));
   private msg = h("p", { class: "th-msg", role: "alert" });
   private toast = h("p", { class: "th-toast", role: "status", "aria-live": "polite", hidden: true });
   private mini = h("canvas", { class: "th-minimap", "aria-hidden": "true", hidden: true });

@@ -122,6 +122,20 @@ describe("countdown", () => {
     expect(el.getAttribute("aria-label")).toBe("Timer paused");
   });
 
+  it("shows a held clock's time, muted, and says it is paused", () => {
+    const { c, el } = pill();
+    c.set(5_000, { stopped: true });
+    expect(el.hidden).toBe(false);
+    expect(el.textContent).toBe("5 s");
+    expect(el.classList.contains("stopped")).toBe(true);
+    expect(el.classList.contains("low")).toBe(false);
+    expect(el.getAttribute("aria-label")).toBe("Paused. Time left: 5 seconds");
+    c.set(5_000);
+    expect(el.classList.contains("stopped")).toBe(false);
+    expect(el.classList.contains("low")).toBe(true);
+    expect(el.getAttribute("aria-label")).toBe("Time left: 5 seconds");
+  });
+
   it("updates its label at most once per 10 s", () => {
     const { c, el } = pill();
     c.set(30_000);

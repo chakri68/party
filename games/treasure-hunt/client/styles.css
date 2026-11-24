@@ -26,8 +26,7 @@
 .th-bar-right { margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px 14px; }
 .th-end, .th-clue-toggle { flex: none; }
 .th-bar [hidden] { display: none; }
-.th-timer, .th-score, .th-clock { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.th-timer { color: var(--accent); font-size: 1.05rem; }
+.th-score, .th-clock { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .th-clock { color: var(--muted); }
 .th-race { color: var(--muted); white-space: nowrap; }
 

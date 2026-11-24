@@ -173,7 +173,7 @@ export class DontSayItView implements GameView {
       this.root.classList.remove("low");
       return;
     }
-    this.timer.set(left, { paused: frozen });
+    this.timer.set(left, { stopped: frozen });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.turnMs)})`;
     const low = !frozen && secs <= TICK_FROM;
     this.root.classList.toggle("low", low);

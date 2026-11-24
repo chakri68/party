@@ -208,9 +208,11 @@ export class NightfallView implements GameView {
     const paused = game.pausedAt != null;
     const left = Math.max(0, game.deadline - (game.pausedAt ?? this.api.serverNow()));
     const secs = Math.ceil(left / 1000);
-    this.timer.set(left, { paused });
+    // Red only when this player has something to do now.
+    const act = game.phase === "vote" || game.phase === "runoff";
+    this.timer.set(left, { paused, lowAt: act ? undefined : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
-    const low = secs <= TICK_FROM && (game.phase === "vote" || game.phase === "runoff");
+    const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);
     if (low && !paused && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;
