@@ -89,6 +89,17 @@ describe("the room menu", () => {
     expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual(["settings", "home"]);
   });
 
+  it("My sounds for the host who owns sounds", () => {
+    const o = { voice: "join", pausable: true, mySounds: true } as const;
+    for (const phase of ["lobby", "playing", "results"] as const) {
+      const items = roomMenuItems(room({ phase }), "amy", o);
+      expect(items[items.indexOf("settings") + 1], phase).toBe("my-sounds");
+      expect(roomMenuItems(room({ phase }), "ben", o), phase).not.toContain("my-sounds");
+      expect(roomMenuItems(room({ phase }), "amy", { ...o, mySounds: false }), phase).not.toContain("my-sounds");
+    }
+    expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual(["settings", "home"]);
+  });
+
   it("focus screens: lobby, playing and results", () => {
     expect(focusPhase("lobby")).toBe(true);
     expect(focusPhase("playing")).toBe(true);
@@ -110,6 +121,7 @@ describe("the room menu", () => {
       "join-voice": "Join voice",
       voice: "Voice",
       settings: "Sound and vibration",
+      "my-sounds": "My sounds",
       pause: "Pause",
       resume: "Resume",
       restart: "Restart",

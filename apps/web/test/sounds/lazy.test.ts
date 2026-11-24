@@ -15,7 +15,12 @@ describe("the mp3 encoder", () => {
     expect(filesMatching(ENCODER_IMPORT)).toEqual(["../../src/sounds/encode.ts"]);
   });
 
-  // Task 8 turns these on when views/my-sounds.ts exists.
-  it.todo("only views/my-sounds.ts imports sounds/encode.ts statically");
-  it.todo("no file imports views/my-sounds.ts statically, only with import()");
+  it("only views/my-sounds.ts imports sounds/encode.ts statically", () => {
+    expect(filesMatching(/from\s+["'][./]*(?:sounds\/)?encode\.ts["']/)).toEqual(["../../src/views/my-sounds.ts"]);
+  });
+
+  it("no file imports views/my-sounds.ts statically, only with import()", () => {
+    expect(filesMatching(/from\s+["'][./]*(?:views\/)?my-sounds\.ts["']/)).toEqual([]);
+    expect(filesMatching(/import\(\s*["']\.\/my-sounds\.ts["']\s*\)/)).toEqual(["../../src/views/home.ts", "../../src/views/room.ts"]);
+  });
 });

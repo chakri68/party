@@ -15,8 +15,9 @@ export default defineConfig({
     host: true, // reachable from phones on the same Wi-Fi
     allowedHosts: [".trycloudflare.com"], // or through a cloudflared quick tunnel
     proxy: {
-      // Keep the Host header (no changeOrigin): /api/sounds writes check that Origin names this host.
-      "/api": WORKER,
+      // Keep the Host header: /api/sounds writes check that Origin names this host.
+      // The object form, not a bare string: Vite turns a string into { changeOrigin: true }.
+      "/api": { target: WORKER },
       "/parties": { target: WORKER, ws: true },
     },
   },

@@ -428,6 +428,7 @@ Run this only after `master` (Tasks 1 to 8) is merged into `product`. Work on th
 ## Manual phone checklist
 
 - [ ] Upload from a phone (Android Chrome and iPhone Safari): a long clip is cut to 3 seconds, the slider picks the start, and the saved sound plays at the same loudness as the free ones.
+- [ ] Upload a 4 MB low-bitrate file on a low-end phone: it must not crash.
 - [ ] Pick a 6-minute song over 4 MB: you see "This file is too big. Pick a file under 4 MB." straight away. Pick a PDF renamed to .mp3: you see "This file is not a sound we can use."
 - [ ] A host tile tap on one phone sounds on the others within about a voice round-trip.
 - [ ] Replace a slot mid-party: the other phones play the new sound after they next open the board.

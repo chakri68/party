@@ -5,6 +5,8 @@ import { getIdentity, recentRooms, rerollAvatar, setDisplayName, setOwnerKey } f
 import { randomName } from "../names.ts";
 import { navigate } from "../router.ts";
 import { createLabel, type RoomSetup, type ShellHome, setupFromUrl, shellConfig } from "../shell.ts";
+import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
+import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 
 export function nameInput(value: string) {
   return h("input", {
@@ -88,14 +90,16 @@ function hostYourOwn(): HTMLElement {
   );
 }
 
-export type HomePart = "hero" | "identity" | "create" | "join" | "error" | "recent" | "host";
+export type HomePart = "hero" | "identity" | "create" | "my-sounds" | "join" | "error" | "recent" | "host";
 
 /**
  * What the home page shows, top to bottom. Guests came to join, so the join form comes
- * first and the host card waits below it. The owner gets Create room first.
+ * first and the host card waits below it. The owner gets Create room first,
+ * then My sounds when this phone owns a sound library.
  */
-export function homeParts(isOwner: boolean, pitch: boolean): HomePart[] {
-  return ["hero", "identity", ...(isOwner ? (["create"] as const) : []), "join", "error", "recent", ...(pitch ? (["host"] as const) : [])];
+export function homeParts(isOwner: boolean, pitch: boolean, mySounds = false): HomePart[] {
+  const create: HomePart[] = isOwner ? ["create", ...(mySounds ? (["my-sounds"] as const) : [])] : [];
+  return ["hero", "identity", ...create, "join", "error", "recent", ...(pitch ? (["host"] as const) : [])];
 }
 
 /** The hero's words: a host app's own title and subtitle when set, else the logo and the usual line. */
@@ -144,6 +148,19 @@ export class HomeView implements View {
   private error = h("p", { class: "form-error", role: "alert" });
   // Read once, so a failed create leaves the same button for a retry.
   private setup: RoomSetup | undefined;
+  /** This phone owns a sound library: show My sounds under Create. */
+  private mySounds = false;
+  private gone = false;
+  private creating = false;
+
+  constructor() {
+    void hasMySounds().then((yes) => {
+      if (!yes || this.gone) return;
+      this.mySounds = true;
+      // Not while a create runs: a fresh Create button would allow a second one.
+      if (!this.creating) this.render();
+    });
+  }
 
   mount(container: HTMLElement) {
     this.setup = setupFromUrl(new URL(location.href));
@@ -168,6 +185,7 @@ export class HomeView implements View {
   private async createRoom(btn: HTMLButtonElement) {
     if (!this.takeName()) return;
     btn.disabled = true;
+    this.creating = true;
     // Waiting on the server: stays lime, not the greyed "can't press" look.
     btn.setAttribute("aria-busy", "true");
     this.error.textContent = "";
@@ -186,6 +204,8 @@ export class HomeView implements View {
       this.error.textContent = e instanceof Error && e.message ? e.message : "Couldn't create a room.";
       btn.disabled = false;
       btn.removeAttribute("aria-busy");
+      this.creating = false;
+      if (this.mySounds && !this.root.querySelector(".home-my-sounds")) this.render();
     }
   }
 
@@ -207,12 +227,22 @@ export class HomeView implements View {
 
     const create = h("button", { type: "button", class: "primary" }, createText(this.setup));
     create.addEventListener("click", () => void this.createRoom(create));
+    const orJoin = h("div", { class: "or" }, "or join one");
+    // The dialog and its mp3 encoder load only when asked for.
+    const mySounds = h("button", { type: "button", class: "home-my-sounds" }, MY_SOUNDS_COPY.title);
+    mySounds.addEventListener("click", () => {
+      this.error.textContent = "";
+      void import("./my-sounds.ts")
+        .then((m) => m.openMySounds({ api: mySoundsApi() }))
+        .catch(() => (this.error.textContent = MY_SOUNDS_COPY.loadFailed));
+    });
 
     const recent = recentRooms();
     const parts: Record<HomePart, Node | Node[] | null> = {
       hero: hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
       identity: this.identity,
-      create: [create, h("div", { class: "or" }, "or join one")],
+      create: this.mySounds ? create : [create, orJoin],
+      "my-sounds": [mySounds, orJoin],
       join: joinForm,
       error: this.error,
       recent: recent.length
@@ -227,12 +257,13 @@ export class HomeView implements View {
         : null,
       host: [h("div", { class: "or" }, "want your own room?"), hostYourOwn()],
     };
-    replaceChildren(this.root, ...homeParts(isOwner, pitch).map((k) => parts[k]));
+    replaceChildren(this.root, ...homeParts(isOwner, pitch, this.mySounds).map((k) => parts[k]));
   }
 
   update() {}
 
   destroy() {
+    this.gone = true;
     this.root.remove();
   }
 }

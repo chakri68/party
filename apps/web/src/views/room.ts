@@ -25,6 +25,8 @@ import { Emotes } from "./emotes.ts";
 import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
+import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
+import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
@@ -150,6 +152,8 @@ export class RoomView implements View {
   private soundView: SoundBoardView | null = null;
   /** Lists the host's sounds again, when the room has some and Sound board is on here. */
   refreshHostSounds: () => void = () => {};
+  /** This phone owns a sound library, so the host gets My sounds in the menu. */
+  private mySounds = false;
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
   private playback: Playback | null = null;
@@ -312,6 +316,7 @@ export class RoomView implements View {
   }
 
   private connect() {
+    void hasMySounds().then((yes) => (this.mySounds = yes));
     const me = getIdentity();
     this.show("connecting", () => replaceChildren(this.body, h("p", { class: "muted center" }, "Connecting…")));
     this.startVoice();
@@ -619,6 +624,7 @@ export class RoomView implements View {
       pausable: !!games[room.gameId]?.manifest.pausable,
       // Only while the game runs and the room can hear us: elsewhere they would do nothing.
       hostActions: room.phase === "playing" && !this.stuck,
+      mySounds: this.mySounds,
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
@@ -626,6 +632,11 @@ export class RoomView implements View {
       "join-voice": () => void this.voiceBar?.startJoin(),
       voice: () => this.voiceBar?.openPanel(),
       settings: () => this.openSettings(),
+      // The dialog and its mp3 encoder load only when asked for.
+      "my-sounds": () =>
+        void import("./my-sounds.ts")
+          .then((m) => m.openMySounds({ api: mySoundsApi(), onClose: () => this.refreshHostSounds() }))
+          .catch(() => this.showToast(MY_SOUNDS_COPY.loadFailed)),
       pause: () => client.send({ type: "pause-game", paused: true }),
       resume: () => client.send({ type: "pause-game", paused: false }),
       restart: () =>
