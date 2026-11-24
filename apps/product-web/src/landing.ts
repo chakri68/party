@@ -6,6 +6,7 @@ import { PLANS, isPlanId, plansFor, priceLabel, providerFor, type PlanId } from 
 import { FREE_MAX_PLAYERS } from "@games/product-server/catalog-data";
 import { loadConfig, meOrNull, type Billing } from "./api.ts";
 import { PAY_DOWN, PAY_LATE, PAY_SLOW, buy, foreverPass, takeBuyParam } from "./buy.ts";
+import { bootGallery } from "./gallery-collapse.ts";
 import { fadeIn, morph, revealOnScroll, riseIn, rollText, slideDetails, whenSettled } from "./motion.ts";
 
 /**
@@ -187,6 +188,7 @@ export function boot(): void {
   fillFreeCap();
   // The HTML ships the rupee table, so a slow or failed config call still shows prices.
   if (document.querySelector("[data-prices]")) showPrices();
+  bootGallery();
   slideDetails();
   revealOnScroll();
 }
