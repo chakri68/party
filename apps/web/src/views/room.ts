@@ -509,7 +509,11 @@ export class RoomView implements View {
     if (import.meta.env.DEV) {
       void import("../debug.ts").then((m) => {
         if (this.client !== client) return;
-        const debug = m.attachDebug(client, () => this.last);
+        const debug = m.attachDebug(client, () => this.last, {
+          view: () => voice.view(),
+          stats: () => voice.stats(),
+          nameOf: (id) => (this.last ? seatName(this.last.room, id) : id),
+        });
         this.debugToggle = debug.toggle;
         this.detachDebug = debug.detach;
         this.renderHeader();

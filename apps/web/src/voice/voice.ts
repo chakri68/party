@@ -6,7 +6,7 @@
 // nothing here logs signals, ICE servers or the roster.
 
 import { ICE_REQUEST_LIMIT, type ClientMessage, type ErrorCode, type IceServer, type RoomPublicState, type VoiceMember } from "@games/protocol";
-import { globalRule, type LinkState, type VoiceRule, type VoiceTransport } from "@games/webrtc";
+import { globalRule, type LinkState, type VoicePeerStats, type VoiceRule, type VoiceTransport } from "@games/webrtc";
 import { MAX_GAIN, METER_HZ, nextSpeaking, type Mic, type MicPrefs, type MicResult, type Playback, type SpeakState } from "./audio.ts";
 import type { MeshDeps } from "./mesh.ts";
 import { DEFAULT_VOICE_PREFS, type RoomMic, type RoomVoice, type VoicePrefs, type voicePrefs } from "./prefs.ts";
@@ -490,6 +490,17 @@ export class VoiceController {
       hasTurn: hasTurnServer(this.iceServers),
       canPickOutput,
     };
+  }
+
+  /** Link stats for the dev debug panel: [] when not joined or not up. Never rejects; stats stay on this device. */
+  async stats(): Promise<VoicePeerStats[]> {
+    const t = this.transport;
+    if (this.phase !== "joined" || !this.up || !t) return [];
+    try {
+      return await t.getStats();
+    } catch {
+      return [];
+    }
   }
 
   /** The saved settings, for the settings dialog. */

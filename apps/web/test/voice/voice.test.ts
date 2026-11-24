@@ -48,8 +48,11 @@ class FakeTransport implements VoiceTransport {
   setRemoteGain(peerId: string, gain: number) {
     this.rec("setRemoteGain", peerId, gain);
   }
+  /** What getStats gives; an Error makes it reject. */
+  statsResult: VoicePeerStats[] | Error = [];
   getStats(): Promise<VoicePeerStats[]> {
-    return Promise.resolve([]);
+    this.rec("getStats");
+    return this.statsResult instanceof Error ? Promise.reject(this.statsResult) : Promise.resolve(this.statsResult);
   }
   disconnect() {
     this.rec("disconnect");
@@ -270,6 +273,30 @@ describe("VoiceController", () => {
     s.voice.onIce(TURN, 5678);
     expect(s.t().ops("connect")).toHaveLength(1);
     expect(s.t().ops("setIceServers")[0]!.args).toEqual([TURN, 5678]);
+  });
+
+  it("stats is empty out of voice and never rejects", async () => {
+    const s = setup();
+    expect(await s.voice.stats()).toEqual([]);
+    await s.voice.join(true);
+    s.voice.onVoiceState(roster("me", "b"));
+    // Joined, but no voice-ice yet: the transport is not up.
+    expect(await s.voice.stats()).toEqual([]);
+    s.voice.onIce(STUN, 1e12);
+    await flush();
+    const row: VoicePeerStats = { peerId: "b", rttMs: 43, packetsLost: 7, relayed: true };
+    s.t().statsResult = [row];
+    expect(await s.voice.stats()).toEqual([row]);
+    s.t().statsResult = new Error("getStats failed");
+    expect(await s.voice.stats()).toEqual([]);
+    s.voice.leave();
+    s.t().statsResult = [row];
+    expect(await s.voice.stats()).toEqual([]);
+  });
+
+  it("stats never rejects when the transport throws", async () => {
+    const s = await joined({ badTransport: true });
+    await expect(s.voice.stats()).resolves.toEqual([]);
   });
 
   it("voice-full stops the mic and shows full", async () => {
