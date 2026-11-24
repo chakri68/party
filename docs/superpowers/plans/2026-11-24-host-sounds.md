@@ -18,7 +18,7 @@
 
 - Bump `PROTOCOL_VERSION` from 12 to 13, in Task 2 only. The one wire change is `RoomPublicState.hostSounds: boolean`. The `sound` messages keep their shape. `host:3` already passes `isSoundId`.
 - Limits (spec 5.4): 6 slots, ids `"1"`..`"6"`. A file of at most 64 KB (`65536` bytes), `audio/mpeg`. A name of 1..24 characters after trim, with no control characters. At most 3000 ms. The server measures the length from the mp3 frames and does not trust the phone.
-- R2 keys (spec 5.4): `lib/<libraryId>/<slot>.mp3` and `lib/<libraryId>/index.json`. The index is `{ "slots": [{ "id", "name", "ms", "v" }] }`, where `v` is the first 10 hex characters of the sha256 of the mp3 bytes.
+- R2 keys (spec 5.4, with per-version files, see Plan decisions): `lib/<libraryId>/<slot>-<v>.mp3` and `lib/<libraryId>/index.json`. The index is `{ "slots": [{ "id", "name", "ms", "v" }] }`, where `v` is the first 10 hex characters of the sha256 of the mp3 bytes.
 - The room never does file work inside `run()` and never reads R2. `library()` is a memory read with no queue.
 - The library id is never in `getPublicState`, `RoomPublicState`, a server message or a URL a phone sees. Room routes use the room code.
 - No wrangler command against Cloudflare from any task. Tests use fake buckets. `pnpm dev` uses wrangler's local R2. The user creates the buckets at ship time (see Ship).
@@ -41,6 +41,7 @@
 - **Upload body:** `PUT /api/sounds/<slot>?name=<urlencoded>` with the raw mp3 as the body and `content-type: audio/mpeg`. Rename: `PATCH /api/sounds/<slot>` with JSON `{ name }`. Every write answers with the new list, so the phone does not need a second GET.
 - **Writes and cross-site requests:** a write whose `Origin` header is set and is not the request's own origin gets a 403. PUT and PATCH need a content type that a plain form cannot send, and there are no CORS headers. This matters for CouchParty's cookies.
 - **Index races:** write the file first, then the index. Write the index with `onlyIf: { etagMatches }` when the index exists. If R2 refuses, read it again and retry, up to 3 tries in all, then answer 409 "Could not save. Try again." DELETE writes the index first, then removes the file.
+- **Per-version file keys** (a change from spec 5.4's fixed `lib/<library>/<slot>.mp3`; players see no change): each saved file is `lib/<library>/<slot>-<v>.mp3`. A `?v=` URL, cached as immutable, can then never serve other bytes, even after a lost index race. PUT writes the new version's key, then the index. Once the index write lands, it deletes the replaced version's key (best effort) when `v` changed. A PUT that ends in 409 leaves its file behind, unnamed. Deleting the library by prefix (`lib/<library>/`, Task 9) sweeps it. DELETE writes the index first, then deletes the removed version's key. File routes take `v` from the query, check it against `/^[0-9a-f]{10}$/` (else 404), and serve that key directly, with no index read. The first index write is create-only (`onlyIf: { etagDoesNotMatch: "*" }`), so two first saves cannot both land.
 - **Caching:** owner and room file routes send `cache-control: private, max-age=31536000, immutable`, keyed on `?v=`. List routes send `no-store`. Files always send `x-content-type-options: nosniff`.
 - **Phone processing:** decode with `new OfflineAudioContext(1, 1, 48000).decodeAudioData(bytes)`, so the clip is always at 48 kHz. Then mix to mono and cut at most 2.9 s, because the encoder adds about 50 ms of padding and the server's limit is 3000 ms. Then set the RMS to -16 dBFS, but keep the peak at or below -1.5 dBFS and the gain at or below +24 dB. A clip with RMS under 1e-4 is left as it is. Encode at 64 kbps CBR, mono, 48 kHz: about 24 KB for 2.9 s. The phone refuses a file over 4 MB before decoding it, because a long song decodes to hundreds of MB and can crash a phone.
 - **Start picker:** a range input (step 0.1 s) shows only when the decoded file is longer than 2.9 s, with the line "This sound is too long. We will keep 3 seconds." and the label "Starts at 1.2 seconds". **Play** plays the cut as it will be saved.
@@ -154,7 +155,7 @@
   - `ownerKeyPolicy.soundOwner`: a bearer token that `isOwnerKey` accepts gives `{ library: "owner", active: true }`. Otherwise it gives `null`. `ownerKeyPolicy.canCreate`'s grant gains `library: "owner"`.
 - Produces (`host-sounds.ts`):
   - `type SoundsBucket = Pick<R2Bucket, "get" | "put" | "delete" | "head">`. `interface SoundsEnv { SOUNDS?: SoundsBucket }`.
-  - `LIBRARY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/`. `libKey(library: string, slot: string): string` gives `lib/<library>/<slot>.mp3`. `indexKey(library: string): string` gives `lib/<library>/index.json`.
+  - `LIBRARY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/`. `libKey(library: string, slot: string, v: string): string` gives `lib/<library>/<slot>-<v>.mp3`. `V_RE = /^[0-9a-f]{10}$/`. `indexKey(library: string): string` gives `lib/<library>/index.json`.
   - `interface HostSlot { id: string; name: string; ms: number; v: string }`.
   - `readIndex(bucket: SoundsBucket, library: string): Promise<{ slots: HostSlot[]; etag: string | null }>`. A missing index, or one that is not JSON, gives `{ slots: [], etag }`. An entry is kept only when `isHostSlot(id)`, `cleanSoundName(name)`, `ms` is an integer in 1..3000, and `v` is 10 hex characters. Repeated ids keep the first copy. The result is sorted by id.
   - `interface SoundSlotBody { id: string; name: string; ms: number; url: string }`. `interface MySoundsBody { active: boolean; slots: SoundSlotBody[] }`. Here `url` is `/api/sounds/<id>?v=<v>`.
@@ -176,12 +177,12 @@
 - [ ] **Step 1: Write the failing tests** in `host-sounds.test.ts`. Use a fake bucket backed by a `Map`. `put` honours `onlyIf.etagMatches` and gives `null` when it does not match. Each put gets a new `httpEtag`. A test switch makes the next index put fail once. Requests carry `authorization: Bearer <OWNER_KEY>` and `env = { OWNER_KEY, SOUNDS: bucket }`. Call `serveMySounds(req, env, ownerKeyPolicy)` directly. One case goes through `createFetch`.
   - "lists an empty library": GET gives 200, `{ active: true, slots: [] }` and `no-store`.
   - "refuses anyone but the owner": no auth, a wrong key, and a policy with no `soundOwner` give 403, 403 and 404. With no `SOUNDS`, every route gives 404.
-  - "saves a sound": `PUT /api/sounds/3?name=%20Bruh%20` with `fakeMp3()` gives 200. The bucket has `lib/owner/3.mp3` with the same bytes. The index slot is `{ id: "3", name: "Bruh", ms: 2400, v: <10 hex> }`, and the body slot `url` is `/api/sounds/3?v=<v>`.
+  - "saves a sound": `PUT /api/sounds/3?name=%20Bruh%20` with `fakeMp3()` gives 200. The bucket has `lib/owner/3-<v>.mp3` with the same bytes. The index slot is `{ id: "3", name: "Bruh", ms: 2400, v: <10 hex> }`, and the body slot `url` is `/api/sounds/3?v=<v>`.
   - "checks the slot, type, size, name and length": slots `0`, `7` and `a` give 404. `content-type: audio/wav` gives 415. 65537 bytes gives 413, both with a true `content-length` and with none (a stream). `name=` and a 25-character name give 400. `fakeMp3({ frames: 130 })` gives 422. 1000 zero bytes give 415. After all of these, nothing is written.
   - "replace changes v, rename keeps it": a second PUT with other bytes changes `v`. A PATCH `{ name: "Wow" }` keeps `v` and changes the name. A PATCH on an empty slot gives 404.
-  - "remove takes the slot and the file": DELETE gives 200. The slot is gone, and so is `lib/owner/3.mp3`. A second DELETE also gives 200.
+  - "remove takes the slot and the file": DELETE gives 200. The slot is gone, and so is `lib/owner/3-<v>.mp3`. A second DELETE also gives 200.
   - "a lapsed library can rename and remove but not save": a test policy giving `{ library: "owner", active: false }`. GET lists with `active: false`. PATCH and DELETE give 200. PUT gives 403 `{ error: "Get Host Pass to add sounds." }`, and nothing is written.
-  - "serves the owner's own file": GET `/api/sounds/3?v=x` gives 200, `audio/mpeg`, the private immutable cache and `nosniff`. An empty slot gives 404.
+  - "serves the owner's own file": GET `/api/sounds/3?v=<v>` gives 200, `audio/mpeg`, the private immutable cache and `nosniff`. An empty slot gives 404.
   - "a race on the index retries and keeps both slots": slot 1 is saved. The next index put is made to fail once, and slot 2 is saved. Both slots are in the index. With the put failing 3 times, the answer is 409 "Could not save. Try again.".
   - "a bad index in R2 is cleaned on read": an index with id `"9"`, `ms: 5000`, a 30-character name and a repeated `"1"` lists only the first good `"1"`.
   - "two libraries do not mix": a test policy whose `soundOwner` reads the library from a header. Library `a` saves slot 1, and library `b` lists `[]`.
@@ -202,10 +203,10 @@
 - Test: `apps/server/test/host-sounds.test.ts` (a new `describe`), `apps/server/test/policy.test.ts` (extend)
 
 **Interfaces:**
-- Consumes: `readIndex`, `libKey`, `LIBRARY_ID_RE` (Task 3). `RoomStub.library` (Task 2).
+- Consumes: `readIndex`, `libKey`, `V_RE`, `serveFile`, `LIBRARY_ID_RE` (Task 3). `RoomStub.library` (Task 2).
 - Produces:
   - `interface RoomSoundsBody { pack: "host"; sounds: SoundSlotBody[] }`. Here `url` is `/api/rooms/<CODE>/sounds/<id>?v=<v>`, with the code in upper case.
-  - `serveRoomSounds(request: Request, env: ServerEnv, libraryOf: (code: string) => Promise<string | null>): Promise<Response | null>`. It handles `/api/rooms/<code>/sounds` and `/api/rooms/<code>/sounds/<x>` and gives `null` for every other path (so `POST /api/rooms` and CouchParty's `/upgrade` are untouched). It answers 405 with `allow: GET` for other methods. It answers 404 for: no `SOUNDS`, a code that fails `isValidRoomCode(code.toUpperCase())` (without calling `libraryOf`), a `null` or bad library, a bad slot, or an empty slot. The list gets 200 `RoomSoundsBody` with `no-store`. A file gets `audio/mpeg`, the private immutable cache, `etag` and `nosniff`.
+  - `serveRoomSounds(request: Request, env: ServerEnv, libraryOf: (code: string) => Promise<string | null>): Promise<Response | null>`. It handles `/api/rooms/<code>/sounds` and `/api/rooms/<code>/sounds/<x>` and gives `null` for every other path (so `POST /api/rooms` and CouchParty's `/upgrade` are untouched). It answers 405 with `allow: GET` for other methods. It answers 404 for: no `SOUNDS`, a code that fails `isValidRoomCode(code.toUpperCase())` (without calling `libraryOf`), a `null` or bad library, a bad slot, a missing or bad `v`, or no file at that version. The file route takes `v` from the query, checks it with `V_RE`, and serves `libKey(roomLibrary, slot, v)` through `serveFile`, with no index read. The list gets 200 `RoomSoundsBody` with `no-store`. A file gets `audio/mpeg`, the private immutable cache, `etag`, `nosniff` and the sandbox CSP.
   - `createFetch`: route `serveRoomSounds(request, env, async (code) => (await getRoom(env, code)).library?.() ?? null)` before `serveMySounds`. In `POST /api/rooms`, the grant passed to `claim` is `env.SOUNDS ? decision.grant : { ...decision.grant, library: null }`.
 
 - [ ] **Step 1: Write the failing tests**, `describe("room routes")`. Save slots 1 and 3 into library `owner` with the Task 3 API first. `libraryOf` is a `vi.fn` giving `"owner"`.
@@ -213,7 +214,8 @@
   - "serves a slot's file": 200 with the same bytes, `audio/mpeg`, the private immutable cache and `nosniff`.
   - "the file route refuses a room that does not use that library": with `libraryOf` giving `"other"`, the list is `[]` and the file is 404. With `null`, both are 404.
   - "a bad code never wakes a room": `/api/rooms/K7/sounds` and `/api/rooms/K7DX!/sounds` give 404, and `libraryOf` was not called.
-  - "is a 404 for a bad or empty slot, and a 405 for writes": `/sounds/7`, `/sounds/2` and `/sounds/1.mp3` give 404. A PUT gives 405.
+  - "is a 404 for a bad or empty slot, and a 405 for writes": `/sounds/7`, `/sounds/2?v=<slot 1's v>` and `/sounds/1.mp3` give 404. A PUT gives 405.
+  - "a bad or missing v is a 404": `/sounds/1`, `/sounds/1?v=`, `/sounds/1?v=x`, `/sounds/1?v=<v in upper case>` and `/sounds/1?v=0123456789` (good shape, no file) give 404.
   - "leaves other room paths alone": `POST /api/rooms` and `/api/rooms/K7DX/upgrade` give `null`.
   - "no phone ever sees the library id": the list body and every header do not contain `"owner"`.
 - [ ] **Step 2: Extend `policy.test.ts`**: "the grant keeps its library only with SOUNDS". The fake `getRoom().claim` records its grant. With `SOUNDS` it gets `library: "owner"`. Without it, it gets `library: null`.
@@ -236,7 +238,7 @@
   - `parseHostList(body: unknown, listUrl: string): BoardSound[]`. `pack` must be `"host"`. Each entry needs `isHostSlot(id)`, a name of 1..24 characters after trim, `ms` an integer in 1..3000, and a `url` that passes `isSameOriginPath` and starts with `${listUrl}/`. The ids become `host:<id>`. Repeated ids are dropped. It keeps at most `HOST_SLOTS`. Bad input gives `[]`.
 - Produces (`board.ts`):
   - The list is always `[...base, ...host]`. `load()` (step 1) sets `base`. `loadHost` sets `host`. `list()`, `tap` and `receive` are unchanged for callers.
-  - `loadHost(listUrl: string): Promise<void>`. It fetches the list through `deps.getJson` (a failure keeps the old host list), sets `host`, and tells listeners. It drops the clips and the waiting bytes of host ids no longer listed. It fetches bytes only for an id whose `url` differs from the one it last fetched for that id. Those bytes go through the same decode queue, and a new clip replaces the old one only once it is decoded. A call while one is running gives a promise for one more run after it (never more than one waiting). Nothing happens after `destroy()`.
+  - `loadHost(listUrl: string): Promise<void>`. It fetches the list through `deps.getJson` (a failure keeps the old host list), sets `host`, and tells listeners. It drops the clips and the waiting bytes of host ids no longer listed. It fetches bytes only for an id whose `url` differs from the one it last fetched for that id. Those bytes go through the same decode queue, and a new clip replaces the old one only once it is decoded. A failed file fetch (a 404 after a replace or remove, or a network error) keeps the old clip if there is one, or leaves that slot silent. It does not record the url, so the next `loadHost` tries again. A call while one is running gives a promise for one more run after it (never more than one waiting). Nothing happens after `destroy()`.
 - Produces (`sound-board.ts`): `SoundBoardViewOptions.onOpen?(): void`, called each time the panel opens.
 - `room.ts`:
   - `const refreshHost = () => { if (this.last?.room.hostSounds && audio.settings.roomSounds) void board.loadHost(hostSoundsUrl(code)); }`.
@@ -252,6 +254,7 @@
   - "loadHost again fetches only changed files and drops removed slots": the first `loadHost` fetches 2 files. Then slot 1 gets a new `v` and slot 3 goes away, and a second `loadHost` fetches exactly 1 file (slot 1's new url). `receive("host:3")` gives `false`. After decode, `receive("host:1")` plays the new clip.
   - "the old clip plays until the new one is decoded": between the second `loadHost` and the decode, `receive("host:1")` plays the old clip.
   - "a failed host list keeps the old one": `getJson` rejects, and `list()` is unchanged.
+  - "a failed file fetch keeps the old clip": slot 1 gets a new `v`, and fetching its bytes fails. `receive("host:1")` still plays the old clip, and the next `loadHost` fetches that url again. A new slot whose file fetch fails is skipped: `receive` gives `false` for it, and nothing throws.
   - "calls while loading fold into one more": three `loadHost` calls while the first is in flight give `getJson` calls of exactly 2.
   - "tap sends a host id": `tap("host:1")` gives `"sent"`.
 - [ ] **Step 3: Write the failing view test** in `sound-board.test.ts`: "host tiles follow the others". `soundBoardModel(room({ ..., hostSounds: true }), ...)` with free and host sounds gives tiles in list order. (The model needs no change. This pins the order through the view.)
@@ -425,6 +428,7 @@ Run this only after `master` (Tasks 1 to 8) is merged into `product`. Work on th
 ## Manual phone checklist
 
 - [ ] Upload from a phone (Android Chrome and iPhone Safari): a long clip is cut to 3 seconds, the slider picks the start, and the saved sound plays at the same loudness as the free ones.
+- [ ] Upload a 4 MB low-bitrate file on a low-end phone: it must not crash.
 - [ ] Pick a 6-minute song over 4 MB: you see "This file is too big. Pick a file under 4 MB." straight away. Pick a PDF renamed to .mp3: you see "This file is not a sound we can use."
 - [ ] A host tile tap on one phone sounds on the others within about a voice round-trip.
 - [ ] Replace a slot mid-party: the other phones play the new sound after they next open the board.

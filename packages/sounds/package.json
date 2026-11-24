@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./list": "./src/list.ts",
-    "./check": "./check.mjs"
+    "./check": "./check.mjs",
+    "./mp3": "./mp3.mjs"
   },
   "scripts": {
     "typecheck": "tsc -p ."

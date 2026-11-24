@@ -1,0 +1,82 @@
+/* My sounds (views/my-sounds.ts). Loaded with the lazy dialog, not with style.css. */
+
+/* Full screen on a phone; a column in the middle on a wide screen. */
+.dialog.my-sounds {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.my-sounds-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+  display: grid;
+  gap: 12px;
+}
+.my-sounds-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dialog.my-sounds h2 { margin: 0; font-size: 1.5rem; }
+.my-sounds-close { min-height: 44px; padding: 0 16px; }
+.my-sounds-body { display: grid; gap: 10px; }
+.my-sounds-intro, .my-sounds-note, .my-sounds-ask { margin: 0; line-height: 1.4; }
+.my-sounds-note { color: var(--warn); }
+.my-sounds-error { margin: 0; color: var(--danger); line-height: 1.4; }
+.my-sounds-ask { font-weight: 600; }
+
+.my-sounds-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.my-sounds-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.my-sounds-row.empty { border-style: dashed; background: none; }
+/* A lapsed, empty slot has nothing to show. */
+.my-sounds-row.empty:not(:has(> *)) { display: none; }
+.my-sounds-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.my-sounds-name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.my-sounds-len { flex: none; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+
+/* The name and length on top, then a row of 4 buttons. */
+.my-sounds-actions, .my-sounds-buttons { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.my-sounds-actions button, .my-sounds-buttons button {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 0.9rem;
+}
+.my-sounds-actions.empty { grid-auto-flow: row; }
+
+.my-sounds-edit { display: grid; gap: 10px; }
+.my-sounds-edit input[name="sound-name"] { min-height: 48px; }
+.my-sounds-cut { display: grid; gap: 8px; }
+.my-sounds-cut .field > span { font-size: 0.9rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* A tall track area, so the thumb is easy to catch with a finger. */
+.my-sounds-start {
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  accent-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog.my-sounds[open], .dialog.my-sounds[open]::backdrop { animation: none; }
+  .my-sounds button, .my-sounds input { transition: none; }
+  .my-sounds button:active:not(:disabled) { transform: none; }
+}

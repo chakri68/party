@@ -39,6 +39,8 @@ export interface SoundBoardViewOptions {
   toast(text: string): void;
   /** The phone's Sound board setting. */
   playHere(): boolean;
+  /** Called each time the panel opens. */
+  onOpen?(): void;
 }
 
 type BoardPart = Pick<SoundBoard<unknown>, "list" | "onChange" | "tap" | "coolingMs">;
@@ -85,8 +87,10 @@ export class SoundBoardView {
   }
 
   toggle(open = this.panel.hidden) {
+    const opening = open && this.panel.hidden;
     this.panel.hidden = !open;
     this.button.setAttribute("aria-expanded", String(open));
+    if (opening) this.opts.onOpen?.();
   }
 
   render(room: RoomPublicState | null, me: string | null): void {

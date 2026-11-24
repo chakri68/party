@@ -4,6 +4,7 @@ import { getServerByName, routePartykitRequest, Server, type Connection } from "
 import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
+import { serveMySounds, serveRoomSounds } from "./host-sounds.ts";
 import { servePacks, soundPacksFor } from "./packs.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { turnMinter } from "./turn.ts";
@@ -101,11 +102,17 @@ export class RoomBase extends Server<Env> {
     return this.runtime.claim(grant, setup);
   }
 
-  /** RPC: lift a free room to pass. Only the room's host key may. */
-  async upgrade(hostKey: string): Promise<boolean> {
+  /** RPC: lift a free room to pass. Only the room's host key may. Without a sounds bucket, the library is dropped. */
+  async upgrade(hostKey: string, library?: string | null): Promise<boolean> {
     if (!this.runtime.hostKeyMatches(hostKey)) return false;
-    await this.runtime.upgrade();
+    const soundsBound = !!(this.env as ServerEnv).SOUNDS;
+    await this.runtime.upgrade(soundsBound ? library : null);
     return true;
+  }
+
+  /** RPC: the room's sound library id, or null. getServerByName awaits onStart, so the room is loaded. */
+  async library(): Promise<string | null> {
+    return this.runtime.library();
   }
 
   onConnect(conn: Connection<ConnState>) {
@@ -129,6 +136,8 @@ export class RoomBase extends Server<Env> {
 /** What createFetch needs from a room stub; tests fake it. */
 export interface RoomStub {
   claim(grant?: RoomGrant, setup?: RoomSetup): Promise<boolean>;
+  /** The room's sound library id. Optional, so fakes that only claim still fit. */
+  library?(): Promise<string | null>;
 }
 
 export interface WorkerOptions {
@@ -170,7 +179,7 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = generateRoomCode();
         const stub = await getRoom(env, code);
-        if (await stub.claim(decision.grant, setup)) {
+        if (await stub.claim(env.SOUNDS || !decision.grant.library ? decision.grant : { ...decision.grant, library: null }, setup)) {
           // The room is claimed and playable: the record (a database write, far
           // away on a slow route) needn't hold up the host. Awaited without a ctx.
           const record = opts.onRoomCreated?.(code, decision.grant, request);
@@ -194,6 +203,12 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
 
     const packs = await servePacks(request, env);
     if (packs) return packs;
+
+    const roomSounds = await serveRoomSounds(request, env, async (code) => (await getRoom(env, code)).library?.() ?? null);
+    if (roomSounds) return roomSounds;
+
+    const mySounds = await serveMySounds(request, env, opts.policy);
+    if (mySounds) return mySounds;
 
     const godot = await serveGodot(request, env);
     if (godot) return godot;

@@ -73,6 +73,12 @@ export interface ShellOptions {
   partyOver?: PartyOverHook;
   /** URLs of extra sound pack lists, after the free pack. The stock app sets the memes pack. A host app leaves it out. */
   extraPacks?: string[];
+  /**
+   * Headers for the host's own sounds API, or null when this phone cannot have any.
+   * Default: the owner key as a bearer token, or null without one. A host app with
+   * a sign-in cookie passes `() => ({})`.
+   */
+  soundsAuth?: () => Record<string, string> | null;
 }
 
 type Config = Required<Omit<ShellOptions, "nameOverrides" | "beforeStart" | "partyOver" | "createText" | "home">> &
@@ -109,6 +115,10 @@ const defaults: Config = {
   hostKeyFor: () => getOwnerKey(),
   onLockedGame: () => {},
   extraPacks: [],
+  soundsAuth: () => {
+    const key = getOwnerKey();
+    return key ? { authorization: `Bearer ${key}` } : null;
+  },
 };
 
 let config: Config = defaults;

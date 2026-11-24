@@ -188,6 +188,7 @@ function writeConfig(serverDir) {
   // TREASURE_HUNT keep their "0"), so their Godot bucket would only ever be an
   // empty local simulation. The worker 404s /blind-rally/godot/* and
   // /treasure-hunt/godot/* without it.
+  // This also drops MEMES and SOUNDS on purpose: self-hosted copies get the free sounds only.
   delete config.r2_buckets;
   const path = join(serverDir, "wrangler.selfhost.json");
   writeFileSync(path, JSON.stringify(config, null, 2));
