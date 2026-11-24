@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { bankScore, cardLabel, colourBonus, enginePoints, isAimed } from "../shared/rules.ts";
 import { HEATWAVE_DROP, VENT_HEAT, type Card, type Colour, type EngineCard, type OverheatEvent, type OverheatPlayerState, type OverheatPublicState, type Pending } from "../shared/types.ts";
 
@@ -309,8 +309,8 @@ export class OverheatView implements GameView {
   }
 
   private countdown(game: OverheatPublicState): string {
-    const s = Math.max(0, Math.ceil((game.roundEndsAt - this.api.serverNow()) / 1000));
-    return s > 0 ? `Next round in ${s}.` : "Next round…";
+    const left = game.roundEndsAt - this.api.serverNow();
+    return left > 0 ? `Next round in ${formatSeconds(left)}.` : "Next round…";
   }
 
   private tick() {

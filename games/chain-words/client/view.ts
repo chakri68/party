@@ -1,6 +1,6 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { MAX_WORD, normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
 import type { ChainWordsEvent, ChainWordsPrivateState, ChainWordsPublicState, Link } from "../shared/types.ts";
 
@@ -230,7 +230,7 @@ export class ChainWordsView implements GameView {
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.secs.textContent = String(secs);
+    this.secs.textContent = left > 0 ? formatSeconds(left) : "";
     this.ring.arc.style.strokeDashoffset = String(100 - Math.min(1, left / game.turnMs) * 100);
     this.stage.classList.toggle("low", secs <= TICK_FROM);
     if (secs > 0 && secs <= TICK_FROM && secs !== this.lastTick && document.visibilityState === "visible") {

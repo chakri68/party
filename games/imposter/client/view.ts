@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
 import { roleReveal } from "@games/hidden-roles/reveal";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { PLACES, placeById } from "../shared/places.ts";
 import { cleanClue, clueProblem } from "../shared/rules.ts";
 import { MAX_CLUE, MAX_GUESS, type ImposterEvent, type ImposterPrivateState, type ImposterPublicState } from "../shared/types.ts";
@@ -44,7 +44,7 @@ export class ImposterView implements GameView {
   private root = h("div", { class: "imposter" });
   private roundLabel = h("span", { class: "im-round" });
   private phaseLabel = h("span", { class: "im-phase" });
-  private timer = h("span", { class: "im-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "im-bar" });
 
   /** Clues mode's category: public, so it lives outside the face-down card. */
@@ -98,7 +98,7 @@ export class ImposterView implements GameView {
   constructor(api: GameClientApi) {
     this.api = api;
     this.root.append(
-      h("div", { class: "im-top" }, this.roundLabel, this.phaseLabel, this.timer),
+      h("div", { class: "im-top" }, this.roundLabel, this.phaseLabel, this.timer.el),
       h("div", { class: "im-track", "aria-hidden": "true" }, this.bar),
       this.category,
       this.cardSlot,
@@ -290,16 +290,17 @@ export class ImposterView implements GameView {
     const game = this.game();
     const live = game && game.phase !== "finished" && game.phaseMs > 0;
     if (!live) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    // Spoken mode's minutes read better as minutes.
-    this.timer.textContent = game.phase === "talk" && secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs} s`;
+    // Red only when this player has something to do now.
+    const act = ["clues", "vote", "runoff", "guess", "discuss", "talk"].includes(game.phase);
+    this.timer.set(left, { lowAt: act ? TICK_FROM * 1000 : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
-    const low = secs <= TICK_FROM && ["clues", "vote", "runoff", "guess", "discuss", "talk"].includes(game.phase);
+    const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;

@@ -20,8 +20,6 @@
 }
 .sn-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
 .sn-step { flex: 1; text-align: center; }
-.sn-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
-.short-night.low .sn-timer { color: var(--danger); }
 
 .sn-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .sn-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }

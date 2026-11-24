@@ -1,6 +1,6 @@
 import { AnimationQueue } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { cleanDefinition, cleanFake, definitionShapeProblem, fakeShapeProblem } from "../shared/rules.ts";
 import { type BluffEvent, type BluffPrivateState, type BluffPublicState, FOOLED_POINTS, FOUND_POINTS, MAX_DEFINITION, MAX_FAKE, type Variant } from "../shared/types.ts";
 
@@ -36,7 +36,7 @@ export class BluffView implements GameView {
   private root: HTMLElement;
   private roundLabel = h("span", { class: "bl-round" });
   private phaseLabel = h("span", { class: "bl-phase" });
-  private timer = h("span", { class: "bl-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "bl-bar" });
 
   private card = h("section", { class: "bl-card", "aria-label": "This round" });
@@ -75,7 +75,7 @@ export class BluffView implements GameView {
     }
     this.form = h("form", { class: "bl-form" }, h("div", { class: "bl-field" }, this.input, this.count), this.send);
     this.root.append(
-      h("div", { class: "bl-top" }, this.roundLabel, this.phaseLabel, this.timer),
+      h("div", { class: "bl-top" }, this.roundLabel, this.phaseLabel, this.timer.el),
       h("div", { class: "bl-track", "aria-hidden": "true" }, this.bar),
       this.card,
       this.headline,
@@ -214,15 +214,17 @@ export class BluffView implements GameView {
     const game = this.game();
     const live = game && game.phase !== "finished" && game.phaseMs > 0;
     if (!live) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, game.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = `${secs} s`;
+    // Red only when this player has something to do now.
+    const act = game.phase === "write" || game.phase === "vote";
+    this.timer.set(left, { lowAt: act ? TICK_FROM * 1000 : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
-    const low = secs <= TICK_FROM && (game.phase === "write" || game.phase === "vote");
+    const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {
       this.lastTick = secs;

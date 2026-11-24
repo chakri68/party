@@ -157,7 +157,7 @@ describe("the HUD on a quiet tick", () => {
     const p = priv({ id: "c1", until: 60_000, level: 2 });
     const opensP: THPrivate = { ...priv(), hotcold: { used: false, unlockAt: 120_000, active: null } };
     const state = (now: number, pr: THPrivate) => ({ left: 300_000, countdown: null, score: { found: 0, pool: 2, mode: "timed" as const }, priv: pr, clock: 600, hot: hotColdView(pr, now, null) });
-    const nodes = [hud.timer, hud.clock, hud.score, hud.count, hud.meter.lastElementChild!, hud.board.children[1]!] as unknown as FakeNode[];
+    const nodes = [hud.timer.el.lastElementChild!, hud.clock, hud.score, hud.count, hud.meter.lastElementChild!, hud.board.children[1]!] as unknown as FakeNode[];
     for (const pr of [p, opensP]) {
       hud.render(state(10_000, pr));
       const before = nodes.map((n) => n.writes);

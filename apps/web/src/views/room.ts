@@ -26,7 +26,7 @@ import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
 import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
-import { lobbyAction, settingsSummary, settingsWarnings } from "./lobby.ts";
+import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
 import { lockGame } from "./pause.ts";
 import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.ts";
@@ -103,6 +103,8 @@ export class RoomView implements View {
   private headerEnd = h("span", { class: "header-part header-end" });
   /** The phase the header and voice bar show; it trails the room on the results delay. */
   private shownPhase: RoomPhase | null = null;
+  /** Stops the lobby bar's height watch (lobby.ts). */
+  private stopLobbyBar: (() => void) | null = null;
   private menuDialog: HTMLDialogElement | null = null;
   /** Kept, not rebuilt: panels opened from the menu hand focus back to it. */
   private menuButton = h("button", { type: "button", class: "icon-btn room-menu-button", "aria-label": "Room menu", "aria-haspopup": "dialog", onclick: () => this.openMenu() }, icon("more"));
@@ -184,6 +186,7 @@ export class RoomView implements View {
     cancelConfirm();
     this.voice?.stop();
     this.unwatchFrames?.();
+    this.stopLobbyBar?.();
     this.ptt?.destroy();
     this.voiceBar?.destroy();
     this.playback?.destroy();
@@ -202,8 +205,17 @@ export class RoomView implements View {
    * the lobby also animates its own updates (only named blocks move). The
    * first screen doesn't: it's already inside the router's page transition.
    */
-  private show(screen: string, update: () => void | Promise<void>) {
+  private show(screen: string, body: () => void | Promise<void>) {
     const was = this.screen;
+    // Stopped inside the swap, so a queued lobby swap that runs first cannot leave a watcher on a detached bar.
+    const update =
+      screen === "lobby"
+        ? body
+        : () => {
+            this.stopLobbyBar?.();
+            this.stopLobbyBar = null;
+            return body();
+          };
     const first = was === null;
     const kind = screen !== was ? "phase" : screen === "lobby" ? "lobby" : null;
     this.screen = screen;
@@ -692,7 +704,8 @@ export class RoomView implements View {
         if (fold) fold.open = this.settingsOpen ?? false;
         // Toasts on phones rise above the Start bar (style.css).
         const bar = lobby.querySelector<HTMLElement>(".lobby-actions");
-        if (bar) this.root.style.setProperty("--lobby-bar", `${bar.offsetHeight}px`);
+        this.stopLobbyBar?.();
+        this.stopLobbyBar = bar ? watchBarHeight(bar, this.root) : null;
         this.setPhase("lobby");
       });
       return;
