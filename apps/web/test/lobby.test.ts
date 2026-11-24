@@ -1,6 +1,6 @@
 import type { SettingField } from "@games/game-core";
-import { describe, expect, it } from "vitest";
-import { lobbyAction, settingsSummary, settingsWarnings, type LobbyActionInput } from "../src/views/lobby.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight, type LobbyActionInput } from "../src/views/lobby.ts";
 
 const base: LobbyActionInput = {
   isHost: false,
@@ -73,5 +73,51 @@ describe("the settings summary", () => {
       { ...field("Teams", ["Off", "2 teams"], 1), warn: true },
     ];
     expect(settingsWarnings(fields)).toEqual(["Map: Too small for 5. Using 6×6"]);
+  });
+});
+
+describe("watchBarHeight", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const fakeBar = (height: number) => ({ offsetHeight: height }) as HTMLElement;
+  const fakeRoot = () => {
+    const props = new Map<string, string>();
+    const root = { style: { setProperty: (k: string, v: string) => props.set(k, v), removeProperty: (k: string) => props.delete(k) } };
+    return { root: root as unknown as HTMLElement, props };
+  };
+
+  it("sets the height at once, follows resizes, and clears on stop", () => {
+    let fire = () => {};
+    let disconnected = false;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          fire = cb;
+        }
+        observe() {}
+        disconnect() {
+          disconnected = true;
+        }
+      },
+    );
+    const bar = fakeBar(64);
+    const { root, props } = fakeRoot();
+    const stop = watchBarHeight(bar, root);
+    expect(props.get("--lobby-bar")).toBe("64px");
+    (bar as { offsetHeight: number }).offsetHeight = 90;
+    fire();
+    expect(props.get("--lobby-bar")).toBe("90px");
+    stop();
+    expect(disconnected).toBe(true);
+    expect(props.has("--lobby-bar")).toBe(false);
+  });
+
+  it("sets the height once when there is no ResizeObserver", () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    const { root, props } = fakeRoot();
+    const stop = watchBarHeight(fakeBar(64), root);
+    expect(props.get("--lobby-bar")).toBe("64px");
+    expect(() => stop()).not.toThrow();
+    expect(props.has("--lobby-bar")).toBe(false);
   });
 });
