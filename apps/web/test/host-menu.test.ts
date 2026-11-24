@@ -1,6 +1,6 @@
 import type { RoomPublicState, SeatPublic } from "@games/protocol";
 import { describe, expect, it } from "vitest";
-import { leaveQuestion, nextHost, seatActionMessage, seatActions } from "../src/views/host-menu.ts";
+import { leaveQuestion, muteAllAction, nextHost, seatActionMessage, seatActions } from "../src/views/host-menu.ts";
 
 const seat = (id: string, extra: Partial<SeatPublic> = {}): SeatPublic => ({
   id,
@@ -44,6 +44,51 @@ describe("the seat menu", () => {
     const ben = seat("ben");
     expect(seatActionMessage("make-host", ben)).toEqual({ type: "transfer-host", playerId: "ben" });
     expect(seatActionMessage("remove", ben)).toEqual({ type: "remove-player", playerId: "ben" });
+  });
+});
+
+describe("host mute in the seat menu", () => {
+  it("a seat in voice gets Mute first, with no question", () => {
+    const acts = seatActions(room("amy"), "amy", seat("ben"), { hostMuted: false });
+    expect(acts.map((a) => a.kind)).toEqual(["mute", "make-host", "remove"]);
+    expect(acts[0]).toEqual({ kind: "mute", label: "Mute", confirm: null, danger: false });
+  });
+
+  it("a host-muted seat gets Allow to talk", () => {
+    const acts = seatActions(room("amy"), "amy", seat("ben"), { hostMuted: true });
+    expect(acts.map((a) => a.kind)).toEqual(["allow-talk", "make-host", "remove"]);
+    expect(acts[0]).toEqual({ kind: "allow-talk", label: "Allow to talk", confirm: null, danger: false });
+  });
+
+  it("no voice actions without a voice entry, for myself, or for a non-host", () => {
+    const kinds = (r: RoomPublicState, me: string, s: SeatPublic, v?: { hostMuted: boolean } | null) => seatActions(r, me, s, v).map((a) => a.kind);
+    expect(kinds(room("amy"), "amy", seat("ben"))).toEqual(["make-host", "remove"]);
+    expect(kinds(room("amy"), "amy", seat("ben"), null)).toEqual(["make-host", "remove"]);
+    expect(kinds(room("amy"), "amy", seat("amy"), { hostMuted: false })).toEqual([]);
+    expect(kinds(room("amy"), "cat", seat("ben"), { hostMuted: false })).toEqual([]);
+  });
+
+  it("mute and allow-talk send host-mute", () => {
+    const ben = seat("ben");
+    expect(seatActionMessage("mute", ben)).toEqual({ type: "host-mute", playerId: "ben", muted: true });
+    expect(seatActionMessage("allow-talk", ben)).toEqual({ type: "host-mute", playerId: "ben", muted: false });
+  });
+
+  it("muteAllAction: null with nobody else in voice or when not host", () => {
+    const amyIn = { id: "amy", hostMuted: false };
+    const benIn = { id: "ben", hostMuted: false };
+    expect(muteAllAction(room("amy"), "amy", [])).toBeNull();
+    expect(muteAllAction(room("amy"), "amy", [amyIn])).toBeNull();
+    expect(muteAllAction(room("amy"), "ben", [amyIn, benIn])).toBeNull();
+    expect(muteAllAction(room("amy"), "cat", [amyIn, benIn])).toBeNull();
+  });
+
+  it("muteAllAction: mute-all while anyone is not host-muted, then allow-all", () => {
+    const r = room("amy");
+    // A host who never joined voice can still mute.
+    expect(muteAllAction(r, "amy", [{ id: "ben", hostMuted: false }])).toBe("mute-all");
+    expect(muteAllAction(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: false }])).toBe("mute-all");
+    expect(muteAllAction(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: true }])).toBe("allow-all");
   });
 });
 

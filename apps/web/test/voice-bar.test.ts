@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinAllowed, joinLines, pttEnabled, voiceBarModel, voiceMenuItem } from "../src/views/voice-bar.ts";
+import { hostVoiceAction, joinAllowed, joinLines, pttEnabled, voiceBarModel, voiceMenuItem } from "../src/views/voice-bar.ts";
 import type { VoiceMemberView, VoiceView } from "../src/voice/voice.ts";
 
 const member = (id: string, extra: Partial<VoiceMemberView> = {}): VoiceMemberView => ({
@@ -196,5 +196,31 @@ describe("voiceMenuItem", () => {
     expect(voiceMenuItem(view({ status: "joining" }))).toBe("voice");
     expect(voiceMenuItem(view({ status: "full" }))).toBe("join");
     expect(voiceMenuItem(view({ status: "unsupported" }))).toBe("unsupported");
+  });
+});
+
+describe("host mute", () => {
+  it("host-muted shows The host muted you.", () => {
+    for (const mode of ["open", "ptt"] as const) {
+      const m = voiceBarModel(view({ status: "on", mic: "muted", mode, members: [member("me", { self: true, hostMuted: true, selfMuted: true })] }), "playing");
+      expect(m.micName, mode).toBe("Unmute. The host muted you.");
+      expect(m.spoken).toBe("The host muted you.");
+    }
+    // Not host-muted: the old note.
+    const own = voiceBarModel(view({ status: "on", mic: "muted", members: [member("me", { self: true, selfMuted: true })] }), "playing");
+    expect(own.micName).toBe("Unmute. Muted: your mic is still on.");
+    // Someone else host-muted: not my note.
+    const other = voiceBarModel(view({ status: "on", mic: "on", members: [member("me", { self: true }), member("ben", { hostMuted: true })] }), "playing");
+    expect(other.micName).toBe("Mute");
+  });
+
+  it("hostVoiceAction: Mute, Allow to talk, null for self and for others", () => {
+    expect(hostVoiceAction(member("ben"), true)).toEqual({ label: "Mute", message: { type: "host-mute", playerId: "ben", muted: true } });
+    expect(hostVoiceAction(member("ben", { hostMuted: true }), true)).toEqual({
+      label: "Allow to talk",
+      message: { type: "host-mute", playerId: "ben", muted: false },
+    });
+    expect(hostVoiceAction(member("me", { self: true }), true)).toBeNull();
+    expect(hostVoiceAction(member("ben"), false)).toBeNull();
   });
 });

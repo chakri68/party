@@ -28,7 +28,7 @@ import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
 import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
 import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 import { identityField, nameInput } from "./home.ts";
-import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
+import { leaveQuestion, muteAllAction, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
 import { lockGame } from "./pause.ts";
@@ -311,7 +311,10 @@ export class RoomView implements View {
     ptt.attach(window);
     // Godot frames (Treasure Hunt, Blind Rally) catch Space too, with no change to their bridges.
     this.unwatchFrames = ptt.watchFrames(this.gameHost);
-    const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"));
+    const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"), {
+      isHost: () => !!this.last && !!this.client?.playerId && this.last.room.hostId === this.client.playerId,
+      send: (msg) => this.client?.send(msg),
+    });
     // Above the body and outside the game host: game swaps never move it.
     this.header.after(bar.el);
     // Once, in its own slot: renderHeader rebuilds only the parts around it.
@@ -632,12 +635,17 @@ export class RoomView implements View {
       // Only while the game runs and the room can hear us: elsewhere they would do nothing.
       hostActions: room.phase === "playing" && !this.stuck,
       mySounds: this.mySounds,
+      // The roster is kept also when this phone is not in voice: a host who never joined can still mute.
+      muteAll: muteAllAction(room, me, this.voice?.view().members ?? []),
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
     const act: Record<RoomMenuItem, () => void> = {
       "join-voice": () => void this.voiceBar?.startJoin(),
       voice: () => this.voiceBar?.openPanel(),
+      // One tap undoes it, so no question first.
+      "mute-all": () => client.send({ type: "host-mute", playerId: "all", muted: true }),
+      "allow-all": () => client.send({ type: "host-mute", playerId: "all", muted: false }),
       settings: () => this.openSettings(),
       // The dialog and its mp3 encoder load only when asked for.
       "my-sounds": () =>
@@ -1152,11 +1160,15 @@ export class RoomView implements View {
     );
   }
 
+  /** This seat's entry in the voice roster, or null when it is not in voice. */
+  private voiceEntry(id: string): { hostMuted: boolean } | null {
+    return this.voice?.view().members.find((m) => m.id === id) ?? null;
+  }
+
   /** A computer keeps a plain X. A person gets the dots, which open the host's menu. */
   private seatControl(room: RoomPublicState, me: string, s: RoomPublicState["seats"][number]) {
-    const actions = seatActions(room, me, s);
-    if (!actions.length) return null;
-    const send = (kind: (typeof actions)[number]["kind"]) => this.client?.send(seatActionMessage(kind, s));
+    if (!seatActions(room, me, s, this.voiceEntry(s.id)).length) return null;
+    const send = (kind: SeatActionKind) => this.client?.send(seatActionMessage(kind, s));
     if (s.bot) {
       return h("button", { type: "button", class: "kick bot-kick", "aria-label": `Remove ${s.name}`, onclick: () => send("remove") }, icon("close"));
     }
@@ -1165,6 +1177,11 @@ export class RoomView implements View {
       class: "kick seat-menu-button",
       "aria-label": `Actions for ${s.name}`,
       onclick: () => {
+        // Read at the tap, not at the last draw: voice changes do not redraw the seats.
+        const now = this.last?.room ?? room;
+        const seat = now.seats.find((x) => x.id === s.id) ?? s;
+        const actions = seatActions(now, me, seat, this.voiceEntry(s.id));
+        if (!actions.length) return;
         const dlg = h(
           "dialog",
           { class: "dialog seat-menu", "aria-label": s.name },
@@ -1183,7 +1200,7 @@ export class RoomView implements View {
                   const still = () => {
                     const now = this.last?.room;
                     const seat = now?.seats.find((x) => x.id === s.id);
-                    return !!now && !!seat && seatActions(now, me, seat).some((x) => x.kind === a.kind);
+                    return !!now && !!seat && seatActions(now, me, seat, this.voiceEntry(seat.id)).some((x) => x.kind === a.kind);
                   };
                   void this.ask(a.confirm, { ok: a.label, danger: a.danger }, still).then((yes) => yes && send(a.kind));
                 },

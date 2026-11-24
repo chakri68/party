@@ -75,6 +75,7 @@ The host is the first person into the room. The tag next to their name says "hos
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
 - **Lock room** in the lobby. While it is locked, new players can't join. Players already in the room can still come back. So can someone whose phone went to sleep and lost their seat. Tap **Unlock room** to open it again.
 - Mid-game: **Skip** and **Remove** buttons above the game, and **Pause**, **Restart** and **End game** in the menu (the three dots at the top right). All are covered below.
+- **Mute** a person in voice, from the dots next to them or from the **Voice** panel. **Mute all** in the menu mutes everyone else in voice. **Allow to talk** and **Allow all to talk** undo it, with no question first. The person stays muted until they tap the mic. The host can never turn on anyone's mic. People who join voice later are not muted. The host does not need to be in voice to do this.
 - **Sounds: off** at the top of the sound board turns the board off for everyone. Only the host still sees the sound board button, to turn it on again.
 
 ### Computer players
@@ -169,6 +170,8 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
 - **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works.
 - If the phone blocks sound, tap **Tap to turn on sound**. If your mic stops (a call, or you pulled out a headset), tap **Tap to talk again.**
+- If the host mutes you, you see "The host muted you." You cannot unmute until the host allows it. In the **Voice** panel, others see "muted by host" next to your name. When the host allows it, you see "You can talk again. Tap the mic to talk."
+- If you leave voice and join again, the host mute is gone. The host can mute you again.
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.

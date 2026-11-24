@@ -1,7 +1,6 @@
 import type { ClientMessage, RoomPublicState, SeatPublic } from "@games/protocol";
 
-/** Phase 3 adds "mute". */
-export type SeatActionKind = "make-host" | "remove";
+export type SeatActionKind = "mute" | "allow-talk" | "make-host" | "remove";
 
 export interface SeatAction {
   kind: SeatActionKind;
@@ -11,10 +10,21 @@ export interface SeatAction {
   danger: boolean;
 }
 
-/** What the host can do to one seat, in menu order. Nothing for anyone else. */
-export function seatActions(room: RoomPublicState, me: string, seat: SeatPublic): SeatAction[] {
+/**
+ * What the host can do to one seat, in menu order. Nothing for anyone else.
+ * `voice`: the seat's voice entry, when it is in voice (computers never are).
+ * Mute or Allow to talk come first and act at once: one tap undoes them.
+ */
+export function seatActions(room: RoomPublicState, me: string, seat: SeatPublic, voice?: { hostMuted: boolean } | null): SeatAction[] {
   if (room.hostId !== me || seat.id === me) return [];
   const actions: SeatAction[] = [];
+  if (voice) {
+    actions.push(
+      voice.hostMuted
+        ? { kind: "allow-talk", label: "Allow to talk", confirm: null, danger: false }
+        : { kind: "mute", label: "Mute", confirm: null, danger: false },
+    );
+  }
   if (!seat.bot && seat.presence === "connected") {
     actions.push({ kind: "make-host", label: "Make host", confirm: `Make ${seat.name} the host?`, danger: false });
   }
@@ -23,7 +33,28 @@ export function seatActions(room: RoomPublicState, me: string, seat: SeatPublic)
 }
 
 export function seatActionMessage(kind: SeatActionKind, seat: SeatPublic): ClientMessage {
-  return kind === "make-host" ? { type: "transfer-host", playerId: seat.id } : { type: "remove-player", playerId: seat.id };
+  switch (kind) {
+    case "mute":
+      return { type: "host-mute", playerId: seat.id, muted: true };
+    case "allow-talk":
+      return { type: "host-mute", playerId: seat.id, muted: false };
+    case "make-host":
+      return { type: "transfer-host", playerId: seat.id };
+    case "remove":
+      return { type: "remove-player", playerId: seat.id };
+  }
+}
+
+/**
+ * The room menu's Mute all / Allow all to talk, or null. Only for the host,
+ * and only with someone else in voice (the host need not be in voice).
+ * Mute all while anyone else can still talk; Allow all to talk once all are muted.
+ */
+export function muteAllAction(room: RoomPublicState, me: string, members: { id: string; hostMuted: boolean }[]): "mute-all" | "allow-all" | null {
+  if (room.hostId !== me) return null;
+  const others = members.filter((m) => m.id !== me);
+  if (others.length === 0) return null;
+  return others.some((m) => !m.hostMuted) ? "mute-all" : "allow-all";
 }
 
 /**
