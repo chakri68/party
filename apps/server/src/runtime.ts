@@ -83,6 +83,8 @@ export interface RoomGrant {
   tier: RoomTier;
   /** Per-room secret that seats its holder as owner, like the global owner key. */
   hostKey: string | null;
+  /** The host's sound library, for this room's board. Absent or null: no host sounds. */
+  library?: string | null;
 }
 
 /** What a room starts as, from a link: a game, with some computers already seated. */
@@ -157,6 +159,8 @@ interface RoomData {
   /** Optional: rooms stored before tiers existed are "pass" with no host key. */
   tier?: RoomTier;
   hostKey?: string | null;
+  /** The host's sound library id. Optional: rooms stored before it have none. Never sent to phones. */
+  library?: string;
   /** The night so far, for the recap. Optional: rooms stored before it existed start one on their next game. */
   party?: PartyLog;
   /**
@@ -302,6 +306,7 @@ export class RoomRuntime {
         tier: grant.tier,
         hostKey: grant.hostKey,
       };
+      if (isLibrary(grant.library)) this.data.library = grant.library;
       if (setup) this.applySetup(setup);
       // Covers the room nobody ever joins.
       this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
@@ -346,13 +351,22 @@ export class RoomRuntime {
     };
   }
 
-  /** free → pass, in place. Never the other way: a lapsed pass can't close an open room. */
-  upgrade(): Promise<void> {
+  /**
+   * free → pass, in place. Never the other way: a lapsed pass can't close an open room.
+   * In the same step, a room with no library takes `library`. A pass room changes nothing.
+   */
+  upgrade(library?: string | null): Promise<void> {
     return this.run(async () => {
       if (!this.data || this.tier() === "pass") return;
       this.data.tier = "pass";
+      if (isLibrary(library) && !this.data.library) this.data.library = library;
       await this.commit([]);
     });
+  }
+
+  /** The room's sound library id, or null. A plain memory read: no queue, no storage. */
+  library(): string | null {
+    return this.data?.library ?? null;
   }
 
   /** Constant-time. False when the room has no host key. */
@@ -707,7 +721,7 @@ export class RoomRuntime {
       case "sound": {
         // Like emotes, anything not allowed just drops. The seat check runs first,
         // so a tap the room cap drops still costs the seat its turn.
-        if (data.phase === "ended" || data.soundsOff || !onBoard(msg.id, this.host.soundPacks ?? [])) return;
+        if (data.phase === "ended" || data.soundsOff || !onBoard(msg.id, this.host.soundPacks ?? [], !!data.library)) return;
         if (!this.allow("sound", seat.id, { burst: 1, windowMs: SOUND_COOLDOWN_MS })) return;
         if (!this.allow("sound-room", "*", ROOM_SOUND_LIMIT)) return;
         return this.relaySound(msg.id, seat.id);
@@ -1503,6 +1517,7 @@ export class RoomRuntime {
       lockedGameIds: this.lockedGameIds(),
       botGameIds: Object.keys(this.games).filter((id) => this.games[id]!.bot),
       sounds: !data.soundsOff,
+      hostSounds: !!data.library,
       maxSeats: this.games[data.gameId] ? this.maxSeats(this.games[data.gameId]!) : 0,
       recap: data.phase === "ended" ? buildRecap(data.party ?? emptyPartyLog(), this.host.now()) : null,
     };
@@ -1563,4 +1578,9 @@ export class RoomRuntime {
     this.error(conn, code, message);
     conn.close(CLOSE_POLICY, code);
   }
+}
+
+/** A library id the room keeps: any non-empty string. Its format is checked where it is made. */
+function isLibrary(v: unknown): v is string {
+  return typeof v === "string" && v !== "";
 }

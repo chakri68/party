@@ -101,11 +101,17 @@ export class RoomBase extends Server<Env> {
     return this.runtime.claim(grant, setup);
   }
 
-  /** RPC: lift a free room to pass. Only the room's host key may. */
-  async upgrade(hostKey: string): Promise<boolean> {
+  /** RPC: lift a free room to pass. Only the room's host key may. Without a sounds bucket, the library is dropped. */
+  async upgrade(hostKey: string, library?: string | null): Promise<boolean> {
     if (!this.runtime.hostKeyMatches(hostKey)) return false;
-    await this.runtime.upgrade();
+    const soundsBound = !!(this.env as ServerEnv & { SOUNDS?: unknown }).SOUNDS;
+    await this.runtime.upgrade(soundsBound ? library : null);
     return true;
+  }
+
+  /** RPC: the room's sound library id, or null. getServerByName awaits onStart, so the room is loaded. */
+  async library(): Promise<string | null> {
+    return this.runtime.library();
   }
 
   onConnect(conn: Connection<ConnState>) {
@@ -129,6 +135,8 @@ export class RoomBase extends Server<Env> {
 /** What createFetch needs from a room stub; tests fake it. */
 export interface RoomStub {
   claim(grant?: RoomGrant, setup?: RoomSetup): Promise<boolean>;
+  /** The room's sound library id. Optional, so fakes that only claim still fit. */
+  library?(): Promise<string | null>;
 }
 
 export interface WorkerOptions {

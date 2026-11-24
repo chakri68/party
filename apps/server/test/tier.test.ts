@@ -98,4 +98,39 @@ describe("room tiers", () => {
     await send(room, a, { type: "chat", text: "oh darn" });
     expect(a.last("chat")).toMatchObject({ messages: [{ text: "oh ****" }] });
   });
+
+  it("upgrade with a library gives a free room host sounds", async () => {
+    await room.claim({ tier: "free", hostKey: "hk" });
+    const a = await join(world, room, "Asha");
+    expect(roomOf(a).hostSounds).toBe(false);
+    expect(room.library()).toBeNull();
+    const n = a.of("update").length;
+    await room.upgrade("acct-9");
+    expect(a.of("update").length).toBe(n + 1);
+    expect(roomOf(a).hostSounds).toBe(true);
+    expect(roomOf(a).tier).toBe("pass");
+    expect(room.library()).toBe("acct-9");
+  });
+
+  it("upgrade never changes a library", async () => {
+    await room.claim({ tier: "free", hostKey: "hk", library: "a" });
+    await room.upgrade("b");
+    expect(room.library()).toBe("a");
+
+    const pass = new RoomRuntime("K7DY", world.host(), games, "sevens");
+    await pass.claim({ tier: "pass", hostKey: "hk", library: "a" });
+    const p = await join(world, pass, "Ben");
+    const n = p.of("update").length;
+    await pass.upgrade("b");
+    expect(p.of("update").length).toBe(n);
+    expect(pass.library()).toBe("a");
+    expect(roomOf(p).hostSounds).toBe(true);
+  });
+
+  it("claim and upgrade take only a non-empty library", async () => {
+    await room.claim({ tier: "free", hostKey: "hk", library: "" });
+    expect(room.library()).toBeNull();
+    await room.upgrade("");
+    expect(room.library()).toBeNull();
+  });
 });
