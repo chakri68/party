@@ -15,6 +15,8 @@ import {
   readCapped,
   readIndex,
   serveMySounds,
+  serveRoomSounds,
+  type RoomSoundsBody,
   type HostSlot,
   type MySoundsBody,
   type SoundsBucket,
@@ -559,5 +561,104 @@ describe("helpers", () => {
     expect((await readCapped(stream(3, 4), 7))?.length).toBe(7);
     expect(await readCapped(stream(3, 5), 7)).toBeNull();
     expect((await readCapped(null, 7))?.length).toBe(0);
+  });
+});
+
+describe("room routes", () => {
+  async function room(library: string | null = "owner") {
+    const w = setup();
+    const bytes = fakeMp3();
+    expect((await w.call(put("1", "One", bytes))).status).toBe(200);
+    expect((await w.call(put("3", "Three", fakeMp3({ frames: 12 })))).status).toBe(200);
+    const libraryOf = vi.fn(async () => library);
+    const get = (path: string, init: RequestInit = {}) =>
+      serveRoomSounds(new Request(`https://x.test${path}`, init), w.env, libraryOf);
+    return { ...w, bytes, libraryOf, get };
+  }
+
+  it("lists the room's host sounds", async () => {
+    const { get, libraryOf, objects } = await room();
+    const res = (await get("/api/rooms/k7dx/sounds"))!;
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const b = (await res.json()) as RoomSoundsBody;
+    expect(b.pack).toBe("host");
+    expect(b.sounds.map((s) => [s.id, s.name, s.url])).toEqual([
+      ["1", "One", `/api/rooms/K7DX/sounds/1?v=${vOf(objects, "1")}`],
+      ["3", "Three", `/api/rooms/K7DX/sounds/3?v=${vOf(objects, "3")}`],
+    ]);
+    expect(libraryOf).toHaveBeenCalledWith("K7DX");
+  });
+
+  it("serves a slot's file", async () => {
+    const { get, objects, bytes } = await room();
+    const res = (await get(`/api/rooms/K7DX/sounds/1?v=${vOf(objects, "1")}`))!;
+    expect(res.status).toBe(200);
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
+    expect(res.headers.get("content-type")).toBe("audio/mpeg");
+    expect(res.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("etag")).toBeTruthy();
+    expect(res.headers.get("content-security-policy")).toContain("sandbox");
+  });
+
+  it("the file route refuses a room that does not use that library", async () => {
+    const other = await room("other");
+    const v = vOf(other.objects, "1");
+    expect(((await (await other.get("/api/rooms/K7DX/sounds"))!.json()) as RoomSoundsBody).sounds).toEqual([]);
+    expect((await other.get(`/api/rooms/K7DX/sounds/1?v=${v}`))!.status).toBe(404);
+    const none = await room(null);
+    expect((await none.get("/api/rooms/K7DX/sounds"))!.status).toBe(404);
+    expect((await none.get(`/api/rooms/K7DX/sounds/1?v=${v}`))!.status).toBe(404);
+  });
+
+  it("a bad code never wakes a room", async () => {
+    const { get, libraryOf } = await room();
+    expect((await get("/api/rooms/K7/sounds"))!.status).toBe(404);
+    expect((await get("/api/rooms/K7DX!/sounds"))!.status).toBe(404);
+    expect((await get("/api/rooms/K7/sounds/1?v=0123456789"))!.status).toBe(404);
+    expect(libraryOf).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a bad or empty slot, and a 405 for writes", async () => {
+    const { get, objects } = await room();
+    const v = vOf(objects, "1");
+    for (const path of ["/sounds/7", `/sounds/2?v=${v}`, "/sounds/1.mp3"]) {
+      expect((await get(`/api/rooms/K7DX${path}`))!.status).toBe(404);
+    }
+    const res = (await get("/api/rooms/K7DX/sounds", { method: "PUT", body: "x" }))!;
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("GET");
+  });
+
+  it("a bad or missing v is a 404", async () => {
+    const { get, objects } = await room();
+    const v = vOf(objects, "1")!;
+    for (const q of ["", "?v=", "?v=x", `?v=${v.toUpperCase()}`, "?v=0123456789"]) {
+      const res = (await get(`/api/rooms/K7DX/sounds/1${q}`))!;
+      // An all-digit v has no upper-case form, so skip that one case.
+      if (q === `?v=${v.toUpperCase()}` && v === v.toUpperCase()) continue;
+      expect(res.status).toBe(404);
+    }
+  });
+
+  it("leaves other room paths alone", async () => {
+    const { get } = await room();
+    expect(await get("/api/rooms", { method: "POST" })).toBeNull();
+    expect(await get("/api/rooms/K7DX/upgrade")).toBeNull();
+  });
+
+  it("answers 404 without SOUNDS", async () => {
+    const res = await serveRoomSounds(new Request("https://x.test/api/rooms/K7DX/sounds"), {} as ServerEnv, async () => "owner");
+    expect(res!.status).toBe(404);
+  });
+
+  it("no phone ever sees the library id", async () => {
+    const { get, objects } = await room();
+    for (const path of ["/api/rooms/K7DX/sounds", `/api/rooms/K7DX/sounds/1?v=${vOf(objects, "1")}`]) {
+      const res = (await get(path))!;
+      expect([...res.headers.values()].join("\n")).not.toContain("owner");
+      if (path.endsWith("sounds")) expect(await res.text()).not.toContain("owner");
+    }
   });
 });

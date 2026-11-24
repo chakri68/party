@@ -76,7 +76,7 @@ describe("createFetch", () => {
     expect(res.status).toBe(200);
     expect(body.hostKey).toBe("hk");
     expect(body.code).toMatch(/^[A-Z0-9]+$/);
-    expect(claimed).toEqual([{ tier: "free", hostKey: "hk" }]);
+    expect(claimed).toEqual([{ tier: "free", hostKey: "hk", library: null }]);
     expect(created).toEqual([body.code]);
   });
 
@@ -96,6 +96,30 @@ describe("createFetch", () => {
     expect(waited).toHaveLength(1);
     finish();
     await waited[0];
+  });
+});
+
+describe("the grant's library", () => {
+  it("the grant keeps its library only with SOUNDS", async () => {
+    const claimed: unknown[] = [];
+    const fetch = createFetch({
+      brand: "Test",
+      policy: {
+        canCreate: async (): Promise<CreateDecision> => ({ ok: true, grant: { tier: "pass", hostKey: null, library: "owner" } }),
+      },
+      getRoom: async () => ({
+        claim: async (grant) => {
+          claimed.push(grant);
+          return true;
+        },
+      }),
+    });
+    await fetch(post(), env({ SOUNDS: {} as never }));
+    await fetch(post(), env());
+    expect(claimed).toEqual([
+      { tier: "pass", hostKey: null, library: "owner" },
+      { tier: "pass", hostKey: null, library: null },
+    ]);
   });
 });
 
@@ -144,7 +168,7 @@ describe("createFetch room setup", () => {
   it("passes the setup to claim", async () => {
     const { res, calls } = await run("?game=cheat&computers=3");
     expect(res.status).toBe(200);
-    expect(calls).toEqual([[{ tier: "pass", hostKey: null }, { gameId: "cheat", computers: 3 }]]);
+    expect(calls).toEqual([[{ tier: "pass", hostKey: null, library: null }, { gameId: "cheat", computers: 3 }]]);
   });
   it("passes no setup without a game", async () => {
     const { calls } = await run("");

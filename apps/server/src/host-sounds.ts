@@ -4,6 +4,7 @@
 // lists, saves, renames and removes them. Without SOUNDS, or without a
 // policy.soundOwner, every route is a 404 and nobody has host sounds.
 import { cleanSoundName, HOST_SOUND_MAX_BYTES, isHostSlot, MAX_SOUND_MS } from "@games/sounds/check";
+import { isValidRoomCode } from "@games/protocol";
 import { readMp3 } from "@games/sounds/mp3";
 import { json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { isLibraryId, LIBRARY_ID_RE } from "./runtime.ts";
@@ -291,4 +292,50 @@ export async function serveMySounds(request: Request, env: ServerEnv, policy: Ho
     default:
       return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, PUT, PATCH, DELETE" } });
   }
+}
+
+export interface RoomSoundsBody {
+  pack: "host";
+  sounds: SoundSlotBody[];
+}
+
+const ROOM_PATH = /^\/api\/rooms\/([^/]+)\/sounds(?:\/([^/]+))?$/;
+
+/**
+ * A room's host sounds, by room code: /api/rooms/<code>/sounds and
+ * /api/rooms/<code>/sounds/<slot>?v=. Only the library the room stored at claim
+ * is served. null when the path isn't ours.
+ */
+export async function serveRoomSounds(
+  request: Request,
+  env: ServerEnv,
+  libraryOf: (code: string) => Promise<string | null>,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  const match = ROOM_PATH.exec(url.pathname);
+  if (!match) return null;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET" } });
+  }
+  const bucket = env.SOUNDS;
+  const code = match[1]!.toUpperCase();
+  if (!bucket || !isValidRoomCode(code)) return notFound();
+  const slot = match[2];
+  if (slot !== undefined && !isHostSlot(slot)) return notFound();
+  const library = await libraryOf(code);
+  if (!isLibraryId(library)) return notFound();
+
+  if (slot === undefined) {
+    const { slots } = await readIndex(bucket, library);
+    const body: RoomSoundsBody = {
+      pack: "host",
+      sounds: slots.map((s) => ({ id: s.id, name: s.name, ms: s.ms, url: `/api/rooms/${code}/sounds/${s.id}?v=${s.v}` })),
+    };
+    return new Response(JSON.stringify(body), {
+      headers: { "content-type": "application/json", "cache-control": "no-store" },
+    });
+  }
+  const v = url.searchParams.get("v");
+  if (v === null || !V_RE.test(v)) return notFound();
+  return serveFile(bucket, libKey(library, slot, v));
 }

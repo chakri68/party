@@ -4,7 +4,7 @@ import { getServerByName, routePartykitRequest, Server, type Connection } from "
 import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
-import { serveMySounds } from "./host-sounds.ts";
+import { serveMySounds, serveRoomSounds } from "./host-sounds.ts";
 import { servePacks, soundPacksFor } from "./packs.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { turnMinter } from "./turn.ts";
@@ -179,7 +179,7 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = generateRoomCode();
         const stub = await getRoom(env, code);
-        if (await stub.claim(decision.grant, setup)) {
+        if (await stub.claim(env.SOUNDS ? decision.grant : { ...decision.grant, library: null }, setup)) {
           // The room is claimed and playable: the record (a database write, far
           // away on a slow route) needn't hold up the host. Awaited without a ctx.
           const record = opts.onRoomCreated?.(code, decision.grant, request);
@@ -203,6 +203,9 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
 
     const packs = await servePacks(request, env);
     if (packs) return packs;
+
+    const roomSounds = await serveRoomSounds(request, env, async (code) => (await getRoom(env, code)).library?.() ?? null);
+    if (roomSounds) return roomSounds;
 
     const mySounds = await serveMySounds(request, env, opts.policy);
     if (mySounds) return mySounds;
