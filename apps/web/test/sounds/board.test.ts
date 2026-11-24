@@ -18,7 +18,7 @@ const PACK = {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[]; throwBytes?: string[]; held?: (() => void)[] } = {}) {
+function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[]; throwBytes?: string[]; held?: (() => void)[]; badJson?: string[] } = {}) {
   const state = {
     clock: 1000,
     ready: opts.ready ?? false,
@@ -31,16 +31,31 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[];
     maxInFlight: 0,
     jsonGets: 0,
     byteGets: 0,
+    byteUrls: [] as string[],
+    hostBody: null as unknown,
+    hostFail: false,
+    failUrls: new Set<string>(),
+    /** While set, each host list fetch waits here. */
+    jsonHeld: null as (() => void)[] | null,
+    /** While set, each decode waits here. */
+    decodeHeld: null as (() => void)[] | null,
   };
   const urlOf = new Map<ArrayBuffer, string>();
   const board = new SoundBoard<Clip>({
     getJson: (url) => {
       state.jsonGets++;
-      return Promise.resolve(url === "/p" ? PACK : null);
+      if (opts.badJson?.includes(url)) throw new Error("sync");
+      if (url !== HOST_URL) return Promise.resolve(url === "/p" ? PACK : null);
+      const answer = () => (state.hostFail ? Promise.reject(new Error("offline")) : Promise.resolve(state.hostBody));
+      const held = state.jsonHeld;
+      if (!held) return answer();
+      return new Promise<void>((r) => held.push(r)).then(answer);
     },
     getBytes: (url) => {
       state.byteGets++;
+      state.byteUrls.push(url);
       if (opts.throwBytes?.includes(url)) throw new Error("sync");
+      if (state.failUrls.has(url)) return Promise.reject(new Error("404"));
       if (opts.badBytes?.includes(url)) return Promise.resolve(null);
       const bytes = new ArrayBuffer(8);
       urlOf.set(bytes, url);
@@ -50,7 +65,7 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[];
       state.decodes++;
       const url = urlOf.get(bytes)!;
       if (opts.badDecode?.includes(url)) return Promise.reject(new Error("bad file"));
-      const held = opts.held;
+      const held = opts.held ?? state.decodeHeld;
       if (!held) return Promise.resolve({ url });
       state.inFlight++;
       state.maxInFlight = Math.max(state.maxInFlight, state.inFlight);
@@ -83,6 +98,10 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[];
   };
   return { board, state, fireReady };
 }
+
+const HOST_URL = "/api/rooms/K7DX/sounds";
+const slot = (id: string, v = "0123456789") => ({ id, name: `Slot ${id}`, ms: 1000, url: `${HOST_URL}/${id}?v=${v}` });
+const hostList = (...sounds: ReturnType<typeof slot>[]) => ({ pack: "host", sounds });
 
 const freeIds = () => freeBoard().map((s) => s.id);
 const urlFor = (board: SoundBoard<Clip>, id: string) => board.list().find((s) => s.id === id)!.url;
@@ -231,5 +250,240 @@ describe("SoundBoard", () => {
     expect(state.readyFns).toHaveLength(0);
     await fireReady();
     expect(state.decodes).toBe(0);
+  });
+
+  describe("host sounds", () => {
+    it("host sounds come after the others", async () => {
+      const { board, state } = rig();
+      state.hostBody = hostList(slot("1"), slot("3"));
+      await Promise.all([board.load(["/p"]), board.loadHost(HOST_URL)]);
+      expect(board.list().map((s) => s.id)).toEqual([...freeIds(), "memes:bruh", "memes:wow", "host:1", "host:3"]);
+    });
+
+    it("host sounds stay last when loadHost resolves before the extra packs", async () => {
+      const { board, state } = rig();
+      state.hostBody = hostList(slot("1"), slot("3"));
+      await board.loadHost(HOST_URL);
+      expect(board.list().map((s) => s.id)).toEqual(["host:1", "host:3"]);
+      await board.load(["/p"]);
+      expect(board.list().map((s) => s.id)).toEqual([...freeIds(), "memes:bruh", "memes:wow", "host:1", "host:3"]);
+    });
+
+    it("loadHost tells listeners", async () => {
+      const { board, state } = rig();
+      let changes = 0;
+      board.onChange(() => changes++);
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      expect(changes).toBe(1);
+    });
+
+    it("loadHost again fetches only changed files and drops removed slots", async () => {
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"), slot("3"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.byteUrls).toEqual([slot("1").url, slot("3").url]);
+      expect(board.receive("host:3")).toBe(true);
+      state.byteUrls = [];
+      state.played = [];
+      state.hostBody = hostList(slot("1", "abcdef0123"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.byteUrls).toEqual([slot("1", "abcdef0123").url]);
+      expect(board.receive("host:3")).toBe(false);
+      expect(board.list().map((s) => s.id)).toEqual(["host:1"]);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played).toEqual([{ url: slot("1", "abcdef0123").url }]);
+      expect(board.tap("host:3")).toBe("unknown");
+    });
+
+    it("a slot removed while its file waits for a context never plays", async () => {
+      const { board, state, fireReady } = rig();
+      state.hostBody = hostList(slot("1"), slot("3"));
+      await board.loadHost(HOST_URL);
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await fireReady();
+      expect(board.receive("host:3")).toBe(false);
+      expect(board.receive("host:1")).toBe(true);
+    });
+
+    it("a slot removed while it decodes never plays", async () => {
+      const { board, state } = rig({ ready: true });
+      state.decodeHeld = [];
+      state.hostBody = hostList(slot("3"));
+      await board.loadHost(HOST_URL);
+      state.hostBody = hostList();
+      await board.loadHost(HOST_URL);
+      for (const r of state.decodeHeld.splice(0)) r();
+      await flush();
+      expect(board.receive("host:3")).toBe(false);
+    });
+
+    it("the old clip plays until the new one is decoded", async () => {
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.decodeHeld = [];
+      state.hostBody = hostList(slot("1", "abcdef0123"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.decodeHeld).toHaveLength(1);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
+      state.decodeHeld.shift()!();
+      await flush();
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1", "abcdef0123").url });
+    });
+
+    it("a failed host list keeps the old one", async () => {
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"), slot("3"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostFail = true;
+      state.byteUrls = [];
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      expect(board.list().map((s) => s.id)).toEqual(["host:1", "host:3"]);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.byteUrls).toEqual([]);
+    });
+
+    it("a 5xx keeps the old host list", async () => {
+      // The room's getJson (fetchListJson) rejects for a 5xx, as it does offline.
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostFail = true;
+      await board.loadHost(HOST_URL);
+      expect(board.list().map((s) => s.id)).toEqual(["host:1"]);
+      expect(board.receive("host:1")).toBe(true);
+    });
+
+    it("a getJson that throws keeps the list and the next call still runs", async () => {
+      const { board, state } = rig({ badJson: [HOST_URL] });
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      expect(state.jsonGets).toBe(2);
+      expect(board.list()).toEqual([]);
+    });
+
+    it("a listener that throws does not stop the load", async () => {
+      const { board, state } = rig({ ready: true });
+      board.onChange(() => {
+        throw new Error("view");
+      });
+      let told = 0;
+      board.onChange(() => told++);
+      state.hostBody = hostList(slot("1"));
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      await flush();
+      expect(told).toBe(1);
+      expect(board.receive("host:1")).toBe(true);
+    });
+
+    it("a replaced file that fails to decode keeps the old clip and is tried again", async () => {
+      const fresh = slot("1", "abcdef0123");
+      const { board, state } = rig({ ready: true, badDecode: [fresh.url] });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostBody = hostList(fresh);
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
+      state.byteUrls = [];
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.byteUrls).toEqual([fresh.url]);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
+    });
+
+    it("no host list (a 404) clears the host sounds", async () => {
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostBody = null;
+      await board.loadHost(HOST_URL);
+      expect(board.list()).toEqual([]);
+      expect(board.receive("host:1")).toBe(false);
+    });
+
+    it("a failed file fetch keeps the old clip", async () => {
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      const fresh = slot("1", "abcdef0123");
+      state.failUrls.add(fresh.url);
+      state.hostBody = hostList(fresh);
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
+      state.byteUrls = [];
+      state.failUrls.clear();
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.byteUrls).toEqual([fresh.url]);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: fresh.url });
+    });
+
+    it("a new slot whose file fetch fails is skipped", async () => {
+      const { board, state } = rig({ ready: true, throwBytes: [slot("4").url] });
+      state.failUrls.add(slot("2").url);
+      state.hostBody = hostList(slot("2"), slot("4"));
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      await flush();
+      expect(board.list().map((s) => s.id)).toEqual(["host:2", "host:4"]);
+      expect(board.receive("host:2")).toBe(false);
+      expect(board.receive("host:4")).toBe(false);
+    });
+
+    it("calls while loading fold into one more", async () => {
+      const { board, state } = rig();
+      state.jsonHeld = [];
+      state.hostBody = hostList(slot("1"));
+      const first = board.loadHost(HOST_URL);
+      await flush();
+      const more = [board.loadHost(HOST_URL), board.loadHost(HOST_URL), board.loadHost(HOST_URL)];
+      expect(more[1]).toBe(more[0]);
+      expect(more[2]).toBe(more[0]);
+      state.jsonHeld.shift()!();
+      await first;
+      await flush();
+      expect(state.jsonGets).toBe(2);
+      state.jsonHeld.shift()!();
+      await Promise.all(more);
+      expect(state.jsonGets).toBe(2);
+      state.jsonHeld = null;
+      await board.loadHost(HOST_URL);
+      expect(state.jsonGets).toBe(3);
+    });
+
+    it("tap sends a host id", async () => {
+      const { board, state } = rig();
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      expect(board.tap("host:1")).toBe("sent");
+      expect(state.sent).toEqual([{ type: "sound", id: "host:1" }]);
+    });
+
+    it("nothing happens after destroy", async () => {
+      const { board, state } = rig({ ready: true });
+      board.destroy();
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      expect(state.jsonGets).toBe(0);
+      expect(board.list()).toEqual([]);
+    });
   });
 });

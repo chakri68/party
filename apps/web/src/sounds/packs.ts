@@ -4,6 +4,7 @@
 
 import { isSoundId } from "@games/protocol";
 import { FREE_SOUNDS, freeSoundUrl } from "@games/sounds";
+import { HOST_PACK, HOST_SLOTS, MAX_SOUND_MS, cleanSoundName, isHostSlot } from "@games/sounds/check";
 
 export interface BoardSound {
   /** The wire id, `<pack>:<id>` (`free:rise`). */
@@ -25,7 +26,7 @@ const UNSAFE_URL_CHAR = /[\\\u0000-\u0020\u007f]/;
 const SAME_ORIGIN = "https://same.invalid";
 
 /** A path on this site only: a list must not point the phone at another site. */
-function isSameOriginPath(url: string): boolean {
+export function isSameOriginPath(url: string): boolean {
   if (!url.startsWith("/") || url.startsWith("//") || UNSAFE_URL_CHAR.test(url)) return false;
   try {
     return new URL(url, SAME_ORIGIN).origin === SAME_ORIGIN;
@@ -63,6 +64,55 @@ export function parsePackList(body: unknown): BoardSound[] {
     if (typeof url !== "string" || !isSameOriginPath(url)) continue;
     seen.add(wire);
     out.push({ id: wire, name: label, ms, url });
+  }
+  return out;
+}
+
+const HOST_V = /^[0-9a-f]{10}$/;
+
+/** Exactly `<listUrl>/<slot>?v=<10 hex>`: no other path or query. */
+function isHostFileUrl(url: string, listUrl: string, id: string): boolean {
+  const head = `${listUrl}/${id}?v=`;
+  return url.startsWith(head) && HOST_V.test(url.slice(head.length));
+}
+
+/**
+ * A list's JSON. A 404 gives null (the server has no such list). Any other
+ * failure (offline, a 5xx, a bad body) rejects, so the board keeps what it has.
+ */
+export async function fetchListJson(url: string, fetchFn: (url: string) => Promise<Response> = (u) => fetch(u)): Promise<unknown> {
+  const res = await fetchFn(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** The room's list of the host's own sounds. */
+export function hostSoundsUrl(code: string): string {
+  return `/api/rooms/${code}/sounds`;
+}
+
+/**
+ * The host's sounds, as the room sent them: slots "1" to "6" under `listUrl`
+ * only, in the order sent. Anything off gives `[]` or drops that entry.
+ */
+export function parseHostList(body: unknown, listUrl: string): BoardSound[] {
+  if (!body || typeof body !== "object") return [];
+  const { pack, sounds } = body as { pack?: unknown; sounds?: unknown };
+  if (pack !== HOST_PACK || !Array.isArray(sounds)) return [];
+  const out: BoardSound[] = [];
+  const seen = new Set<string>();
+  for (const entry of sounds) {
+    if (out.length >= HOST_SLOTS) break;
+    if (!entry || typeof entry !== "object") continue;
+    const { id, name, ms, url } = entry as Record<string, unknown>;
+    if (!isHostSlot(id) || seen.has(id as string)) continue;
+    const label = cleanSoundName(name);
+    if (label === null) continue;
+    if (typeof ms !== "number" || !Number.isInteger(ms) || ms < 1 || ms > MAX_SOUND_MS) continue;
+    if (typeof url !== "string" || !isSameOriginPath(url) || !isHostFileUrl(url, listUrl, id as string)) continue;
+    seen.add(id as string);
+    out.push({ id: `${HOST_PACK}:${id as string}`, name: label, ms, url });
   }
   return out;
 }

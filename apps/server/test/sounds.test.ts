@@ -11,12 +11,22 @@ const FREE = [...FREE_SOUND_IDS][0]!;
 
 describe("onBoard", () => {
   it("takes free ids on the list and extra packs by name", () => {
-    expect(onBoard(`free:${FREE}`, [])).toBe(true);
-    expect(onBoard("free:nope", [])).toBe(false);
-    expect(onBoard("memes:bruh", [])).toBe(false);
-    expect(onBoard("memes:bruh", ["memes"])).toBe(true);
-    expect(onBoard("host:1", ["host"])).toBe(false);
-    expect(onBoard(`free:${FREE}`, ["free"])).toBe(true);
+    expect(onBoard(`free:${FREE}`, [], false)).toBe(true);
+    expect(onBoard("free:nope", [], false)).toBe(false);
+    expect(onBoard("memes:bruh", [], false)).toBe(false);
+    expect(onBoard("memes:bruh", ["memes"], false)).toBe(true);
+    expect(onBoard("host:1", ["host"], false)).toBe(false);
+    expect(onBoard(`free:${FREE}`, ["free"], false)).toBe(true);
+  });
+
+  it("onBoard host ids", () => {
+    expect(onBoard("host:1", [], true)).toBe(true);
+    expect(onBoard("host:6", [], true)).toBe(true);
+    expect(onBoard("host:7", [], true)).toBe(false);
+    expect(onBoard("host:0", [], true)).toBe(false);
+    expect(onBoard("host:a", [], true)).toBe(false);
+    expect(onBoard("host:1", [], false)).toBe(false);
+    expect(onBoard("host:1", ["host"], false)).toBe(false);
   });
 });
 
@@ -179,5 +189,79 @@ describe("sound board", () => {
     expect(heard(a, b, c)).toBe(0);
     await send(room, a, { type: "room-sounds", on: false });
     expect(a.last("error")).toMatchObject({ code: "wrong-phase" });
+  });
+});
+
+describe("host sounds", () => {
+  let world: World;
+  let room: RoomRuntime;
+  let a: FakeConn;
+  let b: FakeConn;
+  const idOf = (cn: FakeConn) => cn.last("welcome")!.playerId;
+  const sound = (cn: FakeConn, id: string) => send(room, cn, { type: "sound", id });
+  const heard = (...cs: FakeConn[]) => cs.reduce((n, cn) => n + cn.of("sound").length, 0);
+
+  async function build(library: string | null) {
+    world = new World();
+    room = new RoomRuntime("K7DX", world.host(), games, "toy");
+    await room.load();
+    if (library === null) await room.claim();
+    else await room.claim({ tier: "pass", hostKey: null, library });
+    a = await join(world, room, "Ana");
+    b = await join(world, room, "Ben");
+  }
+
+  beforeEach(async () => {
+    toyKnobs.decide = "normal";
+    await build("lib-secret-1");
+  });
+
+  it("relays host slots in a room with a library", async () => {
+    await sound(a, "host:3");
+    const want = { type: "sound", id: "host:3", by: idOf(a) };
+    expect(a.last("sound")).toEqual(want);
+    expect(b.last("sound")).toEqual(want);
+    await world.tick(room, SOUND_COOLDOWN_MS);
+    await sound(b, "host:7");
+    expect(heard(a, b)).toBe(2);
+  });
+
+  it("a room without a library drops host ids", async () => {
+    await build(null);
+    await sound(a, "host:1");
+    expect(heard(a, b)).toBe(0);
+    expect(roomOf(a).hostSounds).toBe(false);
+  });
+
+  it("hostSounds is in the state, the library id is not", async () => {
+    await sound(a, "host:2");
+    await send(room, a, { type: "chat", text: "hi" });
+    expect(roomOf(a).hostSounds).toBe(true);
+    for (const cn of [a, b]) {
+      expect(cn.inbox.length).toBeGreaterThan(0);
+      for (const m of cn.inbox) expect(JSON.stringify(m)).not.toContain("lib-secret-1");
+    }
+  });
+
+  it("library() is a plain read", async () => {
+    const pending = sound(a, "host:1");
+    const lib = room.library();
+    expect(lib).toBe("lib-secret-1");
+    await pending;
+  });
+
+  it("host sounds share the cooldown and the room cap", async () => {
+    await sound(a, `free:${FREE}`);
+    await world.tick(room, 1000);
+    await sound(a, "host:1");
+    expect(heard(b)).toBe(1);
+    expect(b.last("sound")!.id).toBe(`free:${FREE}`);
+
+    await world.tick(room, SOUND_COOLDOWN_MS);
+    const c = await join(world, room, "Cal");
+    const d = await join(world, room, "Dev");
+    for (const cn of [a, b, c]) await sound(cn, "host:4");
+    await sound(d, "host:5");
+    expect(heard(d)).toBe(3);
   });
 });

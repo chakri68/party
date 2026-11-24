@@ -1,9 +1,50 @@
 import type { RoomPhase, RoomPublicState } from "@games/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardSound } from "../src/sounds/packs.ts";
-import { soundBoardModel } from "../src/views/sound-board.ts";
+import { SoundBoardView, soundBoardModel } from "../src/views/sound-board.ts";
 
-const room = (r: { hostId: string; phase: RoomPhase; sounds: boolean }): RoomPublicState => r as RoomPublicState;
+/** Just enough DOM for SoundBoardView to build its elements. */
+class FakeEl {
+  hidden = false;
+  className = "";
+  innerHTML = "";
+  textContent = "";
+  style = { setProperty() {} };
+  classList = { add() {}, remove() {} };
+  private attrs = new Map<string, string>();
+  private listeners = new Map<string, ((e: unknown) => void)[]>();
+  children: unknown[] = [];
+  setAttribute(k: string, v: string) {
+    this.attrs.set(k, v);
+    if (k === "hidden") this.hidden = true;
+  }
+  getAttribute(k: string) {
+    return this.attrs.get(k) ?? null;
+  }
+  addEventListener(type: string, fn: (e: unknown) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+  }
+  removeEventListener() {}
+  append(...c: unknown[]) {
+    this.children.push(...c);
+  }
+  replaceChildren(...c: unknown[]) {
+    this.children = c;
+  }
+  contains() {
+    return true;
+  }
+  focus() {}
+  click() {
+    for (const fn of this.listeners.get("click") ?? []) fn({});
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+const room = (r: { hostId: string; phase: RoomPhase; sounds: boolean; hostSounds?: boolean }): RoomPublicState => r as RoomPublicState;
 const SOUNDS: BoardSound[] = [
   { id: "free:rise", name: "Rise", ms: 900, url: "/a.mp3" },
   { id: "memes:bruh", name: "Bruh", ms: 800, url: "/b.mp3" },
@@ -64,5 +105,39 @@ describe("the sound board model", () => {
     expect(soundBoardModel(on, "ben", [], true).note).toBe("No sounds yet.");
     expect(soundBoardModel(on, "ben", SOUNDS, true).note).toBeNull();
     expect(soundBoardModel(on, "amy", SOUNDS, true).note).toBeNull();
+  });
+
+  it("host tiles follow the others", () => {
+    const r = room({ hostId: "amy", phase: "lobby", sounds: true, hostSounds: true });
+    const list: BoardSound[] = [
+      ...SOUNDS,
+      { id: "host:1", name: "Horn", ms: 700, url: "/api/rooms/K7DX/sounds/1?v=0123456789" },
+      { id: "host:3", name: "Clap", ms: 600, url: "/api/rooms/K7DX/sounds/3?v=0123456789" },
+    ];
+    expect(soundBoardModel(r, "ben", list, true).tiles.map((t) => t.id)).toEqual(["free:rise", "memes:bruh", "host:1", "host:3"]);
+  });
+
+});
+
+describe("the sound board view", () => {
+  it("onOpen runs once per real open, not on toggle(true) while open", () => {
+    vi.stubGlobal("Node", FakeEl);
+    vi.stubGlobal("document", { createElement: () => new FakeEl(), addEventListener() {}, removeEventListener() {} });
+    let opens = 0;
+    const board = { list: () => [], onChange: () => () => {}, tap: () => "sent" as const, coolingMs: () => 0 };
+    const view = new SoundBoardView(board, { send() {}, toast() {}, playHere: () => true, onOpen: () => opens++ });
+    expect(opens).toBe(0);
+    view.toggle(true);
+    expect(opens).toBe(1);
+    view.toggle(true);
+    expect(opens).toBe(1);
+    view.toggle(false);
+    view.toggle(false);
+    expect(opens).toBe(1);
+    view.toggle();
+    expect(opens).toBe(2);
+    view.toggle();
+    expect(opens).toBe(2);
+    view.destroy();
   });
 });

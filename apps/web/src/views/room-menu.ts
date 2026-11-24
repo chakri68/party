@@ -11,6 +11,8 @@ export type RoomMenuItem =
   | "join-voice"
   | "voice"
   | "settings"
+  /** The host's own sound list, for a host whose phone owns one. */
+  | "my-sounds"
   | "pause"
   | "resume"
   | "restart"
@@ -23,6 +25,7 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
   "join-voice": "Join voice",
   voice: "Voice",
   settings: "Sound and vibration",
+  "my-sounds": "My sounds",
   pause: "Pause",
   resume: "Resume",
   restart: "Restart",
@@ -40,11 +43,12 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
  * - pausable: the game's manifest says the host can pause it.
  * - hostActions: false drops Pause, Restart and End game, where they would do
  *   nothing (the "Could not connect" screen, the game just ended). Default true.
+ * - mySounds: this phone owns a sound library. The host then gets My sounds.
  */
 export function roomMenuItems(
   room: RoomPublicState,
   me: string,
-  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean },
+  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean; mySounds?: boolean },
 ): RoomMenuItem[] {
   if (room.phase === "ended") return ["settings", "home"];
   if (!focusPhase(room.phase)) return [];
@@ -53,6 +57,7 @@ export function roomMenuItems(
   else if (o.voice === "voice") items.push("voice");
   else if (o.voice === "unsupported") items.push("no-voice");
   items.push("settings");
+  if (o.mySounds && room.hostId === me) items.push("my-sounds");
   if (room.phase === "playing" && room.hostId === me && o.hostActions !== false) {
     if (o.pausable) items.push(room.paused ? "resume" : "pause");
     items.push("restart", "end-game");

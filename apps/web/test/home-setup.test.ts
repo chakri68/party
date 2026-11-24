@@ -84,6 +84,13 @@ describe("homeParts", () => {
   it("keeps the owner home with Create room and no host card", () => {
     expect(homeParts(true, false)).toEqual(["hero", "identity", "create", "join", "error", "recent"]);
   });
+  it("My sounds follows Create for an owner who has sounds", () => {
+    const parts = homeParts(true, false, true);
+    expect(parts[parts.indexOf("create") + 1]).toBe("my-sounds");
+    expect(homeParts(true, false)).not.toContain("my-sounds");
+    // A guest has no create, so no sounds.
+    expect(homeParts(false, true, true)).not.toContain("my-sounds");
+  });
   it("shows no host card on a self-hosted copy", () => {
     expect(homeParts(false, false)).not.toContain("host");
   });

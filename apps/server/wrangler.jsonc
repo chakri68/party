@@ -29,9 +29,11 @@
   // which is fine: Vite serves the export from apps/web/public instead.
   // MEMES: the memes sound pack (party-games only, never in git). `pnpm sound add --pack memes`
   // fills it. CouchParty and self-hosted copies have no MEMES, so /api/packs/memes is a 404 there.
+  // SOUNDS: each host's own sounds (lib/<library>/...). Without it there are no host sounds, and /api/sounds is a 404.
   "r2_buckets": [
     { "binding": "BLIND_RALLY_GODOT", "bucket_name": "party-games-blind-rally" },
-    { "binding": "MEMES", "bucket_name": "party-games-memes" }
+    { "binding": "MEMES", "bucket_name": "party-games-memes" },
+    { "binding": "SOUNDS", "bucket_name": "party-games-sounds" }
   ],
   "durable_objects": {
     "bindings": [{ "name": "Room", "class_name": "Room" }]

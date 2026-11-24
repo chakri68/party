@@ -61,7 +61,7 @@ Top to bottom:
 - The start button for the host, or **I'm ready** for everyone else. On a phone this button stays at the bottom of the screen while you scroll. If the settings or the computers stop the game from starting, the reason shows under the start button. Other players see it under the settings.
 - **Leave room**, and for the host, **End party**.
 
-In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile; the reaction bar closes after you send one), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
+In the lobby, in a game, on results and when the party is over, the header is one small row, so the screen has more space: the room code, the connection bars, your mic (only when you are in voice), the sound board button (while sounds are on), the reactions button (a smile; the reaction bar closes after you send one), the chat button and the menu (the three dots at the top right). The room's other buttons are in the menu: **Join voice** or **Voice**, **Sound and vibration**, and **Home**, which goes to the home page. A host who has their own sound list also has **My sounds** there. In a game, the host also has **Pause** (or **Resume**), **Restart** and **End game** there. The host's lobby buttons (**Start game**, **Change**, **Lock**, **Add computer**, the seat menus) stay on the page. When the party is over, the menu has only **Sound and vibration** and **Home**.
 
 When the screen changes (the game starts or restarts, the results come, back to the lobby), the new screen opens at its top.
 
@@ -137,7 +137,16 @@ The sound board button in the header (a speaker) opens a grid of short sounds. T
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
 - Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
+- After the free sounds come the host's own sounds, when the host has made some in **My sounds**.
 - A self-hosted copy has only the free sounds.
+
+## My sounds
+
+**My sounds** is on the home page and in the menu, for a host who can keep their own sounds. You can keep 6. Tap **Add a sound** and pick a sound file from your phone. If it is longer than 3 seconds, we keep 3 seconds: move the slider to pick where they start, and tap **Play** to hear it. Give it a name and tap **Save**. Your phone makes the sound the same loudness as the others. Each sound has **Play**, **Rename**, **Replace** and **Remove**. Your sounds come after the free sounds on the sound board in every room you make. If you change one during a party, the others get it the next time they open the sound board. A file must be under 4 MB.
+
+On CouchParty, My sounds needs Host Pass. If your Pass ends, your sounds are kept. You can still play, rename and remove them, but you cannot add new ones, and new rooms do not get them.
+
+Your phone makes the mp3 file with open source code (LAME). Its licence is in [THIRD_PARTY.md](../../apps/web/public/THIRD_PARTY.md), which the site also serves at `/THIRD_PARTY.md`.
 
 ## Sound and vibration
 

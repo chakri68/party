@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -178,6 +178,8 @@ export interface RoomPublicState {
   botGameIds: string[];
   /** The host's switch for the sound board. Off: the room drops every sound. */
   sounds: boolean;
+  /** The room has the host's own sounds: fetch `/api/rooms/<code>/sounds` for them. Never says whose. */
+  hostSounds: boolean;
   /** How many seats the selected game has here: its max, or less in a free room. */
   maxSeats: number;
   /** The night's recap, in `ended`. Null there too when no game finished. */

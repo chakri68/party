@@ -10,6 +10,22 @@ const V_RE = /^[0-9a-f]{10}$/;
 // eslint-disable-next-line no-control-regex
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f]/;
 
+export const HOST_PACK = "host";
+export const HOST_SLOTS = 6;
+export const HOST_SOUND_MAX_BYTES = 65536;
+
+/** True for exactly "1" to "6". */
+export function isHostSlot(v) {
+  return typeof v === "string" && /^[1-6]$/.test(v);
+}
+
+/** The trimmed name, or null when it is not 1 to 24 characters without control characters. */
+export function cleanSoundName(v) {
+  if (typeof v !== "string") return null;
+  const name = v.trim();
+  return name.length < 1 || name.length > SOUND_NAME_MAX || CONTROL_RE.test(name) ? null : name;
+}
+
 /** A kebab-case id from a name. Returns "" when nothing is left. */
 export function soundId(name) {
   const id = String(name)
@@ -38,8 +54,7 @@ export function checkEntries(entries, opts) {
         bad(`the id must be lower case words joined by dashes, at most ${SOUND_ID_MAX} characters`);
       }
     }
-    const name = typeof e.name === "string" ? e.name.trim() : "";
-    if (name.length < 1 || name.length > SOUND_NAME_MAX || CONTROL_RE.test(name)) {
+    if (cleanSoundName(e.name) === null) {
       bad(`the name must be 1 to ${SOUND_NAME_MAX} characters, with no control characters`);
     }
     if (id !== null && e.file !== `${id}.mp3`) bad(`the file must be ${id}.mp3`);

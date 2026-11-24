@@ -3,7 +3,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkEntries, soundId } from "../check.mjs";
+import { checkEntries, cleanSoundName, isHostSlot, soundId } from "../check.mjs";
 import { FREE_SOUNDS } from "../src/list.ts";
 import { freeSoundUrl } from "../src/index.ts";
 
@@ -108,5 +108,14 @@ describe("the free pack", () => {
   it("freeSoundUrl knows only listed files", () => {
     for (const s of FREE_SOUNDS) expect(typeof freeSoundUrl(s.file)).toBe("string");
     expect(freeSoundUrl("nope.mp3")).toBeNull();
+  });
+});
+
+describe("host slot and name rules", () => {
+  it("host slot and name rules", () => {
+    for (const ok of ["1", "6"]) expect(isHostSlot(ok)).toBe(true);
+    for (const bad of ["0", "7", "01", " 1", 1, "a"]) expect(isHostSlot(bad)).toBe(false);
+    expect(cleanSoundName("  Bruh ")).toBe("Bruh");
+    for (const bad of ["", "   ", "x".repeat(25), "a\u0007b", 7]) expect(cleanSoundName(bad)).toBeNull();
   });
 });

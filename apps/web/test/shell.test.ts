@@ -1,6 +1,7 @@
 import { dominionManifest } from "@games/dominion/shared";
 import { describe, expect, it } from "vitest";
 import { games } from "../src/games.ts";
+import { setOwnerKey } from "../src/identity.ts";
 import { configure, overrideGameNames, shellConfig } from "../src/shell.ts";
 
 describe("the shell seam", () => {
@@ -38,6 +39,19 @@ describe("the shell seam", () => {
     const hook = () => {};
     configure({ partyOver: hook });
     expect(shellConfig().partyOver).toBe(hook);
+    configure({});
+  });
+
+  it("soundsAuth defaults to the owner key", () => {
+    configure({});
+    setOwnerKey(null);
+    expect(shellConfig().soundsAuth()).toBeNull();
+    setOwnerKey("abc");
+    expect(shellConfig().soundsAuth()).toEqual({ authorization: "Bearer abc" });
+    setOwnerKey(null);
+    const own = () => ({});
+    configure({ soundsAuth: own });
+    expect(shellConfig().soundsAuth).toBe(own);
     configure({});
   });
 });
