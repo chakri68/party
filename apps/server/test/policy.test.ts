@@ -34,7 +34,19 @@ describe("ownerKeyPolicy", () => {
 
   it("grants a pass room to the right bearer", async () => {
     const d = await ownerKeyPolicy.canCreate(post("secret"), env({ OWNER_KEY: "secret" }));
-    expect(d).toEqual({ ok: true, grant: { tier: "pass", hostKey: null } });
+    expect(d).toEqual({ ok: true, grant: { tier: "pass", hostKey: null, library: "owner" } });
+  });
+
+  it("ownerKeyPolicy names the owner's library", async () => {
+    const withKey = new Request("https://x.test/api/sounds", { headers: { authorization: "Bearer secret" } });
+    expect(await ownerKeyPolicy.soundOwner!(withKey, env({ OWNER_KEY: "secret" }))).toEqual({ library: "owner", active: true });
+    const noKey = new Request("https://x.test/api/sounds");
+    expect(await ownerKeyPolicy.soundOwner!(noKey, env({ OWNER_KEY: "secret" }))).toBeNull();
+    const wrong = new Request("https://x.test/api/sounds", { headers: { authorization: "Bearer nope" } });
+    expect(await ownerKeyPolicy.soundOwner!(wrong, env({ OWNER_KEY: "secret" }))).toBeNull();
+    expect(await ownerKeyPolicy.soundOwner!(withKey, env())).toBeNull();
+    const d = await ownerKeyPolicy.canCreate(post("secret"), env({ OWNER_KEY: "secret" }));
+    expect(d.ok && d.grant.library).toBe("owner");
   });
 });
 

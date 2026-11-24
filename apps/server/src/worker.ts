@@ -4,6 +4,7 @@ import { getServerByName, routePartykitRequest, Server, type Connection } from "
 import { generateRoomCode } from "./codes.ts";
 import { serveGodot } from "./godot.ts";
 import { gamesFor } from "./games.ts";
+import { serveMySounds } from "./host-sounds.ts";
 import { servePacks, soundPacksFor } from "./packs.ts";
 import { isOwnerKey, json, type HostPolicy, type ServerEnv } from "./policy.ts";
 import { turnMinter } from "./turn.ts";
@@ -104,7 +105,7 @@ export class RoomBase extends Server<Env> {
   /** RPC: lift a free room to pass. Only the room's host key may. Without a sounds bucket, the library is dropped. */
   async upgrade(hostKey: string, library?: string | null): Promise<boolean> {
     if (!this.runtime.hostKeyMatches(hostKey)) return false;
-    const soundsBound = !!(this.env as ServerEnv & { SOUNDS?: unknown }).SOUNDS;
+    const soundsBound = !!(this.env as ServerEnv).SOUNDS;
     await this.runtime.upgrade(soundsBound ? library : null);
     return true;
   }
@@ -202,6 +203,9 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
 
     const packs = await servePacks(request, env);
     if (packs) return packs;
+
+    const mySounds = await serveMySounds(request, env, opts.policy);
+    if (mySounds) return mySounds;
 
     const godot = await serveGodot(request, env);
     if (godot) return godot;

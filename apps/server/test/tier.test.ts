@@ -127,10 +127,18 @@ describe("room tiers", () => {
     expect(roomOf(p).hostSounds).toBe(true);
   });
 
-  it("claim and upgrade take only a non-empty library", async () => {
+  it("claim and upgrade take only a valid library id", async () => {
     await room.claim({ tier: "free", hostKey: "hk", library: "" });
     expect(room.library()).toBeNull();
     await room.upgrade("");
     expect(room.library()).toBeNull();
+    await room.upgrade("../x");
+    expect(room.library()).toBeNull();
+    await room.upgrade("x".repeat(65));
+    expect(room.library()).toBeNull();
+
+    const odd = new RoomRuntime("K7DZ", world.host(), games, "sevens");
+    await odd.claim({ tier: "pass", hostKey: "hk", library: "a/b" });
+    expect(odd.library()).toBeNull();
   });
 });

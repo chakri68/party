@@ -306,7 +306,7 @@ export class RoomRuntime {
         tier: grant.tier,
         hostKey: grant.hostKey,
       };
-      if (isLibrary(grant.library)) this.data.library = grant.library;
+      if (isLibraryId(grant.library)) this.data.library = grant.library;
       if (setup) this.applySetup(setup);
       // Covers the room nobody ever joins.
       this.setTimer(CLEANUP_TIMER, this.host.now() + CLEANUP_AFTER_MS);
@@ -359,7 +359,7 @@ export class RoomRuntime {
     return this.run(async () => {
       if (!this.data || this.tier() === "pass") return;
       this.data.tier = "pass";
-      if (isLibrary(library) && !this.data.library) this.data.library = library;
+      if (isLibraryId(library) && !this.data.library) this.data.library = library;
       await this.commit([]);
     });
   }
@@ -1581,6 +1581,9 @@ export class RoomRuntime {
 }
 
 /** A library id the room keeps: any non-empty string. Its format is checked where it is made. */
-function isLibrary(v: unknown): v is string {
-  return typeof v === "string" && v !== "";
+/** A host sound library id: 1 to 64 letters, digits, "_" or "-". It names an R2 key prefix, so nothing else is allowed. */
+export const LIBRARY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function isLibraryId(v: unknown): v is string {
+  return typeof v === "string" && LIBRARY_ID_RE.test(v);
 }

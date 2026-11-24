@@ -8,6 +8,7 @@ Party games for a group chat, played on phones. Read this before adding a game o
 - `packages/game-core`: the game contract (`GameDefinition`), ballots, RNG, party recap stats and awards (`recap.ts`).
 - `packages/protocol`: wire messages and room state. Bump `PROTOCOL_VERSION` when either changes shape.
 - `packages/sounds`: the free sound board pack: `sounds.json` plus `free/*.mp3`, CC0 only. Change it with `pnpm sound` (`scripts/sound.mjs`). The memes pack never enters git. It lives in the party-games R2 bucket `party-games-memes`.
+- Host sounds (step 2) live in the R2 bucket bound as `SOUNDS`, keyed `lib/<library>/`. The Worker serves them (`apps/server/src/host-sounds.ts`). The room only stores which library it uses.
 - `apps/server`: the room runtime (`runtime.ts`, a Durable Object) and the game registry (`games.ts`).
 - `apps/web`: the shell (lobby, results, recap) and the client registry (`src/games.ts`). `src/shell.ts` is the seam a host app uses.
 - `apps/web/src/voice/`: room voice (mesh, audio, controller, push-to-talk). `views/voice-bar.ts` draws it.
