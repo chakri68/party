@@ -322,6 +322,8 @@ export class VoiceController {
   async turnOnMic(): Promise<void> {
     if (this.unsupported || this.ended || this.phase !== "joined") return;
     try {
+      // Host-muted: no mic prompt, nothing saved.
+      if (this.hostMuted()) return this.toast(HOST_MUTED);
       const gen = this.generation;
       this.needsMicTap = false;
       this.notify();
@@ -655,14 +657,15 @@ export class VoiceController {
 
   /**
    * Host-muted: my own mute is on too, so the lift leaves me muted until I tap
-   * Unmute. Nothing is sent: the server set it already. Saved, so a reload
-   * stays muted. Undeafen does not unmute either.
+   * Unmute. Nothing is sent: the server set it already. Saved when the mic is
+   * live, so a reload stays muted. Undeafen does not unmute either.
    */
   private obeyHostMute(): void {
     if (!this.hostMuted()) return;
     this.selfMuted = true;
     if (this.muteBeforeDeafen !== null) this.muteBeforeDeafen = true;
-    this.saveMic(this.room().mic === "off" ? "off" : "muted");
+    // No live mic (denied, lost): keep the saved choice, so "Tap to turn on mic" comes back on a reload.
+    if (this.micLive()) this.saveMic(this.room().mic === "off" ? "off" : "muted");
   }
 
   // ---- mic and publishing ----

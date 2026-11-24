@@ -471,11 +471,13 @@ describe("VoiceController", () => {
     await flush();
     expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
     s.voice.onIce(STUN, 1e12);
-    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+    expect(s.t().ops("setPublishing").every((c) => c.args[0] === null)).toBe(true);
+    expect(s.voice.view().talking).toBe(false);
     expect(s.voice.view().mic).toBe("muted");
     expect(s.prefs.room("ABCD").mic).toBe("muted");
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: false }), member("b")]);
-    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+    expect(s.t().ops("setPublishing").every((c) => c.args[0] === null)).toBe(true);
+    expect(s.voice.view().talking).toBe(false);
     expect(s.voice.view().mic).toBe("muted");
     s.voice.stop();
 
@@ -486,7 +488,8 @@ describe("VoiceController", () => {
     await flush();
     expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
     again.voice.onIce(STUN, 1e12);
-    expect(again.t().lastPublished()).not.toBe(again.tracks[0]!.asTrack());
+    expect(again.t().ops("setPublishing").every((c) => c.args[0] === null)).toBe(true);
+    expect(again.voice.view().talking).toBe(false);
     expect(again.voice.view().mic).toBe("muted");
   });
 
@@ -498,6 +501,53 @@ describe("VoiceController", () => {
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
     expect(s.prefs.room("ABCD").mic).toBe("off");
     expect(s.voice.view().mic).toBe("off");
+  });
+
+  it("turn on mic while host-muted toasts and saves nothing; reload after the lift joins muted", async () => {
+    const store = memoryStore();
+    const s = setup({ store, perm: "granted" });
+    await s.voice.join(false);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    s.voice.onIce(STUN, 1e12);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    s.toasts.length = 0;
+    const before = s.sent.length;
+    await s.voice.turnOnMic();
+    expect(s.toasts).toEqual(["The host muted you."]);
+    expect(s.gum).not.toHaveBeenCalled();
+    expect(s.sent.length).toBe(before);
+    expect(s.prefs.room("ABCD").mic).toBe("off");
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    s.voice.stop();
+
+    const again = setup({ store, perm: "granted" });
+    again.voice.onWelcome();
+    again.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    await flush();
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(again.gum).not.toHaveBeenCalled();
+    expect(again.voice.view().talking).toBe(false);
+  });
+
+  it("host-muted with the mic denied keeps the saved on, so the reload asks again", async () => {
+    const store = memoryStore();
+    voicePrefs(store).setRoom("ABCD", { on: true, mic: "on" });
+    const s = setup({ store, perm: "prompt" });
+    s.voice.onWelcome();
+    await flush();
+    expect(s.voice.view().needsMicTap).toBe(true);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.sent[0]).toEqual({ type: "voice-join", muted: true });
+    expect(s.prefs.room("ABCD").mic).toBe("on");
+    s.voice.stop();
+
+    const again = setup({ store, perm: "prompt" });
+    again.voice.onWelcome();
+    again.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    await flush();
+    expect(again.voice.view().needsMicTap).toBe(true);
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(again.prefs.room("ABCD").mic).toBe("on");
   });
 
   it("unmute while host-muted toasts The host muted you. and sends nothing", async () => {
