@@ -74,12 +74,13 @@ export interface PreparedClip {
 
 /** Mono, then the cut from `startS`, then even loudness. */
 export function prepareClip(input: { channels: readonly Float32Array[]; sampleRate: number }, startS: number): PreparedClip {
-  const { sampleRate } = input;
-  const mono = toMono(input.channels);
-  const win = clipWindow(mono.length / sampleRate, startS);
-  const from = Math.min(mono.length, Math.round(win.start * sampleRate));
-  const to = Math.min(mono.length, from + Math.round(win.duration * sampleRate));
-  const samples = evenLoudness(mono.subarray(from, to));
+  const { sampleRate, channels } = input;
+  // The window first, then mono of only that part: a long song is never copied whole.
+  const length = channels.length ? Math.min(...channels.map((c) => c.length)) : 0;
+  const win = clipWindow(length / sampleRate, startS);
+  const from = Math.min(length, Math.round(win.start * sampleRate));
+  const to = Math.min(length, from + Math.round(win.duration * sampleRate));
+  const samples = evenLoudness(toMono(channels.map((c) => c.subarray(from, to))));
   return { samples, sampleRate, ms: Math.round((samples.length / sampleRate) * 1000), cut: win.cut };
 }
 

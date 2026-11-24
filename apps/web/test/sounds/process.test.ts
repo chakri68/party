@@ -104,6 +104,27 @@ describe("phone-side sound processing", () => {
     expect(clip.cut).toBe(true);
   });
 
+  it("prepareClip of a long stereo input cuts the right part, from the shortest channel", () => {
+    // 60 s on the left, a bit less on the right: the window follows the shorter one.
+    const left = noise(60, 0.2);
+    const right = sine(59.5, 0.1, 330);
+    const keepL = left.slice(), keepR = right.slice();
+    const clip = prepareClip({ channels: [left, right], sampleRate: RATE }, 100);
+    const n = Math.round(HOST_CUT_S * RATE);
+    expect(clip.samples.length).toBe(n);
+    // The latest start in 0.1 s steps: 59.5 - 2.9 = 56.6 s.
+    const from = Math.round(56.6 * RATE);
+    const mono = (i: number) => (left[from + i]! + right[from + i]!) / 2;
+    const gain = clip.samples[0]! / mono(0);
+    expect(gain).toBeGreaterThan(0);
+    let worst = 0;
+    for (let i = 0; i < n; i++) worst = Math.max(worst, Math.abs(clip.samples[i]! - gain * mono(i)));
+    expect(worst).toBeLessThan(1e-5);
+    // The input is left as it was.
+    const same = (x: Float32Array, y: Float32Array) => Buffer.from(x.buffer).equals(Buffer.from(y.buffer));
+    expect(same(left, keepL) && same(right, keepR)).toBe(true);
+  });
+
   it("prepareClip of a short input keeps it whole", () => {
     const clip = prepareClip({ channels: [sine(1, 0.5)], sampleRate: RATE }, 0.5);
     expect(clip.samples.length).toBe(RATE);

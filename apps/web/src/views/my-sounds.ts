@@ -8,7 +8,7 @@ import { cleanSoundName, SOUND_NAME_MAX } from "@games/sounds/check";
 import { h, replaceChildren } from "@games/ui";
 import { decodeFile, encodeMp3 } from "../sounds/encode.ts";
 import { type Library, type LibraryApi, type LibraryResult, resetMySounds, SAVE_FAILED } from "../sounds/library.ts";
-import { checkInput, clipWindow, defaultName, HOST_CUT_S, NOT_A_SOUND, prepareClip, TOO_LONG } from "../sounds/process.ts";
+import { checkInput, clipWindow, defaultName, HOST_CUT_S, NOT_A_SOUND, prepareClip, TOO_LONG, toMono } from "../sounds/process.ts";
 import { type LibraryWrite, MY_SOUNDS_COPY as T, mySoundsModel, type SlotAction, type SlotRow, startLabel, writeLanded } from "./my-sounds-model.ts";
 
 type Decoded = { channels: Float32Array[]; sampleRate: number };
@@ -33,8 +33,9 @@ async function readyAudio(): Promise<AudioContext | null> {
 /** One dialog at a time: a double tap must not open two. */
 let openNow = false;
 
-export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void {
-  if (openNow) return;
+/** Opens the dialog. Returns a function that closes it (for a view that goes away). */
+export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): () => void {
+  if (openNow) return () => {};
   openNow = true;
   const { api } = opts;
   let lib: Library | null = null;
@@ -42,8 +43,8 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
   /** A write, a file read or a decode is running: every other button waits. */
   let busy = false;
   let error: { slot: string | null; text: string } | null = null;
-  /** Where focus goes after the next draw. */
-  let focusTo: string | null = null;
+  /** Where focus goes after the next draw: the first of these that exists, else Close. */
+  let focusTo: string[] | null = null;
   let closed = false;
   /** Saved files, decoded once. Keyed on the url, which names the version. */
   const clips = new Map<string, AudioBuffer>();
@@ -87,7 +88,8 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
       h("ol", { class: "my-sounds-rows" }, rows.map(row)),
     );
     if (focusTo) {
-      body.querySelector<HTMLElement>(focusTo)?.focus();
+      const to = focusTo.map((sel) => body.querySelector<HTMLElement>(sel)).find((el) => el && !el.hasAttribute("disabled"));
+      (to ?? close).focus();
       focusTo = null;
     }
   };
@@ -118,7 +120,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
                     class: a === "remove" ? "danger" : "",
                     "data-act": a,
                     disabled: busy,
-                    "aria-label": r.name && a !== "add" ? `${ACTION_LABEL[a]}: ${r.name}` : undefined,
+                    "aria-label": a === "add" ? `${T.add}, slot ${r.id}` : r.name ? `${ACTION_LABEL[a]}: ${r.name}` : undefined,
                     onclick: () => act(a, r),
                   },
                   ACTION_LABEL[a],
@@ -175,14 +177,16 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
         step: 0.1,
         value: win.start,
         disabled: busy,
+        "aria-valuetext": startLabel(win.start),
       });
       range.addEventListener("input", () => {
         e.start = clipWindow(lengthS, Number(range.value)).start;
         label.textContent = startLabel(e.start);
+        range.setAttribute("aria-valuetext", startLabel(e.start));
       });
       slider = h("div", { class: "my-sounds-cut" }, h("p", { class: "my-sounds-note" }, TOO_LONG), h("label", { class: "field" }, label, range));
     }
-    const play = h("button", { type: "button", disabled: busy, onclick: () => void playPicked(e) }, T.play);
+    const play = h("button", { type: "button", disabled: busy, "data-act": "play", onclick: () => void playPicked(e) }, T.play);
     return h(
       "div",
       { class: "my-sounds-edit" },
@@ -215,7 +219,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
   function cancel(slot: string) {
     editing = null;
     error = null;
-    focusTo = slotSel(slot, "button");
+    focusTo = [slotSel(slot, "button")];
     draw();
   }
 
@@ -231,7 +235,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
     }
     if (a === "rename") editing = { kind: "rename", slot: r.id, name: r.name ?? "" };
     else editing = { kind: "remove", slot: r.id };
-    focusTo = slotSel(r.id, a === "rename" ? "[data-focus=name]" : "[data-act=save]");
+    focusTo = [slotSel(r.id, a === "rename" ? "[data-focus=name]" : "[data-act=save]")];
     draw();
   }
 
@@ -249,7 +253,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
     const bad = checkInput(file);
     if (bad) {
       error = { slot, text: bad };
-      focusTo = slotSel(slot, "button");
+      focusTo = [slotSel(slot, "button")];
       return draw();
     }
     busy = true;
@@ -263,22 +267,45 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
     busy = false;
     if (!decoded) {
       error = { slot, text: NOT_A_SOUND };
-      focusTo = slotSel(slot, "button");
+      focusTo = [slotSel(slot, "button")];
       return draw();
     }
+    // Keep one mono channel: half the memory of stereo, and the decoded buffer can go.
+    decoded = { channels: [toMono(decoded.channels)], sampleRate: decoded.sampleRate };
     editing = { kind: "pick", slot, file, decoded, name: defaultName(file.name), start: 0 };
-    focusTo = slotSel(slot, "[data-focus=name]");
+    focusTo = [slotSel(slot, "[data-focus=name]")];
     draw();
+  }
+
+  /** A line in the row when nothing was heard. */
+  function playLine(slot: string, text: string | null) {
+    error = text ? { slot, text } : null;
+    // The redraw makes new buttons: keep focus on Play.
+    focusTo = [slotSel(slot, "[data-act=play]")];
+    draw();
+  }
+
+  /** Plays on this phone, or says why not. */
+  function playNow(slot: string, clip: AudioBuffer) {
+    if (audio.playClip(clip)) {
+      if (error?.slot === slot && (error.text === T.soundsOff || error.text === T.playFailed)) playLine(slot, null);
+      return;
+    }
+    playLine(slot, T.soundsOff);
   }
 
   async function playPicked(e: Extract<Editing, { kind: "pick" }>) {
     const ctx = await readyAudio();
-    if (!ctx) return;
     const clip = prepareClip(e.decoded, e.start);
-    if (!clip.samples.length) return;
-    const buf = ctx.createBuffer(1, clip.samples.length, clip.sampleRate);
-    buf.copyToChannel(clip.samples as Float32Array<ArrayBuffer>, 0);
-    audio.playClip(buf);
+    if (!ctx || !clip.samples.length) return playLine(e.slot, T.playFailed);
+    let buf: AudioBuffer;
+    try {
+      buf = ctx.createBuffer(1, clip.samples.length, clip.sampleRate);
+      buf.copyToChannel(clip.samples as Float32Array<ArrayBuffer>, 0);
+    } catch {
+      return playLine(e.slot, T.playFailed);
+    }
+    playNow(e.slot, buf);
   }
 
   async function playSaved(r: SlotRow) {
@@ -291,15 +318,12 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
       const bytes = await api.bytes(slot.url);
       await ready;
       const decoded = bytes ? await audio.decode(bytes) : null;
-      if (!decoded) {
-        error = { slot: r.id, text: T.loadFailed };
-        return draw();
-      }
+      if (!decoded) return playLine(r.id, T.playFailed);
       clip = decoded;
       clips.set(slot.url, clip);
     }
     await ready;
-    audio.playClip(clip);
+    playNow(r.id, clip);
   }
 
   /** Runs one write; a 2xx with no list is checked against a fresh list. */
@@ -314,9 +338,11 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
       res = { ok: false, error: SAVE_FAILED };
     }
     let next: Library | null = res.ok ? res.library : null;
-    if (!res.ok && res.refetch) {
-      const fresh = await api.get();
-      if (fresh && writeLanded(w, lib, fresh)) next = fresh;
+    if (!res.ok) {
+      // Any "no": read the list again. The write may have landed (a 2xx with no list),
+      // a Pass may have lapsed, or another tab may have changed a slot.
+      const fresh = await api.get().catch(() => null);
+      if (fresh && res.refetch && writeLanded(w, lib, fresh)) next = fresh;
       else if (fresh) lib = fresh;
     }
     busy = false;
@@ -324,13 +350,16 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
       lib = next;
       editing = null;
       resetMySounds();
-      focusTo = slotSel(w.slot, "button");
+      // After a remove a lapsed row has no button: then Close.
+      focusTo = [slotSel(w.slot, "button")];
       // A write that lands after the dialog closed: let the room list the sounds again.
       if (closed) opts.onClose?.();
     } else {
       error = { slot: w.slot, text: res.ok ? SAVE_FAILED : res.error };
-      // A lapsed Pass, found out mid-edit: the row has no Save now.
-      if (lib && !lib.active && editing?.kind === "pick") editing = null;
+      const slotNow = lib?.slots.some((s) => s.id === w.slot);
+      // A lapsed Pass, or a slot another tab removed: that edit has nothing to save now.
+      if (editing && ((editing.kind === "pick" && !lib?.active) || (editing.kind !== "pick" && !slotNow))) editing = null;
+      focusTo = [slotSel(w.slot, "[data-act=save]"), slotSel(w.slot, "[data-focus=name]"), slotSel(w.slot, "button")];
     }
     draw();
   }
@@ -340,7 +369,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
     const name = cleanSoundName(e.name);
     if (name === null) {
       error = { slot: e.slot, text: T.noName };
-      focusTo = slotSel(e.slot, "[data-focus=name]");
+      focusTo = [slotSel(e.slot, "[data-focus=name]")];
       return draw();
     }
     await write({ kind: "save", slot: e.slot, name }, async () => api.save(e.slot, await encodeMp3(prepareClip(e.decoded, e.start)), name));
@@ -351,7 +380,7 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
     const name = cleanSoundName(e.name);
     if (name === null) {
       error = { slot: e.slot, text: T.noName };
-      focusTo = slotSel(e.slot, "[data-focus=name]");
+      focusTo = [slotSel(e.slot, "[data-focus=name]")];
       return draw();
     }
     await write({ kind: "rename", slot: e.slot, name }, () => api.rename(e.slot, name));
@@ -368,8 +397,10 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): void 
   dlg.focus({ preventScroll: true });
   void api.get().then((got) => {
     lib = got;
-    if (!got) focusTo = null;
     draw();
     if (!got) close.focus();
   });
+  return () => {
+    if (!closed) dlg.close();
+  };
 }

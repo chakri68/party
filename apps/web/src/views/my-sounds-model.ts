@@ -22,6 +22,8 @@ export const MY_SOUNDS_COPY = {
   cancel: "Cancel",
   close: "Close",
   loadFailed: "Could not load your sounds. Try again.",
+  soundsOff: "Sounds are off on this phone.",
+  playFailed: "Could not play this sound.",
 } as const;
 
 export type SlotAction = "add" | "play" | "rename" | "replace" | "remove";

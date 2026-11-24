@@ -154,6 +154,9 @@ export class RoomView implements View {
   refreshHostSounds: () => void = () => {};
   /** This phone owns a sound library, so the host gets My sounds in the menu. */
   private mySounds = false;
+  private gone = false;
+  /** Closes an open My sounds dialog. */
+  private closeMySounds: (() => void) | null = null;
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
   private playback: Playback | null = null;
@@ -190,6 +193,9 @@ export class RoomView implements View {
     clearInterval(this.ticker);
     this.detachDebug?.();
     this.menuDialog?.close();
+    this.gone = true;
+    // Before the board goes: closing calls refreshHostSounds.
+    this.closeMySounds?.();
     cancelConfirm();
     this.voice?.stop();
     this.unwatchFrames?.();
@@ -635,7 +641,16 @@ export class RoomView implements View {
       // The dialog and its mp3 encoder load only when asked for.
       "my-sounds": () =>
         void import("./my-sounds.ts")
-          .then((m) => m.openMySounds({ api: mySoundsApi(), onClose: () => this.refreshHostSounds() }))
+          .then((m) => {
+            if (this.gone) return;
+            this.closeMySounds = m.openMySounds({
+              api: mySoundsApi(),
+              onClose: () => {
+                this.closeMySounds = null;
+                this.refreshHostSounds();
+              },
+            });
+          })
           .catch(() => this.showToast(MY_SOUNDS_COPY.loadFailed)),
       pause: () => client.send({ type: "pause-game", paused: true }),
       resume: () => client.send({ type: "pause-game", paused: false }),

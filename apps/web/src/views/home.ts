@@ -151,14 +151,17 @@ export class HomeView implements View {
   /** This phone owns a sound library: show My sounds under Create. */
   private mySounds = false;
   private gone = false;
-  private creating = false;
+  /** The "or join one" line under Create (owner only): My sounds goes just before it. */
+  private orJoin: HTMLElement | null = null;
+  /** Closes an open My sounds dialog. */
+  private closeMySounds: (() => void) | null = null;
 
   constructor() {
     void hasMySounds().then((yes) => {
       if (!yes || this.gone) return;
       this.mySounds = true;
-      // Not while a create runs: a fresh Create button would allow a second one.
-      if (!this.creating) this.render();
+      // In place, not a re-render: the focused field and the phone keyboard stay.
+      if (this.orJoin?.isConnected) this.orJoin.before(this.mySoundsButton());
     });
   }
 
@@ -185,7 +188,6 @@ export class HomeView implements View {
   private async createRoom(btn: HTMLButtonElement) {
     if (!this.takeName()) return;
     btn.disabled = true;
-    this.creating = true;
     // Waiting on the server: stays lime, not the greyed "can't press" look.
     btn.setAttribute("aria-busy", "true");
     this.error.textContent = "";
@@ -204,8 +206,6 @@ export class HomeView implements View {
       this.error.textContent = e instanceof Error && e.message ? e.message : "Couldn't create a room.";
       btn.disabled = false;
       btn.removeAttribute("aria-busy");
-      this.creating = false;
-      if (this.mySounds && !this.root.querySelector(".home-my-sounds")) this.render();
     }
   }
 
@@ -228,21 +228,14 @@ export class HomeView implements View {
     const create = h("button", { type: "button", class: "primary" }, createText(this.setup));
     create.addEventListener("click", () => void this.createRoom(create));
     const orJoin = h("div", { class: "or" }, "or join one");
-    // The dialog and its mp3 encoder load only when asked for.
-    const mySounds = h("button", { type: "button", class: "home-my-sounds" }, MY_SOUNDS_COPY.title);
-    mySounds.addEventListener("click", () => {
-      this.error.textContent = "";
-      void import("./my-sounds.ts")
-        .then((m) => m.openMySounds({ api: mySoundsApi() }))
-        .catch(() => (this.error.textContent = MY_SOUNDS_COPY.loadFailed));
-    });
+    this.orJoin = orJoin;
 
     const recent = recentRooms();
     const parts: Record<HomePart, Node | Node[] | null> = {
       hero: hero(isOwner ? "You don't need an account. Enter a name and a room code." : pitch ? "Play card games and drawing games with friends. Use any phone." : "Have a room code? Enter it here."),
       identity: this.identity,
       create: this.mySounds ? create : [create, orJoin],
-      "my-sounds": [mySounds, orJoin],
+      "my-sounds": [this.mySoundsButton(), orJoin],
       join: joinForm,
       error: this.error,
       recent: recent.length
@@ -260,10 +253,26 @@ export class HomeView implements View {
     replaceChildren(this.root, ...homeParts(isOwner, pitch, this.mySounds).map((k) => parts[k]));
   }
 
+  private mySoundsButton(): HTMLButtonElement {
+    const btn = h("button", { type: "button", class: "home-my-sounds" }, MY_SOUNDS_COPY.title);
+    btn.addEventListener("click", () => {
+      this.error.textContent = "";
+      // The dialog and its mp3 encoder load only when asked for.
+      void import("./my-sounds.ts")
+        .then((m) => {
+          if (this.gone) return;
+          this.closeMySounds = m.openMySounds({ api: mySoundsApi(), onClose: () => (this.closeMySounds = null) });
+        })
+        .catch(() => (this.error.textContent = MY_SOUNDS_COPY.loadFailed));
+    });
+    return btn;
+  }
+
   update() {}
 
   destroy() {
     this.gone = true;
+    this.closeMySounds?.();
     this.root.remove();
   }
 }
