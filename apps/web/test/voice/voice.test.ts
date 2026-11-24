@@ -379,6 +379,23 @@ describe("VoiceController", () => {
     expect(s.toasts.at(-1)).toBe("The host muted you.");
   });
 
+  it("push-to-talk buzzes only when the press sends: not self-muted, not with the mic off", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ mode: "ptt" });
+    const s = await joined({ store });
+    s.voice.setMuted(true);
+    s.voice.setPtt(true);
+    s.voice.setPtt(false);
+    expect(s.buzzes).toEqual([]);
+    s.voice.setMuted(false);
+    s.voice.setPtt(true);
+    s.voice.setPtt(false);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS]);
+    const off = await joined({ store }, false);
+    off.voice.setPtt(true);
+    expect(off.buzzes).toEqual([]);
+  });
+
   it("deafen with deafenAlsoMutes mutes, and undeafen puts back the old state", async () => {
     const store = memoryStore();
     voicePrefs(store).set({ deafenAlsoMutes: true });

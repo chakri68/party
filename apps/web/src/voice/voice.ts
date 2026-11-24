@@ -419,7 +419,8 @@ export class VoiceController {
       if (held === this.pttHeld) return;
       if (held && this.phase === "joined" && this.hostMuted()) return this.toast(HOST_MUTED);
       this.pttHeld = held;
-      if (held) this.guard(() => this.deps.buzz(PTT_BUZZ_MS));
+      // Only a press that sends: not with the mic off or self-muted.
+      if (held && this.micLive() && !this.selfMuted) this.guard(() => this.deps.buzz(PTT_BUZZ_MS));
       this.syncPublishing();
       this.notify();
     });

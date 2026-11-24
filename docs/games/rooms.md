@@ -168,12 +168,11 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - **Mute** stops sending your voice, but your mic is still on. The mic button shows it. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
 - **Hear no one** (the headphones button) stops all voices for you. Tap it again to hear everyone.
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
-- **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works.
+- **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works. When you press the mic button, the phone gives a short buzz if Vibration is on in Sound and vibration. iPhones do not buzz.
 - If the phone blocks sound, tap **Tap to turn on sound**. If your mic stops (a call, or you pulled out a headset), tap **Tap to talk again.**
 - If the host mutes you, you see "The host muted you." You cannot unmute until the host allows it. If you reload the page, you see it again. In the **Voice** panel, others see "muted by host" next to your name. When the host allows it, you see "You can talk again. Tap the mic to talk."
 - If you leave voice and join again, the host mute is gone. The host can mute you again.
-- While you are in voice, the screen stays on. To turn this off, use "Keep the screen on in voice" in voice settings.
-- Push to talk: the phone gives a short buzz when you press the mic button, if vibration is on.
+- While you are in voice, the screen stays on. To turn this off, use "Keep the screen on in voice" in voice settings. Some phones do not allow this.
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.

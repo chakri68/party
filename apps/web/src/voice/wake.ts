@@ -23,6 +23,8 @@ export class VoiceWakeLock {
   private pending = false;
   /** The last request was refused: wait for the next visible or a fresh set(true). */
   private refused = false;
+  /** Counts visibility changes: a refusal from before a hide and show is stale. */
+  private visibility = 0;
   private stopListening: () => void = () => {};
   private readonly deps: WakeDeps;
 
@@ -31,6 +33,7 @@ export class VoiceWakeLock {
     if (!deps.request) return;
     try {
       this.stopListening = deps.onVisibility(() => {
+        this.visibility++;
         if (this.isVisible()) this.refused = false;
         this.sync();
       });
@@ -81,6 +84,7 @@ export class VoiceWakeLock {
     }
     if (this.sentinel || this.pending || this.refused) return;
     this.pending = true;
+    const asked = this.visibility;
     let p: Promise<WakeSentinel>;
     try {
       p = request();
@@ -104,6 +108,8 @@ export class VoiceWakeLock {
       },
       () => {
         this.pending = false;
+        // The page hid and came back while asking: that refusal is old, ask again.
+        if (asked !== this.visibility) return this.sync();
         this.refused = true;
       },
     );

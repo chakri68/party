@@ -15,7 +15,8 @@ class FakeSentinel implements WakeSentinel {
   }
 }
 
-function setup(opts: { api?: boolean; refuse?: boolean } = {}) {
+function setup(opts: { api?: boolean; refuse?: boolean; manual?: boolean } = {}) {
+  const pendingRequests: { resolve: (s: WakeSentinel) => void; reject: (e: Error) => void }[] = [];
   const sentinels: FakeSentinel[] = [];
   let visible = true;
   let refuse = opts.refuse ?? false;
@@ -27,6 +28,7 @@ function setup(opts: { api?: boolean; refuse?: boolean } = {}) {
         ? null
         : async () => {
             requests++;
+            if (opts.manual) return new Promise<WakeSentinel>((resolve, reject) => pendingRequests.push({ resolve, reject }));
             if (refuse) throw Object.assign(new Error("no"), { name: "NotAllowedError" });
             const s = new FakeSentinel();
             sentinels.push(s);
@@ -52,6 +54,7 @@ function setup(opts: { api?: boolean; refuse?: boolean } = {}) {
     requests: () => requests,
     listeners: () => listeners.length,
     setRefuse: (r: boolean) => (refuse = r),
+    pendingRequests,
   };
 }
 
@@ -128,6 +131,33 @@ describe("VoiceWakeLock", () => {
     s.show(true);
     await flush();
     expect(s.held()).toBe(0);
+    expect(s.requests()).toBe(3);
+  });
+
+  it("a refusal that lands after the page hid and came back asks again", async () => {
+    const s = setup({ manual: true });
+    s.wake.set(true);
+    await flush();
+    expect(s.requests()).toBe(1);
+    s.show(false);
+    s.show(true);
+    // The hidden page's request is refused late: not counted as a refusal now.
+    s.pendingRequests[0]!.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
+    await flush();
+    expect(s.requests()).toBe(2);
+    const lock = new FakeSentinel();
+    s.pendingRequests[1]!.resolve(lock);
+    await flush();
+    expect(lock.released).toBe(false);
+    // A refusal with no hide in between is final until the next visible.
+    s.wake.set(false);
+    await flush();
+    s.wake.set(true);
+    await flush();
+    s.pendingRequests[2]!.reject(new Error("no"));
+    await flush();
+    s.wake.set(true);
+    await flush();
     expect(s.requests()).toBe(3);
   });
 

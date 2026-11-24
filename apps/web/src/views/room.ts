@@ -341,11 +341,14 @@ export class RoomView implements View {
     });
     this.wake = wake;
     this.unduck = voice.subscribe(() => {
+      // Each in its own try: one failing never stops the other.
       try {
-        const view = voice.view();
-        const settings = voice.settings();
-        audio.duck(duckLevel(view, settings.duck));
-        wake.set(view.status === "on" && settings.keepScreenOn);
+        wake.set(voice.view().status === "on" && voice.settings().keepScreenOn);
+      } catch {
+        // Voice never breaks the room.
+      }
+      try {
+        audio.duck(duckLevel(voice.view(), voice.settings().duck));
       } catch {
         // Voice never breaks the room.
       }
