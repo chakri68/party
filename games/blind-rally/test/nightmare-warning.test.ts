@@ -7,7 +7,7 @@ describe("Blind Rally: the Nightmare warning", () => {
   it("warns on Nightmare", () => {
     const f = assists("nightmare");
     expect(f.warn).toBe(true);
-    expect(f.hint).toBe("Very hard. Every help is off.");
+    expect(f.hint).toBe("Very hard. All assists are off.");
   });
 
   it("says nothing on the other presets", () => {

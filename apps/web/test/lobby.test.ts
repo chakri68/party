@@ -88,13 +88,16 @@ describe("watchBarHeight", () => {
   it("sets the height at once, follows resizes, and clears on stop", () => {
     let fire = () => {};
     let disconnected = false;
+    const observed: unknown[] = [];
     vi.stubGlobal(
       "ResizeObserver",
       class {
         constructor(cb: () => void) {
           fire = cb;
         }
-        observe() {}
+        observe(el: unknown) {
+          observed.push(el);
+        }
         disconnect() {
           disconnected = true;
         }
@@ -104,6 +107,7 @@ describe("watchBarHeight", () => {
     const { root, props } = fakeRoot();
     const stop = watchBarHeight(bar, root);
     expect(props.get("--lobby-bar")).toBe("64px");
+    expect(observed).toEqual([bar]);
     (bar as { offsetHeight: number }).offsetHeight = 90;
     fire();
     expect(props.get("--lobby-bar")).toBe("90px");

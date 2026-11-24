@@ -263,7 +263,7 @@ export function blindRallySettingFields(raw: unknown, players: number): SettingF
       selected: pickIndex(ASSIST_PRESETS, s.assists),
       // Custom starts from whatever's in force now, so it's a tweak, not a reset.
       options: ASSIST_PRESETS.map((p) => ({ label: PRESET_LABELS[p], patch: p === "custom" ? { assists: p, ...effectiveAssists(s) } : { assists: p } })),
-      hint: s.assists === "nightmare" ? "Very hard. Every help is off." : onOff(effectiveAssists(s)),
+      hint: s.assists === "nightmare" ? "Very hard. All assists are off." : onOff(effectiveAssists(s)),
       warn: s.assists === "nightmare" || undefined,
     },
     ...(s.assists === "custom"

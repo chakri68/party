@@ -205,12 +205,17 @@ export class RoomView implements View {
    * the lobby also animates its own updates (only named blocks move). The
    * first screen doesn't: it's already inside the router's page transition.
    */
-  private show(screen: string, update: () => void | Promise<void>) {
+  private show(screen: string, body: () => void | Promise<void>) {
     const was = this.screen;
-    if (screen !== "lobby") {
-      this.stopLobbyBar?.();
-      this.stopLobbyBar = null;
-    }
+    // Stopped inside the swap, so a queued lobby swap that runs first cannot leave a watcher on a detached bar.
+    const update =
+      screen === "lobby"
+        ? body
+        : () => {
+            this.stopLobbyBar?.();
+            this.stopLobbyBar = null;
+            return body();
+          };
     const first = was === null;
     const kind = screen !== was ? "phase" : screen === "lobby" ? "lobby" : null;
     this.screen = screen;
