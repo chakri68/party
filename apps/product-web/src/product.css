@@ -15,6 +15,8 @@
     --muted: #5c594f;
     --accent-soft: rgb(74 102 0 / 0.12);
     --danger: #b3261e;
+    /* My sounds' "Get Host Pass" lines: the shell's yellow is too faint on light. 5.9:1 on --bg. */
+    --warn: #8a5a00;
     --cp-focus: #4a6600;
   }
   html.cp-start:has(main.home) :is(button, input, a):focus-visible { outline-color: var(--cp-focus); }

@@ -36,7 +36,11 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "couchparty", "database_id": "16a56246-c8d0-4ed3-a571-8997915e0e00", "migrations_dir": "migrations" }
   ],
-  "r2_buckets": [{ "binding": "BLIND_RALLY_GODOT", "bucket_name": "couchparty-godot" }],
+  // SOUNDS: hosts' own sounds, lib/<user id>/ (Host Pass). Deleted with the account.
+  "r2_buckets": [
+    { "binding": "BLIND_RALLY_GODOT", "bucket_name": "couchparty-godot" },
+    { "binding": "SOUNDS", "bucket_name": "couchparty-sounds" }
+  ],
   "ratelimits": [
     { "name": "CREATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
     { "name": "EMAIL_LIMIT", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }

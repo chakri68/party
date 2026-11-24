@@ -21,6 +21,8 @@ export const FOOT_LINKS: ReadonlyArray<readonly [label: string, href: string]> =
   ["Terms", "/terms"],
   ["Privacy", "/privacy"],
   ["Refunds", "/refunds"],
+  // The licences of open source code the site ships (the My sounds encoder).
+  ["Licences", "/THIRD_PARTY.md"],
   ["hello@couchpartygames.com", "mailto:hello@couchpartygames.com"],
 ];
 

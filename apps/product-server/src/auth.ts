@@ -7,6 +7,7 @@ import type { ProductEnv } from "./env.ts";
 import {
   clearCookie, clientIp, json, OAUTH_COOKIE, readCookie, redirect, safeNext, SESSION_COOKIE, setCookie,
 } from "./http.ts";
+import { deleteLibrary } from "./sounds.ts";
 import { verifyTurnstile } from "./turnstile.ts";
 
 const MINUTE = 60_000;
@@ -268,6 +269,14 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
     case "DELETE /api/account": {
       const user = await userFromRequest(env.DB, request, deps.now());
       if (!user) return json({ error: "Sign in first." }, 401);
+      // Their sounds go first: if R2 fails, the account stays, so a retry can
+      // finish the job. The other order would leave files nobody can reach.
+      try {
+        if (env.SOUNDS) await deleteLibrary(env.SOUNDS, user.id);
+      } catch (err) {
+        console.error("account delete: could not delete sounds:", err);
+        return json({ error: "Could not delete your account. Try again." }, 503);
+      }
       // Sessions and entitlements cascade from users. Sign-in links are keyed by
       // email (stored normalised), so they go in the same batch.
       await env.DB.batch([

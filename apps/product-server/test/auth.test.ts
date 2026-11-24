@@ -3,6 +3,7 @@ import { handleAuth, userFromRequest, type AuthDeps } from "../src/auth.ts";
 import { createCode } from "../src/comps.ts";
 import { grant } from "../src/entitlements.ts";
 import type { ProductEnv } from "../src/env.ts";
+import { fakeBucket } from "./bucket.ts";
 import { fakeD1, tripCounter } from "./d1.ts";
 
 const T0 = 1_800_000_000_000;
@@ -11,6 +12,7 @@ const ORIGIN = "https://couchpartygames.com";
 
 function setup(opts: { limit?: (key: string) => boolean; turnstile?: boolean; googleClaims?: Record<string, unknown> } = {}) {
   const db = fakeD1();
+  const sounds = fakeBucket();
   const clock = { t: T0 };
   const sent: Array<{ to: string; subject: string; html: string }> = [];
   const limitKeys: string[] = [];
@@ -20,6 +22,7 @@ function setup(opts: { limit?: (key: string) => boolean; turnstile?: boolean; go
     GOOGLE_CLIENT_ID: "gid",
     GOOGLE_CLIENT_SECRET: "gsecret",
     EMAIL_LIMIT: { limit: async ({ key }: { key: string }) => (limitKeys.push(key), { success: opts.limit ? opts.limit(key) : true }) },
+    SOUNDS: sounds.bucket,
   } as unknown as ProductEnv;
   const claims = { aud: "gid", email: "g@x.com", email_verified: true, ...opts.googleClaims };
   const idToken = `h.${btoa(JSON.stringify(claims)).replace(/=+$/, "")}.s`;
@@ -53,7 +56,7 @@ function setup(opts: { limit?: (key: string) => boolean; turnstile?: boolean; go
     const r = await spend(tokenOf(path));
     return `cp_session=${cookieOf(r)}`;
   };
-  return { db, clock, sent, env, deps, call, requestLink, cookieOf, tokenOf, spend, signIn, limitKeys };
+  return { db, clock, sent, env, deps, call, requestLink, cookieOf, tokenOf, spend, signIn, limitKeys, sounds };
 }
 
 const count = async (db: ReturnType<typeof fakeD1>, table: string) =>
@@ -386,6 +389,32 @@ describe("session", () => {
     expect((await s.call("DELETE", "/api/account", { cookie })).status).toBe(200);
     const left = await s.db.prepare("SELECT email FROM login_tokens").all<{ email: string }>();
     expect(left.results.map((r) => r.email)).toEqual(["b@x.com"]);
+  });
+
+  it("deleting an account deletes its sounds", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    const mine = [`lib/${u.id}/index.json`, `lib/${u.id}/1-0123456789.mp3`, `lib/${u.id}/2-abcdef0123.mp3`];
+    const other = ["lib/someone/index.json", "lib/someone/1-0123456789.mp3", `lib/${u.id}x/index.json`];
+    for (const k of [...mine, ...other]) await s.sounds.bucket.put(k, "x");
+    expect((await s.call("DELETE", "/api/account", { cookie })).status).toBe(200);
+    expect([...s.sounds.objects.keys()].sort()).toEqual([...other].sort());
+    expect(await count(s.db, "users")).toBe(0);
+  });
+
+  it("a sounds delete failure keeps the account", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    await s.sounds.bucket.put(`lib/${u.id}/index.json`, "x");
+    s.sounds.state.failDelete = true;
+    const r = await s.call("DELETE", "/api/account", { cookie });
+    expect(r.status).toBe(503);
+    expect(await r.json()).toEqual({ error: "Could not delete your account. Try again." });
+    expect(r.headers.get("set-cookie")).toBeNull();
+    expect(await count(s.db, "users")).toBe(1);
+    expect(await count(s.db, "sessions")).toBe(1);
   });
 
   it("DELETE /api/account signed out is 401", async () => {

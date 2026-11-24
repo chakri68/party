@@ -5,6 +5,7 @@ import { hmacHex, newId, type Db } from "./db.ts";
 import type { ProductEnv } from "./env.ts";
 import { clientIp } from "./http.ts";
 import { userWithTier } from "./auth.ts";
+import { productSoundOwner } from "./sounds.ts";
 import { verifyTurnstile } from "./turnstile.ts";
 
 const WINDOW_MS = 6 * 3_600_000;
@@ -42,7 +43,8 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
       if (user?.tier === "pass") {
         // No Turnstile and no caps for Host Pass, but a runaway script still gets slowed.
         if (!(await env.CREATE_LIMIT.limit({ key: `user:${user.id}` })).success) return { ok: false, response: json({ error: TOO_MANY }, 429) };
-        return { ok: true, grant: { tier: "pass", hostKey }, extra: { hostKey } };
+        // The room plays this account's sounds. createFetch drops it when SOUNDS isn't bound.
+        return { ok: true, grant: { tier: "pass", hostKey, library: user.id }, extra: { hostKey } };
       }
 
       const ip = clientIp(request);
@@ -57,8 +59,10 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
       if (mine >= MAX_FREE_PER_IP || all >= MAX_FREE_TOTAL) {
         return { ok: false, response: json({ error: TOO_MANY }, 429) };
       }
+      // No library: a free room never plays anyone's own sounds (absent means null).
       return { ok: true, grant: { tier: "free", hostKey }, extra: { hostKey } };
     },
+    soundOwner: (request, serverEnv) => productSoundOwner(request, serverEnv as unknown as ProductEnv, deps.now()),
   };
 }
 
@@ -84,7 +88,7 @@ export function recordRoom(db: Db, ipHashKey: string | undefined, now: () => num
 
 export interface UpgradeDeps {
   now(): number;
-  getRoom(env: ProductEnv, code: string): Promise<{ upgrade(hostKey: string): Promise<boolean> }>;
+  getRoom(env: ProductEnv, code: string): Promise<{ upgrade(hostKey: string, library?: string | null): Promise<boolean> }>;
 }
 
 export const realUpgradeDeps: UpgradeDeps = {
@@ -104,7 +108,8 @@ export async function handleUpgrade(request: Request, env: ProductEnv, deps: Upg
   const body = (await request.json().catch(() => null)) as { hostKey?: unknown } | null;
   if (!isValidRoomCode(code) || typeof body?.hostKey !== "string" || !body.hostKey) return json({ error: "That room code is not valid." }, 400);
   const room = await deps.getRoom(env, code);
-  if (!(await room.upgrade(body.hostKey))) return json({ error: "That is not your room." }, 403);
+  // The lifted room plays this account's sounds from now on.
+  if (!(await room.upgrade(body.hostKey, user.id))) return json({ error: "That is not your room." }, 403);
   await env.DB.prepare("UPDATE rooms SET tier = 'pass' WHERE code = ?").bind(code).run();
   return json({ ok: true });
 }

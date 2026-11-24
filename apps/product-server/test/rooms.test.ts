@@ -13,6 +13,7 @@ import { productGames, PRODUCT_LIMITS } from "../src/catalog.ts";
 import { handleUpgrade, productPolicy, recordRoom } from "../src/rooms.ts";
 import { gamesFor } from "@games/server/games";
 import { createFetch } from "@games/server/worker";
+import { fakeBucket } from "./bucket.ts";
 import { fakeD1, tripCounter } from "./d1.ts";
 
 const T0 = 1_800_000_000_000;
@@ -20,7 +21,7 @@ const HOUR = 3_600_000;
 const ORIGIN = "https://couchpartygames.com";
 const KEY = "test-ip-key";
 
-function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boolean | ((key: string) => boolean); ipHashKey?: string | null; claim?: boolean | ((hostKey: string) => boolean) } = {}) {
+function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boolean | ((key: string) => boolean); ipHashKey?: string | null; claim?: boolean | ((hostKey: string) => boolean); sounds?: boolean } = {}) {
   const raw = fakeD1();
   // trips: count database round trips (and time Turnstile on the same clock).
   const counter = opts.trips ? tripCounter(raw) : null;
@@ -30,7 +31,7 @@ function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boole
   const clock = { t: T0 };
   const claims: Array<unknown> = [];
   const limitKeys: string[] = [];
-  const upgrades: Array<{ code: string; hostKey: string }> = [];
+  const upgrades: Array<{ code: string; hostKey: string; library?: string | null }> = [];
   const env = {
     DB: db,
     CREATE_LIMIT: {
@@ -39,6 +40,7 @@ function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boole
       ),
     },
     IP_HASH_KEY: opts.ipHashKey === null ? undefined : (opts.ipHashKey ?? KEY),
+    ...(opts.sounds ? { SOUNDS: fakeBucket().bucket } : {}),
   } as unknown as ProductEnv;
   const turnstile = async () => opts.turnstile ?? true;
   const deps = { now: () => clock.t, verifyTurnstile: counter ? () => counter.track(turnstile) : turnstile };
@@ -62,7 +64,7 @@ function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boole
   const upgradeDeps = {
     now: deps.now,
     getRoom: async (_env: unknown, code: string) => ({
-      upgrade: async (hostKey: string) => (upgrades.push({ code, hostKey }), hostKey === "right"),
+      upgrade: async (hostKey: string, library?: string | null) => (upgrades.push({ code, hostKey, library }), hostKey === "right"),
     }),
   };
   const upgrade = (code: string, body: unknown, cookie?: string) =>
@@ -75,15 +77,16 @@ function setup(opts: { trips?: boolean; turnstile?: boolean; createLimit?: boole
       env,
       upgradeDeps,
     ) as Promise<Response>;
-  const user = async (pass: boolean) => {
+  const user = async (pass: boolean) => (await userWithId(pass)).cookie;
+  const userWithId = async (pass: boolean) => {
     const id = newId();
     await db.prepare("INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)").bind(id, `${id}@x.com`, T0).run();
     const token = newId();
     await db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").bind(await sha256Hex(token), id, T0 + HOUR).run();
     if (pass) await grant(db, id, { source: "comp", plan: "pass", days: 1, ref: "x" }, T0);
-    return `cp_session=${token}`;
+    return { id, cookie: `cp_session=${token}` };
   };
-  return { db, raw, counter, background, clock, claims, limitKeys, upgrades, create, upgrade, user };
+  return { db, raw, counter, background, clock, claims, limitKeys, upgrades, create, upgrade, user, userWithId };
 }
 
 const rows = async (db: Db) =>
@@ -175,6 +178,23 @@ describe("room creation policy", () => {
     expect((await s.create({ token: "t" })).status).toBe(200);
   });
 
+  it("a Pass room gets the host's library, a free room none", async () => {
+    const s = setup({ sounds: true });
+    const u = await s.userWithId(true);
+    expect((await s.create({ cookie: u.cookie })).status).toBe(200);
+    expect((await s.create({ token: "t" })).status).toBe(200);
+    expect(s.claims[0]).toMatchObject({ tier: "pass", library: u.id });
+    expect(s.claims[1]).toMatchObject({ tier: "free" });
+    expect((s.claims[1] as { library?: string | null }).library ?? null).toBeNull();
+  });
+
+  it("without a sounds bucket, a Pass room gets no library", async () => {
+    const s = setup();
+    const u = await s.userWithId(true);
+    await s.create({ cookie: u.cookie });
+    expect((s.claims[0] as { library?: string | null }).library ?? null).toBeNull();
+  });
+
   it("a signed-in free user is treated as anonymous", async () => {
     const s = setup({ turnstile: false });
     const cookie = await s.user(false);
@@ -264,6 +284,12 @@ describe("upgrade", () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true });
     expect((await rows(s.db))[0]!.tier).toBe("pass");
+  });
+  it("upgrade passes the account's library", async () => {
+    const s = setup();
+    const u = await s.userWithId(true);
+    expect((await s.upgrade(code, { hostKey: "right" }, u.cookie)).status).toBe(200);
+    expect(s.upgrades).toEqual([{ code, hostKey: "right", library: u.id }]);
   });
   it("bad code gets 400, bad body gets 400", async () => {
     const s = setup();

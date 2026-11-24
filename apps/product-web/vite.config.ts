@@ -94,10 +94,32 @@ function prerender(): Plugin {
   };
 }
 
+/**
+ * The room shell's My sounds screen ships an LGPL encoder (LAME). Its notice is
+ * apps/web/public/THIRD_PARTY.md, which this build doesn't copy (it has its own
+ * public/), so it is emitted here and served at /THIRD_PARTY.md. Dev serves it too.
+ */
+export function thirdParty(): Plugin {
+  const notice = resolve(import.meta.dirname, "../web/public/THIRD_PARTY.md");
+  return {
+    name: "third-party",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? "").split("?")[0] !== "/THIRD_PARTY.md") return next();
+        res.setHeader("content-type", "text/plain; charset=utf-8");
+        res.end(readFileSync(notice, "utf8"));
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "THIRD_PARTY.md", source: readFileSync(notice, "utf8") });
+    },
+  };
+}
+
 const page = (name: string) => resolve(import.meta.dirname, `${name}.html`);
 
 export default defineConfig(({ mode }) => ({
-  plugins: [playRewrite(), sitePartials(loadEnv(mode, import.meta.dirname).VITE_CF_BEACON), prerender()],
+  plugins: [playRewrite(), sitePartials(loadEnv(mode, import.meta.dirname).VITE_CF_BEACON), prerender(), thirdParty()],
   server: {
     host: true,
     allowedHosts: [".trycloudflare.com"],
@@ -107,8 +129,17 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       input: Object.fromEntries(["index", "pricing", "account", "terms", "privacy", "refunds", "play", "404"].map((n) => [n, page(n)])),
+      // As in apps/web/vite.config.ts: keep /*! licence notices, and put the mp3
+      // encoder (LAME, LGPL) in its own file, assets/encode-*.js, that a person can swap.
+      // Only the shell's lazy My sounds chunk imports it. See /THIRD_PARTY.md.
+      output: {
+        comments: { legal: true },
+        codeSplitting: {
+          groups: [{ name: "encode", test: /[\\/]wasm-media-encoders[\\/]|[\\/]src[\\/]sounds[\\/]encode\.ts$/ }],
+        },
+      },
     },
   },
 }));

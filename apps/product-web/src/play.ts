@@ -51,6 +51,8 @@ startShell({
   nameOverrides: PRODUCT_NAMES,
   createText: PLAY_CREATE_TEXT,
   home: PLAY_HOME,
+  // My sounds goes by the session cookie, which a same-origin fetch sends by itself.
+  soundsAuth: () => ({}),
   beforeStart: (outlet) => {
     // The shell's views append into #app, so the HTML's loader goes by hand.
     outlet.querySelector(".cp-loader")?.remove();
