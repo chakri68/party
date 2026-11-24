@@ -7,7 +7,8 @@ const V1_RATES = [44100, 48000, 32000];
 const V2_RATES = [22050, 24000, 16000];
 const V25_RATES = [11025, 12000, 8000];
 
-/** `{ ms, mono, sampleRate, frames }` of the first run of valid layer III frames, or null. */
+/** `{ ms, mono, sampleRate, frames, trailing }` of the first run of valid layer III frames, or null.
+ * `trailing` is the bytes left after the walk stops, not counting a 128 byte ID3v1 block. */
 export function readMp3(bytes) {
   let at = 0;
   if (bytes.length >= 10 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
@@ -15,7 +16,8 @@ export function readMp3(bytes) {
     at = 10 + size + (bytes[5] & 0x10 ? 10 : 0);
   }
   let frames = 0;
-  let samples = 0;
+  let seconds = 0;
+  let skipped = false;
   let first = null;
   while (at + 4 <= bytes.length) {
     if (bytes[at] === 0x54 && bytes[at + 1] === 0x41 && bytes[at + 2] === 0x47) break;
@@ -33,11 +35,30 @@ export function readMp3(bytes) {
     const rate = (v1 ? V1_RATES : version === 2 ? V2_RATES : V25_RATES)[rateIndex];
     const kbps = (v1 ? V1_KBPS : V2_KBPS)[kbpsIndex];
     const length = Math.floor(((v1 ? 144000 : 72000) * kbps) / rate) + ((b2 >> 1) & 1);
-    first ??= { mono: b3 >> 6 === 3, sampleRate: rate };
+    const mono = b3 >> 6 === 3;
+    if (!skipped && frames === 0) {
+      // The first frame may be a Xing, Info or VBRI header, not audio.
+      skipped = true;
+      const tag = at + 4 + (v1 ? (mono ? 17 : 32) : mono ? 9 : 17);
+      const is = (i, text) => [...text].every((c, k) => bytes[i + k] === c.charCodeAt(0));
+      if (is(tag, "Xing") || is(tag, "Info") || is(at + 36, "VBRI")) {
+        at += length;
+        continue;
+      }
+    }
+    first ??= { mono, sampleRate: rate };
     frames++;
-    samples += (v1 ? 1152 : 576) / rate;
+    seconds += (v1 ? 1152 : 576) / rate;
     at += length;
   }
   if (!first) return null;
-  return { ms: Math.round(samples * 1000), mono: first.mono, sampleRate: first.sampleRate, frames };
+  const rest = Math.max(0, bytes.length - at);
+  const tagged = rest >= 128 && bytes[at] === 0x54 && bytes[at + 1] === 0x41 && bytes[at + 2] === 0x47;
+  return {
+    ms: Math.round(seconds * 1000),
+    mono: first.mono,
+    sampleRate: first.sampleRate,
+    frames,
+    trailing: tagged ? rest - 128 : rest,
+  };
 }
