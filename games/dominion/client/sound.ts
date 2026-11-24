@@ -70,6 +70,11 @@ const MIN_GAP_MS: Partial<Record<Sfx, number>> = {
   "sfx.city.develop": 120,
 };
 
+/** How loud `out` should be: silent with Sound off, else the game volume x 0.8. */
+function gameLevel(): number {
+  return audio.settings.sound ? audio.gameVolume() * 0.8 : 0;
+}
+
 class Sound {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
@@ -77,16 +82,18 @@ class Sound {
   private last = new Map<Sfx, number>();
   private music: { id: Music; node: AudioBufferSourceNode; gain: GainNode } | null = null;
   private wantMusic: Music | null = null;
-  /** Where `out` is headed: audio.gameVolume() x 0.8. */
+  /** Where `out` is headed: gameLevel(). */
   private outLevel = 0;
+  /** The settings `out` last followed: a change there jumps, a duck ramps. */
+  private outSettings = { sound: true, volume: 0 };
   private offVolume: (() => void) | null = null;
   private dead = false;
+  private onGesture = () => this.wake();
 
   constructor() {
     // Same rule as the shell: wake up on the first gesture, not before.
-    const wake = () => this.wake();
-    window.addEventListener("pointerdown", wake, { once: true, capture: true });
-    window.addEventListener("keydown", wake, { once: true, capture: true });
+    window.addEventListener("pointerdown", this.onGesture, { once: true, capture: true });
+    window.addEventListener("keydown", this.onGesture, { once: true, capture: true });
   }
 
   play(id: Sfx): void {
@@ -141,7 +148,8 @@ class Sound {
       if (!this.ctx) {
         this.ctx = new AudioContext();
         this.out = this.ctx.createGain();
-        this.outLevel = audio.gameVolume() * 0.8;
+        this.outLevel = gameLevel();
+        this.outSettings = { sound: audio.settings.sound, volume: audio.settings.volume };
         this.out.gain.value = this.outLevel;
         this.out.connect(this.ctx.destination);
         // Volume and ducking: quieter while people talk, like the shell's sound.
@@ -155,17 +163,24 @@ class Sound {
     }
   }
 
-  /** Moves `out` to the game volume: fast going down, slower coming back. */
+  /**
+   * Moves `out` to gameLevel(). A new volume or Sound on/off jumps there at
+   * once; a duck change ramps, fast going down and slower coming back.
+   */
   private follow(): void {
     const ctx = this.ctx;
     const gain = this.out?.gain;
     if (!ctx || !gain) return;
-    const want = audio.gameVolume() * 0.8;
-    if (want === this.outLevel) return;
+    const { sound, volume } = audio.settings;
+    const changed = sound !== this.outSettings.sound || volume !== this.outSettings.volume;
+    this.outSettings = { sound, volume };
+    const want = gameLevel();
+    if (want === this.outLevel && !changed) return;
     const down = want < this.outLevel;
     this.outLevel = want;
     gain.cancelScheduledValues(ctx.currentTime);
-    gain.setTargetAtTime(want, ctx.currentTime, down ? DUCK_ATTACK_S : DUCK_RELEASE_S);
+    if (changed) gain.setValueAtTime(want, ctx.currentTime);
+    else gain.setTargetAtTime(want, ctx.currentTime, down ? DUCK_ATTACK_S : DUCK_RELEASE_S);
   }
 
   private buffer(url: string): Promise<AudioBuffer | null> {
@@ -231,6 +246,8 @@ class Sound {
 
   destroy(): void {
     this.dead = true;
+    window.removeEventListener("pointerdown", this.onGesture, { capture: true });
+    window.removeEventListener("keydown", this.onGesture, { capture: true });
     this.offVolume?.();
     this.offVolume = null;
     this.mood(null);
