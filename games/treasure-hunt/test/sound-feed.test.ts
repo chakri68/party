@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BridgeCall } from "../client/godot/bridge.ts";
 import { SoundFeed } from "../client/view.ts";
+import { audio } from "@games/audio";
 
 // M5a Task 4: the page tells Godot the sound settings, on ready and on a change.
 
@@ -41,5 +42,76 @@ describe("SoundFeed", () => {
     feed.ready();
     feed.ready();
     expect(sent).toHaveLength(2);
+  });
+});
+
+// Voice phase 3 Task 5: Godot gets the ducked volume, and a duck change at once.
+
+describe("SoundFeed and ducking", () => {
+  const setup = (start = { sound: true, volume: 0.245 }) => {
+    const sent: BridgeCall[][] = [];
+    const settings = { ...start };
+    const listeners = new Set<() => void>();
+    const onChange = (fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    };
+    const fire = () => [...listeners].forEach((fn) => fn());
+    const feed = new SoundFeed((calls) => sent.push(calls), () => settings, onChange);
+    return { feed, sent, settings, listeners, fire };
+  };
+
+  it("ready sends the ducked volume", () => {
+    const { feed, sent } = setup();
+    feed.ready();
+    expect(sent).toEqual([[{ fn: "sound", arg: { muted: false, volume: 0.245 } }]]);
+  });
+
+  it("a duck change is sent at once", () => {
+    const { feed, sent, settings, fire } = setup({ sound: true, volume: 0.7 });
+    fire();
+    expect(sent).toEqual([]);
+    feed.ready();
+    settings.volume = 0.245;
+    fire();
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual([{ fn: "sound", arg: { muted: false, volume: 0.245 } }]);
+    fire();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("destroy stops listening", () => {
+    const { feed, sent, settings, listeners, fire } = setup();
+    feed.ready();
+    expect(listeners.size).toBe(1);
+    feed.destroy();
+    expect(listeners.size).toBe(0);
+    settings.volume = 0.7;
+    fire();
+    feed.poll();
+    expect(sent).toHaveLength(1);
+  });
+});
+
+// Voice phase 3 Task 8: the sound board volume is not game volume.
+
+describe("SoundFeed and the sound board volume", () => {
+  it("a board volume change sends nothing", () => {
+    const saved = audio.settings;
+    const sent: BridgeCall[][] = [];
+    const feed = new SoundFeed(
+      (calls) => sent.push(calls),
+      () => ({ sound: audio.settings.sound, volume: audio.gameVolume() }),
+      (fn) => audio.onGameVolume(fn),
+    );
+    try {
+      feed.ready();
+      expect(sent).toHaveLength(1);
+      audio.update({ boardVolume: 0.2 });
+      expect(sent).toHaveLength(1);
+    } finally {
+      feed.destroy();
+      audio.settings = saved;
+    }
   });
 });

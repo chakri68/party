@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FATAL_ERRORS, parseClientMessage, VOICE_SIGNAL_MAX_LENGTH } from "../src/index.ts";
+import { FATAL_ERRORS, parseClientMessage, PROTOCOL_VERSION, VOICE_SIGNAL_MAX_LENGTH } from "../src/index.ts";
 
 const parse = (m: object) => parseClientMessage(JSON.stringify(m));
 
@@ -26,6 +26,14 @@ describe("voice messages", () => {
   it("refuses a voice-signal over VOICE_SIGNAL_MAX_LENGTH", () => {
     const big = { type: "voice-signal", to: "abc", session: "s1", data: { sdp: "x".repeat(VOICE_SIGNAL_MAX_LENGTH) } };
     expect(parse(big)).toBeNull();
+  });
+  it("is version 14", () => expect(PROTOCOL_VERSION).toBe(14));
+  it("parses host-mute for one seat and for all", () => {
+    expect(parse({ type: "host-mute", playerId: "p2", muted: true })).toEqual({ type: "host-mute", playerId: "p2", muted: true });
+    expect(parse({ type: "host-mute", playerId: "all", muted: false })).toEqual({ type: "host-mute", playerId: "all", muted: false });
+    expect(parse({ type: "host-mute", playerId: "", muted: true })).toBeNull();
+    expect(parse({ type: "host-mute", playerId: "p2" })).toBeNull();
+    expect(parse({ type: "host-mute", playerId: "x".repeat(65), muted: true })).toBeNull();
   });
   it("voice-full is not fatal", () => expect(FATAL_ERRORS.has("voice-full")).toBe(false));
 });

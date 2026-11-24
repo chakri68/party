@@ -12,7 +12,20 @@
 import { motion } from "@games/animation";
 import type { RoomClient, RoomUpdate } from "@games/room-client";
 import { h, replaceChildren } from "@games/ui";
+import type { VoicePeerStats } from "@games/webrtc";
 import { icon } from "./brand.ts";
+import { voiceStatsLines } from "./voice/stats.ts";
+import type { VoiceView } from "./voice/voice.ts";
+
+/** How often the open panel reads the voice link stats again. */
+export const VOICE_STATS_MS = 2_000;
+
+/** What the panel needs from room voice. */
+export interface DebugVoice {
+  view(): VoiceView;
+  stats(): Promise<VoicePeerStats[]>;
+  nameOf(id: string): string;
+}
 
 const STYLE = `
 .room-header .dbg-toggle { opacity: .5; }
@@ -29,8 +42,13 @@ const STYLE = `
 `;
 
 /** `toggle` is for the room header to place; `detach` takes everything back out. */
-export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null): { toggle: HTMLElement; detach: () => void } {
+export function attachDebug(
+  client: RoomClient,
+  getLast: () => RoomUpdate | null,
+  voice?: DebugVoice,
+): { toggle: HTMLElement; detach: () => void } {
   const style = h("style", {}, STYLE);
+  const voicePre = h("pre");
   const roomPre = h("pre");
   const privPre = h("pre");
   const info = h("div", { class: "muted" });
@@ -73,6 +91,7 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
       type: "button",
       onclick: () => client.send({ type: "debug-start", deck: deck.value.split(/[\s,]+/).filter(Boolean) }),
     }, "Deal this deck"),
+    ...(voice ? [h("h3", {}, "Voice"), voicePre] : []),
     h("h3", {}, "Room state"),
     roomPre,
     h("h3", {}, "My private state"),
@@ -80,9 +99,43 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
   );
 
   const toggle = h("button", { type: "button", class: "icon-btn dbg-toggle", "aria-label": "Debug tools" }, icon("bug"));
+  // The voice stats are read only while the panel is open. They stay on this
+  // page: nothing is sent or logged.
+  let voiceTimer: ReturnType<typeof setInterval> | null = null;
+  /** Bumped on each read and on stop, so a late answer never draws over a newer one. */
+  let voiceRead = 0;
+  /** A read is out: the next tick skips, so slow reads never pile up. */
+  let voiceBusy = false;
+  const refreshVoice = () => {
+    if (!voice || panel.hidden || document.hidden || voiceBusy) return;
+    voiceBusy = true;
+    const n = ++voiceRead;
+    void voice
+      .stats()
+      .catch(() => [])
+      .then((stats) => {
+        if (n !== voiceRead || panel.hidden) return;
+        try {
+          voicePre.textContent = voiceStatsLines(voice.view(), stats, voice.nameOf).join("\n");
+        } catch {
+          voicePre.textContent = "-";
+        }
+      })
+      .finally(() => (voiceBusy = false));
+  };
+  const stopVoice = () => {
+    if (voiceTimer !== null) clearInterval(voiceTimer);
+    voiceTimer = null;
+    voiceRead++;
+  };
   const flip = () => {
     panel.hidden = !panel.hidden;
-    if (!panel.hidden) refresh();
+    if (panel.hidden) return stopVoice();
+    refresh();
+    if (voice) {
+      refreshVoice();
+      voiceTimer = setInterval(refreshVoice, VOICE_STATS_MS);
+    }
   };
   toggle.addEventListener("click", flip);
   const onKey = (e: KeyboardEvent) => {
@@ -107,6 +160,7 @@ export function attachDebug(client: RoomClient, getLast: () => RoomUpdate | null
   if (new URLSearchParams(location.search).has("debug")) flip();
 
   const detach = () => {
+    stopVoice();
     offUpdate();
     offStatus();
     window.removeEventListener("keydown", onKey);

@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -231,6 +231,11 @@ export type ClientMessage =
   | { type: "voice-join"; muted: boolean }
   | { type: "voice-leave" }
   | { type: "voice-self-mute"; muted: boolean }
+  /**
+   * Host only: mutes one person in voice, or everyone but the host
+   * (`playerId: "all"`). `muted: false` lifts it; they stay self-muted.
+   */
+  | { type: "host-mute"; playerId: string; muted: boolean }
   /** A WebRTC offer, answer or ICE batch for one other seat. Relayed, never stored. */
   | { type: "voice-signal"; to: string; session: string; data: unknown }
   | { type: "voice-ice-request" }
@@ -382,6 +387,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "voice-join":
     case "voice-self-mute":
       return typeof m.muted === "boolean" ? { type: m.type, muted: m.muted } : null;
+    case "host-mute":
+      return isStr(m.playerId, 64) && m.playerId !== "" && typeof m.muted === "boolean"
+        ? { type: "host-mute", playerId: m.playerId, muted: m.muted }
+        : null;
     case "voice-signal":
       if (raw.length > VOICE_SIGNAL_MAX_LENGTH) return null;
       return isStr(m.to, 64) && isStr(m.session, 64) && m.session !== "" && isObj(m.data)

@@ -90,16 +90,27 @@ function hostYourOwn(): HTMLElement {
   );
 }
 
-export type HomePart = "hero" | "identity" | "create" | "my-sounds" | "join" | "error" | "recent" | "host";
+export type HomePart = "hero" | "identity" | "create" | "my-sounds" | "join" | "error" | "recent" | "host" | "source";
 
 /**
  * What the home page shows, top to bottom. Guests came to join, so the join form comes
  * first and the host card waits below it. The owner gets Create room first,
- * then My sounds when this phone owns a sound library.
+ * then My sounds when this phone owns a sound library. The source link, when the
+ * host app sets one, is last.
  */
-export function homeParts(isOwner: boolean, pitch: boolean, mySounds = false): HomePart[] {
+export function homeParts(isOwner: boolean, pitch: boolean, mySounds = false, source = false): HomePart[] {
   const create: HomePart[] = isOwner ? ["create", ...(mySounds ? (["my-sounds"] as const) : [])] : [];
-  return ["hero", "identity", ...create, "join", "error", "recent", ...(pitch ? (["host"] as const) : [])];
+  return ["hero", "identity", ...create, "join", "error", "recent", ...(pitch ? (["host"] as const) : []), ...(source ? (["source"] as const) : [])];
+}
+
+/** The quiet link to the source code, or nothing when the host app sets no URL. */
+export function sourceLink(url: string | undefined): HTMLElement | null {
+  if (!url) return null;
+  return h(
+    "footer",
+    { class: "home-source" },
+    h("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, icon("code"), "Source code on GitHub"),
+  );
 }
 
 /** The hero's words: a host app's own title and subtitle when set, else the logo and the usual line. */
@@ -212,6 +223,7 @@ export class HomeView implements View {
   private render() {
     const isOwner = shellConfig().canCreate();
     const pitch = !isOwner && !SELF_HOSTED;
+    const sourceUrl = shellConfig().home?.sourceUrl;
 
     const joinForm = h("form", { class: "join" }, this.code, h("button", { type: "submit", class: isOwner ? "" : "primary" }, "Join"));
     joinForm.addEventListener("submit", (e) => {
@@ -249,8 +261,9 @@ export class HomeView implements View {
           )
         : null,
       host: [h("div", { class: "or" }, "want your own room?"), hostYourOwn()],
+      source: sourceLink(sourceUrl),
     };
-    replaceChildren(this.root, ...homeParts(isOwner, pitch, this.mySounds).map((k) => parts[k]));
+    replaceChildren(this.root, ...homeParts(isOwner, pitch, this.mySounds, !!sourceUrl).map((k) => parts[k]));
   }
 
   private mySoundsButton(): HTMLButtonElement {

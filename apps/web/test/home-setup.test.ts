@@ -119,3 +119,64 @@ describe("host app home options", async () => {
     expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: null, tagline: "Only this" });
   });
 });
+
+describe("source code link", async () => {
+  const { configure } = await import("../src/shell.ts");
+  const { heroWords, sourceLink } = await import("../src/views/home.ts");
+
+  /** Just enough DOM for h() to build the link. */
+  class FakeEl {
+    innerHTML = "";
+    className = "";
+    attrs = new Map<string, string>();
+    children: unknown[] = [];
+    constructor(readonly tagName: string) {}
+    setAttribute(k: string, v: string) {
+      this.attrs.set(k, v);
+    }
+    append(...c: unknown[]) {
+      this.children.push(...c);
+    }
+  }
+  const links = (node: unknown): FakeEl[] => {
+    if (!(node instanceof FakeEl)) return [];
+    return [...(node.tagName === "a" ? [node] : []), ...node.children.flatMap(links)];
+  };
+  const stubDom = () => {
+    vi.stubGlobal("document", { createElement: (tag: string) => new FakeEl(tag) });
+    vi.stubGlobal("Node", FakeEl);
+  };
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    configure({});
+  });
+
+  it("shows one link that opens the source in a new tab", () => {
+    stubDom();
+    const found = links(sourceLink("https://github.com/chakri68/party"));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.attrs.get("href")).toBe("https://github.com/chakri68/party");
+    expect(found[0]!.attrs.get("target")).toBe("_blank");
+    expect(found[0]!.attrs.get("rel")).toBe("noopener noreferrer");
+    expect(JSON.stringify(found[0]!.children)).toContain("Source code on GitHub");
+  });
+  it("shows nothing without the option", () => {
+    stubDom();
+    expect(links(sourceLink(undefined))).toHaveLength(0);
+    expect(sourceLink(undefined)).toBeNull();
+    configure({});
+    expect(shellConfig().home?.sourceUrl).toBeUndefined();
+  });
+  it("puts the link last, only when set", () => {
+    expect(homeParts(true, false, true, true).at(-1)).toBe("source");
+    expect(homeParts(false, true, false, true).at(-1)).toBe("source");
+    expect(homeParts(false, true).filter((p) => p === "source")).toHaveLength(0);
+    expect(homeParts(true, false, true, true).filter((p) => p === "source")).toHaveLength(1);
+  });
+  it("keeps the usual title, subtitle and tab title", () => {
+    configure({ home: { sourceUrl: "https://github.com/chakri68/party" } });
+    expect(heroWords(shellConfig().home, "Hi")).toEqual({ title: null, tagline: "Hi" });
+    expect(shellConfig().home?.pageTitle).toBeUndefined();
+    expect(shellConfig().appTitle).toBe("Party Games");
+  });
+});

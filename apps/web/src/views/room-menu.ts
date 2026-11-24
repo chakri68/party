@@ -10,6 +10,9 @@ import { focusPhase } from "./focus.ts";
 export type RoomMenuItem =
   | "join-voice"
   | "voice"
+  /** The host mutes everyone else in voice, or lets them all talk again. */
+  | "mute-all"
+  | "allow-all"
   | "settings"
   /** The host's own sound list, for a host whose phone owns one. */
   | "my-sounds"
@@ -24,6 +27,8 @@ export type RoomMenuItem =
 export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
   "join-voice": "Join voice",
   voice: "Voice",
+  "mute-all": "Mute all",
+  "allow-all": "Allow all to talk",
   settings: "Sound and vibration",
   "my-sounds": "My sounds",
   pause: "Pause",
@@ -44,11 +49,12 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
  * - hostActions: false drops Pause, Restart and End game, where they would do
  *   nothing (the "Could not connect" screen, the game just ended). Default true.
  * - mySounds: this phone owns a sound library. The host then gets My sounds.
+ * - muteAll: `muteAllAction(...)`. The host gets it right after the voice item.
  */
 export function roomMenuItems(
   room: RoomPublicState,
   me: string,
-  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean; mySounds?: boolean },
+  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean; mySounds?: boolean; muteAll?: "mute-all" | "allow-all" | null },
 ): RoomMenuItem[] {
   if (room.phase === "ended") return ["settings", "home"];
   if (!focusPhase(room.phase)) return [];
@@ -56,6 +62,7 @@ export function roomMenuItems(
   if (o.voice === "join") items.push("join-voice");
   else if (o.voice === "voice") items.push("voice");
   else if (o.voice === "unsupported") items.push("no-voice");
+  if (o.muteAll && room.hostId === me) items.push(o.muteAll);
   items.push("settings");
   if (o.mySounds && room.hostId === me) items.push("my-sounds");
   if (room.phase === "playing" && room.hostId === me && o.hostActions !== false) {

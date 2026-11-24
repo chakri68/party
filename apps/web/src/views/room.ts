@@ -28,7 +28,7 @@ import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
 import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
 import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 import { identityField, nameInput } from "./home.ts";
-import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
+import { leaveQuestion, muteAllAction, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
 import { lockGame } from "./pause.ts";
@@ -36,9 +36,11 @@ import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
 import { MeshTransport } from "../voice/mesh.ts";
+import { duckLevel } from "../voice/duck.ts";
 import { voicePrefs } from "../voice/prefs.ts";
 import { PushToTalk } from "../voice/ptt.ts";
 import { VoiceController } from "../voice/voice.ts";
+import { VoiceWakeLock, type WakeSentinel } from "../voice/wake.ts";
 
 const STUCK_AFTER_MS = 15_000;
 
@@ -159,6 +161,8 @@ export class RoomView implements View {
   private closeMySounds: (() => void) | null = null;
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
+  private unduck: (() => void) | null = null;
+  private wake: VoiceWakeLock | null = null;
   private playback: Playback | null = null;
   private ptt: PushToTalk | null = null;
   private voiceBar: VoiceBar | null = null;
@@ -198,6 +202,10 @@ export class RoomView implements View {
     this.closeMySounds?.();
     cancelConfirm();
     this.voice?.stop();
+    this.unduck?.();
+    this.wake?.destroy();
+    // Game sound back to full: nothing here lowers it any more.
+    audio.duck(1);
     this.unwatchFrames?.();
     this.stopLobbyBar?.();
     this.ptt?.destroy();
@@ -305,16 +313,46 @@ export class RoomView implements View {
       },
       newSession: () => crypto.randomUUID().slice(0, 12),
       clock,
+      toast: (text) => this.showToast(text),
+      buzz: (ms) => audio.buzz(ms),
     });
     const ptt = new PushToTalk((held) => voice.setPtt(held));
     ptt.attach(window);
     // Godot frames (Treasure Hunt, Blind Rally) catch Space too, with no change to their bridges.
     this.unwatchFrames = ptt.watchFrames(this.gameHost);
-    const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"));
+    const bar = new VoiceBar(voice, ptt, (id) => (this.last ? seatName(this.last.room, id) : "Someone"), {
+      isHost: () => !!this.last && !!this.client?.playerId && this.last.room.hostId === this.client.playerId,
+      send: (msg) => this.client?.send(msg),
+    });
     // Above the body and outside the game host: game swaps never move it.
     this.header.after(bar.el);
     // Once, in its own slot: renderHeader rebuilds only the parts around it.
     this.headerStart.after(bar.headerMic);
+    // Game sound gets quieter while someone else talks. Same level = no-op, so 8 Hz notifies are cheap.
+    // The screen stays on while I am in voice, unless I turned that off.
+    const wakeLock = (navigator as { wakeLock?: { request(type: "screen"): Promise<WakeSentinel> } }).wakeLock;
+    const wake = new VoiceWakeLock({
+      request: wakeLock ? () => wakeLock.request("screen") : null,
+      visible: () => document.visibilityState === "visible",
+      onVisibility: (fn) => {
+        document.addEventListener("visibilitychange", fn);
+        return () => document.removeEventListener("visibilitychange", fn);
+      },
+    });
+    this.wake = wake;
+    this.unduck = voice.subscribe(() => {
+      // Each in its own try: one failing never stops the other.
+      try {
+        wake.set(voice.view().status === "on" && voice.settings().keepScreenOn);
+      } catch {
+        // Voice never breaks the room.
+      }
+      try {
+        audio.duck(duckLevel(voice.view(), voice.settings().duck));
+      } catch {
+        // Voice never breaks the room.
+      }
+    });
     this.playback = playback;
     this.voice = voice;
     this.ptt = ptt;
@@ -471,7 +509,11 @@ export class RoomView implements View {
     if (import.meta.env.DEV) {
       void import("../debug.ts").then((m) => {
         if (this.client !== client) return;
-        const debug = m.attachDebug(client, () => this.last);
+        const debug = m.attachDebug(client, () => this.last, {
+          view: () => voice.view(),
+          stats: () => voice.stats(),
+          nameOf: (id) => (this.last ? seatName(this.last.room, id) : id),
+        });
         this.debugToggle = debug.toggle;
         this.detachDebug = debug.detach;
         this.renderHeader();
@@ -631,12 +673,17 @@ export class RoomView implements View {
       // Only while the game runs and the room can hear us: elsewhere they would do nothing.
       hostActions: room.phase === "playing" && !this.stuck,
       mySounds: this.mySounds,
+      // The roster is kept also when this phone is not in voice: a host who never joined can still mute.
+      muteAll: this.stuck ? null : muteAllAction(room, me, this.voice?.view().members ?? []),
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
     const act: Record<RoomMenuItem, () => void> = {
       "join-voice": () => void this.voiceBar?.startJoin(),
       voice: () => this.voiceBar?.openPanel(),
+      // One tap undoes it, so no question first.
+      "mute-all": () => client.send({ type: "host-mute", playerId: "all", muted: true }),
+      "allow-all": () => client.send({ type: "host-mute", playerId: "all", muted: false }),
       settings: () => this.openSettings(),
       // The dialog and its mp3 encoder load only when asked for.
       "my-sounds": () =>
@@ -1151,11 +1198,15 @@ export class RoomView implements View {
     );
   }
 
+  /** This seat's entry in the voice roster, or null when it is not in voice. */
+  private voiceEntry(id: string): { hostMuted: boolean } | null {
+    return this.voice?.view().members.find((m) => m.id === id) ?? null;
+  }
+
   /** A computer keeps a plain X. A person gets the dots, which open the host's menu. */
   private seatControl(room: RoomPublicState, me: string, s: RoomPublicState["seats"][number]) {
-    const actions = seatActions(room, me, s);
-    if (!actions.length) return null;
-    const send = (kind: (typeof actions)[number]["kind"]) => this.client?.send(seatActionMessage(kind, s));
+    if (!seatActions(room, me, s, this.voiceEntry(s.id)).length) return null;
+    const send = (kind: SeatActionKind) => this.client?.send(seatActionMessage(kind, s));
     if (s.bot) {
       return h("button", { type: "button", class: "kick bot-kick", "aria-label": `Remove ${s.name}`, onclick: () => send("remove") }, icon("close"));
     }
@@ -1164,6 +1215,11 @@ export class RoomView implements View {
       class: "kick seat-menu-button",
       "aria-label": `Actions for ${s.name}`,
       onclick: () => {
+        // Read at the tap, not at the last draw: voice changes do not redraw the seats.
+        const now = this.last?.room ?? room;
+        const seat = now.seats.find((x) => x.id === s.id) ?? s;
+        const actions = seatActions(now, me, seat, this.voiceEntry(s.id));
+        if (!actions.length) return;
         const dlg = h(
           "dialog",
           { class: "dialog seat-menu", "aria-label": s.name },
@@ -1182,7 +1238,7 @@ export class RoomView implements View {
                   const still = () => {
                     const now = this.last?.room;
                     const seat = now?.seats.find((x) => x.id === s.id);
-                    return !!now && !!seat && seatActions(now, me, seat).some((x) => x.kind === a.kind);
+                    return !!now && !!seat && seatActions(now, me, seat, this.voiceEntry(seat.id)).some((x) => x.kind === a.kind);
                   };
                   void this.ask(a.confirm, { ok: a.label, danger: a.danger }, still).then((yes) => yes && send(a.kind));
                 },
@@ -1546,17 +1602,24 @@ export class RoomView implements View {
     const sound = h("input", { type: "checkbox", checked: audio.settings.sound });
     const volume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.volume, "aria-label": "Volume" });
     const roomSounds = h("input", { type: "checkbox", checked: audio.settings.roomSounds });
+    const boardVolume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.boardVolume, "aria-label": "Sound board volume" });
+    // Greyed out unless both Sounds and Sound board are on.
+    const syncDisabled = () => {
+      volume.disabled = roomSounds.disabled = !sound.checked;
+      boardVolume.disabled = !sound.checked || !roomSounds.checked;
+    };
     const haptics = h("input", { type: "checkbox", checked: audio.settings.haptics });
     sound.addEventListener("change", () => {
       audio.update({ sound: sound.checked });
-      volume.disabled = roomSounds.disabled = !sound.checked;
+      syncDisabled();
       if (sound.checked) audio.play("card-place");
       this.renderHeader();
       this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
     });
-    volume.disabled = roomSounds.disabled = !audio.settings.sound;
+    syncDisabled();
     roomSounds.addEventListener("change", () => {
       audio.update({ roomSounds: roomSounds.checked });
+      syncDisabled();
       if (roomSounds.checked) {
         void this.board?.load(shellConfig().extraPacks);
         this.refreshHostSounds();
@@ -1567,6 +1630,8 @@ export class RoomView implements View {
       audio.update({ volume: Number(volume.value) });
       audio.play("card-place"); // hear what you picked
     });
+    // No test tone: a board clip may not be decoded yet.
+    boardVolume.addEventListener("change", () => audio.update({ boardVolume: Number(boardVolume.value) }));
     haptics.addEventListener("change", () => {
       audio.update({ haptics: haptics.checked });
       if (haptics.checked) audio.buzz(30);
@@ -1579,6 +1644,7 @@ export class RoomView implements View {
         h("label", {}, "Sounds", sound),
         h("label", {}, "Volume", volume),
         h("label", {}, "Sound board", roomSounds),
+        h("label", {}, "Sound board volume", boardVolume),
         audio.canVibrate ? h("label", {}, "Vibration", haptics) : null,
       ),
     );

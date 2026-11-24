@@ -75,6 +75,7 @@ The host is the first person into the room. The tag next to their name says "hos
 - Tap the dots next to a player to **Make host** or **Remove** them. Both ask first. **Make host** only shows for players who are connected. A computer still has its own remove button, and it doesn't ask.
 - **Lock room** in the lobby. While it is locked, new players can't join. Players already in the room can still come back. So can someone whose phone went to sleep and lost their seat. Tap **Unlock room** to open it again.
 - Mid-game: **Skip** and **Remove** buttons above the game, and **Pause**, **Restart** and **End game** in the menu (the three dots at the top right). All are covered below.
+- **Mute** a person in voice. In the lobby, tap the dots next to them and pick **Mute**. If you are in voice, you can also use the **Voice** panel, in the lobby or in a game. **Mute all** in the menu mutes everyone else in voice. **Allow to talk** and **Allow all to talk** undo it. None of these ask first. For the dots and **Mute all**, the host does not need to be in voice. A muted person stays muted until they tap the mic. The host can never turn on anyone's mic. People who join voice later are not muted.
 - **Sounds: off** at the top of the sound board turns the board off for everyone. Only the host still sees the sound board button, to turn it on again.
 
 ### Computer players
@@ -136,7 +137,7 @@ The sound board button in the header (a speaker) opens a grid of short sounds. T
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
-- Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
+- Sounds follow your volume and the sound board volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
 - After the free sounds come the host's own sounds, when the host has made some in **My sounds**.
 - A self-hosted copy has only the free sounds.
 
@@ -155,6 +156,7 @@ Your phone makes the mp3 file with open source code (LAME). Its licence is in [T
 - **Sounds**: on or off.
 - **Volume**: a slider, greyed out when sounds are off.
 - **Sound board**: sound board sounds on this phone. Greyed out when Sounds is off.
+- **Sound board volume**: how loud sound board sounds are on this phone. Greyed out when Sounds or Sound board is off.
 - **Vibration**: only shown on devices that can vibrate.
 
 The settings stay on your device.
@@ -167,8 +169,11 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - **Mute** stops sending your voice, but your mic is still on. The mic button shows it. **Turn off mic** turns the mic off fully, and the phone's mic light goes off. **Leave voice** stops voice for you.
 - **Hear no one** (the headphones button) stops all voices for you. Tap it again to hear everyone.
 - **Volume** and **Mute for me**: each person in voice has a volume slider and a **Mute for me** button. Only you stop hearing them. They do not know. This is saved for the room on your phone.
-- **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works.
+- **Push to talk**: turn it on in voice settings. Then you talk only while you hold the mic button. On a computer you can also hold Space. Some games use Space, and then only the button works. When you press the mic button, the phone gives a short buzz if Vibration is on in Sound and vibration. iPhones do not buzz.
 - If the phone blocks sound, tap **Tap to turn on sound**. If your mic stops (a call, or you pulled out a headset), tap **Tap to talk again.**
+- If the host mutes you, you see "The host muted you." You cannot unmute until the host allows it. If you reload the page, you see it again. In the **Voice** panel, others see "muted by host" next to your name. When the host allows it, you see "You can talk again. Tap the mic to talk."
+- If you leave voice and join again, the host mute is gone. The host can mute you again.
+- While you are in voice, the screen stays on. To turn this off, use "Keep the screen on in voice" in voice settings. Some phones do not allow this.
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
@@ -177,7 +182,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - There is no voice bar. Once you are in voice, your mic button is in the top row, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.
 
-The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
+The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), and "Keep the screen on in voice" (on at first; turn it off to save battery). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
 The settings stay on your device. No one records your voice.
 
