@@ -99,7 +99,7 @@ describe("voice roster", () => {
     await vjoin(a);
     (room as unknown as { data: { voice: { hostMuted: boolean }[] } }).data.voice[0]!.hostMuted = true;
     await send(room, a, { type: "voice-self-mute", muted: false });
-    expect(a.last("error")).toMatchObject({ code: "not-available", message: "The host muted you" });
+    expect(a.last("error")).toMatchObject({ code: "not-available", message: "The host muted you." });
   });
 
   it("the ninth person gets Voice is full.", async () => {

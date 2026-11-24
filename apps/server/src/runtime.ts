@@ -855,7 +855,7 @@ export class RoomRuntime {
       case "voice-self-mute": {
         const me = data.voice?.find((m) => m.id === seat.id);
         if (!me) return;
-        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you");
+        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you.");
         if (me.selfMuted === msg.muted) return;
         me.selfMuted = msg.muted;
         await this.persist();
