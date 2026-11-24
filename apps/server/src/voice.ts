@@ -6,17 +6,19 @@ import type { IceServer, Presence, RoomPhase, VoiceMember } from "@games/protoco
 /**
  * Members whose seat is still here and still a person: drops missing, bot,
  * "disconnected" and "left" seats, and everyone once the party has ended.
- * Order kept.
+ * Order kept. The host is never host-muted: their entry comes back (a copy)
+ * with `hostMuted: false`, so a new host is never stuck.
  */
 export function pruneVoice(
   members: VoiceMember[],
   seats: { id: string; presence: Presence; bot?: true }[],
   phase: RoomPhase,
+  hostId: string | null,
 ): VoiceMember[] {
   if (phase === "ended") return [];
   const here = new Set<string>();
   for (const s of seats) if (!s.bot && (s.presence === "connected" || s.presence === "reconnecting")) here.add(s.id);
-  return members.filter((m) => here.has(m.id));
+  return members.filter((m) => here.has(m.id)).map((m) => (m.id === hostId && m.hostMuted ? { ...m, hostMuted: false } : m));
 }
 
 /** About 20 signals a second, burst 60. */

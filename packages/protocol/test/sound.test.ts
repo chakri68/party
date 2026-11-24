@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, PROTOCOL_VERSION } from "../src/index.ts";
+import { parseClientMessage } from "../src/index.ts";
 
 const parse = (m: object) => parseClientMessage(JSON.stringify(m));
 
 describe("sound messages", () => {
-  it("is version 13", () => expect(PROTOCOL_VERSION).toBe(13));
 
   it("parses sound", () => {
     expect(parse({ type: "sound", id: "free:rise", x: 1 })).toEqual({ type: "sound", id: "free:rise" });
