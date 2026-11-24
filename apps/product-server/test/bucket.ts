@@ -5,7 +5,7 @@
 export function fakeBucket() {
   const objects = new Map<string, { bytes: Uint8Array; etag: string }>();
   let n = 0;
-  const state = { failDelete: false, listCalls: 0, pageSize: 1000 };
+  const state = { failDelete: false, listCalls: 0, headCalls: 0, pageSize: 1000, beforeDelete: null as null | (() => Promise<unknown>) };
   const toBytes = (value: unknown): Uint8Array => {
     if (typeof value === "string") return new TextEncoder().encode(value);
     if (value instanceof Uint8Array) return new Uint8Array(value);
@@ -15,6 +15,7 @@ export function fakeBucket() {
   const meta = (key: string, o: { bytes: Uint8Array; etag: string }) => ({ key, etag: o.etag, httpEtag: `"${o.etag}"`, size: o.bytes.byteLength });
   const bucket = {
     async head(key: string) {
+      state.headCalls++;
       const o = objects.get(key);
       return o ? meta(key, o) : null;
     },
@@ -45,6 +46,9 @@ export function fakeBucket() {
     },
     async delete(keys: string | string[]) {
       if (state.failDelete) throw new Error("R2 is down");
+      const hook = state.beforeDelete;
+      state.beforeDelete = null;
+      if (hook) await hook();
       for (const k of Array.isArray(keys) ? keys : [keys]) objects.delete(k);
     },
     async list(opts: { prefix?: string; limit?: number; cursor?: string } = {}) {

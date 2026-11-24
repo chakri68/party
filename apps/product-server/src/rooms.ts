@@ -59,8 +59,8 @@ export function productPolicy(deps: Pick<RoomDeps, "now"> & { verifyTurnstile: (
       if (mine >= MAX_FREE_PER_IP || all >= MAX_FREE_TOTAL) {
         return { ok: false, response: json({ error: TOO_MANY }, 429) };
       }
-      // No library: a free room never plays anyone's own sounds (absent means null).
-      return { ok: true, grant: { tier: "free", hostKey }, extra: { hostKey } };
+      // A free room never plays anyone's own sounds.
+      return { ok: true, grant: { tier: "free", hostKey, library: null }, extra: { hostKey } };
     },
     soundOwner: (request, serverEnv) => productSoundOwner(request, serverEnv as unknown as ProductEnv, deps.now()),
   };

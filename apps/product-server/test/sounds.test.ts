@@ -59,14 +59,16 @@ describe("soundOwner", () => {
     const u = await s.user(30);
     expect(await s.owner(u.cookie)).toEqual({ library: u.id, active: true });
     // A Pass user needs no bucket call at all.
-    expect(s.state.listCalls).toBe(0);
+    expect(s.state.headCalls).toBe(0);
   });
 
   it("a free user with saved sounds owns them, not active", async () => {
     const s = setup();
     const u = await s.user();
     await saveIndex(s.bucket, u.id, [{ id: "1", name: "Horn", ms: 500, v: "0123456789" }]);
+    s.state.headCalls = 0;
     expect(await s.owner(u.cookie)).toEqual({ library: u.id, active: false });
+    expect(s.state.headCalls).toBe(1);
   });
 
   it("a free user with no sounds, and no cookie, own nothing", async () => {
@@ -142,6 +144,14 @@ describe("deleteLibrary", () => {
     await deleteLibrary(s.bucket, "a");
     expect([...s.objects.keys()].sort()).toEqual(["lib/ab/index.json", "lib/b/index.json"]);
     expect(s.state.listCalls).toBeGreaterThan(1);
+  });
+
+  it("a library id that isn't one deletes nothing", async () => {
+    const s = setup();
+    await s.bucket.put("lib/a/index.json", "x");
+    for (const bad of ["", "a/..", "../a", "a/b"]) await deleteLibrary(s.bucket, bad);
+    expect([...s.objects.keys()]).toEqual(["lib/a/index.json"]);
+    expect(s.state.listCalls).toBe(0);
   });
 
   it("an empty library is fine", async () => {

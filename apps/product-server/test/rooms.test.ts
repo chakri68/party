@@ -108,7 +108,7 @@ describe("room creation policy", () => {
     const body = (await r.json()) as { code: string; hostKey: string };
     expect(body.code).toMatch(/^[A-Z0-9]{4}$/);
     expect(body.hostKey.length).toBeGreaterThanOrEqual(24);
-    expect(s.claims[0]).toEqual({ tier: "free", hostKey: body.hostKey });
+    expect(s.claims[0]).toEqual({ tier: "free", hostKey: body.hostKey, library: null });
     const [row] = await rows(s.db);
     expect(row).toEqual({ code: body.code, tier: "free", ip_hash: await hmacHex(KEY, "1.2.3.4") });
   });
@@ -184,8 +184,7 @@ describe("room creation policy", () => {
     expect((await s.create({ cookie: u.cookie })).status).toBe(200);
     expect((await s.create({ token: "t" })).status).toBe(200);
     expect(s.claims[0]).toMatchObject({ tier: "pass", library: u.id });
-    expect(s.claims[1]).toMatchObject({ tier: "free" });
-    expect((s.claims[1] as { library?: string | null }).library ?? null).toBeNull();
+    expect(s.claims[1]).toMatchObject({ tier: "free", library: null });
   });
 
   it("without a sounds bucket, a Pass room gets no library", async () => {

@@ -283,6 +283,13 @@ export async function handleAuth(request: Request, env: ProductEnv, deps: AuthDe
         env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
         env.DB.prepare("DELETE FROM login_tokens WHERE email = ?").bind(normalizeEmail(user.email)),
       ]);
+      // A save from another tab may have landed during the first sweep. With the
+      // account gone no new save can start, so sweep once more, best effort.
+      try {
+        if (env.SOUNDS) await deleteLibrary(env.SOUNDS, user.id);
+      } catch (err) {
+        console.error("account delete: second sounds sweep failed:", err);
+      }
       return new Response(JSON.stringify({ ok: true }), {
         headers: { "content-type": "application/json", "set-cookie": clearCookie(SESSION_COOKIE) },
       });

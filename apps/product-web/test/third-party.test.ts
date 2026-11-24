@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FOOT_LINKS } from "../src/header.ts";
+import shellConfig from "../../web/vite.config.ts";
 import config, { thirdParty } from "../vite.config.ts";
 
 // The room shell's My sounds screen ships an LGPL encoder. Its notice lives in
@@ -26,6 +27,10 @@ describe("/THIRD_PARTY.md", () => {
     expect(group.test.test("/x/node_modules/wasm-media-encoders/dist/esm/index.js")).toBe(true);
     expect(group.test.test("/x/apps/web/src/sounds/encode.ts")).toBe(true);
     expect(group.test.test("/x/apps/web/src/sounds/library.ts")).toBe(false);
+    // The same rules as the shell's own build, so the two can't drift apart.
+    const shell = (shellConfig as { build: typeof built.build }).build.rolldownOptions.output;
+    expect(out.comments).toEqual(shell.comments);
+    expect(out.codeSplitting).toEqual(shell.codeSplitting);
   });
 
   it("the footer links to it", () => {

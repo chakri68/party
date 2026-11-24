@@ -403,6 +403,34 @@ describe("session", () => {
     expect(await count(s.db, "users")).toBe(0);
   });
 
+  it("a save that lands during the delete is swept after the account goes", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    await s.sounds.bucket.put(`lib/${u.id}/index.json`, "x");
+    // A save from another tab lands between the first sweep's list and its delete.
+    s.sounds.state.beforeDelete = () => s.sounds.bucket.put(`lib/${u.id}/2-abcdef0123.mp3`, "y");
+    expect((await s.call("DELETE", "/api/account", { cookie })).status).toBe(200);
+    expect([...s.sounds.objects.keys()]).toEqual([]);
+  });
+
+  it("a failed second sweep still deletes the account", async () => {
+    const s = setup();
+    const cookie = await s.signIn("a@x.com");
+    const u = (await s.db.prepare("SELECT id FROM users").first<{ id: string }>())!;
+    await s.sounds.bucket.put(`lib/${u.id}/index.json`, "x");
+    // A save lands during the first sweep, and then R2 breaks, so the second sweep throws.
+    s.sounds.state.beforeDelete = async () => {
+      await s.sounds.bucket.put(`lib/${u.id}/2-abcdef0123.mp3`, "y");
+      s.sounds.state.failDelete = true;
+    };
+    const r = await s.call("DELETE", "/api/account", { cookie });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("set-cookie")).toMatch(/Max-Age=0/);
+    expect(await count(s.db, "users")).toBe(0);
+    expect([...s.sounds.objects.keys()]).toEqual([`lib/${u.id}/2-abcdef0123.mp3`]);
+  });
+
   it("a sounds delete failure keeps the account", async () => {
     const s = setup();
     const cookie = await s.signIn("a@x.com");

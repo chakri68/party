@@ -1,7 +1,7 @@
 // CouchParty host sounds: a signed-in account's library is lib/<user id>/ in
 // the SOUNDS bucket. Adding sounds needs Host Pass. A lapsed Pass keeps its
 // sounds and can still list, play, rename and remove them.
-import { indexKey } from "@games/server/host-sounds";
+import { indexKey, isLibraryId } from "@games/server/host-sounds";
 import type { SoundOwner } from "@games/server/policy";
 import { userWithTier } from "./auth.ts";
 import type { ProductEnv } from "./env.ts";
@@ -26,6 +26,8 @@ export async function productSoundOwner(request: Request, env: ProductEnv, now: 
  * moves a list cursor. R2 deletes at most 1000 keys per call.
  */
 export async function deleteLibrary(bucket: Pick<R2Bucket, "list" | "delete">, library: string): Promise<void> {
+  // Never a prefix wider than one library ("" would be all of lib/).
+  if (!isLibraryId(library)) return;
   const prefix = `lib/${library}/`;
   const keys: string[] = [];
   let cursor: string | undefined;

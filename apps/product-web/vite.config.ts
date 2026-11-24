@@ -124,7 +124,8 @@ export default defineConfig(({ mode }) => ({
     host: true,
     allowedHosts: [".trycloudflare.com"],
     proxy: {
-      "/api": WORKER,
+      // The object form keeps the Host header: /api/sounds writes check that Origin names this host.
+      "/api": { target: WORKER },
       "/parties": { target: WORKER, ws: true },
     },
   },
