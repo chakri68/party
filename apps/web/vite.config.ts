@@ -5,6 +5,12 @@ import { defineConfig } from "vite";
 const WORKER = "http://127.0.0.1:8787";
 
 export default defineConfig({
+  build: {
+    rolldownOptions: {
+      // Keep /*! licence notices in the minified files (the mp3 encoder in sounds/encode.ts has one).
+      output: { comments: { legal: true } },
+    },
+  },
   server: {
     host: true, // reachable from phones on the same Wi-Fi
     allowedHosts: [".trycloudflare.com"], // or through a cloudflared quick tunnel

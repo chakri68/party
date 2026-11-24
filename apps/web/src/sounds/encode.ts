@@ -1,6 +1,10 @@
-// The mp3 encoder is LAME (LGPL-2.0) built to WebAssembly by wasm-media-encoders (MIT). It loads only in its own lazy chunk.
-// Keep this the only file that imports wasm-media-encoders, and import this file only from the lazy My sounds view.
+/*! The mp3 encoder is LAME (LGPL-2.0) built to WebAssembly by wasm-media-encoders (MIT). It loads only in its own lazy chunk.
+ * wasm-media-encoders: Copyright (c) 2020-2024 arseneyr, MIT License. https://github.com/arseneyr/wasm-media-encoders
+ * LAME: LGPL-2.0. Source: https://lame.sourceforge.io/ Licence: https://www.gnu.org/licenses/old-licenses/lgpl-2.0.html
+ * See /THIRD_PARTY.md.
+ */
 
+// Keep this the only file that imports wasm-media-encoders, and import this file only from the lazy My sounds view.
 import { createMp3Encoder } from "wasm-media-encoders";
 import { type PreparedClip, SAMPLE_RATE } from "./process.ts";
 
@@ -12,7 +16,7 @@ export async function decodeFile(bytes: ArrayBuffer): Promise<{ channels: Float3
   try {
     const audio = await new OfflineAudioContext(1, 1, SAMPLE_RATE).decodeAudioData(bytes);
     const channels: Float32Array[] = [];
-    for (let c = 0; c < audio.numberOfChannels; c++) channels.push(new Float32Array(audio.getChannelData(c)));
+    for (let c = 0; c < audio.numberOfChannels; c++) channels.push(audio.getChannelData(c));
     if (channels.length === 0 || channels[0]!.length === 0) return null;
     return { channels, sampleRate: audio.sampleRate };
   } catch {

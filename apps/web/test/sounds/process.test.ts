@@ -152,6 +152,11 @@ describe("phone-side sound processing", () => {
     expect(defaultName(".mp3")).toBe("");
     expect(defaultName("my.song.final.m4a")).toBe("my.song.final");
     expect(defaultName("  __boom--  ")).toBe("boom");
+    // A character outside the BMP across the 24th place is dropped whole, not cut in half.
+    const wide = String.fromCodePoint(0x1f600);
+    const cutAtWide = defaultName("a".repeat(23) + wide + "b.mp3");
+    expect(cutAtWide).toBe("a".repeat(23));
+    expect(defaultName("a".repeat(22) + wide + "b.mp3")).toBe("a".repeat(22) + wide);
   });
 
   it("the real encoder makes a mono mp3 under the caps", async () => {

@@ -87,5 +87,9 @@ export function prepareClip(input: { channels: readonly Float32Array[]; sampleRa
 export function defaultName(fileName: string): string {
   const dot = fileName.lastIndexOf(".");
   const base = dot >= 0 ? fileName.slice(0, dot) : fileName;
-  return base.replace(/[_-]+/g, " ").trim().slice(0, NAME_MAX).trim();
+  let name = base.replace(/[_-]+/g, " ").trim().slice(0, NAME_MAX);
+  // Never end on half of a surrogate pair (an emoji cut in two).
+  const last = name.charCodeAt(name.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) name = name.slice(0, -1);
+  return name.trim();
 }
