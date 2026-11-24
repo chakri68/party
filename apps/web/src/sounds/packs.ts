@@ -4,6 +4,7 @@
 
 import { isSoundId } from "@games/protocol";
 import { FREE_SOUNDS, freeSoundUrl } from "@games/sounds";
+import { HOST_PACK, HOST_SLOTS, MAX_SOUND_MS, cleanSoundName, isHostSlot } from "@games/sounds/check";
 
 export interface BoardSound {
   /** The wire id, `<pack>:<id>` (`free:rise`). */
@@ -25,7 +26,7 @@ const UNSAFE_URL_CHAR = /[\\\u0000-\u0020\u007f]/;
 const SAME_ORIGIN = "https://same.invalid";
 
 /** A path on this site only: a list must not point the phone at another site. */
-function isSameOriginPath(url: string): boolean {
+export function isSameOriginPath(url: string): boolean {
   if (!url.startsWith("/") || url.startsWith("//") || UNSAFE_URL_CHAR.test(url)) return false;
   try {
     return new URL(url, SAME_ORIGIN).origin === SAME_ORIGIN;
@@ -63,6 +64,36 @@ export function parsePackList(body: unknown): BoardSound[] {
     if (typeof url !== "string" || !isSameOriginPath(url)) continue;
     seen.add(wire);
     out.push({ id: wire, name: label, ms, url });
+  }
+  return out;
+}
+
+/** The room's list of the host's own sounds. */
+export function hostSoundsUrl(code: string): string {
+  return `/api/rooms/${code}/sounds`;
+}
+
+/**
+ * The host's sounds, as the room sent them: slots "1" to "6" under `listUrl`
+ * only, in the order sent. Anything off gives `[]` or drops that entry.
+ */
+export function parseHostList(body: unknown, listUrl: string): BoardSound[] {
+  if (!body || typeof body !== "object") return [];
+  const { pack, sounds } = body as { pack?: unknown; sounds?: unknown };
+  if (pack !== HOST_PACK || !Array.isArray(sounds)) return [];
+  const out: BoardSound[] = [];
+  const seen = new Set<string>();
+  for (const entry of sounds) {
+    if (out.length >= HOST_SLOTS) break;
+    if (!entry || typeof entry !== "object") continue;
+    const { id, name, ms, url } = entry as Record<string, unknown>;
+    if (!isHostSlot(id) || seen.has(id as string)) continue;
+    const label = cleanSoundName(name);
+    if (label === null) continue;
+    if (typeof ms !== "number" || !Number.isInteger(ms) || ms < 1 || ms > MAX_SOUND_MS) continue;
+    if (typeof url !== "string" || !isSameOriginPath(url) || !url.startsWith(`${listUrl}/`)) continue;
+    seen.add(id as string);
+    out.push({ id: `${HOST_PACK}:${id as string}`, name: label, ms, url });
   }
   return out;
 }

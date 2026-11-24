@@ -137,6 +137,7 @@ The sound board button in the header (a speaker) opens a grid of short sounds. T
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
 - Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
+- After the free sounds come the host's own sounds, when the host has made some in **My sounds**.
 - A self-hosted copy has only the free sounds.
 
 ## Sound and vibration

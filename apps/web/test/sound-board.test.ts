@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BoardSound } from "../src/sounds/packs.ts";
 import { soundBoardModel } from "../src/views/sound-board.ts";
 
-const room = (r: { hostId: string; phase: RoomPhase; sounds: boolean }): RoomPublicState => r as RoomPublicState;
+const room = (r: { hostId: string; phase: RoomPhase; sounds: boolean; hostSounds?: boolean }): RoomPublicState => r as RoomPublicState;
 const SOUNDS: BoardSound[] = [
   { id: "free:rise", name: "Rise", ms: 900, url: "/a.mp3" },
   { id: "memes:bruh", name: "Bruh", ms: 800, url: "/b.mp3" },
@@ -64,5 +64,15 @@ describe("the sound board model", () => {
     expect(soundBoardModel(on, "ben", [], true).note).toBe("No sounds yet.");
     expect(soundBoardModel(on, "ben", SOUNDS, true).note).toBeNull();
     expect(soundBoardModel(on, "amy", SOUNDS, true).note).toBeNull();
+  });
+
+  it("host tiles follow the others", () => {
+    const r = room({ hostId: "amy", phase: "lobby", sounds: true, hostSounds: true });
+    const list: BoardSound[] = [
+      ...SOUNDS,
+      { id: "host:1", name: "Horn", ms: 700, url: "/api/rooms/K7DX/sounds/1?v=0123456789" },
+      { id: "host:3", name: "Clap", ms: 600, url: "/api/rooms/K7DX/sounds/3?v=0123456789" },
+    ];
+    expect(soundBoardModel(r, "ben", list, true).tiles.map((t) => t.id)).toEqual(["free:rise", "memes:bruh", "host:1", "host:3"]);
   });
 });

@@ -24,6 +24,7 @@ import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
+import { hostSoundsUrl } from "../sounds/packs.ts";
 import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
@@ -147,6 +148,8 @@ export class RoomView implements View {
   private emotes: Emotes | null = null;
   private board: SoundBoard<AudioBuffer> | null = null;
   private soundView: SoundBoardView | null = null;
+  /** Lists the host's sounds again, when the room has some and Sound board is on here. */
+  refreshHostSounds: () => void = () => {};
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
   private playback: Playback | null = null;
@@ -343,7 +346,8 @@ export class RoomView implements View {
     client.on("emote", ({ from, emoji }) => emotes.show(from, emoji));
 
     const board = new SoundBoard<AudioBuffer>({
-      getJson: (url) => fetch(url).then((res) => (res.ok ? res.json() : null)).catch(() => null),
+      // Offline rejects (the board keeps what it has); a 404 gives null.
+      getJson: (url) => fetch(url).then((res) => (res.ok ? res.json() : null)),
       getBytes: (url) => fetch(url).then((res) => (res.ok ? res.arrayBuffer() : null)).catch(() => null),
       decode: (bytes) => audio.decode(bytes),
       play: (clip) => audio.playClip(clip),
@@ -357,10 +361,16 @@ export class RoomView implements View {
     this.board = board;
     // Sound board off: fetch nothing. Turning it on in Settings starts the load.
     if (audio.settings.roomSounds) void board.load(shellConfig().extraPacks);
+    const code = this.code;
+    const refreshHost = () => {
+      if (this.last?.room.hostSounds && audio.settings.roomSounds) void board.loadHost(hostSoundsUrl(code));
+    };
+    this.refreshHostSounds = refreshHost;
     this.soundView = new SoundBoardView(board, {
       send: (msg) => client.send(msg),
       toast: (t) => this.showToast(t),
       playHere: () => audio.settings.sound && audio.settings.roomSounds,
+      onOpen: refreshHost,
     });
     client.on("sound", ({ id }) => board.receive(id));
 
@@ -412,6 +422,7 @@ export class RoomView implements View {
         this.menuDialog?.close();
       }
       voice.onRoom(u.room);
+      if (u.room.hostSounds && !prev?.room.hostSounds) refreshHost();
       this.soundView?.render(u.room, client.playerId);
       this.render();
       this.refreshGameList?.(u.room);
@@ -1518,7 +1529,10 @@ export class RoomView implements View {
     volume.disabled = roomSounds.disabled = !audio.settings.sound;
     roomSounds.addEventListener("change", () => {
       audio.update({ roomSounds: roomSounds.checked });
-      if (roomSounds.checked) void this.board?.load(shellConfig().extraPacks);
+      if (roomSounds.checked) {
+        void this.board?.load(shellConfig().extraPacks);
+        this.refreshHostSounds();
+      }
       this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
     });
     volume.addEventListener("change", () => {

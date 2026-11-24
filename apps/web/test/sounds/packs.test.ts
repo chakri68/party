@@ -1,7 +1,7 @@
 import { FREE_SOUNDS } from "@games/sounds";
 import { describe, expect, it } from "vitest";
 import { configure, shellConfig } from "../../src/shell.ts";
-import { MAX_PACK_SOUNDS, freeBoard, loadExtraPacks, parsePackList } from "../../src/sounds/packs.ts";
+import { MAX_PACK_SOUNDS, freeBoard, hostSoundsUrl, loadExtraPacks, parseHostList, parsePackList } from "../../src/sounds/packs.ts";
 
 const bruh = { id: "bruh", name: "Bruh", ms: 1200, url: "/api/packs/memes/bruh.mp3?v=0123456789" };
 const list = (sounds: unknown[], pack = "memes") => ({ pack, sounds });
@@ -67,6 +67,48 @@ describe("sound packs", () => {
       return Promise.resolve(bodies[url] ?? null);
     };
     expect((await loadExtraPacks(["/bad", "/a"], throws)).map((s) => s.id)).toEqual(["alpha:one"]);
+  });
+
+  it("hostSoundsUrl names the room's list", () => {
+    expect(hostSoundsUrl("K7DX")).toBe("/api/rooms/K7DX/sounds");
+  });
+
+  it("parseHostList keeps host slots", () => {
+    const L = hostSoundsUrl("K7DX");
+    const three = { id: "3", name: "  Horn  ", ms: 1500, url: `${L}/3?v=0123456789` };
+    expect(parseHostList({ pack: "host", sounds: [three] }, L)).toEqual([
+      { id: "host:3", name: "Horn", ms: 1500, url: `${L}/3?v=0123456789` },
+    ]);
+  });
+
+  it("parseHostList drops what is not safe", () => {
+    const L = "/api/rooms/K7DX/sounds";
+    const good = (id: string) => ({ id, name: `Slot ${id}`, ms: 1000, url: `${L}/${id}?v=0123456789` });
+    const one = good("1");
+    expect(parseHostList({ pack: "memes", sounds: [one] }, L)).toEqual([]);
+    const bad = [
+      good("7"),
+      { ...good("2"), url: "/api/rooms/ZZZZ/sounds/2?v=0123456789" },
+      { ...good("2"), url: "https://x.test/a" },
+      { ...good("2"), url: "//x.test/a" },
+      { ...good("2"), url: `${L}` },
+      { ...good("2"), url: `${L}/2 x` },
+      { ...good("2"), ms: 3001 },
+      { ...good("2"), ms: 0 },
+      { ...good("2"), name: "x".repeat(25) },
+      { ...good("2"), name: "  " },
+      { ...good("2"), id: 2 },
+      null,
+    ];
+    expect(parseHostList({ pack: "host", sounds: [...bad, one, { ...one, name: "Again" }] }, L)).toEqual([
+      { ...one, id: "host:1" },
+    ]);
+    const eight = ["1", "2", "3", "4", "5", "6", "1", "2"].map((id, i) => ({ ...good(id), name: `N${i}` }));
+    expect(parseHostList({ pack: "host", sounds: eight }, L).map((s) => s.id)).toEqual(
+      ["1", "2", "3", "4", "5", "6"].map((id) => `host:${id}`),
+    );
+    expect(parseHostList(null, L)).toEqual([]);
+    expect(parseHostList({ pack: "host" }, L)).toEqual([]);
   });
 
   it("the shell has no extra packs by default", () => {
