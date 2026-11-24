@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { hasMySounds, LibraryApi, parseLibrary, SAVE_FAILED } from "../../src/sounds/library.ts";
+import { beforeEach, describe, expect, it } from "vitest";
+import { hasMySounds, isLibraryUrl, LibraryApi, parseLibrary, resetMySounds, SAVE_FAILED } from "../../src/sounds/library.ts";
 
 const slot = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -28,6 +28,8 @@ const jsonRes = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 describe("library client", () => {
+  beforeEach(() => resetMySounds());
+
   it("get sends the auth headers and parses the list", async () => {
     const f = fakeFetch(() => jsonRes({ active: true, slots: [slot("3"), slot("1")] }));
     const api = new LibraryApi({ fetch: f.fn, headers: () => ({ authorization: "Bearer k" }) });
@@ -110,5 +112,52 @@ describe("library client", () => {
     const g = fakeFetch(() => jsonRes({ error: "no" }, 403));
     const denied = new LibraryApi({ fetch: g.fn, headers: () => ({ authorization: "Bearer other" }) });
     expect(await hasMySounds(denied)).toBe(false);
+  });
+
+  it("hasMySounds asks again after a failure that may pass", async () => {
+    let n = 0;
+    const f = fakeFetch(() => (++n === 1 ? jsonRes({}, 503) : jsonRes({ active: true, slots: [] })));
+    const api = new LibraryApi({ fetch: f.fn, headers: () => ({ authorization: "Bearer a" }) });
+    expect(await hasMySounds(api)).toBe(false);
+    expect(await hasMySounds(api)).toBe(true);
+    expect(f.calls).toHaveLength(2);
+    expect(await hasMySounds(api)).toBe(true);
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("hasMySounds keeps a 404 and asks again after a key change or a reset", async () => {
+    let key = "a";
+    const f = fakeFetch(() => jsonRes({ error: "no" }, 404));
+    const api = new LibraryApi({ fetch: f.fn, headers: () => ({ authorization: `Bearer ${key}` }) });
+    expect(await hasMySounds(api)).toBe(false);
+    expect(await hasMySounds(api)).toBe(false);
+    expect(f.calls).toHaveLength(1);
+    key = "b";
+    await hasMySounds(api);
+    expect(f.calls).toHaveLength(2);
+    resetMySounds();
+    await hasMySounds(api);
+    expect(f.calls).toHaveLength(3);
+  });
+
+  it("a 2xx with a bad body asks the caller to refetch", async () => {
+    const f = fakeFetch(() => new Response("oops", { status: 200 }));
+    const api = new LibraryApi({ fetch: f.fn, headers: () => ({}) });
+    expect(await api.remove("1")).toEqual({ ok: false, error: SAVE_FAILED, refetch: true });
+    const g = fakeFetch(() => jsonRes({ error: "x" }, 500));
+    const api2 = new LibraryApi({ fetch: g.fn, headers: () => ({}) });
+    expect(await api2.remove("1")).toEqual({ ok: false, error: "x" });
+  });
+
+  it("isLibraryUrl refuses paths that climb out", async () => {
+    expect(isLibraryUrl("/api/sounds/1?v=0123456789")).toBe(true);
+    expect(isLibraryUrl("/api/sounds/../rooms/x")).toBe(false);
+    expect(isLibraryUrl("/api/sounds/%2e%2e/rooms/x")).toBe(false);
+    expect(isLibraryUrl("/api/sounds")).toBe(false);
+    expect(isLibraryUrl("//x.test/api/sounds/1")).toBe(false);
+    const f = fakeFetch(() => new Response(new ArrayBuffer(1)));
+    const api = new LibraryApi({ fetch: f.fn, headers: () => ({}) });
+    expect(await api.bytes("/api/sounds/%2e%2e/rooms/x")).toBeNull();
+    expect(f.calls).toHaveLength(0);
   });
 });
