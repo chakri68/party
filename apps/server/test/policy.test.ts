@@ -76,7 +76,7 @@ describe("createFetch", () => {
     expect(res.status).toBe(200);
     expect(body.hostKey).toBe("hk");
     expect(body.code).toMatch(/^[A-Z0-9]+$/);
-    expect(claimed).toEqual([{ tier: "free", hostKey: "hk", library: null }]);
+    expect(claimed).toEqual([{ tier: "free", hostKey: "hk" }]);
     expect(created).toEqual([body.code]);
   });
 
@@ -168,7 +168,7 @@ describe("createFetch room setup", () => {
   it("passes the setup to claim", async () => {
     const { res, calls } = await run("?game=cheat&computers=3");
     expect(res.status).toBe(200);
-    expect(calls).toEqual([[{ tier: "pass", hostKey: null, library: null }, { gameId: "cheat", computers: 3 }]]);
+    expect(calls).toEqual([[{ tier: "pass", hostKey: null }, { gameId: "cheat", computers: 3 }]]);
   });
   it("passes no setup without a game", async () => {
     const { calls } = await run("");

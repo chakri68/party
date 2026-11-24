@@ -322,6 +322,9 @@ export async function serveRoomSounds(
   if (!bucket || !isValidRoomCode(code)) return notFound();
   const slot = match[2];
   if (slot !== undefined && !isHostSlot(slot)) return notFound();
+  // Check v before waking the room.
+  const v = url.searchParams.get("v");
+  if (slot !== undefined && (v === null || !V_RE.test(v))) return notFound();
   const library = await libraryOf(code);
   if (!isLibraryId(library)) return notFound();
 
@@ -335,7 +338,5 @@ export async function serveRoomSounds(
       headers: { "content-type": "application/json", "cache-control": "no-store" },
     });
   }
-  const v = url.searchParams.get("v");
-  if (v === null || !V_RE.test(v)) return notFound();
-  return serveFile(bucket, libKey(library, slot, v));
+  return serveFile(bucket, libKey(library, slot, v!));
 }

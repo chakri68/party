@@ -179,7 +179,7 @@ export function createFetch(opts: WorkerOptions): (request: Request, env: Server
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = generateRoomCode();
         const stub = await getRoom(env, code);
-        if (await stub.claim(env.SOUNDS ? decision.grant : { ...decision.grant, library: null }, setup)) {
+        if (await stub.claim(env.SOUNDS || !decision.grant.library ? decision.grant : { ...decision.grant, library: null }, setup)) {
           // The room is claimed and playable: the record (a database write, far
           // away on a slow route) needn't hold up the host. Awaited without a ctx.
           const record = opts.onRoomCreated?.(code, decision.grant, request);

@@ -632,14 +632,16 @@ describe("room routes", () => {
   });
 
   it("a bad or missing v is a 404", async () => {
-    const { get, objects } = await room();
+    const { get, objects, libraryOf } = await room();
     const v = vOf(objects, "1")!;
-    for (const q of ["", "?v=", "?v=x", `?v=${v.toUpperCase()}`, "?v=0123456789"]) {
-      const res = (await get(`/api/rooms/K7DX/sounds/1${q}`))!;
-      // An all-digit v has no upper-case form, so skip that one case.
-      if (q === `?v=${v.toUpperCase()}` && v === v.toUpperCase()) continue;
-      expect(res.status).toBe(404);
+    const bad = ["", "?v=", "?v=x", `?v=${v.toUpperCase()}`].filter((q) => q !== `?v=${v}`);
+    for (const q of bad) {
+      expect((await get(`/api/rooms/K7DX/sounds/1${q}`))!.status).toBe(404);
     }
+    // None of those woke the room.
+    expect(libraryOf).not.toHaveBeenCalled();
+    // Good shape, but no file at that version.
+    expect((await get("/api/rooms/K7DX/sounds/1?v=0123456789"))!.status).toBe(404);
   });
 
   it("leaves other room paths alone", async () => {
@@ -660,5 +662,24 @@ describe("room routes", () => {
       expect([...res.headers.values()].join("\n")).not.toContain("owner");
       if (path.endsWith("sounds")) expect(await res.text()).not.toContain("owner");
     }
+  });
+
+  it("is wired into createFetch, and asks the room once per request", async () => {
+    const w = await room();
+    const v = vOf(w.objects, "1");
+    const library = vi.fn(async () => "owner");
+    const fetch = createFetch({ policy: ownerKeyPolicy, brand: "x", getRoom: async () => ({ claim: async () => true, library }) });
+    const list = await fetch(new Request("https://x.test/api/rooms/k7dx/sounds"), w.env);
+    expect(list.status).toBe(200);
+    expect(((await list.json()) as RoomSoundsBody).sounds).toHaveLength(2);
+    expect(library).toHaveBeenCalledTimes(1);
+    const file = await fetch(new Request(`https://x.test/api/rooms/K7DX/sounds/1?v=${v}`, { method: "HEAD" }), w.env);
+    expect(file.status).toBe(200);
+    expect(library).toHaveBeenCalledTimes(2);
+    const bad = await fetch(new Request(`https://x.test/api/rooms/K7DX/sounds/1?v=${v}`, { method: "POST" }), w.env);
+    expect(bad.status).toBe(405);
+    expect(library).toHaveBeenCalledTimes(2);
+    const bare = createFetch({ policy: ownerKeyPolicy, brand: "x", getRoom: async () => ({ claim: async () => true }) });
+    expect((await bare(new Request("https://x.test/api/rooms/K7DX/sounds"), w.env)).status).toBe(404);
   });
 });
