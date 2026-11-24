@@ -153,6 +153,15 @@ describe("Dominion sound", () => {
     expect(out.gain.setValueAtTime.mock.calls.length).toBe(sets);
   });
 
+  it("a sound board volume change does not touch it, even mid-duck", () => {
+    const { out } = woken();
+    audio.duck(0.35);
+    const g = out.gain;
+    const counts = [g.cancelScheduledValues, g.setValueAtTime, g.setTargetAtTime].map((f) => f.mock.calls.length);
+    audio.update({ boardVolume: 0.3 });
+    expect([g.cancelScheduledValues, g.setValueAtTime, g.setTargetAtTime].map((f) => f.mock.calls.length)).toEqual(counts);
+  });
+
   it("Sound off silences it at once, and on brings it back", () => {
     const { ctx, out } = woken();
     audio.update({ sound: false });

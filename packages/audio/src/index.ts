@@ -16,14 +16,22 @@ export interface FeedbackSettings {
   haptics: boolean;
   /** Sound board sounds on this phone. Game sound off silences them too. */
   roomSounds: boolean;
+  /** 0–1. Sound board clips only, on top of the volume and the duck. */
+  boardVolume: number;
 }
 
 const STORAGE_KEY = "pg:feedback";
-const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true, roomSounds: true };
+const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true, roomSounds: true, boardVolume: 1 };
+
+/** A saved or patched board volume: 0..1, and 1 for anything that is not a number. */
+function boardLevel(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
 
 function load(): FeedbackSettings {
   try {
-    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<FeedbackSettings>) };
+    const saved = { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<FeedbackSettings>) };
+    return { ...saved, boardVolume: boardLevel(saved.boardVolume) };
   } catch {
     return { ...DEFAULTS };
   }
@@ -291,14 +299,18 @@ export class Feedback {
   }
 
   /**
-   * One sound board clip through `master`, so it follows the volume. False,
-   * with nothing played, when game sound is off or the context isn't running.
+   * One sound board clip through its own gain (boardVolume), then `master`,
+   * so it follows the board volume, the volume and the duck. False, with
+   * nothing played, when game sound is off or the context isn't running.
+   * Board volume 0 still plays (silently) and returns true.
    */
   playClip(clip: AudioBuffer): boolean {
     if (!this.settings.sound || !this.ctx || !this.master || this.ctx.state !== "running") return false;
     const src = this.ctx.createBufferSource();
     src.buffer = clip;
-    src.connect(this.master);
+    const g = this.ctx.createGain();
+    g.gain.value = this.settings.boardVolume;
+    src.connect(g).connect(this.master);
     src.start(this.ctx.currentTime + 0.005);
     return true;
   }
@@ -355,6 +367,8 @@ export class Feedback {
   update(patch: Partial<FeedbackSettings>): void {
     const volumeChanged = patch.volume !== undefined && patch.volume !== this.settings.volume;
     this.settings = { ...this.settings, ...patch };
+    if (patch.boardVolume !== undefined) this.settings.boardVolume = boardLevel(patch.boardVolume);
+    // boardVolume is per clip, so it never touches master or gameVolume().
     // Only a new volume touches master: a toggle must not cut a duck ramp.
     if (volumeChanged) this.applyVolume();
     try {

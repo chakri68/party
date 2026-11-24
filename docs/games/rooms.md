@@ -137,7 +137,7 @@ The sound board button in the header (a speaker) opens a grid of short sounds. T
 
 - You can tap one sound every 3 seconds. The tiles go dim until you can tap again, and an early tap says "Wait a moment before the next sound."
 - The room plays at most 3 sounds in any 3 seconds, and the rest are skipped.
-- Sounds follow your volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
+- Sounds follow your volume and the sound board volume. If **Sounds** is off in **Sound and vibration**, you hear none. **Sound board** there turns off only board sounds, on this phone.
 - After the free sounds come the host's own sounds, when the host has made some in **My sounds**.
 - A self-hosted copy has only the free sounds.
 
@@ -156,6 +156,7 @@ Your phone makes the mp3 file with open source code (LAME). Its licence is in [T
 - **Sounds**: on or off.
 - **Volume**: a slider, greyed out when sounds are off.
 - **Sound board**: sound board sounds on this phone. Greyed out when Sounds is off.
+- **Sound board volume**: how loud sound board sounds are on this phone. Greyed out when Sounds or Sound board is off.
 - **Vibration**: only shown on devices that can vibrate.
 
 The settings stay on your device.

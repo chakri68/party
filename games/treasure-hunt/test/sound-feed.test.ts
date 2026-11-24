@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BridgeCall } from "../client/godot/bridge.ts";
 import { SoundFeed } from "../client/view.ts";
+import { audio } from "@games/audio";
 
 // M5a Task 4: the page tells Godot the sound settings, on ready and on a change.
 
@@ -89,5 +90,28 @@ describe("SoundFeed and ducking", () => {
     fire();
     feed.poll();
     expect(sent).toHaveLength(1);
+  });
+});
+
+// Voice phase 3 Task 8: the sound board volume is not game volume.
+
+describe("SoundFeed and the sound board volume", () => {
+  it("a board volume change sends nothing", () => {
+    const saved = audio.settings;
+    const sent: BridgeCall[][] = [];
+    const feed = new SoundFeed(
+      (calls) => sent.push(calls),
+      () => ({ sound: audio.settings.sound, volume: audio.gameVolume() }),
+      (fn) => audio.onGameVolume(fn),
+    );
+    try {
+      feed.ready();
+      expect(sent).toHaveLength(1);
+      audio.update({ boardVolume: 0.2 });
+      expect(sent).toHaveLength(1);
+    } finally {
+      feed.destroy();
+      audio.settings = saved;
+    }
   });
 });

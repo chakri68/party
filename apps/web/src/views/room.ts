@@ -1602,17 +1602,24 @@ export class RoomView implements View {
     const sound = h("input", { type: "checkbox", checked: audio.settings.sound });
     const volume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.volume, "aria-label": "Volume" });
     const roomSounds = h("input", { type: "checkbox", checked: audio.settings.roomSounds });
+    const boardVolume = h("input", { type: "range", min: 0, max: 1, step: 0.05, value: audio.settings.boardVolume, "aria-label": "Sound board volume" });
+    // Greyed out unless both Sounds and Sound board are on.
+    const syncDisabled = () => {
+      volume.disabled = roomSounds.disabled = !sound.checked;
+      boardVolume.disabled = !sound.checked || !roomSounds.checked;
+    };
     const haptics = h("input", { type: "checkbox", checked: audio.settings.haptics });
     sound.addEventListener("change", () => {
       audio.update({ sound: sound.checked });
-      volume.disabled = roomSounds.disabled = !sound.checked;
+      syncDisabled();
       if (sound.checked) audio.play("card-place");
       this.renderHeader();
       this.soundView?.render(this.last?.room ?? null, this.client?.playerId ?? null);
     });
-    volume.disabled = roomSounds.disabled = !audio.settings.sound;
+    syncDisabled();
     roomSounds.addEventListener("change", () => {
       audio.update({ roomSounds: roomSounds.checked });
+      syncDisabled();
       if (roomSounds.checked) {
         void this.board?.load(shellConfig().extraPacks);
         this.refreshHostSounds();
@@ -1623,6 +1630,8 @@ export class RoomView implements View {
       audio.update({ volume: Number(volume.value) });
       audio.play("card-place"); // hear what you picked
     });
+    // No test tone: a board clip may not be decoded yet.
+    boardVolume.addEventListener("change", () => audio.update({ boardVolume: Number(boardVolume.value) }));
     haptics.addEventListener("change", () => {
       audio.update({ haptics: haptics.checked });
       if (haptics.checked) audio.buzz(30);
@@ -1635,6 +1644,7 @@ export class RoomView implements View {
         h("label", {}, "Sounds", sound),
         h("label", {}, "Volume", volume),
         h("label", {}, "Sound board", roomSounds),
+        h("label", {}, "Sound board volume", boardVolume),
         audio.canVibrate ? h("label", {}, "Vibration", haptics) : null,
       ),
     );
