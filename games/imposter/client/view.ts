@@ -298,7 +298,7 @@ export class ImposterView implements GameView {
     const secs = Math.ceil(left / 1000);
     // Red only when this player has something to do now.
     const act = ["clues", "vote", "runoff", "guess", "discuss", "talk"].includes(game.phase);
-    this.timer.set(left, { lowAt: act ? undefined : 0 });
+    this.timer.set(left, { lowAt: act ? TICK_FROM * 1000 : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / game.phaseMs)})`;
     const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);

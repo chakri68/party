@@ -196,7 +196,7 @@ export class WildsView implements GameView {
     const secs = Math.ceil(left / 1000);
     // Red only when this player has something to do now.
     const act = this.planning();
-    this.timer.set(left, { lowAt: act ? undefined : 0 });
+    this.timer.set(left, { lowAt: act ? TICK_FROM * 1000 : 0 });
     const low = secs <= TICK_FROM && act;
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {

@@ -80,7 +80,8 @@ export function countdown(): Countdown {
         setLabel("Timer paused", null);
         return;
       }
-      if (left === null || left <= 0) {
+      // NaN (a missing deadline) hides too. A held clock shows even at 0.
+      if (left === null || Number.isNaN(left) || (!opts.stopped && !(left > 0))) {
         el.hidden = true;
         el.classList.toggle("low", false);
         labelSecs = null;

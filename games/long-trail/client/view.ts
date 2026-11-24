@@ -170,7 +170,7 @@ export class LongTrailView implements GameView {
     const me = this.me;
     // Red only when this player has something to do now.
     const mine = this.leading() || (g.phase === "vote" && !me?.vote) || (g.phase === "choice" && me?.choiceVote === null);
-    this.timer.set(left, { lowAt: mine ? undefined : 0 });
+    this.timer.set(left, { lowAt: mine ? TICK_FROM * 1000 : 0 });
     this.bar.style.transform = `scaleX(${Math.min(1, left / g.phaseMs)})`;
     const low = secs <= TICK_FROM && mine;
     this.root.classList.toggle("low", low);

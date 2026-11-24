@@ -69,7 +69,7 @@ export function watchBarHeight(bar: HTMLElement, root: HTMLElement): () => void 
   set();
   if (typeof ResizeObserver === "undefined") return () => root.style.removeProperty("--lobby-bar");
   const watcher = new ResizeObserver(set);
-  watcher.observe(bar);
+  watcher.observe(bar, { box: "border-box" });
   return () => {
     watcher.disconnect();
     root.style.removeProperty("--lobby-bar");

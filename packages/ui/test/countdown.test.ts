@@ -93,6 +93,11 @@ describe("countdown", () => {
     expect(el.hidden).toBe(true);
     c.set(-200);
     expect(el.hidden).toBe(true);
+    c.set(30_000);
+    c.set(NaN);
+    expect(el.hidden).toBe(true);
+    c.set(NaN, { stopped: true });
+    expect(el.hidden).toBe(true);
   });
 
   it("goes low at 10 s or less", () => {
