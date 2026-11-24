@@ -193,6 +193,17 @@ describe("VoiceController", () => {
     expect(s.voice.view().status).toBe("unsupported");
   });
 
+  it("no RTCPeerConnection: still keeps the roster, so a host can mute from the menus", () => {
+    const s = setup({ rtc: false });
+    s.voice.onVoiceState([member("b"), member("c", { selfMuted: true, hostMuted: true })]);
+    expect(s.voice.view().members.map((m) => [m.id, m.hostMuted])).toEqual([
+      ["b", false],
+      ["c", true],
+    ]);
+    expect(s.sent).toEqual([]);
+    expect(s.toasts).toEqual([]);
+  });
+
   it("join with mic sends voice-join muted false", async () => {
     const s = setup();
     const p = s.voice.join(true);
@@ -588,14 +599,38 @@ describe("VoiceController", () => {
     expect(s.toasts).toHaveLength(2);
   });
 
-  it("a fresh page host-muted from the start shows no toast", async () => {
+  it("a fresh page host-muted from the start toasts once, so the person knows why", async () => {
     const store = memoryStore();
     voicePrefs(store).setRoom("ABCD", { on: true, mic: "on" });
     const s = setup({ store, perm: "granted" });
     s.voice.onWelcome();
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
     await flush();
+    expect(s.toasts).toEqual(["The host muted you."]);
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    // A reconnect with nothing changed: no new toast.
+    s.voice.onWelcome();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+  });
+
+  it("a fresh page whose roster comes after the join toasts once when host-muted", async () => {
+    const store = memoryStore();
+    voicePrefs(store).setRoom("ABCD", { on: true, mic: "on" });
+    const s = setup({ store, perm: "granted" });
+    s.voice.onWelcome();
+    await flush();
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(s.toasts).toEqual([]);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b", { selfMuted: true })]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+  });
+
+  it("a fresh join that is not host-muted shows no toast", async () => {
+    const s = await joined();
+    s.voice.onVoiceState([member("me"), member("b")]);
     expect(s.toasts).toEqual([]);
   });
 

@@ -636,7 +636,7 @@ export class RoomView implements View {
       hostActions: room.phase === "playing" && !this.stuck,
       mySounds: this.mySounds,
       // The roster is kept also when this phone is not in voice: a host who never joined can still mute.
-      muteAll: muteAllAction(room, me, this.voice?.view().members ?? []),
+      muteAll: this.stuck ? null : muteAllAction(room, me, this.voice?.view().members ?? []),
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;

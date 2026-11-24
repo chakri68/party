@@ -337,7 +337,11 @@ export class VoiceBar {
         // Read now, not when the row was drawn: the host or the mute may have changed.
         const now = this.voice.view().members.find((x) => x.id === m.id);
         const act = now ? hostVoiceAction(now, this.host.isHost()) : null;
-        if (act) this.host.send(act.message);
+        if (!act) return;
+        this.host.send(act.message);
+        // The label changes under the finger: say what happened.
+        const who = this.nameOf(m.id);
+        setText(this.announce, act.label === "Mute" ? `${who} is muted.` : `${who} can talk again.`);
       });
     }
     const buttons = block ? h("span", { class: "voice-person-buttons" }, host, block) : null;
@@ -364,6 +368,8 @@ export class VoiceBar {
     }
     if (row.host) {
       const act = hostVoiceAction(m, this.host.isHost());
+      // Not the host any more: focus must not be lost with the button.
+      if (!act && document.activeElement === row.host) row.block?.focus();
       row.host.hidden = !act;
       if (act) {
         setText(row.host, act.label);

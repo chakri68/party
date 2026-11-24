@@ -107,6 +107,8 @@ export class VoiceController {
   private ended = false;
   /** A welcome came since the last roster: the next roster is the server's view after a (re)connect. */
   private welcomeSinceRoster = false;
+  /** This page joined and no roster listing me came yet: the first one says if the host muted me. */
+  private firstRoster = false;
 
   private roster: VoiceMember[] = [];
   private transport: VoiceTransport | null = null;
@@ -167,7 +169,14 @@ export class VoiceController {
   }
 
   onVoiceState(members: VoiceMember[]): void {
-    if (this.unsupported) return;
+    if (this.unsupported) {
+      // Kept with no voice here: a host can still Mute from the menus.
+      this.guard(() => {
+        this.roster = members.map((m) => ({ ...m }));
+        this.notify();
+      });
+      return;
+    }
     this.guard(() => {
       const wasHostMuted = this.myEntry()?.hostMuted;
       this.roster = members.map((m) => ({ ...m }));
@@ -184,8 +193,12 @@ export class VoiceController {
         // Listed from an earlier page, but not joining here: let the others stop trying.
         this.deps.send({ type: "voice-leave" });
       }
-      // Only a change I saw happen: not a fresh page, and not a reconnect that changed nothing.
-      if (this.phase === "joined" && wasHostMuted !== undefined && nowHostMuted !== undefined && wasHostMuted !== nowHostMuted) {
+      if (this.phase === "joined" && this.firstRoster && listed) {
+        // The first roster that lists me after this page joined (a reload): say why I am muted, once.
+        this.firstRoster = false;
+        if (nowHostMuted) this.toast(HOST_MUTED);
+      } else if (this.phase === "joined" && wasHostMuted !== undefined && nowHostMuted !== undefined && wasHostMuted !== nowHostMuted) {
+        // Only a change I saw happen: not a reconnect that changed nothing.
         this.toast(nowHostMuted ? HOST_MUTED : HOST_LIFTED);
       }
       this.notify();
@@ -549,7 +562,10 @@ export class VoiceController {
     this.deps.send({ type: "voice-join", muted: this.selfMuted });
     this.saveRoom({ on: true, mic });
     // Already listed (a reload): the server sends no roster when nothing changed.
-    if (this.isListed()) this.applyRoster();
+    if (this.isListed()) {
+      this.applyRoster();
+      if (this.hostMuted()) this.toast(HOST_MUTED);
+    } else this.firstRoster = true;
     this.notify();
   }
 
@@ -600,6 +616,7 @@ export class VoiceController {
     this.flushSave();
     this.generation++;
     this.phase = "idle";
+    this.firstRoster = false;
     this.closeTransport();
     this.session = null;
     this.iceServers = [];
