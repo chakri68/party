@@ -836,8 +836,10 @@ button.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent)
   color: var(--muted);
 }
 .seats .kick.bot-kick { margin-left: auto; }
-:is(.seat-menu, .room-menu) .dialog-list { display: flex; flex-direction: column; gap: 8px; }
-.room-menu .dialog-list { min-width: min(280px, 70vw); }
+:is(.seat-menu, .room-menu) .dialog-list { display: flex; flex-direction: column; gap: 8px; min-width: min(280px, 70vw); }
+/* Cancel or Close: as wide as the list, and quieter than the actions above it. */
+:is(.seat-menu, .room-menu) form button { flex: 1; border-color: transparent; background: none; color: var(--muted); }
+:is(.seat-menu, .room-menu) form button:hover { border-color: var(--line); color: var(--ink); }
 .room-menu-note { margin: 0; padding: 8px 0; font-size: 0.9rem; text-align: center; }
 /* Home in the Room menu: a link, drawn like the buttons around it. */
 .dialog-link {
