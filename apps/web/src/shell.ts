@@ -50,6 +50,8 @@ export interface ShellHome {
   subtitle?: string;
   /** The browser tab title on the home page. */
   pageTitle?: string;
+  /** A quiet "Source code on GitHub" link at the foot of the home page, to this URL. Without it, no link. */
+  sourceUrl?: string;
 }
 
 export interface ShellOptions {
@@ -58,7 +60,7 @@ export interface ShellOptions {
   appTitle?: string;
   /** The home Create button's text when there is no room setup. A setup (computers) keeps its own `createLabel` text. */
   createText?: string;
-  /** The home page's heading, subtitle and tab title. Without it, the logo and the usual lines show. */
+  /** The home page's heading, subtitle, tab title and source link. Without it, the logo and the usual lines show. */
   home?: ShellHome;
   canCreate?: () => boolean;
   createRoom?: (setup?: RoomSetup) => Promise<CreateRoomResult>;
