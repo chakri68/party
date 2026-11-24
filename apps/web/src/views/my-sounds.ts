@@ -288,7 +288,8 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): () =>
 
   /** Plays on this phone, or says why not. */
   function playNow(slot: string, clip: AudioBuffer) {
-    if (audio.playClip(clip)) {
+    // A preview, not a board clip: full level, not the sound board volume.
+    if (audio.playClip(clip, 1)) {
       if (error?.slot === slot && (error.text === T.soundsOff || error.text === T.playFailed)) playLine(slot, null);
       return;
     }

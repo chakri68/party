@@ -16,14 +16,22 @@ export interface FeedbackSettings {
   haptics: boolean;
   /** Sound board sounds on this phone. Game sound off silences them too. */
   roomSounds: boolean;
+  /** 0–1. Sound board clips only, on top of the volume and the duck. */
+  boardVolume: number;
 }
 
 const STORAGE_KEY = "pg:feedback";
-const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true, roomSounds: true };
+const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.7, haptics: true, roomSounds: true, boardVolume: 1 };
+
+/** A saved or patched board volume: 0..1, and 1 for anything that is not a number. */
+function boardLevel(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
 
 function load(): FeedbackSettings {
   try {
-    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<FeedbackSettings>) };
+    const saved = { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<FeedbackSettings>) };
+    return { ...saved, boardVolume: boardLevel(saved.boardVolume) };
   } catch {
     return { ...DEFAULTS };
   }
@@ -150,6 +158,13 @@ const RECORDED: Partial<Record<SoundId, { ids: SampleId[]; gain?: number; layer?
   "game-over": { ids: ["chips-place"], gain: 0.8, layer: true },
 };
 
+/** Game sound while other people talk in voice: about -9 dB. */
+export const DUCK_GAIN = 0.35;
+/** setTargetAtTime time constant going down. */
+export const DUCK_ATTACK_S = 0.05;
+/** setTargetAtTime time constant going back up. */
+export const DUCK_RELEASE_S = 0.25;
+
 /** The ambient bed at level 1, before the user's volume: a background, not a cue. */
 const AMBIENT_GAIN = 0.35;
 
@@ -191,6 +206,8 @@ export class Feedback {
   private bedLevel = 0;
   private bedBuffer: AudioBuffer | null = null;
   private contextListeners = new Set<(ctx: AudioContext) => void>();
+  private duckLevel = 1;
+  private gameVolumeListeners = new Set<() => void>();
 
   /** The one AudioContext, once a tap made it. Voice plays here too; never closed. */
   get context(): AudioContext | null {
@@ -200,7 +217,7 @@ export class Feedback {
   /**
    * Called with the context when it is made, and on every statechange after.
    * Returns an unsubscribe. Voice does not go through `master` (that is game
-   * sound, and a later phase ducks it).
+   * sound, and `duck` lowers it while people talk).
    */
   onContext(fn: (ctx: AudioContext) => void): () => void {
     this.contextListeners.add(fn);
@@ -282,14 +299,19 @@ export class Feedback {
   }
 
   /**
-   * One sound board clip through `master`, so it follows the volume. False,
-   * with nothing played, when game sound is off or the context isn't running.
+   * One sound board clip through its own gain (boardVolume), then `master`,
+   * so it follows the board volume, the volume and the duck. False, with
+   * nothing played, when game sound is off or the context isn't running.
+   * Board volume 0 still plays (silently) and returns true. `level` replaces
+   * boardVolume for a clip that is not a board clip (the My sounds preview).
    */
-  playClip(clip: AudioBuffer): boolean {
+  playClip(clip: AudioBuffer, level: number = this.settings.boardVolume): boolean {
     if (!this.settings.sound || !this.ctx || !this.master || this.ctx.state !== "running") return false;
     const src = this.ctx.createBufferSource();
     src.buffer = clip;
-    src.connect(this.master);
+    const g = this.ctx.createGain();
+    g.gain.value = boardLevel(level);
+    src.connect(g).connect(this.master);
     src.start(this.ctx.currentTime + 0.005);
     return true;
   }
@@ -344,17 +366,76 @@ export class Feedback {
   }
 
   update(patch: Partial<FeedbackSettings>): void {
+    const volumeChanged = patch.volume !== undefined && patch.volume !== this.settings.volume;
     this.settings = { ...this.settings, ...patch };
-    this.applyVolume();
+    if (patch.boardVolume !== undefined) this.settings.boardVolume = boardLevel(patch.boardVolume);
+    // boardVolume is per clip, so it never touches master or gameVolume().
+    // Only a new volume touches master: a toggle must not cut a duck ramp.
+    if (volumeChanged) this.applyVolume();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
     } catch {
       // Private mode: settings last for this visit only.
     }
+    this.notifyGameVolume();
   }
 
+  /**
+   * Lowers game sound while other people talk: 0..1, 1 = no duck. Ramps
+   * master to volume x 0.9 x level, fast going down and slower coming back.
+   * Safe before unlock: applied when the context is made. The same level
+   * again does nothing, so it is cheap to call on every voice change.
+   */
+  duck(level: number): void {
+    const next = Math.min(1, Math.max(0, Number.isFinite(level) ? level : 1));
+    if (next === this.duckLevel) return;
+    const down = next < this.duckLevel;
+    this.duckLevel = next;
+    const ctx = this.ctx;
+    const gain = this.master?.gain;
+    if (ctx && gain) {
+      const want = this.settings.volume * 0.9 * next;
+      if (typeof gain.setTargetAtTime === "function") {
+        gain.cancelScheduledValues?.(ctx.currentTime);
+        gain.setTargetAtTime(want, ctx.currentTime, down ? DUCK_ATTACK_S : DUCK_RELEASE_S);
+      } else {
+        gain.value = want;
+      }
+    }
+    this.notifyGameVolume();
+  }
+
+  /** settings.volume x the duck level. For game audio that does not go through master. */
+  gameVolume(): number {
+    return this.settings.volume * this.duckLevel;
+  }
+
+  /** Called on every duck change and every update(). Returns an unsubscribe. */
+  onGameVolume(fn: () => void): () => void {
+    this.gameVolumeListeners.add(fn);
+    return () => this.gameVolumeListeners.delete(fn);
+  }
+
+  private notifyGameVolume() {
+    for (const fn of [...this.gameVolumeListeners]) {
+      try {
+        fn();
+      } catch {
+        // A listener's failure must not stop sound or the other listeners.
+      }
+    }
+  }
+
+  /** At once, dropping any ramp: a volume change while ducked keeps the duck. */
   private applyVolume() {
-    if (this.master) this.master.gain.value = this.settings.volume * 0.9;
+    const gain = this.master?.gain;
+    if (!gain) return;
+    const want = this.settings.volume * 0.9 * this.duckLevel;
+    if (this.ctx && typeof gain.setValueAtTime === "function") {
+      gain.cancelScheduledValues?.(this.ctx.currentTime);
+      gain.setValueAtTime(want, this.ctx.currentTime);
+    }
+    gain.value = want;
   }
 }
 

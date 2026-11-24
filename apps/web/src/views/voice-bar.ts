@@ -7,7 +7,7 @@
 // only updates them, so a held talk button or a dragged slider is never
 // swapped out under the finger.
 
-import type { RoomPhase } from "@games/protocol";
+import type { ClientMessage, RoomPhase } from "@games/protocol";
 import { closeOnBackdrop, h, openDialog } from "@games/ui";
 import { icon, type IconName } from "../brand.ts";
 import { MAX_GAIN } from "../voice/audio.ts";
@@ -68,8 +68,10 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
   // There is no Turn off mic next to the mic, and the name must not change on every press.
   let note: string | null = null;
   let hint = false;
+  const hostMuted = v.members.some((m) => m.self && m.hostMuted);
   if (show === "header") {
     if (!live) note = "Your mic is off.";
+    else if (hostMuted) note = "The host muted you.";
     else if (v.mic === "muted") note = "Muted: your mic is still on.";
     else if (v.status === "joining") note = "Connecting voice...";
     else if (hold) {
@@ -89,6 +91,20 @@ export function voiceBarModel(v: VoiceView, phase: RoomPhase, space = false): Ba
     speakingIds: joined ? v.members.filter((m) => m.speaking).map((m) => m.id) : [],
     connection: v.status === "on" && v.members.every((m) => m.self || m.link === "connected") ? "good" : "wait",
   };
+}
+
+/** The host's button on another person's row in the Voice panel: Mute, or Allow to talk. Null for myself or a non-host. */
+export function hostVoiceAction(m: VoiceMemberView, isHost: boolean): { label: "Mute" | "Allow to talk"; message: ClientMessage } | null {
+  if (!isHost || m.self) return null;
+  return m.hostMuted
+    ? { label: "Allow to talk", message: { type: "host-mute", playerId: m.id, muted: false } }
+    : { label: "Mute", message: { type: "host-mute", playerId: m.id, muted: true } };
+}
+
+/** What the Voice panel can ask of the room: am I the host, and send a message. */
+export interface VoiceHost {
+  isHost(): boolean;
+  send(msg: ClientMessage): void;
 }
 
 /** A join may start: the menu's Join voice is still up, and the bar is not destroyed. */
@@ -125,6 +141,8 @@ interface Row {
   state: HTMLElement;
   volume: HTMLInputElement | null;
   block: HTMLButtonElement | null;
+  /** The host's Mute / Allow to talk; hidden when hostVoiceAction is null. */
+  host: HTMLButtonElement | null;
 }
 
 export class VoiceBar {
@@ -134,6 +152,7 @@ export class VoiceBar {
   private readonly voice: VoiceController;
   private readonly ptt: PushToTalk;
   private readonly nameOf: (id: string) => string;
+  private readonly host: VoiceHost;
   private readonly coarse: boolean;
   private phase: RoomPhase | null = null;
   private model: BarModel | null = null;
@@ -174,10 +193,11 @@ export class VoiceBar {
   /** Only ever shown in its dialog (openPanel). */
   private readonly panel = h("div", { class: "voice-panel" }, this.actions, this.people);
 
-  constructor(voice: VoiceController, ptt: PushToTalk, nameOf: (id: string) => string) {
+  constructor(voice: VoiceController, ptt: PushToTalk, nameOf: (id: string) => string, host: VoiceHost) {
     this.voice = voice;
     this.ptt = ptt;
     this.nameOf = nameOf;
+    this.host = host;
     this.coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
     this.el.append(this.taps);
     keepKeys(this.el);
@@ -305,15 +325,29 @@ export class VoiceBar {
     const state = h("span", { class: "muted voice-person-state" });
     let volume: HTMLInputElement | null = null;
     let block: HTMLButtonElement | null = null;
+    let host: HTMLButtonElement | null = null;
     if (!self) {
       volume = h("input", { type: "range", min: 0, max: MAX_GAIN, step: 0.05, class: "voice-volume" });
       // Saved on change, not on every step of a drag.
       volume.addEventListener("change", () => this.voice.setVolume(m.id, Number(volume!.value)));
       block = h("button", { type: "button", class: "small" });
       block.addEventListener("click", () => this.voice.setBlocked(m.id, !this.voice.view().members.find((x) => x.id === m.id)?.blocked));
+      host = h("button", { type: "button", class: "small voice-host-mute", hidden: true });
+      host.addEventListener("click", () => {
+        // Read now, not when the row was drawn: the host or the mute may have changed.
+        const now = this.voice.view().members.find((x) => x.id === m.id);
+        const act = now ? hostVoiceAction(now, this.host.isHost()) : null;
+        if (!act) return;
+        this.host.send(act.message);
+        // The label changes under the finger: say what happened.
+        const who = this.nameOf(m.id);
+        setText(this.announce, act.label === "Mute" ? `${who} is muted.` : `${who} can talk again.`);
+      });
     }
-    const li = h("li", { class: "voice-person" }, dot, name, state, volume, block);
-    const row = { li, dot, name, state, volume, block };
+    // Line two: the volume, then the host's Mute / Allow to talk, then Mute for me.
+    const controls = volume ? h("div", { class: "voice-person-controls" }, volume, host, block) : null;
+    const li = h("li", { class: "voice-person" }, dot, name, state, controls);
+    const row = { li, dot, name, state, volume, block, host };
     this.rows.set(m.id, row);
     return row;
   }
@@ -322,7 +356,7 @@ export class VoiceBar {
     const name = this.nameOf(m.id);
     setText(row.name, m.self ? `${name} (you)` : name);
     row.li.classList.toggle("speaking", m.speaking);
-    const state = m.link === "reconnecting" ? "Trying to connect..." : m.hostMuted || m.selfMuted ? "muted" : "";
+    const state = m.link === "reconnecting" ? "Trying to connect..." : m.hostMuted ? "muted by host" : m.selfMuted ? "muted" : "";
     setText(row.state, state);
     if (row.volume) {
       row.volume.setAttribute("aria-label", `Volume for ${name}`);
@@ -332,6 +366,16 @@ export class VoiceBar {
     if (row.block) {
       setText(row.block, m.blocked ? "Unmute for me" : "Mute for me");
       row.block.setAttribute("aria-pressed", String(m.blocked));
+    }
+    if (row.host) {
+      const act = hostVoiceAction(m, this.host.isHost());
+      // Not the host any more: focus must not be lost with the button.
+      if (!act && document.activeElement === row.host) row.block?.focus();
+      row.host.hidden = !act;
+      if (act) {
+        setText(row.host, act.label);
+        row.host.setAttribute("aria-label", `${act.label}: ${name}`);
+      }
     }
   }
 
@@ -487,6 +531,8 @@ export class VoiceBar {
         check("Keep my mic volume steady", p.autoGainControl, (on) => set({ autoGainControl: on })),
         check("Push to talk", p.mode === "ptt", (on) => set({ mode: on ? "ptt" : "open" })),
         check("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => set({ deafenAlsoMutes: on })),
+        check("Lower game sound when people talk", p.duck, (on) => set({ duck: on })),
+        check("Keep the screen on in voice", p.keepScreenOn, (on) => set({ keepScreenOn: on })),
         check("Hide my network address", p.relayOnly, (on) => set({ relayOnly: on }), !v.hasTurn),
         v.hasTurn ? null : h("p", { class: "muted setting-hint" }, "Needs a relay server."),
         h("p", { class: "muted" }, "The settings stay on your device."),

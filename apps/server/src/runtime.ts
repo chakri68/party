@@ -855,9 +855,37 @@ export class RoomRuntime {
       case "voice-self-mute": {
         const me = data.voice?.find((m) => m.id === seat.id);
         if (!me) return;
-        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you");
+        if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you.");
         if (me.selfMuted === msg.muted) return;
         me.selfMuted = msg.muted;
+        await this.persist();
+        return this.flushVoice();
+      }
+
+      case "host-mute": {
+        if (!hostOnly() || !inPhase("lobby", "playing", "results")) return;
+        const roster = data.voice ?? [];
+        let targets: VoiceMember[];
+        if (msg.playerId === "all") targets = msg.muted ? roster.filter((m) => m.id !== seat.id) : roster;
+        else {
+          if (msg.playerId === seat.id) return this.error(conn, "not-available", "You can't mute yourself here.");
+          const them = roster.find((m) => m.id === msg.playerId);
+          if (!them) return this.error(conn, "not-available", "They are not in voice.");
+          targets = [them];
+        }
+        let changed = false;
+        for (const m of targets) {
+          if (msg.muted) {
+            if (m.hostMuted && m.selfMuted) continue;
+            m.hostMuted = true;
+            m.selfMuted = true;
+          } else {
+            if (!m.hostMuted) continue;
+            m.hostMuted = false;
+          }
+          changed = true;
+        }
+        if (!changed) return;
         await this.persist();
         return this.flushVoice();
       }
@@ -1419,7 +1447,7 @@ export class RoomRuntime {
     const data = this.data!;
     if (data.phase === "playing") this.scheduleBots();
     data.stateVersion++;
-    if (data.voice) data.voice = pruneVoice(data.voice, data.seats, data.phase);
+    if (data.voice) data.voice = pruneVoice(data.voice, data.seats, data.phase, data.hostId);
     await this.persist();
 
     const room = this.publicState();
@@ -1465,7 +1493,7 @@ export class RoomRuntime {
   /** Prunes the roster, then tells every seated connection if it changed since the last send. */
   private flushVoice(): void {
     const data = this.data!;
-    const members = pruneVoice(data.voice ?? [], data.seats, data.phase);
+    const members = pruneVoice(data.voice ?? [], data.seats, data.phase, data.hostId);
     if (data.voice) data.voice = members;
     const json = JSON.stringify(members);
     if (json === this.lastVoiceSent) return;

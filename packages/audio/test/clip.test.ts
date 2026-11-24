@@ -9,8 +9,37 @@ class Node {
   }
 }
 
+class Param {
+  value = 1;
+  readonly calls: string[] = [];
+  cancelScheduledValues(): void {
+    this.calls.push("cancel");
+  }
+  setValueAtTime(v: number): void {
+    this.calls.push("set");
+    this.value = v;
+  }
+  setTargetAtTime(v: number): void {
+    this.calls.push("target");
+    this.value = v;
+  }
+  exponentialRampToValueAtTime(): void {}
+}
+
 class Gain extends Node {
-  gain = { value: 1 };
+  gain = new Param();
+}
+
+class Osc extends Node {
+  type = "sine";
+  frequency = new Param();
+  start(): void {}
+  stop(): void {}
+}
+
+class Filter extends Node {
+  type = "lowpass";
+  frequency = { value: 0 };
 }
 
 class Source extends Node {
@@ -45,6 +74,15 @@ class FakeContext {
     this.sources.push(s);
     return s;
   }
+  createOscillator(): Osc {
+    return new Osc();
+  }
+  createBiquadFilter(): Filter {
+    return new Filter();
+  }
+  createBuffer(_ch: number, len: number): unknown {
+    return { getChannelData: () => new Float32Array(len) };
+  }
   decodeAudioData(bytes: ArrayBuffer): Promise<unknown> {
     return this.decodeFails ? Promise.reject(new Error("bad file")) : Promise.resolve({ decoded: bytes.byteLength });
   }
@@ -75,12 +113,13 @@ describe("clip playback", () => {
     const fb = new Feedback();
     fb.unlock();
     const ctx = made[0]!;
+    const master = ctx.gains[0]!;
+    expect(master.gain.value).toBeCloseTo(fb.settings.volume * 0.9);
     expect(fb.playClip(buf)).toBe(true);
     expect(ctx.sources).toHaveLength(1);
     const src = ctx.sources[0]!;
-    const master = ctx.gains.find((g) => g.gain.value === fb.settings.volume * 0.9);
-    expect(master).toBeDefined();
-    expect(src.connected).toEqual([master]);
+    const clipGain = src.connected[0] as Gain;
+    expect(clipGain.connected).toEqual([master]);
     expect(src.buffer).toBe(buf);
     expect(src.playbackRate.value).toBe(1);
     expect(src.starts).toEqual([[ctx.currentTime + 0.005]]);
@@ -117,5 +156,81 @@ describe("clip playback", () => {
       throw new Error("old browser");
     };
     expect(await fb.decode(bytes)).toBeNull();
+  });
+
+  it("a clip goes through its own gain set to boardVolume, then master", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    const ctx = made[0]!;
+    const master = ctx.gains[0]!;
+    fb.update({ boardVolume: 0.4 });
+    expect(fb.playClip(buf)).toBe(true);
+    const src = ctx.sources[0]!;
+    expect(src.connected).toHaveLength(1);
+    const clipGain = src.connected[0] as Gain;
+    expect(clipGain).not.toBe(master);
+    expect(clipGain.gain.value).toBe(0.4);
+    expect(clipGain.connected).toEqual([master]);
+  });
+
+  it("boardVolume 0 plays nothing audible but still counts as played", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    fb.update({ boardVolume: 0 });
+    expect(fb.playClip(buf)).toBe(true);
+    expect((made[0]!.sources[0]!.connected[0] as Gain).gain.value).toBe(0);
+  });
+
+  it("a level given to playClip wins over boardVolume (the My sounds preview)", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    fb.update({ boardVolume: 0 });
+    expect(fb.playClip(buf, 1)).toBe(true);
+    expect((made[0]!.sources[0]!.connected[0] as Gain).gain.value).toBe(1);
+  });
+
+  it("game sounds do not use boardVolume", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    const ctx = made[0]!;
+    fb.update({ boardVolume: 0.4 });
+    fb.play("card-place");
+    expect(ctx.gains.some((g) => g.gain.value === 0.4)).toBe(false);
+  });
+
+  it("a boardVolume change leaves master and the game volume alone", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    const master = made[0]!.gains[0]!;
+    fb.duck(0.35);
+    const before = { calls: master.gain.calls.length, value: master.gain.value, game: fb.gameVolume() };
+    fb.update({ boardVolume: 0.2 });
+    expect(master.gain.calls).toHaveLength(before.calls);
+    expect(master.gain.value).toBe(before.value);
+    expect(fb.gameVolume()).toBe(before.game);
+  });
+
+  it("old saved settings without boardVolume read as 1; bad values are clamped", () => {
+    const read = (saved: unknown) => {
+      vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(saved), setItem: () => {} });
+      return new Feedback().settings.boardVolume;
+    };
+    expect(read({ sound: true, volume: 0.5, haptics: true, roomSounds: true })).toBe(1);
+    expect(read({ boardVolume: 0.3 })).toBe(0.3);
+    expect(read({ boardVolume: 3 })).toBe(1);
+    expect(read({ boardVolume: -2 })).toBe(0);
+    expect(read({ boardVolume: "loud" })).toBe(1);
+    expect(read({ boardVolume: null })).toBe(1);
+    expect(new Feedback().settings.boardVolume).toBe(1);
+  });
+
+  it("update clamps boardVolume to 0..1", () => {
+    const fb = new Feedback();
+    fb.update({ boardVolume: 5 });
+    expect(fb.settings.boardVolume).toBe(1);
+    fb.update({ boardVolume: Number.NaN });
+    expect(fb.settings.boardVolume).toBe(1);
+    fb.update({ boardVolume: -1 });
+    expect(fb.settings.boardVolume).toBe(0);
   });
 });

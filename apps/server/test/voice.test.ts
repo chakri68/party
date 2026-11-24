@@ -17,10 +17,18 @@ describe("pruneVoice", () => {
     { id: "e", presence: "connected" as const, bot: true as const },
   ];
   it("keeps connected and reconnecting people, in order", () => {
-    expect(pruneVoice([m("e"), m("d"), m("b"), m("x"), m("c"), m("a")], seats, "lobby").map((x) => x.id)).toEqual(["b", "a"]);
+    expect(pruneVoice([m("e"), m("d"), m("b"), m("x"), m("c"), m("a")], seats, "lobby", null).map((x) => x.id)).toEqual(["b", "a"]);
   });
   it("is empty once the party ended", () => {
-    expect(pruneVoice([m("a")], seats, "ended")).toEqual([]);
+    expect(pruneVoice([m("a")], seats, "ended", "a")).toEqual([]);
+  });
+  it("clears the host's own host mute, on a copy", () => {
+    const hm = { id: "a", selfMuted: true, hostMuted: true };
+    const other = { id: "b", selfMuted: true, hostMuted: true };
+    const out = pruneVoice([hm, other], seats, "lobby", "a");
+    expect(out).toEqual([{ id: "a", selfMuted: true, hostMuted: false }, other]);
+    expect(hm.hostMuted).toBe(true);
+    expect(pruneVoice([hm], seats, "lobby", null)).toEqual([hm]);
   });
 });
 
@@ -91,7 +99,7 @@ describe("voice roster", () => {
     await vjoin(a);
     (room as unknown as { data: { voice: { hostMuted: boolean }[] } }).data.voice[0]!.hostMuted = true;
     await send(room, a, { type: "voice-self-mute", muted: false });
-    expect(a.last("error")).toMatchObject({ code: "not-available", message: "The host muted you" });
+    expect(a.last("error")).toMatchObject({ code: "not-available", message: "The host muted you." });
   });
 
   it("the ninth person gets Voice is full.", async () => {
@@ -196,6 +204,109 @@ describe("voice roster", () => {
     const p = world.puts;
     await vjoin(a);
     expect(world.puts).toBe(p + 1);
+  });
+
+  describe("host mute", () => {
+    let c: FakeConn;
+    const hmute = (from: FakeConn, playerId: string, muted: boolean) => send(room, from, { type: "host-mute", playerId, muted });
+    const entry = (of: FakeConn) => members(b).find((x) => x.id === idOf(of));
+
+    beforeEach(async () => {
+      c = await join(world, room, "Cy");
+      await vjoin(b);
+      await vjoin(c);
+    });
+
+    it("host-mute mutes one member: hostMuted and selfMuted, voice-state only, same version", async () => {
+      const v = b.last("update")!.stateVersion;
+      const n = b.of("update").length;
+      const p = world.puts;
+      await hmute(a, idOf(c), true);
+      expect(entry(c)).toEqual({ id: idOf(c), selfMuted: true, hostMuted: true });
+      expect(entry(b)).toEqual({ id: idOf(b), selfMuted: false, hostMuted: false });
+      expect(b.of("update")).toHaveLength(n);
+      expect(b.last("update")!.stateVersion).toBe(v);
+      expect(world.puts).toBe(p + 1);
+    });
+
+    it("lifting a host mute leaves the person self-muted", async () => {
+      await hmute(a, idOf(c), true);
+      await hmute(a, idOf(c), false);
+      expect(entry(c)).toEqual({ id: idOf(c), selfMuted: true, hostMuted: false });
+      await send(room, c, { type: "voice-self-mute", muted: false });
+      expect(entry(c)).toEqual({ id: idOf(c), selfMuted: false, hostMuted: false });
+    });
+
+    it("mute all mutes everyone in voice but the host; a later joiner is not muted", async () => {
+      await vjoin(a);
+      await hmute(a, "all", true);
+      expect(members(b)).toEqual([
+        { id: idOf(b), selfMuted: true, hostMuted: true },
+        { id: idOf(c), selfMuted: true, hostMuted: true },
+        { id: idOf(a), selfMuted: false, hostMuted: false },
+      ]);
+      const d = await join(world, room, "Dev");
+      await vjoin(d);
+      expect(entry(d)).toEqual({ id: idOf(d), selfMuted: false, hostMuted: false });
+    });
+
+    it("allow all clears hostMuted for everyone and leaves them self-muted", async () => {
+      await hmute(a, "all", true);
+      await hmute(a, "all", false);
+      expect(members(b)).toEqual([
+        { id: idOf(b), selfMuted: true, hostMuted: false },
+        { id: idOf(c), selfMuted: true, hostMuted: false },
+      ]);
+    });
+
+    it("host-mute from a non-host changes nothing", async () => {
+      const n = voiceCount(a, b, c);
+      const p = world.puts;
+      await hmute(b, idOf(c), true);
+      await hmute(b, "all", true);
+      expect(b.last("error")).toMatchObject({ code: "not-host" });
+      expect(voiceCount(a, b, c)).toBe(n);
+      expect(world.puts).toBe(p);
+      expect(entry(c)).toEqual({ id: idOf(c), selfMuted: false, hostMuted: false });
+    });
+
+    it("host-mute of someone not in voice says They are not in voice.", async () => {
+      await hmute(a, "nobody", true);
+      expect(a.last("error")).toMatchObject({ code: "not-available", message: "They are not in voice." });
+      await vjoin(a);
+      await hmute(a, idOf(a), true);
+      expect(a.last("error")).toMatchObject({ code: "not-available", message: "You can't mute yourself here." });
+      expect(entry(a)).toEqual({ id: idOf(a), selfMuted: false, hostMuted: false });
+    });
+
+    it("the host is never host-muted after Make host or a new host", async () => {
+      await hmute(a, idOf(c), true);
+      await send(room, a, { type: "transfer-host", playerId: idOf(c) });
+      expect(entry(c)).toEqual({ id: idOf(c), selfMuted: true, hostMuted: false });
+      const stored = (room as unknown as { data: { voice: { id: string; hostMuted: boolean }[] } }).data.voice;
+      expect(stored.find((x) => x.id === idOf(c))!.hostMuted).toBe(false);
+      // The new host mutes b; a and then c leave, so b becomes host and is free.
+      await hmute(c, idOf(b), true);
+      expect(entry(b)).toMatchObject({ hostMuted: true });
+      await send(room, a, { type: "leave" });
+      await send(room, c, { type: "leave" });
+      expect(roomOf(b).hostId).toBe(idOf(b));
+      expect(entry(b)).toEqual({ id: idOf(b), selfMuted: true, hostMuted: false });
+    });
+
+    it("host-mute with nothing to change sends no voice-state", async () => {
+      await hmute(a, idOf(c), true);
+      await hmute(a, idOf(b), false);
+      const n = voiceCount(a, b, c);
+      const p = world.puts;
+      await hmute(a, idOf(c), true);
+      await hmute(a, idOf(b), false);
+      await hmute(a, "all", true);
+      await hmute(a, "all", true);
+      // The one real change ("all" muting b) sent once.
+      expect(voiceCount(a, b, c)).toBe(n + 3);
+      expect(world.puts).toBe(p + 1);
+    });
   });
 });
 

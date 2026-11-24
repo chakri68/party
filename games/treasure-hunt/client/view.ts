@@ -460,10 +460,11 @@ function touchOnly(): boolean {
 
 /**
  * Tells Godot the page's sound settings (the shared Settings toggle and
- * volume): once on its ready(), then whenever either changes. The page
- * polls, because the settings live in a store that has no change event.
- * Nothing goes before ready(); a bridge call then would be dropped, and the
- * change gate would swallow it.
+ * volume, lowered while people talk): once on its ready(), then whenever
+ * either changes. `onChange` (audio.onGameVolume) sends a change at once;
+ * the page also polls each second as a fallback. Nothing goes before
+ * ready(); a bridge call then would be dropped, and the change gate would
+ * swallow it.
  */
 export class SoundFeed {
   private live = false;
@@ -471,10 +472,23 @@ export class SoundFeed {
 
   private send: (calls: BridgeCall[]) => void;
   private read: () => { sound: boolean; volume: number };
+  private off: (() => void) | undefined;
 
-  constructor(send: (calls: BridgeCall[]) => void, read: () => { sound: boolean; volume: number }) {
+  constructor(
+    send: (calls: BridgeCall[]) => void,
+    read: () => { sound: boolean; volume: number },
+    onChange?: (fn: () => void) => () => void,
+  ) {
     this.send = send;
     this.read = read;
+    this.off = onChange?.(() => this.poll());
+  }
+
+  /** Stops listening for changes. */
+  destroy() {
+    this.live = false;
+    this.off?.();
+    this.off = undefined;
   }
 
   /** Godot is up (a second call is a fresh Godot): send everything. */
@@ -594,7 +608,8 @@ export class TreasureHuntView implements GameView {
     );
     this.soundFeed = new SoundFeed(
       (calls) => this.bridge.call(calls),
-      () => audio.settings,
+      () => ({ sound: audio.settings.sound, volume: audio.gameVolume() }),
+      (fn) => audio.onGameVolume(fn),
     );
     this.end.addEventListener("click", () => this.api.act({ type: "end" }));
     this.mapBtn.addEventListener("click", () => this.setMap(!this.mapOpen));
@@ -629,6 +644,7 @@ export class TreasureHuntView implements GameView {
     clearInterval(this.ticker);
     clearInterval(this.mapTicker);
     clearInterval(this.soundTicker);
+    this.soundFeed.destroy();
     document.removeEventListener("keydown", this.onDocKey);
     clearTimeout(this.toastTimer);
     this.replay.destroy();
