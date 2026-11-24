@@ -28,7 +28,7 @@ import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
 import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
 import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 import { identityField, nameInput } from "./home.ts";
-import { leaveQuestion, muteAllAction, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
+import { leaveQuestion, muteAllActions, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
 import { lockGame } from "./pause.ts";
@@ -674,7 +674,7 @@ export class RoomView implements View {
       hostActions: room.phase === "playing" && !this.stuck,
       mySounds: this.mySounds,
       // The roster is kept also when this phone is not in voice: a host who never joined can still mute.
-      muteAll: this.stuck ? null : muteAllAction(room, me, this.voice?.view().members ?? []),
+      muteAll: this.stuck ? [] : muteAllActions(room, me, this.voice?.view().members ?? []),
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
