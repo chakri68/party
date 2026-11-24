@@ -5,8 +5,8 @@
 /** How many games a phone sees before "Show all". */
 export const PHONE_FIRST = 8;
 
-/** Hides every game after the first `first`, and adds a button that shows them all. Returns a function that does the same as the button. */
-export function collapseList(list: HTMLElement, first: number): () => void {
+/** Hides every game after the first `first`, and adds a button that shows them all. Returns a function that shows them all (pass true to move focus to the first new game, as the button does). */
+export function collapseList(list: HTMLElement, first: number): (focus?: boolean) => void {
   const games = [...list.querySelectorAll<HTMLElement>("li.game")];
   if (games.length <= first) return () => {};
   games.slice(first).forEach((g) => (g.hidden = true));
@@ -18,14 +18,25 @@ export function collapseList(list: HTMLElement, first: number): () => void {
   button.className = "btn btn-small gallery-more";
   button.textContent = `Show all ${games.length} games`;
   button.setAttribute("aria-expanded", "false");
-  const open = () => {
+  const open = (focus = false) => {
     button.setAttribute("aria-expanded", "true");
     games.forEach((g) => (g.hidden = false));
     shelves.forEach((s) => (s.hidden = false));
     button.remove();
+    // The button is gone, so focus goes to the first new game.
+    if (focus) {
+      const next = games[first]!;
+      const link = next.querySelector<HTMLElement>("a");
+      if (link) link.focus();
+      else {
+        next.setAttribute("tabindex", "-1");
+        next.focus();
+      }
+    }
   };
-  button.addEventListener("click", open);
-  list.append(button);
+  button.addEventListener("click", () => open(true));
+  // After the list, not in it: the list may be a ul or ol.
+  list.after(button);
   return open;
 }
 

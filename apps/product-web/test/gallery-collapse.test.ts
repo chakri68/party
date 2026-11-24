@@ -42,6 +42,14 @@ class FakeEl extends EventTarget {
   querySelector(sel: string) {
     return this.querySelectorAll(sel)[0] ?? null;
   }
+  focus() {
+    focused = this;
+  }
+  after(n: FakeEl) {
+    const sibs = this.parent!.kids;
+    n.parent = this.parent;
+    sibs.splice(sibs.indexOf(this) + 1, 0, n);
+  }
   closest(sel: string) {
     const cls = sel.slice(1);
     for (let e: FakeEl | null = this; e; e = e.parent) if (e.className.split(" ").includes(cls)) return e;
@@ -52,9 +60,13 @@ class FakeEl extends EventTarget {
   }
 }
 
+let focused: FakeEl | null = null;
+
 /** shelves: how many games in each. */
 function fakeList(shelves: number[]) {
-  const list = new FakeEl("div");
+  const root = new FakeEl("body");
+  const list = new FakeEl("ul");
+  root.append(list);
   for (const n of shelves) {
     const shelf = new FakeEl("section", "shelf");
     const ul = new FakeEl("ul");
@@ -67,7 +79,7 @@ function fakeList(shelves: number[]) {
 
 const asEl = (l: FakeEl) => l as unknown as HTMLElement;
 const games = (l: FakeEl) => l.querySelectorAll("li.game");
-const button = (l: FakeEl) => l.querySelector("button");
+const button = (l: FakeEl) => l.parent!.querySelector("button");
 
 function stubDom(narrow: boolean, hash = "") {
   const mq = Object.assign(new EventTarget(), { matches: narrow });
@@ -82,7 +94,10 @@ function stubDom(narrow: boolean, hash = "") {
   return { mq, win };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  focused = null;
+});
 
 describe("galleryHtml with JS off", () => {
   it("keeps every game, and nothing in the HTML hides one", () => {
@@ -143,6 +158,31 @@ describe("collapseList", () => {
     expect(states).toEqual(["true"]);
   });
 
+  it("puts the button after the list, not inside it", () => {
+    const list = fakeList([5, 5, 5]);
+    collapseList(asEl(list), 8);
+    expect(list.querySelector("button")).toBeNull();
+    expect(list.parent!.kids.map((k) => k.tag)).toEqual(["ul", "button"]);
+  });
+
+  it("moves focus to the first new game's link on click", () => {
+    const list = fakeList([5, 5, 5]);
+    const g = games(list)[8]!;
+    const a = new FakeEl("a");
+    g.append(a);
+    collapseList(asEl(list), 8);
+    button(list)!.click();
+    expect(focused).toBe(a);
+  });
+
+  it("focuses the game itself when it has no link", () => {
+    const list = fakeList([5, 5, 5]);
+    collapseList(asEl(list), 8);
+    button(list)!.click();
+    expect(focused).toBe(games(list)[8]);
+    expect(games(list)[8]!.getAttribute("tabindex")).toBe("-1");
+  });
+
   it("does nothing for a list that already fits", () => {
     const list = fakeList([4, 4]);
     collapseList(asEl(list), 8);
@@ -173,6 +213,7 @@ describe("bootGallery", () => {
     bootGallery(asEl(list));
     expect(button(list)).toBeNull();
     expect(games(list).some((g) => g.hidden)).toBe(false);
+    expect(focused).toBeNull();
   });
 
   it("opens the full list when the hero link jumps to #games", () => {
