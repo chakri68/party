@@ -181,6 +181,14 @@ describe("clip playback", () => {
     expect((made[0]!.sources[0]!.connected[0] as Gain).gain.value).toBe(0);
   });
 
+  it("a level given to playClip wins over boardVolume (the My sounds preview)", () => {
+    const fb = new Feedback();
+    fb.unlock();
+    fb.update({ boardVolume: 0 });
+    expect(fb.playClip(buf, 1)).toBe(true);
+    expect((made[0]!.sources[0]!.connected[0] as Gain).gain.value).toBe(1);
+  });
+
   it("game sounds do not use boardVolume", () => {
     const fb = new Feedback();
     fb.unlock();

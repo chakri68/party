@@ -302,14 +302,15 @@ export class Feedback {
    * One sound board clip through its own gain (boardVolume), then `master`,
    * so it follows the board volume, the volume and the duck. False, with
    * nothing played, when game sound is off or the context isn't running.
-   * Board volume 0 still plays (silently) and returns true.
+   * Board volume 0 still plays (silently) and returns true. `level` replaces
+   * boardVolume for a clip that is not a board clip (the My sounds preview).
    */
-  playClip(clip: AudioBuffer): boolean {
+  playClip(clip: AudioBuffer, level: number = this.settings.boardVolume): boolean {
     if (!this.settings.sound || !this.ctx || !this.master || this.ctx.state !== "running") return false;
     const src = this.ctx.createBufferSource();
     src.buffer = clip;
     const g = this.ctx.createGain();
-    g.gain.value = this.settings.boardVolume;
+    g.gain.value = boardLevel(level);
     src.connect(g).connect(this.master);
     src.start(this.ctx.currentTime + 0.005);
     return true;
