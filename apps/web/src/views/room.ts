@@ -305,6 +305,7 @@ export class RoomView implements View {
       },
       newSession: () => crypto.randomUUID().slice(0, 12),
       clock,
+      toast: (text) => this.showToast(text),
     });
     const ptt = new PushToTalk((held) => voice.setPtt(held));
     ptt.attach(window);

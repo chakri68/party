@@ -4,7 +4,6 @@ import { parseClientMessage } from "../src/index.ts";
 const parse = (m: object) => parseClientMessage(JSON.stringify(m));
 
 describe("sound messages", () => {
-
   it("parses sound", () => {
     expect(parse({ type: "sound", id: "free:rise", x: 1 })).toEqual({ type: "sound", id: "free:rise" });
     const bad: unknown[] = [

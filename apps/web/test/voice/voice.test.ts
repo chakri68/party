@@ -90,6 +90,7 @@ const boom = () => {
 
 function setup(opts: Opts = {}) {
   const sent: ClientMessage[] = [];
+  const toasts: string[] = [];
   const transports: FakeTransport[] = [];
   const env = new FakeAudioEnv();
   const playback = new Playback(env);
@@ -129,6 +130,7 @@ function setup(opts: Opts = {}) {
     },
     newSession: () => `s${++sessions}`,
     clock,
+    toast: (text) => toasts.push(text),
   });
   const types = () => sent.map((m) => m.type);
   const t = (i = 0) => {
@@ -136,7 +138,7 @@ function setup(opts: Opts = {}) {
     if (!x) throw new Error(`no transport ${i}`);
     return x;
   };
-  return { sent, types, transports, t, env, playback, tracks, gum, mic, clock, store, prefs, voice, release: () => hang?.() };
+  return { sent, toasts, types, transports, t, env, playback, tracks, gum, mic, clock, store, prefs, voice, release: () => hang?.() };
 }
 
 /** Joined, in the roster with b, and connected. */
@@ -418,6 +420,133 @@ describe("VoiceController", () => {
     await flush();
     expect(s.gum).not.toHaveBeenCalled();
     expect(s.sent.length).toBe(before);
+  });
+
+  it("host mute stops sending at once, even mid push-to-talk", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ mode: "ptt" });
+    const s = await joined({ store });
+    s.voice.setPtt(true);
+    expect(s.t().lastPublished()).toBe(s.tracks[0]!.asTrack());
+    const before = s.sent.length;
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.t().lastPublished()).toBeNull();
+    expect(s.voice.view().mic).toBe("muted");
+    expect(s.voice.view().talking).toBe(false);
+    // The server already set it: nothing sent.
+    expect(s.sent.length).toBe(before);
+    expect(s.prefs.room("ABCD").mic).toBe("muted");
+  });
+
+  it("host mute lifted: stays muted until Unmute", async () => {
+    const s = await joined();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.t().lastPublished()).toBeNull();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: false }), member("b")]);
+    expect(s.t().lastPublished()).toBeNull();
+    expect(s.voice.view().mic).toBe("muted");
+    s.voice.setMuted(false);
+    expect(s.t().lastPublished()).toBe(s.tracks[0]!.asTrack());
+    expect(s.sent.at(-1)).toEqual({ type: "voice-self-mute", muted: false });
+    expect(s.voice.view().mic).toBe("on");
+  });
+
+  it("host mute lifted while deafened: undeafen keeps the mute", async () => {
+    const s = await joined();
+    s.voice.setDeafened(true);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: false }), member("b")]);
+    s.voice.setDeafened(false);
+    expect(s.t().lastPublished()).toBeNull();
+    expect(s.voice.view().mic).toBe("muted");
+  });
+
+  it("host-muted on reload: stays muted after the lift", async () => {
+    // The mic was saved "on": the host mute landed while this page was away.
+    const store = memoryStore();
+    voicePrefs(store).setRoom("ABCD", { on: true, mic: "on" });
+    const s = setup({ store, perm: "granted" });
+    s.voice.onWelcome();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    await flush();
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    s.voice.onIce(STUN, 1e12);
+    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+    expect(s.voice.view().mic).toBe("muted");
+    expect(s.prefs.room("ABCD").mic).toBe("muted");
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: false }), member("b")]);
+    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+    expect(s.voice.view().mic).toBe("muted");
+    s.voice.stop();
+
+    // Reload after the lift: still muted.
+    const again = setup({ store, perm: "granted" });
+    again.voice.onWelcome();
+    again.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    await flush();
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    again.voice.onIce(STUN, 1e12);
+    expect(again.t().lastPublished()).not.toBe(again.tracks[0]!.asTrack());
+    expect(again.voice.view().mic).toBe("muted");
+  });
+
+  it("host-muted with the mic off keeps the mic saved off", async () => {
+    const s = setup();
+    await s.voice.join(false);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    expect(s.prefs.room("ABCD").mic).toBe("off");
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.prefs.room("ABCD").mic).toBe("off");
+    expect(s.voice.view().mic).toBe("off");
+  });
+
+  it("unmute while host-muted toasts The host muted you. and sends nothing", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ mode: "ptt" });
+    const s = await joined({ store });
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    s.toasts.length = 0;
+    const before = s.sent.length;
+    const published = s.t().ops("setPublishing").length;
+    s.voice.setMuted(false);
+    expect(s.toasts).toEqual(["The host muted you."]);
+    s.voice.setPtt(true);
+    expect(s.toasts).toEqual(["The host muted you.", "The host muted you."]);
+    expect(s.voice.view().pttHeld).toBe(false);
+    expect(s.sent.length).toBe(before);
+    expect(s.t().ops("setPublishing")).toHaveLength(published);
+    expect(s.t().lastPublished()).not.toBe(s.tracks[0]!.asTrack());
+  });
+
+  it("toasts once on host mute and once on the lift, not for other members", async () => {
+    const s = await joined();
+    expect(s.toasts).toEqual([]);
+    s.voice.onVoiceState([member("me"), member("b", { selfMuted: true, hostMuted: true })]);
+    expect(s.toasts).toEqual([]);
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b", { selfMuted: true, hostMuted: true })]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+    // Another change while still host-muted: no new toast.
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b", { selfMuted: true })]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+    // A reconnect with nothing changed for me: no toast.
+    s.voice.onWelcome();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b", { selfMuted: true })]);
+    expect(s.toasts).toEqual(["The host muted you."]);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b", { selfMuted: true })]);
+    expect(s.toasts).toEqual(["The host muted you.", "You can talk again. Tap the mic to talk."]);
+    s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
+    expect(s.toasts).toHaveLength(2);
+  });
+
+  it("a fresh page host-muted from the start shows no toast", async () => {
+    const store = memoryStore();
+    voicePrefs(store).setRoom("ABCD", { on: true, mic: "on" });
+    const s = setup({ store, perm: "granted" });
+    s.voice.onWelcome();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    await flush();
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    expect(s.toasts).toEqual([]);
   });
 
   it("Mute for me and volume are saved for this room", async () => {

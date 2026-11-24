@@ -52,6 +52,8 @@ export interface VoiceDeps {
   micPermission(): Promise<"granted" | "denied" | "prompt" | "unknown">;
   newSession(): string;
   clock: MeshDeps["clock"];
+  /** A short note for the room's toast. */
+  toast(text: string): void;
 }
 
 /** Signals kept while waiting for the first voice-ice; the oldest go first. */
@@ -60,6 +62,9 @@ export const SIGNAL_QUEUE_MAX = 200;
 export const ICE_REFRESH_WAIT_MS = 3_000;
 /** A volume is saved this long after the last change to it. */
 export const VOLUME_SAVE_MS = 300;
+
+const HOST_MUTED = "The host muted you.";
+const HOST_LIFTED = "You can talk again. Tap the mic to talk.";
 
 /** Talking = joined and not self-muted and not host-muted and rule.canTalk and transport up and (open mic or PTT held) and a live mic track. */
 export function shouldPublish(s: {
@@ -164,7 +169,9 @@ export class VoiceController {
   onVoiceState(members: VoiceMember[]): void {
     if (this.unsupported) return;
     this.guard(() => {
+      const wasHostMuted = this.myEntry()?.hostMuted;
       this.roster = members.map((m) => ({ ...m }));
+      const nowHostMuted = this.myEntry()?.hostMuted;
       const afterWelcome = this.welcomeSinceRoster;
       this.welcomeSinceRoster = false;
       const listed = this.isListed();
@@ -176,6 +183,10 @@ export class VoiceController {
       } else if (this.phase === "idle" && listed && afterWelcome) {
         // Listed from an earlier page, but not joining here: let the others stop trying.
         this.deps.send({ type: "voice-leave" });
+      }
+      // Only a change I saw happen: not a fresh page, and not a reconnect that changed nothing.
+      if (this.phase === "joined" && wasHostMuted !== undefined && nowHostMuted !== undefined && wasHostMuted !== nowHostMuted) {
+        this.toast(nowHostMuted ? HOST_MUTED : HOST_LIFTED);
       }
       this.notify();
     });
@@ -285,7 +296,7 @@ export class VoiceController {
       if (this.phase !== "joined") return;
       if (!muted) {
         // Host-muted: no unmute, and no mic prompt for one.
-        if (this.hostMuted()) return;
+        if (this.hostMuted()) return this.toast(HOST_MUTED);
         this.hearToTalk();
         // Unmuting with no live mic means turning it on.
         if (!this.micLive()) return void this.turnOnMic();
@@ -386,6 +397,7 @@ export class VoiceController {
     if (this.unsupported) return;
     this.guard(() => {
       if (held === this.pttHeld) return;
+      if (held && this.phase === "joined" && this.hostMuted()) return this.toast(HOST_MUTED);
       this.pttHeld = held;
       this.syncPublishing();
       this.notify();
@@ -520,7 +532,8 @@ export class VoiceController {
       if (!r.ok && r.reason !== "cancelled") this.micIssue = "denied";
     }
     const live = this.micLive();
-    this.selfMuted = !live || mic === "muted";
+    // Host-muted (a reload): join muted, so the lift still needs a tap on Unmute.
+    this.selfMuted = !live || mic === "muted" || this.hostMuted();
     if (this.deafened && this.prefs.deafenAlsoMutes) {
       // Deafened before joining: join muted, and undeafen puts back the mute it would have had.
       this.muteBeforeDeafen = this.selfMuted;
@@ -626,13 +639,30 @@ export class VoiceController {
     this.guard(() => t.setPeers(others));
     this.guard(() => t.applyPolicy(this.rule()));
     for (const id of others) this.applyGain(id);
+    this.obeyHostMute();
     this.syncPublishing();
     this.startMeter();
   }
 
-  private hostMuted(): boolean {
+  private myEntry(): VoiceMember | undefined {
     const selfId = this.deps.selfId();
-    return this.roster.find((m) => m.id === selfId)?.hostMuted ?? false;
+    return selfId ? this.roster.find((m) => m.id === selfId) : undefined;
+  }
+
+  private hostMuted(): boolean {
+    return this.myEntry()?.hostMuted ?? false;
+  }
+
+  /**
+   * Host-muted: my own mute is on too, so the lift leaves me muted until I tap
+   * Unmute. Nothing is sent: the server set it already. Saved, so a reload
+   * stays muted. Undeafen does not unmute either.
+   */
+  private obeyHostMute(): void {
+    if (!this.hostMuted()) return;
+    this.selfMuted = true;
+    if (this.muteBeforeDeafen !== null) this.muteBeforeDeafen = true;
+    this.saveMic(this.room().mic === "off" ? "off" : "muted");
   }
 
   // ---- mic and publishing ----
@@ -826,6 +856,10 @@ export class VoiceController {
       this.speaking.clear();
     }
     this.notify();
+  }
+
+  private toast(text: string): void {
+    this.guard(() => this.deps.toast(text));
   }
 
   private notify(): void {
