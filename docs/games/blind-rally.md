@@ -48,6 +48,8 @@ Host picks these in the lobby.
 | Time | **Day**, Dawn, Dusk, Night, Day into night, Random | The light for the whole race. Day into night starts bright and goes dark as you drive. Random picks one for you. Same for everyone. |
 | Rain | **Dry**, Rain, Rain starts, Rain stops, Random | How wet the road is. Rain starts and Rain stops change it while you drive. Wet roads make cars slide more. Random picks one for you. Same for everyone. |
 
+Picking Nightmare shows a warning in the settings: "Very hard. Every help is off."
+
 The Custom toggles (Live car marker, Trip meter, Pace notes, 3D camera, each On or Off) only appear when Assists is set to Custom. Switching to Custom starts from whatever the current preset has.
 
 | Preset | Live car marker | Trip meter | Pace notes | 3D camera |
