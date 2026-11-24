@@ -167,7 +167,8 @@ export function openMySounds(opts: { api: LibraryApi; onClose?(): void }): () =>
     const lengthS = e.decoded.channels[0]!.length / e.decoded.sampleRate;
     const win = clipWindow(lengthS, e.start);
     let slider: HTMLElement | null = null;
-    if (win.cut) {
+    // A file only a hair too long is still cut, but a slider with no room to move is no use.
+    if (win.cut && lengthS - HOST_CUT_S >= 0.1) {
       const label = h("span", {}, startLabel(win.start));
       const range = h("input", {
         type: "range",

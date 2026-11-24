@@ -7,8 +7,15 @@ const WORKER = "http://127.0.0.1:8787";
 export default defineConfig({
   build: {
     rolldownOptions: {
-      // Keep /*! licence notices in the minified files (the mp3 encoder in sounds/encode.ts has one).
-      output: { comments: { legal: true } },
+      output: {
+        // Keep /*! licence notices in the minified files (the mp3 encoder in sounds/encode.ts has one).
+        comments: { legal: true },
+        // The mp3 encoder (LAME, LGPL) in its own file, assets/encode-*.js, that a person can swap.
+        // Only the lazy My sounds chunk imports it. See public/THIRD_PARTY.md.
+        codeSplitting: {
+          groups: [{ name: "encode", test: /[\\/]wasm-media-encoders[\\/]|[\\/]src[\\/]sounds[\\/]encode\.ts$/ }],
+        },
+      },
     },
   },
   server: {

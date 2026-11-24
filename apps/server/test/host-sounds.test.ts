@@ -495,6 +495,7 @@ describe("serveMySounds", () => {
       { "sec-fetch-site": "same-site" },
       { "sec-fetch-site": "none" },
       { origin: "https://x.test", "sec-fetch-site": "cross-site" },
+      { origin: "https://evil.test", "sec-fetch-site": "same-site" },
     ];
     for (const headers of refused) {
       expect((await call(put("1", "A", fakeMp3(), headers))).status, JSON.stringify(headers)).toBe(403);
@@ -503,6 +504,8 @@ describe("serveMySounds", () => {
     expect((await call(put("1", "A", fakeMp3(), { origin: "https://x.test" }))).status).toBe(200);
     expect((await call(put("2", "B", fakeMp3(), { origin: "http://x.test", "sec-fetch-site": "same-origin" }))).status).toBe(200);
     expect((await call(put("3", "C", fakeMp3()))).status).toBe(200);
+    // Behind a dev proxy the Worker sees another host: the browser's Sec-Fetch-Site decides.
+    expect((await call(put("4", "D", fakeMp3(), { origin: "http://localhost:5173", "sec-fetch-site": "same-origin" }))).status).toBe(200);
     // Reads are not checked.
     expect((await call(req("/api/sounds", { headers: { "sec-fetch-site": "cross-site" } }))).status).toBe(200);
   });

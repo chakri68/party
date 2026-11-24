@@ -174,19 +174,23 @@ export async function serveFile(bucket: SoundsBucket, key: string): Promise<Resp
   });
 }
 
-/** A write may only come from this site: Origin (when sent) names our host, and Sec-Fetch-Site (when sent) says same-origin. */
+/**
+ * A write may only come from this site. A browser's Sec-Fetch-Site, when sent, decides: only
+ * "same-origin" passes. It cannot be set by page code, and it does not depend on the host the
+ * Worker sees (a dev proxy or wrangler dev can change that). Without it, Origin (when sent) must
+ * name our host.
+ */
 function sameSite(request: Request, url: URL): boolean {
-  const origin = request.headers.get("origin");
-  if (origin !== null) {
-    if (origin === "null") return false;
-    try {
-      if (new URL(origin).host !== url.host) return false;
-    } catch {
-      return false;
-    }
-  }
   const site = request.headers.get("sec-fetch-site");
-  return site === null || site === "same-origin";
+  if (site !== null) return site === "same-origin";
+  const origin = request.headers.get("origin");
+  if (origin === null) return true;
+  if (origin === "null") return false;
+  try {
+    return new URL(origin).host === url.host;
+  } catch {
+    return false;
+  }
 }
 
 /** Best effort: a file left behind is only space, swept with the library. */
