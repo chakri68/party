@@ -353,8 +353,10 @@ export class Feedback {
   }
 
   update(patch: Partial<FeedbackSettings>): void {
+    const volumeChanged = patch.volume !== undefined && patch.volume !== this.settings.volume;
     this.settings = { ...this.settings, ...patch };
-    this.applyVolume();
+    // Only a new volume touches master: a toggle must not cut a duck ramp.
+    if (volumeChanged) this.applyVolume();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
     } catch {
@@ -413,8 +415,12 @@ export class Feedback {
   private applyVolume() {
     const gain = this.master?.gain;
     if (!gain) return;
-    if (this.ctx) gain.cancelScheduledValues?.(this.ctx.currentTime);
-    gain.value = this.settings.volume * 0.9 * this.duckLevel;
+    const want = this.settings.volume * 0.9 * this.duckLevel;
+    if (this.ctx && typeof gain.setValueAtTime === "function") {
+      gain.cancelScheduledValues?.(this.ctx.currentTime);
+      gain.setValueAtTime(want, this.ctx.currentTime);
+    }
+    gain.value = want;
   }
 }
 

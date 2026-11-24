@@ -15,6 +15,9 @@ class Gain extends Node {
       this.target = v;
     }),
     cancelScheduledValues: vi.fn(),
+    setValueAtTime: vi.fn((v: number, _t: number) => {
+      this.gain.value = v;
+    }),
   };
   target: number | null = null;
 }
@@ -94,11 +97,32 @@ describe("ducking", () => {
     const { fb, master } = unlocked(0.7);
     fb.duck(DUCK_GAIN);
     master.gain.cancelScheduledValues.mockClear();
+    master.gain.setValueAtTime.mockClear();
     fb.update({ volume: 0.4 });
-    expect(master.gain.cancelScheduledValues).toHaveBeenCalled();
+    expect(master.gain.cancelScheduledValues).toHaveBeenCalledWith(2);
+    expect(master.gain.setValueAtTime).toHaveBeenCalledTimes(1);
+    const [v, t] = master.gain.setValueAtTime.mock.calls[0]!;
+    expect(v).toBeCloseTo(0.4 * 0.9 * 0.35);
+    expect(t).toBe(2);
+    expect(master.gain.cancelScheduledValues.mock.invocationCallOrder[0]!).toBeLessThan(master.gain.setValueAtTime.mock.invocationCallOrder[0]!);
     expect(master.gain.value).toBeCloseTo(0.4 * 0.9 * 0.35);
     fb.duck(1);
     expect(master.target).toBeCloseTo(0.4 * 0.9);
+  });
+
+  it("a toggle or the same volume does not cut a duck ramp, but still tells game volume", () => {
+    const { fb, master } = unlocked(0.7);
+    fb.duck(DUCK_GAIN);
+    master.gain.cancelScheduledValues.mockClear();
+    master.gain.setValueAtTime.mockClear();
+    const seen: number[] = [];
+    fb.onGameVolume(() => seen.push(fb.gameVolume()));
+    fb.update({ haptics: false });
+    fb.update({ roomSounds: false });
+    fb.update({ volume: 0.7 });
+    expect(master.gain.cancelScheduledValues).not.toHaveBeenCalled();
+    expect(master.gain.setValueAtTime).not.toHaveBeenCalled();
+    expect(seen).toHaveLength(3);
   });
 
   it("an old gain without setTargetAtTime gets the value", () => {
