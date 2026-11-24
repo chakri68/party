@@ -22,6 +22,8 @@
 
 - **One timer look:** a pill with a small clock icon and the time. Under 60 s it reads `45 s`; from 60 s it reads `1:05`. It turns to the warning colour at 10 s or less. It shows `Paused` while the room is paused. It sits in the game's top row where each game's timer already is.
 - **Bars stay:** where a game also has a draining bar (Cheat's call window, Scribbl's drawing bar), the bar stays; only the number beside it uses the shared format.
+- **Red only when it matters:** the pill turns red at 10 s only in phases where the player has something to do (each game's old rule); reveal and result phases stay plain.
+- **Scribbl on phones:** under 480 px the pill drops its icon so the hidden word fits.
 - **Screen readers:** `role="timer"`, `aria-live="off"`; the pill's `aria-label` is "Time left: 45 seconds" style, updated at most once per 10 s, so readers are not flooded.
 
 ## Review Focus
