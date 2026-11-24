@@ -16,6 +16,7 @@ describe("voicePrefs", () => {
       deafenAlsoMutes: false,
       relayOnly: false,
       duck: true,
+      keepScreenOn: true,
     });
     expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: {}, blocked: [] });
   });
@@ -36,11 +37,21 @@ describe("voicePrefs", () => {
   it("saved prefs without duck read as on", () => {
     const store = memoryStore();
     store.write("voice", JSON.stringify({ mode: "ptt", relayOnly: true }));
-    expect(voicePrefs(store).get()).toEqual({ ...DEFAULT_VOICE_PREFS, mode: "ptt", relayOnly: true, duck: true });
+    expect(voicePrefs(store).get()).toEqual({ ...DEFAULT_VOICE_PREFS, mode: "ptt", relayOnly: true, duck: true, keepScreenOn: true });
     store.write("voice", JSON.stringify({ duck: "no" }));
     expect(voicePrefs(store).get().duck).toBe(true);
     expect(voicePrefs(store).set({ duck: false }).duck).toBe(false);
     expect(voicePrefs(store).get().duck).toBe(false);
+  });
+
+  it("saved prefs without keepScreenOn read as on", () => {
+    const store = memoryStore();
+    store.write("voice", JSON.stringify({ duck: false }));
+    expect(voicePrefs(store).get()).toEqual({ ...DEFAULT_VOICE_PREFS, duck: false, keepScreenOn: true });
+    store.write("voice", JSON.stringify({ keepScreenOn: "no" }));
+    expect(voicePrefs(store).get().keepScreenOn).toBe(true);
+    expect(voicePrefs(store).set({ keepScreenOn: false }).keepScreenOn).toBe(false);
+    expect(voicePrefs(store).get().keepScreenOn).toBe(false);
   });
 
   it("set merges and saves", () => {

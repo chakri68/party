@@ -54,7 +54,12 @@ export interface VoiceDeps {
   clock: MeshDeps["clock"];
   /** A short note for the room's toast. */
   toast(text: string): void;
+  /** A short vibration; the room's follows the haptics setting. */
+  buzz(ms: number): void;
 }
+
+/** How long the phone buzzes when push-to-talk is pressed. */
+export const PTT_BUZZ_MS = 12;
 
 /** Signals kept while waiting for the first voice-ice; the oldest go first. */
 export const SIGNAL_QUEUE_MAX = 200;
@@ -414,6 +419,7 @@ export class VoiceController {
       if (held === this.pttHeld) return;
       if (held && this.phase === "joined" && this.hostMuted()) return this.toast(HOST_MUTED);
       this.pttHeld = held;
+      if (held) this.guard(() => this.deps.buzz(PTT_BUZZ_MS));
       this.syncPublishing();
       this.notify();
     });

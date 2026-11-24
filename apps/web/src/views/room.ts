@@ -40,6 +40,7 @@ import { duckLevel } from "../voice/duck.ts";
 import { voicePrefs } from "../voice/prefs.ts";
 import { PushToTalk } from "../voice/ptt.ts";
 import { VoiceController } from "../voice/voice.ts";
+import { VoiceWakeLock, type WakeSentinel } from "../voice/wake.ts";
 
 const STUCK_AFTER_MS = 15_000;
 
@@ -161,6 +162,7 @@ export class RoomView implements View {
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
   private unduck: (() => void) | null = null;
+  private wake: VoiceWakeLock | null = null;
   private playback: Playback | null = null;
   private ptt: PushToTalk | null = null;
   private voiceBar: VoiceBar | null = null;
@@ -201,6 +203,7 @@ export class RoomView implements View {
     cancelConfirm();
     this.voice?.stop();
     this.unduck?.();
+    this.wake?.destroy();
     // Game sound back to full: nothing here lowers it any more.
     audio.duck(1);
     this.unwatchFrames?.();
@@ -311,6 +314,7 @@ export class RoomView implements View {
       newSession: () => crypto.randomUUID().slice(0, 12),
       clock,
       toast: (text) => this.showToast(text),
+      buzz: (ms) => audio.buzz(ms),
     });
     const ptt = new PushToTalk((held) => voice.setPtt(held));
     ptt.attach(window);
@@ -325,9 +329,23 @@ export class RoomView implements View {
     // Once, in its own slot: renderHeader rebuilds only the parts around it.
     this.headerStart.after(bar.headerMic);
     // Game sound gets quieter while someone else talks. Same level = no-op, so 8 Hz notifies are cheap.
+    // The screen stays on while I am in voice, unless I turned that off.
+    const wakeLock = (navigator as { wakeLock?: { request(type: "screen"): Promise<WakeSentinel> } }).wakeLock;
+    const wake = new VoiceWakeLock({
+      request: wakeLock ? () => wakeLock.request("screen") : null,
+      visible: () => document.visibilityState === "visible",
+      onVisibility: (fn) => {
+        document.addEventListener("visibilitychange", fn);
+        return () => document.removeEventListener("visibilitychange", fn);
+      },
+    });
+    this.wake = wake;
     this.unduck = voice.subscribe(() => {
       try {
-        audio.duck(duckLevel(voice.view(), voice.settings().duck));
+        const view = voice.view();
+        const settings = voice.settings();
+        audio.duck(duckLevel(view, settings.duck));
+        wake.set(view.status === "on" && settings.keepScreenOn);
       } catch {
         // Voice never breaks the room.
       }

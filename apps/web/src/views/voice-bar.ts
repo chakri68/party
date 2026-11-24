@@ -344,8 +344,9 @@ export class VoiceBar {
         setText(this.announce, act.label === "Mute" ? `${who} is muted.` : `${who} can talk again.`);
       });
     }
-    const buttons = block ? h("span", { class: "voice-person-buttons" }, host, block) : null;
-    const li = h("li", { class: "voice-person" }, dot, name, state, volume, buttons);
+    // Line two: the volume, then the host's Mute / Allow to talk, then Mute for me.
+    const controls = volume ? h("div", { class: "voice-person-controls" }, volume, host, block) : null;
+    const li = h("li", { class: "voice-person" }, dot, name, state, controls);
     const row = { li, dot, name, state, volume, block, host };
     this.rows.set(m.id, row);
     return row;
@@ -531,6 +532,7 @@ export class VoiceBar {
         check("Push to talk", p.mode === "ptt", (on) => set({ mode: on ? "ptt" : "open" })),
         check("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => set({ deafenAlsoMutes: on })),
         check("Lower game sound when people talk", p.duck, (on) => set({ duck: on })),
+        check("Keep the screen on in voice", p.keepScreenOn, (on) => set({ keepScreenOn: on })),
         check("Hide my network address", p.relayOnly, (on) => set({ relayOnly: on }), !v.hasTurn),
         v.hasTurn ? null : h("p", { class: "muted setting-hint" }, "Needs a relay server."),
         h("p", { class: "muted" }, "The settings stay on your device."),

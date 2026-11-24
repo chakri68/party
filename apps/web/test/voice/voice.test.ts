@@ -4,7 +4,7 @@ import type { VoiceConnectOptions, VoicePeerStats, VoiceRule, VoiceTransport } f
 import { METER_HZ, Mic, Playback, SPEAK_HOLD_TICKS } from "../../src/voice/audio.ts";
 import type { MeshDeps } from "../../src/voice/mesh.ts";
 import { voicePrefs, type KeyValue } from "../../src/voice/prefs.ts";
-import { ICE_REFRESH_WAIT_MS, shouldPublish, SIGNAL_QUEUE_MAX, VOLUME_SAVE_MS, VoiceController } from "../../src/voice/voice.ts";
+import { ICE_REFRESH_WAIT_MS, PTT_BUZZ_MS, shouldPublish, SIGNAL_QUEUE_MAX, VOLUME_SAVE_MS, VoiceController } from "../../src/voice/voice.ts";
 import { FakeAudioEnv, FakeTrack, fakeStream } from "./fake-audio.ts";
 import { FakeClock, flush } from "./fake-rtc.ts";
 import { memoryStore } from "./fake-store.ts";
@@ -106,6 +106,7 @@ function setup(opts: Opts = {}) {
     return fakeStream([t]);
   });
   const mic = new Mic(gum, false, env);
+  const buzzes: number[] = [];
   const clock = new FakeClock();
   const store = opts.store ?? memoryStore();
   const prefs = voicePrefs(store);
@@ -131,6 +132,7 @@ function setup(opts: Opts = {}) {
     newSession: () => `s${++sessions}`,
     clock,
     toast: (text) => toasts.push(text),
+    buzz: (ms) => buzzes.push(ms),
   });
   const types = () => sent.map((m) => m.type);
   const t = (i = 0) => {
@@ -138,7 +140,7 @@ function setup(opts: Opts = {}) {
     if (!x) throw new Error(`no transport ${i}`);
     return x;
   };
-  return { sent, toasts, types, transports, t, env, playback, tracks, gum, mic, clock, store, prefs, voice, release: () => hang?.() };
+  return { sent, toasts, buzzes, types, transports, t, env, playback, tracks, gum, mic, clock, store, prefs, voice, release: () => hang?.() };
 }
 
 /** Joined, in the roster with b, and connected. */
@@ -354,6 +356,27 @@ describe("VoiceController", () => {
     await s.voice.updatePrefs({ mode: "open" });
     expect(s.voice.view().mode).toBe("open");
     expect(s.t().lastPublished()).toBe(s.tracks[0]!.asTrack());
+  });
+
+  it("push-to-talk press buzzes once; release does not", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ mode: "ptt" });
+    const s = await joined({ store });
+    expect(PTT_BUZZ_MS).toBe(12);
+    s.voice.setPtt(true);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS]);
+    s.voice.setPtt(true);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS]);
+    s.voice.setPtt(false);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS]);
+    s.voice.setPtt(true);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS, PTT_BUZZ_MS]);
+    s.voice.setPtt(false);
+    // Host-muted: the toast says it, no buzz.
+    s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
+    s.voice.setPtt(true);
+    expect(s.buzzes).toEqual([PTT_BUZZ_MS, PTT_BUZZ_MS]);
+    expect(s.toasts.at(-1)).toBe("The host muted you.");
   });
 
   it("deafen with deafenAlsoMutes mutes, and undeafen puts back the old state", async () => {

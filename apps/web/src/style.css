@@ -206,9 +206,13 @@ input::placeholder { color: rgb(156 152 136 / 0.6); }
    sound board. */
 .room-header.focus .emote-wrap { position: static; }
 .room-header.focus .emote-bar { top: calc(100% - 4px); }
+/* The buttons look 36 px but take taps 2 px past each edge: a 40 px hit area.
+   The header's 8 px gap leaves 4 px between hit areas, so they never overlap. */
 @media (max-width: 400px) {
   .room-header.focus .icon-btn:not(.signal),
-  .room-header.focus .voice-header-mic .voice-mic { min-width: 36px; min-height: 36px; }
+  .room-header.focus .voice-header-mic .voice-mic { min-width: 36px; min-height: 36px; position: relative; }
+  .room-header.focus .icon-btn:not(.signal)::after,
+  .room-header.focus .voice-header-mic .voice-mic::after { content: ""; position: absolute; inset: -2px; }
 }
 .room-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .game-host { flex: 1; display: flex; flex-direction: column; }
@@ -770,16 +774,24 @@ select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .voice-actions button { min-height: 44px; }
 .voice-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+/* Two lines for each other person: the dot, name and state; then the volume,
+   the host's button and Mute for me. Same at every width, so rows line up. */
 .voice-person { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 44px; }
-.voice-person .name { flex: 1; min-width: 6em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.voice-person-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.voice-person .name { flex: 1 1 0; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-person-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
 .voice-person.speaking .voice-person-dot { background: var(--accent); }
-.voice-person-state { font-size: 0.8rem; }
-.voice-volume { width: 110px; min-height: 44px; padding: 0; border: none; background: none; accent-color: var(--accent); }
-.voice-person button.small { min-height: 44px; padding: 0 12px; font-size: 0.85rem; }
-/* The host's Mute / Allow to talk sits next to Mute for me. */
-.voice-person-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
-.voice-person-buttons button[hidden] { display: none; }
+.voice-person-state { flex: none; font-size: 0.8rem; }
+.voice-person-controls { flex: 1 0 100%; display: flex; align-items: center; gap: 6px; }
+.voice-volume { flex: 1 1 140px; min-width: 64px; min-height: 44px; margin: 0; padding: 0; border: none; background: none; accent-color: var(--accent); }
+.voice-person button.small { flex: none; min-height: 44px; padding: 0 12px; font-size: 0.85rem; white-space: nowrap; }
+.voice-person button[hidden] { display: none; }
+/* Mute and Allow to talk take the same width, so the sliders line up and the
+   row does not jump when the host taps it. */
+.voice-person .voice-host-mute { min-width: 8em; }
+@media (max-width: 400px) {
+  .voice-person button.small { padding: 0 8px; }
+  .voice-person .voice-host-mute { min-width: 7.5em; }
+}
 .voice-person button.small[aria-pressed="true"] { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
 .voice-dialog .voice-panel { min-width: min(320px, 80vw); }
 .voice-dialog p { margin: 0 0 8px; }

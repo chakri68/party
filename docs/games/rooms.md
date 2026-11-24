@@ -172,6 +172,8 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - If the phone blocks sound, tap **Tap to turn on sound**. If your mic stops (a call, or you pulled out a headset), tap **Tap to talk again.**
 - If the host mutes you, you see "The host muted you." You cannot unmute until the host allows it. If you reload the page, you see it again. In the **Voice** panel, others see "muted by host" next to your name. When the host allows it, you see "You can talk again. Tap the mic to talk."
 - If you leave voice and join again, the host mute is gone. The host can mute you again.
+- While you are in voice, the screen stays on. To turn this off, use "Keep the screen on in voice" in voice settings.
+- Push to talk: the phone gives a short buzz when you press the mic button, if vibration is on.
 - Voice stays on between games. It stops when you leave voice, leave the room, or the party ends.
 - If you reload the page, voice comes back as you left it. If you were muted, you stay muted. If your mic was off, or you picked **Listen only**, it stays off.
 - If the mic you picked in settings is gone (for example, you unplugged a headset), voice uses your other mic.
@@ -180,7 +182,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - There is no voice bar. Once you are in voice, your mic button is in the top row, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.
 
-The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", and "Lower game sound when people talk" (on at first). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
+The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), and "Keep the screen on in voice" (on at first; turn it off to save battery). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
 The settings stay on your device. No one records your voice.
 
