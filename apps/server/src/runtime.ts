@@ -1580,7 +1580,6 @@ export class RoomRuntime {
   }
 }
 
-/** A library id the room keeps: any non-empty string. Its format is checked where it is made. */
 /** A host sound library id: 1 to 64 letters, digits, "_" or "-". It names an R2 key prefix, so nothing else is allowed. */
 export const LIBRARY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 

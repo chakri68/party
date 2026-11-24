@@ -24,11 +24,15 @@ import { createFetch } from "../src/worker.ts";
 
 const KEY = "secret";
 
-/** A fake R2 bucket over a Map. put honours onlyIf.etagMatches; each put gets a new etag. */
+/**
+ * A fake R2 bucket over a Map. put honours onlyIf.etagMatches and etagDoesNotMatch "*";
+ * each put gets a new etag. state.beforeIndexPut runs once, just before the next
+ * index put is checked, to let another request land in between.
+ */
 function fakeBucket() {
   const objects = new Map<string, { bytes: Uint8Array; etag: string; contentType?: string }>();
   let n = 0;
-  const state = { failIndexPuts: 0, writes: 0 };
+  const state = { failIndexPuts: 0, writes: 0, beforeIndexPut: null as null | (() => Promise<unknown>) };
   const toBytes = async (value: unknown): Promise<Uint8Array> => {
     if (typeof value === "string") return new TextEncoder().encode(value);
     if (value instanceof Uint8Array) return new Uint8Array(value);
@@ -61,13 +65,23 @@ function fakeBucket() {
         },
       };
     },
-    async put(key: string, value: unknown, opts?: { onlyIf?: { etagMatches?: string }; httpMetadata?: { contentType?: string } }) {
+    async put(
+      key: string,
+      value: unknown,
+      opts?: { onlyIf?: { etagMatches?: string; etagDoesNotMatch?: string }; httpMetadata?: { contentType?: string } },
+    ) {
+      if (key.endsWith("/index.json") && state.beforeIndexPut) {
+        const run = state.beforeIndexPut;
+        state.beforeIndexPut = null;
+        await run();
+      }
       if (key.endsWith("/index.json") && state.failIndexPuts > 0) {
         state.failIndexPuts--;
         return null;
       }
       const want = opts?.onlyIf?.etagMatches;
       if (want !== undefined && objects.get(key)?.etag !== want) return null;
+      if (opts?.onlyIf?.etagDoesNotMatch === "*" && objects.has(key)) return null;
       const o = { bytes: await toBytes(value), etag: `e${++n}`, contentType: opts?.httpMetadata?.contentType };
       objects.set(key, o);
       state.writes++;
@@ -110,6 +124,8 @@ const storedIndex = (objects: Map<string, { bytes: Uint8Array }>, library = "own
   const o = objects.get(indexKey(library));
   return o ? (JSON.parse(new TextDecoder().decode(o.bytes)) as { slots: HostSlot[] }).slots : null;
 };
+const fileKeys = (objects: Map<string, unknown>) => [...objects.keys()].filter((k) => k.endsWith(".mp3")).sort();
+const vOf = (objects: Map<string, { bytes: Uint8Array }>, id: string) => storedIndex(objects)!.find((s) => s.id === id)?.v;
 const policyGiving = (owner: SoundOwner | null): HostPolicy => ({
   canCreate: ownerKeyPolicy.canCreate,
   soundOwner: async () => owner,
@@ -154,10 +170,11 @@ describe("serveMySounds", () => {
     const bytes = fakeMp3();
     const res = await call(put("3", " Bruh ", bytes));
     expect(res.status).toBe(200);
-    const file = objects.get(libKey("owner", "3"));
+    const slots = storedIndex(objects)!;
+    const file = objects.get(libKey("owner", "3", slots[0]!.v));
     expect(file?.bytes).toEqual(bytes);
     expect(file?.contentType).toBe("audio/mpeg");
-    const slots = storedIndex(objects)!;
+    expect(fileKeys(objects)).toEqual([`lib/owner/3-${slots[0]!.v}.mp3`]);
     expect(slots).toHaveLength(1);
     expect(slots[0]).toMatchObject({ id: "3", name: "Bruh", ms: 2400 });
     expect(slots[0]!.v).toMatch(/^[0-9a-f]{10}$/);
@@ -240,6 +257,11 @@ describe("serveMySounds", () => {
     const v2 = storedIndex(objects)![0]!.v;
     expect(v2).not.toBe(v1);
     expect(storedIndex(objects)![0]!.ms).toBe(1200);
+    // The old version's file is gone; only the new one is left.
+    expect(fileKeys(objects)).toEqual([libKey("owner", "3", v2)]);
+    // The same bytes again keep v and the file.
+    await call(put("3", "Bruh", fakeMp3({ frames: 50 })));
+    expect(fileKeys(objects)).toEqual([libKey("owner", "3", v2)]);
 
     const renamed = await call(patch("3", { name: " Wow " }));
     expect(renamed.status).toBe(200);
@@ -256,17 +278,23 @@ describe("serveMySounds", () => {
     }
     const notJson = await call(req("/api/sounds/3", { method: "PATCH", body: "{", headers: { "content-type": "application/json" } }));
     expect(notJson.status).toBe(400);
+    const huge = JSON.stringify({ name: "Ok", pad: "x".repeat(2000) });
+    const tooBig = await call(req("/api/sounds/3", { method: "PATCH", body: huge, headers: { "content-type": "application/json" } }));
+    expect(tooBig.status).toBe(400);
+    expect(await tooBig.json()).toEqual({ error: "A name has 1 to 24 letters." });
+    expect(storedIndex(objects)![0]!.name).toBe("Wow");
   });
 
   it("remove takes the slot and the file", async () => {
     const { call, objects } = setup();
     await call(put("3", "Bruh", fakeMp3()));
-    await call(put("1", "One", fakeMp3()));
+    await call(put("1", "One", fakeMp3({ frames: 10 })));
+    const v1 = vOf(objects, "1")!;
     const res = await call(del("3"));
     expect(res.status).toBe(200);
     expect((await body(res)).slots.map((s) => s.id)).toEqual(["1"]);
     expect(storedIndex(objects)!.map((s) => s.id)).toEqual(["1"]);
-    expect(objects.has(libKey("owner", "3"))).toBe(false);
+    expect(fileKeys(objects)).toEqual([libKey("owner", "1", v1)]);
     const again = await call(del("3"));
     expect(again.status).toBe(200);
     expect((await body(again)).slots.map((s) => s.id)).toEqual(["1"]);
@@ -284,7 +312,7 @@ describe("serveMySounds", () => {
     const listed = await body(list);
     expect(listed.active).toBe(false);
     expect(listed.slots.map((s) => s.id)).toEqual(["1", "2"]);
-    expect((await call(req("/api/sounds/1"))).status).toBe(200);
+    expect((await call(req(`/api/sounds/1?v=${vOf(live.objects, "1")}`))).status).toBe(200);
     expect((await call(patch("1", { name: "Uno" }))).status).toBe(200);
     expect((await call(del("2"))).status).toBe(200);
 
@@ -293,21 +321,68 @@ describe("serveMySounds", () => {
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "Get Host Pass to add sounds." });
     expect(live.state.writes).toBe(writes);
-    expect(live.objects.has(libKey("owner", "3"))).toBe(false);
+    expect(fileKeys(live.objects).some((k) => k.startsWith("lib/owner/3-"))).toBe(false);
   });
 
   it("serves the owner's own file", async () => {
-    const { call } = setup();
+    const { call, objects } = setup();
     const bytes = fakeMp3();
     await call(put("3", "Bruh", bytes));
-    const res = await call(req("/api/sounds/3?v=x"));
+    const v = vOf(objects, "3")!;
+    const res = await call(req(`/api/sounds/3?v=${v}`));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("audio/mpeg");
     expect(res.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
     expect(res.headers.get("etag")).toBeTruthy();
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
-    expect((await call(req("/api/sounds/2"))).status).toBe(404);
+    expect((await call(req(`/api/sounds/2?v=${v}`))).status).toBe(404);
+  });
+
+  it("a bad or missing v is a 404", async () => {
+    const { call, objects } = setup();
+    await call(put("3", "Bruh", fakeMp3()));
+    const v = vOf(objects, "3")!;
+    for (const q of ["", "?v=", "?v=x", `?v=${v.toUpperCase()}`, `?v=${v}0`, "?v=../../x", "?v=0123456789"]) {
+      expect((await call(req(`/api/sounds/3${q}`))).status).toBe(404);
+    }
+  });
+
+  it("two tabs replacing one slot leave one file, the one the index names", async () => {
+    const { call, objects, state } = setup();
+    await call(put("3", "Old", fakeMp3({ frames: 10 })));
+    // Tab B saves while tab A is between its read and its index write.
+    state.beforeIndexPut = () => call(put("3", "B", fakeMp3({ frames: 30 })));
+    expect((await call(put("3", "A", fakeMp3({ frames: 20 })))).status).toBe(200);
+    const slots = storedIndex(objects)!;
+    expect(slots).toHaveLength(1);
+    expect(slots[0]!.name).toBe("A");
+    expect(fileKeys(objects)).toEqual([libKey("owner", "3", slots[0]!.v)]);
+  });
+
+  it("a save racing a remove keeps the index and files in step", async () => {
+    const { call, objects, state } = setup();
+    await call(put("3", "Old", fakeMp3({ frames: 10 })));
+    // The remove lands between the save's file write and its index write.
+    state.beforeIndexPut = () => call(del("3"));
+    expect((await call(put("3", "New", fakeMp3({ frames: 20 })))).status).toBe(200);
+    const slots = storedIndex(objects)!;
+    expect(slots.map((s) => s.name)).toEqual(["New"]);
+    expect(fileKeys(objects)).toEqual([libKey("owner", "3", slots[0]!.v)]);
+
+    // The other order: the save lands while the remove is between read and write.
+    state.beforeIndexPut = () => call(put("3", "Newer", fakeMp3({ frames: 30 })));
+    expect((await call(del("3"))).status).toBe(200);
+    expect(storedIndex(objects)).toEqual([]);
+    expect(fileKeys(objects)).toEqual([]);
+  });
+
+  it("two first saves at once keep both slots", async () => {
+    const { call, objects, state } = setup();
+    state.beforeIndexPut = () => call(put("2", "Two", fakeMp3()));
+    expect((await call(put("1", "One", fakeMp3()))).status).toBe(200);
+    expect(storedIndex(objects)!.map((s) => s.id)).toEqual(["1", "2"]);
   });
 
   it("a race on the index retries and keeps both slots", async () => {
@@ -323,6 +398,8 @@ describe("serveMySounds", () => {
     expect(lost.status).toBe(409);
     expect(await lost.json()).toEqual({ error: "Could not save. Try again." });
     expect(storedIndex(objects)!.map((s) => s.id)).toEqual(["1", "2"]);
+    // The lost save's file stays, unnamed: it goes when the library is deleted.
+    expect(fileKeys(objects).filter((k) => k.startsWith("lib/owner/4-"))).toHaveLength(1);
   });
 
   it("a real etag race keeps the other writer's slot", async () => {
@@ -380,10 +457,13 @@ describe("serveMySounds", () => {
     const a = put("1", "A", fakeMp3(), { "x-lib": "a" });
     expect((await serveMySounds(a, env, byHeader))!.status).toBe(200);
     const listA = await serveMySounds(req("/api/sounds", { headers: { "x-lib": "a" } }), env, byHeader);
-    expect((await body(listA!)).slots.map((s) => s.id)).toEqual(["1"]);
+    const bodyA = await body(listA!);
+    expect(bodyA.slots.map((s) => s.id)).toEqual(["1"]);
     const listB = await serveMySounds(req("/api/sounds", { headers: { "x-lib": "b" } }), env, byHeader);
     expect((await body(listB!)).slots).toEqual([]);
-    expect((await serveMySounds(req("/api/sounds/1", { headers: { "x-lib": "b" } }), env, byHeader))!.status).toBe(404);
+    const v = bodyA.slots[0]!.url.split("?v=")[1];
+    expect((await serveMySounds(req(`/api/sounds/1?v=${v}`, { headers: { "x-lib": "a" } }), env, byHeader))!.status).toBe(200);
+    expect((await serveMySounds(req(`/api/sounds/1?v=${v}`, { headers: { "x-lib": "b" } }), env, byHeader))!.status).toBe(404);
   });
 
   it("a library id with odd characters is refused", async () => {
@@ -404,8 +484,25 @@ describe("serveMySounds", () => {
     const evilPatch = req("/api/sounds/1", { method: "PATCH", body: "{}", headers: { origin: "https://evil.test" } });
     expect((await call(evilPatch)).status).toBe(403);
     expect(state.writes).toBe(0);
+    const refused: Record<string, string>[] = [
+      { origin: "null" },
+      { origin: "not a url" },
+      { origin: "https://x.test.evil.test" },
+      { origin: "https://x.test:8443" },
+      { "sec-fetch-site": "cross-site" },
+      { "sec-fetch-site": "same-site" },
+      { "sec-fetch-site": "none" },
+      { origin: "https://x.test", "sec-fetch-site": "cross-site" },
+    ];
+    for (const headers of refused) {
+      expect((await call(put("1", "A", fakeMp3(), headers))).status, JSON.stringify(headers)).toBe(403);
+    }
+    expect(state.writes).toBe(0);
     expect((await call(put("1", "A", fakeMp3(), { origin: "https://x.test" }))).status).toBe(200);
-    expect((await call(put("2", "B", fakeMp3()))).status).toBe(200);
+    expect((await call(put("2", "B", fakeMp3(), { origin: "http://x.test", "sec-fetch-site": "same-origin" }))).status).toBe(200);
+    expect((await call(put("3", "C", fakeMp3()))).status).toBe(200);
+    // Reads are not checked.
+    expect((await call(req("/api/sounds", { headers: { "sec-fetch-site": "cross-site" } }))).status).toBe(200);
   });
 
   it("other methods get a 405", async () => {
@@ -434,7 +531,7 @@ describe("helpers", () => {
   });
 
   it("keys are under lib/<library>/", () => {
-    expect(libKey("owner", "3")).toBe("lib/owner/3.mp3");
+    expect(libKey("owner", "3", "0123456789")).toBe("lib/owner/3-0123456789.mp3");
     expect(indexKey("owner")).toBe("lib/owner/index.json");
   });
 

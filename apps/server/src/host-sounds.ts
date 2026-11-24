@@ -1,5 +1,6 @@
 // A host's own sounds (step 2), in the R2 bucket bound as SOUNDS:
-// lib/<library>/<slot>.mp3 and lib/<library>/index.json. The owner API here
+// lib/<library>/<slot>-<v>.mp3 and lib/<library>/index.json. Each version of a
+// slot has its own key, so a cached ?v= URL never serves other bytes. The owner API here
 // lists, saves, renames and removes them. Without SOUNDS, or without a
 // policy.soundOwner, every route is a 404 and nobody has host sounds.
 import { cleanSoundName, HOST_SOUND_MAX_BYTES, isHostSlot, MAX_SOUND_MS } from "@games/sounds/check";
@@ -16,7 +17,8 @@ export interface SoundsEnv {
   SOUNDS?: SoundsBucket;
 }
 
-export const libKey = (library: string, slot: string): string => `lib/${library}/${slot}.mp3`;
+/** One version of a slot's file. `v` is the index's hash, so a key never changes its bytes. */
+export const libKey = (library: string, slot: string, v: string): string => `lib/${library}/${slot}-${v}.mp3`;
 export const indexKey = (library: string): string => `lib/${library}/index.json`;
 
 /** One slot in the index. `v` is the first 10 hex characters of the file's sha256. */
@@ -45,7 +47,8 @@ export const PRIVATE_IMMUTABLE = "private, max-age=31536000, immutable";
 /** Bytes after the last good frame we still take: an ID3v1 tag's worth. */
 const MAX_TRAILING = 128;
 const INDEX_TRIES = 3;
-const V_RE = /^[0-9a-f]{10}$/;
+export const V_RE = /^[0-9a-f]{10}$/;
+const MAX_PATCH_BYTES = 1024;
 
 const NOT_OWNER = "Only the host can change these sounds.";
 const NOT_SOUND = "This file is not a sound we can use.";
@@ -104,7 +107,8 @@ async function updateIndex(
     const sorted = [...next].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const wrote = await bucket.put(indexKey(library), JSON.stringify({ slots: sorted }), {
       httpMetadata: { contentType: "application/json" },
-      ...(etag !== null && { onlyIf: { etagMatches: etag } }),
+      // The first index is create-only, so two first saves can't both land.
+      onlyIf: etag !== null ? { etagMatches: etag } : { etagDoesNotMatch: "*" },
     });
     if (wrote) return { slots: sorted };
   }
@@ -164,8 +168,33 @@ export async function serveFile(bucket: SoundsBucket, key: string): Promise<Resp
       "cache-control": PRIVATE_IMMUTABLE,
       etag: obj.httpEtag,
       "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; sandbox",
     },
   });
+}
+
+/** A write may only come from this site: Origin (when sent) names our host, and Sec-Fetch-Site (when sent) says same-origin. */
+function sameSite(request: Request, url: URL): boolean {
+  const origin = request.headers.get("origin");
+  if (origin !== null) {
+    if (origin === "null") return false;
+    try {
+      if (new URL(origin).host !== url.host) return false;
+    } catch {
+      return false;
+    }
+  }
+  const site = request.headers.get("sec-fetch-site");
+  return site === null || site === "same-origin";
+}
+
+/** Best effort: a file left behind is only space, swept with the library. */
+async function dropFile(bucket: SoundsBucket, key: string): Promise<void> {
+  try {
+    await bucket.delete(key);
+  } catch (err) {
+    console.error(`host sounds: could not delete ${key}:`, err);
+  }
 }
 
 const PATH = /^\/api\/sounds(?:\/([^/]+))?$/;
@@ -182,8 +211,7 @@ export async function serveMySounds(request: Request, env: ServerEnv, policy: Ho
   if (!owner || !isLibraryId(owner.library)) return error(NOT_OWNER, 403);
   const { library, active } = owner;
   const write = request.method !== "GET" && request.method !== "HEAD";
-  const origin = request.headers.get("origin");
-  if (write && origin !== null && origin !== url.origin) return error(NOT_OWNER, 403);
+  if (write && !sameSite(request, url)) return error(NOT_OWNER, 403);
 
   const slot = match[1];
   if (slot === undefined) {
@@ -193,8 +221,12 @@ export async function serveMySounds(request: Request, env: ServerEnv, policy: Ho
   if (!isHostSlot(slot)) return notFound();
 
   switch (request.method) {
-    case "GET":
-      return serveFile(bucket, libKey(library, slot));
+    case "GET": {
+      // The version is in the URL, so no index read: a bad or missing v is a 404.
+      const v = url.searchParams.get("v");
+      if (v === null || !V_RE.test(v)) return notFound();
+      return serveFile(bucket, libKey(library, slot, v));
+    }
 
     case "PUT": {
       if (!active) return error(NEED_PASS, 403);
@@ -212,18 +244,27 @@ export async function serveMySounds(request: Request, env: ServerEnv, policy: Ho
 
       const entry: HostSlot = { id: slot, name, ms: mp3.ms, v: await hashV(bytes) };
       // The file first, then the index: an index never names a file that isn't there.
-      await bucket.put(libKey(library, slot), bytes, { httpMetadata: { contentType: "audio/mpeg" } });
-      const done = await updateIndex(bucket, library, (slots) => [...slots.filter((s) => s.id !== slot), entry]);
+      // On a 409 the new file stays behind, unnamed; it goes when the library does.
+      await bucket.put(libKey(library, slot, entry.v), bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+      let replaced: string | undefined;
+      const done = await updateIndex(bucket, library, (slots) => {
+        replaced = slots.find((s) => s.id === slot)?.v;
+        return [...slots.filter((s) => s.id !== slot), entry];
+      });
       if ("conflict" in done) return error(CONFLICT, 409);
+      if (replaced !== undefined && replaced !== entry.v) await dropFile(bucket, libKey(library, slot, replaced));
       return listBody(active, "slots" in done ? done.slots : done.unchanged);
     }
 
     case "PATCH": {
-      let raw: unknown;
-      try {
-        raw = await request.json();
-      } catch {
-        raw = null;
+      const text = await readCapped(request.body, MAX_PATCH_BYTES);
+      let raw: unknown = null;
+      if (text) {
+        try {
+          raw = JSON.parse(new TextDecoder().decode(text));
+        } catch {
+          raw = null;
+        }
       }
       const name = cleanSoundName(raw && typeof raw === "object" ? (raw as { name?: unknown }).name : undefined);
       if (name === null) return error(BAD_NAME, 400);
@@ -237,11 +278,13 @@ export async function serveMySounds(request: Request, env: ServerEnv, policy: Ho
 
     case "DELETE": {
       // The index first, then the file: an index never names a file that isn't there.
-      const done = await updateIndex(bucket, library, (slots) =>
-        slots.some((s) => s.id === slot) ? slots.filter((s) => s.id !== slot) : null,
-      );
+      let removed: string | undefined;
+      const done = await updateIndex(bucket, library, (slots) => {
+        removed = slots.find((s) => s.id === slot)?.v;
+        return removed === undefined ? null : slots.filter((s) => s.id !== slot);
+      });
       if ("conflict" in done) return error(CONFLICT, 409);
-      await bucket.delete(libKey(library, slot));
+      if (removed !== undefined) await dropFile(bucket, libKey(library, slot, removed));
       return listBody(active, "slots" in done ? done.slots : done.unchanged);
     }
 
