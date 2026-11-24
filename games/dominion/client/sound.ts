@@ -6,7 +6,7 @@
 // Sounds follow only events this player received, which are already redacted
 // to what they could see: a sound never hints at anything in the fog.
 
-import { audio } from "@games/audio";
+import { audio, DUCK_ATTACK_S, DUCK_RELEASE_S } from "@games/audio";
 import manifestJson from "./assets/manifest.json";
 import type { AssetManifest } from "./assets.ts";
 
@@ -77,6 +77,10 @@ class Sound {
   private last = new Map<Sfx, number>();
   private music: { id: Music; node: AudioBufferSourceNode; gain: GainNode } | null = null;
   private wantMusic: Music | null = null;
+  /** Where `out` is headed: audio.gameVolume() x 0.8. */
+  private outLevel = 0;
+  private offVolume: (() => void) | null = null;
+  private dead = false;
 
   constructor() {
     // Same rule as the shell: wake up on the first gesture, not before.
@@ -132,19 +136,36 @@ class Sound {
   }
 
   private wake(): boolean {
+    if (this.dead) return false;
     try {
       if (!this.ctx) {
         this.ctx = new AudioContext();
         this.out = this.ctx.createGain();
+        this.outLevel = audio.gameVolume() * 0.8;
+        this.out.gain.value = this.outLevel;
         this.out.connect(this.ctx.destination);
+        // Volume and ducking: quieter while people talk, like the shell's sound.
+        this.offVolume = audio.onGameVolume(() => this.follow());
         if (this.wantMusic) this.mood(this.wantMusic);
       }
       if (this.ctx.state === "suspended") void this.ctx.resume();
-      this.out!.gain.value = audio.settings.volume * 0.8;
       return this.ctx.state !== "closed";
     } catch {
       return false;
     }
+  }
+
+  /** Moves `out` to the game volume: fast going down, slower coming back. */
+  private follow(): void {
+    const ctx = this.ctx;
+    const gain = this.out?.gain;
+    if (!ctx || !gain) return;
+    const want = audio.gameVolume() * 0.8;
+    if (want === this.outLevel) return;
+    const down = want < this.outLevel;
+    this.outLevel = want;
+    gain.cancelScheduledValues(ctx.currentTime);
+    gain.setTargetAtTime(want, ctx.currentTime, down ? DUCK_ATTACK_S : DUCK_RELEASE_S);
   }
 
   private buffer(url: string): Promise<AudioBuffer | null> {
@@ -209,6 +230,9 @@ class Sound {
   }
 
   destroy(): void {
+    this.dead = true;
+    this.offVolume?.();
+    this.offVolume = null;
     this.mood(null);
     void this.ctx?.close();
     this.ctx = null;

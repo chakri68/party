@@ -43,3 +43,51 @@ describe("SoundFeed", () => {
     expect(sent).toHaveLength(2);
   });
 });
+
+// Voice phase 3 Task 5: Godot gets the ducked volume, and a duck change at once.
+
+describe("SoundFeed and ducking", () => {
+  const setup = (start = { sound: true, volume: 0.245 }) => {
+    const sent: BridgeCall[][] = [];
+    const settings = { ...start };
+    const listeners = new Set<() => void>();
+    const onChange = (fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    };
+    const fire = () => [...listeners].forEach((fn) => fn());
+    const feed = new SoundFeed((calls) => sent.push(calls), () => settings, onChange);
+    return { feed, sent, settings, listeners, fire };
+  };
+
+  it("ready sends the ducked volume", () => {
+    const { feed, sent } = setup();
+    feed.ready();
+    expect(sent).toEqual([[{ fn: "sound", arg: { muted: false, volume: 0.245 } }]]);
+  });
+
+  it("a duck change is sent at once", () => {
+    const { feed, sent, settings, fire } = setup({ sound: true, volume: 0.7 });
+    fire();
+    expect(sent).toEqual([]);
+    feed.ready();
+    settings.volume = 0.245;
+    fire();
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual([{ fn: "sound", arg: { muted: false, volume: 0.245 } }]);
+    fire();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("destroy stops listening", () => {
+    const { feed, sent, settings, listeners, fire } = setup();
+    feed.ready();
+    expect(listeners.size).toBe(1);
+    feed.destroy();
+    expect(listeners.size).toBe(0);
+    settings.volume = 0.7;
+    fire();
+    feed.poll();
+    expect(sent).toHaveLength(1);
+  });
+});
