@@ -104,8 +104,11 @@ export function attachDebug(
   let voiceTimer: ReturnType<typeof setInterval> | null = null;
   /** Bumped on each read and on stop, so a late answer never draws over a newer one. */
   let voiceRead = 0;
+  /** A read is out: the next tick skips, so slow reads never pile up. */
+  let voiceBusy = false;
   const refreshVoice = () => {
-    if (!voice || panel.hidden) return;
+    if (!voice || panel.hidden || document.hidden || voiceBusy) return;
+    voiceBusy = true;
     const n = ++voiceRead;
     void voice
       .stats()
@@ -117,7 +120,8 @@ export function attachDebug(
         } catch {
           voicePre.textContent = "-";
         }
-      });
+      })
+      .finally(() => (voiceBusy = false));
   };
   const stopVoice = () => {
     if (voiceTimer !== null) clearInterval(voiceTimer);

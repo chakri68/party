@@ -48,10 +48,11 @@ class FakeTransport implements VoiceTransport {
   setRemoteGain(peerId: string, gain: number) {
     this.rec("setRemoteGain", peerId, gain);
   }
-  /** What getStats gives; an Error makes it reject. */
-  statsResult: VoicePeerStats[] | Error = [];
+  /** What getStats gives; an Error makes it reject, "throw" makes it throw before returning a promise. */
+  statsResult: VoicePeerStats[] | Error | "throw" = [];
   getStats(): Promise<VoicePeerStats[]> {
     this.rec("getStats");
+    if (this.statsResult === "throw") throw new Error("getStats threw");
     return this.statsResult instanceof Error ? Promise.reject(this.statsResult) : Promise.resolve(this.statsResult);
   }
   disconnect() {
@@ -295,8 +296,14 @@ describe("VoiceController", () => {
   });
 
   it("stats never rejects when the transport throws", async () => {
-    const s = await joined({ badTransport: true });
+    const s = await joined();
+    const row: VoicePeerStats = { peerId: "b", rttMs: 43, packetsLost: 7, relayed: true };
+    s.t().statsResult = [row];
+    // Joined and up: the transport is really asked.
+    expect(await s.voice.stats()).toEqual([row]);
+    s.t().statsResult = "throw";
     await expect(s.voice.stats()).resolves.toEqual([]);
+    expect(s.t().ops("getStats")).toHaveLength(2);
   });
 
   it("voice-full stops the mic and shows full", async () => {
