@@ -1,6 +1,6 @@
 import { AnimationQueue, bubble } from "@games/animation";
 import { audio } from "@games/audio";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import type { Choice, FaceOffEvent, FaceOffPrivateState, FaceOffPublicState, Outcome } from "../shared/types.ts";
 
 type Pub = FaceOffPublicState;
@@ -27,18 +27,15 @@ function textEntry(el: Element | null): boolean {
   return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
 }
 
-const mmss = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
-
 export class FaceOffView implements GameView {
   private api: GameClientApi;
   private props: GameViewProps | null = null;
 
   private root = h("div", { class: "fo" });
   private target = h("span", { class: "fo-target" });
-  private clock = h("span", { class: "fo-clock", role: "timer" });
+  private clock = countdown();
+  /** Past the match clock, the duel on now is the last. */
+  private lastDuel = h("span", { class: "fo-last", hidden: true }, "Last duel");
   private mine = h("section", { class: "fo-mine", "aria-label": "Your card" });
   private headline = h("p", { class: "fo-headline", role: "status", "aria-live": "polite" });
   private sub = h("p", { class: "fo-sub" });
@@ -71,7 +68,7 @@ export class FaceOffView implements GameView {
     this.overlayBody.append(this.duelHead, this.buzzer, this.duelTail);
     this.overlay.append(h("div", { class: "fo-duel-track", "aria-hidden": "true" }, this.overlayBar), this.overlayBody);
     this.root.append(
-      h("div", { class: "fo-top" }, this.target, this.clock),
+      h("div", { class: "fo-top" }, this.target, this.clock.el, this.lastDuel),
       this.mine,
       this.headline,
       this.sub,
@@ -175,13 +172,14 @@ export class FaceOffView implements GameView {
     const game = this.game();
     if (!game) return;
     const now = this.api.serverNow();
-    if (game.phase === "finished") this.clock.textContent = "";
-    else this.clock.textContent = now >= game.endsAt ? "Last duel" : `${mmss(game.endsAt - now)} left`;
+    const done = game.phase === "finished";
+    this.clock.set(done ? null : game.endsAt - now);
+    this.lastDuel.hidden = done || now < game.endsAt;
     if (game.phase === "duel" || game.phase === "confirm") {
       const left = Math.max(0, game.deadline - now);
       this.overlayBar.style.transform = `scaleX(${game.phaseMs ? Math.min(1, left / game.phaseMs) : 0})`;
       const secs = this.overlayBody.querySelector(".fo-secs");
-      if (secs) secs.textContent = `${Math.ceil(left / 1000)} s`;
+      if (secs) secs.textContent = formatSeconds(left);
     }
   }
 

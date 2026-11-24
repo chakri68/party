@@ -33,9 +33,8 @@
 .dsi[data-phase="teams"] .dsi-clock, .dsi[data-phase="finished"] .dsi-clock { display: none; }
 /* Picking sides: the teams first, then what to do about them. */
 .dsi[data-phase="teams"] .dsi-buttons { order: 1; }
-.dsi-timer { font-weight: 800; font-size: 1.4rem; font-variant-numeric: tabular-nums; min-height: 1.4em; }
-.dsi.low .dsi-timer { color: var(--danger); }
-.dsi.frozen .dsi-timer { color: var(--muted); }
+/* Holds the pill's room while it's hidden, so the bar doesn't jump. */
+.dsi-timer { min-height: 1.6rem; }
 .dsi-track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .dsi-bar { height: 100%; background: var(--team); transform-origin: left; transition: transform 200ms linear; }
 .dsi.low .dsi-bar { background: var(--danger); }

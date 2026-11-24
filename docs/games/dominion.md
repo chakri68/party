@@ -91,7 +91,7 @@ Mixed deals these six at random. They share the same tech tree and units; what d
 The map fills the screen. Everything else floats on top.
 
 - **Top left:** your credits and what your cities pay ("+7 a turn"), your Score, monuments waiting to be placed, the round, and a list of empires. A CPU tag marks computers; T1, T2 mark teams.
-- **Banner:** "Your turn", or "<Name> is playing" ("thinking" for a computer). With a clock it shows minutes and seconds, red at 20 seconds or less, with one warning sound when you're low.
+- **Banner:** "Your turn", or "<Name> is playing" ("thinking" for a computer). With a clock it shows the time left, red at 20 seconds or less, with one warning sound when you're low.
 - **Bottom left:** Research and Diplomacy. Diplomacy shows a badge when someone's offering peace.
 - **Bottom right:** End turn, and how many units can still act. If units are idle or a city reward is waiting, the first press asks ("End anyway"). A pending reward you leave takes the first option.
 - **Side buttons:** zoom in, zoom out, Next unit, Guide (?), and full screen on phones.

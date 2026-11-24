@@ -13,7 +13,7 @@
   overflow: hidden;
 }
 
-.th-bar {
+.thunt-bar {
   display: flex;
   align-items: center;
   gap: 6px 14px;
@@ -21,13 +21,12 @@
   border-bottom: 1.5px solid var(--line);
   font-size: 0.9rem;
 }
-.th-bar[hidden] { display: none; }
+.thunt-bar[hidden] { display: none; }
 .th-help { margin: 0; min-width: 0; color: var(--muted); }
-.th-bar-right { margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px 14px; }
+.thunt-bar-right { margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px 14px; }
 .th-end, .th-clue-toggle { flex: none; }
-.th-bar [hidden] { display: none; }
-.th-timer, .th-score, .th-clock { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.th-timer { color: var(--accent); font-size: 1.05rem; }
+.thunt-bar [hidden] { display: none; }
+.th-score, .th-clock { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .th-clock { color: var(--muted); }
 .th-race { color: var(--muted); white-space: nowrap; }
 

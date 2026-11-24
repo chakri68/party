@@ -20,8 +20,6 @@
 }
 .nf-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
 .nf-round { flex: 1; text-align: center; }
-.nf-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
-.nightfall.low .nf-timer { color: var(--danger); }
 
 .nf-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .nf-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }

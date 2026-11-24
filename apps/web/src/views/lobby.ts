@@ -58,3 +58,20 @@ export function settingsSummary(fields: SettingField[]): string {
 export function settingsWarnings(fields: SettingField[]): string[] {
   return fields.filter((f) => f.warn && f.hint).map((f) => `${f.label}: ${f.hint}`);
 }
+
+/**
+ * Keeps `--lobby-bar` on `root` equal to the Start bar's height, now and when
+ * it changes (a warning wraps, the button label changes). Toasts and the
+ * page's bottom space read it. Returns a function that stops and clears it.
+ */
+export function watchBarHeight(bar: HTMLElement, root: HTMLElement): () => void {
+  const set = () => root.style.setProperty("--lobby-bar", `${bar.offsetHeight}px`);
+  set();
+  if (typeof ResizeObserver === "undefined") return () => root.style.removeProperty("--lobby-bar");
+  const watcher = new ResizeObserver(set);
+  watcher.observe(bar, { box: "border-box" });
+  return () => {
+    watcher.disconnect();
+    root.style.removeProperty("--lobby-bar");
+  };
+}

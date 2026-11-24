@@ -1,9 +1,9 @@
-import { h } from "@games/ui";
+import { countdown, formatSeconds, h } from "@games/ui";
 import { clockText } from "../shared/sky.ts";
 import type { PhotoCam, THMode, THPrivate } from "../shared/types.ts";
 
 export const HOTCOLD_LABEL = "Hot or cold";
-export const hotColdOpensText = (ms: number) => `Hot or cold opens in ${formatLeft(ms)}.`;
+export const hotColdOpensText = (ms: number) => `Hot or cold opens in ${formatSeconds(ms)}.`;
 
 export interface HotColdView {
   /** 0 (cold) to 3 (hot), or null with no signal. */
@@ -38,12 +38,6 @@ export function hotColdView(priv: THPrivate | null, now: number, streamed: 0 | 1
 // from the pure functions up top; the class below only puts it in the DOM.
 // Only the clue toggle and the clue panel (so it can scroll) take the mouse;
 // a click anywhere else on the map reaches Godot and locks the pointer.
-
-/** Time left as m:ss. A part second rounds up, so 0:00 means it's over. */
-export function formatLeft(ms: number): string {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
 
 /** Timed: "3 of 6 found". Race: "2 of 5", where 5 is the target. */
 export function scoreText(found: number, pool: number, mode: THMode = "timed"): string {
@@ -111,7 +105,7 @@ export interface HudState {
 }
 
 export class Hud {
-  readonly timer = h("span", { class: "th-timer", role: "timer", hidden: true });
+  readonly timer = countdown();
   readonly clock = h("span", { class: "th-clock", title: "Time in the game", hidden: true });
   readonly score = h("span", { class: "th-score", hidden: true });
   readonly race = h("span", { class: "th-race", hidden: true });
@@ -140,8 +134,7 @@ export class Hud {
 
   /** Runs every 250 ms tick, so text is only written when it changed. */
   render(s: HudState) {
-    this.timer.hidden = s.left === null;
-    if (s.left !== null) setText(this.timer, formatLeft(s.left));
+    this.timer.set(s.left);
 
     const clock = clockLabel(s.clock);
     this.clock.hidden = clock === "";
@@ -161,7 +154,7 @@ export class Hud {
     this.meter.hidden = meter === null;
     if (hot && meter !== null) {
       if (this.meter.dataset.level !== String(meter)) this.meter.dataset.level = String(meter);
-      setText(this.meter.lastElementChild as HTMLElement, formatLeft(hot.leftMs));
+      setText(this.meter.lastElementChild as HTMLElement, formatSeconds(hot.leftMs));
     }
     const opens = hot?.opensInMs ?? null;
     this.opens.hidden = opens === null;

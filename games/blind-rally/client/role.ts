@@ -1,5 +1,5 @@
 import type { RoomPublicState } from "@games/protocol";
-import { seatName, type GameClientApi } from "@games/ui";
+import { formatSeconds, seatName, type GameClientApi } from "@games/ui";
 import { loadingNote } from "../shared/rally.ts";
 import { teamColor, type BlindRallyEvent, type BlindRallyPrivateState, type BlindRallyPublicState, type PublicTeam, type TeamColorKey } from "../shared/types.ts";
 
@@ -60,8 +60,8 @@ export function awayBanner(team: PublicTeam | undefined, nameOf: (role: "driver"
   if (!team || !team.away.length || team.status !== "running") return null;
   // A Rally car of one is away from both seats: that's one person, said once.
   const who = [...new Set(team.away.map(nameOf))].join(" and ");
-  const left = team.graceEndsAt === null ? 0 : Math.max(0, Math.ceil((team.graceEndsAt - now) / 1000));
-  return `${who} lost connection. The clock is stopped. ${left} s left to connect again.`;
+  const left = team.graceEndsAt === null ? 0 : team.graceEndsAt - now;
+  return `${who} lost connection. The clock is stopped. ${formatSeconds(left)} left to connect again.`;
 }
 
 const SHAPES = {

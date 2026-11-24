@@ -20,8 +20,6 @@
 }
 .hz-phase { font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.08em; }
 .hz-job { flex: 1; text-align: center; }
-.hz-timer { min-width: 3.5em; text-align: right; font-weight: 700; }
-.heist.low .hz-timer { color: var(--danger); }
 
 .hz-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .hz-bar { height: 100%; background: var(--accent); transform-origin: left; transition: transform 200ms linear; }

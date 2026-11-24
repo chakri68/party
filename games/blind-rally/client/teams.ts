@@ -1,5 +1,5 @@
 import type { RoomPublicState } from "@games/protocol";
-import { avatar, confirmDialog, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
+import { avatar, formatSeconds, confirmDialog, h, replaceChildren, seatName, type GameClientApi } from "@games/ui";
 import { roleBriefing, rulesPreview } from "../shared/rules-text.ts";
 import { trackName } from "../shared/tracks-public.ts";
 import { formatClock } from "../shared/wire.ts";
@@ -216,6 +216,6 @@ export class TeamsScreen {
     const g = this.game;
     if (!g || g.startsAt === null) return void (this.clock.textContent = "");
     const now = this.api.serverNow();
-    this.clock.textContent = now < g.startsAt ? `, starts in ${Math.ceil((g.startsAt - now) / 1000)}` : `, ${formatClock(raceElapsed(g, now))}`;
+    this.clock.textContent = now < g.startsAt ? `, starts in ${formatSeconds(g.startsAt - now)}` : `, ${formatClock(raceElapsed(g, now))}`;
   }
 }

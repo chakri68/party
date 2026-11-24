@@ -1,5 +1,5 @@
 import { audio } from "@games/audio";
-import { h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import {
   DEMOLISH_COST,
   ICE,
@@ -62,6 +62,8 @@ export class DominionView implements GameView {
   private players = h("ol", { class: "dm-players", "aria-label": "Turn order" });
   /** Top centre: whose turn, and the clock. */
   private banner = h("div", { class: "dm-banner", role: "status" });
+  /** The turn clock, in the banner while a turn is timed. */
+  private turnClock = countdown();
   /** Bottom corners: Research and End turn. */
   private techBtn = h("button", { type: "button", class: "dm-slab dm-tech-btn", "aria-label": "Research" });
   private dipBtn = h("button", { type: "button", class: "dm-slab dm-tech-btn dm-dip-btn", "aria-label": "Diplomacy" });
@@ -755,12 +757,11 @@ export class DominionView implements GameView {
   }
 
   private renderClock() {
-    const el = this.banner.querySelector<HTMLElement>(".dm-clock");
     const pub = this.pub;
-    if (!el || !pub?.deadline) return;
-    const left = Math.max(0, Math.ceil((pub.deadline - this.api.serverNow()) / 1000));
-    el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    el.classList.toggle("low", left <= 20);
+    if (this.turnClock.el.parentNode !== this.banner || !pub?.deadline) return;
+    const ms = pub.deadline - this.api.serverNow();
+    this.turnClock.set(ms, { lowAt: 20_000 });
+    const left = Math.max(0, Math.ceil(ms / 1000));
     // Once a turn, a gentle nudge when your own clock runs low.
     if (left <= 20 && left > 0 && this.priv?.myTurn && this.warned !== pub.deadline) {
       this.warned = pub.deadline;
@@ -819,7 +820,7 @@ export class DominionView implements GameView {
       : "";
     this.banner.style.setProperty("--c", current?.color ?? "#9aa6b2");
     this.banner.classList.toggle("mine", myTurn);
-    replaceChildren(this.banner, h("span", { class: "dm-banner-text" }, headline), pub.deadline && pub.phase === "playing" ? h("span", { class: "dm-clock" }) : null);
+    replaceChildren(this.banner, h("span", { class: "dm-banner-text" }, headline), pub.deadline && pub.phase === "playing" ? this.turnClock.el : null);
 
     replaceChildren(
       this.techBtn,

@@ -1,5 +1,5 @@
 import { audio } from "@games/audio";
-import { avatar, faceColor, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, countdown, faceColor, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { packFor, stopById, type LegKind, type RouteDef, type SettingPack } from "../shared/pack.ts";
 import type { LongTrailEvent, LongTrailPrivateState, LongTrailPublicState, Phase, Plan } from "../shared/types.ts";
 import { BAND_BARS, BAND_LABEL, goalLine, HEALTH_LABEL, infoLines } from "./format.ts";
@@ -34,7 +34,7 @@ export class LongTrailView implements GameView {
   private root = h("div", { class: "long-trail" });
   private dayLabel = h("span", { class: "lt-day" });
   private phaseLabel = h("span", { class: "lt-phase" });
-  private timer = h("span", { class: "lt-timer", role: "timer" });
+  private timer = countdown();
   private bar = h("div", { class: "lt-bar" });
   private scene = new TrailScene();
   private strip = h("div", { class: "lt-strip" });
@@ -60,7 +60,7 @@ export class LongTrailView implements GameView {
   constructor(api: GameClientApi) {
     this.api = api;
     this.root.append(
-      h("div", { class: "lt-top" }, this.dayLabel, this.phaseLabel, this.timer),
+      h("div", { class: "lt-top" }, this.dayLabel, this.phaseLabel, this.timer.el),
       h("div", { class: "lt-track", "aria-hidden": "true" }, this.bar),
       this.scene.el,
       this.strip,
@@ -161,16 +161,17 @@ export class LongTrailView implements GameView {
   private renderClock() {
     const g = this.props?.game as Pub | undefined;
     if (!g || g.phase === "over" || !g.phaseMs) {
-      this.timer.textContent = "";
+      this.timer.set(null);
       this.bar.style.transform = "scaleX(0)";
       return;
     }
     const left = Math.max(0, g.deadline - this.api.serverNow());
     const secs = Math.ceil(left / 1000);
-    this.timer.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-    this.bar.style.transform = `scaleX(${Math.min(1, left / g.phaseMs)})`;
     const me = this.me;
+    // Red only when this player has something to do now.
     const mine = this.leading() || (g.phase === "vote" && !me?.vote) || (g.phase === "choice" && me?.choiceVote === null);
+    this.timer.set(left, { lowAt: mine ? TICK_FROM * 1000 : 0 });
+    this.bar.style.transform = `scaleX(${Math.min(1, left / g.phaseMs)})`;
     const low = secs <= TICK_FROM && mine;
     this.root.classList.toggle("low", low);
     if (low && secs > 0 && secs !== this.lastTick && document.visibilityState === "visible") {

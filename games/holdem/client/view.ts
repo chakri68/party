@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatChips } from "../shared/rules.ts";
 import type {
   Card,
@@ -952,12 +952,12 @@ export class HoldemView implements GameView {
     }
 
     // Pauses between cards and hands.
-    const pause = Math.max(0, Math.ceil((game.stepEndsAt - now) / 1000));
+    const pause = game.stepEndsAt - now;
     let note = "";
     if (game.step === "between-hands") {
       const rebuying = game.players.some((p) => p.pendingRebuy);
-      note = pause ? `${rebuying ? "Time to rebuy · next hand" : "Next hand"} in ${pause}s` : "Dealing…";
-    } else if (game.step === "showdown" && priv?.canShow) note = pause ? `Show in the next ${pause}s` : "";
+      note = pause > 0 ? `${rebuying ? "Time to rebuy · next hand" : "Next hand"} in ${formatSeconds(pause)}` : "Dealing…";
+    } else if (game.step === "showdown" && priv?.canShow) note = pause > 0 ? `Show in the next ${formatSeconds(pause)}` : "";
     this.stepNote.textContent = note;
     this.stepNote.hidden = !note;
 
