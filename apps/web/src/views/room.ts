@@ -36,6 +36,7 @@ import { ROOM_MENU_LABELS, roomMenuItems, type RoomMenuItem } from "./room-menu.
 import { VoiceBar, voiceMenuItem } from "./voice-bar.ts";
 import { Mic, Playback, type VoiceElement } from "../voice/audio.ts";
 import { MeshTransport } from "../voice/mesh.ts";
+import { duckLevel } from "../voice/duck.ts";
 import { voicePrefs } from "../voice/prefs.ts";
 import { PushToTalk } from "../voice/ptt.ts";
 import { VoiceController } from "../voice/voice.ts";
@@ -159,6 +160,7 @@ export class RoomView implements View {
   private closeMySounds: (() => void) | null = null;
   /** Room voice: built once per RoomView, so game switches never touch it. */
   private voice: VoiceController | null = null;
+  private unduck: (() => void) | null = null;
   private playback: Playback | null = null;
   private ptt: PushToTalk | null = null;
   private voiceBar: VoiceBar | null = null;
@@ -198,6 +200,9 @@ export class RoomView implements View {
     this.closeMySounds?.();
     cancelConfirm();
     this.voice?.stop();
+    this.unduck?.();
+    // Game sound back to full: nothing here lowers it any more.
+    audio.duck(1);
     this.unwatchFrames?.();
     this.stopLobbyBar?.();
     this.ptt?.destroy();
@@ -319,6 +324,14 @@ export class RoomView implements View {
     this.header.after(bar.el);
     // Once, in its own slot: renderHeader rebuilds only the parts around it.
     this.headerStart.after(bar.headerMic);
+    // Game sound gets quieter while someone else talks. Same level = no-op, so 8 Hz notifies are cheap.
+    this.unduck = voice.subscribe(() => {
+      try {
+        audio.duck(duckLevel(voice.view(), voice.settings().duck));
+      } catch {
+        // Voice never breaks the room.
+      }
+    });
     this.playback = playback;
     this.voice = voice;
     this.ptt = ptt;

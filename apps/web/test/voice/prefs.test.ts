@@ -15,6 +15,7 @@ describe("voicePrefs", () => {
       mode: "open",
       deafenAlsoMutes: false,
       relayOnly: false,
+      duck: true,
     });
     expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: {}, blocked: [] });
   });
@@ -30,6 +31,16 @@ describe("voicePrefs", () => {
     store.write("voice-room:ABCD", JSON.stringify({ on: "yes", mic: "loud", volumes: { a: "x", b: 0.5 }, blocked: ["c", 4] }));
     expect(prefs.get()).toEqual({ ...DEFAULT_VOICE_PREFS, relayOnly: true });
     expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: { b: 0.5 }, blocked: ["c"] });
+  });
+
+  it("saved prefs without duck read as on", () => {
+    const store = memoryStore();
+    store.write("voice", JSON.stringify({ mode: "ptt", relayOnly: true }));
+    expect(voicePrefs(store).get()).toEqual({ ...DEFAULT_VOICE_PREFS, mode: "ptt", relayOnly: true, duck: true });
+    store.write("voice", JSON.stringify({ duck: "no" }));
+    expect(voicePrefs(store).get().duck).toBe(true);
+    expect(voicePrefs(store).set({ duck: false }).duck).toBe(false);
+    expect(voicePrefs(store).get().duck).toBe(false);
   });
 
   it("set merges and saves", () => {

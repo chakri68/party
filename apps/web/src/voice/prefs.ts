@@ -14,6 +14,8 @@ export interface VoicePrefs {
   mode: "open" | "ptt";
   deafenAlsoMutes: boolean;
   relayOnly: boolean;
+  /** Lower game sound while other people talk. */
+  duck: boolean;
 }
 
 export const DEFAULT_VOICE_PREFS: VoicePrefs = {
@@ -25,6 +27,7 @@ export const DEFAULT_VOICE_PREFS: VoicePrefs = {
   mode: "open",
   deafenAlsoMutes: false,
   relayOnly: false,
+  duck: true,
 };
 
 /** The mic choice a reload keeps: talking, Mute (mic still on), or Turn off mic / Listen only. */
@@ -75,6 +78,7 @@ function readPrefs(raw: Record<string, unknown>): VoicePrefs {
     mode: raw.mode === "open" || raw.mode === "ptt" ? raw.mode : d.mode,
     deafenAlsoMutes: bool(raw.deafenAlsoMutes, d.deafenAlsoMutes),
     relayOnly: bool(raw.relayOnly, d.relayOnly),
+    duck: bool(raw.duck, d.duck),
   };
 }
 

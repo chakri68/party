@@ -530,6 +530,7 @@ export class VoiceBar {
         check("Keep my mic volume steady", p.autoGainControl, (on) => set({ autoGainControl: on })),
         check("Push to talk", p.mode === "ptt", (on) => set({ mode: on ? "ptt" : "open" })),
         check("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => set({ deafenAlsoMutes: on })),
+        check("Lower game sound when people talk", p.duck, (on) => set({ duck: on })),
         check("Hide my network address", p.relayOnly, (on) => set({ relayOnly: on }), !v.hasTurn),
         v.hasTurn ? null : h("p", { class: "muted setting-hint" }, "Needs a relay server."),
         h("p", { class: "muted" }, "The settings stay on your device."),

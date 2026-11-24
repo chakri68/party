@@ -150,6 +150,13 @@ const RECORDED: Partial<Record<SoundId, { ids: SampleId[]; gain?: number; layer?
   "game-over": { ids: ["chips-place"], gain: 0.8, layer: true },
 };
 
+/** Game sound while other people talk in voice: about -9 dB. */
+export const DUCK_GAIN = 0.35;
+/** setTargetAtTime time constant going down. */
+export const DUCK_ATTACK_S = 0.05;
+/** setTargetAtTime time constant going back up. */
+export const DUCK_RELEASE_S = 0.25;
+
 /** The ambient bed at level 1, before the user's volume: a background, not a cue. */
 const AMBIENT_GAIN = 0.35;
 
@@ -191,6 +198,8 @@ export class Feedback {
   private bedLevel = 0;
   private bedBuffer: AudioBuffer | null = null;
   private contextListeners = new Set<(ctx: AudioContext) => void>();
+  private duckLevel = 1;
+  private gameVolumeListeners = new Set<() => void>();
 
   /** The one AudioContext, once a tap made it. Voice plays here too; never closed. */
   get context(): AudioContext | null {
@@ -200,7 +209,7 @@ export class Feedback {
   /**
    * Called with the context when it is made, and on every statechange after.
    * Returns an unsubscribe. Voice does not go through `master` (that is game
-   * sound, and a later phase ducks it).
+   * sound, and `duck` lowers it while people talk).
    */
   onContext(fn: (ctx: AudioContext) => void): () => void {
     this.contextListeners.add(fn);
@@ -351,10 +360,61 @@ export class Feedback {
     } catch {
       // Private mode: settings last for this visit only.
     }
+    this.notifyGameVolume();
   }
 
+  /**
+   * Lowers game sound while other people talk: 0..1, 1 = no duck. Ramps
+   * master to volume x 0.9 x level, fast going down and slower coming back.
+   * Safe before unlock: applied when the context is made. The same level
+   * again does nothing, so it is cheap to call on every voice change.
+   */
+  duck(level: number): void {
+    const next = Math.min(1, Math.max(0, Number.isFinite(level) ? level : 1));
+    if (next === this.duckLevel) return;
+    const down = next < this.duckLevel;
+    this.duckLevel = next;
+    const ctx = this.ctx;
+    const gain = this.master?.gain;
+    if (ctx && gain) {
+      const want = this.settings.volume * 0.9 * next;
+      if (typeof gain.setTargetAtTime === "function") {
+        gain.cancelScheduledValues?.(ctx.currentTime);
+        gain.setTargetAtTime(want, ctx.currentTime, down ? DUCK_ATTACK_S : DUCK_RELEASE_S);
+      } else {
+        gain.value = want;
+      }
+    }
+    this.notifyGameVolume();
+  }
+
+  /** settings.volume x the duck level. For game audio that does not go through master. */
+  gameVolume(): number {
+    return this.settings.volume * this.duckLevel;
+  }
+
+  /** Called on every duck change and every update(). Returns an unsubscribe. */
+  onGameVolume(fn: () => void): () => void {
+    this.gameVolumeListeners.add(fn);
+    return () => this.gameVolumeListeners.delete(fn);
+  }
+
+  private notifyGameVolume() {
+    for (const fn of [...this.gameVolumeListeners]) {
+      try {
+        fn();
+      } catch {
+        // A listener's failure must not stop sound or the other listeners.
+      }
+    }
+  }
+
+  /** At once, dropping any ramp: a volume change while ducked keeps the duck. */
   private applyVolume() {
-    if (this.master) this.master.gain.value = this.settings.volume * 0.9;
+    const gain = this.master?.gain;
+    if (!gain) return;
+    if (this.ctx) gain.cancelScheduledValues?.(this.ctx.currentTime);
+    gain.value = this.settings.volume * 0.9 * this.duckLevel;
   }
 }
 

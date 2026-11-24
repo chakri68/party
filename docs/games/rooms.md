@@ -180,7 +180,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - There is no voice bar. Once you are in voice, your mic button is in the top row, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.
 
-The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, and "Hear no one also mutes my mic". **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
+The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", and "Lower game sound when people talk" (on at first). While someone talks, game sound and sound board sounds get quieter, then come back. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
 The settings stay on your device. No one records your voice.
 
