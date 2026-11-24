@@ -1,7 +1,48 @@
 import type { RoomPhase, RoomPublicState } from "@games/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardSound } from "../src/sounds/packs.ts";
-import { soundBoardModel } from "../src/views/sound-board.ts";
+import { SoundBoardView, soundBoardModel } from "../src/views/sound-board.ts";
+
+/** Just enough DOM for SoundBoardView to build its elements. */
+class FakeEl {
+  hidden = false;
+  className = "";
+  innerHTML = "";
+  textContent = "";
+  style = { setProperty() {} };
+  classList = { add() {}, remove() {} };
+  private attrs = new Map<string, string>();
+  private listeners = new Map<string, ((e: unknown) => void)[]>();
+  children: unknown[] = [];
+  setAttribute(k: string, v: string) {
+    this.attrs.set(k, v);
+    if (k === "hidden") this.hidden = true;
+  }
+  getAttribute(k: string) {
+    return this.attrs.get(k) ?? null;
+  }
+  addEventListener(type: string, fn: (e: unknown) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+  }
+  removeEventListener() {}
+  append(...c: unknown[]) {
+    this.children.push(...c);
+  }
+  replaceChildren(...c: unknown[]) {
+    this.children = c;
+  }
+  contains() {
+    return true;
+  }
+  focus() {}
+  click() {
+    for (const fn of this.listeners.get("click") ?? []) fn({});
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const room = (r: { hostId: string; phase: RoomPhase; sounds: boolean; hostSounds?: boolean }): RoomPublicState => r as RoomPublicState;
 const SOUNDS: BoardSound[] = [
@@ -74,5 +115,29 @@ describe("the sound board model", () => {
       { id: "host:3", name: "Clap", ms: 600, url: "/api/rooms/K7DX/sounds/3?v=0123456789" },
     ];
     expect(soundBoardModel(r, "ben", list, true).tiles.map((t) => t.id)).toEqual(["free:rise", "memes:bruh", "host:1", "host:3"]);
+  });
+
+});
+
+describe("the sound board view", () => {
+  it("onOpen runs once per real open, not on toggle(true) while open", () => {
+    vi.stubGlobal("Node", FakeEl);
+    vi.stubGlobal("document", { createElement: () => new FakeEl(), addEventListener() {}, removeEventListener() {} });
+    let opens = 0;
+    const board = { list: () => [], onChange: () => () => {}, tap: () => "sent" as const, coolingMs: () => 0 };
+    const view = new SoundBoardView(board, { send() {}, toast() {}, playHere: () => true, onOpen: () => opens++ });
+    expect(opens).toBe(0);
+    view.toggle(true);
+    expect(opens).toBe(1);
+    view.toggle(true);
+    expect(opens).toBe(1);
+    view.toggle(false);
+    view.toggle(false);
+    expect(opens).toBe(1);
+    view.toggle();
+    expect(opens).toBe(2);
+    view.toggle();
+    expect(opens).toBe(2);
+    view.destroy();
   });
 });

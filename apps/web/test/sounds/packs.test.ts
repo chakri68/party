@@ -1,7 +1,7 @@
 import { FREE_SOUNDS } from "@games/sounds";
 import { describe, expect, it } from "vitest";
 import { configure, shellConfig } from "../../src/shell.ts";
-import { MAX_PACK_SOUNDS, freeBoard, hostSoundsUrl, loadExtraPacks, parseHostList, parsePackList } from "../../src/sounds/packs.ts";
+import { MAX_PACK_SOUNDS, fetchListJson, freeBoard, hostSoundsUrl, loadExtraPacks, parseHostList, parsePackList } from "../../src/sounds/packs.ts";
 
 const bruh = { id: "bruh", name: "Bruh", ms: 1200, url: "/api/packs/memes/bruh.mp3?v=0123456789" };
 const list = (sounds: unknown[], pack = "memes") => ({ pack, sounds });
@@ -93,6 +93,13 @@ describe("sound packs", () => {
       { ...good("2"), url: "//x.test/a" },
       { ...good("2"), url: `${L}` },
       { ...good("2"), url: `${L}/2 x` },
+      { ...good("2"), url: `${L}/../../packs/memes/2?v=0123456789` },
+      { ...good("2"), url: `${L}/x/../2?v=0123456789` },
+      { ...good("2"), url: `${L}/4?v=0123456789` },
+      { ...good("2"), url: `${L}/2` },
+      { ...good("2"), url: `${L}/2?v=0123456789&x=1` },
+      { ...good("2"), url: `${L}/2?v=ABCDEF0123` },
+      { ...good("2"), url: `${L}/2?v=012345678` },
       { ...good("2"), ms: 3001 },
       { ...good("2"), ms: 0 },
       { ...good("2"), name: "x".repeat(25) },
@@ -109,6 +116,16 @@ describe("sound packs", () => {
     );
     expect(parseHostList(null, L)).toEqual([]);
     expect(parseHostList({ pack: "host" }, L)).toEqual([]);
+  });
+
+  it("fetchListJson gives null only for a 404", async () => {
+    const answer = (status: number, body: unknown = { ok: 1 }) => () =>
+      Promise.resolve(new Response(JSON.stringify(body), { status }));
+    await expect(fetchListJson("/l", answer(200))).resolves.toEqual({ ok: 1 });
+    await expect(fetchListJson("/l", answer(404))).resolves.toBeNull();
+    await expect(fetchListJson("/l", answer(503))).rejects.toThrow();
+    await expect(fetchListJson("/l", answer(500))).rejects.toThrow();
+    await expect(fetchListJson("/l", () => Promise.reject(new TypeError("offline")))).rejects.toThrow();
   });
 
   it("the shell has no extra packs by default", () => {

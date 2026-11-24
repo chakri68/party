@@ -101,10 +101,11 @@ export class SoundBoard<Clip> {
       return run;
     }
     this.hostNextUrl = listUrl;
-    return (this.hostNext ??= this.hostRun.then(() => {
+    const next = () => {
       this.hostNext = null;
       return this.loadHost(this.hostNextUrl);
-    }));
+    };
+    return (this.hostNext ??= this.hostRun.then(next, next));
   }
 
   private async runHost(listUrl: string): Promise<void> {
@@ -140,7 +141,14 @@ export class SoundBoard<Clip> {
     const seen = new Set<string>();
     this.sounds = [...this.base, ...this.host].filter((s) => !seen.has(s.id) && !!seen.add(s.id));
     this.known = seen;
-    for (const fn of [...this.listeners]) fn();
+    for (const fn of [...this.listeners]) {
+      try {
+        fn();
+      } catch (err) {
+        // One bad listener must not stop the load or the others.
+        console.error(err);
+      }
+    }
   }
 
   private queue(id: string, fetched: Fetched) {
@@ -150,7 +158,8 @@ export class SoundBoard<Clip> {
 
   /** True while these bytes are still the ones for this id: a host slot can be removed or replaced while they decode. */
   private current(id: string, url: string): boolean {
-    return this.known.has(id) && (!this.hostFetched.has(id) || this.hostFetched.get(id) === url);
+    if (!this.known.has(id)) return false;
+    return !this.host.some((s) => s.id === id) || this.hostFetched.get(id) === url;
   }
 
   private decodeWaiting() {
@@ -160,8 +169,11 @@ export class SoundBoard<Clip> {
       this.decodes = this.decodes.then(async () => {
         if (this.destroyed || !this.current(id, url)) return;
         const clip = await attempt(() => this.deps.decode(bytes)).catch(() => null);
+        if (this.destroyed) return;
+        // A host file that fails to decode is tried again on the next loadHost. The old clip keeps playing.
+        if (!clip && this.hostFetched.get(id) === url) this.hostFetched.delete(id);
         // The old clip, if any, plays until here.
-        if (clip && !this.destroyed && this.current(id, url)) this.clips.set(id, clip);
+        if (clip && this.current(id, url)) this.clips.set(id, clip);
       });
     }
   }

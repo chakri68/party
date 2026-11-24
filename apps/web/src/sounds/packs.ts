@@ -68,6 +68,25 @@ export function parsePackList(body: unknown): BoardSound[] {
   return out;
 }
 
+const HOST_V = /^[0-9a-f]{10}$/;
+
+/** Exactly `<listUrl>/<slot>?v=<10 hex>`: no other path or query. */
+function isHostFileUrl(url: string, listUrl: string, id: string): boolean {
+  const head = `${listUrl}/${id}?v=`;
+  return url.startsWith(head) && HOST_V.test(url.slice(head.length));
+}
+
+/**
+ * A list's JSON. A 404 gives null (the server has no such list). Any other
+ * failure (offline, a 5xx, a bad body) rejects, so the board keeps what it has.
+ */
+export async function fetchListJson(url: string, fetchFn: (url: string) => Promise<Response> = (u) => fetch(u)): Promise<unknown> {
+  const res = await fetchFn(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 /** The room's list of the host's own sounds. */
 export function hostSoundsUrl(code: string): string {
   return `/api/rooms/${code}/sounds`;
@@ -91,7 +110,7 @@ export function parseHostList(body: unknown, listUrl: string): BoardSound[] {
     const label = cleanSoundName(name);
     if (label === null) continue;
     if (typeof ms !== "number" || !Number.isInteger(ms) || ms < 1 || ms > MAX_SOUND_MS) continue;
-    if (typeof url !== "string" || !isSameOriginPath(url) || !url.startsWith(`${listUrl}/`)) continue;
+    if (typeof url !== "string" || !isSameOriginPath(url) || !isHostFileUrl(url, listUrl, id as string)) continue;
     seen.add(id as string);
     out.push({ id: `${HOST_PACK}:${id as string}`, name: label, ms, url });
   }

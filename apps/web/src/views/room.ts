@@ -24,7 +24,7 @@ import { TurnSignal } from "./turn.ts";
 import { Emotes } from "./emotes.ts";
 import { SoundBoardView } from "./sound-board.ts";
 import { SoundBoard } from "../sounds/board.ts";
-import { hostSoundsUrl } from "../sounds/packs.ts";
+import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
 import { identityField, nameInput } from "./home.ts";
 import { leaveQuestion, seatActionMessage, seatActions } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
@@ -346,8 +346,8 @@ export class RoomView implements View {
     client.on("emote", ({ from, emoji }) => emotes.show(from, emoji));
 
     const board = new SoundBoard<AudioBuffer>({
-      // Offline rejects (the board keeps what it has); a 404 gives null.
-      getJson: (url) => fetch(url).then((res) => (res.ok ? res.json() : null)),
+      // A 404 gives null; offline or a 5xx rejects, and the board keeps what it has.
+      getJson: (url) => fetchListJson(url),
       getBytes: (url) => fetch(url).then((res) => (res.ok ? res.arrayBuffer() : null)).catch(() => null),
       decode: (bytes) => audio.decode(bytes),
       play: (clip) => audio.playClip(clip),
@@ -363,7 +363,8 @@ export class RoomView implements View {
     if (audio.settings.roomSounds) void board.load(shellConfig().extraPacks);
     const code = this.code;
     const refreshHost = () => {
-      if (this.last?.room.hostSounds && audio.settings.roomSounds) void board.loadHost(hostSoundsUrl(code));
+      const room = this.last?.room;
+      if (room?.hostSounds && room.sounds && audio.settings.roomSounds) void board.loadHost(hostSoundsUrl(code));
     };
     this.refreshHostSounds = refreshHost;
     this.soundView = new SoundBoardView(board, {
@@ -422,7 +423,8 @@ export class RoomView implements View {
         this.menuDialog?.close();
       }
       voice.onRoom(u.room);
-      if (u.room.hostSounds && !prev?.room.hostSounds) refreshHost();
+      // The host's sounds came, or the host turned room sounds back on.
+      if (u.room.hostSounds && u.room.sounds && !(prev?.room.hostSounds && prev.room.sounds)) refreshHost();
       this.soundView?.render(u.room, client.playerId);
       this.render();
       this.refreshGameList?.(u.room);

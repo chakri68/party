@@ -18,7 +18,7 @@ const PACK = {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[]; throwBytes?: string[]; held?: (() => void)[] } = {}) {
+function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[]; throwBytes?: string[]; held?: (() => void)[]; badJson?: string[] } = {}) {
   const state = {
     clock: 1000,
     ready: opts.ready ?? false,
@@ -44,6 +44,7 @@ function rig(opts: { ready?: boolean; badBytes?: string[]; badDecode?: string[];
   const board = new SoundBoard<Clip>({
     getJson: (url) => {
       state.jsonGets++;
+      if (opts.badJson?.includes(url)) throw new Error("sync");
       if (url !== HOST_URL) return Promise.resolve(url === "/p" ? PACK : null);
       const answer = () => (state.hostFail ? Promise.reject(new Error("offline")) : Promise.resolve(state.hostBody));
       const held = state.jsonHeld;
@@ -349,6 +350,59 @@ describe("SoundBoard", () => {
       expect(board.list().map((s) => s.id)).toEqual(["host:1", "host:3"]);
       expect(board.receive("host:1")).toBe(true);
       expect(state.byteUrls).toEqual([]);
+    });
+
+    it("a 5xx keeps the old host list", async () => {
+      // The room's getJson (fetchListJson) rejects for a 5xx, as it does offline.
+      const { board, state } = rig({ ready: true });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostFail = true;
+      await board.loadHost(HOST_URL);
+      expect(board.list().map((s) => s.id)).toEqual(["host:1"]);
+      expect(board.receive("host:1")).toBe(true);
+    });
+
+    it("a getJson that throws keeps the list and the next call still runs", async () => {
+      const { board, state } = rig({ badJson: [HOST_URL] });
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      expect(state.jsonGets).toBe(2);
+      expect(board.list()).toEqual([]);
+    });
+
+    it("a listener that throws does not stop the load", async () => {
+      const { board, state } = rig({ ready: true });
+      board.onChange(() => {
+        throw new Error("view");
+      });
+      let told = 0;
+      board.onChange(() => told++);
+      state.hostBody = hostList(slot("1"));
+      await expect(board.loadHost(HOST_URL)).resolves.toBeUndefined();
+      await flush();
+      expect(told).toBe(1);
+      expect(board.receive("host:1")).toBe(true);
+    });
+
+    it("a replaced file that fails to decode keeps the old clip and is tried again", async () => {
+      const fresh = slot("1", "abcdef0123");
+      const { board, state } = rig({ ready: true, badDecode: [fresh.url] });
+      state.hostBody = hostList(slot("1"));
+      await board.loadHost(HOST_URL);
+      await flush();
+      state.hostBody = hostList(fresh);
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
+      state.byteUrls = [];
+      await board.loadHost(HOST_URL);
+      await flush();
+      expect(state.byteUrls).toEqual([fresh.url]);
+      expect(board.receive("host:1")).toBe(true);
+      expect(state.played.at(-1)).toEqual({ url: slot("1").url });
     });
 
     it("no host list (a 404) clears the host sounds", async () => {
