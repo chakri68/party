@@ -296,7 +296,7 @@ export class WildsView implements GameView {
           "li",
           { class: ["wd-explorer", e.down && "down", id === me && "me"].filter(Boolean).join(" ") },
           h("span", { class: `wd-dot wd-role-${e.role ?? "none"}`, "aria-hidden": "true" }),
-          h("span", { class: "wd-who" }, h("b", {}, id === me ? "You" : this.name(id)), h("small", {}, e.role ? ROLE_NAME[e.role] : "")),
+          h("span", { class: "wd-who" }, h("b", { title: id === me ? "You" : this.name(id) }, id === me ? "You" : this.name(id)), h("small", {}, e.role ? ROLE_NAME[e.role] : "")),
           e.down ? h("span", { class: "wd-tag" }, "Down") : hearts,
           g.phase === "plan" && !e.down ? h("span", { class: `wd-ready${e.ready ? " on" : ""}` }, e.ready ? "Ready" : "Planning") : null,
         );

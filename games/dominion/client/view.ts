@@ -811,16 +811,18 @@ export class DominionView implements GameView {
       ),
     );
 
-    const headline =
-      this.replay ? `Replay: ${current ? `${current.name === "You" ? "your" : `${current.name}'s`} turn` : "the end"}`
-      : pub.phase === "finished" ? "Game over"
-      : p?.eliminated ? "You lost all your cities"
-      : myTurn ? "Your turn"
-      : current ? `${current.name} is ${pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing"}`
-      : "";
+    // The name is its own span, so a long one ends in an ellipsis and the rest stays whole.
+    const who = (name: string) => h("span", { class: "dm-who", title: name }, name);
+    const headline: (Node | string)[] =
+      this.replay ? (current ? (current.name === "You" ? ["Replay: your turn"] : ["Replay: ", who(current.name), "'s turn"]) : ["Replay: the end"])
+      : pub.phase === "finished" ? ["Game over"]
+      : p?.eliminated ? ["You lost all your cities"]
+      : myTurn ? ["Your turn"]
+      : current ? [who(current.name), ` is ${pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing"}`]
+      : [];
     this.banner.style.setProperty("--c", current?.color ?? "#9aa6b2");
     this.banner.classList.toggle("mine", myTurn);
-    replaceChildren(this.banner, h("span", { class: "dm-banner-text" }, headline), pub.deadline && pub.phase === "playing" ? this.turnClock.el : null);
+    replaceChildren(this.banner, h("span", { class: "dm-banner-text" }, ...headline), pub.deadline && pub.phase === "playing" ? this.turnClock.el : null);
 
     replaceChildren(
       this.techBtn,
@@ -848,7 +850,7 @@ export class DominionView implements GameView {
     replaceChildren(
       this.endBtn,
       h("span", { class: "dm-end-main" }, this.endArmed ? "End anyway" : myTurn ? "End turn" : "Waiting"),
-      h("span", { class: "dm-end-sub" }, myTurn ? (idle ? `${plural(idle, "unit")} ready` : "All units used") : current ? `${current.name}'s move` : ""),
+      h("span", { class: "dm-end-sub" }, myTurn ? (idle ? `${plural(idle, "unit")} ready` : "All units used") : current ? [who(current.name), "'s move"] : ""),
     );
     this.renderClock();
   }

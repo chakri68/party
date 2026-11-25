@@ -228,7 +228,11 @@ export class ScribblView implements GameView {
         : `${count.includes(" ") ? `Words of ${count} letters` : `${LETTER_NAMES[Number(count)] ?? count} letters`}`;
       replaceChildren(this.word, h("span", { class: "sb-sr" }, label), letters, h("span", { class: "sb-count", "aria-hidden": "true" }, count));
     } else if (game.phase === "choosing") {
-      replaceChildren(this.word, h("span", { class: "muted" }, `${drawerName} ${drawerName === "You" ? "are" : "is"} picking…`));
+      replaceChildren(
+        this.word,
+        h("span", { class: "muted sb-picker", title: drawerName }, drawerName),
+        h("span", { class: "muted sb-picking" }, drawerName === "You" ? "are picking…" : "is picking…"),
+      );
     } else if (game.word) {
       replaceChildren(this.word, h("span", { class: "sb-letters known revealed" }, game.word));
     } else {

@@ -551,7 +551,7 @@ export class ImposterView implements GameView {
         ].filter(Boolean).join(" ");
         const inner = [
           seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-          h("span", { class: "im-who" }, h("span", { class: "name" }, who), clue !== null ? h("span", { class: clues.get(id) ? "im-clue" : "im-clue none" }, clue) : null),
+          h("span", { class: "im-who" }, h("span", { class: "name", title: who }, who), clue !== null ? h("span", { class: clues.get(id) ? "im-clue" : "im-clue none" }, clue) : null),
           game.counts && count ? h("span", { class: "im-votes", "aria-label": `${count} ${count === 1 ? "vote" : "votes"}` }, `${count}×`) : null,
           isImp ? h("span", { class: "tag imp" }, "Imposter") : null,
           p.removed ? h("span", { class: "tag" }, "left") : null,

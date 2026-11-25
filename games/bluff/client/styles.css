@@ -5,6 +5,7 @@
    would otherwise shrink-wrap the column to whatever this phase holds. */
 .bluff {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   max-width: 560px;
@@ -119,7 +120,7 @@ button.bl-pick { cursor: pointer; }
 
 /* ---- Players and scores --------------------------------------------------- */
 
-.bl-table { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; text-align: left; }
+.bl-table { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; text-align: left; }
 .bl-row {
   display: flex;
   align-items: center;
@@ -150,8 +151,8 @@ button.bl-pick { cursor: pointer; }
 .bluff[data-phase="reveal"] .bl-options { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }
 .bluff[data-phase="reveal"] .bl-table { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .bluff[data-phase="reveal"] .bl-row { min-height: 34px; padding: 2px 8px 2px 4px; gap: 6px; }
-/* Two scores to a line: let a name take two lines rather than cut it. */
-.bluff[data-phase="reveal"] .bl-row .name { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 0.9rem; }
+/* Two scores to a line: let a name take two lines rather than cut it, but no more. */
+.bluff[data-phase="reveal"] .bl-row .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 0.9rem; }
 .bl-legend { margin: 0; font-size: 0.8rem; color: var(--muted); text-align: center; }
 .bl-legend:empty { display: none; }
 .bluff[data-phase="reveal"] .bl-note:empty { display: none; }

@@ -344,7 +344,7 @@ export class ShortNightView implements GameView {
     const left = game.players.find((p) => p.id === id)?.left;
     const inner = [
       seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-      h("span", { class: "sn-name" }, id === props.playerId ? "You" : seatName(props.room, id)),
+      h("span", { class: "sn-name", title: id === props.playerId ? "You" : seatName(props.room, id) }, id === props.playerId ? "You" : seatName(props.room, id)),
       ...(opts.extra ?? []),
       left ? h("span", { class: "sn-tag" }, "left") : null,
     ];
