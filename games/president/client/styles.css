@@ -30,6 +30,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.pr-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .president.my-turn .pr-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -66,6 +68,8 @@
 /* min-height keeps room for the title tag line, so chips do not grow when titles appear. */
 .pr-opp-text { display: grid; line-height: 1.15; justify-items: start; align-content: center; min-height: calc(1.15 * 1.7rem + 2px); }
 .pr-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.pr-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pr-opp .count, .pr-me .count {
   display: flex;
   align-items: center;

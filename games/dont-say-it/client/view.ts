@@ -390,7 +390,7 @@ export class DontSayItView implements GameView {
                 "li",
                 { class: ["dsi-member", away && "away", id === props.playerId && "me", game.describerId === id && "describer"].filter(Boolean).join(" ") },
                 seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-                h("span", { class: "name" }, this.name(id, props)),
+                h("span", { class: "name", title: this.name(id, props) }, this.name(id, props)),
                 tags.map((tag) => h("span", { class: `tag ${tag}` }, tag)),
               );
             }),

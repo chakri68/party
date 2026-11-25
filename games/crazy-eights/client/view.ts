@@ -375,7 +375,7 @@ export class CrazyEightsView implements GameView {
           h(
             "div",
             { class: "ce-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, name, p.id === game.dealerId ? h("span", { class: "ce-dealer", title: "Dealer" }, "D") : null),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "ce-dealer", title: "Dealer" }, "D") : null),
             h(
               "span",
               { class: "count" },

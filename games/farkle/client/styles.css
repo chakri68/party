@@ -29,6 +29,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.fk-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .farkle.my-turn .fk-status {
   background: var(--accent);
   border-color: var(--accent);

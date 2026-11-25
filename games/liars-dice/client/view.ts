@@ -365,7 +365,7 @@ export class LiarsDiceView implements GameView {
       return h(
         "div",
         { class: `ld-row${id === r.loserId ? " loser" : ""}${id === r.gainerId ? " gainer" : ""}`, role: "listitem", "aria-label": `${name(id)}: ${diceLabel(faces)}` },
-        h("span", { class: "ld-row-name" }, name(id), id === r.bid.playerId ? h("span", { class: "ld-tag" }, "bid") : null, id === r.callerId ? h("span", { class: "ld-tag call" }, "called") : null),
+        h("span", { class: "ld-row-name" }, h("span", { class: "ld-row-who", title: name(id) }, name(id)), id === r.bid.playerId ? h("span", { class: "ld-tag" }, "bid") : null, id === r.callerId ? h("span", { class: "ld-tag call" }, "called") : null),
         h("span", { class: "ld-row-dice", "aria-hidden": "true" }, els),
       );
     });
@@ -449,7 +449,7 @@ export class LiarsDiceView implements GameView {
       h(
         "div",
         { class: "ld-opp-text", "aria-hidden": "true" },
-        h("span", { class: "name" }, name, p.ready ? h("span", { class: "ld-ready" }, "✓") : null),
+        h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.ready ? h("span", { class: "ld-ready" }, "✓") : null),
         h(
           "span",
           { class: "cup" },

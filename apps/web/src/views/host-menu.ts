@@ -46,15 +46,18 @@ export function seatActionMessage(kind: SeatActionKind, seat: SeatPublic): Clien
 }
 
 /**
- * The room menu's Mute all / Allow all to talk, or null. Only for the host,
- * and only with someone else in voice (the host need not be in voice).
- * Mute all while anyone else can still talk; Allow all to talk once all are muted.
+ * The room menu's Mute all and Allow all to talk, in menu order. Only for the
+ * host, and only with someone else in voice (the host need not be in voice);
+ * empty otherwise. Mute all while anyone else can still talk; Allow all to
+ * talk while anyone else is muted. With only some muted, both.
  */
-export function muteAllAction(room: RoomPublicState, me: string, members: { id: string; hostMuted: boolean }[]): "mute-all" | "allow-all" | null {
-  if (room.hostId !== me) return null;
+export function muteAllActions(room: RoomPublicState, me: string, members: { id: string; hostMuted: boolean }[]): ("mute-all" | "allow-all")[] {
+  if (room.hostId !== me) return [];
   const others = members.filter((m) => m.id !== me);
-  if (others.length === 0) return null;
-  return others.some((m) => !m.hostMuted) ? "mute-all" : "allow-all";
+  const actions: ("mute-all" | "allow-all")[] = [];
+  if (others.some((m) => !m.hostMuted)) actions.push("mute-all");
+  if (others.some((m) => m.hostMuted)) actions.push("allow-all");
+  return actions;
 }
 
 /**

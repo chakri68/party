@@ -28,6 +28,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.ch-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .cheat.my-turn .ch-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -65,6 +67,8 @@
 .ch-opp.away { opacity: 0.55; }
 .ch-opp-text { display: grid; line-height: 1.15; }
 .ch-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.ch-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-opp .count, .ch-me .count {
   display: flex;
   align-items: center;
@@ -112,8 +116,8 @@
 .ch-pile .ch-card:nth-child(3) { top: 8px; left: 8px; }
 .ch-pile-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.ch-play-wrap { display: grid; gap: 8px; min-width: 0; justify-items: center; }
-.ch-play-label { margin: 0; text-align: center; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; }
+.ch-play-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; justify-items: center; }
+.ch-play-label { margin: 0; max-width: 100%; text-align: center; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; overflow-wrap: anywhere; }
 .cheat.window .ch-play-label { color: var(--ink); font-weight: 700; }
 .ch-play {
   position: relative;

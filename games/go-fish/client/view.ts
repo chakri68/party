@@ -520,7 +520,7 @@ export class GoFishView implements GameView {
           h(
             "span",
             { class: "gf-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, name, p.id === game.dealerId ? h("span", { class: "gf-dealer", title: "Dealer" }, "D") : null),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "gf-dealer", title: "Dealer" }, "D") : null),
             h(
               "span",
               { class: "count" },

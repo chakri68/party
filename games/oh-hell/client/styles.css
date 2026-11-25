@@ -42,6 +42,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.oh-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .oh-hell.my-turn .oh-status {
   background: var(--accent);
   border-color: var(--accent);

@@ -6,6 +6,7 @@
   --teal: #3cc8c0;
   --team: var(--accent);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   max-width: 560px;
   margin: 0 auto;
@@ -68,10 +69,10 @@
 
 /* ---- Prompt and buttons --------------------------------------------------- */
 
-.dsi-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; }
+.dsi-headline { margin: 0; font-weight: 700; font-size: 1.1rem; min-height: 1.4em; overflow-wrap: anywhere; }
 .dsi-headline.pop { animation: dsi-pop 380ms cubic-bezier(.2, .8, .2, 1.3); }
 @keyframes dsi-pop { from { transform: scale(0.85); opacity: 0; } }
-.dsi-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+.dsi-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; overflow-wrap: anywhere; }
 .dsi-dispute-clock { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 .dsi-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
@@ -105,19 +106,19 @@
 /* ---- The teams ------------------------------------------------------------ */
 
 .dsi-note { margin: -4px 0 0; font-size: 0.8rem; color: var(--muted); }
-.dsi-roster { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
+.dsi-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
 .dsi-team { border: 1.5px solid var(--line); border-radius: 14px; padding: 8px; background: var(--surface); min-width: 0; }
 .dsi-team.amber { --tc: var(--amber); }
 .dsi-team.teal { --tc: var(--teal); }
 .dsi-team.active { border-color: var(--tc); }
 .dsi-team h3 { margin: 0 0 6px; display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--tc); }
 .dsi-team-score { font-variant-numeric: tabular-nums; }
-.dsi-team ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dsi-team ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .dsi-member { display: flex; align-items: center; gap: 6px; min-height: 36px; flex-wrap: wrap; }
-.dsi-member .name { font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; min-width: 0; }
+.dsi-member .name { flex: 1 1 6ch; min-width: 0; font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsi-member.me .name { color: var(--ink); text-decoration: underline; text-decoration-color: var(--tc); text-underline-offset: 3px; }
 .dsi-member.away { opacity: 0.55; }
-.dsi-member .tag { font-size: 0.66rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.dsi-member .tag { flex: none; font-size: 0.66rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .dsi-member .tag.describing { background: var(--tc); color: var(--bg); }
 
 .dsi-bubble { font-weight: 700; }

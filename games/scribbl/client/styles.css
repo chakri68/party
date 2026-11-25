@@ -34,7 +34,7 @@
   border-radius: 14px;
   background: var(--surface);
 }
-.sb-round { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sb-round { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sb-top > .countdown { justify-self: end; }
 /* A phone's top row is tight: the hidden word needs the room more than the clock icon. */
 @media (max-width: 480px) {
@@ -42,6 +42,9 @@
   .sb-top > .countdown .countdown-icon { display: none; }
 }
 .sb-word { display: flex; align-items: baseline; gap: 8px; justify-content: center; min-width: 0; }
+/* "X is picking…": the name ends in an ellipsis, so the bar stays one line. */
+.sb-picker { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-picking { flex: none; margin-left: -4px; white-space: nowrap; }
 .sb-letters { display: flex; gap: 4px; font-weight: 700; font-size: 1.25rem; letter-spacing: 0; }
 .sb-letters .l { display: inline-block; min-width: 0.7em; text-align: center; text-transform: lowercase; }
 .sb-letters .l.blank { border-bottom: 2.5px solid var(--ink); height: 1.15em; }
@@ -85,6 +88,7 @@
   position: absolute;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 16px;
   pointer-events: none;
@@ -100,6 +104,7 @@
   gap: 10px;
   max-width: 100%;
   padding: 18px 22px;
+  overflow-wrap: anywhere;
   border-radius: 16px;
   background: var(--surface);
   border: 1.5px solid var(--line);
@@ -114,6 +119,7 @@
 .sb-choice:hover:not(:disabled) { border-color: var(--accent); }
 .sb-scored { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-width: 180px; font-size: 0.9rem; }
 .sb-scored li { display: flex; justify-content: space-between; gap: 16px; }
+.sb-scored li > span { min-width: 0; }
 .sb-scored b { color: var(--accent); font-variant-numeric: tabular-nums; }
 @keyframes sb-pop {
   from { transform: translateY(8px) scale(.96); opacity: 0; }

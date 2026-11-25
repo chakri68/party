@@ -184,8 +184,8 @@
   .th-view:has(.th-teams:not([hidden])) .th-boot { padding-left: 400px; }
 }
 .th-teams-title { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
-.th-team-list, .th-members { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-.th-team { padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); display: grid; gap: 6px; }
+.th-team-list, .th-members { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.th-team { min-width: 0; padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); display: grid; gap: 6px; }
 /* Your team: its own colour round the edge. */
 .th-team.mine { border-color: color-mix(in srgb, var(--th-team) 70%, var(--line)); }
 .th-team-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }

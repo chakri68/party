@@ -38,6 +38,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.he-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .holdem.my-turn .he-status {
   background: var(--accent);
   border-color: var(--accent);

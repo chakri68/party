@@ -29,6 +29,8 @@
   font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.ce-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .crazy-eights.my-turn .ce-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -65,6 +67,8 @@
 .ce-opp.away { opacity: 0.55; }
 .ce-opp-text { display: grid; line-height: 1.15; }
 .ce-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.ce-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ce-opp .count, .ce-me .count {
   display: flex;
   align-items: center;
