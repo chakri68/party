@@ -344,9 +344,8 @@ export class FaceOffView implements GameView {
           const name = seatName(props.room, who);
           return h(
             "button",
-            { type: "button", class: `fo-vote ${kind}`, "aria-pressed": me.myVote === c ? "true" : "false", onclick: () => this.send({ type: "vote", choice: c }) },
-            "Point to ",
-            h("span", { class: "fo-vote-name", title: name }, name),
+            { type: "button", class: `fo-vote ${kind}`, title: `Point to ${name}`, "aria-pressed": me.myVote === c ? "true" : "false", onclick: () => this.send({ type: "vote", choice: c }) },
+            h("span", { class: "fo-vote-label" }, `Point to ${name}`),
           );
         };
         tail.push(

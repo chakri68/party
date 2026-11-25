@@ -180,8 +180,8 @@
 .fo-claim { margin: 0; font-size: 1.4rem; font-weight: 800; overflow-wrap: anywhere; }
 .fo-votes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
 .fo-vote { min-height: 72px; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
-/* A long name drops to its own line and ends in an ellipsis; a short one stays on the line. */
-.fo-vote-name { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* Up to three lines, then an ellipsis: a long name shows almost whole, so two names that start the same still look different. */
+.fo-vote-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .fo-vote[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
 .fo-note { margin: 0; color: var(--muted); font-size: 0.95rem; overflow-wrap: anywhere; }
 .fo-redo { min-height: 48px; padding: 0 20px; }
