@@ -20,6 +20,7 @@ import {
 import { acceptProblem, fixProblem, problemTimeout } from "./problem.ts";
 import { getAwaitedPlayerIds, getPrivateState, getPublicState, getResult } from "./projection.ts";
 import { alive, clone, done, newOut, playerById, spend, timerId, type Out, type ServerPlayer, type State } from "./state.ts";
+import { blame, hrComplaint, hrPass, resolveTransfer, respondToTransfer } from "./transfer.ts";
 import { beginDraw, playProactive, startTurn } from "./turn.ts";
 
 type Result = GameResult<State, NmpEvent>;
@@ -52,7 +53,10 @@ function deal(n: number, ctx: GameContext): { hands: ActionCard[][]; pile: PileC
   const { actions, problems } = buildDeck(n);
   const rest = shuffle(actions, ctx.randomInt);
   const hands = Array.from({ length: n }, () => {
-    const fix = rest.splice(rest.findIndex((c) => c.kind === "quick-fix"), 1);
+    // Quick Fix has n + 2 copies, so every hand finds one.
+    const at = rest.findIndex((c) => c.kind === "quick-fix");
+    if (at < 0) throw new Error("not-my-problem: no Quick Fix left to deal");
+    const fix = rest.splice(at, 1);
     return [...fix, ...rest.splice(0, HAND_SIZE - 1)];
   });
   return { hands, pile: shuffle([...rest, ...problems], ctx.randomInt) };
@@ -71,7 +75,7 @@ function parseSettings(input: unknown): NmpSettings | null {
     : null;
 }
 
-const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 32;
+const isId = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 64;
 
 function parseAction(input: unknown): NmpAction | null {
   if (typeof input !== "object" || input === null) return null;
@@ -140,7 +144,8 @@ function handleAction(prev: State, playerId: string, action: NmpAction, ctx: Gam
       return run(prev, (s, out) => beginDraw(s, out, ctx));
     }
     case "fix": {
-      if (prev.step !== "problem" || prev.problem?.ownerId !== playerId) return reject("not-your-problem", "This is not your Problem.");
+      if (prev.step !== "problem") return reject("wrong-time", "You can't play that card now.");
+      if (prev.problem?.ownerId !== playerId) return reject("not-your-problem", "This is not your Problem.");
       const card = cardIn(me, action.cardId);
       if (!card) return reject("card-not-owned", "You don't have that card.");
       if (card.kind !== "quick-fix") return reject("wrong-card", "Only a Quick Fix can fix it.");
@@ -150,16 +155,37 @@ function handleAction(prev: State, playerId: string, action: NmpAction, ctx: Gam
       });
     }
     case "accept": {
-      if (prev.step !== "problem") return notYet();
+      if (prev.step === "target") return run(prev, (s, out) => respondToTransfer(s, out, playerById(s, playerId)!, { kind: "accept" }, ctx));
+      if (prev.step !== "problem") return reject("wrong-time", "You can't do that now.");
       if (prev.problem?.ownerId !== playerId) return reject("not-your-problem", "This is not your Problem.");
       return run(prev, (s, out) => acceptProblem(s, out, ctx));
     }
-    // Transfers and Fake Report come next.
     case "blame":
     case "not-me":
     case "revenge":
-    case "hr":
-    case "pass":
+    case "hr": {
+      if (!cardIn(me, action.cardId)) return reject("card-not-owned", "You don't have that card.");
+      return run(prev, (s, out) => {
+        const p = playerById(s, playerId)!;
+        const card = cardIn(p, action.cardId)!;
+        switch (action.type) {
+          case "blame":
+            return blame(s, out, p, card, action.targetId, ctx);
+          case "not-me":
+            return respondToTransfer(s, out, p, { kind: "not-me", card }, ctx);
+          case "revenge":
+            return respondToTransfer(s, out, p, { kind: "revenge", card, targetId: action.targetId }, ctx);
+          case "hr":
+            return hrComplaint(s, out, p, card, ctx);
+        }
+      });
+    }
+    case "pass": {
+      if (prev.step === "hr") return run(prev, (s, out) => hrPass(s, out, playerId, ctx));
+      if (prev.step === "challenge") return notYet();
+      return reject("wrong-time", "You can't pass now.");
+    }
+    // Fake Report comes next.
     case "fake-report":
     case "challenge":
       return notYet();
@@ -220,11 +246,17 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
   handleAction,
 
   onTimer(prev, id, ctx) {
-    if (id !== timerId(prev.token) || (prev.step !== "action" && prev.step !== "problem")) return { state: prev, events: [] };
+    const steps = ["action", "problem", "target", "hr"];
+    if (id !== timerId(prev.token) || !steps.includes(prev.step)) return { state: prev, events: [] };
     const state = clone(prev);
     const out = newOut();
     if (state.step === "action") beginDraw(state, out, ctx);
-    else problemTimeout(state, out, ctx);
+    else if (state.step === "problem") problemTimeout(state, out, ctx);
+    else if (state.step === "target") {
+      // No answer in time means Accept.
+      const blameMove = state.moves[0];
+      if (blameMove?.kind === "blame") respondToTransfer(state, out, playerById(state, blameMove.targetId)!, { kind: "accept" }, ctx);
+    } else resolveTransfer(state, out, false, ctx);
     return done(state, out);
   },
 

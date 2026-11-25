@@ -69,10 +69,13 @@ export const newOut = (): Out => ({ events: [], timers: [] });
 export const clone = (s: State): State => structuredClone(s);
 export const done = (state: State, out: Out) => ({ state, events: out.events, timers: out.timers });
 
-/** A public event. It also becomes the feed line. */
+/**
+ * A public event. It also becomes the feed line, except a new turn or a pass:
+ * those would hide the last outcome (warned, fixed, moved, ...).
+ */
 export function emit(s: State, out: Out, e: NmpEvent): void {
   out.events.push({ visibility: { kind: "public" }, event: e });
-  s.lastEvent = e;
+  if (e.type !== "turn" && e.type !== "passed") s.lastEvent = e;
 }
 
 /** An event only this player gets. */

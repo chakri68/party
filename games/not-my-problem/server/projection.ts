@@ -1,11 +1,13 @@
 import type { GameOutcome } from "@games/game-core";
 import {
   MAX_TRANSFERS,
+  type ActionKind,
   type NmpPrivateState,
   type NmpPublicState,
   type PublicMove,
 } from "../shared/types.ts";
 import { alive, playerById, turnPlayerOf, type ServerMove, type State } from "./state.ts";
+import { blameTargets, hrEligible, revengeTargets } from "./transfer.ts";
 import { playableProactive, survivorsRanked } from "./turn.ts";
 
 const publicMove = (m: ServerMove): PublicMove =>
@@ -59,13 +61,25 @@ export function getPrivateState(s: State, playerId: string): NmpPrivateState {
   if (!p || !alive(p) || s.step === "finished") return { ...none, hand: p ? [...p.hand] : [] };
   const myTurn = s.step === "action" && turnPlayerOf(s).id === playerId;
   const myProblem = s.step === "problem" && s.problem?.ownerId === playerId;
-  const fixes = myProblem ? p.hand.filter((c) => c.kind === "quick-fix").map((c) => ({ cardId: c.id, targets: null })) : [];
+  const myTarget = s.step === "target" && getAwaitedPlayerIds(s).includes(playerId);
+  const canHr = s.step === "hr" && hrEligible(s).includes(playerId) && !s.passed.includes(playerId);
+  /** Cards of a kind, with their targets (null: none needed). An empty target list means not playable. */
+  const cards = (on: boolean, kind: ActionKind, targets: string[] | null = null) =>
+    on && (targets === null || targets.length) ? p.hand.filter((c) => c.kind === kind).map((c) => ({ cardId: c.id, targets })) : [];
   return {
     ...none,
     hand: [...p.hand],
-    playable: [...playableProactive(s, p), ...fixes],
+    playable: [
+      ...playableProactive(s, p),
+      ...cards(myProblem, "quick-fix"),
+      ...cards(myProblem, "blame-game", blameTargets(s)),
+      ...cards(myTarget, "not-me"),
+      ...cards(myTarget, "revenge", revengeTargets(s)),
+      ...cards(canHr, "hr-complaint"),
+    ],
     canDraw: myTurn,
-    canAccept: myProblem,
+    canAccept: myProblem || myTarget,
+    canPass: canHr,
     myReportCard: s.report?.ownerId === playerId ? s.report.faceDown : null,
   };
 }

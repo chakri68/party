@@ -310,6 +310,7 @@ export const STAT_KEYS = [
   "noGoVotes",
   "rescues",
   "firesLit",
+  "problemsPassed",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];

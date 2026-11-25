@@ -29,6 +29,11 @@ export function fixProblem(s: State, out: Out, by: "quick-fix" | "report", ctx: 
 /**
  * A shield takes exactly one; the rest count. At three the player is fired:
  * hand and shield are discarded, and a Problem they hold goes with them.
+ *
+ * Contract: this may resolve the player's Problem (when they are fired) and
+ * may finish the game, but it never moves play on. The caller must check
+ * `s.step === "finished"` and whether `s.problem` is gone, then continue
+ * (usually `afterProblem`).
  */
 export function giveWarnings(s: State, out: Out, playerId: string, amount: number): void {
   const p = playerById(s, playerId)!;
@@ -55,11 +60,14 @@ export function giveWarnings(s: State, out: Out, playerId: string, amount: numbe
   checkEnd(s, out);
 }
 
-/** The owner takes the printed warnings and the Problem is done. */
-export function acceptProblem(s: State, out: Out, ctx: GameContext): void {
-  const { ownerId, card } = s.problem!;
+/**
+ * The owner takes the warnings and the Problem is done, then play moves on.
+ * `amount` is the printed penalty unless given (a caught Fake Report gives one more).
+ */
+export function acceptProblem(s: State, out: Out, ctx: GameContext, amount = penaltyOf(s.problem!.card.kind)): void {
+  const { ownerId } = s.problem!;
   resolveProblem(s);
-  giveWarnings(s, out, ownerId, penaltyOf(card.kind));
+  giveWarnings(s, out, ownerId, amount);
   if (s.step !== "finished") afterProblem(s, out, ctx);
 }
 
