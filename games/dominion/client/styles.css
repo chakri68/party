@@ -165,8 +165,8 @@
 .dm-banner-text { display: flex; align-items: center; min-width: 0; font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
 /* A long name gives way first, down to a few letters; then the words round it wrap. */
 .dm-who { flex: 0 1 auto; min-width: 4ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Next to nothing: the words shrink (and wrap) only once the name is down to its 4ch. */
-.dm-say { flex: 0 0.01 auto; white-space: normal; text-align: center; }
+/* Next to nothing: the words keep one line; when they still do not fit, placeBanner stacks the clock under them. */
+.dm-say { flex: 0 0.00001 auto; white-space: normal; text-align: center; }
 /* Sideways phones with little room: the clock goes under the words (placeBanner). */
 .dm-banner.dm-stack { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
 .dm-banner.dm-stack > .dm-banner-text { flex: 1 1 100%; justify-content: center; }
