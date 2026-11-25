@@ -228,7 +228,8 @@ describe("timing", () => {
     const after = hr(s, "p0").state;
     const r = nmp.handleAction(after, "p3", { type: "hr", token, cardId: "hr-complaint-4" }, ctx());
     expect(r).toEqual({ ok: false, error: { code: "too-late", message: "Too late." } });
-    expect(nmp.handleAction(after, "p2", { type: "pass", token }, ctx()).ok).toBe(false);
+    const late = nmp.handleAction(after, "p2", { type: "pass", token }, ctx());
+    expect(late.ok === false && late.error.code).toBe("too-late");
     expect(player(after, "p3").hand.map((c) => c.id)).toContain("hr-complaint-4");
   });
 

@@ -16,9 +16,11 @@ import {
   type PileCard,
   type ProblemCard,
   type ProblemKind,
+  type Step,
 } from "../shared/types.ts";
 import { acceptProblem, fixProblem, problemTimeout } from "./problem.ts";
 import { getAwaitedPlayerIds, getPrivateState, getPublicState, getResult } from "./projection.ts";
+import { challenge, closeReport, fakeReport, reportPass } from "./report.ts";
 import { alive, clone, done, newOut, playerById, spend, timerId, type Out, type ServerPlayer, type State } from "./state.ts";
 import { blame, hrComplaint, hrPass, resolveTransfer, respondToTransfer } from "./transfer.ts";
 import { beginDraw, playProactive, startTurn } from "./turn.ts";
@@ -118,8 +120,6 @@ function run(prev: State, apply: (s: State, out: Out) => GameError | null | void
   return error ? fail(error) : { ok: true, transition: done(state, out) };
 }
 
-const notYet = (): Result => reject("not-yet", "You can't do that yet.");
-
 function cardIn(p: ServerPlayer, cardId: string): ActionCard | undefined {
   return p.hand.find((c) => c.id === cardId);
 }
@@ -182,19 +182,27 @@ function handleAction(prev: State, playerId: string, action: NmpAction, ctx: Gam
     }
     case "pass": {
       if (prev.step === "hr") return run(prev, (s, out) => hrPass(s, out, playerId, ctx));
-      if (prev.step === "challenge") return notYet();
+      if (prev.step === "challenge") return run(prev, (s, out) => reportPass(s, out, playerId, ctx));
       return reject("wrong-time", "You can't pass now.");
     }
-    // Fake Report comes next.
-    case "fake-report":
+    case "fake-report": {
+      if (!cardIn(me, action.cardId) || !cardIn(me, action.faceDownId)) return reject("card-not-owned", "You don't have that card.");
+      return run(prev, (s, out) => {
+        const p = playerById(s, playerId)!;
+        return fakeReport(s, out, p, cardIn(p, action.cardId)!, cardIn(p, action.faceDownId)!, ctx);
+      });
+    }
     case "challenge":
-      return notYet();
+      return run(prev, (s, out) => challenge(s, out, playerById(s, playerId)!, ctx));
   }
 }
 
 // ---------------------------------------------------------------------------
 // Definition
 // ---------------------------------------------------------------------------
+
+/** Steps whose timer moves play on. */
+const TIMED_STEPS: readonly Step[] = ["action", "problem", "target", "hr", "challenge"];
 
 export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, NmpPrivateState, NmpSettings, NmpEvent> = {
   manifest: notMyProblemManifest,
@@ -246,8 +254,7 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
   handleAction,
 
   onTimer(prev, id, ctx) {
-    const steps = ["action", "problem", "target", "hr"];
-    if (id !== timerId(prev.token) || !steps.includes(prev.step)) return { state: prev, events: [] };
+    if (id !== timerId(prev.token) || !TIMED_STEPS.includes(prev.step)) return { state: prev, events: [] };
     const state = clone(prev);
     const out = newOut();
     if (state.step === "action") beginDraw(state, out, ctx);
@@ -255,8 +262,11 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
     else if (state.step === "target") {
       // No answer in time means Accept.
       const blameMove = state.moves[0];
-      if (blameMove?.kind === "blame") respondToTransfer(state, out, playerById(state, blameMove.targetId)!, { kind: "accept" }, ctx);
-    } else resolveTransfer(state, out, false, ctx);
+      if (blameMove?.kind !== "blame") throw new Error(`not-my-problem: bad transfer stack ${state.moves.map((m) => m.kind).join(",")}`);
+      const error = respondToTransfer(state, out, playerById(state, blameMove.targetId)!, { kind: "accept" }, ctx);
+      if (error) throw new Error(`not-my-problem: target timeout refused: ${error.code}`);
+    } else if (state.step === "hr") resolveTransfer(state, out, false, ctx);
+    else closeReport(state, out, ctx);
     return done(state, out);
   },
 

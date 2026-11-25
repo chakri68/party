@@ -7,6 +7,7 @@ import {
   type PublicMove,
 } from "../shared/types.ts";
 import { alive, playerById, turnPlayerOf, type ServerMove, type State } from "./state.ts";
+import { challengeEligible } from "./report.ts";
 import { blameTargets, hrEligible, revengeTargets } from "./transfer.ts";
 import { playableProactive, survivorsRanked } from "./turn.ts";
 
@@ -63,6 +64,7 @@ export function getPrivateState(s: State, playerId: string): NmpPrivateState {
   const myProblem = s.step === "problem" && s.problem?.ownerId === playerId;
   const myTarget = s.step === "target" && getAwaitedPlayerIds(s).includes(playerId);
   const canHr = s.step === "hr" && hrEligible(s).includes(playerId) && !s.passed.includes(playerId);
+  const canChallenge = s.step === "challenge" && challengeEligible(s).includes(playerId) && !s.passed.includes(playerId);
   /** Cards of a kind, with their targets (null: none needed). An empty target list means not playable. */
   const cards = (on: boolean, kind: ActionKind, targets: string[] | null = null) =>
     on && (targets === null || targets.length) ? p.hand.filter((c) => c.kind === kind).map((c) => ({ cardId: c.id, targets })) : [];
@@ -73,13 +75,16 @@ export function getPrivateState(s: State, playerId: string): NmpPrivateState {
       ...playableProactive(s, p),
       ...cards(myProblem, "quick-fix"),
       ...cards(myProblem, "blame-game", blameTargets(s)),
+      // It needs a second card to go face down.
+      ...cards(myProblem && p.hand.length >= 2, "fake-report"),
       ...cards(myTarget, "not-me"),
       ...cards(myTarget, "revenge", revengeTargets(s)),
       ...cards(canHr, "hr-complaint"),
     ],
     canDraw: myTurn,
     canAccept: myProblem || myTarget,
-    canPass: canHr,
+    canPass: canHr || canChallenge,
+    canChallenge,
     myReportCard: s.report?.ownerId === playerId ? s.report.faceDown : null,
   };
 }

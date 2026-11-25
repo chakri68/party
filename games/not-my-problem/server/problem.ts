@@ -64,7 +64,7 @@ export function giveWarnings(s: State, out: Out, playerId: string, amount: numbe
  * The owner takes the warnings and the Problem is done, then play moves on.
  * `amount` is the printed penalty unless given (a caught Fake Report gives one more).
  */
-export function acceptProblem(s: State, out: Out, ctx: GameContext, amount = penaltyOf(s.problem!.card.kind)): void {
+export function acceptProblem(s: State, out: Out, ctx: GameContext, amount: number = penaltyOf(s.problem!.card.kind)): void {
   const { ownerId } = s.problem!;
   resolveProblem(s);
   giveWarnings(s, out, ownerId, amount);
