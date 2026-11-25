@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { simulate } from "./sim.ts";
 
-const GAMES = Number((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.NMP_SIM_GAMES ?? 100);
+const SIM_GAMES = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.NMP_SIM_GAMES;
+const GAMES = Number(SIM_GAMES ?? 100);
 
 describe("balance", () => {
   it("stays in loose bounds for 3 to 8 players", { timeout: 600_000 }, () => {
@@ -15,7 +16,8 @@ describe("balance", () => {
         unfinished: r.unfinished,
       };
     }
-    console.table(table);
+    // Only for a tuning run, so the normal suite stays quiet.
+    if (SIM_GAMES) console.table(table);
     for (const [players, r] of Object.entries(table)) {
       const n = Number(players);
       expect(r.unfinished, `${n}p unfinished games`).toBe(0);

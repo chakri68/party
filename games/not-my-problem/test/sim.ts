@@ -14,10 +14,10 @@ export interface SimResult {
   turnsPerPlayer: number;
 }
 
-/** The game with its turn events counted. Everything else is the real definition. */
-function counting(onTurn: () => void): AnyGameDefinition {
+/** The game with its events seen. Everything else is the real definition. */
+function counting(onEvent: (e: NmpEvent) => void): AnyGameDefinition {
   const count = <T extends { events: GameEventEnvelope<NmpEvent>[] }>(t: T): T => {
-    for (const e of t.events) if (e.event.type === "turn") onTurn();
+    for (const e of t.events) onEvent(e.event);
     return t;
   };
   return {
@@ -35,7 +35,11 @@ function counting(onTurn: () => void): AnyGameDefinition {
 /** All-bot games, read through `playBots` and `getResult`. Seeds are `seed * 100_000 + game`. */
 export function simulate(opts: { players: number; games: number; seed: number; reactionSeconds?: number }): SimResult {
   let turns = 0;
-  const def = counting(() => turns++);
+  let firedNow = 0;
+  const def = counting((e) => {
+    if (e.type === "turn") turns++;
+    else if (e.type === "fired") firedNow++;
+  });
   const settings = { ...nmp.defaultSettings, ...(opts.reactionSeconds && { reactionSeconds: opts.reactionSeconds }) };
   let unfinished = 0;
   let fired = 0;
@@ -43,13 +47,14 @@ export function simulate(opts: { players: number; games: number; seed: number; r
   let turnsPerPlayer = 0;
   for (let g = 0; g < opts.games; g++) {
     turns = 0;
+    firedNow = 0;
     const run = playBots(def, { players: opts.players, seed: opts.seed * 100_000 + g, settings });
     const outcome = run.outcome;
     if (!outcome || run.rejected.length || run.stuck.length) {
       unfinished++;
       continue;
     }
-    fired += outcome.standings.filter((s) => s.label?.startsWith("Fired")).length;
+    fired += firedNow;
     if (outcome.winnerIds.length === 1) single++;
     turnsPerPlayer += turns / opts.players;
   }

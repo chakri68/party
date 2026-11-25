@@ -17,7 +17,7 @@ describe("game registry flags", () => {
     // Giving a game a bot changes this list on purpose: add its id here.
     const all = gamesFor({ blindRally: true, treasureHunt: true });
     const withBots = Object.keys(all).filter((id) => all[id]!.bot).sort();
-    expect(withBots).toEqual(["cheat", "crazy-eights", "farkle", "go-fish", "holdem", "liars-dice", "oh-hell", "old-maid", "overheat", "president", "sevens", "thorns"]);
+    expect(withBots).toEqual(["cheat", "crazy-eights", "farkle", "go-fish", "holdem", "liars-dice", "not-my-problem", "oh-hell", "old-maid", "overheat", "president", "sevens", "thorns"]);
     // The manifest tells the client, with no room, which games have computers.
     for (const [id, def] of Object.entries(all)) expect(!!def.manifest.computers, id).toBe(!!def.bot);
   });
@@ -34,7 +34,7 @@ describe("game registry flags", () => {
     // Giving a game `pause` changes this list on purpose: add its id here.
     const all = gamesFor({ blindRally: true, treasureHunt: true });
     const pausing = Object.keys(all).filter((id) => all[id]!.pause).sort();
-    expect(pausing).toEqual(["nightfall"]);
+    expect(pausing).toEqual(["nightfall", "not-my-problem"]);
     // The manifest tells the client the host gets Pause in this game.
     for (const [id, def] of Object.entries(all)) expect(!!def.manifest.pausable, id).toBe(!!def.pause);
   });

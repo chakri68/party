@@ -343,6 +343,16 @@ describe("pause", () => {
     expect(r.pausedLeftMs).toBeNull();
   });
 
+  it("resumes with no time left when paused after the deadline, before the timer fired", () => {
+    const s = start(4, { hands, pile: ["spy", "spy"] });
+    expect(s.deadline).toBe(25000);
+    const p = nmp.pause!(s, true, ctx(26000)).state;
+    expect(p.pausedLeftMs).toBe(0);
+    const r = nmp.pause!(p, false, ctx(40000)).state;
+    expect(r.deadline).toBe(40000);
+    expect(r.pausedLeftMs).toBeNull();
+  });
+
   it("keeps the time left of a step that began while paused", () => {
     const s = start(4, { hands, pile: ["spy", "spy"] });
     const p = nmp.pause!(s, true, ctx(5000)).state;

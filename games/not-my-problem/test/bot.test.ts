@@ -140,6 +140,34 @@ describe("notMyProblemBot windows", () => {
     expect(decide(s, "p2", high)).toEqual({ type: "pass", token: s.token });
   });
 
+  it("keys the HR choice on the window: new per window, the same after another seat passes", () => {
+    const keysFor = (s: State, id: string) => {
+      const keys: string[] = [];
+      bot.decide(view(s, id), { randomInt: () => 0, chance: (k) => (keys.push(k), 99) });
+      return keys;
+    };
+    // First window: p1 passed Server Down to p2, who accepted.
+    let s = hrWindow();
+    const first = keysFor(s, "p0");
+    expect(first).toHaveLength(1);
+    s = act(s, "p3", { type: "pass" }).state;
+    expect(s.step).toBe("hr");
+    expect(keysFor(s, "p0")).toEqual(first);
+
+    // Second window, same Problem: it landed on p2, who passes it to p3.
+    s = act(s, "p0", { type: "pass" }).state;
+    s = act(s, "p2", { type: "pass" }).state;
+    expect(s.step).toBe("problem");
+    expect(s.problem?.ownerId).toBe("p2");
+    s.players[2]!.hand.push({ id: "blame-game-9", kind: "blame-game" });
+    s = act(s, "p2", { type: "blame", cardId: "blame-game-9", targetId: "p3" }).state;
+    s = act(s, "p3", { type: "accept" }).state;
+    expect(s.step).toBe("hr");
+    const second = keysFor(s, "p0");
+    expect(second).toHaveLength(1);
+    expect(second[0]).not.toBe(first[0]);
+  });
+
   it("makes the same window choice when asked again", () => {
     const s = hrWindow();
     const keyed = (seed: number): BotContext => ({ randomInt: seededRandomInt(seed), chance: (k) => (k.length * 13) % 100 });
