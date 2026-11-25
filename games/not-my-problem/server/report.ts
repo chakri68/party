@@ -1,8 +1,8 @@
 import { bumpStat, type GameContext, type GameError } from "@games/game-core";
 import { penaltyOf } from "../shared/rules.ts";
-import type { ActionCard, Step } from "../shared/types.ts";
+import type { ActionCard } from "../shared/types.ts";
 import { acceptProblem, fixProblem, giveWarnings } from "./problem.ts";
-import { alive, emit, setStep, type Out, type ServerPlayer, type State } from "./state.ts";
+import { alive, emit, finished, setStep, type Out, type ServerPlayer, type State } from "./state.ts";
 
 // Fake Report: the owner plays it with one more card face down and claims a
 // Quick Fix. One challenge window; the first challenge wins. Both cards wait
@@ -78,8 +78,7 @@ export function challenge(s: State, out: Out, challenger: ServerPlayer, ctx: Gam
   }
   bumpStat(stats, challenger.id, "wrongCalls");
   giveWarnings(s, out, challenger.id, 1);
-  // giveWarnings may have ended the game (TypeScript still thinks the step is "challenge").
-  if ((s.step as Step) === "finished") return null;
+  if (finished(s)) return null;
   // The challenger is never the owner, so even if fired the Problem is still here to fix.
   fixProblem(s, out, "report", ctx);
   return null;
@@ -93,6 +92,12 @@ export function reportPass(s: State, out: Out, playerId: string, ctx: GameContex
   if (s.passed.includes(playerId)) return err("passed", "You passed.");
   s.passed.push(playerId);
   emit(s, out, { type: "passed", playerId });
-  if (eligible.every((id) => s.passed.includes(id))) closeReport(s, out, ctx);
+  settleReport(s, out, ctx);
   return null;
+}
+
+/** Closes the challenge window early once every eligible player has passed (or gone). */
+export function settleReport(s: State, out: Out, ctx: GameContext): void {
+  if (s.step !== "challenge" || !s.report) return;
+  if (challengeEligible(s).every((id) => s.passed.includes(id))) closeReport(s, out, ctx);
 }

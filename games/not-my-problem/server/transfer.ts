@@ -126,8 +126,18 @@ export function hrPass(s: State, out: Out, playerId: string, ctx: GameContext): 
   if (s.passed.includes(playerId)) return err("passed", "You passed.");
   s.passed.push(playerId);
   emit(s, out, { type: "passed", playerId });
-  if (eligible.every((id) => s.passed.includes(id))) resolveTransfer(s, out, false, ctx);
+  settleHr(s, out, ctx);
   return null;
+}
+
+/**
+ * Closes the HR window early once every eligible player has passed (or gone),
+ * or when the Problem can no longer land: its destination left.
+ */
+export function settleHr(s: State, out: Out, ctx: GameContext): void {
+  if (s.step !== "hr") return;
+  const landsOn = playerById(s, destination(s.moves, false).toId)!;
+  if (!alive(landsOn) || hrEligible(s).every((id) => s.passed.includes(id))) resolveTransfer(s, out, false, ctx);
 }
 
 /** Where the Problem ends up, and whose move put it there (null: it stays with the source). */
@@ -139,7 +149,11 @@ function destination(moves: ServerMove[], canceled: boolean): { toId: string; mo
   return { toId: last.targetId, mover: last.actorId };
 }
 
-/** Closes the attempt: the cards go to discard, the Problem moves (or not), and its holder gets a fresh timer. */
+/**
+ * Closes the attempt: the cards go to discard, the Problem moves (or not), and
+ * its holder gets a fresh timer. A destination who left makes the attempt
+ * fizzle: the Problem stays with its owner.
+ */
 export function resolveTransfer(s: State, out: Out, canceled: boolean, ctx: GameContext): void {
   const problem = s.problem!;
   // Transfer, reaction, HR: never deeper than that.
@@ -147,7 +161,8 @@ export function resolveTransfer(s: State, out: Out, canceled: boolean, ctx: Game
     throw new Error(`not-my-problem: bad transfer stack ${s.moves.map((m) => m.kind).join(",")}`);
   }
   s.discard.push(...s.moves.map((m) => m.card));
-  const { toId, mover } = destination(s.moves, canceled);
+  const landing = destination(s.moves, canceled);
+  const { toId, mover } = alive(playerById(s, landing.toId)!) ? landing : { toId: problem.ownerId, mover: null };
   if (mover && toId !== problem.ownerId) {
     problem.lastMovedFromId = mover;
     bumpStat((s.stats ??= {}), mover, "problemsPassed");

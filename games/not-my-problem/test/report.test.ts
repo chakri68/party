@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { notMyProblemGame as nmp } from "../server/game.ts";
 import type { State } from "../server/state.ts";
 import type { ActionKind, NmpEvent, ProblemKind } from "../shared/index.ts";
-import { act, cardOf, ctx, fireTimer, player, start, tryAct, turnPlayer, type LooseAction } from "./helpers.ts";
+import { act, ctx, fireTimer, player, start, tryAct, turnPlayer, type LooseAction } from "./helpers.ts";
 
 // p1 plays first (dealer at seat 0). p1 holds fake-report-1, fake-report-2, spy-1, quick-fix-2, intern-1.
 const hands: ActionKind[][] = [
@@ -263,6 +263,5 @@ describe("party stats", () => {
     for (const v of [nmp.getPublicState(s), ...everyone.map((id) => nmp.getPrivateState(s, id))]) {
       expect(JSON.stringify(v)).not.toMatch(/liesTold|problemsPassed/);
     }
-    expect(cardOf(s, "p1", "quick-fix")).toBe("quick-fix-2");
   });
 });

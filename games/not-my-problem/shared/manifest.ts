@@ -9,4 +9,5 @@ export const notMyProblemManifest: GameManifest = {
   bestMinPlayers: 4,
   bestMaxPlayers: 6,
   icon: "cards",
+  pausable: true,
 };

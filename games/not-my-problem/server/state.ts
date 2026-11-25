@@ -91,6 +91,8 @@ export function setStep(s: State, out: Out, step: Step, ms: number | null, now: 
   s.token++;
   s.step = step;
   s.passed = [];
+  // A step that starts while paused (the clock stands still) has its whole time left.
+  if (s.pausedLeftMs !== null) s.pausedLeftMs = ms;
   if (ms === null) {
     s.deadline = null;
     s.windowMs = null;
@@ -100,6 +102,9 @@ export function setStep(s: State, out: Out, step: Step, ms: number | null, now: 
   s.deadline = now + ms;
   s.windowMs = ms;
 }
+
+/** A call, so a check after a helper that may end the game isn't narrowed away. */
+export const finished = (s: State): boolean => s.step === "finished";
 
 export const alive = (p: ServerPlayer): boolean => !p.fired && !p.removed;
 

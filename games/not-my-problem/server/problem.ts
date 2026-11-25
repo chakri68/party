@@ -1,7 +1,7 @@
 import type { GameContext } from "@games/game-core";
 import { penaltyOf } from "../shared/rules.ts";
 import { MAX_WARNINGS, PROBLEM_MS } from "../shared/types.ts";
-import { alive, emit, playerById, setStep, spend, turnPlayerOf, type Out, type State } from "./state.ts";
+import { alive, emit, finished, playerById, setStep, spend, turnPlayerOf, type Out, type State } from "./state.ts";
 import { afterProblem, checkEnd } from "./turn.ts";
 
 /** The active Problem now waits on `ownerId`: fix, pass, bluff or accept. */
@@ -19,6 +19,20 @@ function resolveProblem(s: State): void {
   s.moves = [];
 }
 
+/**
+ * Its owner left: the Problem, any pending moves and a waiting Fake Report go
+ * to the discard piles. The face-down card stays hidden. Play does not move on.
+ */
+export function dropProblem(s: State): void {
+  s.discard.push(...s.moves.map((m) => m.card));
+  if (s.report) {
+    s.discard.push(s.report.reportCard);
+    s.hiddenDiscard.push(s.report.faceDown);
+    s.report = null;
+  }
+  resolveProblem(s);
+}
+
 export function fixProblem(s: State, out: Out, by: "quick-fix" | "report", ctx: GameContext): void {
   const ownerId = s.problem!.ownerId;
   resolveProblem(s);
@@ -32,7 +46,7 @@ export function fixProblem(s: State, out: Out, by: "quick-fix" | "report", ctx: 
  *
  * Contract: this may resolve the player's Problem (when they are fired) and
  * may finish the game, but it never moves play on. The caller must check
- * `s.step === "finished"` and whether `s.problem` is gone, then continue
+ * `finished(s)` and whether `s.problem` is gone, then continue
  * (usually `afterProblem`).
  */
 export function giveWarnings(s: State, out: Out, playerId: string, amount: number): void {
@@ -68,7 +82,7 @@ export function acceptProblem(s: State, out: Out, ctx: GameContext, amount: numb
   const { ownerId } = s.problem!;
   resolveProblem(s);
   giveWarnings(s, out, ownerId, amount);
-  if (s.step !== "finished") afterProblem(s, out, ctx);
+  if (!finished(s)) afterProblem(s, out, ctx);
 }
 
 /** Nobody answered in time: a Quick Fix if the owner holds one, otherwise the warnings. */

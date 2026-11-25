@@ -18,11 +18,12 @@ import {
   type ProblemKind,
   type Step,
 } from "../shared/types.ts";
-import { acceptProblem, fixProblem, problemTimeout } from "./problem.ts";
+import { acceptProblem, fixProblem } from "./problem.ts";
 import { getAwaitedPlayerIds, getPrivateState, getPublicState, getResult } from "./projection.ts";
-import { challenge, closeReport, fakeReport, reportPass } from "./report.ts";
-import { alive, clone, done, newOut, playerById, spend, timerId, type Out, type ServerPlayer, type State } from "./state.ts";
-import { blame, hrComplaint, hrPass, resolveTransfer, respondToTransfer } from "./transfer.ts";
+import { challenge, fakeReport, reportPass } from "./report.ts";
+import { disconnect, remove, timeoutStep } from "./room.ts";
+import { alive, clone, done, finished, newOut, playerById, spend, timerId, type Out, type ServerPlayer, type State } from "./state.ts";
+import { blame, hrComplaint, hrPass, respondToTransfer } from "./transfer.ts";
 import { beginDraw, playProactive, startTurn } from "./turn.ts";
 
 type Result = GameResult<State, NmpEvent>;
@@ -125,7 +126,7 @@ function cardIn(p: ServerPlayer, cardId: string): ActionCard | undefined {
 }
 
 function handleAction(prev: State, playerId: string, action: NmpAction, ctx: GameContext): Result {
-  if (prev.step === "finished") return reject("game-finished", "The game is over.");
+  if (finished(prev)) return reject("game-finished", "The game is over.");
   const me = playerById(prev, playerId);
   if (!me || !alive(me)) return reject("not-in-game", "You are not in this game.");
   if (action.token !== prev.token) return reject("too-late", "Too late.");
@@ -204,6 +205,16 @@ function handleAction(prev: State, playerId: string, action: NmpAction, ctx: Gam
 /** Steps whose timer moves play on. */
 const TIMED_STEPS: readonly Step[] = ["action", "problem", "target", "hr", "challenge"];
 
+/** Runs a room hook on a clone. */
+function hook(prev: State, apply: (s: State, out: Out) => void) {
+  const state = clone(prev);
+  const out = newOut();
+  apply(state, out);
+  return done(state, out);
+}
+
+const unchanged = (state: State) => ({ state, events: [] });
+
 export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, NmpPrivateState, NmpSettings, NmpEvent> = {
   manifest: notMyProblemManifest,
   defaultSettings: DEFAULT_SETTINGS,
@@ -254,20 +265,45 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
   handleAction,
 
   onTimer(prev, id, ctx) {
-    if (id !== timerId(prev.token) || !TIMED_STEPS.includes(prev.step)) return { state: prev, events: [] };
-    const state = clone(prev);
-    const out = newOut();
-    if (state.step === "action") beginDraw(state, out, ctx);
-    else if (state.step === "problem") problemTimeout(state, out, ctx);
-    else if (state.step === "target") {
-      // No answer in time means Accept.
-      const blameMove = state.moves[0];
-      if (blameMove?.kind !== "blame") throw new Error(`not-my-problem: bad transfer stack ${state.moves.map((m) => m.kind).join(",")}`);
-      const error = respondToTransfer(state, out, playerById(state, blameMove.targetId)!, { kind: "accept" }, ctx);
-      if (error) throw new Error(`not-my-problem: target timeout refused: ${error.code}`);
-    } else if (state.step === "hr") resolveTransfer(state, out, false, ctx);
-    else closeReport(state, out, ctx);
-    return done(state, out);
+    if (id !== timerId(prev.token) || !TIMED_STEPS.includes(prev.step)) return unchanged(prev);
+    return hook(prev, (s, out) => timeoutStep(s, out, ctx));
+  },
+
+  /** Only for a player the game waits on: the step's timeout default, now. */
+  skipTurn(prev, playerId, ctx) {
+    if (!getAwaitedPlayerIds(prev).includes(playerId)) return unchanged(prev);
+    return hook(prev, (s, out) => timeoutStep(s, out, ctx));
+  },
+
+  onPlayerDisconnected(prev, playerId, ctx) {
+    const p = playerById(prev, playerId);
+    if (finished(prev) || !p || p.away) return unchanged(prev);
+    return hook(prev, (s, out) => disconnect(s, out, playerId, ctx));
+  },
+
+  onPlayerReconnected(prev, playerId) {
+    const p = playerById(prev, playerId);
+    if (!p?.away) return unchanged(prev);
+    return hook(prev, (s) => {
+      playerById(s, playerId)!.away = false;
+    });
+  },
+
+  onPlayerRemoved(prev, playerId, ctx) {
+    const p = playerById(prev, playerId);
+    if (finished(prev) || !p || p.removed) return unchanged(prev);
+    return hook(prev, (s, out) => remove(s, out, playerId, ctx));
+  },
+
+  /** Pausing keeps the time left on the step; resuming starts it again from now. The room holds the timer. */
+  pause(prev, paused, ctx) {
+    if (finished(prev)) return unchanged(prev);
+    if (paused) {
+      if (prev.pausedLeftMs !== null || prev.deadline === null) return unchanged(prev);
+      return { state: { ...prev, pausedLeftMs: prev.deadline - ctx.now }, events: [] };
+    }
+    if (prev.pausedLeftMs === null) return unchanged(prev);
+    return { state: { ...prev, deadline: ctx.now + prev.pausedLeftMs, pausedLeftMs: null }, events: [] };
   },
 
   getPublicState,
