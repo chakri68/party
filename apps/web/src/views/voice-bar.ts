@@ -348,7 +348,10 @@ export class VoiceBar {
     const controls = volume ? h("div", { class: "voice-person-controls" }, volume, host, block) : null;
     // "(you)" sits outside the name, so a long name's "…" never hides it.
     const you = self ? h("span", { class: "muted you" }, "(you)") : null;
-    const li = h("li", { class: "voice-person" }, dot, name, you, state, controls);
+    // One line for the dot, name, "(you)" and state, so a long name shrinks there
+    // instead of the row wrapping before the name.
+    const head = h("div", { class: "voice-person-head" }, dot, name, you, state);
+    const li = h("li", { class: "voice-person" }, head, controls);
     const row = { li, dot, name, state, volume, block, host };
     this.rows.set(m.id, row);
     return row;

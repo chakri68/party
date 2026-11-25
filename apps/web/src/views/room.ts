@@ -72,7 +72,11 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
 /** The room's own screens: moving between two of them scrolls to the top. */
 const ROOM_SCREENS = new Set<string | null>(["lobby", "playing", "results", "ended"]);
 
-/** A name inside a button: one line, cut with "…" when long, the full name on hover. */
+/**
+ * A name inside a button: one line, cut with "…" when long, the full name on
+ * hover. The button is a flex box, so its text pieces are read apart ("Skip
+ * Bob 's turn"): give the button an aria-label with the whole sentence.
+ */
 function nameSpan(name: string): HTMLElement {
   return h("span", { class: "btn-name", title: name }, name);
 }
@@ -991,12 +995,13 @@ export class RoomView implements View {
             client.send({ type: "nudge" });
             this.showToast(`Reminded ${target.name}.`);
           },
+          "aria-label": `Remind ${target.name}`,
         }, "Remind ", nameSpan(target.name)),
       );
     }
     if (!room.paused && isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
       items.push(
-        h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, "Skip ", nameSpan(target.name), "'s turn"),
+        h("button", { type: "button", "aria-label": `Skip ${target.name}'s turn`, onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, "Skip ", nameSpan(target.name), "'s turn"),
       );
     }
     if (isHost) {
@@ -1013,6 +1018,7 @@ export class RoomView implements View {
               void this.ask(`Remove ${s.name}? They will be out for the rest of this round.`, { ok: "Remove", danger: true }, still)
                 .then((yes) => yes && client.send({ type: "remove-player", playerId: s.id }));
             },
+            "aria-label": `Remove ${s.name}`,
           }, "Remove ", nameSpan(s.name)),
         );
       }
@@ -1229,7 +1235,7 @@ export class RoomView implements View {
         const dlg = h(
           "dialog",
           { class: "dialog seat-menu", "aria-label": s.name },
-          h("h2", { class: "seat-menu-title", title: s.name }, s.name),
+          h("h2", {}, s.name),
           h(
             "div",
             { class: "dialog-list" },
