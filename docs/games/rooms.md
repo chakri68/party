@@ -80,7 +80,7 @@ The host is the first person into the room. The tag next to their name says "hos
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
+Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
@@ -220,12 +220,12 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall for now). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
+- **Pause** and **Resume**, in games that can pause (Nightfall and Not My Problem!). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 A main button you can't press right now is grey with a dashed edge, not lime.
 
-In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
+In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
 
 ## Leaving
 
@@ -262,7 +262,7 @@ When the night is done, the host taps **End party**, under the lobby or the resu
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 
 - How many games you played, for how long, and the game you played most.
-- Up to five awards, like **Biggest liar**, **Sharpest eye** or **Most suspicious**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash); every game counts toward **Champion of the night**.
+- Up to five awards, like **Biggest liar**, **Sharpest eye** or **Most suspicious**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!); every game counts toward **Champion of the night**.
 - A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
 - **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
 
