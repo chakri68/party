@@ -108,11 +108,11 @@ export function getAwaitedPlayerIds(s: State): string[] {
 /** Up to 8 seats, so no 11th to worry about. */
 const ordinal = (n: number) => ["1st", "2nd", "3rd"][n - 1] ?? `${n}th`;
 
-/** Survivors by rank, then fired players (last fired first), then leavers. */
+/** Survivors by rank, then fired players (last fired first, even if they left later), then other leavers. */
 export function getResult(s: State): GameOutcome | null {
   if (s.step !== "finished") return null;
-  const fired = s.players.filter((p) => p.fired && !p.removed).sort((a, b) => b.firedOrder! - a.firedOrder!);
-  const removed = s.players.filter((p) => p.removed);
+  const fired = s.players.filter((p) => p.fired).sort((a, b) => b.firedOrder! - a.firedOrder!);
+  const removed = s.players.filter((p) => p.removed && !p.fired);
   return {
     winnerIds: s.winnerIds,
     standings: [

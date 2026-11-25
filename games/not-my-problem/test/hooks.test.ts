@@ -194,6 +194,26 @@ describe("removal", () => {
     expect(nmp.getAwaitedPlayerIds(t.state)).toEqual([]);
   });
 
+  it("of a fired player keeps their fired place", () => {
+    let s = blame(withProblem(), "p1", "p3");
+    s = act(s, "p3", { type: "accept" }).state;
+    for (const id of ["p0", "p2", "p3"]) s = act(s, id, { type: "pass" }).state;
+    s.players[3]!.warnings = 2;
+    // p3 holds no Quick Fix: the timeout gives the third warning.
+    s = fireTimer(s, ctx(15000)).state;
+    expect(player(s, "p3")).toMatchObject({ fired: true, firedOrder: 1 });
+    s = remove(s, "p3").state;
+    s = remove(s, "p0").state;
+    s = remove(s, "p2").state;
+    expect(s.step).toBe("finished");
+    expect(nmp.getResult(s)!.standings.map((r) => [r.playerId, r.label])).toEqual([
+      ["p1", "0 warnings"],
+      ["p3", "Fired 1st"],
+      ["p0", "left"],
+      ["p2", "left"],
+    ]);
+  });
+
   it("twice, or after the end, changes nothing", () => {
     const s = remove(start(4, { hands, pile: ["spy"] }), "p3").state;
     const t = remove(s, "p3");
