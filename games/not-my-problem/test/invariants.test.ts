@@ -1,5 +1,5 @@
 import { seededRandomInt, type GameEventEnvelope, type TimerRequest } from "@games/game-core";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { notMyProblemGame as nmp } from "../server/game.ts";
 import { alive, type State } from "../server/state.ts";
 import { buildDeck } from "../shared/cards.ts";
@@ -7,7 +7,7 @@ import type { ActionKind, NmpAction, NmpEvent } from "../shared/index.ts";
 import { act, ctx, ids, start } from "./helpers.ts";
 
 /** Every card id the state holds, in any zone. */
-export function zones(s: State): string[] {
+function zones(s: State): string[] {
   return [
     ...s.players.flatMap((p) => [...p.hand, ...(p.shield ? [p.shield] : [])]),
     ...s.drawPile,
@@ -82,9 +82,6 @@ function secretsOf(s: State): { id: string; owner: string | null }[] {
   ];
 }
 
-/** What the random games got to, across all seeds. */
-const seen = new Set<string>();
-
 interface RunOptions {
   seed: number;
   n: number;
@@ -92,7 +89,8 @@ interface RunOptions {
   churn: boolean;
 }
 
-function runGame({ seed, n, churn }: RunOptions) {
+/** Plays one random game, checking every step. `seen` collects what it got to. */
+function runGame({ seed, n, churn }: RunOptions, seen: Set<string>) {
   const rand = seededRandomInt(seed * 7919 + n);
   const players = ids(n);
   let now = 0;
@@ -146,6 +144,17 @@ function runGame({ seed, n, churn }: RunOptions) {
         expect(JSON.stringify(nmp.getPrivateState(st, p)).includes(quoted(id)), `${where}: ${id} seen by ${p}`).toBe(false);
       }
     }
+    // A private event may carry a secret only to a player who held it before or holds it now.
+    const holders = new Map<string, Set<string | null>>();
+    for (const { id, owner } of secrets) holders.set(id, (holders.get(id) ?? new Set()).add(owner));
+    for (const e of t.events) {
+      if (e.visibility.kind !== "private") continue;
+      const to = e.visibility.playerId;
+      const json = JSON.stringify(e.event);
+      for (const [id, owners] of holders) {
+        if (!owners.has(to)) expect(json.includes(quoted(id)), `${where}: ${id} in a private event to ${to}`).toBe(false);
+      }
+    }
     s = st;
   };
 
@@ -194,13 +203,28 @@ function runGame({ seed, n, churn }: RunOptions) {
 }
 
 describe("card conservation and liveness over random games", () => {
-  for (let seed = 1; seed <= 50; seed++) {
-    const n = 3 + (seed % 6);
-    const churn = seed % 3 === 0;
+  const cases = Array.from({ length: 50 }, (_, i) => ({ seed: i + 1, n: 3 + ((i + 1) % 6), churn: (i + 1) % 3 === 0 }));
+  /** What the random games got to, across all seeds. */
+  const seen = new Set<string>();
+  const results = new Map<number, { state: State } | Error>();
+  // Every game runs here, so the coverage check below never depends on which tests ran.
+  beforeAll(() => {
+    for (const c of cases) {
+      try {
+        results.set(c.seed, runGame(c, seen));
+      } catch (e) {
+        results.set(c.seed, e as Error);
+      }
+    }
+    // All 50 games in one hook: allow for a loaded machine.
+  }, 120_000);
+
+  for (const { seed, n, churn } of cases) {
     it(`seed ${seed}, ${n} players${churn ? ", with leavers" : ""}`, () => {
-      const { state } = runGame({ seed, n, churn });
-      expect(state.step).toBe("finished");
-      expect(nmp.getResult(state)).not.toBeNull();
+      const r = results.get(seed)!;
+      if (r instanceof Error) throw r;
+      expect(r.state.step).toBe("finished");
+      expect(nmp.getResult(r.state)).not.toBeNull();
     });
   }
 

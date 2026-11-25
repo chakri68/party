@@ -18,6 +18,7 @@ import {
   type ProblemKind,
   type Step,
 } from "../shared/types.ts";
+import { notMyProblemBot } from "./bot.ts";
 import { acceptProblem, fixProblem } from "./problem.ts";
 import { getAwaitedPlayerIds, getPrivateState, getPublicState, getResult } from "./projection.ts";
 import { challenge, fakeReport, reportPass } from "./report.ts";
@@ -55,13 +56,14 @@ function testDeal(deck: TestDeck, n: number): { hands: ActionCard[][]; pile: Pil
 function deal(n: number, ctx: GameContext): { hands: ActionCard[][]; pile: PileCard[] } {
   const { actions, problems } = buildDeck(n);
   const rest = shuffle(actions, ctx.randomInt);
-  const hands = Array.from({ length: n }, () => {
-    // Quick Fix has n + 2 copies, so every hand finds one.
+  // Every hand's Quick Fix first (n + 2 copies, so each finds one), then four more each:
+  // dealing hand by hand could give the extra copies away before the last hand gets one.
+  const fixes = Array.from({ length: n }, () => {
     const at = rest.findIndex((c) => c.kind === "quick-fix");
     if (at < 0) throw new Error("not-my-problem: no Quick Fix left to deal");
-    const fix = rest.splice(at, 1);
-    return [...fix, ...rest.splice(0, HAND_SIZE - 1)];
+    return rest.splice(at, 1)[0]!;
   });
+  const hands = fixes.map((fix) => [fix, ...rest.splice(0, HAND_SIZE - 1)]);
   return { hands, pile: shuffle([...rest, ...problems], ctx.randomInt) };
 }
 
@@ -300,7 +302,7 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
     if (finished(prev)) return unchanged(prev);
     if (paused) {
       if (prev.pausedLeftMs !== null || prev.deadline === null) return unchanged(prev);
-      return { state: { ...prev, pausedLeftMs: prev.deadline - ctx.now }, events: [] };
+      return { state: { ...prev, pausedLeftMs: Math.max(0, prev.deadline - ctx.now) }, events: [] };
     }
     if (prev.pausedLeftMs === null) return unchanged(prev);
     return { state: { ...prev, deadline: ctx.now + prev.pausedLeftMs, pausedLeftMs: null }, events: [] };
@@ -314,4 +316,6 @@ export const notMyProblemGame: GameDefinition<State, NmpAction, NmpPublicState, 
   partyStats(state) {
     return state.stats ?? {};
   },
+
+  bot: notMyProblemBot,
 };

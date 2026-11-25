@@ -35,6 +35,20 @@ describe("setup", () => {
     });
   }
 
+  it("gives every hand a Quick Fix for any shuffle, even when early hands draw extra ones", () => {
+    for (let n = 3; n <= 8; n++) {
+      for (let seed = 1; seed <= 300; seed++) {
+        const s = nmp.createGame(
+          Array.from({ length: n }, (_, i) => ({ id: `p${i}` })),
+          nmp.defaultSettings,
+          { roundNumber: 1, dealerSeat: 0 },
+          ctx(0, seed),
+        ).state;
+        for (const p of s.players) expect(p.hand.some((c) => c.kind === "quick-fix"), `n ${n} seed ${seed}`).toBe(true);
+      }
+    }
+  });
+
   it("starts at the seat after the dealer, in round 1, with a turn timer", () => {
     const t = startWith(4);
     expect(turnPlayer(t.state)).toBe("p1");
