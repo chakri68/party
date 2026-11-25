@@ -55,17 +55,21 @@ function view(
     awaitedId: null,
     deckCount: 40,
     discardCount: 0,
+    handCounts: {},
+    leaderId: null,
+    played: false,
     roundEndsAt: 0,
     settings: { ...DEFAULT_SETTINGS, target: o.target ?? 150 },
     winnerIds: [],
     endReason: null,
   } as OverheatPublicState;
-  return { playerId: "me", public: pub, private: {} as Record<string, never> };
+  return { playerId: "me", public: pub, private: { hand: [] } };
 }
 const pend = (kind: Pending["kind"], chooserId: string): Pending => ({
   kind,
   chooserId,
   card: { kind: "power", id: 999, power: kind },
+  fromHand: false,
 });
 
 describe("overheatBot turn", () => {
@@ -103,6 +107,13 @@ describe("overheatBot turn", () => {
 
   it("never banks before it has flipped, even on the random roll", () => {
     expect(overheatBot.decide(view([player("me"), player("o")]), zero)).toEqual({ type: "flip" });
+  });
+
+  it("passes on a saved or too-hot turn", () => {
+    for (const status of ["banked", "busted"] as const) {
+      const v = view([player("me", { cards: ["R3"], status }), player("o", { cards: ["R2"] })]);
+      for (const ctx of [steady, zero]) expect(overheatBot.decide(v, ctx)).toEqual({ type: "pass" });
+    }
   });
 
   it("does nothing off its turn, in round-end or when finished", () => {
@@ -217,6 +228,10 @@ describe("overheatBot all-bot games", () => {
   it.each(sizes)("games finish with %i players", (players) => {
     check(players, "defaults", {}, 200);
     for (const [name, s] of settings) check(players, name, s, 50);
+  }, 60_000);
+
+  it("Cutthroat games finish with 2 to 8 players", () => {
+    for (let players = 2; players <= 8; players++) check(players, "cutthroat", { powers: "cutthroat" }, 25);
   }, 60_000);
 
   it("stays fast", () => {

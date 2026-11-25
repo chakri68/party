@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bankScore, buildDeck, cardFromCode, colourBonus, enginePoints } from "../shared/rules.ts";
+import { bankScore, buildDeck, cardFromCode, colourBonus, enginePoints, POWER_LINES, POWER_NAMES } from "../shared/rules.ts";
 import { cutthroatRules, overheatSettingFields } from "../shared/rules-text.ts";
 import { overheatGame } from "../server/game.ts";
-import { POWER_LINES, POWER_NAMES } from "../shared/rules.ts";
-import { act, find, ok, stateWith } from "./helpers.ts";
 import { BOUNTY, CLASSIC_POWERS, CUTTHROAT_COPIES, HAND_MAX, POWERS, POWER_COPIES, type EngineCard, type PowerKind } from "../shared/types.ts";
 
 const e = (code: string, mult: 1 | 2 = 1): EngineCard => ({ card: cardFromCode(code, 0) as EngineCard["card"], mult });
@@ -115,11 +113,5 @@ describe("cutthroat", () => {
       expect(line).not.toMatch(banned);
     }
     expect(cutthroatRules.length).toBeGreaterThan(3);
-  });
-  it("a flipped block still fizzles for now", () => {
-    const s = stateWith({ n: 3, deck: ["block", "R1"], settings: { powers: "cutthroat" } });
-    const r = ok(act(s, "p0", { type: "flip" }));
-    expect(find(r, "fizzle")).toMatchObject({ playerId: "p0" });
-    expect(r.state.discard.some((c) => c.kind === "power" && c.power === "block")).toBe(true);
   });
 });

@@ -77,6 +77,14 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
       if (e.card.kind === "power" && !isAimed(e.card.power)) return null;
       return `${who(e.playerId)} flipped ${an(cardLabel(e.card))}${x2}.`;
     }
+    case "keep":
+      return `${who(e.playerId)} kept a power card.`;
+    case "keep-card":
+      return null; // The "keep" line says it.
+    case "play":
+      return `${who(e.playerId)} played ${an(cardLabel(e.card))}.`;
+    case "pass":
+      return `${who(e.playerId)} passed.`;
     case "vent":
       return `Cool: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "turbo":

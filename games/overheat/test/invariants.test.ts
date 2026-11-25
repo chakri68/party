@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { seededRandomInt } from "@games/game-core";
 import { overheatGame as oh } from "../server/game.ts";
-import type { OverheatServerState } from "../shared/types.ts";
+import { HAND_MAX, type OverheatServerState, type PowerSetting } from "../shared/types.ts";
 
-const TOTAL_CARDS = 88;
+const TOTAL_CARDS: Record<PowerSetting, number> = { off: 72, classic: 88, cutthroat: 98 };
 const SEEDS = Array.from({ length: 60 }, (_, i) => i + 1);
 const STEPS = 1500;
 
@@ -11,8 +11,15 @@ const STEPS = 1500;
 function check(s: OverheatServerState, where: string) {
   const ids: number[] = [...s.deck.map((c) => c.id), ...s.discard.map((c) => c.id)];
   for (const p of s.players) for (const e of p.engine) ids.push(e.card.id);
+  for (const p of s.players) {
+    const hand = s.hands[p.id] ?? [];
+    for (const c of hand) ids.push(c.id);
+    expect(hand.length, `${where}: hand too big`).toBeLessThanOrEqual(HAND_MAX);
+    if (p.removed) expect(hand, `${where}: removed player holds cards`).toEqual([]);
+    if (s.settings.powers !== "cutthroat") expect(hand, `${where}: hand outside Cutthroat`).toEqual([]);
+  }
   if (s.pending) ids.push(s.pending.card.id);
-  expect(ids.length, `${where}: card count`).toBe(TOTAL_CARDS);
+  expect(ids.length, `${where}: card count`).toBe(TOTAL_CARDS[s.settings.powers]);
   expect(new Set(ids).size, `${where}: duplicate ids`).toBe(ids.length);
   if (s.phase !== "playing") return;
 
@@ -21,7 +28,16 @@ function check(s: OverheatServerState, where: string) {
     if (p.removed) expect(p.status, `${where}: removed but not out`).toBe("out");
     expect(p.heat, `${where}: negative heat`).toBeGreaterThanOrEqual(0);
   }
-  if (s.step === "turn") expect(s.players[s.turnIndex]!.status, `${where}: turn owner not flipping`).toBe("flipping");
+  if (s.step === "turn") {
+    const owner = s.players[s.turnIndex]!;
+    if (owner.status !== "flipping") {
+      // Cutthroat: a saved or too-hot player with cards, while someone still flips.
+      expect(s.settings.powers, `${where}: turn owner not flipping`).toBe("cutthroat");
+      expect(["banked", "busted"], `${where}: turn owner is out`).toContain(owner.status);
+      expect((s.hands[owner.id] ?? []).length, `${where}: saved turn owner with no cards`).toBeGreaterThan(0);
+      expect(s.players.some((p) => p.status === "flipping"), `${where}: saved turn with nobody flipping`).toBe(true);
+    }
+  }
   if (s.step === "choosing") {
     const chooser = s.players.find((p) => p.id === s.pending!.chooserId)!;
     expect(chooser.status, `${where}: chooser is out`).not.toBe("out");
@@ -30,13 +46,14 @@ function check(s: OverheatServerState, where: string) {
 }
 
 describe("invariants under random play", () => {
-  it("holds across random actions, skips and leavers", () => {
+  it.each(["classic", "cutthroat"] as const)("%s: holds across random actions, skips and leavers", (powers) => {
+    const accepted = { play: 0, pass: 0, keep: 0 };
     for (const seed of SEEDS) {
       const r = seededRandomInt(seed);
       const ctx = { now: 0, randomInt: r };
       const n = 2 + r(7);
       const roster = Array.from({ length: n }, (_, i) => ({ id: `p${i}` }));
-      let t = oh.createGame(roster, { target: 100, powers: "classic" }, { roundNumber: 1, dealerSeat: r(n) }, ctx);
+      let t = oh.createGame(roster, { target: 100, powers }, { roundNumber: 1, dealerSeat: r(n) }, ctx);
       let s = t.state;
       check(s, `seed ${seed} create`);
 
@@ -69,18 +86,29 @@ describe("invariants under random play", () => {
               };
             } else action = { type: "target", targetId };
           } else {
-            action = { type: me.heat >= me.gauge - 6 && r(3) ? "bank" : "flip" };
+            const hand = s.hands[me.id] ?? [];
+            const turn = roll % 4;
+            if (hand.length && turn === 0) action = { type: "play", cardId: hand[r(hand.length)]!.id };
+            else if (me.status !== "flipping" || turn === 1) action = { type: "pass" };
+            else action = { type: me.heat >= me.gauge - 6 && r(3) ? "bank" : "flip" };
           }
           // Mostly the right player, sometimes a stranger: stale and hostile actions must leave state alone.
           const res = oh.handleAction(s, r(10) ? awaited : pid, action as never, ctx);
           if (!res.ok) continue;
           t = res.transition;
+          if (action.type === "play" || action.type === "pass") accepted[action.type]++;
           where += ` ${JSON.stringify(action)}`;
         }
         s = t.state;
+        if (t.events.some((e) => e.event.type === "keep")) accepted.keep++;
         check(s, where);
         expect(JSON.stringify(oh.getPublicState(s)) + JSON.stringify(t.events), `${where}: deck leaked`).not.toMatch(/"deck":/);
       }
     }
-  }, 20_000);
+    if (powers === "cutthroat") {
+      expect(accepted.play, "plays").toBeGreaterThan(50);
+      expect(accepted.pass, "passes").toBeGreaterThan(50);
+      expect(accepted.keep, "keeps").toBeGreaterThan(50);
+    } else expect(accepted).toEqual({ play: 0, pass: 0, keep: 0 });
+  }, 30_000);
 });

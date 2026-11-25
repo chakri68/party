@@ -1,9 +1,11 @@
+import type { PartyStats } from "@games/game-core";
+
 export const COLOURS = ["red", "amber", "blue", "green"] as const;
 export type Colour = (typeof COLOURS)[number];
 export const POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave", "steal", "dump", "audit", "block"] as const;
 export type PowerKind = (typeof POWERS)[number];
 /** The six powers Classic has. Classic never deals the Cutthroat-only cards. */
-export const CLASSIC_POWERS = POWERS.slice(0, 6);
+export const CLASSIC_POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave"] as const satisfies readonly PowerKind[];
 /** Classic copies. The Cutthroat-only cards have none here. */
 export const POWER_COPIES: Record<PowerKind, number> = {
   vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2, steal: 0, dump: 0, audit: 0, block: 0,
@@ -71,9 +73,14 @@ export interface OverheatPlayerState {
 }
 
 export interface Pending {
-  kind: "shove" | "fuse" | "wrench";
+  kind: "shove" | "fuse" | "wrench" | "steal" | "dump" | "audit";
   chooserId: string;
   card: PowerCard;
+  /**
+   * The choice comes from a card played from a hand (or a Push from one).
+   * Once it resolves, the turn stays with the turn owner if they still flip.
+   */
+  fromHand: boolean;
 }
 
 export type Step = "turn" | "choosing" | "round-end";
@@ -91,6 +98,14 @@ export interface OverheatServerState {
   pending: Pending | null;
   deck: Card[];
   discard: Card[];
+  /** Cutthroat: each player's power cards. Missing in games stored before hands. */
+  hands: Record<string, PowerCard[]>;
+  /** The turn owner has played a hand card this turn. */
+  played: boolean;
+  /** Top score at the start of the round, if one player has it (Cutthroat). */
+  leaderId: string | null;
+  /** Party recap counts. Never in a view. */
+  stats: PartyStats;
   roundEndsAt: number;
   winnerIds: string[];
   endReason: EndReason | null;
@@ -106,17 +121,26 @@ export interface OverheatPublicState {
   awaitedId: string | null;
   deckCount: number;
   discardCount: number;
+  /** How many cards each player holds. The cards stay hidden. */
+  handCounts: Record<string, number>;
+  leaderId: string | null;
+  played: boolean;
   roundEndsAt: number;
   settings: OverheatSettings;
   winnerIds: string[];
   endReason: EndReason | null;
 }
 
-export type OverheatPrivateState = Record<string, never>;
+/** Your own hand. Empty outside Cutthroat. */
+export interface OverheatPrivateState {
+  hand: PowerCard[];
+}
 
 export type OverheatAction =
   | { type: "flip" }
   | { type: "bank" }
+  | { type: "play"; cardId: number }
+  | { type: "pass" }
   | { type: "target"; targetId: string }
   | { type: "wrench"; targetId: string; mine: number; theirs: number }; // card ids
 
@@ -124,6 +148,13 @@ export type OverheatEvent =
   | { type: "round-start"; round: number; gauge: number; firstPlayerId: string }
   /** A card landed face up for `playerId`. `by` is set when it came from someone's Shove. */
   | { type: "flip"; playerId: string; card: Card; mult: 1 | 2; heat: number; by?: string }
+  /** A power went into a hand. Public: only who and the new hand size. */
+  | { type: "keep"; playerId: string; count: number }
+  /** The same, with the card. Only that player sees it. */
+  | { type: "keep-card"; playerId: string; card: PowerCard }
+  /** A card played from a hand, shown to all. */
+  | { type: "play"; playerId: string; card: PowerCard }
+  | { type: "pass"; playerId: string }
   | { type: "vent"; playerId: string; heat: number }
   | { type: "turbo"; playerId: string }
   | { type: "shove"; playerId: string; targetId: string }

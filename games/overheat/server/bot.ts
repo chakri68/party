@@ -6,6 +6,7 @@ import type {
   OverheatPlayerState,
   OverheatPrivateState,
   OverheatPublicState,
+  Pending,
 } from "../shared/types.ts";
 
 /** About 1 move in this many is any legal move, as a person's slip would be. */
@@ -22,7 +23,7 @@ const worth = (e: EngineCard) => e.card.value * e.mult;
 const margin = (p: OverheatPlayerState) => (p.gauge - p.heat - p.fuses) / (p.turbo ? 2 : 1);
 
 /** The same rule the game uses: other players still flipping, and for a Wrench a card in both engines. */
-function targetsFor(pub: OverheatPublicState, me: OverheatPlayerState, kind: "shove" | "fuse" | "wrench") {
+function targetsFor(pub: OverheatPublicState, me: OverheatPlayerState, kind: Pending["kind"]) {
   if (kind === "wrench" && !me.engine.length) return [];
   return pub.players.filter(
     (p) => p.id !== me.id && p.status === "flipping" && !p.removed && (kind !== "wrench" || p.engine.length > 0),
@@ -72,6 +73,8 @@ export const overheatBot: GameBot<OverheatPublicState, OverheatPrivateState, Ove
     }
 
     if (pub.step !== "turn" || pub.currentPlayerId !== playerId) return null;
+    // A saved or too-hot turn (Cutthroat). The bot doesn't play hand cards yet.
+    if (me.status !== "flipping") return { type: "pass" };
     if (!me.flipped) return { type: "flip" };
     if (ctx.randomInt(RANDOM_MOVE_ODDS) === 0) return { type: ctx.randomInt(2) === 0 ? "flip" : "bank" };
     if (me.score + bankScore(me.engine, me.redline) >= pub.settings.target) return { type: "bank" };

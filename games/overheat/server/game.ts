@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   GAUGE_MAX,
   GAUGE_MIN,
+  HAND_MAX,
   HEATWAVE_DROP,
   ROUND_END_MS,
   TARGET_OPTIONS,
@@ -29,6 +30,10 @@ type Player = OverheatPlayerState;
 type Events = GameEventEnvelope<OverheatEvent>[];
 
 const pub = (event: OverheatEvent): GameEventEnvelope<OverheatEvent> => ({ visibility: { kind: "public" }, event });
+const priv = (playerId: string, event: OverheatEvent): GameEventEnvelope<OverheatEvent> => ({
+  visibility: { kind: "private", playerId },
+  event,
+});
 
 const reject = (code: string, message: string): GameResult<State, OverheatEvent> => ({
   ok: false,
@@ -54,6 +59,17 @@ const done = (state: State, out: Out) => ({ state, events: out.events, timers: o
 
 const inGame = (p: Player) => !p.removed;
 const current = (state: State): Player => state.players[state.turnIndex]!;
+const anyFlipping = (state: State) => state.players.some((p) => p.status === "flipping");
+
+/** Power cards go to hands only in Cutthroat. */
+export const isCutthroat = (state: State) => state.settings.powers === "cutthroat";
+
+/** A player's hand, made if missing (games stored before hands). Mutates. */
+function handOf(state: State, id: string): PowerCard[] {
+  return ((state.hands ??= {})[id] ??= []);
+}
+/** A player's hand without touching the state. */
+const peekHand = (state: State, id: string): PowerCard[] => state.hands?.[id] ?? [];
 
 /** Top card of the deck. An empty deck is refilled from the discard. Null when both are empty. */
 function draw(state: State, ctx: GameContext, out: Out): Card | null {
@@ -97,6 +113,7 @@ function startRound(state: State, ctx: GameContext, out: Out): void {
   state.gauge = GAUGE_MIN + ctx.randomInt(GAUGE_MAX - GAUGE_MIN + 1);
   state.step = "turn";
   state.pending = null;
+  state.played = false;
   state.turnIndex = state.firstIndex;
   for (const p of state.players) {
     if (p.removed) continue;
@@ -138,15 +155,24 @@ function endRound(state: State, ctx: GameContext, out: Out): void {
  * flipping, in seat order after `turnIndex`. That can be the same player.
  * Their Fuses tick before they act; a tick that busts or banks them moves the
  * turn on again. Each seat is looked at once, so a seat ticks at most once.
- * Nobody left means the round is over.
+ * In Cutthroat a saved or too-hot player holding cards also gets a turn, but
+ * only while someone still flips. Nobody flipping means the round is over.
  */
 function advance(state: State, ctx: GameContext, out: Out): void {
   const n = state.players.length;
   const from = state.turnIndex;
+  state.played = false;
   for (let step = 1; step <= n; step++) {
     const idx = (from + step) % n;
     const p = state.players[idx]!;
-    if (p.status !== "flipping") continue;
+    if (p.status !== "flipping") {
+      if (!anyFlipping(state)) break;
+      if (isCutthroat(state) && !p.removed && peekHand(state, p.id).length) {
+        state.turnIndex = idx;
+        return;
+      }
+      continue;
+    }
     state.turnIndex = idx;
     if (p.fuses > 0) {
       p.heat += p.fuses;
@@ -190,7 +216,14 @@ export function validTargets(state: State, chooserIdx: number, kind: Pending["ki
  * Shove's). Aimed cards with someone to aim at open a choice and wait in
  * `pending`; everything else goes straight to the discard.
  */
-export function resolvePower(state: State, idx: number, card: PowerCard, _ctx: GameContext, out: Out): void {
+export function resolvePower(
+  state: State,
+  idx: number,
+  card: PowerCard,
+  _ctx: GameContext,
+  out: Out,
+  { fromHand = false }: { fromHand?: boolean } = {},
+): void {
   const me = state.players[idx]!;
   const power = card.power;
   if (isAimed(power)) {
@@ -201,7 +234,7 @@ export function resolvePower(state: State, idx: number, card: PowerCard, _ctx: G
       return;
     }
     state.step = "choosing";
-    state.pending = { kind, chooserId: me.id, card };
+    state.pending = { kind, chooserId: me.id, card, fromHand };
     return;
   }
   state.discard.push(card);
@@ -229,8 +262,13 @@ export function resolvePower(state: State, idx: number, card: PowerCard, _ctx: G
   }
 }
 
-/** Player `idx` turns over a card as its flipper. False when there was nothing to draw. */
-function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string): boolean {
+/**
+ * Player `idx` turns over a card as its flipper. False when there was nothing
+ * to draw. In Cutthroat a power from your own flip goes to your hand while it
+ * has room; one a Push turns up always fires. `fromHand` passes on to a choice
+ * the card opens (a Push played from a hand).
+ */
+function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string, fromHand = false): boolean {
   const card = draw(state, ctx, out);
   if (!card) return false;
   if (card.kind === "number") {
@@ -238,9 +276,27 @@ function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: st
     return true;
   }
   const p = state.players[idx]!;
+  if (!by && isCutthroat(state) && handOf(state, p.id).length < HAND_MAX) {
+    const hand = handOf(state, p.id);
+    hand.push(card);
+    out.events.push(pub({ type: "keep", playerId: p.id, count: hand.length }));
+    out.events.push(priv(p.id, { type: "keep-card", playerId: p.id, card }));
+    return true;
+  }
   out.events.push(pub({ type: "flip", playerId: p.id, card, mult: 1, heat: p.heat, ...(by ? { by } : {}) }));
-  resolvePower(state, idx, card, ctx, out);
+  resolvePower(state, idx, card, ctx, out, { fromHand });
   return true;
+}
+
+/**
+ * A card has resolved. After a hand card (or a choice it led to), a turn
+ * owner who still flips keeps the turn: they must still flip or save.
+ * Otherwise the turn moves on.
+ */
+function afterCard(state: State, fromHand: boolean, ctx: GameContext, out: Out): void {
+  state.step = "turn";
+  if (fromHand && current(state).status === "flipping") return;
+  advance(state, ctx, out);
 }
 
 /** The current player banks, and the turn moves on. */
@@ -282,7 +338,7 @@ function badChoice(state: State, seat: number, action: Choice): [string, string]
 
 /** Plays the pending card with a checked choice. It can open a new choice (Shove into an aimed card). */
 function choose(state: State, seat: number, action: Choice, ctx: GameContext, out: Out): void {
-  const { kind, card } = state.pending!;
+  const { kind, card, fromHand } = state.pending!;
   const me = state.players[seat]!;
   const target = state.players.findIndex((p) => p.id === action.targetId);
   const them = state.players[target]!;
@@ -310,11 +366,42 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
   } else {
     out.events.push(pub({ type: "shove", playerId: me.id, targetId: them.id }));
     // Draw before the Shove hits the discard, so a reshuffle can't hand it back.
-    const drew = flipInto(state, target, ctx, out, me.id);
+    const drew = flipInto(state, target, ctx, out, me.id, fromHand);
     if (!drew) out.events.push(pub({ type: "fizzle", playerId: me.id, card: null }));
     state.discard.push(card);
   }
-  if (state.step === "turn") advance(state, ctx, out);
+  if (state.step === "turn") afterCard(state, fromHand ?? false, ctx, out);
+}
+
+/** Why the turn owner at `seat` can't play hand card `cardId` now, or null if they can. */
+function badPlay(state: State, seat: number, cardId: number): [string, string] | null {
+  const me = state.players[seat]!;
+  if (state.played) return ["played", "You played a card this turn."];
+  const card = peekHand(state, me.id).find((c) => c.id === cardId);
+  if (!card) return ["no-card", "That card is not in your hand."];
+  const power = card.power;
+  if (power === "block") return ["block-auto", "Block works by itself when a card is played on you."];
+  if (me.status !== "flipping" && !isAimed(power) && power !== "heatwave") {
+    return ["not-now", "You can play this card only while you flip."];
+  }
+  // Steal, Dump and Audit get their rules later; until then nothing is a valid target.
+  if (power === "steal" || power === "dump" || power === "audit") return ["no-target", "No one to play this card on."];
+  if (isAimed(power) && !validTargets(state, seat, power as Pending["kind"]).length) {
+    return ["no-target", "No one to play this card on."];
+  }
+  return null;
+}
+
+/** The turn owner plays a checked card from their hand. */
+function play(state: State, cardId: number, ctx: GameContext, out: Out): void {
+  const seat = state.turnIndex;
+  const me = state.players[seat]!;
+  const hand = handOf(state, me.id);
+  const card = hand.splice(hand.findIndex((c) => c.id === cardId), 1)[0]!;
+  state.played = true;
+  out.events.push(pub({ type: "play", playerId: me.id, card }));
+  resolvePower(state, seat, card, ctx, out, { fromHand: true });
+  if (state.step === "turn") afterCard(state, true, ctx, out);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +419,8 @@ function parseSettings(input: unknown): OverheatSettings | null {
 function parseAction(input: unknown): OverheatAction | null {
   if (typeof input !== "object" || input === null) return null;
   const a = input as Record<string, unknown>;
-  if (a.type === "flip" || a.type === "bank") return { type: a.type };
+  if (a.type === "flip" || a.type === "bank" || a.type === "pass") return { type: a.type };
+  if (a.type === "play") return Number.isInteger(a.cardId) ? { type: "play", cardId: a.cardId as number } : null;
   if (typeof a.targetId !== "string") return null;
   if (a.type === "target") return { type: "target", targetId: a.targetId };
   if (a.type === "wrench" && Number.isInteger(a.mine) && Number.isInteger(a.theirs)) {
@@ -408,6 +496,10 @@ export const overheatGame: GameDefinition<
       pending: null,
       deck: options?.deck ? rigDeck(options.deck) : shuffle(buildDeck(settings.powers), ctx.randomInt),
       discard: [],
+      hands: Object.fromEntries(players.map((p) => [p.id, []])),
+      played: false,
+      leaderId: null,
+      stats: {},
       roundEndsAt: 0,
       winnerIds: [],
       endReason: null,
@@ -432,12 +524,27 @@ export const overheatGame: GameDefinition<
     }
     if (prev.step === "choosing") return reject("choosing", "Wait for the card to be played.");
     if (seat !== prev.turnIndex) return reject("not-your-turn", "It is not your turn.");
-    if (action.type === "bank" && !prev.players[seat]!.flipped) return reject("must-flip", "Flip a card first.");
+    const flipping = prev.players[seat]!.status === "flipping";
+    if (action.type === "play") {
+      const bad = badPlay(prev, seat, action.cardId);
+      if (bad) return reject(...bad);
+    } else if (action.type === "pass") {
+      if (flipping) return reject("must-act", "Flip a card or save.");
+    } else if (!flipping) {
+      return reject("saved", "You are not flipping. Play a card or pass.");
+    } else if (action.type === "bank" && !prev.players[seat]!.flipped) {
+      return reject("must-flip", "Flip a card first.");
+    }
 
     const state = clone(prev);
     const out = newOut();
     if (action.type === "flip") flip(state, ctx, out);
-    else bankTurn(state, ctx, out);
+    else if (action.type === "bank") bankTurn(state, ctx, out);
+    else if (action.type === "play") play(state, action.cardId, ctx, out);
+    else {
+      out.events.push(pub({ type: "pass", playerId }));
+      advance(state, ctx, out);
+    }
     return { ok: true, transition: done(state, out) };
   },
 
@@ -457,7 +564,8 @@ export const overheatGame: GameDefinition<
       } else {
         choose(state, seat, { type: "target", targetId: target.id }, ctx, out);
       }
-    } else if (current(state).flipped) bankTurn(state, ctx, out);
+    } else if (current(state).status !== "flipping") advance(state, ctx, out);
+    else if (current(state).flipped) bankTurn(state, ctx, out);
     else flip(state, ctx, out);
     return done(state, out);
   },
@@ -470,6 +578,9 @@ export const overheatGame: GameDefinition<
     const gone = state.players[idx]!;
     gone.removed = true;
     gone.status = "out";
+    const hand = handOf(state, gone.id);
+    state.discard.push(...hand);
+    hand.length = 0;
     if (state.players.filter(inGame).length < 2) {
       finish(state, "abandoned", out);
       return done(state, out);
@@ -481,18 +592,17 @@ export const overheatGame: GameDefinition<
         // The chooser left: the card goes to the discard with no effect.
         state.discard.push(pending.card);
         state.pending = null;
-        state.step = "turn";
-        advance(state, ctx, out);
+        afterCard(state, pending.fromHand ?? false, ctx, out);
       } else if (!validTargets(state, chooser, pending.kind).length) {
         out.events.push(pub({ type: "fizzle", playerId: pending.chooserId, card: pending.card }));
         state.discard.push(pending.card);
         state.pending = null;
-        state.step = "turn";
-        advance(state, ctx, out);
+        afterCard(state, pending.fromHand ?? false, ctx, out);
       }
       // Otherwise the choice stands. If the turn owner left, `advance` will
       // step past their seat once it resolves.
-    } else if (state.step === "turn" && idx === state.turnIndex) {
+    } else if (state.step === "turn" && (idx === state.turnIndex || !anyFlipping(state))) {
+      // The turn owner left, or a saved turn owner has nobody left to play on.
       advance(state, ctx, out);
     }
     return done(state, out);
@@ -527,6 +637,9 @@ export const overheatGame: GameDefinition<
       awaitedId: playing ? (awaited(state)[0] ?? null) : null,
       deckCount: state.deck.length,
       discardCount: state.discard.length,
+      handCounts: Object.fromEntries(state.players.map((p) => [p.id, peekHand(state, p.id).length])),
+      leaderId: state.leaderId ?? null,
+      played: state.played ?? false,
       roundEndsAt: state.roundEndsAt,
       settings: state.settings,
       winnerIds: state.winnerIds,
@@ -534,8 +647,8 @@ export const overheatGame: GameDefinition<
     };
   },
 
-  getPrivateState() {
-    return {};
+  getPrivateState(state, playerId) {
+    return { hand: [...peekHand(state, playerId)] };
   },
 
   getAwaitedPlayerIds: awaited,
