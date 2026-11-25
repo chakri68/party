@@ -22,7 +22,7 @@ Computer players can fill seats in this game. The host can pause it.
    - play a **Quick Fix**: the Problem is fixed;
    - play a **Blame Game** on another player: you try to pass it to them (see "Passing a Problem");
    - play a **Fake Report** (see "Fake Report");
-   - tap **Accept**: you take the warnings on it.
+   - tap **Take 1 warning** (**Take 2 warnings** for a Data Leak): you take the warnings on it.
    If the time runs out and you hold a Quick Fix, it is played for you. If you don't hold one, you take the warnings.
 6. When the Problem is gone, your turn ends. If you have Overtime, you draw your second card first.
 
@@ -116,11 +116,16 @@ The turn (25 seconds) and the time to answer a Problem (15 seconds) don't change
 
 ## On your screen
 
-- **Players.** Each player's warnings and number of cards, and signs for an Intern and for Overtime. Fired players are marked.
-- **The table.** The draw pile count, whose turn it is, and the timer. When there is a Problem: what it is, who holds it, its warnings and the tries left.
+- **The top bar.** The round, how many cards are left in the draw pile, whose turn it is, and the timer.
+- **Players.** A box for each player: their warnings as three small squares (a red square is a warning), and their number of cards. A person sign means they have an Intern. A clock sign means they have Overtime. The player whose turn it is has a green edge. The player who holds the Problem has a red edge and a "Problem" label. Fired players are marked "Fired", and players who left are marked "Left".
+- **The table.** When there is a Problem: what it is, what it costs, who holds it, and how many tries are left to pass it on. If not, it says "No Problem right now."
+- **The last move.** One line under the table says what just happened, like "Asha passed Server Down to Ravi." If the game refuses a move, the reason shows there for a few seconds.
 - **The window.** Who played what, and what it will do, with a countdown and the buttons you can use, like **Accept** or **Pass**.
-- **Your hand.** Your cards, with their text. Cards you can play now are marked. Picking a card that needs a player shows which players you can pick.
+- **Your hand.** Your cards, with their text. The top of each card says when you can play it: "Your turn", "Your Problem", "Passed to you" or "After a pass". Cards you can play now have a green edge and say "Play now". Tap a card to read it. Looking at a card never plays it: tap **Play** to play it. For a card that needs a player, the players you can pick get a red edge and the word "Pick". Tap one, then **Confirm**.
+- **Your Problem.** Buttons for what you can do: **Fix** (plays a Quick Fix), **Pass it on** (plays a Blame Game: pick a player, then **Confirm**), **Fake Report** (pick the card to put face down, then **Confirm**), and **Take 1 warning**.
 - **Draw.** On your turn, after any cards you want to play.
+
+On a phone held sideways, the cards are smaller and sit in one row beside the buttons.
 
 ## When things go sideways
 

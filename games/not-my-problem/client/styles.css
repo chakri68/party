@@ -1,0 +1,271 @@
+/* Not My Problem! Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is nmp- prefixed: other games' stylesheets may be loaded in the same tab.
+   The look: paper cards with red stamps, in a very bad office. */
+
+.nmp {
+  --nmp-card-w: calc((100% - 12px) / 3);
+  --nmp-card-h: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.nmp .hint { margin: 0; color: var(--muted); font-size: 0.9rem; text-wrap: balance; }
+.nmp .hint.strong { color: var(--ink); font-weight: 700; }
+.nmp .nmp-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.nmp .nmp-muted { color: var(--muted); font-size: 0.85rem; }
+
+/* ---- Top bar ---------------------------------------------------------------- */
+
+.nmp-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.nmp-where { display: grid; flex: 0 0 auto; font-size: 0.75rem; line-height: 1.2; }
+.nmp-top .countdown { flex: 0 0 auto; }
+.nmp-turn { flex: 1 1 auto; min-width: 0; text-align: right; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.nmp.my-turn .nmp-top { border-color: var(--accent); }
+.nmp.my-turn .nmp-turn { color: var(--accent); }
+
+/* ---- Seats ------------------------------------------------------------------ */
+
+.nmp-seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+}
+.nmp-seat {
+  position: relative;
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 150ms, background 150ms;
+}
+.nmp-seat-body {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 44px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.nmp-seat-body { cursor: pointer; }
+button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nmp-seat-top, .nmp-seat-bottom { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.nmp-seat .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.85rem; }
+.nmp-seat.me .nm { color: var(--muted); }
+.nmp-seat.turn { border-color: var(--accent); background: var(--accent-soft); }
+/* The Problem holder: a red edge, and a stamp in text for anyone who can't see the colour. */
+.nmp-seat.owner { border-color: var(--danger); }
+.nmp-seat.owner::after {
+  content: "Problem";
+  position: absolute;
+  top: -8px;
+  right: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--danger);
+  color: #1b0606;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.nmp-seat.out, .nmp-seat.away { opacity: 0.6; }
+.nmp-seat.winner { border-color: var(--accent); }
+.nmp-seat.pick { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
+.nmp-seat.pick .nmp-seat-top::after {
+  content: "Pick";
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.nmp-seat.picked { background: var(--danger); color: #1b0606; }
+.nmp-seat.picked .nmp-seat-top::after { content: "Picked"; color: #1b0606; }
+.nmp-seat.picked .nm, .nmp-seat.picked .nmp-count { color: #1b0606; }
+
+.nmp-pips { display: inline-flex; gap: 3px; }
+.nmp-pips span { width: 9px; height: 9px; border-radius: 2px; border: 1.5px solid var(--muted); }
+.nmp-pips span.on { background: var(--danger); border-color: var(--danger); }
+.nmp-count { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nmp-sign { display: inline-block; flex: 0 0 auto; width: 14px; height: 14px; }
+.nmp-sign.shield, .nmp-sign.overtime { color: var(--accent); }
+.nmp-tag { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--danger); border: 1.5px solid currentColor; border-radius: 4px; padding: 0 4px; transform: rotate(-4deg); }
+.nmp-away { font-size: 0.7rem; color: var(--muted); }
+
+/* ---- Table: the Problem ----------------------------------------------------- */
+
+.nmp-table {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.nmp-no-problem { margin: 0; color: var(--muted); }
+.nmp-problem {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 340px);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--card-ink);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  animation: nmp-slide 320ms cubic-bezier(.2, .8, .2, 1);
+}
+.nmp-problem .nmp-stamp { width: 56px; height: 56px; color: var(--red); padding: 6px; border: 2.5px solid var(--red); border-radius: 50%; transform: rotate(-8deg); }
+.nmp-problem-text { display: grid; gap: 1px; min-width: 0; }
+.nmp-problem .nmp-label { color: var(--red); }
+.nmp-problem-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
+.nmp-problem-line { font-size: 0.9rem; }
+.nmp-problem-owner { font-weight: 700; margin-top: 2px; }
+.nmp-problem-tries { font-size: 0.8rem; opacity: 0.75; }
+
+/* ---- Feed ------------------------------------------------------------------- */
+
+.nmp-feed { margin: 0; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.9rem; }
+.nmp-feed.flash { color: var(--danger); font-weight: 700; }
+
+/* ---- Dock: prompt, hand, panel ---------------------------------------------- */
+
+.nmp-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 85%, transparent);
+  display: grid;
+  gap: 8px;
+}
+.nmp.finished .nmp-dock { position: static; background: none; }
+.nmp-prompt { text-align: center; }
+
+.nmp-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nmp-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  justify-items: start;
+  align-content: start;
+  gap: 2px;
+  flex: 0 0 var(--nmp-card-w);
+  min-width: 0;
+  min-height: var(--nmp-card-h);
+  padding: 6px 7px;
+  border: none;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+.nmp-card .nmp-stamp { width: 26px; height: 26px; color: var(--red); }
+.nmp-card-when { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; }
+.nmp-card-name { font-weight: 800; font-size: 0.85rem; line-height: 1.1; }
+.nmp-card-line { font-size: 0.72rem; line-height: 1.2; opacity: 0.85; }
+.nmp-card.playable { box-shadow: 0 0 0 2.5px var(--accent), 0 2px 6px rgb(0 0 0 / 0.45); }
+.nmp-card.playable .nmp-card-when { opacity: 1; color: #1d5a12; }
+.nmp-card.selected { transform: translateY(-6px); box-shadow: 0 0 0 3.5px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.nmp-card.pick { box-shadow: 0 0 0 2.5px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
+.nmp-card.pick .nmp-card-when { opacity: 1; color: var(--red); }
+.nmp-card.picked { transform: translateY(-6px); box-shadow: 0 0 0 3.5px var(--danger), 0 4px 10px rgb(0 0 0 / 0.5); }
+.nmp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 1; }
+.nmp-card.fresh { animation: nmp-slide 360ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes nmp-slide {
+  from { transform: translateY(24px); opacity: 0; }
+}
+
+.nmp-panel { display: grid; gap: 8px; min-height: 44px; }
+.nmp-buttons { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.nmp-buttons.wrap { flex-wrap: wrap; }
+.nmp-buttons button { padding-inline: 14px; min-height: 44px; }
+.nmp-buttons button.nmp-draw { min-width: 120px; }
+
+/* The card detail sheet, under the hand. */
+.nmp-sheet {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--card-ink);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.nmp-sheet .nmp-stamp { width: 40px; height: 40px; color: var(--red); }
+.nmp-sheet-text { display: grid; gap: 2px; min-width: 0; }
+.nmp-sheet .nmp-label, .nmp-sheet .nmp-muted { color: inherit; opacity: 0.7; }
+.nmp-sheet .nmp-buttons { grid-column: 1 / -1; }
+.nmp-sheet button.link { color: var(--card-ink); }
+.nmp-pickbar { display: grid; gap: 6px; }
+
+/* ---- Bigger screens ---------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .nmp { --nmp-card-w: 120px; --nmp-card-h: 128px; gap: 12px; }
+  .nmp-hand { justify-content: center; }
+  .nmp-seats { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+
+/* Phone held sideways: a short screen. Smaller cards in one sideways row,
+   beside the buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .nmp { --nmp-card-w: 96px; --nmp-card-h: 84px; gap: 6px; }
+  .nmp-table { min-height: 0; padding: 6px; }
+  .nmp-problem { grid-template-columns: 40px 1fr; padding: 6px 10px; }
+  .nmp-problem .nmp-stamp { width: 40px; height: 40px; padding: 4px; }
+  .nmp-card-line { display: none; }
+  .nmp-dock { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .nmp-prompt { grid-column: 1 / -1; }
+  .nmp-panel { grid-column: 1; grid-row: 2; }
+  .nmp-hand { grid-column: 2; grid-row: 2; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+  .nmp-buttons { justify-content: flex-start; flex-wrap: wrap; }
+}
+
+/* ---- Feedback ---------------------------------------------------------------- */
+
+.nmp .shake { animation: nmp-shake 300ms ease; }
+@keyframes nmp-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nmp .shake { animation: none; outline: 2px solid var(--red); }
+  .nmp-card, .nmp-seat { transition: none; }
+  .nmp-card.selected, .nmp-card.picked { transform: none; }
+  .nmp-card.fresh, .nmp-problem { animation: none; }
+}
