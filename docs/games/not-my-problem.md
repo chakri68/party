@@ -60,7 +60,7 @@ There are 3 Problems for each player who starts the game.
 | --- | --- | --- | --: | --: | --: | --: | --: | --: |
 | Server Down | 1 warning | None. | 5 | 6 | 8 | 9 | 11 | 12 |
 | Data Leak | 2 warnings | An Intern stops only 1 of the 2. | 2 | 2 | 3 | 3 | 4 | 4 |
-| Angry Client | 1 warning | It can't go back to the player who last passed it on. | 2 | 4 | 4 | 6 | 6 | 8 |
+| Angry Client | 1 warning | It can't go back to the player who last passed it on. A Not Me doesn't count. | 2 | 4 | 4 | 6 | 6 | 8 |
 
 With 4 players, that is 44 cards. After the deal, 24 are left in the draw pile: 12 action cards and 12 Problems.
 
@@ -84,7 +84,7 @@ When the Problem lands, the player who holds it gets a new 15 seconds to answer 
 
 **Four tries.** Each Problem can be passed at most 4 times. Each Blame Game and each Revenge counts, even one that was canceled. The table shows how many tries are left. After that, the holder can only fix it, play a Fake Report or accept it.
 
-**Angry Client.** It can't be passed to the player who last passed it on: not with Blame Game, not with Revenge.
+**Angry Client.** It can't be passed to the player who last passed it on: not with Blame Game, not with Revenge. Sending it back with Not Me doesn't count as passing it on.
 
 ## Fake Report
 
@@ -102,7 +102,7 @@ The first challenge wins. A late one is refused and costs nothing. Once you pass
 - **One player left.** The last player who is not fired wins at once.
 - **No cards left.** When the draw pile is empty and there is no Problem on the table, the game ends. The player with the fewest warnings wins. If players tie, the one with the most cards in hand wins. Players still tied after that share the win.
 
-The results list players who are still in first, by fewest warnings, then most cards. Each shows how many warnings they have, like "1 warning". Fired players come next, the last one fired first, with "Fired 1st", "Fired 2nd" and so on ("Fired 1st" was fired first). Players who left without being fired come last, marked "left".
+The results list the players who are not fired first, by fewest warnings, then most cards. Each shows how many warnings they have, like "1 warning". Fired players come next, the last one fired first, with "Fired 1st", "Fired 2nd" and so on ("Fired 1st" was fired first). Players who left without being fired come last, marked "left".
 
 ## Settings
 
@@ -125,9 +125,9 @@ The turn (25 seconds) and the time to answer a Problem (15 seconds) don't change
 ## When things go sideways
 
 - **Late cards.** If a window already closed, a late HR Complaint or challenge is refused with "Too late". The card stays in your hand, and nothing is shown.
-- **Disconnected player.** They stay in the game. If a Problem is passed to them, or they are the target when they drop, they accept it at once. If it is their turn, or they hold a Problem, the game waits for their timer: then they draw, or a held Quick Fix fixes the Problem, or they take the warnings. They can't play HR Complaint or challenge, so windows don't wait for them. When they come back, they play again.
+- **Disconnected player.** They stay in the game. If a Problem is being passed to them when they drop, or is passed to them while they are away, the pass goes ahead at once. If it is their turn, or they hold a Problem, the game waits for their timer: then they draw, or a held Quick Fix fixes the Problem, or they take the warnings. They can't play HR Complaint or challenge, so windows don't wait for them. When they come back, they play again.
 - **Idle player.** The host gets a **Skip** button after a while. A skip does what the timer would do: a turn draws, a Problem is fixed with a held Quick Fix (or the warnings are taken), and a target accepts. The HR and challenge windows wait only for the clock, so there is nothing to skip.
-- **The host removes a player.** Their cards and their Intern go to the discard pile, and their Overtime ends. A Problem they hold goes too, and play goes on. A pass to them fails, and the Problem stays with the player who passed it. If it was their turn, the turn ends. If only one player is left, they win. A player who was fired and then left keeps their "Fired" place in the results.
+- **The host removes a player.** Their cards and their Intern go to the discard pile, and their Overtime ends. A Problem they hold goes too, and play goes on. A pass to them fails, and the Problem stays with the player who played the Blame Game. If it was their turn, the turn ends. If only one player is left, they win. A player who was fired and then left keeps their "Fired" place in the results.
 - **The host pauses the game.** The timer stops for everyone. Nobody can play. When the host taps **Resume**, the timer goes on from where it stopped.
 - **Game over.** The host sees Rematch and Back to lobby; everyone else sees Play again.
 
