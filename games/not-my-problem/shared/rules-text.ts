@@ -9,8 +9,8 @@ import {
   type NmpSettings,
 } from "./types.ts";
 
-/** Plain-language rules for the lobby's Rules button. */
-export const notMyProblemRules: string[] = [
+/** The quick-start rules, without the card list. The in-game Rules sheet lists the cards in groups. */
+export const notMyProblemQuickRules: string[] = [
   "You start with five cards and no warnings.",
   "Three warnings and you are fired.",
   "On your turn, you can play up to two cards. Then draw one card.",
@@ -20,6 +20,11 @@ export const notMyProblemRules: string[] = [
   "If nobody fixes a Problem, the player who holds it gets the warnings on it.",
   "The last player who is not fired wins.",
   "If the cards run out first, the player with the fewest warnings wins.",
+];
+
+/** Plain-language rules for the lobby's Rules button. */
+export const notMyProblemRules: string[] = [
+  ...notMyProblemQuickRules,
   ...ACTION_KINDS.map((k) => `${ACTION_TEXT[k].name}: ${ACTION_TEXT[k].line}`),
   ...PROBLEM_KINDS.map((k) => `${PROBLEM_TEXT[k].name}: ${PROBLEM_TEXT[k].line}`),
 ];

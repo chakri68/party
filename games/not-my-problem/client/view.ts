@@ -2,15 +2,21 @@ import { audio } from "@games/audio";
 import { countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { ACTION_TEXT, PROBLEM_TEXT } from "../shared/cards.ts";
 import type { ActionCard, NmpEvent, NmpPrivateState, NmpPublicState } from "../shared/types.ts";
-import { actionIcon, handCard, playWhen, problemIcon, timingLabel } from "./cards.ts";
-import { feedLine } from "./feed.ts";
+import { actionIcon, cardFace, handCard, playWhen, problemIcon, timingLabel } from "./cards.ts";
+import { nextFeed, type FeedMemo } from "./feed.ts";
 import { PICK_VERB, cardMove, needsFor } from "./moves.ts";
+import { namesFor, promptModel, renderPrompt, type PromptButton } from "./prompts.ts";
+import { rulesSheet } from "./rules.ts";
 import { renderSeats, type SeatPick } from "./seats.ts";
 
 /** The last seconds tick for whoever the clock is running on. */
 const TICK_FROM = 3;
 /** A refused move's message stays in the feed this long. */
 const REJECT_MS = 3000;
+/** A card shown by a challenge stays in the middle this long. */
+const REVEAL_MS = 2000;
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -38,9 +44,18 @@ export class NotMyProblemView implements GameView {
   private timer = countdown();
   private seats = h("div", { class: "nmp-seats", role: "list", "aria-label": "Players" });
   private table = h("div", { class: "nmp-table", role: "group", "aria-label": "Table" });
+  /** The card a challenge showed, over the table for a moment. */
+  private revealEl = h("div", { class: "nmp-reveal", hidden: true, "aria-hidden": "true" });
+  private reveal: { timer: ReturnType<typeof setTimeout>; done: Promise<void>; end: () => void } | null = null;
+  private rulesBtn = h("button", { type: "button", class: "link nmp-rules-btn", onclick: () => this.rules.open() }, "Rules");
+  private rules = rulesSheet(() => this.rulesBtn.focus());
   private feed = h("p", { class: "nmp-feed", "aria-live": "polite" });
   /** The window prompts (target, HR, challenge) render here, above the hand. */
-  private prompt = h("div", { class: "nmp-prompt" });
+  private prompt = h("div", { class: "nmp-prompt", hidden: true });
+  /** Redrawn only when this changes, so focus and screen readers aren't disturbed every tick. */
+  private promptKey = "";
+  private promptTimer = countdown();
+  private promptBar = h("div", { class: "nmp-bar", "aria-hidden": "true" }, h("span"));
   private hand = h("div", { class: "nmp-hand", role: "group", "aria-label": "Your hand" });
   private panel = h("div", { class: "nmp-panel" });
 
@@ -48,17 +63,22 @@ export class NotMyProblemView implements GameView {
   private selection: Selection | null = null;
   /** Sent and not yet answered: buttons stay locked meanwhile. */
   private pending = new Set<string>();
-  private feedText = "";
+  /** My private state as last seen: a change in it is the server's answer to what I sent. */
+  private privKey = "";
+  private feedMemo: FeedMemo | null = null;
   private flash: { text: string; timer: ReturnType<typeof setTimeout> } | null = null;
   private wasMine = false;
   /**
    * Where keyboard focus belongs after a redraw, as a selector. Seats and the
    * panel are rebuilt on each render, so the focused button is replaced: this
-   * puts focus on its replacement (or on the next thing to press).
+   * puts focus on its replacement (or on the next thing to press). It lasts
+   * while a sent move waits, then for one render: it never jumps later.
    */
   private focusWant: string | null = null;
   /** A move that says where focus goes next (Confirm after a pick). Wins over focusWant. */
   private focusNext: string | null = null;
+  /** Where Cancel sends focus, when the pick started from a prompt button. */
+  private cancelFocus: string | null = null;
   private lastTick = -1;
   /** A new deadline starts a new set of ticks. */
   private tickDeadline: number | null = null;
@@ -66,13 +86,14 @@ export class NotMyProblemView implements GameView {
 
   constructor(api: GameClientApi) {
     this.api = api;
-    this.top.append(h("span", { class: "nmp-where" }, this.roundEl, this.pileEl), this.turnEl, this.timer.el);
+    this.top.append(h("span", { class: "nmp-where" }, this.roundEl, this.pileEl), this.turnEl, this.timer.el, this.rulesBtn);
     this.root.append(
       this.top,
       this.seats,
-      this.table,
+      h("div", { class: "nmp-center" }, this.table, this.revealEl),
       this.feed,
       h("div", { class: "nmp-dock" }, this.prompt, this.hand, this.panel),
+      this.rules.el,
     );
     this.clock = setInterval(() => this.renderClock(), 200);
   }
@@ -84,7 +105,14 @@ export class NotMyProblemView implements GameView {
   destroy() {
     clearInterval(this.clock);
     if (this.flash) clearTimeout(this.flash.timer);
+    this.reveal?.end();
+    this.rules.close();
     this.root.remove();
+  }
+
+  /** The shell waits on this before the results cover the table: a challenge's card stays in view. */
+  whenIdle(): Promise<void> {
+    return this.reveal?.done ?? Promise.resolve();
   }
 
   rejected(clientActionId: string, message: string) {
@@ -109,16 +137,24 @@ export class NotMyProblemView implements GameView {
   }
 
   update(props: GameViewProps) {
-    // Anything from the server answers what we sent: unlock.
-    this.pending.clear();
+    // Every move I can send changes my private state (a new token, a card
+    // gone, a pass noted), so that change is the answer: unlock. Other
+    // updates (someone's seat, someone else's pass) keep the lock.
+    const privKey = JSON.stringify(props.private);
+    if (privKey !== this.privKey) this.pending.clear();
+    this.privKey = privKey;
     const game = props.game as NmpPublicState;
     const events = props.events as NmpEvent[];
     const first = !this.props;
-    this.feedText = feedLine(game.lastEvent, events, props);
+    this.feedMemo = nextFeed(game.lastEvent, events, props, this.feedMemo);
     // A reconnect or a first look: show it as it is, no sounds or slides.
     const quiet = props.snapshot || first;
     this.render(props, !quiet);
-    if (!quiet) this.eventSounds(events, props);
+    if (!quiet) {
+      this.eventSounds(events, props);
+      const shown = events.findLast((e) => e.type === "challenged");
+      if (shown && !reducedMotion()) this.showReveal(shown, props);
+    }
   }
 
   // ---- render ---------------------------------------------------------------
@@ -131,7 +167,8 @@ export class NotMyProblemView implements GameView {
     const me = props.playerId;
     const myTurn = !!priv?.canDraw;
     const myProblem = game.step === "problem" && game.problem?.ownerId === me && !!priv?.canAccept;
-    const mine = myTurn || myProblem;
+    const myTarget = game.step === "target" && !!priv?.canAccept;
+    const mine = myTurn || myProblem || myTarget;
 
     // A new step (or a card that left the hand) forgets the pick.
     const sel = this.selection;
@@ -141,18 +178,18 @@ export class NotMyProblemView implements GameView {
     this.root.classList.toggle("finished", game.step === "finished");
 
     this.api.setTurn(
-      myTurn ? "Play or draw"
+      myTurn ? "Your turn"
       : myProblem ? "Fix your Problem"
-      : game.step === "target" && priv?.canAccept ? "Answer the pass"
+      : myTarget ? "Answer the pass"
       : null,
     );
 
-    this.renderTop(props, game, myProblem);
+    this.renderTop(props, game, myProblem, myTarget);
     renderSeats(this.seats, props, game, this.seatPick(priv));
     this.renderTable(props, game);
     this.renderFeed();
     const seated = game.players.some((p) => p.id === me && !p.fired && !p.removed);
-    this.renderPrompt(game, seated);
+    this.renderPrompt(props, game, priv);
     this.renderHand(priv, fresh);
     // Fired, left or watching with nothing in hand: no empty hand row.
     this.hand.hidden = !seated && !priv?.hand.length;
@@ -189,15 +226,22 @@ export class NotMyProblemView implements GameView {
     const cur = document.activeElement;
     const lost = !cur || cur === document.body || !cur.isConnected;
     const want = next ?? (lost ? this.focusWant : null);
-    if (!want) return;
-    // A panel button that is gone (Confirm after it was sent): the panel's next button instead.
-    const el =
-      this.root.querySelector<HTMLElement>(want) ??
-      (want.startsWith('[data-focus="act') ? this.panel.querySelector<HTMLElement>("button[data-focus]:not(:disabled)") : null);
-    if (el && !(el as HTMLButtonElement).disabled) {
-      el.focus({ preventScroll: true });
-      this.focusWant = null;
+    if (want) {
+      // A button that is gone (Confirm after it was sent): the next button to press instead,
+      // in the prompt first, then the panel.
+      const el =
+        this.root.querySelector<HTMLElement>(want) ??
+        (want.startsWith('[data-focus="act')
+          ? (this.prompt.querySelector<HTMLElement>("button[data-focus]:not(:disabled)") ??
+            this.panel.querySelector<HTMLElement>("button[data-focus]:not(:disabled)"))
+          : null);
+      if (el && !(el as HTMLButtonElement).disabled) {
+        el.focus({ preventScroll: true });
+        this.focusWant = null;
+      }
     }
+    // Only a move still waiting on its answer keeps the wish for a later render.
+    if (!this.pending.size) this.focusWant = null;
   }
 
   private eventSounds(events: NmpEvent[], props: GameViewProps) {
@@ -206,6 +250,7 @@ export class NotMyProblemView implements GameView {
       if (e.type === "played" || e.type === "report") audio.play("card-place");
       else if (e.type === "drew") audio.play(e.problem ? "nudge" : "deal");
       else if (e.type === "fixed") audio.play("correct");
+      else if (e.type === "challenged") audio.play(e.lied ? "boom" : "nudge");
       else if (e.type === "warned" && e.playerId === me && e.amount > 0) audio.buzz([50, 40, 50]);
       else if (e.type === "game-over") {
         const won = e.winnerIds.includes(me);
@@ -215,7 +260,7 @@ export class NotMyProblemView implements GameView {
     }
   }
 
-  private renderTop(props: GameViewProps, game: NmpPublicState, myProblem: boolean) {
+  private renderTop(props: GameViewProps, game: NmpPublicState, myProblem: boolean, myTarget: boolean) {
     this.top.hidden = game.step === "finished";
     this.roundEl.textContent = `Round ${game.round}`;
     this.pileEl.textContent = `${plural(game.drawCount, "card")} left`;
@@ -224,6 +269,7 @@ export class NotMyProblemView implements GameView {
     // The clock runs on whoever must act: on a Problem passed to me, that's me.
     this.turnEl.textContent =
       myProblem ? "Your Problem"
+      : myTarget ? "Passed to you"
       : !id ? ""
       : id === props.playerId ? "Your turn"
       : `${seatName(props.room, id)}'s turn`;
@@ -239,6 +285,14 @@ export class NotMyProblemView implements GameView {
     const paused = props.room.paused;
     const left = Math.max(0, game.deadline - this.api.serverNow());
     this.timer.set(left, { paused, lowAt: 5_000 });
+    if (!this.prompt.hidden) {
+      this.promptTimer.set(left, { paused, lowAt: 3_000 });
+      // Paused: the bar stays where it stopped (the deadline only moves on Resume).
+      if (!paused) {
+        const share = game.windowMs ? Math.min(1, left / game.windowMs) : 0;
+        (this.promptBar.firstElementChild as HTMLElement).style.transform = `scaleX(${share})`;
+      }
+    }
     const secs = Math.ceil(left / 1000);
     if (game.deadline !== this.tickDeadline) {
       this.tickDeadline = game.deadline;
@@ -289,14 +343,63 @@ export class NotMyProblemView implements GameView {
 
   private renderFeed() {
     this.feed.classList.toggle("flash", !!this.flash);
-    this.feed.textContent = this.flash?.text ?? this.feedText;
+    this.feed.textContent = this.flash?.text ?? this.feedMemo?.text ?? "";
   }
 
-  /** Target, HR and challenge windows get their own prompts; until then, a plain line. */
-  private renderPrompt(game: NmpPublicState, seated: boolean) {
-    const waiting = seated && (game.step === "target" || game.step === "hr" || game.step === "challenge");
-    this.prompt.hidden = !waiting;
-    replaceChildren(this.prompt, waiting ? h("p", { class: "hint" }, "Waiting") : null);
+  /** The target, HR and challenge windows: who played what, what it will do, the answers. */
+  private renderPrompt(props: GameViewProps, game: NmpPublicState, priv: NmpPrivateState | null) {
+    const model = promptModel(game, priv, props.playerId, namesFor(props));
+    const picking = this.selection?.mode === "seat";
+    const locked = this.pending.size > 0;
+    const key = model ? JSON.stringify([game.token, model, picking, locked]) : "";
+    this.prompt.hidden = !model;
+    if (key === this.promptKey) return;
+    this.promptKey = key;
+    if (!model) {
+      this.prompt.replaceChildren();
+      return;
+    }
+    renderPrompt(this.prompt, model, {
+      locked,
+      picking,
+      timer: this.promptTimer.el,
+      bar: this.promptBar,
+      onButton: (b) => this.onPromptButton(b),
+    });
+  }
+
+  private onPromptButton(b: PromptButton) {
+    const priv = this.props?.private as NmpPrivateState | null | undefined;
+    if (!priv) return;
+    if (b.pickCardId) {
+      this.startPick(priv, b.pickCardId, "seat");
+      this.cancelFocus = `[data-focus="act:${b.key}"]`;
+    }
+    else if (b.action) this.send(b.action);
+  }
+
+  /** The card a challenge showed, in the middle of the table for a moment. */
+  private showReveal(e: Extract<NmpEvent, { type: "challenged" }>, props: GameViewProps) {
+    this.reveal?.end();
+    const owner = e.ownerId === props.playerId ? "Your" : `${seatName(props.room, e.ownerId)}'s`;
+    replaceChildren(
+      this.revealEl,
+      h("span", { class: "nmp-label" }, `${owner} face-down card`),
+      cardFace(e.card.kind),
+      h("span", { class: `nmp-verdict ${e.lied ? "lie" : "true"}` }, e.lied ? "Not a Quick Fix" : "A real Quick Fix"),
+    );
+    this.revealEl.hidden = false;
+    let end!: () => void;
+    const done = new Promise<void>((resolve) => {
+      end = () => {
+        clearTimeout(timer);
+        this.revealEl.hidden = true;
+        this.reveal = null;
+        resolve();
+      };
+    });
+    const timer = setTimeout(() => end(), REVEAL_MS);
+    this.reveal = { timer, done, end };
   }
 
   // ---- hand -----------------------------------------------------------------
@@ -521,21 +624,23 @@ export class NotMyProblemView implements GameView {
   }
 
   private startPick(priv: NmpPrivateState, cardId: string, mode: "seat" | "face-down") {
+    this.cancelFocus = null;
     this.selection = { token: priv.token, cardId, mode, picked: null };
     this.focusNext = mode === "seat" ? ".nmp-seat.pick button" : ".nmp-card.pick";
     this.rerender();
   }
 
   private clearSelection() {
-    // Back to the card it was about.
+    // Back to where the pick started: the prompt's button, or the card it was about.
     const id = this.selection?.cardId;
-    if (id) this.focusNext = `[data-card="${CSS.escape(id)}"]`;
+    if (id) this.focusNext = this.cancelFocus ?? `[data-card="${CSS.escape(id)}"]`;
+    this.cancelFocus = null;
     this.selection = null;
     this.rerender();
   }
 
+  /** The pick stays until the move is answered: a refused Confirm can be pressed again. */
   private send(action: unknown) {
-    this.selection = null;
     this.pending.add(this.api.act(action));
     this.rerender();
   }

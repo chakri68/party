@@ -143,6 +143,30 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 .nmp-problem-owner { font-weight: 700; margin-top: 2px; }
 .nmp-problem-tries { font-size: 0.8rem; opacity: 0.75; }
 
+/* The card a challenge showed, over the table for a moment. */
+.nmp-center { position: relative; display: grid; }
+.nmp-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  animation: nmp-pop 260ms cubic-bezier(.2, .8, .2, 1);
+}
+.nmp-reveal[hidden] { display: none; }
+.nmp-reveal .nmp-card { flex: 0 0 auto; width: 130px; min-height: 0; cursor: default; }
+.nmp-verdict { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; padding: 1px 6px; border: 2px solid currentColor; border-radius: 4px; transform: rotate(-3deg); }
+.nmp-verdict.lie { color: var(--danger); }
+.nmp-verdict.true { color: var(--accent); }
+@keyframes nmp-pop {
+  from { transform: scale(0.9); opacity: 0; }
+}
+
 /* ---- Feed ------------------------------------------------------------------- */
 
 .nmp-feed { margin: 0; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.9rem; }
@@ -160,7 +184,32 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   gap: 8px;
 }
 .nmp.finished .nmp-dock { position: static; background: none; }
-.nmp-prompt { text-align: center; }
+
+/* The window prompt: a compact box above the hand, never over it. */
+.nmp-prompt {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.nmp-prompt.k-hr { border-left-color: var(--accent); }
+.nmp-prompt-top { display: flex; align-items: flex-start; gap: 8px; }
+.nmp-prompt-top .countdown { flex: 0 0 auto; }
+.nmp-prompt-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.nmp-prompt-text p { margin: 0; }
+.nmp-prompt-head { font-weight: 700; color: var(--ink); }
+.nmp-prompt-note { font-size: 0.85rem; color: var(--muted); }
+.nmp-bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.nmp-bar span { display: block; height: 100%; background: var(--danger); transform-origin: left; transition: transform 200ms linear; }
+.nmp-prompt.k-hr .nmp-bar span { background: var(--accent); }
+.nmp-prompt .nmp-buttons { justify-content: flex-start; }
+.nmp-facedown { display: flex; align-items: center; gap: 10px; }
+.nmp-face { cursor: default; }
+.nmp-card.small { flex: 0 0 auto; width: 110px; min-height: 0; }
+.nmp-card.small .nmp-card-line { display: none; }
 
 .nmp-hand {
   display: flex;
@@ -231,6 +280,32 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 .nmp-sheet button.link { color: var(--card-ink); }
 .nmp-pickbar { display: grid; gap: 6px; }
 
+/* ---- Rules sheet -------------------------------------------------------------- */
+
+.nmp-rules-btn { flex: 0 0 auto; min-height: 36px; padding: 0 4px; font-size: 0.85rem; }
+.nmp-rules {
+  width: min(520px, calc(100% - 24px));
+  max-height: 86vh;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.nmp-rules::backdrop { background: rgb(0 0 0 / 0.6); }
+.nmp-rules-body { padding: 12px 16px 16px; }
+.nmp-rules-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nmp-rules-head button { min-height: 44px; }
+.nmp-rules h2 { margin: 0; font-size: 1.15rem; }
+.nmp-rules h3 { margin: 14px 0 6px; font-size: 0.95rem; }
+.nmp-rules ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.nmp-rules-list { margin-top: 8px !important; }
+.nmp-rules-list li { padding-left: 14px; position: relative; font-size: 0.9rem; }
+.nmp-rules-list li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.nmp-rule-card { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 0.9rem; }
+.nmp-rule-card .nmp-stamp { width: 28px; height: 28px; color: var(--danger); }
+.nmp-rule-text { display: grid; }
+
 /* ---- Bigger screens ---------------------------------------------------------- */
 
 @media (min-width: 700px) {
@@ -267,5 +342,6 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   .nmp .shake { animation: none; outline: 2px solid var(--red); }
   .nmp-card, .nmp-seat { transition: none; }
   .nmp-card.selected, .nmp-card.picked { transform: none; }
-  .nmp-card.fresh, .nmp-problem { animation: none; }
+  .nmp-card.fresh, .nmp-problem, .nmp-reveal { animation: none; }
+  .nmp-bar span { transition: none; }
 }

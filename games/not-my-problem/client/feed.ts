@@ -63,10 +63,35 @@ export function describe(e: NmpEvent, props: GameViewProps): string {
 
 /**
  * The feed line for an update: the latest public event, unless this update
- * also told me something only I know about it (the card I drew or took).
+ * also told me something only I know about it (the card I drew or took). A
+ * challenge also says what it cost, since the last event alone ("fixed")
+ * would hide what the card was.
  */
 export function feedLine(lastEvent: NmpEvent | null, events: NmpEvent[], props: GameViewProps): string {
   const mine = events.findLast((e) => e.type === "drew-card" || (e.type === "spied" && !!e.card));
   if (mine && lastEvent && (lastEvent.type === "drew" || lastEvent.type === "spied")) return describe(mine, props);
+  const at = events.findIndex((e) => e.type === "challenged");
+  if (at >= 0) {
+    const cost = events.slice(at + 1).filter((e) => e.type === "warned" || e.type === "fired");
+    return [events[at]!, ...cost].map((e) => describe(e, props)).join(" ");
+  }
   return lastEvent ? describe(lastEvent, props) : "";
+}
+
+/** The feed line and the last event it was made for. */
+export interface FeedMemo {
+  key: string;
+  text: string;
+}
+
+/**
+ * The next feed line. An update that didn't bring the last event again (a
+ * seat came back, someone passed) keeps the line as it was, so "You drew
+ * Spy." doesn't turn back into "You drew a card."
+ */
+export function nextFeed(lastEvent: NmpEvent | null, events: NmpEvent[], props: GameViewProps, prev: FeedMemo | null): FeedMemo {
+  const key = JSON.stringify(lastEvent);
+  const again = events.some((e) => JSON.stringify(e) === key);
+  if (prev && prev.key === key && !again) return prev;
+  return { key, text: feedLine(lastEvent, events, props) };
 }

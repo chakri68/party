@@ -116,11 +116,15 @@ The turn (25 seconds) and the time to answer a Problem (15 seconds) don't change
 
 ## On your screen
 
-- **The top bar.** The round, how many cards are left in the draw pile, whose turn it is, and the timer.
+- **The top bar.** The round, how many cards are left in the draw pile, whose turn it is, the timer, and a **Rules** button. **Rules** opens the short rules and every card, in groups: Problem cards, cards for when you hold a Problem, reactions, and cards for your turn.
 - **Players.** A box for each player: their warnings as three small squares (a red square is a warning), and their number of cards. A person sign means they have an Intern. A clock sign means they have Overtime. The player whose turn it is has a green edge. The player who holds the Problem has a red edge and a "Problem" label. Fired players are marked "Fired", and players who left are marked "Left".
 - **The table.** When there is a Problem: what it is, what it costs, who holds it, and how many tries are left to pass it on. If not, it says "No Problem right now."
 - **The last move.** One line under the table says what just happened, like "Asha passed Server Down to Ravi." If the game refuses a move, the reason shows there for a few seconds.
-- **The window.** Who played what, and what it will do, with a countdown and the buttons you can use, like **Accept** or **Pass**.
+- **The window.** A box above your hand says who played what and what will happen, with a countdown. It never covers your hand.
+  - A Problem is passed to you: "Ravi wants to pass Data Leak to you." Tap **Not Me**, **Revenge** (pick a player, then **Confirm**) or **Accept**. You only see Not Me or Revenge if you hold that card. Everyone else sees who is deciding, like "Asha is deciding."
+  - The HR window: what happened, like "Ravi passed it to Asha. Asha sent it back.", and who gets the Problem if nobody cancels it. Tap **HR Complaint** (if you hold one) or **Pass**. After you pass, it says "You passed. Waiting."
+  - A Fake Report: "Ravi says this is a Quick Fix." Tap **Challenge** or **Pass**. The player who made the report sees their own face-down card.
+- **A challenge.** The face-down card shows in the middle of the table for 2 seconds, with "Not a Quick Fix" or "A real Quick Fix". If your phone is set to reduce motion, it is not shown there. The last-move line always says what the card was and who got the warnings.
 - **Your hand.** Your cards, with their text. The top of each card says when you can play it: "Your turn", "Your Problem", "Passed to you" or "After a pass". Cards you can play now have a green edge and say "Play now". Tap a card to read it. Looking at a card never plays it: tap **Play** to play it. For a card that needs a player, the players you can pick get a red edge and the word "Pick". Tap one, then **Confirm**.
 - **Your Problem.** Buttons for what you can do: **Fix** (plays a Quick Fix), **Pass it on** (plays a Blame Game: pick a player, then **Confirm**), **Fake Report** (pick the card to put face down, then **Confirm**), and **Take 1 warning** (or 2 for a Data Leak). The count already leaves out the warning your Intern takes. If your Intern takes the only warning, the button says **Take it**.
 - **Draw.** On your turn, after any cards you want to play.

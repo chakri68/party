@@ -88,14 +88,18 @@ export function problemIcon(kind: ProblemKind): HTMLElement {
   return icon(PROBLEM_SVG[kind], "nmp-stamp");
 }
 
+/** The stamp, the name and the one line: what every card face shows. */
+function faceParts(kind: ActionKind): HTMLElement[] {
+  const text = ACTION_TEXT[kind];
+  return [actionIcon(kind), h("span", { class: "nmp-card-name" }, text.name), h("span", { class: "nmp-card-line" }, text.line)];
+}
+
 /** A hand card: a button with the stamp, the name and the one line. */
 export function handCard(card: ActionCard): HTMLButtonElement {
-  const text = ACTION_TEXT[card.kind];
-  return h(
-    "button",
-    { type: "button", class: `nmp-card k-${card.kind}`, "data-card": card.id },
-    actionIcon(card.kind),
-    h("span", { class: "nmp-card-name" }, text.name),
-    h("span", { class: "nmp-card-line" }, text.line),
-  );
+  return h("button", { type: "button", class: `nmp-card k-${card.kind}`, "data-card": card.id }, faceParts(card.kind));
+}
+
+/** A card shown, not pressed: the face-down card to its owner, a card shown after a challenge. */
+export function cardFace(kind: ActionKind, cls = ""): HTMLElement {
+  return h("div", { class: `nmp-card nmp-face k-${kind} ${cls}`.trim(), role: "img", "aria-label": `${ACTION_TEXT[kind].name}. ${ACTION_TEXT[kind].line}` }, faceParts(kind));
 }
