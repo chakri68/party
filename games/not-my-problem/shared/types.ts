@@ -1,7 +1,12 @@
-export type ActionKind =
-  | "quick-fix" | "blame-game" | "not-me" | "revenge" | "hr-complaint"
-  | "fake-report" | "overtime" | "intern" | "promotion" | "spy";
-export type ProblemKind = "server-down" | "data-leak" | "angry-client";
+/** Every action card kind, in the order the rules list them. */
+export const ACTION_KINDS = [
+  "quick-fix", "blame-game", "not-me", "revenge", "hr-complaint",
+  "fake-report", "overtime", "intern", "promotion", "spy",
+] as const;
+export type ActionKind = (typeof ACTION_KINDS)[number];
+/** Every Problem kind, in the order the rules list them. */
+export const PROBLEM_KINDS = ["server-down", "data-leak", "angry-client"] as const;
+export type ProblemKind = (typeof PROBLEM_KINDS)[number];
 /** `id` is `${kind}-${n}`, n from 1. */
 export interface ActionCard { id: string; kind: ActionKind }
 export interface ProblemCard { id: string; kind: ProblemKind }
@@ -22,9 +27,8 @@ export const HAND_SIZE = 5;
 
 export type Step = "action" | "problem" | "target" | "hr" | "challenge" | "finished";
 
-const PROBLEM_KINDS: readonly string[] = ["server-down", "data-leak", "angry-client"];
 export function isProblem(c: PileCard): c is ProblemCard {
-  return PROBLEM_KINDS.includes(c.kind);
+  return (PROBLEM_KINDS as readonly string[]).includes(c.kind);
 }
 
 export interface NmpPublicPlayer {

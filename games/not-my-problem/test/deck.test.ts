@@ -5,6 +5,7 @@ import {
   PROBLEM_TEXT,
   buildDeck,
   copiesFor,
+  notMyProblemRules,
   notMyProblemSettingFields,
   problemCount,
   penaltyOf,
@@ -62,7 +63,7 @@ describe("copy", () => {
   const lines = [
     ...Object.values(ACTION_TEXT as Record<ActionKind, { name: string; line: string }>),
     ...Object.values(PROBLEM_TEXT),
-  ].flatMap((t) => [t.name, t.line]);
+  ].flatMap((t) => [t.name, t.line]).concat(notMyProblemRules);
   it("has no emoji and never says strike", () => {
     for (const l of lines) {
       expect(l).not.toMatch(/\p{Extended_Pictographic}/u);
@@ -73,5 +74,8 @@ describe("copy", () => {
     const f = notMyProblemSettingFields({}, 4)[0]!;
     expect(f.selected).toBe(1);
     expect(f.hint).toBe("12 Problems in 24 cards");
+  });
+  it("an unknown time selects the default, 8 seconds", () => {
+    expect(notMyProblemSettingFields({ reactionSeconds: 7 }, 4)[0]!.selected).toBe(1);
   });
 });
