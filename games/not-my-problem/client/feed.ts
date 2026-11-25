@@ -1,5 +1,5 @@
 import { seatName, type GameViewProps } from "@games/ui";
-import type { NmpEvent } from "../shared/types.ts";
+import type { NmpEvent, NmpPublicState } from "../shared/types.ts";
 import { cardName, problemName } from "./cards.ts";
 
 /** "Asha", "Asha and Ravi", "Asha, Ravi and Mina". */
@@ -75,7 +75,21 @@ export function feedLine(lastEvent: NmpEvent | null, events: NmpEvent[], props: 
     const cost = events.slice(at + 1).filter((e) => e.type === "warned" || e.type === "fired");
     return [events[at]!, ...cost].map((e) => describe(e, props)).join(" ");
   }
-  return lastEvent ? describe(lastEvent, props) : "";
+  if (!lastEvent) return "";
+  return `${describe(lastEvent, props)}${staysWith(lastEvent, props)}`;
+}
+
+/**
+ * HR Complaint on a Blame Game alone leaves the Problem where it was, so no
+ * "moved" event follows it. Say who still holds it. (When HR sends it on, the
+ * "moved" event comes last and says where it went.)
+ */
+function staysWith(e: NmpEvent, props: GameViewProps): string {
+  if (e.type !== "played" || e.kind !== "hr-complaint") return "";
+  const game = props.game as NmpPublicState | undefined;
+  const holder = game?.step === "problem" ? game.problem?.ownerId : undefined;
+  if (!holder) return "";
+  return ` It stays with ${holder === props.playerId ? "you" : seatName(props.room, holder)}.`;
 }
 
 /** The feed line and the last event it was made for. */

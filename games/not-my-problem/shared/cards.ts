@@ -7,7 +7,7 @@ export const ACTION_TEXT: Record<ActionKind, CardText> = {
   "blame-game": { name: "Blame Game", line: "Pass your Problem to another player.", timing: "problem" },
   "not-me": { name: "Not Me", line: "A Problem passed to you goes back.", timing: "reaction" },
   revenge: { name: "Revenge", line: "A Problem passed to you goes to someone else.", timing: "reaction" },
-  "hr-complaint": { name: "HR Complaint", line: "Cancel the last pass.", timing: "reaction" },
+  "hr-complaint": { name: "HR Complaint", line: "Cancel the last move.", timing: "reaction" },
   "fake-report": { name: "Fake Report", line: "Play a card face down and say it is a Quick Fix.", timing: "problem" },
   overtime: { name: "Overtime", line: "A player draws 2 cards on their next turn.", timing: "proactive" },
   intern: { name: "Intern", line: "Your next warning goes to the Intern.", timing: "proactive" },
@@ -18,7 +18,7 @@ export const ACTION_TEXT: Record<ActionKind, CardText> = {
 export const PROBLEM_TEXT: Record<ProblemKind, { name: string; line: string; penalty: 1 | 2 }> = {
   "server-down": { name: "Server Down", line: "1 warning if not fixed.", penalty: 1 },
   "data-leak": { name: "Data Leak", line: "2 warnings if not fixed. An Intern stops only 1.", penalty: 2 },
-  "angry-client": { name: "Angry Client", line: "1 warning. Can't go back to the last player.", penalty: 1 },
+  "angry-client": { name: "Angry Client", line: "1 warning if not fixed. Can't go back to the player who passed it.", penalty: 1 },
 };
 
 /** Copies of each action card for a game that starts with n players. */

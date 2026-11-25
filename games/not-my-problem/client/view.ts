@@ -180,10 +180,12 @@ export class NotMyProblemView implements GameView {
 
     this.root.classList.toggle("my-turn", mine);
     this.root.classList.toggle("finished", game.step === "finished");
-    // A prompt or a seat pick is open: the hand becomes one sideways row, so the
-    // Problem and the seats stay in view above the dock.
+    // A prompt or a seat pick is open, or my Problem waits on a big hand: the
+    // hand becomes one sideways row, so the Problem and the seats stay in view
+    // above the dock.
     const windowOpen = game.step === "target" || game.step === "hr" || game.step === "challenge";
-    this.root.classList.toggle("compact", windowOpen || this.selection?.mode === "seat");
+    const bigHandOnProblem = myProblem && (priv?.hand.length ?? 0) > 6;
+    this.root.classList.toggle("compact", windowOpen || bigHandOnProblem || this.selection?.mode === "seat");
 
     this.api.setTurn(
       myTurn ? "Your turn"

@@ -233,20 +233,38 @@ describe("timing", () => {
     expect(player(after, "p3").hand.map((c) => c.id)).toContain("hr-complaint-4");
   });
 
-  it("a target who is away accepts at once", () => {
+  it("a target who is away gets the normal target window; its timer accepts", () => {
+    let s = withProblem();
+    s.players[2]!.away = true;
+    const t = blame(s, "p1", "p2");
+    s = t.state;
+    expect(s.step).toBe("target");
+    expect(s.deadline).toBe(8000);
+    expect(t.timers).toContainEqual(expect.objectContaining({ kind: "set", timerId: `step:${s.token}` }));
+    expect(nmp.getAwaitedPlayerIds(s)).toEqual(["p2"]);
+    s = fireTimer(s, ctx(8000)).state;
+    expect(s.step).toBe("hr");
+    expect(s.moves.map((m) => m.kind)).toEqual(["blame"]);
+    s = allPass(s, ctx(8000));
+    expect(s.problem!.ownerId).toBe("p2");
+  });
+
+  it("a target who was away and comes back in time can answer", () => {
     let s = withProblem();
     s.players[2]!.away = true;
     s = blame(s, "p1", "p2").state;
+    s = nmp.onPlayerReconnected!(s, "p2", ctx(2000)).state;
+    s = act(s, "p2", { type: "revenge", cardId: cardOf(s, "p2", "revenge"), targetId: "p3" }, ctx(3000)).state;
     expect(s.step).toBe("hr");
-    expect(s.moves.map((m) => m.kind)).toEqual(["blame"]);
-    s = allPass(s);
-    expect(s.problem!.ownerId).toBe("p2");
+    expect(s.moves.map((m) => m.kind)).toEqual(["blame", "revenge"]);
   });
 
   it("with nobody to play HR, the move resolves with no HR window", () => {
     let s = withProblem();
     for (const i of [0, 2, 3]) s.players[i]!.away = true;
-    const t = blame(s, "p1", "p2");
+    s = blame(s, "p1", "p2").state;
+    expect(s.step).toBe("target");
+    const t = fireTimer(s, ctx(8000));
     s = t.state;
     expect(s.step).toBe("problem");
     expect(s.problem!.ownerId).toBe("p2");

@@ -58,9 +58,8 @@ export function blame(s: State, out: Out, actor: ServerPlayer, card: ActionCard,
   s.problem.attempts++;
   s.moves.push({ kind: "blame", actorId: actor.id, card, targetId });
   emit(s, out, { type: "played", playerId: actor.id, kind: card.kind, targetId });
+  // An away target gets the same window: its timer answers Accept for them.
   setStep(s, out, "target", reactionMs(s), ctx.now);
-  const target = playerById(s, targetId)!;
-  if (target.away) return respondToTransfer(s, out, target, { kind: "accept" }, ctx);
   return null;
 }
 

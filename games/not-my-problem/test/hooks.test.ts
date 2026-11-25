@@ -223,14 +223,31 @@ describe("removal", () => {
 });
 
 describe("disconnect", () => {
-  it("of the target in the target window answers Accept", () => {
+  it("of the target keeps the target window; its timer answers Accept", () => {
     const s = blame(withProblem(), "p1", "p2");
     const t = away(s, "p2");
-    expectValid(t);
+    expectValid(t, s);
     expect(player(t.state, "p2").away).toBe(true);
-    expect(t.state.step).toBe("hr");
-    expect(t.state.moves.map((m) => m.kind)).toEqual(["blame"]);
-    expect(nmp.getAwaitedPlayerIds(t.state)).toEqual([]);
+    expect(t.state.step).toBe("target");
+    expect(t.state.token).toBe(s.token);
+    expect(t.state.deadline).toBe(s.deadline);
+    expect(t.events).toEqual([]);
+    expect(nmp.getAwaitedPlayerIds(t.state)).toEqual(["p2"]);
+    const u = fireTimer(t.state, ctx(8000));
+    expectValid(u);
+    expect(u.state.step).toBe("hr");
+    expect(u.state.moves.map((m) => m.kind)).toEqual(["blame"]);
+  });
+
+  it("of the target who comes back in time lets them answer", () => {
+    const s = blame(withProblem(), "p1", "p2");
+    let t = away(s, "p2").state;
+    t = nmp.onPlayerReconnected!(t, "p2", ctx(3000)).state;
+    expect(t.step).toBe("target");
+    expect(nmp.getPrivateState(t, "p2").canAccept).toBe(true);
+    t = act(t, "p2", { type: "not-me", cardId: cardOf(t, "p2", "not-me") }, ctx(4000)).state;
+    expect(t.step).toBe("hr");
+    expect(t.moves.map((m) => m.kind)).toEqual(["blame", "not-me"]);
   });
 
   it("of the last HR player who has not passed closes the window", () => {
@@ -269,6 +286,8 @@ describe("disconnect", () => {
     // p2 holds a Quick Fix: the timeout plays it.
     let s = away(withProblem(), "p2").state;
     s = blame(s, "p1", "p2");
+    expect(s.step).toBe("target");
+    s = fireTimer(s, ctx(8000)).state;
     expect(s.step).toBe("hr");
     for (const id of ["p0", "p3"]) s = act(s, id, { type: "pass" }).state;
     expect(s.step).toBe("problem");
@@ -281,6 +300,7 @@ describe("disconnect", () => {
     // p3 holds none: the timeout gives the warning.
     let u = away(withProblem(), "p3").state;
     u = blame(u, "p1", "p3");
+    u = fireTimer(u, ctx(8000)).state;
     for (const id of ["p0", "p2"]) u = act(u, id, { type: "pass" }).state;
     expect(u.problem?.ownerId).toBe("p3");
     u = fireTimer(u, ctx(15000)).state;

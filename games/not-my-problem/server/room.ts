@@ -35,10 +35,13 @@ function acceptForTarget(s: State, out: Out, ctx: GameContext): void {
 
 const isTarget = (s: State, playerId: string) => s.step === "target" && s.moves[0]?.kind === "blame" && s.moves[0].targetId === playerId;
 
-/** They stay seated. A target answers Accept at once; an open window may now have nobody left to wait for. */
+/**
+ * They stay seated. A target keeps their window: its timer answers Accept, and
+ * they can still answer if they come back in time. An HR or challenge window
+ * may now have nobody left to wait for.
+ */
 export function disconnect(s: State, out: Out, playerId: string, ctx: GameContext): void {
   playerById(s, playerId)!.away = true;
-  if (isTarget(s, playerId)) return acceptForTarget(s, out, ctx);
   settleHr(s, out, ctx);
   settleReport(s, out, ctx);
 }

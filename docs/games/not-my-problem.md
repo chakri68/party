@@ -38,7 +38,7 @@ The number of copies depends on how many players start the game.
 | Blame Game | Your Problem | Pass your Problem to another player. | 5 | 6 | 7 | 8 | 9 | 10 |
 | Not Me | Passed to you | A Problem passed to you goes back. | 3 | 4 | 5 | 6 | 7 | 8 |
 | Revenge | Passed to you | A Problem passed to you goes to someone else. | 2 | 3 | 3 | 4 | 4 | 5 |
-| HR Complaint | After a pass | Cancel the last pass. | 3 | 3 | 4 | 4 | 5 | 5 |
+| HR Complaint | After a pass | Cancel the last move. | 3 | 3 | 4 | 4 | 5 | 5 |
 | Fake Report | Your Problem | Play a card face down and say it is a Quick Fix. | 2 | 2 | 3 | 3 | 4 | 4 |
 | Overtime | Your turn | A player draws 2 cards on their next turn. | 2 | 2 | 3 | 3 | 4 | 4 |
 | Intern | Your turn | Your next warning goes to the Intern. | 1 | 2 | 2 | 3 | 3 | 4 |
@@ -73,12 +73,12 @@ A Blame Game starts a pass. Each pass has two short windows. Their length is the
    - play **Not Me**: the Problem goes back to you;
    - play **Revenge** and pick a third player: the Problem goes to that player. They can't pick you or themselves.
    If the time runs out, it counts as Accept.
-2. **The HR window.** Everyone sees what happened. Every player still in the game can play **HR Complaint**, except the player who made the last move. HR Complaint cancels that move:
-   - after Accept, it cancels the Blame Game: the Problem stays with you;
+2. **The HR window.** Everyone sees what happened. Every player still in the game can play **HR Complaint**, except the player who made the last move. HR Complaint cancels that last move:
+   - after Accept (or when time ran out), it cancels the Blame Game: the Problem stays with you;
    - after Not Me or Revenge, it cancels that card: the Problem goes to the player you first picked.
    Each player can also tap **Pass**. Once you pass, you can't play HR Complaint in that window. The window closes when time runs out, or when everyone who can play has passed.
 
-The first HR Complaint wins and closes the window. If yours comes too late, it is refused, and the card stays in your hand. Nobody can cancel an HR Complaint.
+The first HR Complaint wins and closes the window. If the Problem stays with you, the last-move line says so, like "Ravi played HR Complaint. It stays with Asha." If yours comes too late, it is refused, and the card stays in your hand. Nobody can cancel an HR Complaint.
 
 When the Problem lands, the player who holds it gets a new 15 seconds to answer it. This also happens when it comes back to you.
 
@@ -122,9 +122,9 @@ The turn (25 seconds) and the time to answer a Problem (15 seconds) don't change
 - **The last move.** One line under the table says what just happened, like "Asha passed Server Down to Ravi." If the game refuses a move, the reason shows there for a few seconds.
 - **The window.** A box above your hand says who played what and what will happen, with a countdown. It never covers your hand.
   - A Problem is passed to you: "Ravi wants to pass Data Leak to you." Tap **Not Me**, **Revenge** (pick a player, then **Confirm**) or **Accept**. You only see Not Me or Revenge if you hold that card. Everyone else sees who is deciding, like "Asha is deciding."
-  - The HR window: what happened, like "Ravi passed Data Leak to Asha. Asha sent it back.", and who gets the Problem if nobody cancels it. Tap **HR Complaint** (if you hold one) or **Pass**. After you pass, it says "You passed. Waiting."
+  - The HR window: what happened, like "Ravi passed Data Leak to Asha. Asha sent it back.", and who gets the Problem if nobody cancels it. If you hold HR Complaint, it also says who gets the Problem if you play it, like "If you play HR Complaint, Asha gets it." Tap **HR Complaint** (if you hold one) or **Pass**. After you pass, it says "You passed. Waiting."
   - A Fake Report: "Ravi says this is a Quick Fix for Data Leak." It also says what a challenge costs each side. Tap **Challenge** or **Pass**. The player who made the report sees their own face-down card.
-  - While a window is open, or while you pick a player, your cards sit in one short row that scrolls sideways. This keeps the Problem and the players in view.
+  - While a window is open, while you pick a player, or while you hold a Problem and more than 6 cards, your cards sit in one short row that scrolls sideways. This keeps the Problem and the players in view.
 - **A challenge.** The face-down card shows in the middle of the table for 2 seconds, with "Not a Quick Fix" or "A real Quick Fix". If your phone is set to reduce motion, it is not shown there. The last-move line always says what the card was and who got the warnings.
 - **Your hand.** Your cards, with their text. The top of each card says when you can play it: "Your turn", "Your Problem", "Passed to you" or "After a pass". Cards you can play now have a green edge and say "Play now". Tap a card to read it. Looking at a card never plays it: tap **Play** to play it. For a card that needs a player, the players you can pick get a red edge and the word "Pick". Tap one, then **Confirm**.
 - **Your Problem.** Buttons for what you can do: **Fix** (plays a Quick Fix), **Pass it on** (plays a Blame Game: pick a player, then **Confirm**), **Fake Report** (pick the card to put face down, then **Confirm**), and **Take 1 warning** (or 2 for a Data Leak). The count already leaves out the warning your Intern takes. If your Intern takes the only warning, the button says **Take it**.
@@ -135,7 +135,7 @@ On a phone held sideways, the cards are smaller and sit in one row beside the bu
 ## When things go sideways
 
 - **Late cards.** If a window already closed, a late HR Complaint or challenge is refused with "Too late". The card stays in your hand, and nothing is shown.
-- **Disconnected player.** They stay in the game. If a Problem is being passed to them when they drop, or is passed to them while they are away, the pass goes ahead at once. If it is their turn, or they hold a Problem, the game waits for their timer: then they draw, or a held Quick Fix fixes the Problem, or they take the warnings. They can't play HR Complaint or challenge, so windows don't wait for them. When they come back, they play again.
+- **Disconnected player.** They stay in the game. If a Problem is being passed to them when they drop, or is passed to them while they are away, they still get the normal time to answer. If the time runs out, it counts as Accept. If they come back in time, they can answer. If it is their turn, or they hold a Problem, the game waits for their timer: then they draw, or a held Quick Fix fixes the Problem, or they take the warnings. They can't play HR Complaint or challenge, so windows don't wait for them. When they come back, they play again.
 - **Idle player.** The host gets a **Skip** button after a while. A skip does what the timer would do: a turn draws, a Problem is fixed with a held Quick Fix (or the warnings are taken), and a target accepts. The HR and challenge windows wait only for the clock, so there is nothing to skip.
 - **The host removes a player.** Their cards and their Intern go to the discard pile, and their Overtime ends. A Problem they hold goes too, and play goes on. A pass to them fails, and the Problem stays with the player who played the Blame Game. If it was their turn, the turn ends. If only one player is left, they win. A player who was fired and then left keeps their "Fired" place in the results.
 - **The host pauses the game.** The timer stops for everyone. Nobody can play. When the host taps **Resume**, the timer goes on from where it stopped.

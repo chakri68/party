@@ -61,6 +61,20 @@ export function landsOn(moves: PublicMove[]): string | null {
   return last.targetId;
 }
 
+/**
+ * Who gets the Problem if HR Complaint cancels the last move. Mirrors the
+ * server's `destination(moves, true)`: after a Blame Game alone it stays with
+ * the passer; after Not Me or Revenge it goes to the Blame Game's target.
+ */
+export function hrLandsOn(moves: PublicMove[]): string | null {
+  const blame = moves[0];
+  if (blame?.kind !== "blame") return null;
+  const standing = moves.slice(0, -1);
+  const last = standing.at(-1);
+  if (!last || last.kind === "not-me") return blame.actorId;
+  return last.targetId;
+}
+
 const warnings = (n: number) => `${n} ${n === 1 ? "warning" : "warnings"}`;
 
 /** The first playable card of a kind, if any. */
@@ -116,7 +130,11 @@ export function promptModel(game: NmpPublicState, priv: NmpPrivateState | null, 
     const buttons: PromptButton[] = [];
     if (priv?.canPass) {
       const hr = playableOf(priv, "hr-complaint");
-      if (hr) buttons.push(button("hr", "HR Complaint", cardMove("hr", "hr-complaint", token, hr.cardId), true));
+      if (hr) {
+        const back = hrLandsOn(game.moves)!;
+        notes.push(`If you play HR Complaint, ${n.whom(back)} ${back === me ? "get" : "gets"} it.`);
+        buttons.push(button("hr", "HR Complaint", cardMove("hr", "hr-complaint", token, hr.cardId), true));
+      }
       buttons.push(button("pass", "Pass", { type: "pass", token }, !hr));
     } else if (myPassed) {
       notes.push("You passed. Waiting.");
@@ -138,8 +156,8 @@ export function promptModel(game: NmpPublicState, priv: NmpPrivateState | null, 
     const buttons: PromptButton[] = [];
     if (mine) {
       notes.push("If someone challenges, everyone sees your card.");
-      if (faceDown?.kind === "quick-fix") notes.push("It is a Quick Fix, so the player who challenges gets 1 warning.");
-      else if (faceDown) notes.push(`It is not a Quick Fix, so you get ${warnings(ownerCost)}.`);
+      if (faceDown?.kind === "quick-fix") notes.push("It is a Quick Fix. If someone challenges, they get 1 warning.");
+      else if (faceDown) notes.push(`It is not a Quick Fix. If someone challenges, you get ${warnings(ownerCost)}.`);
     } else if (priv?.canChallenge) {
       const mineIfTrue = shield(me) ? "your Intern takes the warning" : "you get 1 warning";
       notes.push(`If you challenge and it is not a Quick Fix, ${n.whom(owner)} gets ${warnings(ownerCost)}. If it is a Quick Fix, ${mineIfTrue}.`);

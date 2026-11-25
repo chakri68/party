@@ -5,8 +5,9 @@ import { describe as group, expect, it } from "vitest";
 import { playWhen } from "../client/cards.ts";
 import { describe, feedLine, nextFeed } from "../client/feed.ts";
 import { cardMove } from "../client/moves.ts";
-import { landsOn, movesText, namesFor, promptModel } from "../client/prompts.ts";
+import { hrLandsOn, landsOn, movesText, namesFor, promptModel } from "../client/prompts.ts";
 import { RULE_GROUPS } from "../client/rules.ts";
+import { notMyProblemGame as nmp } from "../server/game.ts";
 import {
   ACTION_KINDS,
   type ActionCard,
@@ -15,6 +16,7 @@ import {
   type NmpPublicPlayer,
   type NmpPublicState,
 } from "../shared/index.ts";
+import { act, cardOf, start } from "./helpers.ts";
 
 const ME = "p1";
 const props = {
@@ -73,6 +75,41 @@ group("feed wording", () => {
     const shown: NmpEvent = { type: "challenged", challengerId: "p3", ownerId: "p2", card: card("spy"), lied: true };
     const warned: NmpEvent = { type: "warned", playerId: "p2", amount: 2, shielded: false };
     expect(feedLine(warned, [shown, warned], props)).toBe("Meera challenged Ravi. The card was Spy, not a Quick Fix. Ravi got 2 warnings.");
+  });
+
+  it("after HR Complaint, says where the Problem is, from a real game", () => {
+    // Four seats: p0 Dev, p1 Asha, p2 Ravi, p3 Meera. p1 draws and passes to p2; p0 plays HR.
+    const room = { seats: [{ id: "p0", name: "Dev" }, ...props.room.seats] };
+    const as = (playerId: string, game: NmpPublicState) => ({ ...props, room, playerId, game }) as unknown as GameViewProps;
+    const hands: ActionCard["kind"][][] = [
+      ["hr-complaint", "spy", "spy", "spy", "quick-fix"],
+      ["blame-game", "spy", "spy", "spy", "spy"],
+      ["not-me", "spy", "spy", "spy", "quick-fix"],
+      ["spy", "spy", "spy", "spy", "quick-fix"],
+    ];
+    const opened = () => {
+      let s = start(4, { hands, pile: ["data-leak", "spy", "spy"] });
+      s = act(s, "p1", { type: "draw" }).state;
+      return act(s, "p1", { type: "blame", cardId: cardOf(s, "p1", "blame-game"), targetId: "p2" }).state;
+    };
+    const hrBy = (s: Parameters<typeof cardOf>[0]) => act(s, "p0", { type: "hr", cardId: cardOf(s, "p0", "hr-complaint") });
+
+    // Blame Game alone, canceled: no "moved" event, so the feed says it stays.
+    let s = act(opened(), "p2", { type: "accept" }).state;
+    let t = hrBy(s);
+    let g = nmp.getPublicState(t.state);
+    expect(g.problem?.ownerId).toBe("p1");
+    const events = t.events.map((e) => e.event);
+    expect(feedLine(g.lastEvent, events, as("p3", g))).toBe("Dev played HR Complaint. It stays with Asha.");
+    expect(feedLine(g.lastEvent, events, as("p1", g))).toBe("Dev played HR Complaint. It stays with you.");
+
+    // Not Me, canceled: the Problem moves, and the "moved" line says where.
+    s = opened();
+    s = act(s, "p2", { type: "not-me", cardId: cardOf(s, "p2", "not-me") }).state;
+    t = hrBy(s);
+    g = nmp.getPublicState(t.state);
+    expect(g.problem?.ownerId).toBe("p2");
+    expect(feedLine(g.lastEvent, t.events.map((e) => e.event), as("p3", g))).toBe("Asha passed Data Leak to Ravi.");
   });
 
   it("keeps the private line on a later update without that event", () => {
@@ -160,6 +197,16 @@ group("movesText and landsOn", () => {
     expect(landsOn([blame, { kind: "revenge", actorId: ME, targetId: "p3" }])).toBe("p3");
     expect(landsOn([])).toBeNull();
   });
+
+  it("hrLandsOn: where HR Complaint sends it, for each move shape", () => {
+    const blame = { kind: "blame", actorId: "p2", targetId: ME } as const;
+    // Blame Game alone (the target accepted): it stays with the passer.
+    expect(hrLandsOn([blame])).toBe("p2");
+    // Not Me or Revenge: it goes to the Blame Game's target.
+    expect(hrLandsOn([blame, { kind: "not-me", actorId: ME }])).toBe(ME);
+    expect(hrLandsOn([blame, { kind: "revenge", actorId: ME, targetId: "p3" }])).toBe(ME);
+    expect(hrLandsOn([])).toBeNull();
+  });
 });
 
 group("promptModel", () => {
@@ -203,7 +250,7 @@ group("promptModel", () => {
     const hand = [card("hr-complaint")];
     const m = promptModel(g, priv(hand, { canPass: true, playable: [{ cardId: "hr-complaint-1", targets: null }] }), "p3", namesOf("p3"))!;
     expect(m.head).toBe("Ravi passed Data Leak to Asha. Asha sent it back.");
-    expect(m.notes).toEqual(["If nobody plays HR Complaint, Ravi gets it."]);
+    expect(m.notes).toEqual(["If nobody plays HR Complaint, Ravi gets it.", "If you play HR Complaint, Asha gets it."]);
     expect(m.buttons.map((b) => [b.label, b.action])).toEqual([
       ["HR Complaint", { type: "hr", token: 7, cardId: "hr-complaint-1" }],
       ["Pass", { type: "pass", token: 7 }],
@@ -220,8 +267,24 @@ group("promptModel", () => {
     const holder = promptModel(g, priv([card("hr-complaint")], { canPass: true, playable: [{ cardId: "hr-complaint-1", targets: null }] }), "p3", namesOf("p3"))!;
     const without = promptModel(g, priv([card("spy")], { canPass: true }), "p3", namesOf("p3"))!;
     expect(without.head).toBe(holder.head);
-    expect(without.notes).toEqual(holder.notes);
+    // Only the holder's own HR line differs.
+    expect(holder.notes).toEqual([...without.notes, "If you play HR Complaint, Asha gets it."]);
     expect(without.buttons.map((b) => [b.label, b.primary, b.action])).toEqual([["Pass", true, { type: "pass", token: 7 }]]);
+  });
+
+  it("HR window: the HR line says where it goes, for each move shape", () => {
+    const hrPriv = priv([card("hr-complaint")], { canPass: true, playable: [{ cardId: "hr-complaint-1", targets: null }] });
+    const line = (moves: Parameters<typeof hrLandsOn>[0], viewer: string) =>
+      promptModel(game({ step: "hr", moves }), hrPriv, viewer, namesOf(viewer))!.notes.at(-1);
+    expect(line([blameOnMe], "p3")).toBe("If you play HR Complaint, Ravi gets it.");
+    expect(line([blameOnMe, { kind: "not-me", actorId: ME }], "p3")).toBe("If you play HR Complaint, Asha gets it.");
+    expect(line([blameOnMe, { kind: "revenge", actorId: ME, targetId: "p3" }], "p2")).toBe("If you play HR Complaint, Asha gets it.");
+    // The Revenge's own target: HR sends it back to the Blame Game's target.
+    expect(line([{ kind: "blame", actorId: "p3", targetId: "p2" }, { kind: "revenge", actorId: "p2", targetId: ME }], ME)).toBe(
+      "If you play HR Complaint, Ravi gets it.",
+    );
+    // A Not Me sent to me, canceled, lands back on the target.
+    expect(line([{ kind: "blame", actorId: ME, targetId: "p2" }, { kind: "not-me", actorId: "p2" }], "p3")).toBe("If you play HR Complaint, Ravi gets it.");
   });
 
   it("HR window: the one who made the last move waits", () => {
@@ -242,10 +305,10 @@ group("promptModel", () => {
     expect(m.faceDown).toBeNull();
     const own = promptModel(g, priv([], { myReportCard: card("spy") }), "p2", namesOf("p2"))!;
     expect(own.head).toBe("You say this is a Quick Fix for Data Leak.");
-    expect(own.notes).toEqual(["If someone challenges, everyone sees your card.", "It is not a Quick Fix, so you get 3 warnings."]);
+    expect(own.notes).toEqual(["If someone challenges, everyone sees your card.", "It is not a Quick Fix. If someone challenges, you get 3 warnings."]);
     expect(own.faceDown).toEqual(card("spy"));
     const trap = promptModel(g, priv([], { myReportCard: card("quick-fix") }), "p2", namesOf("p2"))!;
-    expect(trap.notes.at(-1)).toBe("It is a Quick Fix, so the player who challenges gets 1 warning.");
+    expect(trap.notes.at(-1)).toBe("It is a Quick Fix. If someone challenges, they get 1 warning.");
     expect(own.buttons).toEqual([]);
   });
 
@@ -255,7 +318,7 @@ group("promptModel", () => {
     const m = promptModel(g, priv([], { canChallenge: true, canPass: true }), ME, names)!;
     expect(m.notes).toEqual(["If you challenge and it is not a Quick Fix, Ravi gets 2 warnings. If it is a Quick Fix, your Intern takes the warning."]);
     const own = promptModel(g, priv([], { myReportCard: card("spy") }), "p2", namesOf("p2"))!;
-    expect(own.notes.at(-1)).toBe("It is not a Quick Fix, so you get 2 warnings.");
+    expect(own.notes.at(-1)).toBe("It is not a Quick Fix. If someone challenges, you get 2 warnings.");
   });
 
   it("no prompt outside a window", () => {
