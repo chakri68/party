@@ -100,6 +100,7 @@ export function renderSeats(el: HTMLElement, props: GameViewProps, game: NmpPubl
             {
               type: "button",
               class: "nmp-seat-body",
+              "data-focus": `seat:${p.id}`,
               "aria-pressed": String(pick!.picked === p.id),
               "aria-label": `${pick!.verb} ${p.id === me ? "yourself" : (seat?.name ?? "?")}. ${label}`,
               onclick: () => pick!.onPick(p.id),

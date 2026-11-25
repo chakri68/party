@@ -22,7 +22,7 @@ Computer players can fill seats in this game. The host can pause it.
    - play a **Quick Fix**: the Problem is fixed;
    - play a **Blame Game** on another player: you try to pass it to them (see "Passing a Problem");
    - play a **Fake Report** (see "Fake Report");
-   - tap **Take 1 warning** (**Take 2 warnings** for a Data Leak): you take the warnings on it.
+   - tap **Take 1 warning** (**Take 2 warnings** for a Data Leak): you take the warnings on it. If you have an Intern, it takes one warning, so the button shows one less. If the Intern takes the only warning, the button says **Take it**.
    If the time runs out and you hold a Quick Fix, it is played for you. If you don't hold one, you take the warnings.
 6. When the Problem is gone, your turn ends. If you have Overtime, you draw your second card first.
 
@@ -122,7 +122,7 @@ The turn (25 seconds) and the time to answer a Problem (15 seconds) don't change
 - **The last move.** One line under the table says what just happened, like "Asha passed Server Down to Ravi." If the game refuses a move, the reason shows there for a few seconds.
 - **The window.** Who played what, and what it will do, with a countdown and the buttons you can use, like **Accept** or **Pass**.
 - **Your hand.** Your cards, with their text. The top of each card says when you can play it: "Your turn", "Your Problem", "Passed to you" or "After a pass". Cards you can play now have a green edge and say "Play now". Tap a card to read it. Looking at a card never plays it: tap **Play** to play it. For a card that needs a player, the players you can pick get a red edge and the word "Pick". Tap one, then **Confirm**.
-- **Your Problem.** Buttons for what you can do: **Fix** (plays a Quick Fix), **Pass it on** (plays a Blame Game: pick a player, then **Confirm**), **Fake Report** (pick the card to put face down, then **Confirm**), and **Take 1 warning**.
+- **Your Problem.** Buttons for what you can do: **Fix** (plays a Quick Fix), **Pass it on** (plays a Blame Game: pick a player, then **Confirm**), **Fake Report** (pick the card to put face down, then **Confirm**), and **Take 1 warning** (or 2 for a Data Leak). The count already leaves out the warning your Intern takes. If your Intern takes the only warning, the button says **Take it**.
 - **Draw.** On your turn, after any cards you want to play.
 
 On a phone held sideways, the cards are smaller and sit in one row beside the buttons.

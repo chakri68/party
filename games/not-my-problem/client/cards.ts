@@ -63,6 +63,19 @@ export function timingLabel(kind: ActionKind): string {
   return kind === "hr-complaint" ? "After a pass" : TIMING_LABEL[ACTION_TEXT[kind].timing];
 }
 
+/** When a card can be played, as one sentence for the detail sheet. */
+export function playWhen(kind: ActionKind): string {
+  if (kind === "hr-complaint") return "Play it right after someone passes a Problem.";
+  switch (ACTION_TEXT[kind].timing) {
+    case "proactive":
+      return "Play it on your turn.";
+    case "problem":
+      return "Play it when you hold a Problem.";
+    case "reaction":
+      return "Play it when a Problem is passed to you.";
+  }
+}
+
 export const cardName = (kind: ActionKind) => ACTION_TEXT[kind].name;
 export const problemName = (kind: ProblemKind) => PROBLEM_TEXT[kind].name;
 

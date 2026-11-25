@@ -2,7 +2,7 @@ import { audio } from "@games/audio";
 import { countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { ACTION_TEXT, PROBLEM_TEXT } from "../shared/cards.ts";
 import type { ActionCard, NmpEvent, NmpPrivateState, NmpPublicState } from "../shared/types.ts";
-import { actionIcon, handCard, problemIcon, timingLabel } from "./cards.ts";
+import { actionIcon, handCard, playWhen, problemIcon, timingLabel } from "./cards.ts";
 import { feedLine } from "./feed.ts";
 import { PICK_VERB, cardMove, needsFor } from "./moves.ts";
 import { renderSeats, type SeatPick } from "./seats.ts";
@@ -51,6 +51,14 @@ export class NotMyProblemView implements GameView {
   private feedText = "";
   private flash: { text: string; timer: ReturnType<typeof setTimeout> } | null = null;
   private wasMine = false;
+  /**
+   * Where keyboard focus belongs after a redraw, as a selector. Seats and the
+   * panel are rebuilt on each render, so the focused button is replaced: this
+   * puts focus on its replacement (or on the next thing to press).
+   */
+  private focusWant: string | null = null;
+  /** A move that says where focus goes next (Confirm after a pick). Wins over focusWant. */
+  private focusNext: string | null = null;
   private lastTick = -1;
   /** A new deadline starts a new set of ticks. */
   private tickDeadline: number | null = null;
@@ -90,6 +98,8 @@ export class NotMyProblemView implements GameView {
       text: message,
       timer: setTimeout(() => {
         this.flash = null;
+        // Reduced motion shows the shake as an outline: no animationend clears it.
+        this.hand.classList.remove("shake");
         this.renderFeed();
       }, REJECT_MS),
     };
@@ -115,6 +125,7 @@ export class NotMyProblemView implements GameView {
 
   private render(props: GameViewProps, fresh: boolean) {
     this.props = props;
+    this.noteFocus();
     const game = props.game as NmpPublicState;
     const priv = props.private as NmpPrivateState | null;
     const me = props.playerId;
@@ -147,6 +158,7 @@ export class NotMyProblemView implements GameView {
     this.hand.hidden = !seated && !priv?.hand.length;
     this.renderPanel(props, game, priv);
     this.renderClock();
+    this.restoreFocus();
 
     if (fresh && mine && !this.wasMine) {
       audio.play("your-turn");
@@ -157,6 +169,35 @@ export class NotMyProblemView implements GameView {
 
   private rerender() {
     if (this.props) this.render(this.props, false);
+  }
+
+  /** Remembers the focused control, by its stable key, before a redraw. */
+  private noteFocus() {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el || el === document.body) return; // lost in an earlier redraw: keep the old wish
+    if (!this.root.contains(el)) {
+      this.focusWant = null; // the player moved on (chat, menu): leave them there
+      return;
+    }
+    const key = el.dataset.focus ? `[data-focus="${CSS.escape(el.dataset.focus)}"]` : el.dataset.card ? `[data-card="${CSS.escape(el.dataset.card)}"]` : null;
+    this.focusWant = key;
+  }
+
+  private restoreFocus() {
+    const next = this.focusNext;
+    this.focusNext = null;
+    const cur = document.activeElement;
+    const lost = !cur || cur === document.body || !cur.isConnected;
+    const want = next ?? (lost ? this.focusWant : null);
+    if (!want) return;
+    // A panel button that is gone (Confirm after it was sent): the panel's next button instead.
+    const el =
+      this.root.querySelector<HTMLElement>(want) ??
+      (want.startsWith('[data-focus="act') ? this.panel.querySelector<HTMLElement>("button[data-focus]:not(:disabled)") : null);
+    if (el && !(el as HTMLButtonElement).disabled) {
+      el.focus({ preventScroll: true });
+      this.focusWant = null;
+    }
   }
 
   private eventSounds(events: NmpEvent[], props: GameViewProps) {
@@ -303,7 +344,7 @@ export class NotMyProblemView implements GameView {
     const btn = handCard(card);
     btn.prepend(h("span", { class: "nmp-card-when", "aria-hidden": "true" }));
     btn.addEventListener("click", () => this.onCardTap(card.id));
-    btn.addEventListener("animationend", () => btn.classList.remove("fresh", "shake"));
+    btn.addEventListener("animationend", () => btn.classList.remove("fresh"));
     this.cards.set(card.id, btn);
     return btn;
   }
@@ -335,14 +376,14 @@ export class NotMyProblemView implements GameView {
         h("span", { class: "nmp-label" }, timingLabel(card.kind)),
         h("strong", {}, text.name),
         h("span", {}, text.line),
-        can ? null : h("span", { class: "nmp-muted" }, `You can't play it now. Play it when: ${timingLabel(card.kind)}.`),
+        can ? null : h("span", { class: "nmp-muted" }, `You can't play it now. ${playWhen(card.kind)}`),
       ),
       h(
         "div",
         { class: "nmp-buttons" },
-        h("button", { type: "button", class: "link", onclick: () => this.clearSelection() }, "Close"),
+        h("button", { type: "button", class: "link", "data-focus": "act:close", onclick: () => this.clearSelection() }, "Close"),
         can
-          ? h("button", { type: "button", class: "primary", disabled: locked, onclick: () => this.onPlay(game, priv, card) }, `Play ${text.name}`)
+          ? h("button", { type: "button", class: "primary", "data-focus": "act:play", disabled: locked, onclick: () => this.onPlay(game, priv, card) }, `Play ${text.name}`)
           : null,
       ),
     );
@@ -371,14 +412,14 @@ export class NotMyProblemView implements GameView {
       h(
         "div",
         { class: "nmp-buttons" },
-        h("button", { type: "button", class: "link", onclick: () => this.clearSelection() }, "Cancel"),
-        h("button", { type: "button", class: "primary", disabled: !move || this.pending.size > 0, onclick: () => move && this.send(move) }, "Confirm"),
+        h("button", { type: "button", class: "link", "data-focus": "act:cancel", onclick: () => this.clearSelection() }, "Cancel"),
+        h("button", { type: "button", class: "primary", "data-focus": "act:confirm", disabled: !move || this.pending.size > 0, onclick: () => move && this.send(move) }, "Confirm"),
       ),
     );
   }
 
   /** The buttons for this step when no card is picked. */
-  private stepActions(props: GameViewProps, game: NmpPublicState, priv: NmpPrivateState | null): Node | Node[] | null {
+  private stepActions(props: GameViewProps, game: NmpPublicState, priv: NmpPrivateState | null): Node | (Node | null)[] | null {
     const hint = (text: string, strong = false) => h("p", { class: `hint${strong ? " strong" : ""}` }, text);
     const me = game.players.find((p) => p.id === props.playerId);
     if (game.step === "finished") return null;
@@ -392,11 +433,12 @@ export class NotMyProblemView implements GameView {
       if (!priv.canDraw) return hint(`Waiting for ${seatName(props.room, game.turnPlayerId)}.`);
       const say =
         game.actionsLeft <= 0 ? "Draw a card to end your turn."
-        : priv.playable.length ? `Play up to ${plural(game.actionsLeft, "card")}, then draw.`
+        : priv.playable.length
+          ? game.actionsLeft === 1 ? "You can play 1 more card. Then draw." : `You can play ${game.actionsLeft} cards. Then draw.`
         : "Draw a card to end your turn.";
       return [
         hint(say, true),
-        h("div", { class: "nmp-buttons" }, h("button", { type: "button", class: "primary nmp-draw", onclick: () => this.send({ type: "draw", token: priv.token }) }, "Draw")),
+        h("div", { class: "nmp-buttons" }, h("button", { type: "button", class: "primary nmp-draw", "data-focus": "act:draw", onclick: () => this.send({ type: "draw", token: priv.token }) }, "Draw")),
       ];
     }
 
@@ -407,17 +449,19 @@ export class NotMyProblemView implements GameView {
       const fix = first("quick-fix");
       const blame = first("blame-game");
       const report = first("fake-report");
-      const penalty = PROBLEM_TEXT[problem.kind].penalty;
-      const btn = (label: string, onclick: () => void, cls = "") => h("button", { type: "button", class: cls, onclick }, label);
+      // An Intern takes exactly one warning (server/problem.ts giveWarnings).
+      const take = Math.max(0, PROBLEM_TEXT[problem.kind].penalty - (me.shield ? 1 : 0));
+      const btn = (label: string, onclick: () => void, cls = "") => h("button", { type: "button", class: cls, "data-focus": `act:${label}`, onclick }, label);
       return [
         hint(fix || blame || report ? "Answer the Problem, or take it." : "You have no card for it. Take it.", true),
+        take === 0 ? hint("Your Intern stops the warning.") : null,
         h(
           "div",
           { class: "nmp-buttons wrap" },
           fix ? btn("Fix", () => this.send({ type: "fix", token: priv.token, cardId: fix.cardId }), "primary") : null,
           blame ? btn("Pass it on", () => this.startPick(priv, blame.cardId, "seat")) : null,
           report ? btn("Fake Report", () => this.startPick(priv, report.cardId, "face-down")) : null,
-          btn(`Take ${plural(penalty, "warning")}`, () => this.send({ type: "accept", token: priv.token }), fix ? "link" : ""),
+          btn(take > 0 ? `Take ${plural(take, "warning")}` : "Take it", () => this.send({ type: "accept", token: priv.token }), fix ? "link" : ""),
         ),
       ];
     }
@@ -437,6 +481,8 @@ export class NotMyProblemView implements GameView {
       verb: PICK_VERB[card.kind] ?? "Pick",
       onPick: (id) => {
         if (this.selection) this.selection.picked = this.selection.picked === id ? null : id;
+        // Picked: Confirm is the next thing to press. Unpicked: stay on the seat.
+        this.focusNext = this.selection?.picked ? '[data-focus="act:confirm"]' : `[data-focus="${CSS.escape(`seat:${id}`)}"]`;
         this.rerender();
       },
     };
@@ -449,7 +495,10 @@ export class NotMyProblemView implements GameView {
     if (!priv) return;
     const sel = this.selection;
     if (sel?.mode === "face-down") {
-      if (cardId !== sel.cardId) sel.picked = sel.picked === cardId ? null : cardId;
+      if (cardId !== sel.cardId) {
+        sel.picked = sel.picked === cardId ? null : cardId;
+        if (sel.picked) this.focusNext = '[data-focus="act:confirm"]';
+      }
     } else if (sel?.mode === "look" && sel.cardId === cardId) {
       this.selection = null;
     } else {
@@ -473,10 +522,14 @@ export class NotMyProblemView implements GameView {
 
   private startPick(priv: NmpPrivateState, cardId: string, mode: "seat" | "face-down") {
     this.selection = { token: priv.token, cardId, mode, picked: null };
+    this.focusNext = mode === "seat" ? ".nmp-seat.pick button" : ".nmp-card.pick";
     this.rerender();
   }
 
   private clearSelection() {
+    // Back to the card it was about.
+    const id = this.selection?.cardId;
+    if (id) this.focusNext = `[data-card="${CSS.escape(id)}"]`;
     this.selection = null;
     this.rerender();
   }
