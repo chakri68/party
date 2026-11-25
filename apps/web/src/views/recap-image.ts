@@ -57,10 +57,13 @@ export interface AwardBlock {
 /** Text sizes at scale 1, and the smallest scale we shrink to. */
 export const AWARD_SIZES = { title: 28, who: 46, line: 30, gap: 40, inner: 6 } as const;
 export const MIN_SCALE = 0.5;
+/** Names get 3 lines: three 20-letter names need that much at full size. */
+export const WHO_LINES = 3;
 
 /**
- * Fit every award in maxHeight. Shrinks the text step by step; names and the
- * line wrap to at most 2 lines each and end in "…" when cut. A title is never
+ * Fit every award in maxHeight. Shrinks the text step by step; names wrap to
+ * at most 3 lines and the line to 2, and end in "…" when cut. It shrinks
+ * further rather than cut a name, while that still fits. A title is never
  * drawn without its names. measure(text, size, weight) gives the width in px.
  */
 export function layoutAwards(
@@ -71,15 +74,21 @@ export function layoutAwards(
 ): { scale: number; blocks: AwardBlock[] } {
   const build = (scale: number, lineMax: number) => {
     const size = (n: number) => Math.round(n * scale);
+    let namesCut = false;
     const fit = (text: string, base: number, weight: number, max: number) => {
       const m = (t: string) => measure(t, size(base), weight);
-      return limitLines(wrapLines(text, maxWidth, m), max, maxWidth, m);
+      const all = wrapLines(text, maxWidth, m);
+      return { cut: all.length > max, lines: limitLines(all, max, maxWidth, m) };
     };
-    const blocks = awards.map((a) => ({
-      title: fit(a.title, AWARD_SIZES.title, 700, 1),
-      who: fit(a.who, AWARD_SIZES.who, 700, 2),
-      line: fit(a.line, AWARD_SIZES.line, 400, lineMax),
-    }));
+    const blocks = awards.map((a) => {
+      const who = fit(a.who, AWARD_SIZES.who, 700, WHO_LINES);
+      if (who.cut) namesCut = true;
+      return {
+        title: fit(a.title, AWARD_SIZES.title, 700, 1).lines,
+        who: who.lines,
+        line: fit(a.line, AWARD_SIZES.line, 400, lineMax).lines,
+      };
+    });
     const lh = (n: number) => Math.round(size(n) * 1.25);
     const height = blocks.reduce(
       (sum, b) =>
@@ -91,12 +100,17 @@ export function layoutAwards(
         AWARD_SIZES.gap * scale,
       0,
     );
-    return { blocks, height };
+    return { blocks, height, namesCut };
   };
+  // First the biggest scale where every name fits whole; else the biggest that fits at all.
+  let firstFit: { scale: number; blocks: AwardBlock[] } | null = null;
   for (let scale = 1; scale >= MIN_SCALE - 1e-9; scale -= 0.05) {
     const r = build(scale, 2);
-    if (r.height <= maxHeight) return { scale, blocks: r.blocks };
+    if (r.height > maxHeight) continue;
+    if (!r.namesCut) return { scale, blocks: r.blocks };
+    firstFit ??= { scale, blocks: r.blocks };
   }
+  if (firstFit) return firstFit;
   return { scale: MIN_SCALE, blocks: build(MIN_SCALE, 1).blocks };
 }
 

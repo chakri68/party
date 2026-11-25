@@ -48,12 +48,28 @@ describe("layoutAwards", () => {
     for (const b of blocks) {
       expect(b.title.length).toBe(1);
       expect(b.who.length).toBeGreaterThanOrEqual(1);
-      expect(b.who.length).toBeLessThanOrEqual(2);
+      expect(b.who.length).toBeLessThanOrEqual(3);
       expect(b.line.length).toBeGreaterThanOrEqual(1);
     }
   });
   it("keeps full size when there is room", () => {
     expect(layoutAwards(awards.slice(0, 1), 920, 800, m).scale).toBe(1);
+  });
+  it("keeps three long unbroken names whole", () => {
+    const w = "W".repeat(20);
+    const three = [{ title: "Champion of the night", who: `${w}, ${w} and ${w}`, line: "Won the most games" }];
+    // 23 px a letter at full size: one name is 460 px, two with ", " are 966 px, past the 920 px line.
+    const { blocks, scale } = layoutAwards(three, 920, 800, m);
+    expect(scale).toBe(1);
+    expect(blocks[0]!.who).toHaveLength(3);
+    expect(blocks[0]!.who.join(" ")).toBe(`${w}, ${w} and ${w}`);
+  });
+  it("shrinks rather than cut a name when that still fits", () => {
+    const w = "W".repeat(20);
+    const four = [{ title: "Champion of the night", who: `${w}, ${w}, ${w} and ${w}`, line: "Won" }];
+    const { blocks, scale } = layoutAwards(four, 920, 800, m);
+    expect(scale).toBeLessThan(1);
+    expect(blocks[0]!.who.join(" ")).not.toContain("…");
   });
   it("never draws a title without names, even when tight", () => {
     const { blocks } = layoutAwards(awards, 920, 100, m);

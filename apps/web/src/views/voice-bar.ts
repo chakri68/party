@@ -346,7 +346,9 @@ export class VoiceBar {
     }
     // Line two: the volume, then the host's Mute / Allow to talk, then Mute for me.
     const controls = volume ? h("div", { class: "voice-person-controls" }, volume, host, block) : null;
-    const li = h("li", { class: "voice-person" }, dot, name, state, controls);
+    // "(you)" sits outside the name, so a long name's "…" never hides it.
+    const you = self ? h("span", { class: "muted you" }, "(you)") : null;
+    const li = h("li", { class: "voice-person" }, dot, name, you, state, controls);
     const row = { li, dot, name, state, volume, block, host };
     this.rows.set(m.id, row);
     return row;
@@ -354,7 +356,8 @@ export class VoiceBar {
 
   private syncRow(row: Row, m: VoiceMemberView): void {
     const name = this.nameOf(m.id);
-    setText(row.name, m.self ? `${name} (you)` : name);
+    setText(row.name, name);
+    if (row.name.title !== name) row.name.title = name;
     row.li.classList.toggle("speaking", m.speaking);
     const state = m.link === "reconnecting" ? "Trying to connect..." : m.hostMuted ? "muted by host" : m.selfMuted ? "muted" : "";
     setText(row.state, state);

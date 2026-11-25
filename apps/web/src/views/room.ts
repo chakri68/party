@@ -72,6 +72,11 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
 /** The room's own screens: moving between two of them scrolls to the top. */
 const ROOM_SCREENS = new Set<string | null>(["lobby", "playing", "results", "ended"]);
 
+/** A name inside a button: one line, cut with "…" when long, the full name on hover. */
+function nameSpan(name: string): HTMLElement {
+  return h("span", { class: "btn-name", title: name }, name);
+}
+
 /** How many players back each game, from the seats still here. */
 function suggestionCounts(room: RoomPublicState): Map<string, number> {
   const counts = new Map<string, number>();
@@ -986,12 +991,12 @@ export class RoomView implements View {
             client.send({ type: "nudge" });
             this.showToast(`Reminded ${target.name}.`);
           },
-        }, `Remind ${target.name}`),
+        }, "Remind ", nameSpan(target.name)),
       );
     }
     if (!room.paused && isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
       items.push(
-        h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, `Skip ${target.name}'s turn`),
+        h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, "Skip ", nameSpan(target.name), "'s turn"),
       );
     }
     if (isHost) {
@@ -1008,7 +1013,7 @@ export class RoomView implements View {
               void this.ask(`Remove ${s.name}? They will be out for the rest of this round.`, { ok: "Remove", danger: true }, still)
                 .then((yes) => yes && client.send({ type: "remove-player", playerId: s.id }));
             },
-          }, `Remove ${s.name}`),
+          }, "Remove ", nameSpan(s.name)),
         );
       }
     }
@@ -1093,7 +1098,8 @@ export class RoomView implements View {
             "li",
             { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
             avatar(s.name, s.avatarSeed),
-            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
+            h("span", { class: "name", title: s.name }, s.name),
+            s.id === me ? h("span", { class: "muted you" }, "(you)") : null,
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
             botTag(s),
             // The host starts the game, so their own ready flag means nothing here.
@@ -1189,7 +1195,7 @@ export class RoomView implements View {
       "p",
       { class: "suggestion-line" },
       icon("thumbs-up"),
-      `${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`,
+      h("span", { class: "suggestion-text" }, `${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`),
       h("button", {
         type: "button",
         class: "link",
@@ -1223,7 +1229,7 @@ export class RoomView implements View {
         const dlg = h(
           "dialog",
           { class: "dialog seat-menu", "aria-label": s.name },
-          h("h2", {}, s.name),
+          h("h2", { class: "seat-menu-title", title: s.name }, s.name),
           h(
             "div",
             { class: "dialog-list" },
@@ -1499,7 +1505,7 @@ export class RoomView implements View {
             { class: s.playerId === me ? "me" : "" },
             h("span", { class: "place" }, result?.unranked ? "" : String(i + 1)),
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", { class: "name" }, s.playerId === me ? "You" : nameOf(s.playerId)),
+            s.playerId === me ? h("span", { class: "name" }, "You") : h("span", { class: "name", title: nameOf(s.playerId) }, nameOf(s.playerId)),
             h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.label ?? (s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`)),
           );
         }),
@@ -1651,7 +1657,8 @@ export class RoomView implements View {
   }
 
   private showToast(message: string) {
-    this.toast.textContent = message;
+    // The text in its own box: it stops at 3 lines without the 4th peeking into the padding.
+    this.toast.replaceChildren(h("span", { class: "toast-text" }, message));
     this.toast.classList.add("show");
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.toast.classList.remove("show"), 2500);
