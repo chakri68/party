@@ -14,6 +14,16 @@ export const overheatRules: string[] = [
   "The first player to reach the target score at the end of a round wins.",
 ];
 
+/** Rules the lobby shows when Cutthroat is picked. */
+export const cutthroatRules: string[] = [
+  ...overheatRules.slice(0, 6),
+  "In Cutthroat, you may keep up to 3 power cards in your hand. Play one on your turn, before you flip or save.",
+  "Cool, Double, Push, Swap, Burn and Limit down work as in Classic.",
+  "Steal: take a number card from a player. Dump: give your last card to a player. Audit: a player loses their best card. Block: cancel a card played on you.",
+  "If you make the leader go too hot, you get 5 bonus points.",
+  overheatRules[overheatRules.length - 1]!,
+];
+
 /** What the lobby shows (and the host can change) before a game. */
 export function overheatSettingFields(raw: unknown, _players: number): SettingField[] {
   const s: OverheatSettings = { ...DEFAULT_SETTINGS, ...(raw as Partial<OverheatSettings> | null) };
@@ -28,12 +38,18 @@ export function overheatSettingFields(raw: unknown, _players: number): SettingFi
     {
       key: "powers",
       label: "Power cards",
-      selected: s.powers === "off" ? 0 : 1,
+      selected: s.powers === "off" ? 0 : s.powers === "classic" ? 1 : 2,
       options: [
         { label: "Off", patch: { powers: "off" } },
         { label: "Classic", patch: { powers: "classic" } },
+        { label: "Cutthroat", patch: { powers: "cutthroat" } },
       ],
-      hint: s.powers === "off" ? "Only number cards. Pure luck." : "16 power cards in the deck",
+      hint:
+        s.powers === "off"
+          ? "Only number cards. Pure luck."
+          : s.powers === "classic"
+            ? "16 power cards in the deck"
+            : "26 power cards. Keep them and play them on others.",
     },
   ];
 }

@@ -1,8 +1,20 @@
 export const COLOURS = ["red", "amber", "blue", "green"] as const;
 export type Colour = (typeof COLOURS)[number];
-export const POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave"] as const;
+export const POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave", "steal", "dump", "audit", "block"] as const;
 export type PowerKind = (typeof POWERS)[number];
-export const POWER_COPIES: Record<PowerKind, number> = { vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2 };
+/** The six powers Classic has. Classic never deals the Cutthroat-only cards. */
+export const CLASSIC_POWERS = POWERS.slice(0, 6);
+/** Classic copies. The Cutthroat-only cards have none here. */
+export const POWER_COPIES: Record<PowerKind, number> = {
+  vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2, steal: 0, dump: 0, audit: 0, block: 0,
+};
+export const CUTTHROAT_COPIES: Record<PowerKind, number> = {
+  vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2, steal: 3, dump: 2, audit: 2, block: 3,
+};
+/** Most power cards a player can hold in Cutthroat. */
+export const HAND_MAX = 3;
+/** Points for making the leader go too hot in Cutthroat. */
+export const BOUNTY = 5;
 
 export const GAUGE_MIN = 18,
   GAUGE_MAX = 30,
@@ -14,7 +26,7 @@ export const REDLINE_BONUS = 10,
 export const ROUND_END_MS = 3500;
 export const TARGET_OPTIONS = [100, 150, 200] as const;
 
-export type PowerSetting = "off" | "classic";
+export type PowerSetting = "off" | "classic" | "cutthroat";
 export interface OverheatSettings {
   target: number;
   powers: PowerSetting;

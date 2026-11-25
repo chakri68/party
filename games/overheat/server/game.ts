@@ -205,7 +205,10 @@ export function resolvePower(state: State, idx: number, card: PowerCard, _ctx: G
     return;
   }
   state.discard.push(card);
-  if (power === "vent") {
+  if (power === "steal" || power === "dump" || power === "audit" || power === "block") {
+    // Cutthroat-only cards. Nothing plays them yet, so they fizzle.
+    out.events.push(pub({ type: "fizzle", playerId: me.id, card }));
+  } else if (power === "vent") {
     me.heat = Math.max(0, me.heat - VENT_HEAT);
     out.events.push(pub({ type: "vent", playerId: me.id, heat: me.heat }));
     check(state, idx, out);
@@ -322,7 +325,7 @@ function parseSettings(input: unknown): OverheatSettings | null {
   if (input === undefined || input === null) return { ...DEFAULT_SETTINGS };
   if (typeof input !== "object" || Array.isArray(input)) return null;
   const s = { ...DEFAULT_SETTINGS, ...(input as Partial<OverheatSettings>) };
-  const ok = (TARGET_OPTIONS as readonly unknown[]).includes(s.target) && (s.powers === "off" || s.powers === "classic");
+  const ok = (TARGET_OPTIONS as readonly unknown[]).includes(s.target) && (s.powers === "off" || s.powers === "classic" || s.powers === "cutthroat");
   return ok ? { target: s.target, powers: s.powers } : null;
 }
 

@@ -1,5 +1,7 @@
 import {
   COLOURS,
+  CLASSIC_POWERS,
+  CUTTHROAT_COPIES,
   COLOUR_BONUS,
   POWERS,
   POWER_COPIES,
@@ -22,8 +24,12 @@ export function buildDeck(powers: PowerSetting): Card[] {
     }
   }
   if (powers === "classic") {
-    for (const power of POWERS) {
+    for (const power of CLASSIC_POWERS) {
       for (let copy = 0; copy < POWER_COPIES[power]; copy++) deck.push({ kind: "power", id: id++, power });
+    }
+  } else if (powers === "cutthroat") {
+    for (const power of POWERS) {
+      for (let copy = 0; copy < CUTTHROAT_COPIES[power]; copy++) deck.push({ kind: "power", id: id++, power });
     }
   }
   return deck;
@@ -71,6 +77,24 @@ export const POWER_NAMES: Record<PowerKind, string> = {
   wrench: "Swap",
   fuse: "Burn",
   heatwave: "Limit down",
+  steal: "Steal",
+  dump: "Dump",
+  audit: "Audit",
+  block: "Block",
+};
+
+/** One plain line per card, for the rules and the card help. */
+export const POWER_LINES: Record<PowerKind, string> = {
+  vent: "Cool: your heat goes down by 5.",
+  turbo: "Double: your next number card counts double.",
+  shove: "Push: a player you pick must flip the next card.",
+  wrench: "Swap: swap one of your cards with one of a player's cards.",
+  fuse: "Burn: a player you pick gets +1 heat at the start of each of their turns.",
+  heatwave: "Limit down: the limit goes down by 3 for everyone still flipping.",
+  steal: "Steal: take a number card from a player.",
+  dump: "Dump: give your last card to a player.",
+  audit: "Audit: a player loses their best card.",
+  block: "Block: keep it in your hand. Cancel a card played on you.",
 };
 
 export function cardLabel(card: Card): string {
