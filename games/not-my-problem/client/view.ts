@@ -75,6 +75,8 @@ export class NotMyProblemView implements GameView {
    * while a sent move waits, then for one render: it never jumps later.
    */
   private focusWant: string | null = null;
+  /** The step (token) the wish was made in. */
+  private focusToken: number | null = null;
   /** A move that says where focus goes next (Confirm after a pick). Wins over focusWant. */
   private focusNext: string | null = null;
   /** Where Cancel sends focus, when the pick started from a prompt button. */
@@ -141,7 +143,8 @@ export class NotMyProblemView implements GameView {
     // gone, a pass noted), so that change is the answer: unlock. Other
     // updates (someone's seat, someone else's pass) keep the lock.
     const privKey = JSON.stringify(props.private);
-    if (privKey !== this.privKey) this.pending.clear();
+    // A snapshot is a reconnect: a move sent while the socket was down never arrived.
+    if (privKey !== this.privKey || props.snapshot) this.pending.clear();
     this.privKey = privKey;
     const game = props.game as NmpPublicState;
     const events = props.events as NmpEvent[];
@@ -160,8 +163,9 @@ export class NotMyProblemView implements GameView {
   // ---- render ---------------------------------------------------------------
 
   private render(props: GameViewProps, fresh: boolean) {
-    this.props = props;
+    // Noted before the new props: the wish belongs to the step it was made in.
     this.noteFocus();
+    this.props = props;
     const game = props.game as NmpPublicState;
     const priv = props.private as NmpPrivateState | null;
     const me = props.playerId;
@@ -176,6 +180,10 @@ export class NotMyProblemView implements GameView {
 
     this.root.classList.toggle("my-turn", mine);
     this.root.classList.toggle("finished", game.step === "finished");
+    // A prompt or a seat pick is open: the hand becomes one sideways row, so the
+    // Problem and the seats stay in view above the dock.
+    const windowOpen = game.step === "target" || game.step === "hr" || game.step === "challenge";
+    this.root.classList.toggle("compact", windowOpen || this.selection?.mode === "seat");
 
     this.api.setTurn(
       myTurn ? "Your turn"
@@ -218,6 +226,11 @@ export class NotMyProblemView implements GameView {
     }
     const key = el.dataset.focus ? `[data-focus="${CSS.escape(el.dataset.focus)}"]` : el.dataset.card ? `[data-card="${CSS.escape(el.dataset.card)}"]` : null;
     this.focusWant = key;
+    this.focusToken = this.token();
+  }
+
+  private token(): number | null {
+    return (this.props?.game as NmpPublicState | undefined)?.token ?? null;
   }
 
   private restoreFocus() {
@@ -229,12 +242,17 @@ export class NotMyProblemView implements GameView {
     if (want) {
       // A button that is gone (Confirm after it was sent): the next button to press instead,
       // in the prompt first, then the panel.
-      const el =
+      let el =
         this.root.querySelector<HTMLElement>(want) ??
         (want.startsWith('[data-focus="act')
           ? (this.prompt.querySelector<HTMLElement>("button[data-focus]:not(:disabled)") ??
             this.panel.querySelector<HTMLElement>("button[data-focus]:not(:disabled)"))
           : null);
+      // A new step's prompt: read it first. Its buttons never take focus from a
+      // move in the last step, so a second Enter can't pass or challenge by accident.
+      if (el && !next && this.prompt.contains(el) && this.focusToken !== this.token()) {
+        el = this.prompt.querySelector<HTMLElement>(".nmp-prompt-text");
+      }
       if (el && !(el as HTMLButtonElement).disabled) {
         el.focus({ preventScroll: true });
         this.focusWant = null;

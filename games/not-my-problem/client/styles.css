@@ -329,6 +329,12 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   .nmp-buttons { justify-content: flex-start; flex-wrap: wrap; }
 }
 
+/* A window prompt or a seat pick is open: the hand is one short sideways row,
+   so the dock stays small and the Problem and the seats stay in view. */
+.nmp.compact { --nmp-card-h: 76px; }
+.nmp.compact .nmp-card-line { display: none; }
+.nmp.compact .nmp-hand { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+
 /* ---- Feedback ---------------------------------------------------------------- */
 
 .nmp .shake { animation: nmp-shake 300ms ease; }

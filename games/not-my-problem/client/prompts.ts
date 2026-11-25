@@ -41,11 +41,11 @@ export interface PromptModel {
   buttons: PromptButton[];
 }
 
-/** "Asha passed it to Ravi. Ravi sent it back." The moves of one pass, in order. */
-export function movesText(moves: PublicMove[], n: Names): string {
+/** "Asha passed Data Leak to Ravi. Ravi sent it back." The moves of one pass, in order. */
+export function movesText(moves: PublicMove[], problem: string, n: Names): string {
   return moves
     .map((m) => {
-      if (m.kind === "blame") return `${n.who(m.actorId)} passed it to ${n.whom(m.targetId)}.`;
+      if (m.kind === "blame") return `${n.who(m.actorId)} passed ${problem} to ${n.whom(m.targetId)}.`;
       if (m.kind === "not-me") return `${n.who(m.actorId)} sent it back.`;
       return `${n.who(m.actorId)} sent it to ${n.whom(m.targetId)}.`;
     })
@@ -123,19 +123,26 @@ export function promptModel(game: NmpPublicState, priv: NmpPrivateState | null, 
     } else if (last.actorId === me) {
       notes.push("Other players can cancel it now.");
     }
-    return { step: "hr", head: movesText(game.moves, n), notes, faceDown: null, buttons };
+    return { step: "hr", head: movesText(game.moves, PROBLEM_TEXT[problem.kind].name, n), notes, faceDown: null, buttons };
   }
 
   if (game.step === "challenge" && game.report) {
     const owner = game.report.ownerId;
     const mine = owner === me;
+    const name = PROBLEM_TEXT[problem.kind].name;
+    // What a challenge costs. An Intern takes exactly one warning (server/problem.ts giveWarnings).
+    const shield = (id: string) => (game.players.find((p) => p.id === id)?.shield ? 1 : 0);
+    const ownerCost = PROBLEM_TEXT[problem.kind].penalty + 1 - shield(owner);
+    const faceDown = mine ? (priv?.myReportCard ?? null) : null;
     const notes: string[] = [];
     const buttons: PromptButton[] = [];
     if (mine) {
       notes.push("If someone challenges, everyone sees your card.");
+      if (faceDown?.kind === "quick-fix") notes.push("It is a Quick Fix, so the player who challenges gets 1 warning.");
+      else if (faceDown) notes.push(`It is not a Quick Fix, so you get ${warnings(ownerCost)}.`);
     } else if (priv?.canChallenge) {
-      const cost = warnings(PROBLEM_TEXT[problem.kind].penalty + 1);
-      notes.push(`If you challenge and it is not a Quick Fix, ${n.whom(owner)} gets ${cost}. If it is one, you get 1 warning.`);
+      const mineIfTrue = shield(me) ? "your Intern takes the warning" : "you get 1 warning";
+      notes.push(`If you challenge and it is not a Quick Fix, ${n.whom(owner)} gets ${warnings(ownerCost)}. If it is a Quick Fix, ${mineIfTrue}.`);
       buttons.push(button("challenge", "Challenge", { type: "challenge", token }));
       if (priv.canPass) buttons.push(button("pass", "Pass", { type: "pass", token }));
     } else if (myPassed) {
@@ -145,9 +152,9 @@ export function promptModel(game: NmpPublicState, priv: NmpPrivateState | null, 
     }
     return {
       step: "challenge",
-      head: mine ? "You say this is a Quick Fix." : `${n.who(owner)} says this is a Quick Fix.`,
+      head: mine ? `You say this is a Quick Fix for ${name}.` : `${n.who(owner)} says this is a Quick Fix for ${name}.`,
       notes,
-      faceDown: mine ? (priv?.myReportCard ?? null) : null,
+      faceDown,
       buttons,
     };
   }
@@ -175,7 +182,7 @@ export function renderPrompt(el: HTMLElement, model: PromptModel, opts: PromptOp
       { class: "nmp-prompt-top" },
       h(
         "div",
-        { class: "nmp-prompt-text", role: "status" },
+        { class: "nmp-prompt-text", role: "status", tabindex: "-1" },
         h("p", { class: "nmp-prompt-head" }, model.head),
         model.notes.map((t) => h("p", { class: "nmp-prompt-note" }, t)),
       ),

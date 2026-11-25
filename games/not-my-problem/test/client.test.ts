@@ -152,11 +152,11 @@ function priv(hand: ActionCard[], over: Partial<NmpPrivateState> = {}): NmpPriva
 group("movesText and landsOn", () => {
   it("tells the pass in order, and where it lands", () => {
     const blame = { kind: "blame", actorId: "p2", targetId: ME } as const;
-    expect(movesText([blame], names)).toBe("Ravi passed it to you.");
+    expect(movesText([blame], "Data Leak", names)).toBe("Ravi passed Data Leak to you.");
     expect(landsOn([blame])).toBe(ME);
-    expect(movesText([blame, { kind: "not-me", actorId: ME }], names)).toBe("Ravi passed it to you. You sent it back.");
+    expect(movesText([blame, { kind: "not-me", actorId: ME }], "Data Leak", names)).toBe("Ravi passed Data Leak to you. You sent it back.");
     expect(landsOn([blame, { kind: "not-me", actorId: ME }])).toBe("p2");
-    expect(movesText([blame, { kind: "revenge", actorId: ME, targetId: "p3" }], names)).toBe("Ravi passed it to you. You sent it to Meera.");
+    expect(movesText([blame, { kind: "revenge", actorId: ME, targetId: "p3" }], "Data Leak", names)).toBe("Ravi passed Data Leak to you. You sent it to Meera.");
     expect(landsOn([blame, { kind: "revenge", actorId: ME, targetId: "p3" }])).toBe("p3");
     expect(landsOn([])).toBeNull();
   });
@@ -202,7 +202,7 @@ group("promptModel", () => {
     const g = game({ step: "hr", moves });
     const hand = [card("hr-complaint")];
     const m = promptModel(g, priv(hand, { canPass: true, playable: [{ cardId: "hr-complaint-1", targets: null }] }), "p3", namesOf("p3"))!;
-    expect(m.head).toBe("Ravi passed it to Asha. Asha sent it back.");
+    expect(m.head).toBe("Ravi passed Data Leak to Asha. Asha sent it back.");
     expect(m.notes).toEqual(["If nobody plays HR Complaint, Ravi gets it."]);
     expect(m.buttons.map((b) => [b.label, b.action])).toEqual([
       ["HR Complaint", { type: "hr", token: 7, cardId: "hr-complaint-1" }],
@@ -214,26 +214,48 @@ group("promptModel", () => {
     expect(after.notes.at(-1)).toBe("You passed. Waiting.");
   });
 
+  it("HR window: a player without HR Complaint sees the same prompt, with only Pass", () => {
+    const moves = [blameOnMe, { kind: "not-me", actorId: ME } as const];
+    const g = game({ step: "hr", moves });
+    const holder = promptModel(g, priv([card("hr-complaint")], { canPass: true, playable: [{ cardId: "hr-complaint-1", targets: null }] }), "p3", namesOf("p3"))!;
+    const without = promptModel(g, priv([card("spy")], { canPass: true }), "p3", namesOf("p3"))!;
+    expect(without.head).toBe(holder.head);
+    expect(without.notes).toEqual(holder.notes);
+    expect(without.buttons.map((b) => [b.label, b.primary, b.action])).toEqual([["Pass", true, { type: "pass", token: 7 }]]);
+  });
+
   it("HR window: the one who made the last move waits", () => {
     const m = promptModel(game({ step: "hr", moves: [blameOnMe] }), priv([]), "p2", namesOf("p2"))!;
-    expect(m.head).toBe("You passed it to Asha.");
+    expect(m.head).toBe("You passed Data Leak to Asha.");
     expect(m.notes).toEqual(["If nobody plays HR Complaint, Asha gets it.", "Other players can cancel it now."]);
   });
 
   it("challenge window: Challenge and Pass for others, the face-down card for the owner", () => {
     const g = game({ step: "challenge", moves: [], report: { ownerId: "p2" } });
     const m = promptModel(g, priv([], { canChallenge: true, canPass: true }), ME, names)!;
-    expect(m.head).toBe("Ravi says this is a Quick Fix.");
-    expect(m.notes).toEqual(["If you challenge and it is not a Quick Fix, Ravi gets 3 warnings. If it is one, you get 1 warning."]);
+    expect(m.head).toBe("Ravi says this is a Quick Fix for Data Leak.");
+    expect(m.notes).toEqual(["If you challenge and it is not a Quick Fix, Ravi gets 3 warnings. If it is a Quick Fix, you get 1 warning."]);
     expect(m.buttons.map((b) => [b.label, b.action])).toEqual([
       ["Challenge", { type: "challenge", token: 7 }],
       ["Pass", { type: "pass", token: 7 }],
     ]);
     expect(m.faceDown).toBeNull();
     const own = promptModel(g, priv([], { myReportCard: card("spy") }), "p2", namesOf("p2"))!;
-    expect(own.head).toBe("You say this is a Quick Fix.");
+    expect(own.head).toBe("You say this is a Quick Fix for Data Leak.");
+    expect(own.notes).toEqual(["If someone challenges, everyone sees your card.", "It is not a Quick Fix, so you get 3 warnings."]);
     expect(own.faceDown).toEqual(card("spy"));
+    const trap = promptModel(g, priv([], { myReportCard: card("quick-fix") }), "p2", namesOf("p2"))!;
+    expect(trap.notes.at(-1)).toBe("It is a Quick Fix, so the player who challenges gets 1 warning.");
     expect(own.buttons).toEqual([]);
+  });
+
+  it("challenge window: a visible Intern takes one warning off each cost", () => {
+    const players = [player("p1", { shield: true }), player("p2", { shield: true }), player("p3")];
+    const g = game({ step: "challenge", report: { ownerId: "p2" }, players });
+    const m = promptModel(g, priv([], { canChallenge: true, canPass: true }), ME, names)!;
+    expect(m.notes).toEqual(["If you challenge and it is not a Quick Fix, Ravi gets 2 warnings. If it is a Quick Fix, your Intern takes the warning."]);
+    const own = promptModel(g, priv([], { myReportCard: card("spy") }), "p2", namesOf("p2"))!;
+    expect(own.notes.at(-1)).toBe("It is not a Quick Fix, so you get 2 warnings.");
   });
 
   it("no prompt outside a window", () => {
