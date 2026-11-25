@@ -100,27 +100,34 @@ describe("the room menu", () => {
     expect(roomMenuItems(room({ phase: "ended" }), "amy", o)).toEqual(["settings", "home"]);
   });
 
-  it("lists Mute all after the voice item for the host in lobby, game and results", () => {
+  it("lists Mute all and Allow all to talk after the voice item for the host in lobby, game and results", () => {
     for (const phase of ["lobby", "playing", "results"] as const) {
       for (const voice of ["voice", "join", "unsupported"] as const) {
-        const items = roomMenuItems(room({ phase }), "amy", { voice, pausable: true, muteAll: "mute-all" });
+        const items = roomMenuItems(room({ phase }), "amy", { voice, pausable: true, muteAll: ["mute-all"] });
         expect(items[1], `${phase} ${voice}`).toBe("mute-all");
+        expect(items, `${phase} ${voice}`).not.toContain("allow-all");
       }
-      const allow = roomMenuItems(room({ phase }), "amy", { voice: "voice", pausable: true, muteAll: "allow-all" });
-      expect(allow.slice(0, 2), phase).toEqual(["voice", "allow-all"]);
+      const allow = roomMenuItems(room({ phase }), "amy", { voice: "voice", pausable: true, muteAll: ["allow-all"] });
+      expect(allow.slice(0, 3), phase).toEqual(["voice", "allow-all", "settings"]);
+      // Some muted: both, Mute all first.
+      const both = roomMenuItems(room({ phase }), "amy", { voice: "voice", pausable: true, muteAll: ["mute-all", "allow-all"] });
+      expect(both.slice(0, 4), phase).toEqual(["voice", "mute-all", "allow-all", "settings"]);
       // Only ever for the host.
-      const ben = roomMenuItems(room({ phase }), "ben", { voice: "voice", pausable: true, muteAll: "mute-all" });
+      const ben = roomMenuItems(room({ phase }), "ben", { voice: "voice", pausable: true, muteAll: ["mute-all", "allow-all"] });
       expect(ben, phase).not.toContain("mute-all");
+      expect(ben, phase).not.toContain("allow-all");
     }
   });
 
-  it("no Mute all when muteAll is null or the party has ended", () => {
+  it("no Mute all when muteAll is empty or the party has ended", () => {
     for (const phase of ["lobby", "playing", "results"] as const) {
-      const items: string[] = roomMenuItems(room({ phase }), "amy", { voice: "voice", pausable: true, muteAll: null });
-      expect(items).not.toContain("mute-all");
-      expect(items).not.toContain("allow-all");
+      for (const muteAll of [[], undefined]) {
+        const items: string[] = roomMenuItems(room({ phase }), "amy", { voice: "voice", pausable: true, muteAll });
+        expect(items).not.toContain("mute-all");
+        expect(items).not.toContain("allow-all");
+      }
     }
-    expect(roomMenuItems(room({ phase: "ended" }), "amy", { voice: "voice", pausable: true, muteAll: "mute-all" })).toEqual(["settings", "home"]);
+    expect(roomMenuItems(room({ phase: "ended" }), "amy", { voice: "voice", pausable: true, muteAll: ["mute-all", "allow-all"] })).toEqual(["settings", "home"]);
   });
 
   it("focus screens: lobby, playing and results", () => {

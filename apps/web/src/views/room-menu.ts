@@ -49,12 +49,13 @@ export const ROOM_MENU_LABELS: Record<RoomMenuItem, string> = {
  * - hostActions: false drops Pause, Restart and End game, where they would do
  *   nothing (the "Could not connect" screen, the game just ended). Default true.
  * - mySounds: this phone owns a sound library. The host then gets My sounds.
- * - muteAll: `muteAllAction(...)`. The host gets it right after the voice item.
+ * - muteAll: `muteAllActions(...)`. The host gets these, in order, right after
+ *   the voice item.
  */
 export function roomMenuItems(
   room: RoomPublicState,
   me: string,
-  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean; mySounds?: boolean; muteAll?: "mute-all" | "allow-all" | null },
+  o: { voice: "join" | "voice" | "unsupported" | null; pausable: boolean; hostActions?: boolean; mySounds?: boolean; muteAll?: ("mute-all" | "allow-all")[] },
 ): RoomMenuItem[] {
   if (room.phase === "ended") return ["settings", "home"];
   if (!focusPhase(room.phase)) return [];
@@ -62,7 +63,7 @@ export function roomMenuItems(
   if (o.voice === "join") items.push("join-voice");
   else if (o.voice === "voice") items.push("voice");
   else if (o.voice === "unsupported") items.push("no-voice");
-  if (o.muteAll && room.hostId === me) items.push(o.muteAll);
+  if (o.muteAll && room.hostId === me) items.push(...o.muteAll);
   items.push("settings");
   if (o.mySounds && room.hostId === me) items.push("my-sounds");
   if (room.phase === "playing" && room.hostId === me && o.hostActions !== false) {

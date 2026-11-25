@@ -28,7 +28,7 @@ import { fetchListJson, hostSoundsUrl } from "../sounds/packs.ts";
 import { hasMySounds, mySoundsApi } from "../sounds/library.ts";
 import { MY_SOUNDS_COPY } from "./my-sounds-model.ts";
 import { identityField, nameInput } from "./home.ts";
-import { leaveQuestion, muteAllAction, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
+import { leaveQuestion, muteAllActions, seatActionMessage, seatActions, type SeatActionKind } from "./host-menu.ts";
 import { lobbyAction, settingsSummary, settingsWarnings, watchBarHeight } from "./lobby.ts";
 import { slimHeader } from "./focus.ts";
 import { lockGame } from "./pause.ts";
@@ -71,6 +71,15 @@ function arrange(parent: Element, ...nodes: (Node | null)[]): void {
 
 /** The room's own screens: moving between two of them scrolls to the top. */
 const ROOM_SCREENS = new Set<string | null>(["lobby", "playing", "results", "ended"]);
+
+/**
+ * A name inside a button: one line, cut with "…" when long, the full name on
+ * hover. The button is a flex box, so its text pieces are read apart ("Skip
+ * Bob 's turn"): give the button an aria-label with the whole sentence.
+ */
+function nameSpan(name: string): HTMLElement {
+  return h("span", { class: "btn-name", title: name }, name);
+}
 
 /** How many players back each game, from the seats still here. */
 function suggestionCounts(room: RoomPublicState): Map<string, number> {
@@ -674,7 +683,7 @@ export class RoomView implements View {
       hostActions: room.phase === "playing" && !this.stuck,
       mySounds: this.mySounds,
       // The roster is kept also when this phone is not in voice: a host who never joined can still mute.
-      muteAll: this.stuck ? null : muteAllAction(room, me, this.voice?.view().members ?? []),
+      muteAll: this.stuck ? [] : muteAllActions(room, me, this.voice?.view().members ?? []),
     });
     if (!items.length) return;
     const hostInGame = () => this.last?.room.phase === "playing" && this.last.room.hostId === me;
@@ -986,12 +995,13 @@ export class RoomView implements View {
             client.send({ type: "nudge" });
             this.showToast(`Reminded ${target.name}.`);
           },
-        }, `Remind ${target.name}`),
+          "aria-label": `Remind ${target.name}`,
+        }, "Remind ", nameSpan(target.name)),
       );
     }
     if (!room.paused && isHost && target && target.id !== me && (dropped || elapsed >= SKIP_AFTER_MS)) {
       items.push(
-        h("button", { type: "button", onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, `Skip ${target.name}'s turn`),
+        h("button", { type: "button", "aria-label": `Skip ${target.name}'s turn`, onclick: () => client.send({ type: "skip-turn", playerId: target.id }) }, "Skip ", nameSpan(target.name), "'s turn"),
       );
     }
     if (isHost) {
@@ -1008,7 +1018,8 @@ export class RoomView implements View {
               void this.ask(`Remove ${s.name}? They will be out for the rest of this round.`, { ok: "Remove", danger: true }, still)
                 .then((yes) => yes && client.send({ type: "remove-player", playerId: s.id }));
             },
-          }, `Remove ${s.name}`),
+            "aria-label": `Remove ${s.name}`,
+          }, "Remove ", nameSpan(s.name)),
         );
       }
     }
@@ -1093,7 +1104,8 @@ export class RoomView implements View {
             "li",
             { class: s.presence !== "connected" ? "away" : "", style: vt(`seat-${s.id}`) },
             avatar(s.name, s.avatarSeed),
-            h("span", { class: "name" }, s.name, s.id === me ? h("span", { class: "muted" }, " (you)") : null),
+            h("span", { class: "name", title: s.name }, s.name),
+            s.id === me ? h("span", { class: "muted you" }, "(you)") : null,
             s.id === room.hostId ? h("span", { class: "tag" }, "host") : null,
             botTag(s),
             // The host starts the game, so their own ready flag means nothing here.
@@ -1189,7 +1201,7 @@ export class RoomView implements View {
       "p",
       { class: "suggestion-line" },
       icon("thumbs-up"),
-      `${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`,
+      h("span", { class: "suggestion-text" }, `${who} ${n === 1 ? "wants" : "want"} ${nameOf(id)}.`),
       h("button", {
         type: "button",
         class: "link",
@@ -1499,7 +1511,7 @@ export class RoomView implements View {
             { class: s.playerId === me ? "me" : "" },
             h("span", { class: "place" }, result?.unranked ? "" : String(i + 1)),
             seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-            h("span", { class: "name" }, s.playerId === me ? "You" : nameOf(s.playerId)),
+            s.playerId === me ? h("span", { class: "name" }, "You") : h("span", { class: "name", title: nameOf(s.playerId) }, nameOf(s.playerId)),
             h("span", { class: "muted" }, seat?.presence === "left" ? "left" : s.label ?? (s.value === 0 ? "out!" : `${s.value} ${s.value === 1 ? "card" : "cards"} left`)),
           );
         }),
@@ -1651,7 +1663,8 @@ export class RoomView implements View {
   }
 
   private showToast(message: string) {
-    this.toast.textContent = message;
+    // The text in its own box: it stops at 3 lines without the 4th peeking into the padding.
+    this.toast.replaceChildren(h("span", { class: "toast-text" }, message));
     this.toast.classList.add("show");
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.toast.classList.remove("show"), 2500);

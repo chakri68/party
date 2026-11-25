@@ -34,6 +34,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.ov-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .overheat.my-turn .ov-status {
   background: var(--accent);
   border-color: var(--accent);

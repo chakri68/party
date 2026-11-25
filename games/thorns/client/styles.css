@@ -30,6 +30,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.th-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .thorns.my-turn .th-status {
   background: var(--accent);
   border-color: var(--accent);

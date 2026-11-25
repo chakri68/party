@@ -70,6 +70,8 @@
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.ld-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .liars-dice.my-turn .ld-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -106,6 +108,8 @@
 .ld-opp.out, .ld-opp.away { opacity: 0.5; }
 .ld-opp-text { display: grid; gap: 2px; line-height: 1.15; }
 .ld-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; white-space: nowrap; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.ld-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; }
 .ld-opp .cup { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
 .ld-opp .minis { display: flex; gap: 2px; }
 .ld-ready { color: var(--accent); font-weight: 800; }
@@ -205,10 +209,10 @@
   gap: 5px;
   font-size: 0.85rem;
   font-weight: 600;
-  overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
+/* The name gives way first, so the bid and called tags stay whole. */
+.ld-row-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ld-tag {
   flex: 0 0 auto;
   padding: 0 5px;

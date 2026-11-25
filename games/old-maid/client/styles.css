@@ -27,6 +27,8 @@
   font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.om-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .old-maid.my-turn .om-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -61,6 +63,8 @@
 .om-opp.away { opacity: 0.55; }
 .om-opp-text { display: grid; line-height: 1.15; }
 .om-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.om-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .om-opp .count, .om-me .count {
   display: flex;
   align-items: center;
@@ -103,8 +107,8 @@
   border-radius: 16px;
   background: var(--surface);
 }
-.om-fan-wrap { display: grid; gap: 8px; min-width: 0; }
-.om-fan-label { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.om-fan-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.om-fan-label { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
 .old-maid.my-turn .om-fan-label { color: var(--ink); font-weight: 700; }
 
 /* Overlap is set from JS (--fan-overlap) so any hand size fits the width. */

@@ -61,6 +61,13 @@
   font-size: 0.9rem;
 }
 .my-sounds-actions.empty { grid-auto-flow: row; }
+/* A 320 px phone: four buttons get about 59 px each; "Rename" and "Replace"
+   need a bit less padding and a smaller size to clear the edges. */
+@media (max-width: 340px) {
+  .my-sounds-row { padding: 10px; }
+  .my-sounds-actions, .my-sounds-buttons { gap: 4px; }
+  .my-sounds-actions button, .my-sounds-buttons button { padding: 0 2px; font-size: 0.82rem; }
+}
 
 .my-sounds-edit { display: grid; gap: 10px; }
 .my-sounds-edit input[name="sound-name"] { min-height: 48px; }

@@ -304,7 +304,7 @@ export class SevensView implements GameView {
           h(
             "div",
             { class: "sv-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, name, p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null),
             h(
               "span",
               { class: "count" },

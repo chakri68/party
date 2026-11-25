@@ -3,6 +3,7 @@
 
 .fo {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   /* The shell's game host is a flex column: without this the game shrinks to
      its content, so the table sat ~230px wide and the duel jumped to full. */
@@ -51,8 +52,8 @@
 
 /* ---- Status --------------------------------------------------------------- */
 
-.fo-headline { margin: 0; font-weight: 700; font-size: 1.15rem; min-height: 1.4em; }
-.fo-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; }
+.fo-headline { margin: 0; font-weight: 700; font-size: 1.15rem; min-height: 1.4em; overflow-wrap: anywhere; }
+.fo-sub { margin: -4px 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.2em; overflow-wrap: anywhere; }
 
 /* ---- The table ------------------------------------------------------------ */
 
@@ -110,6 +111,7 @@
 .fo-duel.confirm .fo-duel-bar { background: var(--muted); }
 .fo-duel-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: center;
   justify-items: center;
   gap: 14px;
@@ -138,7 +140,7 @@
   overflow-wrap: anywhere;
   color: var(--ink);
 }
-.fo-say-from, .fo-say-back { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.fo-say-from, .fo-say-back { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .fo-say-from strong { color: var(--accent); }
 .fo-say-back { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
 
@@ -152,7 +154,7 @@
   background: var(--surface-2);
 }
 .fo-pair.claimed { border-color: var(--accent); }
-.fo-pair-who { font-size: 0.95rem; color: var(--muted); }
+.fo-pair-who { font-size: 0.95rem; color: var(--muted); overflow-wrap: anywhere; }
 .fo-pair-who strong { color: var(--ink); }
 .fo-pair-cat { font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 800; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
 
@@ -175,11 +177,13 @@
 .fo-buzzer:disabled:active, .fo-buzzer.pressed:disabled { transform: none; box-shadow: 0 8px 0 rgb(0 0 0 / 0.45); }
 .fo-buzzer:not(:disabled):active, .fo-buzzer.pressed:not(:disabled) { transform: translateY(6px); box-shadow: 0 2px 0 rgb(0 0 0 / 0.45); }
 
-.fo-claim { margin: 0; font-size: 1.4rem; font-weight: 800; }
-.fo-votes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.fo-claim { margin: 0; font-size: 1.4rem; font-weight: 800; overflow-wrap: anywhere; }
+.fo-votes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
 .fo-vote { min-height: 72px; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+/* Up to three lines, then an ellipsis: a long name shows almost whole, so two names that start the same still look different. */
+.fo-vote-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .fo-vote[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
-.fo-note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.fo-note { margin: 0; color: var(--muted); font-size: 0.95rem; overflow-wrap: anywhere; }
 .fo-redo { min-height: 48px; padding: 0 20px; }
 
 .fo-duel.fo-in .fo-duel-body { animation: fo-in 260ms cubic-bezier(.2, .8, .2, 1.2); }

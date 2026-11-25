@@ -431,7 +431,7 @@ export class PresidentView implements GameView {
           h(
             "div",
             { class: "pr-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, name),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name)),
             tag ? h("span", { class: `pr-title${p.title === "President" || p.title === "Vice-President" ? " up" : " down"}` }, tag) : null,
             h(
               "span",

@@ -432,7 +432,7 @@ export class CheatView implements GameView {
           h(
             "div",
             { class: "ch-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, name, p.id === game.dealerId ? h("span", { class: "ch-dealer", title: "Dealer" }, "D") : null),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "ch-dealer", title: "Dealer" }, "D") : null),
             h(
               "span",
               { class: "count" },

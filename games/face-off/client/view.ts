@@ -340,14 +340,16 @@ export class FaceOffView implements GameView {
       const other = claim === d.a ? d.b : d.a;
       tail.push(h("p", { class: "fo-claim" }, `${this.name(claim, props)} buzzed first`));
       if (me?.canVote) {
-        const choice = (c: Choice, label: string, kind: string) =>
-          h(
+        const choice = (c: Choice, who: string, kind: string) => {
+          const name = seatName(props.room, who);
+          return h(
             "button",
-            { type: "button", class: `fo-vote ${kind}`, "aria-pressed": me.myVote === c ? "true" : "false", onclick: () => this.send({ type: "vote", choice: c }) },
-            label,
+            { type: "button", class: `fo-vote ${kind}`, title: `Point to ${name}`, "aria-pressed": me.myVote === c ? "true" : "false", onclick: () => this.send({ type: "vote", choice: c }) },
+            h("span", { class: "fo-vote-label" }, `Point to ${name}`),
           );
+        };
         tail.push(
-          h("div", { class: "fo-votes" }, choice("confirm", `Point to ${seatName(props.room, claim)}`, "primary"), choice("overturn", `Point to ${seatName(props.room, other)}`, "")),
+          h("div", { class: "fo-votes" }, choice("confirm", claim, "primary"), choice("overturn", other!, "")),
           h("p", { class: "fo-note" }, `Who gets the point? Did ${seatName(props.room, claim)} say a correct answer first? ${d.voted} of ${d.voters} voted.`),
         );
       } else {

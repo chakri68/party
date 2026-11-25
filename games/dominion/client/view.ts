@@ -48,6 +48,8 @@ import { techScreen } from "./techweb.ts";
 type Intent = DominionAction extends infer A ? (A extends { turn: number } ? Omit<A, "turn"> : A) : never;
 
 const coarse = () => matchMedia("(pointer: coarse)").matches;
+/** Same as the sideways-phone rules in styles.css: the banner sits in the top row there. */
+const SIDEWAYS = "(orientation: landscape) and (max-height: 540px)";
 const ARM_MS = 3000;
 
 export class DominionView implements GameView {
@@ -115,6 +117,33 @@ export class DominionView implements GameView {
   private warned: number | null = null;
   /** Watching the finished match again; live updates wait in `latest` meanwhile. */
   private replay: Replay | null = null;
+
+  /**
+   * Sideways phones: the banner shares the top row with the purse (left) and the
+   * camera buttons (right, 4 or 5 of them). Centre it in the gap between, and no wider.
+   * Where even a short name and the words don't fit beside the clock, the clock goes
+   * under them (dm-stack).
+   */
+  private placeBanner = () => {
+    const b = this.banner;
+    const fabs = this.stage.querySelector(".dm-fabs");
+    const stage = this.stage.getBoundingClientRect();
+    b.classList.remove("dm-stack");
+    if (!matchMedia(SIDEWAYS).matches || !fabs || !stage.width) {
+      b.style.removeProperty("--dm-ban-x");
+      b.style.removeProperty("--dm-ban-w");
+      return;
+    }
+    const left = this.res.getBoundingClientRect().right - stage.left + 8;
+    const right = fabs.getBoundingClientRect().left - stage.left - 8;
+    b.style.setProperty("--dm-ban-x", `${Math.round((left + right) / 2)}px`);
+    b.style.setProperty("--dm-ban-w", `${Math.max(0, Math.floor(right - left))}px`);
+    const text = b.querySelector<HTMLElement>(".dm-banner-text");
+    const clock = b.querySelector<HTMLElement>(".countdown");
+    // Too tight when the words had to wrap, or something still runs over.
+    if (text && clock && (text.offsetHeight > clock.offsetHeight + 4 || text.scrollWidth > text.clientWidth + 1)) b.classList.add("dm-stack");
+  };
+  private bannerRoom = new ResizeObserver(this.placeBanner);
 
   constructor(api: GameClientApi) {
     this.api = api;
@@ -186,10 +215,13 @@ export class DominionView implements GameView {
   mount(container: HTMLElement) {
     container.append(this.root);
     this.board.mount(this.stage);
+    this.bannerRoom.observe(this.stage);
+    this.bannerRoom.observe(this.res);
     this.clock = window.setInterval(() => this.renderClock(), 1000);
   }
 
   destroy() {
+    this.bannerRoom.disconnect();
     clearInterval(this.clock);
     if (this.replay) {
       clearInterval(this.replay.timer);
@@ -811,16 +843,27 @@ export class DominionView implements GameView {
       ),
     );
 
-    const headline =
-      this.replay ? `Replay: ${current ? `${current.name === "You" ? "your" : `${current.name}'s`} turn` : "the end"}`
-      : pub.phase === "finished" ? "Game over"
-      : p?.eliminated ? "You lost all your cities"
-      : myTurn ? "Your turn"
-      : current ? `${current.name} is ${pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing"}`
-      : "";
+    // The name is its own span, so a long one ends in an ellipsis and the rest stays whole.
+    // The parts are flex items, so screen readers get the sentence whole from a hidden copy.
+    const who = (name: string) => h("span", { class: "dm-who", title: name }, name);
+    const say = (text: string) => h("span", { class: "dm-say" }, text);
+    const doing = pub.players.find((x) => x.id === pub.currentPlayerId)?.bot ? "thinking" : "playing";
+    const [spoken, headline]: [string, Node[]] =
+      this.replay ? (current ? (current.name === "You" ? ["Replay: your turn", [say("Replay: your turn")]] : [`Replay: ${current.name}'s turn`, [say("Replay:\u00a0"), who(current.name), say("'s turn")]]) : ["Replay: the end", [say("Replay: the end")]])
+      : pub.phase === "finished" ? ["Game over", [say("Game over")]]
+      : p?.eliminated ? ["You lost all your cities", [say("You lost all your cities")]]
+      : myTurn ? ["Your turn", [say("Your turn")]]
+      : current ? [`${current.name} is ${doing}`, [who(current.name), say(`\u00a0is ${doing}`)]]
+      : ["", []];
     this.banner.style.setProperty("--c", current?.color ?? "#9aa6b2");
     this.banner.classList.toggle("mine", myTurn);
-    replaceChildren(this.banner, h("span", { class: "dm-banner-text" }, headline), pub.deadline && pub.phase === "playing" ? this.turnClock.el : null);
+    replaceChildren(
+      this.banner,
+      h("span", { class: "sr-only" }, spoken),
+      h("span", { class: "dm-banner-text", "aria-hidden": "true" }, headline),
+      pub.deadline && pub.phase === "playing" ? this.turnClock.el : null,
+    );
+    this.placeBanner();
 
     replaceChildren(
       this.techBtn,
@@ -840,15 +883,20 @@ export class DominionView implements GameView {
     if (pub.phase === "finished" && p?.replay) {
       this.endBtn.disabled = false;
       this.endBtn.classList.remove("armed");
+      this.endBtn.setAttribute("aria-label", "Watch replay. Turn by turn, no fog");
       replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Watch replay"), h("span", { class: "dm-end-sub" }, "Turn by turn, no fog"));
       return this.renderClock();
     }
     this.endBtn.disabled = !myTurn;
     this.endBtn.classList.toggle("armed", this.endArmed);
+    const main = this.endArmed ? "End anyway" : myTurn ? "End turn" : "Waiting";
+    const sub = myTurn ? (idle ? `${plural(idle, "unit")} ready` : "All units used") : current ? `${current.name}'s move` : "";
+    // The name is a flex item: the label gives screen readers the sentence whole.
+    this.endBtn.setAttribute("aria-label", sub ? `${main}. ${sub}` : main);
     replaceChildren(
       this.endBtn,
-      h("span", { class: "dm-end-main" }, this.endArmed ? "End anyway" : myTurn ? "End turn" : "Waiting"),
-      h("span", { class: "dm-end-sub" }, myTurn ? (idle ? `${plural(idle, "unit")} ready` : "All units used") : current ? `${current.name}'s move` : ""),
+      h("span", { class: "dm-end-main" }, main),
+      h("span", { class: "dm-end-sub" }, !myTurn && current ? [who(current.name), say("'s move")] : sub),
     );
     this.renderClock();
   }
@@ -1457,6 +1505,7 @@ export class DominionView implements GameView {
     if (!p?.replay || !pub || this.replay || this.endBtn.disabled) return;
     // The rules code loads only now: nobody pays for it until they watch.
     this.endBtn.disabled = true;
+    this.endBtn.setAttribute("aria-label", "Loading. The whole match, from the start");
     replaceChildren(this.endBtn, h("span", { class: "dm-end-main" }, "Loading…"), h("span", { class: "dm-end-sub" }, "The whole match, from the start"));
     let modules;
     try {

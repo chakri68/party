@@ -1,6 +1,6 @@
 import type { RoomPublicState, SeatPublic } from "@games/protocol";
 import { describe, expect, it } from "vitest";
-import { leaveQuestion, muteAllAction, nextHost, seatActionMessage, seatActions } from "../src/views/host-menu.ts";
+import { leaveQuestion, muteAllActions, nextHost, seatActionMessage, seatActions } from "../src/views/host-menu.ts";
 
 const seat = (id: string, extra: Partial<SeatPublic> = {}): SeatPublic => ({
   id,
@@ -74,21 +74,22 @@ describe("host mute in the seat menu", () => {
     expect(seatActionMessage("allow-talk", ben)).toEqual({ type: "host-mute", playerId: "ben", muted: false });
   });
 
-  it("muteAllAction: null with nobody else in voice or when not host", () => {
+  it("muteAllActions: empty with nobody else in voice or when not host", () => {
     const amyIn = { id: "amy", hostMuted: false };
     const benIn = { id: "ben", hostMuted: false };
-    expect(muteAllAction(room("amy"), "amy", [])).toBeNull();
-    expect(muteAllAction(room("amy"), "amy", [amyIn])).toBeNull();
-    expect(muteAllAction(room("amy"), "ben", [amyIn, benIn])).toBeNull();
-    expect(muteAllAction(room("amy"), "cat", [amyIn, benIn])).toBeNull();
+    expect(muteAllActions(room("amy"), "amy", [])).toEqual([]);
+    expect(muteAllActions(room("amy"), "amy", [amyIn])).toEqual([]);
+    expect(muteAllActions(room("amy"), "ben", [amyIn, benIn])).toEqual([]);
+    expect(muteAllActions(room("amy"), "cat", [amyIn, benIn])).toEqual([]);
   });
 
-  it("muteAllAction: mute-all while anyone is not host-muted, then allow-all", () => {
+  it("muteAllActions: mute-all with none muted, both with some, allow-all with all", () => {
     const r = room("amy");
     // A host who never joined voice can still mute.
-    expect(muteAllAction(r, "amy", [{ id: "ben", hostMuted: false }])).toBe("mute-all");
-    expect(muteAllAction(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: false }])).toBe("mute-all");
-    expect(muteAllAction(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: true }])).toBe("allow-all");
+    expect(muteAllActions(r, "amy", [{ id: "ben", hostMuted: false }])).toEqual(["mute-all"]);
+    expect(muteAllActions(r, "amy", [{ id: "amy", hostMuted: true }, { id: "ben", hostMuted: false }, { id: "cat", hostMuted: false }])).toEqual(["mute-all"]);
+    expect(muteAllActions(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: false }])).toEqual(["mute-all", "allow-all"]);
+    expect(muteAllActions(r, "amy", [{ id: "amy", hostMuted: false }, { id: "ben", hostMuted: true }, { id: "cat", hostMuted: true }])).toEqual(["allow-all"]);
   });
 });
 

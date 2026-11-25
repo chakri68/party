@@ -118,7 +118,7 @@ export class SoundBoardView {
     if (key !== this.shown) {
       this.shown = key;
       this.tiles.replaceChildren(
-        ...model.tiles.map((t) => h("button", { type: "button", onclick: () => this.tap(t.id) }, t.name)),
+        ...model.tiles.map((t) => h("button", { type: "button", title: t.name, onclick: () => this.tap(t.id) }, h("span", { class: "sound-tile-name" }, t.name))),
       );
     }
   }

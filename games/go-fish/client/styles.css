@@ -28,6 +28,8 @@
   font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
+/* The text wraps, so a long name stays inside the banner. */
+.gf-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .go-fish.my-turn .gf-status {
   background: var(--accent);
   border-color: var(--accent);
@@ -70,6 +72,8 @@
 .gf-opp.away { opacity: 0.55; }
 .gf-opp-text { display: grid; line-height: 1.15; }
 .gf-opp .name { font-weight: 600; font-size: 0.9rem; display: flex; gap: 5px; align-items: center; }
+/* Long names end in an ellipsis, so one player cannot fill the strip. */
+.gf-opp .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gf-opp .count, .gf-me .count {
   display: flex;
   align-items: center;

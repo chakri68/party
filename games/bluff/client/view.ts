@@ -400,7 +400,7 @@ export class BluffView implements GameView {
           "li",
           { class: cls },
           seat ? avatar(seat.name, seat.avatarSeed, "sm") : null,
-          h("span", { class: "name" }, this.name(p.id, props)),
+          h("span", { class: "name", title: this.name(p.id, props) }, this.name(p.id, props)),
           p.removed ? h("span", { class: "tag" }, "left") : null,
           ticking && p.done ? h("span", { class: "bl-tick", "aria-label": "done" }, "✓") : null,
           got ? h("span", { class: "bl-gain" }, `+${got}`) : null,
