@@ -15,6 +15,7 @@ import { goFishGame } from "@games/go-fish/server";
 import { liarsDiceGame } from "@games/liars-dice/server";
 import { longTrailGame } from "@games/long-trail/server";
 import { nightfallGame } from "@games/nightfall/server";
+import { notMyProblemGame } from "@games/not-my-problem/server";
 import { ohHellGame } from "@games/oh-hell/server";
 import { oldMaidGame } from "@games/old-maid/server";
 import { overheatGame } from "@games/overheat/server";
@@ -44,6 +45,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   "dont-say-it": dontSayItGame,
   "face-off": faceOffGame,
   cheat: cheatGame,
+  "not-my-problem": notMyProblemGame,
   dominion: dominionGame,
   "short-night": shortNightGame,
   heist: heistGame,

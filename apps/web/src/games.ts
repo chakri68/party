@@ -18,6 +18,7 @@ import { goFishManifest, goFishRules, goFishSettingFields } from "@games/go-fish
 import { longTrailManifest, longTrailRules, longTrailSettingFields } from "@games/long-trail/shared";
 import { liarsDiceManifest, liarsDiceRules, liarsDiceSettingFields } from "@games/liars-dice/shared";
 import { nightfallManifest, nightfallRules, nightfallSettingFields } from "@games/nightfall/shared";
+import { notMyProblemManifest, notMyProblemRules, notMyProblemSettingFields } from "@games/not-my-problem/shared";
 import { ohHellManifest, ohHellRules, ohHellSettingFields } from "@games/oh-hell/shared";
 import { oldMaidManifest, oldMaidRules, oldMaidSettingFields } from "@games/old-maid/shared";
 import { overheatManifest, overheatRules, overheatSettingFields } from "@games/overheat/shared";
@@ -169,6 +170,13 @@ export const games: Record<string, GameEntry> = {
     rules: cheatRules,
     settingFields: cheatSettingFields,
     loadClient: () => import("@games/cheat/client").then((m) => m.default),
+  },
+  "not-my-problem": {
+    section: "cards",
+    manifest: notMyProblemManifest,
+    rules: notMyProblemRules,
+    settingFields: notMyProblemSettingFields,
+    loadClient: () => import("@games/not-my-problem/client").then((m) => m.default),
   },
   dominion: {
     section: "strategy",

@@ -22,6 +22,7 @@
     "@games/cheat": "workspace:*",
     "@games/crazy-eights": "workspace:*",
     "@games/dominion": "workspace:*",
+    "@games/not-my-problem": "workspace:*",
     "@games/dont-say-it": "workspace:*",
     "@games/face-off": "workspace:*",
     "@games/farkle": "workspace:*",

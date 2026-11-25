@@ -2,6 +2,7 @@ import { GRACE_MS } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { sevensGame } from "@games/sevens/server";
 import { nightfallGame } from "@games/nightfall/server";
+import { notMyProblemGame } from "@games/not-my-problem/server";
 import type { AnyGameDefinition, GameContext } from "@games/game-core";
 import { RoomRuntime } from "../src/runtime.ts";
 import { plainGame, TOY_WINDOW_MS, toyGame, toyKnobs, type ToyPublic, type ToyState } from "./bot-toy.ts";
@@ -634,6 +635,34 @@ describe("pause", () => {
     expect(game().phase).toBe("reveal");
     await world.tick(room, 1);
     expect(game().phase).toBe("night");
+  });
+
+  it("Not My Problem through the room", async () => {
+    const conns = await open({ "not-my-problem": notMyProblemGame }, "not-my-problem", ["Ana", "Ben", "Cy"]);
+    await start();
+    const game = () =>
+      roomOf(a).game as { step: string; token: number; deadline: number; drawCount: number; turnPlayerId: string };
+    const D = game().deadline;
+    const { token, drawCount, turnPlayerId } = game();
+    expect(game().step).toBe("action");
+    const mover = conns.find((c) => idOf(c) === turnPlayerId)!;
+    await world.tick(room, 5000);
+    await pauseGame(a);
+    // Past the old deadline: the turn doesn't time out, and the turn player can't draw.
+    await world.tick(room, 60_000);
+    expect(world.clock).toBeGreaterThan(D);
+    await send(room, mover, { type: "game-action", clientActionId: "d1", action: { type: "draw", token } });
+    expect(mover.last("action-rejected")).toMatchObject({ clientActionId: "d1", code: "wrong-phase", message: "The game is paused." });
+    expect(game()).toMatchObject({ step: "action", token, drawCount, turnPlayerId });
+    await pauseGame(a, false);
+    expect(game().deadline).toBe(D + 60_000);
+    await world.tick(room, D + 60_000 - world.clock - 1);
+    expect(game()).toMatchObject({ step: "action", token, drawCount });
+    await world.tick(room, 1);
+    // The turn timed out: the turn player drew.
+    expect(game().token).toBeGreaterThan(token);
+    expect(game().drawCount).toBe(drawCount - 1);
+    expect(world.errors).toEqual([]);
   });
 
   it("a fresh runtime from the same storage can resume with the same deadline", async () => {

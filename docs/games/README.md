@@ -14,6 +14,7 @@ New here? Start with [Rooms and the lobby](rooms.md): making a room, getting fri
 | [Go Fish](go-fish.md) | 2–6 | Ask for ranks, collect books of four. |
 | [President](president.md) | 3–8 | Shed your hand; finishing order sets next round's pecking order. |
 | [Cheat](cheat.md) | 3–10 | Play face down, claim anything, call out liars. |
+| [Not My Problem!](not-my-problem.md) | 3–8 | Fix Problems or pass them on. Three warnings and you are fired. |
 | [Oh Hell](oh-hell.md) | 3–7 | Bid exactly how many tricks you'll take. Hand sizes change every round. |
 | [Hold'em](holdem.md) | 2–9 | No-limit Texas Hold'em with play chips; blinds climb until someone has everything. |
 | [Overheat](overheat.md) | 2–8 | Flip for points, stay under the heat limit, push cards onto rivals. |

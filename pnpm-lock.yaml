@@ -113,6 +113,9 @@ importers:
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
+      '@games/not-my-problem':
+        specifier: workspace:*
+        version: link:../../games/not-my-problem
       '@games/oh-hell':
         specifier: workspace:*
         version: link:../../games/oh-hell
@@ -222,6 +225,9 @@ importers:
       '@games/nightfall':
         specifier: workspace:*
         version: link:../../games/nightfall
+      '@games/not-my-problem':
+        specifier: workspace:*
+        version: link:../../games/not-my-problem
       '@games/oh-hell':
         specifier: workspace:*
         version: link:../../games/oh-hell
@@ -582,6 +588,24 @@ importers:
       '@games/hidden-roles':
         specifier: workspace:*
         version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/not-my-problem:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui
