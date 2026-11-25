@@ -166,7 +166,7 @@
 /* A long name gives way first, down to a few letters; then the words round it wrap. */
 .dm-who { flex: 0 1 auto; min-width: 4ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Next to nothing: the words shrink (and wrap) only once the name is down to its 4ch. */
-.dm-say { flex: 0 0.00001 auto; white-space: normal; text-align: center; }
+.dm-say { flex: 0 0.01 auto; white-space: normal; text-align: center; }
 /* Sideways phones with little room: the clock goes under the words (placeBanner). */
 .dm-banner.dm-stack { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
 .dm-banner.dm-stack > .dm-banner-text { flex: 1 1 100%; justify-content: center; }
@@ -809,6 +809,8 @@
   .dm-banner-text { font-size: 0.85rem; }
   .dm-stage:has(.dm-panel:not([hidden])) .dm-banner { display: flex; }
   .dm-log { top: 42px; bottom: auto; font-size: 0.78rem; padding: 4px 12px; max-width: min(420px, calc(100% - 340px)); }
+  /* A two-row banner reaches about 61px: keep the log line below it, off the clock. */
+  .dm-stage:has(.dm-banner.dm-stack) .dm-log { top: 66px; }
 
   /* Camera buttons in a row along the top right, not a column down the side. */
   .dm-fabs { top: 6px; right: max(6px, env(safe-area-inset-right)); display: flex; gap: 6px; }
