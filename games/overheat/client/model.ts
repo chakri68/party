@@ -1,11 +1,12 @@
 // The view's pure parts: log lines, the hand and why a card can't be played,
-// the row tags, the saved turn and the card picks. No DOM here, so tests can
+// the row tags, the saved turn, the card picks and the card faces. No DOM here, so tests can
 // call them straight.
 import { seatName, type GameViewProps } from "@games/ui";
 import { aimTargets, cardLabel, isAimed, POWER_LINES, POWER_NAMES } from "../shared/rules.ts";
 import {
   HEATWAVE_DROP,
   VENT_HEAT,
+  type Card,
   type OverheatAction,
   type OverheatEvent,
   type OverheatPublicState,
@@ -13,6 +14,7 @@ import {
   type PowerCard,
   type PowerKind,
 } from "../shared/types.ts";
+import { powerIcon, powerKindClass, shapeSvg } from "./icons.ts";
 
 export const an = (label: string) => (/^[AEIOU]/.test(label) ? `an ${label}` : `a ${label}`);
 
@@ -83,6 +85,44 @@ export function handModel(game: OverheatPublicState, me: string, hand: readonly 
       action: { type: "play", cardId: card.id },
     };
   });
+}
+
+/**
+ * A card in "Your cards". "off": my turn, but it can't be played now (greyed out, with
+ * the reason). "idle": not my turn, so not a button, but its colour stays.
+ */
+export const handCardClass = (c: HandCard) => (c.playable ? "ov-hand-card" : c.reason ? "ov-hand-card off" : "ov-hand-card idle");
+
+// ---- faces ------------------------------------------------------------------------
+
+/** A card face: its classes, its spoken label and what goes inside (all aria-hidden). */
+export interface FaceSpec {
+  cls: string;
+  label: string;
+  html: string;
+}
+
+/**
+ * The bold face of any card. Every place a card shows (row, hand, flight ghosts)
+ * draws it from here, so a card in flight looks like the card once it lands.
+ * Number cards: the colour fills the card, a big number, the shape in two corners.
+ * Power cards: the colour of what it does, its icon and its name.
+ */
+export function faceSpec(card: Card, mult: 1 | 2 = 1): FaceSpec {
+  if (card.kind === "power") {
+    const name = POWER_NAMES[card.power];
+    return {
+      cls: `ov-card ov-power ov-k-${powerKindClass(card.power)}`,
+      label: name,
+      html: `${powerIcon(card.power)}<b class="ov-pname">${name}</b>`,
+    };
+  }
+  const x2 = mult === 2 ? '<i class="ov-x2" aria-hidden="true">×2</i>' : "";
+  return {
+    cls: `ov-card ov-num ov-${card.colour}`,
+    label: `${cardLabel(card)}${mult === 2 ? ", counts double" : ""}`,
+    html: `${shapeSvg(card.colour, "ov-sh")}<b class="ov-val">${card.value}</b>${shapeSvg(card.colour, "ov-sh br")}${x2}`,
+  };
 }
 
 // ---- picks ------------------------------------------------------------------------

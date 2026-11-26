@@ -2,9 +2,10 @@
 // tags, the saved turn and the card picks. No page needed.
 import type { GameViewProps } from "@games/ui";
 import { describe as group, expect, it } from "vitest";
-import { describe, emptyPick, handBadge, handModel, rowTags, savedTurn, tapCard, tapPlayer } from "../client/model.ts";
+import { powerIcon, powerKindClass } from "../client/icons.ts";
+import { describe, emptyPick, faceSpec, handBadge, handCardClass, handModel, rowTags, savedTurn, tapCard, tapPlayer } from "../client/model.ts";
 import { overheatGame as oh } from "../server/game.ts";
-import type { OverheatEvent, OverheatPrivateState, OverheatPublicState, Pending, PowerCard } from "../shared/types.ts";
+import { POWERS, type NumberCard, type OverheatEvent, type OverheatPrivateState, type OverheatPublicState, type Pending, type PowerCard } from "../shared/types.ts";
 import { stateWith } from "./helpers.ts";
 
 const props = {
@@ -174,5 +175,64 @@ group("log lines", () => {
       expect(l).not.toMatch(/\p{Extended_Pictographic}/u);
       expect(l).not.toMatch(banned);
     }
+  });
+});
+
+group("card faces", () => {
+  const num = (colour: NumberCard["colour"], value: number): NumberCard => ({ kind: "number", id: 1, colour, value });
+  const svgs = (html: string, cls: string) => html.match(new RegExp(`<svg class="${cls}[" ]`, "g"))?.length ?? 0;
+
+  it("a number card: its colour, a big number, a shape in two corners, and a label", () => {
+    const f = faceSpec(num("amber", 7));
+    expect(f.cls.split(" ")).toEqual(expect.arrayContaining(["ov-card", "ov-num", "ov-amber"]));
+    expect(f.html).toContain('<b class="ov-val">7</b>');
+    expect(svgs(f.html, "ov-sh")).toBe(2);
+    expect(f.html).toContain("ov-sh br");
+    expect(f.label).toBe("Amber 7");
+    expect(f.html).not.toContain("ov-x2");
+  });
+
+  it("a card that counts double shows the double mark", () => {
+    const f = faceSpec(num("red", 4), 2);
+    expect(f.html).toContain('class="ov-x2"');
+    expect(f.html).toContain("×2");
+    expect(f.label).toBe("Red 4, counts double");
+  });
+
+  it("each power card has an icon, its name and its kind colour", () => {
+    const kinds = { vent: "help", turbo: "help", shove: "hit", wrench: "hit", fuse: "hit", steal: "hit", dump: "hit", audit: "hit", heatwave: "all", block: "guard" };
+    const names = new Set<string>();
+    for (const power of POWERS) {
+      expect(powerKindClass(power)).toBe(kinds[power]);
+      expect(powerIcon(power)).toMatch(/^<svg class="ov-picon" viewBox="0 0 24 24" aria-hidden="true">.+<\/svg>$/);
+      const f = faceSpec(card(power, 5));
+      expect(f.cls.split(" ")).toEqual(expect.arrayContaining(["ov-card", "ov-power", `ov-k-${kinds[power]}`]));
+      expect(f.html).toContain(powerIcon(power));
+      expect(f.html).toContain(`<b class="ov-pname">${f.label}</b>`);
+      names.add(powerIcon(power));
+    }
+    // Ten different icons.
+    expect(names.size).toBe(POWERS.length);
+    expect(faceSpec(card("vent", 5)).label).toBe("Cool");
+    expect(faceSpec(card("heatwave", 5)).label).toBe("Limit down");
+  });
+
+  it("a greyed-out card in your hand keeps its reason and the off class", () => {
+    const { pub, hand } = views({ settings: CUT, players: [{ status: "banked", engine: ["R2"], hand: ["vent", "shove"] }, { engine: ["R5"] }, {}] });
+    const [off, on] = handModel(pub, "p0", hand);
+    expect(off!.reason).toBe("Only while flipping");
+    expect(handCardClass(off!).split(" ")).toEqual(["ov-hand-card", "off"]);
+    expect(handCardClass(on!)).toBe("ov-hand-card");
+    // Not my turn: not playable, no reason, not greyed out.
+    const later = views({ settings: CUT, turn: 1, players: [{ hand: ["vent"] }, {}, {}] });
+    expect(handCardClass(handModel(later.pub, "p0", later.hand)[0]!)).toBe("ov-hand-card idle");
+  });
+
+  it("a card in flight has the same face as the card once it lands", () => {
+    for (const [c, mult] of [[num("blue", 9), 2], [num("green", 1), 1], [card("audit", 8), 1]] as const) {
+      expect(faceSpec(c, mult)).toEqual(faceSpec(c, mult));
+    }
+    // A power card's face doesn't depend on mult.
+    expect(faceSpec(card("fuse", 3), 2)).toEqual(faceSpec(card("fuse", 3)));
   });
 });
