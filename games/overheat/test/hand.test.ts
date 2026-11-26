@@ -82,6 +82,23 @@ describe("Cutthroat hands", () => {
     expect(ok(act(t.state, "p0", { type: "flip" })).state.turnIndex).toBe(1);
   });
 
+  it("a hand card that makes you go too hot, or saves you, ends your turn", () => {
+    const at = (engine: string[]) =>
+      stateWith({ n: 2, settings: CUT, players: [{ engine, flipped: true, hand: ["heatwave"] }, { engine: ["R2"], flipped: true }] });
+    // Heat 23, limit 24 -> 21: too hot.
+    const hot = at(["R9", "R9", "R5"]);
+    let t = ok(act(hot, "p0", { type: "play", cardId: cardIn(hot, "p0") }));
+    expect(byId(t.state, "p0").status).toBe("busted");
+    expect(t.state.step).toBe("turn");
+    expect(t.state.turnIndex).toBe(1);
+    expect(t.state.played).toBe(false);
+    // Heat 21, limit 24 -> 21: right at the limit, so saved.
+    const exact = at(["R9", "R9", "R3"]);
+    t = ok(act(exact, "p0", { type: "play", cardId: cardIn(exact, "p0") }));
+    expect(byId(t.state, "p0").status).toBe("banked");
+    expect(t.state.turnIndex).toBe(1);
+  });
+
   it("before the first flip of a round, a played card still leaves you to flip", () => {
     const s = stateWith({ n: 2, deck: ["R2"], settings: CUT, players: [{ hand: ["turbo"] }] });
     const t = ok(act(s, "p0", { type: "play", cardId: cardIn(s, "p0") }));
