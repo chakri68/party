@@ -228,9 +228,16 @@ group("card faces", () => {
     expect(handCardClass(handModel(later.pub, "p0", later.hand)[0]!)).toBe("ov-hand-card idle");
   });
 
-  it("a card in flight has the same face as the card once it lands", () => {
-    for (const [c, mult] of [[num("blue", 9), 2], [num("green", 1), 1], [card("audit", 8), 1]] as const) {
-      expect(faceSpec(c, mult)).toEqual(faceSpec(c, mult));
+  // The real guarantee that a card in flight matches the card once it lands is
+  // structural: view.ts draws every face (engineCard, cardFace, the hand) through
+  // one faceEl(faceSpec(...)) path. Here: the double mark never changes the colour class.
+  it("a card that counts double keeps its colour class", () => {
+    for (const colour of ["red", "amber", "blue", "green"] as const) {
+      const one = faceSpec(num(colour, 6), 1);
+      const two = faceSpec(num(colour, 6), 2);
+      expect(two.cls).toBe(one.cls);
+      expect(two.html).not.toBe(one.html);
+      expect(two.label).not.toBe(one.label);
     }
     // A power card's face doesn't depend on mult.
     expect(faceSpec(card("fuse", 3), 2)).toEqual(faceSpec(card("fuse", 3)));

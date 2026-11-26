@@ -70,18 +70,26 @@ function svgSpan(cls: string, svg: string): HTMLElement {
   return s;
 }
 
-/** A card face from `faceSpec`. A button when it can be picked (Swap, Steal, Dump). */
-function faceEl(f: FaceSpec, id: number, onPick?: () => void): HTMLElement {
+/**
+ * A card face from `faceSpec`: the one path every card face takes (row, picks,
+ * flight ghosts, hand), so a card in flight matches the card once it lands.
+ * A button when it can be picked (Swap, Steal, Dump). "decorative": a picture
+ * only, hidden from screen readers, for when words beside it say the same.
+ */
+function faceEl(f: FaceSpec, id: number, opts: { onPick?: () => void; decorative?: boolean } = {}): HTMLElement {
+  const { onPick, decorative } = opts;
   const el = onPick
     ? h("button", { type: "button", class: `${f.cls} pickable`, "data-card": id, "aria-label": f.label, onclick: onPick })
-    : h("span", { class: f.cls, "data-card": id, role: "img", "aria-label": f.label });
+    : decorative
+      ? h("span", { class: f.cls, "aria-hidden": "true" })
+      : h("span", { class: f.cls, "data-card": id, role: "img", "aria-label": f.label });
   el.innerHTML = f.html;
   return el;
 }
 
 /** An engine card. A button when it can be picked (Swap, Steal, Dump). */
 function engineCard(e: EngineCard, onPick?: () => void): HTMLElement {
-  return faceEl(faceSpec(e.card, e.mult), e.card.id, onPick);
+  return faceEl(faceSpec(e.card, e.mult), e.card.id, { onPick });
 }
 
 /** Any card face, for flights and the short look at a flipped power card. */
@@ -429,11 +437,7 @@ export class OverheatView implements GameView {
     const cards = handModel(game, props.playerId, this.hand(props));
     const items = cards.map((c) => {
       // The face is a picture of the card; the name, line and reason say it in words.
-      const face = cardFace(c.card);
-      face.removeAttribute("role");
-      face.removeAttribute("aria-label");
-      face.removeAttribute("data-card");
-      face.setAttribute("aria-hidden", "true");
+      const face = faceEl(faceSpec(c.card), c.card.id, { decorative: true });
       const inner = [
         face,
         h(

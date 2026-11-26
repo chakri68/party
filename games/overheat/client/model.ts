@@ -114,7 +114,7 @@ export function faceSpec(card: Card, mult: 1 | 2 = 1): FaceSpec {
     return {
       cls: `ov-card ov-power ov-k-${powerKindClass(card.power)}`,
       label: name,
-      html: `${powerIcon(card.power)}<b class="ov-pname">${name}</b>`,
+      html: `<span class="ov-pic">${powerIcon(card.power)}</span><b class="ov-pname">${name}</b>`,
     };
   }
   const x2 = mult === 2 ? '<i class="ov-x2" aria-hidden="true">×2</i>' : "";

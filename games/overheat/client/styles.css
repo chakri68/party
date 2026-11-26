@@ -324,15 +324,30 @@ button.ov-row-body:focus-visible { outline: 2px solid var(--accent); outline-off
   min-width: var(--ov-card-w, 32px);
   padding: 3px 5px;
   gap: 2px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  justify-items: center;
 }
 .ov-k-help { --ov-c: var(--ov-k-help); --ov-c-ink: #fff; }
 .ov-k-hit { --ov-c: var(--ov-k-hit); --ov-c-ink: #fff; }
 .ov-k-all { --ov-c: var(--ov-k-all); --ov-c-ink: var(--ov-k-ink-dark); }
 .ov-k-guard { --ov-c: var(--ov-k-guard); --ov-c-ink: #fff; }
+/* The icon's box fills the space above the name. The icon is sized from that box
+   (container units), not from .overheat's card vars, so a flight ghost on <body>
+   draws it at the same size as the card once it lands. The box adds no width:
+   the name sets the card's width. */
+.ov-pic {
+  container-type: size;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
 .ov-picon {
   display: block;
-  width: calc(var(--ov-card-h, 44px) * 0.46);
-  height: calc(var(--ov-card-h, 44px) * 0.46);
+  width: min(100cqh, 100cqw);
+  height: min(100cqh, 100cqw);
   fill: none;
   stroke: currentColor;
   stroke-width: 2.3;
@@ -390,7 +405,6 @@ button.ov-hand-card:focus-visible { outline: 3px solid var(--accent); outline-of
   padding: 5px 3px;
   gap: 3px;
 }
-.ov-hand-card .ov-picon { width: 28px; height: 28px; }
 .ov-hand-card .ov-pname { white-space: normal; text-align: center; font-size: 0.62rem; line-height: 1.05; }
 .ov-hand-text { display: grid; align-content: start; gap: 2px; min-width: 0; }
 /* Not my turn: not a button, the face keeps its colour. */
