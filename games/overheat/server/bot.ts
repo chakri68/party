@@ -1,5 +1,5 @@
 import type { GameBot } from "@games/game-core";
-import { bankScore } from "../shared/rules.ts";
+import { aimTargets, auditIndex, bankScore } from "../shared/rules.ts";
 import type {
   EngineCard,
   OverheatAction,
@@ -22,12 +22,10 @@ const worth = (e: EngineCard) => e.card.value * e.mult;
 /** Heat left before the gauge, counting the fuses. A Turbo card counts double, so room is halved. */
 const margin = (p: OverheatPlayerState) => (p.gauge - p.heat - p.fuses) / (p.turbo ? 2 : 1);
 
-/** The same rule the game uses: other players still flipping, and for a Wrench a card in both engines. */
+/** The same rule the game uses (`aimTargets`). */
 function targetsFor(pub: OverheatPublicState, me: OverheatPlayerState, kind: Pending["kind"]) {
-  if (kind === "wrench" && !me.engine.length) return [];
-  return pub.players.filter(
-    (p) => p.id !== me.id && p.status === "flipping" && !p.removed && (kind !== "wrench" || p.engine.length > 0),
-  );
+  const seat = pub.players.indexOf(me);
+  return aimTargets(pub.players, seat, kind, pub.settings.powers === "cutthroat").map((i) => pub.players[i]!);
 }
 
 /**
@@ -62,8 +60,25 @@ export const overheatBot: GameBot<OverheatPublicState, OverheatPrivateState, Ove
         const given = random ? me.engine[ctx.randomInt(me.engine.length)]! : mine;
         return { type: "wrench", targetId: best.id, mine: given.card.id, theirs: theirs.card.id };
       }
+      if (pending.kind === "steal") {
+        // The best card that doesn't make us go too hot (any card when not flipping).
+        const room = me.status === "flipping" ? me.gauge - me.heat - 1 : Infinity;
+        const all = targets.flatMap((t) => t.engine.map((e) => ({ t, e })));
+        const safe = all.filter(({ e }) => worth(e) <= room);
+        const pool = random || !safe.length ? all : safe;
+        const best = random ? pool[ctx.randomInt(pool.length)]! : pool.reduce((a, b) => (worth(b.e) > worth(a.e) ? b : a));
+        return { type: "steal", targetId: best.t.id, theirs: best.e.card.id };
+      }
+      if (pending.kind === "dump") {
+        const mine = random ? me.engine[ctx.randomInt(me.engine.length)]! : [...me.engine].sort((a, b) => worth(b) - worth(a))[0]!;
+        const pick = random ? targets[ctx.randomInt(targets.length)]! : targets.reduce((a, b) => (margin(b) < margin(a) ? b : a));
+        return { type: "dump", targetId: pick.id, mine: mine.card.id };
+      }
       let pick = targets[ctx.randomInt(targets.length)]!;
-      if (!random) {
+      if (!random && pending.kind === "audit") {
+        const top = (p: OverheatPlayerState) => worth(p.engine[auditIndex(p.engine)]!);
+        pick = targets.reduce((a, b) => (top(b) > top(a) ? b : a));
+      } else if (!random) {
         pick =
           pending.kind === "shove"
             ? targets.reduce((a, b) => (margin(b) < margin(a) || (margin(b) === margin(a) && b.score > a.score) ? b : a))

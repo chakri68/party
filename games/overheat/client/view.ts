@@ -2,7 +2,7 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { bankScore, cardLabel, colourBonus, enginePoints, isAimed } from "../shared/rules.ts";
+import { aimTargets, bankScore, cardLabel, colourBonus, enginePoints, isAimed } from "../shared/rules.ts";
 import { HEATWAVE_DROP, VENT_HEAT, type Card, type Colour, type EngineCard, type OverheatEvent, type OverheatPlayerState, type OverheatPublicState, type Pending } from "../shared/types.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
@@ -55,13 +55,10 @@ function cardFace(card: Card, mult: 1 | 2 = 1): HTMLElement {
   return h("span", { class: "ov-card ov-power", role: "img", "aria-label": cardLabel(card) }, h("b", { class: "ov-pname" }, cardLabel(card)));
 }
 
-/** Who the pending card can be aimed at: other players still flipping (Wrench: with cards). */
+/** Who the pending card can be aimed at: the same rule the server uses. */
 function validTargets(game: OverheatPublicState, pending: Pending): string[] {
-  const chooser = game.players.find((p) => p.id === pending.chooserId);
-  if (pending.kind === "wrench" && !chooser?.engine.length) return [];
-  return game.players
-    .filter((p) => p.id !== pending.chooserId && p.status === "flipping" && (pending.kind !== "wrench" || p.engine.length > 0))
-    .map((p) => p.id);
+  const chooser = game.players.findIndex((p) => p.id === pending.chooserId);
+  return aimTargets(game.players, chooser, pending.kind, game.settings.powers === "cutthroat").map((i) => game.players[i]!.id);
 }
 
 function describe(e: OverheatEvent, props: GameViewProps): string | null {
@@ -95,11 +92,24 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
       return `${who(e.playerId)} gave ${whom(e.targetId)} ${an(cardLabel(e.gave.card))} and took ${an(cardLabel(e.got.card))}.`;
     case "fuse":
       return `${who(e.playerId)} put a Burn on ${whom(e.targetId)}. Each Burn adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
+    case "steal":
+      return e.kept
+        ? `${who(e.playerId)} took ${an(cardLabel(e.card.card))} from ${whom(e.targetId)}.`
+        : `${who(e.playerId)} took ${an(cardLabel(e.card.card))} from ${whom(e.targetId)} and threw it away.`;
+    case "dump":
+      return `${who(e.playerId)} gave ${an(cardLabel(e.card.card))} to ${whom(e.targetId)}.`;
+    case "audit":
+      return `${who(e.playerId)} played Audit on ${whom(e.targetId)}: ${an(cardLabel(e.card.card))} is gone. Score: ${e.score}.`;
+    case "block":
+      return `${e.playerId === me ? "Your" : `${seatName(props.room, e.playerId)}'s`} Block stopped the ${cardLabel(e.card)}.`;
+    case "rescore":
+      return null; // The steal, swap or audit line says it; the row shows the new points.
     case "fuse-tick":
       return `Burn: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
     case "heatwave":
       return `Limit down! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
     case "fizzle":
+      if (e.card?.power === "block") return "A Block works only from a hand. This one does nothing.";
       return e.card ? `Nobody to aim the ${cardLabel(e.card)} at. It does nothing.` : "No cards left to flip.";
     case "bust":
       return `Too hot! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;

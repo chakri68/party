@@ -142,7 +142,9 @@ export type OverheatAction =
   | { type: "play"; cardId: number }
   | { type: "pass" }
   | { type: "target"; targetId: string }
-  | { type: "wrench"; targetId: string; mine: number; theirs: number }; // card ids
+  | { type: "wrench"; targetId: string; mine: number; theirs: number } // card ids
+  | { type: "steal"; targetId: string; theirs: number }
+  | { type: "dump"; targetId: string; mine: number };
 
 export type OverheatEvent =
   | { type: "round-start"; round: number; gauge: number; firstPlayerId: string }
@@ -162,6 +164,15 @@ export type OverheatEvent =
   | { type: "fuse"; playerId: string; targetId: string; fuses: number }
   | { type: "fuse-tick"; playerId: string; heat: number; fuses: number }
   | { type: "heatwave"; playerId: string; hit: string[] }
+  /** `kept` false: the thief was not flipping, so the card went to the discard. */
+  | { type: "steal"; playerId: string; targetId: string; card: EngineCard; kept: boolean }
+  | { type: "dump"; playerId: string; targetId: string; card: EngineCard }
+  /** `score` is the target's score after the card is gone. */
+  | { type: "audit"; playerId: string; targetId: string; card: EngineCard; score: number }
+  /** `playerId`'s Block cancelled `card`, played by `byId`. */
+  | { type: "block"; playerId: string; byId: string; card: PowerCard }
+  /** A saved player's row changed: their round points and score now. */
+  | { type: "rescore"; playerId: string; roundPoints: number; score: number }
   /** An aimed card with no valid target, or a Shove/Flip with no cards left. */
   | { type: "fizzle"; playerId: string; card: PowerCard | null }
   | { type: "bust"; playerId: string; heat: number; gauge: number }

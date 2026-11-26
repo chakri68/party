@@ -10,8 +10,11 @@ import {
   type Card,
   type Colour,
   type EngineCard,
+  type OverheatPlayerState,
+  type Pending,
   type PowerKind,
   type PowerSetting,
+  type Status,
 } from "./types.ts";
 
 /** 72 number cards (4 colours × 1–9 × 2), then the power cards. Not shuffled. */
@@ -46,7 +49,38 @@ export function cardFromCode(code: string, id: number): Card | null {
 }
 
 export function isAimed(power: PowerKind): boolean {
-  return power === "shove" || power === "wrench" || power === "fuse";
+  return power === "shove" || power === "wrench" || power === "fuse" || power === "steal" || power === "dump" || power === "audit";
+}
+
+/**
+ * Seats player `chooser` may aim a `kind` card at. Classic: other players
+ * still flipping (Wrench: a card in both rows). Cutthroat:
+ * - Push, Burn, Dump: other players still flipping. Dump needs a card in your row.
+ * - Swap, Steal: other players flipping or saved, with a card in their row. Swap needs one in yours.
+ * - Audit: other saved players with a card in their row.
+ */
+export function aimTargets(players: readonly OverheatPlayerState[], chooser: number, kind: Pending["kind"], cutthroat: boolean): number[] {
+  const needMine = kind === "wrench" || kind === "dump";
+  const needTheirs = kind === "wrench" || kind === "steal" || kind === "audit";
+  const open: Status[] =
+    !cutthroat || kind === "shove" || kind === "fuse" || kind === "dump" ? ["flipping"]
+    : kind === "audit" ? ["banked"]
+    : ["flipping", "banked"];
+  if (needMine && !players[chooser]?.engine.length) return [];
+  const out: number[] = [];
+  players.forEach((p, i) => {
+    if (i !== chooser && open.includes(p.status) && (!needTheirs || p.engine.length)) out.push(i);
+  });
+  return out;
+}
+
+/** Where in `engine` Audit hits: the highest value times mult, the first one on a tie. -1 if empty. */
+export function auditIndex(engine: readonly EngineCard[]): number {
+  let best = -1;
+  engine.forEach((e, i) => {
+    if (best < 0 || e.card.value * e.mult > engine[best]!.card.value * engine[best]!.mult) best = i;
+  });
+  return best;
 }
 
 export function enginePoints(engine: EngineCard[]): number {

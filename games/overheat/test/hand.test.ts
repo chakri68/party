@@ -111,11 +111,6 @@ describe("Cutthroat hands", () => {
     expect(err(act(s, "p0", { type: "play", cardId: cardIn(s, "p0") }))).toBe("block-auto");
   });
 
-  it("Steal, Dump and Audit can't be played yet", () => {
-    const s = stateWith({ n: 2, settings: CUT, players: [{ engine: ["R2"], flipped: true, hand: ["steal", "dump", "audit"] }, { engine: ["R3"] }] });
-    for (let k = 0; k < 3; k++) expect(err(act(s, "p0", { type: "play", cardId: cardIn(s, "p0", k) }))).toBe("no-target");
-  });
-
   it("a card not in your hand, or off your turn, is refused", () => {
     const s = stateWith({ n: 2, settings: CUT, players: [{ hand: ["vent"] }, { hand: ["vent"] }] });
     expect(err(act(s, "p0", { type: "play", cardId: cardIn(s, "p1") }))).toBe("no-card");

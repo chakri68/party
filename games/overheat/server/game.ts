@@ -1,7 +1,7 @@
 import { shuffle, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { overheatManifest } from "../shared/manifest.ts";
 import { overheatBot } from "./bot.ts";
-import { bankScore, buildDeck, cardFromCode, isAimed } from "../shared/rules.ts";
+import { aimTargets, auditIndex, bankScore, buildDeck, cardFromCode, isAimed } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   GAUGE_MAX,
@@ -13,6 +13,7 @@ import {
   VENT_HEAT,
   type Card,
   type EndReason,
+  type EngineCard,
   type NumberCard,
   type OverheatAction,
   type OverheatEvent,
@@ -102,6 +103,20 @@ function bank(state: State, idx: number, out: Out): void {
   p.score += p.roundPoints;
   p.status = "banked";
   out.events.push(pub({ type: "bank", playerId: p.id, points: p.roundPoints, score: p.score, redline: p.redline }));
+}
+
+/**
+ * Cutthroat: a saved player's row changed, so their round points are counted
+ * again with the normal scoring (Perfect stays if they earned it), and their
+ * score moves by the difference. Anyone not saved is left alone.
+ */
+export function rescore(state: State, idx: number, out: Out): void {
+  const p = state.players[idx]!;
+  if (!isCutthroat(state) || p.status !== "banked") return;
+  const now = bankScore(p.engine, p.redline);
+  p.score += now - p.roundPoints;
+  p.roundPoints = now;
+  out.events.push(pub({ type: "rescore", playerId: p.id, roundPoints: p.roundPoints, score: p.score }));
 }
 
 /** Rolls a fresh gauge, clears the table into the discard, and starts the first turn. */
@@ -196,19 +211,9 @@ function place(state: State, idx: number, card: NumberCard, out: Out, by?: strin
   check(state, idx, out);
 }
 
-/**
- * Who `chooserIdx` may aim a `kind` card at: other players still flipping.
- * Wrench also needs a card in both engines.
- */
+/** Who `chooserIdx` may aim a `kind` card at. See `aimTargets` for the rules. */
 export function validTargets(state: State, chooserIdx: number, kind: Pending["kind"]): number[] {
-  if (kind === "wrench" && !state.players[chooserIdx]!.engine.length) return [];
-  const out: number[] = [];
-  state.players.forEach((p, i) => {
-    if (i === chooserIdx || p.status !== "flipping") return;
-    if (kind === "wrench" && !p.engine.length) return;
-    out.push(i);
-  });
-  return out;
+  return aimTargets(state.players, chooserIdx, kind, isCutthroat(state));
 }
 
 /**
@@ -238,8 +243,8 @@ export function resolvePower(
     return;
   }
   state.discard.push(card);
-  if (power === "steal" || power === "dump" || power === "audit" || power === "block") {
-    // Cutthroat-only cards. Nothing plays them yet, so they fizzle.
+  if (power === "block") {
+    // Block only works from a hand. One that fires (full hand, or a Push turned it up) does nothing.
     out.events.push(pub({ type: "fizzle", playerId: me.id, card }));
   } else if (power === "vent") {
     me.heat = Math.max(0, me.heat - VENT_HEAT);
@@ -276,8 +281,8 @@ function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: st
     return true;
   }
   const p = state.players[idx]!;
-  if (!by && isCutthroat(state) && handOf(state, p.id).length < HAND_MAX) {
-    const hand = handOf(state, p.id);
+  const hand = handOf(state, p.id);
+  if (!by && isCutthroat(state) && hand.length < HAND_MAX) {
     hand.push(card);
     out.events.push(pub({ type: "keep", playerId: p.id, count: hand.length }));
     out.events.push(priv(p.id, { type: "keep-card", playerId: p.id, card }));
@@ -317,23 +322,58 @@ function flip(state: State, ctx: GameContext, out: Out): void {
   if (state.step === "turn") advance(state, ctx, out);
 }
 
-type Choice = Extract<OverheatAction, { type: "target" | "wrench" }>;
+type Choice = Extract<OverheatAction, { type: "target" | "wrench" | "steal" | "dump" }>;
+
+/** The action shape each pending card takes. Push, Burn and Audit take a plain target. */
+const CHOICE_SHAPE: Record<Pending["kind"], Choice["type"]> = {
+  shove: "target",
+  fuse: "target",
+  audit: "target",
+  wrench: "wrench",
+  steal: "steal",
+  dump: "dump",
+};
 
 /** Checks a choice against the pending card. A rejection code, or null if it's legal. */
 function badChoice(state: State, seat: number, action: Choice): [string, string] | null {
   const pending = state.pending;
   const notChoosing: [string, string] = ["not-choosing", "You have no card to play."];
   if (state.step !== "choosing" || !pending || state.players[seat]!.id !== pending.chooserId) return notChoosing;
-  if ((action.type === "wrench") !== (pending.kind === "wrench")) return notChoosing;
+  if (action.type !== CHOICE_SHAPE[pending.kind]) return notChoosing;
   const target = state.players.findIndex((p) => p.id === action.targetId);
   if (target < 0 || !validTargets(state, seat, pending.kind).includes(target)) {
     return ["bad-target", "You can't aim at that player."];
   }
-  if (action.type === "wrench") {
-    const has = (i: number, id: number) => state.players[i]!.engine.some((e) => e.card.id === id);
-    if (!has(seat, action.mine) || !has(target, action.theirs)) return ["bad-card", "Pick one card from each engine."];
+  const has = (i: number, id: number) => state.players[i]!.engine.some((e) => e.card.id === id);
+  if (action.type === "wrench" && (!has(seat, action.mine) || !has(target, action.theirs))) {
+    return ["bad-card", "Pick one card from each row."];
   }
+  if (action.type === "steal" && !has(target, action.theirs)) return ["bad-card", "Pick a card from their row."];
+  if (action.type === "dump" && !has(seat, action.mine)) return ["bad-card", "Pick a card from your row."];
   return null;
+}
+
+const worth = (e: EngineCard) => e.card.value * e.mult;
+
+/** Takes the card with id `id` out of player `idx`'s row. */
+function takeCard(state: State, idx: number, id: number): EngineCard {
+  const engine = state.players[idx]!.engine;
+  return engine.splice(engine.findIndex((e) => e.card.id === id), 1)[0]!;
+}
+
+/**
+ * Cutthroat: if the target holds a Block, it is spent and the card does
+ * nothing. Only the blocker and the played card are named, never the rest of
+ * their hand.
+ */
+function blocked(state: State, me: Player, them: Player, card: PowerCard, out: Out): boolean {
+  if (!isCutthroat(state)) return false;
+  const hand = handOf(state, them.id);
+  const at = hand.findIndex((c) => c.power === "block");
+  if (at < 0) return false;
+  state.discard.push(hand.splice(at, 1)[0]!, card);
+  out.events.push(pub({ type: "block", playerId: them.id, byId: me.id, card }));
+  return true;
 }
 
 /** Plays the pending card with a checked choice. It can open a new choice (Shove into an aimed card). */
@@ -345,7 +385,9 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
   state.step = "turn";
   state.pending = null;
 
-  if (kind === "fuse") {
+  if (blocked(state, me, them, card, out)) {
+    // Cancelled: no effect.
+  } else if (kind === "fuse") {
     them.fuses++;
     out.events.push(pub({ type: "fuse", playerId: me.id, targetId: them.id, fuses: them.fuses }));
     state.discard.push(card);
@@ -354,15 +396,45 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
     const b = them.engine.findIndex((e) => e.card.id === action.theirs);
     const gave = me.engine[a]!;
     const got = them.engine[b]!;
-    const worth = (e: typeof gave) => e.card.value * e.mult;
     me.engine[a] = got;
     them.engine[b] = gave;
     me.heat = Math.max(0, me.heat - worth(gave) + worth(got));
     them.heat = Math.max(0, them.heat - worth(got) + worth(gave));
     out.events.push(pub({ type: "wrench", playerId: me.id, targetId: them.id, gave, got }));
     state.discard.push(card);
+    rescore(state, seat, out);
+    rescore(state, target, out);
     check(state, seat, out);
     check(state, target, out);
+  } else if (kind === "steal" && action.type === "steal") {
+    // A thief still flipping adds the card to their row; anyone else throws it away.
+    const got = takeCard(state, target, action.theirs);
+    const kept = me.status === "flipping";
+    if (them.status === "flipping") them.heat = Math.max(0, them.heat - worth(got));
+    out.events.push(pub({ type: "steal", playerId: me.id, targetId: them.id, card: got, kept }));
+    rescore(state, target, out);
+    if (kept) {
+      me.engine.push(got);
+      me.heat += worth(got);
+    } else state.discard.push(got.card);
+    state.discard.push(card);
+    check(state, seat, out);
+  } else if (kind === "dump" && action.type === "dump") {
+    const gave = takeCard(state, seat, action.mine);
+    if (me.status === "flipping") me.heat = Math.max(0, me.heat - worth(gave));
+    them.engine.push(gave);
+    them.heat += worth(gave);
+    out.events.push(pub({ type: "dump", playerId: me.id, targetId: them.id, card: gave }));
+    state.discard.push(card);
+    rescore(state, seat, out);
+    check(state, target, out);
+  } else if (kind === "audit") {
+    const lost = them.engine.splice(auditIndex(them.engine), 1)[0]!;
+    state.discard.push(lost.card, card);
+    // Audit aims only at saved players, so the score after is known before the rescore says it.
+    const score = them.score - them.roundPoints + bankScore(them.engine, them.redline);
+    out.events.push(pub({ type: "audit", playerId: me.id, targetId: them.id, card: lost, score }));
+    rescore(state, target, out);
   } else {
     out.events.push(pub({ type: "shove", playerId: me.id, targetId: them.id }));
     // Draw before the Shove hits the discard, so a reshuffle can't hand it back.
@@ -384,8 +456,6 @@ function badPlay(state: State, seat: number, cardId: number): [string, string] |
   if (me.status !== "flipping" && !isAimed(power) && power !== "heatwave") {
     return ["not-now", "You can play this card only while you flip."];
   }
-  // Steal, Dump and Audit get their rules later; until then nothing is a valid target.
-  if (power === "steal" || power === "dump" || power === "audit") return ["no-target", "No one to play this card on."];
   if (isAimed(power) && !validTargets(state, seat, power as Pending["kind"]).length) {
     return ["no-target", "No one to play this card on."];
   }
@@ -426,6 +496,8 @@ function parseAction(input: unknown): OverheatAction | null {
   if (a.type === "wrench" && Number.isInteger(a.mine) && Number.isInteger(a.theirs)) {
     return { type: "wrench", targetId: a.targetId, mine: a.mine as number, theirs: a.theirs as number };
   }
+  if (a.type === "steal" && Number.isInteger(a.theirs)) return { type: "steal", targetId: a.targetId, theirs: a.theirs as number };
+  if (a.type === "dump" && Number.isInteger(a.mine)) return { type: "dump", targetId: a.targetId, mine: a.mine as number };
   return null;
 }
 
@@ -514,7 +586,7 @@ export const overheatGame: GameDefinition<
     const seat = prev.players.findIndex((p) => p.id === playerId);
     if (seat < 0 || prev.players[seat]!.removed) return reject("not-in-game", "You are not in this game.");
     if (prev.step === "round-end") return reject("round-over", "This round is over. Wait for the next one.");
-    if (action.type === "target" || action.type === "wrench") {
+    if (action.type === "target" || action.type === "wrench" || action.type === "steal" || action.type === "dump") {
       const bad = badChoice(prev, seat, action);
       if (bad) return reject(...bad);
       const state = clone(prev);
@@ -557,10 +629,14 @@ export const overheatGame: GameDefinition<
     if (state.step === "choosing" && pending) {
       const pick = <T>(xs: T[]): T => xs[ctx.randomInt(xs.length)]!;
       const target = state.players[pick(validTargets(state, seat, pending.kind))]!;
+      const mine = () => pick(state.players[seat]!.engine).card.id;
+      const theirs = () => pick(target.engine).card.id;
       if (pending.kind === "wrench") {
-        const mine = pick(state.players[seat]!.engine).card.id;
-        const theirs = pick(target.engine).card.id;
-        choose(state, seat, { type: "wrench", targetId: target.id, mine, theirs }, ctx, out);
+        choose(state, seat, { type: "wrench", targetId: target.id, mine: mine(), theirs: theirs() }, ctx, out);
+      } else if (pending.kind === "steal") {
+        choose(state, seat, { type: "steal", targetId: target.id, theirs: theirs() }, ctx, out);
+      } else if (pending.kind === "dump") {
+        choose(state, seat, { type: "dump", targetId: target.id, mine: mine() }, ctx, out);
       } else {
         choose(state, seat, { type: "target", targetId: target.id }, ctx, out);
       }

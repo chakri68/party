@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seededRandomInt } from "@games/game-core";
+import { findLeaks } from "@games/game-core/testing";
 import { overheatGame as oh } from "../server/game.ts";
 import { HAND_MAX, type OverheatServerState, type PowerSetting } from "../shared/types.ts";
 
@@ -47,7 +48,7 @@ function check(s: OverheatServerState, where: string) {
 
 describe("invariants under random play", () => {
   it.each(["classic", "cutthroat"] as const)("%s: holds across random actions, skips and leavers", (powers) => {
-    const accepted = { play: 0, pass: 0, keep: 0 };
+    const accepted = { play: 0, pass: 0, keep: 0, steal: 0, dump: 0, audit: 0, block: 0 };
     for (const seed of SEEDS) {
       const r = seededRandomInt(seed);
       const ctx = { now: 0, randomInt: r };
@@ -76,15 +77,14 @@ describe("invariants under random play", () => {
           let action: Record<string, unknown>;
           if (s.step === "choosing") {
             const targetId = `p${r(n)}`;
-            if (s.pending!.kind === "wrench") {
-              const th = s.players.find((p) => p.id === targetId)!;
-              action = {
-                type: "wrench",
-                targetId,
-                mine: me.engine[r(me.engine.length || 1)]?.card.id ?? 0,
-                theirs: th.engine[r(th.engine.length || 1)]?.card.id ?? 0,
-              };
-            } else action = { type: "target", targetId };
+            const th = s.players.find((p) => p.id === targetId)!;
+            const mine = me.engine[r(me.engine.length || 1)]?.card.id ?? 0;
+            const theirs = th.engine[r(th.engine.length || 1)]?.card.id ?? 0;
+            const kind = s.pending!.kind;
+            if (kind === "wrench") action = { type: "wrench", targetId, mine, theirs };
+            else if (kind === "steal") action = { type: "steal", targetId, theirs };
+            else if (kind === "dump") action = { type: "dump", targetId, mine };
+            else action = { type: "target", targetId };
           } else {
             const hand = s.hands[me.id] ?? [];
             const turn = roll % 4;
@@ -97,18 +97,26 @@ describe("invariants under random play", () => {
           if (!res.ok) continue;
           t = res.transition;
           if (action.type === "play" || action.type === "pass") accepted[action.type]++;
+          for (const e of t.events) if (e.event.type === "steal" || e.event.type === "dump" || e.event.type === "audit" || e.event.type === "block") accepted[e.event.type]++;
           where += ` ${JSON.stringify(action)}`;
         }
         s = t.state;
         if (t.events.some((e) => e.event.type === "keep")) accepted.keep++;
         check(s, where);
         expect(JSON.stringify(oh.getPublicState(s)) + JSON.stringify(t.events), `${where}: deck leaked`).not.toMatch(/"deck":/);
+        for (const owner of s.players) {
+          for (const card of s.hands[owner.id] ?? []) {
+            const leaks = findLeaks({ def: oh, state: s, events: t.events, players: roster.map((p) => p.id), secret: JSON.stringify(card), allowed: [owner.id] });
+            expect(leaks, `${where}: ${owner.id}'s ${card.power} leaked`).toEqual([]);
+          }
+        }
       }
     }
     if (powers === "cutthroat") {
       expect(accepted.play, "plays").toBeGreaterThan(50);
       expect(accepted.pass, "passes").toBeGreaterThan(50);
       expect(accepted.keep, "keeps").toBeGreaterThan(50);
-    } else expect(accepted).toEqual({ play: 0, pass: 0, keep: 0 });
+      for (const kind of ["steal", "dump", "audit", "block"] as const) expect(accepted[kind], kind).toBeGreaterThan(5);
+    } else expect(accepted).toEqual({ play: 0, pass: 0, keep: 0, steal: 0, dump: 0, audit: 0, block: 0 });
   }, 30_000);
 });
