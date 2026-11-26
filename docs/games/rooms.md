@@ -262,7 +262,7 @@ When the night is done, the host taps **End party**, under the lobby or the resu
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 
 - How many games you played, for how long, and the game you played most.
-- Up to five awards, like **Biggest liar**, **Sharpest eye** or **Most suspicious**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!); every game counts toward **Champion of the night**.
+- Up to five awards, like **Biggest liar**, **Sharpest eye**, **Most suspicious** or **Backstabber**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you, players you made go too hot. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!, Overheat); every game counts toward **Champion of the night**.
 - A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
 - **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
 

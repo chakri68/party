@@ -69,7 +69,6 @@ const RECAP_EXEMPT = new Set([
   "thorns",
   "oh-hell",
   "holdem",
-  "overheat",
   "same-page",
   "blind-rally",
   "rally",

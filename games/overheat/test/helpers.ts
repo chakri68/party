@@ -10,6 +10,7 @@ import {
   type OverheatEvent,
   type OverheatServerState,
   type OverheatSettings,
+  type PowerCard,
   type Status,
 } from "../shared/types.ts";
 
@@ -30,11 +31,13 @@ interface PlayerOpts {
   flipped: boolean;
   score: number;
   removed: boolean;
+  /** Power card names in this player's hand (Cutthroat). */
+  hand: string[];
 }
 
 /**
  * A mid-round state on step "turn". Card ids are handed out in order:
- * players' engines, then the deck, then the discard. Heat defaults to the
+ * players' engines, then the deck, then the discard, then the hands. Heat defaults to the
  * engine's points; a player's gauge defaults to the round gauge (24).
  */
 export function stateWith(opts: {
@@ -47,6 +50,7 @@ export function stateWith(opts: {
   discard?: string[];
   settings?: Partial<OverheatSettings>;
   players?: Partial<PlayerOpts>[];
+  played?: boolean;
 } = {}): OverheatServerState {
   const n = opts.n ?? opts.players?.length ?? 3;
   const gauge = opts.gauge ?? 24;
@@ -79,6 +83,8 @@ export function stateWith(opts: {
   });
   const deck = (opts.deck ?? []).map(mk);
   const discard = (opts.discard ?? []).map(mk);
+  const hands: Record<string, PowerCard[]> = {};
+  ps.forEach((p, i) => (hands[p.id] = (opts.players?.[i]?.hand ?? []).map((code) => mk(code) as PowerCard)));
   return {
     phase: "playing",
     step: "turn",
@@ -91,6 +97,10 @@ export function stateWith(opts: {
     pending: null,
     deck,
     discard,
+    hands,
+    played: opts.played ?? false,
+    leaderId: null,
+    stats: {},
     roundEndsAt: 0,
     winnerIds: [],
     endReason: null,

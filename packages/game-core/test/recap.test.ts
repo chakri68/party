@@ -57,6 +57,7 @@ describe("buildRecap", () => {
     ["eye", "rightCalls", 2, "Sharpest eye", "Called 2 bluffs right."],
     ["suspicious", "votesAgainst", 3, "Most suspicious", "Got 3 votes against them."],
     ["blame", "problemsPassed", 3, "Not my problem", "Passed 3 Problems on."],
+    ["backstab", "pushedOver", 2, "Backstabber", "Pushed 2 players over the limit."],
     ["bold", "bigBids", 3, "Boldest bidder", "Made 3 big bids."],
     ["quick", "firstGuesses", 2, "Fastest guesser", "Guessed first 2 times."],
     ["trusting", "wrongCalls", 3, "Too trusting", "Called 3 bluffs wrong."],

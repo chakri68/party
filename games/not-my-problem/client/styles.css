@@ -1,6 +1,7 @@
 /* Not My Problem! Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
    Everything is nmp- prefixed: other games' stylesheets may be loaded in the same tab.
-   The look: paper cards with red stamps, in a very bad office. */
+   The look: bold cards in a very bad office. A card's colour says when it is played,
+   and every face also has its icon and its name, so colour is never the only sign. */
 
 .nmp {
   --nmp-card-w: calc((100% - 12px) / 3);
@@ -122,7 +123,29 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   background: var(--surface);
 }
 .nmp-no-problem { margin: 0; color: var(--muted); }
+/* Bold faces. The colour tokens sit on the face itself, so a face shows the same
+   wherever it is put. Each shade meets 4.5:1 with its ink, for small text:
+   white on fix 4.70, reaction 5.02, turn 4.88, Problem 4.93; dark ink on pass 8.70. */
+.nmp-card, .nmp-problem {
+  --nmp-fix: #1e8450;
+  --nmp-pass: #f5a524;
+  --nmp-reaction: #7457e0;
+  --nmp-turn: #1f6fd6;
+  --nmp-problem: #d13438;
+  --nmp-ink-dark: #241500;
+  --nmp-c: var(--nmp-turn);
+  --nmp-on: #fff;
+}
+.nmp-card.t-fix { --nmp-c: var(--nmp-fix); }
+.nmp-card.t-pass { --nmp-c: var(--nmp-pass); --nmp-on: var(--nmp-ink-dark); }
+.nmp-card.t-reaction { --nmp-c: var(--nmp-reaction); }
+.nmp-card.t-turn { --nmp-c: var(--nmp-turn); }
+.nmp-problem.t-problem { --nmp-c: var(--nmp-problem); }
+.nmp-ic { display: block; flex: 0 0 auto; }
+.nmp-ic svg { display: block; stroke-width: 2.3; }
+
 .nmp-problem {
+  position: relative;
   display: grid;
   grid-template-columns: 56px 1fr;
   align-items: center;
@@ -130,18 +153,21 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   width: min(100%, 340px);
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--card);
-  color: var(--card-ink);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  background: var(--nmp-c);
+  color: var(--nmp-on);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
   animation: nmp-slide 320ms cubic-bezier(.2, .8, .2, 1);
 }
-.nmp-problem .nmp-stamp { width: 56px; height: 56px; color: var(--red); padding: 6px; border: 2.5px solid var(--red); border-radius: 50%; transform: rotate(-8deg); }
+.nmp-problem .nmp-ic { width: 56px; height: 56px; }
+/* The warnings it gives, as dots. The line says the same in words. */
+.nmp-warn { position: absolute; top: 9px; right: 10px; display: flex; gap: 4px; }
+.nmp-warn i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
 .nmp-problem-text { display: grid; gap: 1px; min-width: 0; }
-.nmp-problem .nmp-label { color: var(--red); }
+.nmp-problem .nmp-label { color: inherit; }
 .nmp-problem-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
 .nmp-problem-line { font-size: 0.9rem; }
 .nmp-problem-owner { font-weight: 700; margin-top: 2px; }
-.nmp-problem-tries { font-size: 0.8rem; opacity: 0.75; }
+.nmp-problem-tries { font-size: 0.8rem; }
 
 /* The card a challenge showed, over the table for a moment. */
 .nmp-center { position: relative; display: grid; }
@@ -159,7 +185,7 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   animation: nmp-pop 260ms cubic-bezier(.2, .8, .2, 1);
 }
 .nmp-reveal[hidden] { display: none; }
-.nmp-reveal .nmp-card { flex: 0 0 auto; width: 130px; min-height: 0; cursor: default; }
+.nmp-reveal .nmp-card { --nmp-ic: 36px; flex: 0 0 auto; width: 130px; min-height: 0; cursor: default; }
 .nmp-verdict { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; padding: 1px 6px; border: 2px solid currentColor; border-radius: 4px; transform: rotate(-3deg); }
 .nmp-verdict.lie { color: var(--danger); }
 .nmp-verdict.true { color: var(--accent); }
@@ -208,8 +234,9 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 .nmp-prompt .nmp-buttons { justify-content: flex-start; }
 .nmp-facedown { display: flex; align-items: center; gap: 10px; }
 .nmp-face { cursor: default; }
-.nmp-card.small { flex: 0 0 auto; width: 110px; min-height: 0; }
+.nmp-card.small { --nmp-ic: 26px; flex: 0 0 auto; width: 110px; min-height: 0; }
 .nmp-card.small .nmp-card-line { display: none; }
+.nmp-card.small .nmp-card-name { margin-bottom: auto; }
 
 .nmp-hand {
   display: flex;
@@ -218,39 +245,47 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 }
 
 .nmp-card {
+  --nmp-ic: 30px;
   position: relative;
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
-  justify-items: start;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 2px;
   flex: 0 0 var(--nmp-card-w);
   min-width: 0;
   min-height: var(--nmp-card-h);
-  padding: 6px 7px;
+  padding: 6px 6px 7px;
   border: none;
   border-radius: 8px;
-  background: var(--card);
-  color: var(--card-ink);
+  background: var(--nmp-c);
+  color: var(--nmp-on);
   font: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
-.nmp-card .nmp-stamp { width: 26px; height: 26px; color: var(--red); }
-.nmp-card-when { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; }
-.nmp-card-name { font-weight: 800; font-size: 0.85rem; line-height: 1.1; }
-.nmp-card-line { font-size: 0.72rem; line-height: 1.2; opacity: 0.85; }
-.nmp-card.playable { box-shadow: 0 0 0 2.5px var(--accent), 0 2px 6px rgb(0 0 0 / 0.45); }
-.nmp-card.playable .nmp-card-when { opacity: 1; color: #1d5a12; }
-.nmp-card.selected { transform: translateY(-6px); box-shadow: 0 0 0 3.5px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
-.nmp-card.pick { box-shadow: 0 0 0 2.5px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
-.nmp-card.pick .nmp-card-when { opacity: 1; color: var(--red); }
-.nmp-card.picked { transform: translateY(-6px); box-shadow: 0 0 0 3.5px var(--danger), 0 4px 10px rgb(0 0 0 / 0.5); }
-.nmp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; z-index: 1; }
+/* The tag stays on top; the icon, name and line sit in the middle of the rest. */
+.nmp-card .nmp-ic { width: var(--nmp-ic); height: var(--nmp-ic); margin-top: auto; margin-bottom: 1px; }
+.nmp-card-when { align-self: stretch; padding: 0 3px; border-radius: 3px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.5; }
+.nmp-card-name { font-weight: 800; font-size: 0.85rem; line-height: 1.1; overflow-wrap: anywhere; }
+.nmp-card-line { font-size: 0.72rem; line-height: 1.2; margin-bottom: auto; }
+/* States. Each ring has a dark gap first, so it stands apart from any card colour. */
+.nmp-card.playable { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--accent), 0 2px 6px rgb(0 0 0 / 0.45); }
+.nmp-card.playable .nmp-card-when { background: var(--accent); color: #1b1b1b; }
+.nmp-card.selected { transform: translateY(-6px); box-shadow: 0 0 0 2px var(--bg), 0 0 0 5.5px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.nmp-card.pick { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
+.nmp-card.pick .nmp-card-when { background: var(--danger); color: #1b0606; }
+.nmp-card.picked { transform: translateY(-6px); box-shadow: 0 0 0 2px var(--bg), 0 0 0 5.5px var(--danger), 0 4px 10px rgb(0 0 0 / 0.5); }
+/* Greyed out: you must act now, and this card is not one of your choices.
+   No colour, darker, a dashed edge. The tag still says when it can be played. */
+.nmp-card.off { filter: grayscale(1) brightness(0.72); opacity: 0.85; box-shadow: none; }
+.nmp-card.off::after { content: ""; position: absolute; inset: 3px; border: 1.5px dashed rgb(255 255 255 / 0.75); border-radius: 6px; pointer-events: none; }
+.nmp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; z-index: 1; }
+/* Keep the focus ring lime on a greyed-out card. */
+.nmp-card.off:focus-visible { filter: none; opacity: 1; }
 .nmp-card.fresh { animation: nmp-slide 360ms cubic-bezier(.2, .8, .2, 1); }
 @keyframes nmp-slide {
   from { transform: translateY(24px); opacity: 0; }
@@ -310,6 +345,7 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 
 @media (min-width: 700px) {
   .nmp { --nmp-card-w: 120px; --nmp-card-h: 128px; gap: 12px; }
+  .nmp-card { --nmp-ic: 36px; }
   /* Only a wrapping hand is centered. A one-row hand (below) starts at the
      left, so its first cards never go past the edge where they can't scroll. */
   .nmp-hand { justify-content: center; }
@@ -322,20 +358,27 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   .nmp { --nmp-card-w: 96px; --nmp-card-h: 84px; gap: 6px; }
   .nmp-table { min-height: 0; padding: 6px; }
   .nmp-problem { grid-template-columns: 40px 1fr; padding: 6px 10px; }
-  .nmp-problem .nmp-stamp { width: 40px; height: 40px; padding: 4px; }
+  .nmp-problem .nmp-ic { width: 40px; height: 40px; }
+  .nmp-card { --nmp-ic: 24px; }
+  .nmp-reveal .nmp-card { --nmp-ic: 24px; }
   .nmp-card-line { display: none; }
+  .nmp-card-name { margin-bottom: auto; }
   .nmp-dock { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
   .nmp-prompt { grid-column: 1 / -1; }
   .nmp-panel { grid-column: 1; grid-row: 2; }
-  .nmp-hand { grid-column: 2; grid-row: 2; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+  .nmp-hand { grid-column: 2; grid-row: 2; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 14px 8px 8px; margin: -14px -8px -8px; }
   .nmp-buttons { justify-content: flex-start; flex-wrap: wrap; }
 }
 
 /* A window prompt or a seat pick is open: the hand is one short sideways row,
    so the dock stays small and the Problem and the seats stay in view. */
 .nmp.compact { --nmp-card-h: 76px; }
+.nmp.compact .nmp-hand .nmp-card { --nmp-ic: 24px; }
 .nmp.compact .nmp-card-line { display: none; }
-.nmp.compact .nmp-hand { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+.nmp.compact .nmp-card-name { margin-bottom: auto; }
+/* One sideways row scrolls, so it clips what sticks out. The padding (more on top,
+   for a raised card) leaves room for the focus ring, 8px out. */
+.nmp.compact .nmp-hand { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 14px 8px 8px; margin: -14px -8px -8px; }
 
 /* ---- Feedback ---------------------------------------------------------------- */
 

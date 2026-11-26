@@ -1,5 +1,7 @@
 import {
   COLOURS,
+  CLASSIC_POWERS,
+  CUTTHROAT_COPIES,
   COLOUR_BONUS,
   POWERS,
   POWER_COPIES,
@@ -8,8 +10,11 @@ import {
   type Card,
   type Colour,
   type EngineCard,
+  type OverheatPlayerState,
+  type Pending,
   type PowerKind,
   type PowerSetting,
+  type Status,
 } from "./types.ts";
 
 /** 72 number cards (4 colours × 1–9 × 2), then the power cards. Not shuffled. */
@@ -22,8 +27,12 @@ export function buildDeck(powers: PowerSetting): Card[] {
     }
   }
   if (powers === "classic") {
-    for (const power of POWERS) {
+    for (const power of CLASSIC_POWERS) {
       for (let copy = 0; copy < POWER_COPIES[power]; copy++) deck.push({ kind: "power", id: id++, power });
+    }
+  } else if (powers === "cutthroat") {
+    for (const power of POWERS) {
+      for (let copy = 0; copy < CUTTHROAT_COPIES[power]; copy++) deck.push({ kind: "power", id: id++, power });
     }
   }
   return deck;
@@ -40,7 +49,38 @@ export function cardFromCode(code: string, id: number): Card | null {
 }
 
 export function isAimed(power: PowerKind): boolean {
-  return power === "shove" || power === "wrench" || power === "fuse";
+  return power === "shove" || power === "wrench" || power === "fuse" || power === "steal" || power === "dump" || power === "audit";
+}
+
+/**
+ * Seats player `chooser` may aim a `kind` card at. Classic: other players
+ * still flipping (Wrench: a card in both rows). Cutthroat:
+ * - Push, Burn, Dump: other players still flipping. Dump needs a card in your row.
+ * - Swap, Steal: other players flipping or saved, with a card in their row. Swap needs one in yours.
+ * - Audit: other saved players with a card in their row.
+ */
+export function aimTargets(players: readonly OverheatPlayerState[], chooser: number, kind: Pending["kind"], cutthroat: boolean): number[] {
+  const needMine = kind === "wrench" || kind === "dump";
+  const needTheirs = kind === "wrench" || kind === "steal" || kind === "audit";
+  const open: Status[] =
+    !cutthroat || kind === "shove" || kind === "fuse" || kind === "dump" ? ["flipping"]
+    : kind === "audit" ? ["banked"]
+    : ["flipping", "banked"];
+  if (needMine && !players[chooser]?.engine.length) return [];
+  const out: number[] = [];
+  players.forEach((p, i) => {
+    if (i !== chooser && open.includes(p.status) && (!needTheirs || p.engine.length)) out.push(i);
+  });
+  return out;
+}
+
+/** Where in `engine` Audit hits: the highest value times mult, the first one on a tie. -1 if empty. */
+export function auditIndex(engine: readonly EngineCard[]): number {
+  let best = -1;
+  engine.forEach((e, i) => {
+    if (best < 0 || e.card.value * e.mult > engine[best]!.card.value * engine[best]!.mult) best = i;
+  });
+  return best;
 }
 
 export function enginePoints(engine: EngineCard[]): number {
@@ -71,6 +111,24 @@ export const POWER_NAMES: Record<PowerKind, string> = {
   wrench: "Swap",
   fuse: "Burn",
   heatwave: "Limit down",
+  steal: "Steal",
+  dump: "Dump",
+  audit: "Audit",
+  block: "Block",
+};
+
+/** One plain line per card, for the rules and the card help. */
+export const POWER_LINES: Record<PowerKind, string> = {
+  vent: "Cool: your heat goes down by 5.",
+  turbo: "Double: your next number card counts double.",
+  shove: "Push: a player you pick must flip the next card.",
+  wrench: "Swap: swap one of your cards with one of a player's cards.",
+  fuse: "Burn: a player you pick gets +1 heat at the start of each of their turns.",
+  heatwave: "Limit down: the limit goes down by 3 for everyone still flipping.",
+  steal: "Steal: take a number card from a player.",
+  dump: "Dump: give one of your number cards to a player who is still flipping.",
+  audit: "Audit: a player who saved this round loses their highest card.",
+  block: "Block: keep it in your hand. It stops the next card a player aims at you.",
 };
 
 export function cardLabel(card: Card): string {
