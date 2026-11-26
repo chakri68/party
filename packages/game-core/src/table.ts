@@ -11,6 +11,8 @@ export interface TableLog {
   loudest: { count: number; gameId: string | null } | null;
   /** Seats that ever had counting on. Only these can win a voice award. */
   counted: string[];
+  /** Open voice sessions: seat id to start time (ms). Kept so a woken room still knows who is counting. The recap ignores it. */
+  sessions?: Record<string, number>;
 }
 
 export function emptyTableLog(): TableLog {

@@ -1,4 +1,4 @@
-import type { TableKey, TableLog } from "@games/game-core";
+import type { TableLog } from "@games/game-core";
 
 export const TALK_BURST_CAP_MS = 120_000;
 export const TABLE_PERSIST_MS = 30_000;
@@ -13,23 +13,26 @@ export interface TalkContext {
 /** In memory: open bursts and open voice sessions. Counts land in the TableLog passed in. */
 export class TableTally {
   private bursts = new Map<string, { start: number; ctx: TalkContext }>();
-  private sessions = new Map<string, number>();
 
   setCounting(log: TableLog, id: string, on: boolean, now: number): void {
     if (on) {
       if (!log.counted.includes(id)) log.counted.push(id);
-      if (!this.sessions.has(id)) this.sessions.set(id, now);
+      const sessions = (log.sessions ??= {});
+      if (sessions[id] === undefined) sessions[id] = now;
     } else {
       this.drop(log, id, now);
     }
   }
 
-  counting(id: string): boolean {
-    return this.sessions.has(id);
+  counting(log: TableLog, id: string): boolean {
+    return log.sessions?.[id] !== undefined;
   }
 
   talkOn(log: TableLog, id: string, now: number, ctx: TalkContext): void {
-    if (!this.counting(id) || this.bursts.has(id)) return;
+    if (!this.counting(log, id) || this.bursts.has(id)) return;
+    for (const [other, burst] of [...this.bursts]) {
+      if (now - burst.start > TALK_BURST_CAP_MS) this.talkOff(log, other, now, null);
+    }
     const seat = (log.seats[id] ??= {});
     const others = this.bursts.size;
     if (others > 0) seat.overTalks = (seat.overTalks ?? 0) + 1;
@@ -55,9 +58,9 @@ export class TableTally {
   /** Closes burst and voice session: left voice or disconnected. */
   drop(log: TableLog, id: string, now: number): void {
     this.talkOff(log, id, now, null);
-    const start = this.sessions.get(id);
+    const start = log.sessions?.[id];
     if (start === undefined) return;
-    this.sessions.delete(id);
+    delete log.sessions![id];
     const seat = (log.seats[id] ??= {});
     seat.voiceMs = (seat.voiceMs ?? 0) + Math.max(now - start, 0);
   }
@@ -68,7 +71,6 @@ export class TableTally {
 
   bump(log: TableLog, id: string, key: "sounds" | "reactions" | "chats"): void {
     const seat = (log.seats[id] ??= {});
-    const k: TableKey = key;
-    seat[k] = (seat[k] ?? 0) + 1;
+    seat[key] = (seat[key] ?? 0) + 1;
   }
 }
