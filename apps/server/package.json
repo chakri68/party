@@ -16,6 +16,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@games/blackjack": "workspace:*",
     "@games/blind-rally": "workspace:*",
     "@games/bluff": "workspace:*",
     "@games/chain-words": "workspace:*",

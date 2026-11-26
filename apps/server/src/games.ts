@@ -1,3 +1,4 @@
+import { blackjackGame } from "@games/blackjack/server";
 import { blindRallyGame, rallyGame } from "@games/blind-rally/server";
 import { bluffDefinitionsGame, fakeWordGame } from "@games/bluff/server";
 import { chainWordsGame } from "@games/chain-words/server";
@@ -56,6 +57,7 @@ const GAMES: Record<string, AnyGameDefinition> = {
   "oh-hell": ohHellGame,
   holdem: holdemGame,
   overheat: overheatGame,
+  blackjack: blackjackGame,
   "same-page": samePageGame,
   "long-trail": longTrailGame,
   wilds: wildsGame,

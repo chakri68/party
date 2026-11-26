@@ -64,6 +64,7 @@ describe("buildRecap", () => {
     ["doubter", "noGoVotes", 5, "Hardest to convince", "Voted No-go 5 times."],
     ["rescuer", "rescues", 2, "Always there", "Got 2 friends back up."],
     ["fire", "firesLit", 2, "Fire starter", "Lit 2 fires."],
+    ["bust", "busts", 3, "One card too many", "Went over the limit 3 times."],
   ] as const)("%s fires at its minimum and not below", (id, key, min, title, line) => {
     expect(ids(statsOnly({ a: { [key]: min - 1 } }))).toEqual([]);
     expect(buildRecap(statsOnly({ a: { [key]: min } }), 0)!.awards).toEqual([{ id, title, who: ["Asha"], line }]);

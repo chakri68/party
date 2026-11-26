@@ -312,6 +312,7 @@ export const STAT_KEYS = [
   "firesLit",
   "problemsPassed",
   "pushedOver",
+  "busts",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
