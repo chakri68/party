@@ -13,7 +13,7 @@ import {
   type HoldemPublicState,
   type LegalActions,
 } from "../shared/types.ts";
-import { cardFace, cardLabel, cardList, cardMini, cardShort, cardSlot, chip, miniBack } from "./cards.ts";
+import { cardFace, cardLabel, cardList, cardMini, cardShort, cardSlot, chip, joinList, miniBack } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -79,7 +79,7 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
     case "level-up":
       return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":
-      return `Your cards are ${cardList(e.cards, true)}.`;
+      return `Your cards are ${joinList(e.cards.map((c) => `the ${cardLabel(c)}`))}.`;
     case "bet": {
       const name = who(e.playerId);
       const why = e.auto === "timer" ? " (out of time)" : e.auto === "skip" ? " (skipped)" : e.auto === "sitting-out" ? " (sitting out)" : "";
@@ -645,7 +645,7 @@ export class HoldemView implements GameView {
       },
       seat ? avatar(name, seat.avatarSeed, "sm") : h("span", { class: "avatar avatar-sm" }),
       h("span", { class: "he-seat-name", "aria-hidden": "true" }, h("span", { class: "he-name" }, name)),
-      h("span", { class: `he-seat-cards${cards.length > 2 ? " four" : ""}`, "aria-hidden": "true" }, cards),
+      h("span", { class: `he-seat-cards${HOLE_CARDS[game.variant] > 2 ? " four" : ""}`, "aria-hidden": "true" }, cards),
       h(
         "span",
         { class: "he-seat-stack", "aria-hidden": "true" },

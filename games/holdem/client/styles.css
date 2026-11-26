@@ -104,7 +104,9 @@
 .he-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
 /* Omaha's four: fanned, so the name keeps its room. */
 .he-seat-cards.four { gap: 0; }
-.he-seat-cards.four > .he-mini + .he-mini { margin-left: -7px; }
+/* Overlapped, so the rank sits left in the part that shows ("10" too). */
+.he-seat-cards.four > .he-mini { justify-items: start; padding-left: 1px; }
+.he-seat-cards.four > .he-mini + .he-mini { margin-left: -6px; }
 .he-seat-bet {
   grid-area: bet;
   justify-self: end;

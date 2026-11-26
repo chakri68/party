@@ -124,39 +124,47 @@ export function preflopTier(a: Card, b: Card): 1 | 2 | 3 | 4 | 5 {
   return 5;
 }
 
+/** Omaha points for one high card: Aces and Kings make the best flushes and straights. */
+const OMAHA_HIGH: Record<number, number> = { 14: 4, 13: 3, 12: 2, 11: 2, 10: 1 };
+/** Ranks close together below this make low straights, which lose to higher ones: fewer points. */
+const OMAHA_LOW_RUN = 7;
+
 /** Omaha points: pairs, two-card suits, ranks close together, high cards, across all 4. */
 export function omahaPoints(hole: readonly Card[]): number {
   let points = 0;
   const byRank = new Map<number, number>();
-  const bySuit = new Map<string, Card[]>();
+  const bySuit = new Map<string, number[]>();
   for (const c of hole) {
     byRank.set(c.rank, (byRank.get(c.rank) ?? 0) + 1);
-    bySuit.set(c.suit, [...(bySuit.get(c.suit) ?? []), c]);
-    if (c.rank >= 10) points += c.rank === 14 ? 2 : 1;
+    bySuit.set(c.suit, [...(bySuit.get(c.suit) ?? []), c.rank]);
+    points += OMAHA_HIGH[c.rank] ?? 0;
   }
-  // A pair can make a set. Three or four of a rank: those cards block each other.
+  // A pair can make a set, best when high. Three or four of a rank: those cards block each other.
   for (const [rank, n] of byRank) {
-    if (n === 2) points += rank >= 12 ? 8 : rank >= 10 ? 6 : 4;
-    else if (n > 2) points -= 6;
+    if (n === 2) points += rank === 14 ? 10 : rank >= 12 ? 7 : rank >= 10 ? 5 : rank >= OMAHA_LOW_RUN ? 3 : 2;
+    else if (n > 2) points -= 8;
   }
-  // Two of a suit can make a flush, best with the Ace. A third of it adds little.
-  for (const cards of bySuit.values()) {
-    if (cards.length === 2) points += cards.some((c) => c.rank === 14) ? 5 : 3;
-    else if (cards.length > 2) points += 1;
+  // Two of a suit can make a flush, best with the Ace or King. A third of it adds nothing.
+  for (const ranks of bySuit.values()) {
+    if (ranks.length === 2) points += ranks.includes(14) ? 5 : ranks.includes(13) ? 3 : 2;
   }
-  // Ranks close together make straights.
+  // Ranks close together make straights. Low ones count less.
   const ranks = [...byRank.keys()].sort((a, b) => b - a);
   for (let i = 1; i < ranks.length; i++) {
     const gap = ranks[i - 1]! - ranks[i]!;
-    if (gap <= 3) points += 4 - gap;
+    if (gap > 3) continue;
+    points += Math.max(0, 4 - gap - (ranks[i]! < OMAHA_LOW_RUN ? 1 : 0));
   }
   return points;
 }
 
-/** Omaha start tiers, 1 to 5 like Hold'em's. */
+/**
+ * Omaha start tiers, 1 to 5 like Hold'em's. Of all 4-card hands: tier 1 about
+ * 4%, tier 2 9%, tier 3 19%, tier 4 24%, tier 5 44%.
+ */
 export function omahaPreflopTier(hole: readonly Card[]): 1 | 2 | 3 | 4 | 5 {
   const p = omahaPoints(hole);
-  return p >= 18 ? 1 : p >= 13 ? 2 : p >= 9 ? 3 : p >= 6 ? 4 : 5;
+  return p >= 21 ? 1 : p >= 16 ? 2 : p >= 12 ? 3 : p >= 9 ? 4 : 5;
 }
 
 // ---------------------------------------------------------------------------

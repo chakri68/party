@@ -308,26 +308,43 @@ describe("holdemBot hand reading", () => {
 
 describe("holdemBot in Omaha", () => {
   const omaha = { variant: "omaha" } as const;
-  /** Middle of `n` timed decisions, in ms, after a few to warm up. */
-  const medianMs = (v: View, n = 21) => {
+  /** The 90th percentile of 30 timed decisions, in ms, after a few to warm up. */
+  const p90Ms = (v: View) => {
     for (let i = 0; i < 5; i++) holdemBot.decide(v, steady(i));
     const times: number[] = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < 30; i++) {
       const start = performance.now();
       holdemBot.decide(v, steady(i));
       times.push(performance.now() - start);
     }
     times.sort((a, b) => a - b);
-    return { median: times[n >> 1]!, worst: times.at(-1)! };
+    return times[26]!;
   };
 
   it("ranks starting hands by pairs, suits, close ranks and high cards across all 4", () => {
     expect(omahaPreflopTier(c("As Ks Ah Kh"))).toBe(1); // two pairs, two suits, all high
     expect(omahaPreflopTier(c("Ks Qs Jh Th"))).toBe(1); // four in a row, two suits
-    expect(omahaPreflopTier(c("Jh Th 9c 8d"))).toBe(2); // four in a row, one suit pair
-    expect(omahaPreflopTier(c("As Ad 7c 2h"))).toBe(3); // Aces, nothing else
+    expect(omahaPreflopTier(c("Js Th 9s 8h"))).toBe(2); // four in a row, two suits
+    expect(omahaPreflopTier(c("Jh Th 9c 8d"))).toBe(3); // four in a row, one suit
+    expect(omahaPreflopTier(c("As Ad 7c 2h"))).toBe(2); // Aces, nothing else
+    expect(omahaPreflopTier(c("6s 7h 8s 9h"))).toBe(3); // a middle run, two suits
+    // Low runs make low straights, which lose to higher ones.
+    expect(omahaPreflopTier(c("2c 3c 4d 5d"))).toBe(4);
+    expect(omahaPreflopTier(c("As 2s 3h 4h"))).toBe(3);
     expect(omahaPreflopTier(c("9s 9d 9h 2c"))).toBeGreaterThanOrEqual(4); // three of a kind blocks itself
     expect(omahaPreflopTier(c("Kc 8d 4h 2s"))).toBe(5); // nothing works together
+  });
+
+  it("throws away about half of all starting hands", () => {
+    const rng = seededRandomInt(11);
+    const counts = [0, 0, 0, 0, 0, 0];
+    const n = 20_000;
+    for (let i = 0; i < n; i++) counts[omahaPreflopTier(shuffle(makeDeck(), rng).slice(0, 4))]!++;
+    const share = (tier: number) => counts[tier]! / n;
+    expect(share(5)).toBeGreaterThan(0.38);
+    expect(share(5)).toBeLessThan(0.52);
+    expect(share(1)).toBeLessThan(0.07);
+    expect(share(1) + share(2)).toBeLessThan(0.18);
   });
 
   it("raises a top starting hand and folds trash to a raise", () => {
@@ -411,12 +428,12 @@ describe("holdemBot in Omaha", () => {
 
   it("decides in about 5 ms at worst: the flop, 8 opponents, a hand that cannot lose", () => {
     // A royal flush on the flop: every deal reads every hand to the end, 60 fives each.
-    const flop = medianMs(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 8, pot: 500 }));
-    const river = medianMs(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts 2h 3d", opponents: 8, pot: 500 }));
-    const headsUp = medianMs(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 1, pot: 500 }));
-    // Measured on a laptop: a median of about 2.7 ms on the flop and 2.2 ms on the river, none over 3.4 ms.
-    // The bound leaves room for a slow, busy test machine.
-    for (const t of [flop, river, headsUp]) expect(t.median).toBeLessThan(10);
+    const flop = p90Ms(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 8, pot: 500 }));
+    const river = p90Ms(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts 2h 3d", opponents: 8, pot: 500 }));
+    const headsUp = p90Ms(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 1, pot: 500 }));
+    // The target is 5 ms. Measured on a laptop: a p90 of about 3 ms. The bound adds 1 ms for a busy test
+    // machine, so twice the work (about 6 ms) fails.
+    for (const t of [flop, river, headsUp]) expect(t).toBeLessThan(6);
   });
 });
 

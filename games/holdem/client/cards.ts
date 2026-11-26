@@ -13,11 +13,12 @@ export const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hear
 
 export const isRed = (suit: Suit) => suit === "hearts" || suit === "diamonds";
 export const cardLabel = (c: Pick<Card, "suit" | "rank">) => `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`;
-/** "the Ace of Spades, the Nine of Hearts and the Two of Clubs". */
-export function cardList(cards: readonly Pick<Card, "suit" | "rank">[], the = false): string {
-  const names = cards.map((c) => `${the ? "the " : ""}${cardLabel(c)}`);
-  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+/** "A, B and C". */
+export function joinList(items: readonly string[]): string {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
+/** "Ace of Spades, Nine of Hearts and Two of Clubs". */
+export const cardList = (cards: readonly Pick<Card, "suit" | "rank">[]) => joinList(cards.map(cardLabel));
 export const cardShort = (c: Pick<Card, "suit" | "rank">) => `${formatRank(c.rank)}${SUIT_SYMBOL[c.suit]}`;
 
 const isFace = (rank: number) => rank > 10 && rank < 14;

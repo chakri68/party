@@ -586,6 +586,46 @@ describe("Omaha", () => {
     expect(pubOf(s).players[3]).toMatchObject({ allIn: true, bet: 60, stack: 0 });
   });
 
+  it("pot-limit: a short all-in doesn't reopen the betting, and the next cap counts it", () => {
+    let s = table([100, 3000, 3000, 3000], { settings: omaha });
+    s = play(s, "p3", { type: "raise", to: 70 }); // a raise of 50
+    // p0 has 100: under the cap of 240, so all-in is allowed. It raises by only 30.
+    expect(privOf(s, "p0").legal).toMatchObject({ maxRaiseTo: 100, maxIsAllIn: true });
+    s = play(s, "p0", { type: "all-in" });
+    // The small blind owes 90, and the pot is 200: 100 + 290.
+    expect(privOf(s, "p1").legal).toMatchObject({ call: 90, minRaiseTo: 150, maxRaiseTo: 390 });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "call" });
+    // p3 already acted, and the short all-in was not a full raise: call or fold only.
+    expect(privOf(s, "p3").legal).toMatchObject({ call: 30, minRaiseTo: null, maxRaiseTo: null });
+    expect(refuse(s, "p3", { type: "raise", to: 200 }).code).toBe("illegal-bet");
+  });
+
+  it("pot-limit: a folded player's chips count in the pot", () => {
+    let s = table([3000, 3000, 3000, 3000], { settings: omaha });
+    s = play(s, "p3", { type: "raise", to: 70 });
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "fold" }); // the small blind's 10 stays in
+    // The big blind owes 50, and the pot is 170: 70 + 220.
+    expect(privOf(s, "p2").legal).toMatchObject({ call: 50, maxRaiseTo: 290 });
+  });
+
+  it("Show after a fold-out names the hand by the 2+3 rule", () => {
+    // Heads-up, deal order p1 then p0. p1 holds one heart; the board gets four.
+    let s = table([1500, 1500], { settings: omaha, decks: [deck(["Qh 3s 4d 8c", "Ac 5d 6s Tc"], "Ah Kh 7h 2h 9c")] });
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "check" });
+    s = play(s, "p1", { type: "check" });
+    s = play(s, "p0", { type: "check" });
+    s = play(s, "p1", { type: "raise", to: 20 });
+    s = play(s, "p0", { type: "fold" });
+    expect(s.board).toHaveLength(4);
+    expect(privOf(s, "p1").canShow).toBe(true);
+    s = play(s, "p1", { type: "show" });
+    // All seven cards would make a flush. Two of p1's cards and three shared ones don't.
+    expect(s.lastHand!.labels.p1).toBe("High card, Ace");
+  });
+
   it("Hold'em stays no-limit", () => {
     const s = table([3000, 3000, 3000, 3000]);
     expect(pubOf(s).variant).toBe("holdem");
