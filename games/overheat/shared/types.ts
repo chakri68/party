@@ -1,8 +1,22 @@
+import type { PartyStats } from "@games/game-core";
+
 export const COLOURS = ["red", "amber", "blue", "green"] as const;
 export type Colour = (typeof COLOURS)[number];
-export const POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave"] as const;
+export const POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave", "steal", "dump", "audit", "block"] as const;
 export type PowerKind = (typeof POWERS)[number];
-export const POWER_COPIES: Record<PowerKind, number> = { vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2 };
+/** The six powers Classic has. Classic never deals the Cutthroat-only cards. */
+export const CLASSIC_POWERS = ["vent", "turbo", "shove", "wrench", "fuse", "heatwave"] as const satisfies readonly PowerKind[];
+/** Classic copies. The Cutthroat-only cards have none here. */
+export const POWER_COPIES: Record<PowerKind, number> = {
+  vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2, steal: 0, dump: 0, audit: 0, block: 0,
+};
+export const CUTTHROAT_COPIES: Record<PowerKind, number> = {
+  vent: 4, turbo: 3, shove: 3, wrench: 2, fuse: 2, heatwave: 2, steal: 3, dump: 2, audit: 2, block: 3,
+};
+/** Most power cards a player can hold in Cutthroat. */
+export const HAND_MAX = 3;
+/** Points for making the leader go too hot in Cutthroat. */
+export const BOUNTY = 5;
 
 export const GAUGE_MIN = 18,
   GAUGE_MAX = 30,
@@ -14,12 +28,12 @@ export const REDLINE_BONUS = 10,
 export const ROUND_END_MS = 3500;
 export const TARGET_OPTIONS = [100, 150, 200] as const;
 
-export type PowerSetting = "off" | "classic";
+export type PowerSetting = "off" | "classic" | "cutthroat";
 export interface OverheatSettings {
   target: number;
   powers: PowerSetting;
 }
-export const DEFAULT_SETTINGS: OverheatSettings = { target: 150, powers: "classic" };
+export const DEFAULT_SETTINGS: OverheatSettings = { target: 150, powers: "cutthroat" };
 
 export interface NumberCard {
   kind: "number";
@@ -59,9 +73,20 @@ export interface OverheatPlayerState {
 }
 
 export interface Pending {
-  kind: "shove" | "fuse" | "wrench";
+  kind: "shove" | "fuse" | "wrench" | "steal" | "dump" | "audit";
   chooserId: string;
   card: PowerCard;
+  /**
+   * The choice comes from a card played from a hand (or a Push from one).
+   * Once it resolves, the turn stays with the turn owner if they still flip.
+   */
+  fromHand: boolean;
+  /**
+   * A Push turned this card up for the chooser: who pushed it. If the card
+   * makes the chooser go too hot, they get the credit (the chooser gets it for
+   * anyone else). Missing otherwise.
+   */
+  by?: string;
 }
 
 export type Step = "turn" | "choosing" | "round-end";
@@ -79,6 +104,14 @@ export interface OverheatServerState {
   pending: Pending | null;
   deck: Card[];
   discard: Card[];
+  /** Cutthroat: each player's power cards. Missing in games stored before hands. */
+  hands: Record<string, PowerCard[]>;
+  /** The turn owner has played a hand card this turn. */
+  played: boolean;
+  /** Top score at the start of the round, if one player has it (Cutthroat). */
+  leaderId: string | null;
+  /** Party recap counts. Never in a view. */
+  stats: PartyStats;
   roundEndsAt: number;
   winnerIds: string[];
   endReason: EndReason | null;
@@ -94,24 +127,42 @@ export interface OverheatPublicState {
   awaitedId: string | null;
   deckCount: number;
   discardCount: number;
+  /** How many cards each player holds. The cards stay hidden. */
+  handCounts: Record<string, number>;
+  leaderId: string | null;
+  played: boolean;
   roundEndsAt: number;
   settings: OverheatSettings;
   winnerIds: string[];
   endReason: EndReason | null;
 }
 
-export type OverheatPrivateState = Record<string, never>;
+/** Your own hand. Empty outside Cutthroat. */
+export interface OverheatPrivateState {
+  hand: PowerCard[];
+}
 
 export type OverheatAction =
   | { type: "flip" }
   | { type: "bank" }
+  | { type: "play"; cardId: number }
+  | { type: "pass" }
   | { type: "target"; targetId: string }
-  | { type: "wrench"; targetId: string; mine: number; theirs: number }; // card ids
+  | { type: "wrench"; targetId: string; mine: number; theirs: number } // card ids
+  | { type: "steal"; targetId: string; theirs: number }
+  | { type: "dump"; targetId: string; mine: number };
 
 export type OverheatEvent =
   | { type: "round-start"; round: number; gauge: number; firstPlayerId: string }
   /** A card landed face up for `playerId`. `by` is set when it came from someone's Shove. */
   | { type: "flip"; playerId: string; card: Card; mult: 1 | 2; heat: number; by?: string }
+  /** A power went into a hand. Public: only who and the new hand size. */
+  | { type: "keep"; playerId: string; count: number }
+  /** The same, with the card. Only that player sees it. */
+  | { type: "keep-card"; playerId: string; card: PowerCard }
+  /** A card played from a hand, shown to all. */
+  | { type: "play"; playerId: string; card: PowerCard }
+  | { type: "pass"; playerId: string }
   | { type: "vent"; playerId: string; heat: number }
   | { type: "turbo"; playerId: string }
   | { type: "shove"; playerId: string; targetId: string }
@@ -119,6 +170,17 @@ export type OverheatEvent =
   | { type: "fuse"; playerId: string; targetId: string; fuses: number }
   | { type: "fuse-tick"; playerId: string; heat: number; fuses: number }
   | { type: "heatwave"; playerId: string; hit: string[] }
+  /** `kept` false: the thief was not flipping, so the card went to the discard. */
+  | { type: "steal"; playerId: string; targetId: string; card: EngineCard; kept: boolean }
+  | { type: "dump"; playerId: string; targetId: string; card: EngineCard }
+  /** `score` is the target's score after the card is gone. */
+  | { type: "audit"; playerId: string; targetId: string; card: EngineCard; score: number }
+  /** `playerId`'s Block cancelled `card`, played by `byId`. */
+  | { type: "block"; playerId: string; byId: string; card: PowerCard }
+  /** `playerId`'s card made the leader `targetId` go too hot: `points` added to their score. */
+  | { type: "bounty"; playerId: string; targetId: string; points: number }
+  /** A saved player's row changed: their round points and score now. */
+  | { type: "rescore"; playerId: string; roundPoints: number; score: number }
   /** An aimed card with no valid target, or a Shove/Flip with no cards left. */
   | { type: "fizzle"; playerId: string; card: PowerCard | null }
   | { type: "bust"; playerId: string; heat: number; gauge: number }

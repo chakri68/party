@@ -95,6 +95,7 @@ const RULES: AwardRule[] = [
   { id: "eye", title: "Sharpest eye", min: 2, score: (id, c) => c.stat(id, "rightCalls"), line: ([id], c) => `Called ${c.stat(id!, "rightCalls")} bluffs right.` },
   { id: "suspicious", title: "Most suspicious", min: 3, score: (id, c) => c.stat(id, "votesAgainst"), line: ([id], c) => `Got ${c.stat(id!, "votesAgainst")} votes against them.` },
   { id: "blame", title: "Not my problem", min: 3, score: (id, c) => c.stat(id, "problemsPassed"), line: ([id], c) => `Passed ${c.stat(id!, "problemsPassed")} Problems on.` },
+  { id: "backstab", title: "Backstabber", min: 2, score: (id, c) => c.stat(id, "pushedOver"), line: ([id], c) => `Pushed ${c.stat(id!, "pushedOver")} players over the limit.` },
   {
     id: "sneaky",
     title: "Best actor",
