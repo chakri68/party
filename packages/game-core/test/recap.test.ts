@@ -285,6 +285,24 @@ describe("table awards", () => {
     expect(far.table[0]).toMatchObject({ id: "chatty", who: ["Asha"] });
   });
 
+  it("counts Rivals as an award when spreading the table list", () => {
+    const g = (players: string[], w: string) => game({ players, winnerIds: [w] });
+    const games = [
+      ...[1, 2, 3, 4].map(() => g(["c"], "c")),
+      g(["a", "b"], "a"),
+      g(["a", "b"], "b"),
+      g(["a", "b"], "a"),
+      g(["a", "b"], "b"),
+    ];
+    const r = buildRecap(tableLog({ a: { talkMs: 200_000 }, d: { talkMs: 185_000 } }, undefined, games), 0)!;
+    expect(r.awards.map((x) => [x.id, x.who])).toEqual([
+      ["champion", ["Chen"]],
+      ["streak", ["Chen"]],
+      ["rivals", ["Asha", "Bilal"]],
+    ]);
+    expect(r.table[0]).toMatchObject({ id: "chatty", who: ["Dev"] });
+  });
+
   it("only passes it to a counted seat", () => {
     const champ = [game({ winnerIds: ["a"] }), game({ winnerIds: ["a"] })];
     const r = buildRecap(tableLog({ a: { talkMs: 200_000 }, b: { talkMs: 185_000 } }, ["a"], champ), 0)!;

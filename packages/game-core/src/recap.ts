@@ -244,9 +244,10 @@ function pickAwards(
 /**
  * Two players who each beat the other at least twice, in games both played.
  * The pair with the highest smaller count; then the larger total; then the
- * earlier pair. The one with more wins over the other comes first.
+ * earlier pair. The one with more wins over the other comes first. Both go
+ * into `awarded`.
  */
-function rivals(games: PartyGame[], order: string[], ctx: Ctx): RecapAward | null {
+function rivals(games: PartyGame[], order: string[], ctx: Ctx, awarded: Set<string>): RecapAward | null {
   const beat = new Map<string, number>();
   const key = (w: string, l: string) => `${w}\n${l}`;
   for (const g of games) {
@@ -270,6 +271,7 @@ function rivals(games: PartyGame[], order: string[], ctx: Ctx): RecapAward | nul
     }
   }
   if (!found) return null;
+  for (const id of found.who) awarded.add(id);
   return {
     id: "rivals",
     title: "Rivals",
@@ -322,7 +324,7 @@ export function buildRecap(log: PartyLog, now: number): Recap | null {
 
   const awarded = new Set<string>();
   const awards = pickAwards([...RULES, STREAK], order, ctx, awarded, MAX_AWARDS);
-  const rival = awards.length < MAX_AWARDS ? rivals(log.games, order, ctx) : null;
+  const rival = awards.length < MAX_AWARDS ? rivals(log.games, order, ctx, awarded) : null;
   if (rival) awards.push(rival);
 
   const table = pickAwards(TABLE_RULES, order, ctx, awarded, MAX_TABLE, MAX_VOICE);
