@@ -2,7 +2,7 @@
 // "when can I play it" line and the window prompts. No page needed.
 import type { GameViewProps } from "@games/ui";
 import { describe as group, expect, it } from "vitest";
-import { playWhen } from "../client/cards.ts";
+import { actionFace, handCardView, playWhen, problemFace, timingClass, timingLabel } from "../client/cards.ts";
 import { describe, feedLine, nextFeed } from "../client/feed.ts";
 import { cardMove } from "../client/moves.ts";
 import { hrLandsOn, landsOn, movesText, namesFor, promptModel } from "../client/prompts.ts";
@@ -10,6 +10,9 @@ import { RULE_GROUPS } from "../client/rules.ts";
 import { notMyProblemGame as nmp } from "../server/game.ts";
 import {
   ACTION_KINDS,
+  ACTION_TEXT,
+  PROBLEM_KINDS,
+  PROBLEM_TEXT,
   type ActionCard,
   type NmpEvent,
   type NmpPrivateState,
@@ -324,5 +327,87 @@ group("promptModel", () => {
   it("no prompt outside a window", () => {
     expect(promptModel(game({ step: "action" }), priv([]), ME, names)).toBeNull();
     expect(promptModel(game({ step: "problem" }), priv([]), ME, names)).toBeNull();
+  });
+});
+
+// ---- bold card faces --------------------------------------------------------
+
+group("bold card faces", () => {
+  it("colours each action card by when it is played", () => {
+    expect(timingClass("quick-fix")).toBe("fix");
+    expect(timingClass("fake-report")).toBe("fix");
+    expect(timingClass("blame-game")).toBe("pass");
+    expect(timingClass("not-me")).toBe("reaction");
+    expect(timingClass("revenge")).toBe("reaction");
+    expect(timingClass("hr-complaint")).toBe("reaction");
+    expect(timingClass("overtime")).toBe("turn");
+    expect(timingClass("intern")).toBe("turn");
+    expect(timingClass("promotion")).toBe("turn");
+    expect(timingClass("spy")).toBe("turn");
+  });
+
+  it("every action face has its icon, its name, its line, its timing class and a label", () => {
+    const icons = new Set<string>();
+    for (const kind of ACTION_KINDS) {
+      const f = actionFace(kind);
+      const { name, line } = ACTION_TEXT[kind];
+      expect(f.cls.split(" ")).toEqual(expect.arrayContaining(["nmp-card", `k-${kind}`, `t-${timingClass(kind)}`]));
+      const svg = f.html.match(/<svg[^]*?<\/svg>/)?.[0];
+      expect(svg, kind).toBeTruthy();
+      icons.add(svg!);
+      expect(f.html).toContain(`<span class="nmp-card-name">${name}</span>`);
+      expect(f.html).toContain(`<span class="nmp-card-line">${line}</span>`);
+      expect(f.label).toBe(`${name}. ${line}`);
+    }
+    expect(icons.size).toBe(ACTION_KINDS.length);
+  });
+
+  it("each Problem is red, with one warning dot for each warning it gives", () => {
+    const icons = new Set<string>();
+    for (const kind of PROBLEM_KINDS) {
+      const f = problemFace(kind);
+      expect(f.cls.split(" ")).toEqual(expect.arrayContaining(["nmp-problem", `k-${kind}`, "t-problem"]));
+      expect(f.icon).toMatch(/^<svg[^]*<\/svg>$/);
+      icons.add(f.icon);
+      expect(f.warn.match(/<i><\/i>/g)?.length, kind).toBe(PROBLEM_TEXT[kind].penalty);
+      expect(f.warn).toContain('aria-hidden="true"');
+    }
+    expect(problemFace("data-leak").warn.match(/<i><\/i>/g)?.length).toBe(2);
+    expect(problemFace("server-down").warn.match(/<i><\/i>/g)?.length).toBe(1);
+    expect(icons.size).toBe(PROBLEM_KINDS.length);
+  });
+
+  it("a Fake Report's face-down card shows only to its owner, and the reveal shows the bold face", () => {
+    const g = game({ step: "challenge", moves: [], report: { ownerId: "p2" } });
+    // Others see no face at all, only the prompt.
+    expect(promptModel(g, priv([], { canChallenge: true, canPass: true }), ME, names)!.faceDown).toBeNull();
+    // The owner sees their own card, drawn with the same bold face as the reveal (cardFace uses actionFace).
+    const own = promptModel(g, priv([], { myReportCard: card("spy") }), "p2", namesOf("p2"))!;
+    expect(own.faceDown).toEqual(card("spy"));
+    expect(actionFace(own.faceDown!.kind).cls).toContain("t-turn");
+  });
+
+  it("a card I can't play while I must act is greyed out, and still says when it can be played", () => {
+    const base = { now: false, anyPlayable: true, selected: false, canPickDown: false, picked: false };
+    const off = handCardView(card("spy"), base);
+    expect(off.classes.off).toBe(true);
+    expect(off.classes.playable).toBe(false);
+    expect(off.tag).toBe(timingLabel("spy"));
+    expect(off.tag).toBe("Your turn");
+
+    const now = handCardView(card("quick-fix"), { ...base, now: true });
+    expect(now.classes).toMatchObject({ off: false, playable: true });
+    expect(now.tag).toBe("Play now");
+    expect(now.label).toBe("Quick Fix. Fix your Problem. You can play it now.");
+
+    // Nothing to do right now: the cards keep their colour.
+    expect(handCardView(card("spy"), { ...base, anyPlayable: false }).classes.off).toBe(false);
+    // Picking the face-down card: every other card can be picked, none is greyed out.
+    const pick = handCardView(card("spy"), { ...base, canPickDown: true });
+    expect(pick.classes).toMatchObject({ off: false, pick: true });
+    expect(pick.tag).toBe("Pick");
+    expect(pick.label).toBe("Put Spy face down");
+    // The card being played stays picked out, not greyed.
+    expect(handCardView(card("fake-report"), { ...base, selected: true }).classes).toMatchObject({ off: false, selected: true });
   });
 });
