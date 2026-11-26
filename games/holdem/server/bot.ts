@@ -60,7 +60,7 @@ export function equity(
   randomInt: (max: number) => number,
 ): number {
   const known = new Set([...hole, ...board, ...opponents.flatMap((o) => o ?? [])].map((c) => c.id));
-  const deck = makeDeck().filter((c) => !known.has(c.id));
+  const deck = makeDeck(variant).filter((c) => !known.has(c.id));
   const holeCards = HOLE_CARDS[variant];
   const hidden = opponents.filter((o) => o === null).length;
   const need = 5 - board.length + holeCards * hidden;

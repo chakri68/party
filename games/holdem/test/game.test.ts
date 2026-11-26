@@ -684,3 +684,68 @@ describe("Omaha", () => {
     expect(privOf(s, "p0").legal).toMatchObject({ maxRaiseTo: 1500, maxIsAllIn: true });
   });
 });
+
+describe("Short Deck", () => {
+  const short = { variant: "shortdeck" } as const;
+  const rankOf = (id: string) => {
+    const r = id.split("-")[1]!;
+    return r === "A" ? 14 : r === "K" ? 13 : r === "Q" ? 12 : r === "J" ? 11 : Number(r);
+  };
+
+  it("a flush beats a full house at the showdown, and A-6-7-8-9 is a straight", () => {
+    // Deal order p1, p2, p0. Board: three hearts and a pair of Kings.
+    let s = table([1500, 1500, 1500], {
+      settings: short,
+      decks: [deck(["Ah Th", "Ks 9d", "As 8c"], "Kh 9h 6h Kc 7d")],
+    });
+    expect(pubOf(s).variant).toBe("shortdeck");
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "check" });
+    for (let street = 0; street < 3; street++) for (const id of ["p1", "p2", "p0"]) s = play(s, id, { type: "check" });
+    expect(s.lastHand!.labels).toEqual({
+      p0: "Straight, Nine high",
+      p1: "Flush, Ace high",
+      p2: "Full house, Kings over Nines",
+    });
+    expect(s.lastHand!.pots).toEqual([{ amount: 60, winners: ["p1"], label: "Flush, Ace high" }]);
+  });
+
+  it("test decks must come from the 36 cards", () => {
+    expect(() =>
+      he.createGame(ids(2).map((id) => ({ id })), { ...DEFAULT_SETTINGS, ...short }, { roundNumber: 1, dealerSeat: 0 }, ctx(), { deck: ["clubs-2"] }),
+    ).toThrow(/this deck/);
+  });
+
+  it("plays a whole game to the end, and only cards 6 to Ace ever show", () => {
+    const settings = { ...DEFAULT_SETTINGS, startingChips: 1000, ...short };
+    let s = he.createGame(ids(4).map((id) => ({ id })), settings, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    const seen = new Set<string>();
+    const look = () => {
+      const text = JSON.stringify([pubOf(s), ...ids(4).map((id) => privOf(s, id))]);
+      for (const m of text.matchAll(/"((?:clubs|diamonds|hearts|spades)-(?:A|K|Q|J|10|[2-9]))"/g)) seen.add(m[1]!);
+    };
+    for (let i = 0; i < 5000 && s.phase === "playing"; i++) {
+      look();
+      if (s.step === "between-hands") expect(stacks(s).reduce((a, b) => a + b, 0)).toBe(4000);
+      if (s.step === "preflop" && s.board.length === 0) expect(s.deck.length + s.players.filter((p) => p.inHand).length * 2).toBe(36);
+      const id = turn(s);
+      if (!id) {
+        s = timer(s, STEP_TIMER).state;
+        continue;
+      }
+      const legal = privOf(s, id).legal!;
+      // No-limit: the top raise is all your chips.
+      if (legal.maxRaiseTo !== null) expect(legal.maxIsAllIn).toBe(true);
+      s = play(s, id, legal.maxRaiseTo !== null ? { type: "all-in" } : { type: legal.call ? "call" : "check" });
+    }
+    expect(s.phase).toBe("over");
+    expect(he.getResult(s)!.winnerIds).toHaveLength(1);
+    expect(seen.size).toBeGreaterThan(8);
+    expect([...seen].filter((id) => rankOf(id) < 6)).toEqual([]);
+  });
+
+  it("is a choice in the settings", () => {
+    expect(he.parseSettings({ variant: "shortdeck" })).toMatchObject({ variant: "shortdeck" });
+  });
+});

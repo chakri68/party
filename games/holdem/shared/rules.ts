@@ -1,4 +1,4 @@
-import { ACE, HAND_CATEGORIES, SUITS, type Card, type HandValue, type Pot, type PotResult, type Rank, type Suit, type Variant } from "./types.ts";
+import { ACE, HAND_CATEGORIES, LOW_RANK, SUITS, type Card, type HandValue, type Pot, type PotResult, type Rank, type Suit, type Variant } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Cards
@@ -40,10 +40,10 @@ export function makeCard(suit: Suit, rank: Rank): Card {
   return { id: formatCardId(suit, rank), suit, rank };
 }
 
-/** All 52, in suit/rank order. */
-export function makeDeck(): Card[] {
+/** The game's deck in suit/rank order: all 52, or 36 (6 to Ace) in Short Deck. */
+export function makeDeck(variant: Variant = "holdem"): Card[] {
   const deck: Card[] = [];
-  for (const suit of SUITS) for (let r = 2; r <= ACE; r++) deck.push(makeCard(suit, r));
+  for (const suit of SUITS) for (let r = LOW_RANK[variant]; r <= ACE; r++) deck.push(makeCard(suit, r));
   return deck;
 }
 
@@ -69,11 +69,37 @@ export function compareHands(a: HandValue, b: HandValue): number {
   return compareRanks(a.ranks, b.ranks);
 }
 
-/** Straight high card in five distinct ranks, or 0. The wheel is 5-high. */
-function straightHigh(desc: number[]): number {
+// ---------------------------------------------------------------------------
+// Hand order per game. One evaluator; each game maps a category to its strength.
+// ---------------------------------------------------------------------------
+
+const FLUSH = 5;
+const FULL_HOUSE = 6;
+/** Strength by category (index into HAND_CATEGORIES). Short Deck: a flush beats a full house. */
+const STRENGTH: Record<Variant, readonly number[]> = {
+  holdem: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+  omaha: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+  shortdeck: [0, 1, 2, 3, 4, 6, 5, 7, 8],
+};
+
+/** How strong a category is in this game: higher beats lower. */
+export const categoryStrength = (variant: Variant, category: number): number => STRENGTH[variant][category]!;
+
+/** Category names, best first, for this game. */
+export function handOrder(variant: Variant): string[] {
+  return HAND_CATEGORIES.map((name, category) => ({ name, s: categoryStrength(variant, category) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.name);
+}
+
+/**
+ * Straight high card in five distinct ranks, or 0. The Ace also plays low,
+ * under the deck's lowest four ranks: A-2-3-4-5 (5 high), or A-6-7-8-9 in Short Deck (9 high).
+ */
+function straightHigh(desc: number[], low: number): number {
   if (new Set(desc).size !== 5) return 0;
   if (desc[0]! - desc[4]! === 4) return desc[0]!;
-  if (desc[0] === ACE && desc[1] === 5 && desc[4] === 2) return 5;
+  if (desc[0] === ACE && desc[1] === low + 3 && desc[4] === low) return low + 3;
   return 0;
 }
 
@@ -92,7 +118,7 @@ function label(category: number, r: number[]): string {
 }
 
 /** Exactly five cards. */
-function evaluate5(five: Card[]): HandValue {
+function evaluate5(five: Card[], variant: Variant): HandValue {
   // Biggest groups first, then higher rank: pairs before kickers, trips before pairs.
   const counts = new Map<number, number>();
   for (const c of five) counts.set(c.rank, (counts.get(c.rank) ?? 0) + 1);
@@ -104,7 +130,7 @@ function evaluate5(five: Card[]): HandValue {
   });
   const desc = [...five].map((c) => c.rank).sort((a, b) => b - a);
   const flush = five.every((c) => c.suit === five[0]!.suit);
-  const high = straightHigh(desc);
+  const high = straightHigh(desc, LOW_RANK[variant]);
   const shape = groups.map(([, n]) => n).join("");
   const byGroup = groups.map(([r]) => r);
 
@@ -120,20 +146,21 @@ function evaluate5(five: Card[]): HandValue {
   else if (shape === "2111") [category, tiebreak] = [1, byGroup];
   else [category, tiebreak] = [0, desc];
 
-  // A straight reads top down; the wheel's Ace goes to the end.
+  // A straight reads top down; an Ace playing low goes to the end.
   let cards = ordered;
   if (category === 4 || category === 8 || category === 5 || category === 0) {
     cards = [...five].sort(compareCards);
-    if (high === 5 && (category === 4 || category === 8)) cards = [...cards.slice(1), cards[0]!];
+    if (high && high < ACE && desc[0] === ACE && (category === 4 || category === 8)) cards = [...cards.slice(1), cards[0]!];
   }
-  return { category, ranks: [category, ...tiebreak], cards: cards.map((c) => c.id), label: label(category, tiebreak) };
+  const strength = categoryStrength(variant, category);
+  return { category, ranks: [strength, ...tiebreak], cards: cards.map((c) => c.id), label: label(category, tiebreak) };
 }
 
 /**
- * The best five of five to seven cards. Brute force: 21 picks at most, and
- * the table only asks a handful of times per hand.
+ * The best five of five to seven cards, by this game's order. Brute force:
+ * 21 picks at most, and the table only asks a handful of times per hand.
  */
-export function bestHand(cards: readonly Card[]): HandValue {
+export function bestHand(cards: readonly Card[], variant: Variant = "holdem"): HandValue {
   if (cards.length < 5) throw new Error("bestHand needs at least five cards");
   let best: HandValue | null = null;
   const n = cards.length;
@@ -142,7 +169,7 @@ export function bestHand(cards: readonly Card[]): HandValue {
       for (let c = b + 1; c < n; c++)
         for (let d = c + 1; d < n; d++)
           for (let e = d + 1; e < n; e++) {
-            const v = evaluate5([cards[a]!, cards[b]!, cards[c]!, cards[d]!, cards[e]!]);
+            const v = evaluate5([cards[a]!, cards[b]!, cards[c]!, cards[d]!, cards[e]!], variant);
             if (!best || compareHands(v, best) > 0) best = v;
           }
   return best!;
@@ -155,11 +182,11 @@ export function bestHand(cards: readonly Card[]): HandValue {
 // ---------------------------------------------------------------------------
 
 /**
- * Category, then `lead` deciding ranks (`l0`, `l1`), then the top `kick`
+ * Strength, then `lead` deciding ranks (`l0`, `l1`), then the top `kick`
  * ranks of `rest`, packed four bits each into five slots.
  */
-function packHand(category: number, lead: number, l0: number, l1: number, rest: number, kick: number): number {
-  let n = category;
+function packHand(strength: number, lead: number, l0: number, l1: number, rest: number, kick: number): number {
+  let n = strength;
   let slots = 0;
   if (lead > 0) (n = n * 16 + l0), slots++;
   if (lead > 1) (n = n * 16 + l1), slots++;
@@ -170,10 +197,10 @@ function packHand(category: number, lead: number, l0: number, l1: number, rest: 
   return n;
 }
 
-/** Highest straight in a rank bitmask (bit r for rank r, Ace also at bit 1), or 0. */
-function straightIn(mask: number): number {
-  const m = mask & (1 << 14) ? mask | 2 : mask;
-  for (let high = 14; high >= 5; high--) {
+/** Highest straight in a rank bitmask (bit r for rank r, the Ace also just under `low`), or 0. */
+function straightIn(mask: number, low: number): number {
+  const m = mask & (1 << 14) ? mask | (1 << (low - 1)) : mask;
+  for (let high = 14; high >= low + 3; high--) {
     const run = 0b11111 << (high - 4);
     if ((m & run) === run) return high;
   }
@@ -186,8 +213,10 @@ const rankCount = new Uint8Array(15);
 const suitCount = new Uint8Array(4);
 const suitMask = new Uint16Array(4);
 
-/** Best five of five to seven cards, as a number: higher wins, equal ties. */
-export function handScore(cards: readonly Card[]): number {
+/** Best five of five to seven cards by this game's order, as a number: higher wins, equal ties. */
+export function handScore(cards: readonly Card[], variant: Variant = "holdem"): number {
+  const strength = STRENGTH[variant];
+  const low = LOW_RANK[variant];
   let mask = 0;
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i]!;
@@ -219,18 +248,19 @@ export function handScore(cards: readonly Card[]): number {
     else if (n === 2) pair ? (pair2 ||= r) : (pair = r);
   }
   if (flushMask) {
-    const sf = straightIn(flushMask);
-    if (sf) return packHand(8, 1, sf, 0, 0, 0);
+    const sf = straightIn(flushMask, low);
+    if (sf) return packHand(strength[8]!, 1, sf, 0, 0, 0);
   }
-  if (quad) return packHand(7, 1, quad, 0, mask & ~(1 << quad), 1);
-  if (trip && (trip2 || pair)) return packHand(6, 2, trip, Math.max(trip2, pair), 0, 0);
-  if (flushMask) return packHand(5, 0, 0, 0, flushMask, 5);
-  const straight = straightIn(mask);
-  if (straight) return packHand(4, 1, straight, 0, 0, 0);
-  if (trip) return packHand(3, 1, trip, 0, mask & ~(1 << trip), 2);
-  if (pair2) return packHand(2, 2, pair, pair2, mask & ~(1 << pair) & ~(1 << pair2), 1);
-  if (pair) return packHand(1, 1, pair, 0, mask & ~(1 << pair), 3);
-  return packHand(0, 0, 0, 0, mask, 5);
+  if (quad) return packHand(strength[7]!, 1, quad, 0, mask & ~(1 << quad), 1);
+  // Seven cards can't hold both a full house and a flush, so their order here doesn't matter.
+  if (trip && (trip2 || pair)) return packHand(strength[FULL_HOUSE]!, 2, trip, Math.max(trip2, pair), 0, 0);
+  if (flushMask) return packHand(strength[FLUSH]!, 0, 0, 0, flushMask, 5);
+  const straight = straightIn(mask, low);
+  if (straight) return packHand(strength[4]!, 1, straight, 0, 0, 0);
+  if (trip) return packHand(strength[3]!, 1, trip, 0, mask & ~(1 << trip), 2);
+  if (pair2) return packHand(strength[2]!, 2, pair, pair2, mask & ~(1 << pair) & ~(1 << pair2), 1);
+  if (pair) return packHand(strength[1]!, 1, pair, 0, mask & ~(1 << pair), 3);
+  return packHand(strength[0]!, 0, 0, 0, mask, 5);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +288,15 @@ function omahaFives(hole: readonly Card[], board: readonly Card[], visit: (five:
           }
 }
 
-/** A player's best hand in this game. Hold'em: any five of the seven. Omaha: 2 private + 3 shared. */
+/**
+ * A player's best hand in this game. Hold'em and Short Deck: any five of the
+ * seven. Omaha: 2 private + 3 shared.
+ */
 export function bestHandFor(variant: Variant, hole: readonly Card[], board: readonly Card[]): HandValue {
-  if (variant !== "omaha") return bestHand([...hole, ...board]);
+  if (variant !== "omaha") return bestHand([...hole, ...board], variant);
   let best: HandValue | null = null;
   omahaFives(hole, board, (five) => {
-    const v = bestHand(five);
+    const v = bestHand(five, variant);
     if (!best || compareHands(v, best) > 0) best = v;
   });
   if (!best) throw new Error("Omaha needs at least 2 private cards and 3 shared cards");
@@ -272,10 +305,10 @@ export function bestHandFor(variant: Variant, hole: readonly Card[], board: read
 
 /** `bestHandFor` as one number: higher wins, equal ties. */
 export function handScoreFor(variant: Variant, hole: readonly Card[], board: readonly Card[]): number {
-  if (variant !== "omaha") return handScore([...hole, ...board]);
+  if (variant !== "omaha") return handScore([...hole, ...board], variant);
   let best = -1;
   omahaFives(hole, board, (five) => {
-    const s = handScore(five);
+    const s = handScore(five, variant);
     if (s > best) best = s;
   });
   return best;

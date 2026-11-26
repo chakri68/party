@@ -25,8 +25,11 @@ export const HANDS_PER_LEVEL_OPTIONS = [10, 6, 4] as const;
 export const ENDING_OPTIONS = ["last", 20, 30, 45] as const;
 export const REBUY_OPTIONS = ["off", "early"] as const;
 export const TURN_SECONDS_OPTIONS = [20, 30, 45] as const;
-/** Which poker game the table plays. Hold'em and Omaha share everything but the cards and the bet limit. */
-export const VARIANT_OPTIONS = ["holdem", "omaha"] as const;
+/**
+ * Which poker game the table plays. They share everything but the cards, the
+ * bet limit and (Short Deck) the deck and the order of hands.
+ */
+export const VARIANT_OPTIONS = ["holdem", "omaha", "shortdeck"] as const;
 
 export type Variant = (typeof VARIANT_OPTIONS)[number];
 
@@ -57,7 +60,10 @@ export const DEFAULT_SETTINGS: HoldemSettings = {
 export const variantOf = (settings: Partial<Pick<HoldemSettings, "variant">>): Variant => settings.variant ?? "holdem";
 
 /** Private cards each player gets. */
-export const HOLE_CARDS: Record<Variant, number> = { holdem: 2, omaha: 4 };
+export const HOLE_CARDS: Record<Variant, number> = { holdem: 2, omaha: 4, shortdeck: 2 };
+
+/** The lowest rank in the deck. Short Deck takes out the 2s to 5s: 36 cards. */
+export const LOW_RANK: Record<Variant, Rank> = { holdem: 2, omaha: 2, shortdeck: 6 };
 
 /** Rebuys are open while the blinds are in levels 0–2. */
 export const REBUY_LEVELS = 3;
@@ -87,9 +93,12 @@ export const HAND_CATEGORIES = [
 ] as const;
 
 export interface HandValue {
-  /** Index into HAND_CATEGORIES. */
+  /** Index into HAND_CATEGORIES: what the hand is, not how strong. */
   category: number;
-  /** Tiebreak tuple, compared left to right: category, deciding ranks, kickers. */
+  /**
+   * Tiebreak tuple, compared left to right: the category's strength in this
+   * game (see `categoryStrength`), deciding ranks, kickers.
+   */
   ranks: number[];
   /** The five cards that make it, deciding cards first. */
   cards: string[];

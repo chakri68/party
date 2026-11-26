@@ -6,13 +6,16 @@ import {
   blindsFor,
   buildPots,
   compareHands,
+  handOrder,
+  handScore,
   handScoreFor,
   isPotLimit,
   levelIndexFor,
   makeDeck,
   parseCardId,
 } from "../shared/rules.ts";
-import type { Card } from "../shared/types.ts";
+import { HOLE_CARDS, VARIANT_OPTIONS, type Card } from "../shared/types.ts";
+import { holdemManifest } from "../shared/manifest.ts";
 
 /** "As Kd Th 9c 2s" → cards. T is ten. */
 function cards(text: string): Card[] {
@@ -293,5 +296,66 @@ describe("Omaha hands: exactly 2 private cards and exactly 3 shared", () => {
   it("only Omaha is pot-limit", () => {
     expect(isPotLimit("omaha")).toBe(true);
     expect(isPotLimit("holdem")).toBe(false);
+  });
+});
+
+describe("Short Deck hands", () => {
+  const sd = (text: string) => bestHand(cards(text), "shortdeck");
+  const beats = (a: string, b: string, variant: "holdem" | "shortdeck") => {
+    const byValue = Math.sign(compareHands(bestHand(cards(a), variant), bestHand(cards(b), variant)));
+    const byScore = Math.sign(handScore(cards(a), variant) - handScore(cards(b), variant));
+    expect(byScore, `${a} vs ${b}`).toBe(byValue);
+    return byValue;
+  };
+
+  it("uses 36 cards: 6 up to Ace", () => {
+    const deck = makeDeck("shortdeck");
+    expect(deck).toHaveLength(36);
+    expect(new Set(deck.map((c) => c.id)).size).toBe(36);
+    expect(Math.min(...deck.map((c) => c.rank))).toBe(6);
+  });
+
+  it("deals every table size from the deck", () => {
+    for (const variant of VARIANT_OPTIONS) {
+      expect(HOLE_CARDS[variant] * holdemManifest.maxPlayers + 5, variant).toBeLessThanOrEqual(makeDeck(variant).length);
+    }
+  });
+
+  it("a flush beats a full house", () => {
+    expect(beats("Ah Jh 9h 7h 6h", "Ks Kd Kc Qh Qd", "shortdeck")).toBe(1);
+    expect(beats("Ah Jh 9h 7h 6h", "Ks Kd Kc Qh Qd", "holdem")).toBe(-1);
+    expect(sd("Ah Jh 9h 7h 6h").label).toBe("Flush, Ace high");
+  });
+
+  it("a straight still beats three of a kind, and four of a kind still beats a flush", () => {
+    expect(beats("Ts 9d 8c 7h 6h", "As Ad Ac Kd Qh", "shortdeck")).toBe(1);
+    expect(beats("9s 9d 9c 9h 6h", "Ah Jh Th 7h 6h", "shortdeck")).toBe(1);
+  });
+
+  it("A-6-7-8-9 is a straight, the lowest one: the Ace plays low", () => {
+    const low = sd("Ah 6d 7c 8s 9h");
+    expect(low.label).toBe("Straight, Nine high");
+    expect(low.cards).toEqual(["hearts-9", "spades-8", "clubs-7", "diamonds-6", "hearts-A"]);
+    expect(beats("Ah 6d 7c 8s 9h", "Ts 9d 8c 7h 6h", "shortdeck")).toBe(-1);
+    expect(beats("Ah 6d 7c 8s 9h", "As Ad Ac Kd Qh", "shortdeck")).toBe(1);
+    // In Hold'em the same cards are only Ace high.
+    expect(bestHand(cards("Ah 6d 7c 8s 9h")).label).toBe("High card, Ace");
+    // A-6-7-8-9 in one suit is a straight flush.
+    expect(sd("Ah 6h 7h 8h 9h").label).toBe("Straight flush, Nine high");
+  });
+
+  it("finds A-6-7-8-9 among seven cards", () => {
+    expect(bestHandFor("shortdeck", cards("Ah Kd"), cards("6c 7s 8d 9h Qc")).label).toBe("Straight, Nine high");
+    expect(handScoreFor("shortdeck", cards("Ah Kd"), cards("6c 7s 8d 9h Qc"))).toBe(handScoreFor("shortdeck", cards("As Qd"), cards("6c 7s 8d 9h Jc")));
+  });
+
+  it("has no A-2-3-4-5 straight", () => {
+    expect(sd("Ah 2d 3c 4s 5h").label).toBe("High card, Ace");
+  });
+
+  it("lists hands best first in each game's order", () => {
+    expect(handOrder("holdem").slice(0, 4)).toEqual(["Straight flush", "Four of a kind", "Full house", "Flush"]);
+    expect(handOrder("shortdeck").slice(0, 4)).toEqual(["Straight flush", "Four of a kind", "Flush", "Full house"]);
+    expect(handOrder("shortdeck").slice(4)).toEqual(handOrder("holdem").slice(4));
   });
 });

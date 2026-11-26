@@ -4,7 +4,7 @@ Party games for a group chat, played on phones. No accounts, no app: a name, a r
 
 Twenty-six of them, roughly:
 
-- **Cards**: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Oh Hell, Hold'em (Texas Hold'em or Omaha)
+- **Cards**: Sevens, Crazy Eights, Old Maid, Go Fish, President, Cheat, Oh Hell, Hold'em (Texas Hold'em, Omaha or Short Deck)
 - **Dice**: Liar's Dice, Farkle, Thorns
 - **Words and drawing**: Scribbl, Pass the Bomb, Chain Words, Fake Word, Bluff Definitions, Don't Say It, Face-Off, Same Page
 - **Hidden roles**: Imposter, Short Night, Heist, Nightfall

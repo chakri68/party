@@ -1,10 +1,10 @@
 # Hold'em
 
-No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds that climb until one player has every chip. 2–9 players. The host can pick Omaha instead (see [Omaha](#omaha)).
+No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds that climb until one player has every chip. 2–9 players. The host can pick Omaha or Short Deck instead (see [Omaha](#omaha) and [Short Deck](#short-deck)).
 
 Chips are play chips: no buying, no cash-out, nothing carries over between games.
 
-Computer players can fill seats in this game, in Hold'em and in Omaha. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
+Computer players can fill seats in this game, in all three games: Hold'em, Omaha and Short Deck. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
 
 ## The short version
 
@@ -55,6 +55,28 @@ The host can set **Game** to Omaha in the lobby. Everything above stays the same
 
 The hand rankings are the same. Your screen shows your best hand by the Omaha rule, so it never names a hand you can't use.
 
+## Short Deck
+
+The host can set **Game** to Short Deck in the lobby. It is Texas Hold'em with a smaller deck. Everything above stays the same, except these things.
+
+- **36 cards:** 6 up to Ace in each suit. There are no 2, 3, 4 or 5 cards.
+- **A flush beats a full house.** With fewer cards, a flush is harder to make.
+- **A-6-7-8-9 is the lowest straight.** Here the Ace counts as a low card, under the 6. There is no A-2-3-4-5 straight.
+- A straight still beats three of a kind.
+- Bets are no-limit, as in Hold'em. The blinds are the same.
+
+Hand rankings in Short Deck, best first:
+
+1. **Straight flush:** five in a row, one suit. A-K-Q-J-10 is a royal flush. A-6-7-8-9 in one suit is the lowest.
+2. **Four of a kind**
+3. **Flush:** five of one suit.
+4. **Full house:** three of one rank and two of another.
+5. **Straight:** five in a row. A-6-7-8-9 is the lowest.
+6. **Three of a kind**
+7. **Two pair**
+8. **Pair**
+9. **High card**
+
 ## Winning and scoring
 
 Last player with chips wins. With a time cap, the hand in progress finishes when time's up and the biggest stack wins.
@@ -71,7 +93,7 @@ Host picks these in the lobby.
 
 | Setting | Options | What it changes |
 | --- | --- | --- |
-| Game | **Texas Hold'em**, Omaha | Omaha: 4 cards each, use exactly 2 of them, and bets up to the size of the pot. See [Omaha](#omaha). |
+| Game | **Texas Hold'em**, Omaha, Short Deck | Omaha: 4 cards each, use exactly 2 of them, and bets up to the size of the pot. See [Omaha](#omaha). Short Deck: 36 cards (6 to Ace), and a flush beats a full house. See [Short Deck](#short-deck). |
 | Starting chips | 1,000, **1,500**, 3,000 | 50, 75 or 150 big blinds at the opening 10/20. |
 | Blind speed | Slow (10 hands), **Normal (6)**, Turbo (4) | Hands per blind level. Counted in hands, not minutes, so a slow hand doesn't eat a level. |
 | Ending | **Last one standing**, 20 min, 30 min, 45 min | The time caps end after the hand in progress. Biggest stack wins. |

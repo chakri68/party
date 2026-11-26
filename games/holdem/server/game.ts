@@ -48,6 +48,7 @@ import {
   type HoldemSettings,
   type LegalActions,
   type Street,
+  type Variant,
 } from "../shared/types.ts";
 
 type State = HoldemServerState;
@@ -482,7 +483,7 @@ function startHand(s: State, ctx: GameContext, out: Out): void {
   s.sbIndex = count === 2 ? s.buttonIndex : nextDealt(s, s.buttonIndex);
   s.bbIndex = nextDealt(s, s.sbIndex);
 
-  s.deck = s.testDecks?.length ? s.testDecks.shift()!.map((id) => parseCardId(id)!) : shuffle(makeDeck(), ctx.randomInt);
+  s.deck = s.testDecks?.length ? s.testDecks.shift()!.map((id) => parseCardId(id)!) : shuffle(makeDeck(variantOf(s.settings)), ctx.randomInt);
   s.board = [];
   s.step = "preflop";
   s.runout = false;
@@ -583,13 +584,13 @@ function nextHand(s: State, ctx: GameContext, out: Out): void {
  * one per hand. Each may be partial; the rest of the deck follows in order.
  * Hole cards go one at a time from the button's left, then the board.
  */
-function normalizeDecks(input: unknown[]): string[][] {
+function normalizeDecks(input: unknown[], variant: Variant): string[][] {
   const decks = input.length && input.every((d) => Array.isArray(d)) ? (input as unknown[][]) : [input];
-  const all = makeDeck().map((c) => c.id);
+  const all = makeDeck(variant).map((c) => c.id);
   return decks.map((deck) => {
     const ids = deck.map((c) => (typeof c === "string" ? c : (c as Card)?.id));
-    if (!ids.every((id) => typeof id === "string" && parseCardId(id)) || new Set(ids).size !== ids.length) {
-      throw new Error('A test deck lists each card at most once, by id (e.g. "hearts-A", "spades-10").');
+    if (!ids.every((id) => typeof id === "string" && all.includes(id)) || new Set(ids).size !== ids.length) {
+      throw new Error('A test deck lists each card of this deck at most once, by id (e.g. "hearts-A", "spades-10").');
     }
     return [...ids, ...all.filter((id) => !ids.includes(id))] as string[];
   });
@@ -705,7 +706,7 @@ export const holdemGame: GameDefinition<
       runout: false,
       lastHand: null,
       stepEndsAt: 0,
-      testDecks: options?.deck ? normalizeDecks(options.deck) : null,
+      testDecks: options?.deck ? normalizeDecks(options.deck, variantOf(settings)) : null,
       winnerIds: [],
       endReason: null,
     };

@@ -267,6 +267,37 @@ describe("holdemBot hand reading", () => {
     }
   });
 
+  it("scores Short Deck hands in the same order as the game, on 36-card deals", () => {
+    const rng = seededRandomInt(8);
+    let flushVsFull = 0;
+    for (let i = 0; i < 3000; i++) {
+      const cards = shuffle(makeDeck("shortdeck"), rng);
+      const board = cards.slice(4, 9);
+      const a = [...cards.slice(0, 2), ...board];
+      const b = [...cards.slice(2, 4), ...board];
+      const va = bestHand(a, "shortdeck");
+      const vb = bestHand(b, "shortdeck");
+      if (new Set([va.category, vb.category]).size === 2 && [va.category, vb.category].every((k) => k === 5 || k === 6)) flushVsFull++;
+      expect(Math.sign(handScore(a, "shortdeck") - handScore(b, "shortdeck")), `${a.map((x) => x.id)} vs ${b.map((x) => x.id)}`).toBe(
+        Math.sign(compareHands(va, vb)),
+      );
+    }
+    // The deals met the changed order: a flush against a full house.
+    expect(flushVsFull).toBeGreaterThan(0);
+  });
+
+  it("deals Short Deck equity from the 36 cards", () => {
+    const maxes: number[] = [];
+    const rng = seededRandomInt(3);
+    const spy = (max: number) => (maxes.push(max), rng(max));
+    equity("shortdeck", c("As Kd"), c("6c 7s 8d"), [null], 10, spy);
+    // 36 cards, 5 known: the first draw of each deal picks from 31.
+    expect(Math.max(...maxes)).toBe(31);
+    // A-6-7-8-9 is a straight: it beats three Kings, and loses to a higher straight.
+    expect(equity("shortdeck", c("Ah 9d"), c("6c 7s 8d Kh Kc"), [c("Ks Qd")], 10, seededRandomInt(1))).toBe(1);
+    expect(equity("shortdeck", c("Ah 9d"), c("6c 7s 8d Kh Kc"), [c("9s Tc")], 10, seededRandomInt(1))).toBe(0);
+  });
+
   it.each([
     ["the board plays: a tie", "As Ks Qd Jc Th", "2c 3d", "4h 5c", 0],
     ["a wheel (A to 5) beats a pair", "3c 4s 5h Kd 9c", "Ah 2d", "Kh Qd", 1],
@@ -496,6 +527,21 @@ describe("holdemBot all-bot games", () => {
   const omahaSeeds: Record<number, number> = { 2: 50, 4: 20, 7: 12 };
   it.each(sizes)("Omaha games finish with %i players", (players) => {
     for (let seed = 1; seed <= (omahaSeeds[players] ?? 20); seed++) check(holdemGame, players, "omaha", { variant: "omaha" }, seed);
+  }, 60_000);
+
+  it.each(sizes)("Short Deck games finish with %i players, and bots only see cards 6 to Ace", (players) => {
+    const low = (cards: readonly { rank: number }[] | null) => (cards ?? []).some((x) => x.rank < 6);
+    const watched: AnyGameDefinition = {
+      ...holdemGame,
+      bot: {
+        decide(view, ctx) {
+          const v = view as View;
+          if (low(v.private.hole) || low(v.public.board) || v.public.players.some((p) => low(p.cards))) throw new Error("a card under 6");
+          return holdemBot.decide(v, ctx);
+        },
+      },
+    };
+    for (let seed = 1; seed <= (players >= 7 ? 40 : 80); seed++) check(watched, players, "shortdeck", { variant: "shortdeck" }, seed);
   }, 60_000);
 
   it("games finish with rebuys", () => {
