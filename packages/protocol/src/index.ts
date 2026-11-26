@@ -1,6 +1,6 @@
 import type { GameOutcome, Recap } from "@games/game-core";
 
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 // ---------------------------------------------------------------------------
 // Room codes (§10)
@@ -118,6 +118,8 @@ export const VOICE_CAP = 8;
 export const ICE_REQUEST_LIMIT = { burst: 3, windowMs: 60_000 };
 /** Raw length cap for one voice-signal message. An audio-only SDP is about 3 to 5 KB. */
 export const VOICE_SIGNAL_MAX_LENGTH = 6144;
+/** voice-talk: at most this many per seat in a window. The server drops the rest. */
+export const VOICE_TALK_LIMIT = { burst: 30, windowMs: 10_000 };
 
 export type VoiceMode = "off" | "global" | "game";
 
@@ -228,7 +230,10 @@ export type ClientMessage =
   /** Host only, while playing: pauses the game or resumes it. */
   | { type: "pause-game"; paused: boolean }
   /** Joins room voice. `muted` is whether the mic starts off. */
-  | { type: "voice-join"; muted: boolean }
+  | { type: "voice-join"; muted: boolean; count: boolean }
+  | { type: "voice-talk"; on: true }
+  | { type: "voice-talk"; on: false; peak: number }
+  | { type: "voice-count"; on: boolean }
   | { type: "voice-leave" }
   | { type: "voice-self-mute"; muted: boolean }
   /**
@@ -385,6 +390,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "pause-game":
       return typeof m.paused === "boolean" ? { type: "pause-game", paused: m.paused } : null;
     case "voice-join":
+      return typeof m.muted === "boolean" && (m.count === undefined || typeof m.count === "boolean")
+        ? { type: "voice-join", muted: m.muted, count: m.count ?? true }
+        : null;
+    case "voice-talk":
+      if (m.on === true) return { type: "voice-talk", on: true };
+      if (m.on === false && typeof m.peak === "number" && m.peak >= 0 && m.peak <= 1)
+        return { type: "voice-talk", on: false, peak: Math.round(m.peak * 100) / 100 };
+      return null;
+    case "voice-count":
+      return typeof m.on === "boolean" ? { type: "voice-count", on: m.on } : null;
     case "voice-self-mute":
       return typeof m.muted === "boolean" ? { type: m.type, muted: m.muted } : null;
     case "host-mute":

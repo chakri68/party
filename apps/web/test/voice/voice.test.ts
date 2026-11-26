@@ -215,7 +215,7 @@ describe("VoiceController", () => {
     const p = s.voice.join(true);
     expect(s.voice.view().status).toBe("joining");
     await p;
-    expect(s.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false, count: true }]);
     expect(s.prefs.room("ABCD").on).toBe(true);
     expect(s.voice.view().mic).toBe("on");
     s.voice.onVoiceState(roster("me", "b"));
@@ -230,14 +230,14 @@ describe("VoiceController", () => {
     for (const gum of ["denied", "unavailable"] as const) {
       const s = setup({ gum });
       await s.voice.join(true);
-      expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+      expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
       expect(s.voice.view().mic).toBe("denied");
       expect(s.voice.view().status).toBe("joining");
     }
     const s = setup();
     await s.voice.join(false);
     expect(s.gum).not.toHaveBeenCalled();
-    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(s.voice.view().mic).toBe("off");
   });
 
@@ -464,7 +464,7 @@ describe("VoiceController", () => {
     const s = setup({ store });
     s.voice.setDeafened(true);
     await s.voice.join(true);
-    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(s.voice.view().mic).toBe("muted");
     s.voice.onVoiceState(roster("me", "b"));
     s.voice.onIce(STUN, 1e12);
@@ -554,7 +554,7 @@ describe("VoiceController", () => {
     s.voice.onWelcome();
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
     await flush();
-    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     s.voice.onIce(STUN, 1e12);
     expect(s.t().ops("setPublishing").every((c) => c.args[0] === null)).toBe(true);
     expect(s.voice.view().talking).toBe(false);
@@ -571,7 +571,7 @@ describe("VoiceController", () => {
     again.voice.onWelcome();
     again.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
     await flush();
-    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     again.voice.onIce(STUN, 1e12);
     expect(again.t().ops("setPublishing").every((c) => c.args[0] === null)).toBe(true);
     expect(again.voice.view().talking).toBe(false);
@@ -609,7 +609,7 @@ describe("VoiceController", () => {
     again.voice.onWelcome();
     again.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
     await flush();
-    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(again.gum).not.toHaveBeenCalled();
     expect(again.voice.view().talking).toBe(false);
   });
@@ -622,7 +622,7 @@ describe("VoiceController", () => {
     await flush();
     expect(s.voice.view().needsMicTap).toBe(true);
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
-    expect(s.sent[0]).toEqual({ type: "voice-join", muted: true });
+    expect(s.sent[0]).toEqual({ type: "voice-join", muted: true, count: true });
     expect(s.prefs.room("ABCD").mic).toBe("on");
     s.voice.stop();
 
@@ -631,7 +631,7 @@ describe("VoiceController", () => {
     again.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
     await flush();
     expect(again.voice.view().needsMicTap).toBe(true);
-    expect(again.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(again.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(again.prefs.room("ABCD").mic).toBe("on");
   });
 
@@ -694,7 +694,7 @@ describe("VoiceController", () => {
     const s = setup({ store, perm: "granted" });
     s.voice.onWelcome();
     await flush();
-    expect(s.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false, count: true }]);
     expect(s.toasts).toEqual([]);
     s.voice.onVoiceState([member("me", { selfMuted: true, hostMuted: true }), member("b")]);
     expect(s.toasts).toEqual(["The host muted you."]);
@@ -797,7 +797,7 @@ describe("VoiceController", () => {
     expect(s.t(0).ops("disconnect")).toHaveLength(1);
     expect(s.transports).toHaveLength(2);
     expect(s.types().filter((x) => x === "voice-join")).toHaveLength(2);
-    expect(s.sent.at(-1)).toEqual({ type: "voice-join", muted: false });
+    expect(s.sent.at(-1)).toEqual({ type: "voice-join", muted: false, count: true });
     expect(s.tracks[0]!.stops).toBe(0);
     expect(s.voice.view().status).toBe("joining");
     s.voice.onVoiceState(roster("b", "me"));
@@ -860,7 +860,7 @@ describe("VoiceController", () => {
     // The roster still lists me from the page before the reload.
     granted.voice.onVoiceState(roster("me", "b"));
     await flush();
-    expect(granted.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(granted.sent).toEqual([{ type: "voice-join", muted: false, count: true }]);
     expect(granted.voice.view().needsMicTap).toBe(false);
     // The server sends no new roster when it did not change: the old one counts.
     expect(granted.voice.view().status).toBe("on");
@@ -873,7 +873,7 @@ describe("VoiceController", () => {
     prompt.voice.onWelcome();
     await flush();
     expect(prompt.gum).not.toHaveBeenCalled();
-    expect(prompt.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(prompt.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(prompt.voice.view().needsMicTap).toBe(true);
     await prompt.voice.turnOnMic();
     expect(prompt.voice.view().needsMicTap).toBe(false);
@@ -897,7 +897,7 @@ describe("VoiceController", () => {
     s.voice.onWelcome();
     s.voice.onVoiceState([member("me", { selfMuted: true }), member("b")]);
     await flush();
-    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(s.gum).toHaveBeenCalledTimes(1);
     expect(s.voice.view().mic).toBe("muted");
     expect(s.voice.view().needsMicTap).toBe(false);
@@ -914,7 +914,7 @@ describe("VoiceController", () => {
     prompt.voice.onWelcome();
     await flush();
     expect(prompt.gum).not.toHaveBeenCalled();
-    expect(prompt.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(prompt.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(prompt.voice.view().needsMicTap).toBe(false);
     expect(prompt.prefs.room("ABCD").mic).toBe("muted");
   });
@@ -930,7 +930,7 @@ describe("VoiceController", () => {
     s.voice.onWelcome();
     await flush();
     expect(s.gum).not.toHaveBeenCalled();
-    expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
     expect(s.voice.view().mic).toBe("off");
     expect(s.voice.view().needsMicTap).toBe(false);
     expect(s.prefs.room("ABCD").mic).toBe("off");
@@ -942,7 +942,7 @@ describe("VoiceController", () => {
     const again = setup({ store, perm: "granted" });
     again.voice.onWelcome();
     await flush();
-    expect(again.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(again.sent).toEqual([{ type: "voice-join", muted: false, count: true }]);
   });
 
   it("reload after Listen only: stays listen only, with no Tap to talk again.", async () => {
@@ -957,7 +957,7 @@ describe("VoiceController", () => {
       s.voice.onWelcome();
       await flush();
       expect(s.gum).not.toHaveBeenCalled();
-      expect(s.sent).toEqual([{ type: "voice-join", muted: true }]);
+      expect(s.sent).toEqual([{ type: "voice-join", muted: true, count: true }]);
       expect(s.voice.view().needsMicTap).toBe(false);
       expect(s.voice.view().mic).toBe("off");
     }
@@ -972,7 +972,7 @@ describe("VoiceController", () => {
     voicePrefs(store).set({ micDeviceId: "usb" });
     const s = setup({ store, gum: "gone" });
     await s.voice.join(true);
-    expect(s.sent).toEqual([{ type: "voice-join", muted: false }]);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false, count: true }]);
     expect(s.voice.view().mic).toBe("on");
     expect(s.voice.settings().micDeviceId).toBeNull();
     expect(voicePrefs(store).get().micDeviceId).toBeNull();

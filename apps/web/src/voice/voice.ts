@@ -577,7 +577,7 @@ export class VoiceController {
     // The saved speaker. The browser may refuse until the first tap; the settings can set it again.
     if (this.prefs.outputDeviceId !== null) void this.deps.playback.setOutput(this.prefs.outputDeviceId).catch(() => false);
     this.openSession();
-    this.deps.send({ type: "voice-join", muted: this.selfMuted });
+    this.deps.send({ type: "voice-join", muted: this.selfMuted, count: true });
     this.saveRoom({ on: true, mic });
     // Already listed (a reload): the server sends no roster when nothing changed.
     if (this.isListed()) {
@@ -592,7 +592,7 @@ export class VoiceController {
     this.closeTransport();
     this.openSession();
     this.setStatus("joining");
-    this.deps.send({ type: "voice-join", muted: this.selfMuted || !this.micLive() });
+    this.deps.send({ type: "voice-join", muted: this.selfMuted || !this.micLive(), count: true });
     if (this.isListed()) this.applyRoster();
   }
 
