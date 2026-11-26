@@ -189,6 +189,40 @@ describe("table counts through the room", () => {
     expect(stored().party!.table!.seats[idOf(a)]!.chats).toBe(1);
   });
 
+  it("sound and emote counts are saved at most once per 30 s", async () => {
+    await world.tick(room, TABLE_PERSIST_MS);
+    let puts = world.puts;
+    await send(room, a, { type: "sound", id: `free:${FREE}` });
+    expect(world.puts).toBe(puts + 1);
+    expect(stored().party!.table!.seats[idOf(a)]!.sounds).toBe(1);
+    puts = world.puts;
+    await send(room, a, { type: "emote", emoji: "🔥" });
+    expect(world.puts).toBe(puts);
+    await world.tick(room, TABLE_PERSIST_MS);
+    await send(room, a, { type: "emote", emoji: "🔥" });
+    expect(world.puts).toBe(puts + 1);
+    expect(stored().party!.table!.seats[idOf(a)]!.reactions).toBe(2);
+  });
+
+  it("End party closes open bursts and sessions, and the recap has them", async () => {
+    await vjoin(a);
+    const joined = world.clock;
+    await send(room, a, { type: "start-game" });
+    await playToWindow();
+    await world.tick(room, TOY_WINDOW_MS);
+    expect(roomOf(a).phase).toBe("results");
+    await talk(a, TALK_BURST_CAP_MS);
+    await on(a);
+    await world.tick(room, TALK_BURST_CAP_MS);
+    await send(room, a, { type: "end-party" });
+    const log = stored().party!.table!;
+    expect(log.seats[idOf(a)]!.talkMs).toBe(2 * TALK_BURST_CAP_MS);
+    expect(log.seats[idOf(a)]!.voiceMs).toBe(world.clock - joined);
+    expect(log.sessions).toEqual({});
+    const recap = roomOf(a).recap!;
+    expect(recap.table.find((x) => x.id === "chatty")).toMatchObject({ who: ["Ana"], line: "Talked for 4 minutes." });
+  });
+
   it("never puts table counts in room state", async () => {
     await vjoin(a);
     await vjoin(b);

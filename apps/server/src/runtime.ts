@@ -238,7 +238,7 @@ export class RoomRuntime {
   private lastVoiceSent: string | null = null;
   /** TURN servers for the room, made on first use. In memory: after an eviction it starts empty. */
   private iceCache: IceCache | null = null;
-  /** Open talk bursts. In memory: a hibernation loses only the bursts still open. */
+  /** Open talk bursts. In memory: a hibernation loses the bursts still open, and counts not yet written (up to TABLE_PERSIST_MS). */
   private tally = new TableTally();
   /** When the room last wrote to storage, so talk saves at most once per TABLE_PERSIST_MS. */
   private lastTablePersist = 0;
@@ -725,7 +725,7 @@ export class RoomRuntime {
         for (const c of this.liveConns()) {
           if (c.state?.playerId) c.send({ type: "emote", from: seat.id, emoji: msg.emoji });
         }
-        return;
+        return this.persistTableSoon();
       }
 
       case "sound": {
@@ -735,7 +735,8 @@ export class RoomRuntime {
         if (!this.allow("sound", seat.id, { burst: 1, windowMs: SOUND_COOLDOWN_MS })) return;
         if (!this.allow("sound-room", "*", ROOM_SOUND_LIMIT)) return;
         this.bumpTable(seat, "sounds");
-        return this.relaySound(msg.id, seat.id);
+        this.relaySound(msg.id, seat.id);
+        return this.persistTableSoon();
       }
 
       case "room-sounds": {
@@ -877,8 +878,7 @@ export class RoomRuntime {
           return;
         }
         this.tally.talkOff(table, seat.id, now, msg.peak);
-        if (now - this.lastTablePersist >= TABLE_PERSIST_MS) await this.persist();
-        return;
+        return this.persistTableSoon();
       }
 
       case "voice-ice-request": {
@@ -1567,6 +1567,11 @@ export class RoomRuntime {
       else if (m.selfMuted || m.hostMuted) this.tally.talkOff(table, id, now, null);
     }
     return members;
+  }
+
+  /** Saves new table counts, at most once per TABLE_PERSIST_MS. Any other save carries them sooner. */
+  private async persistTableSoon(): Promise<void> {
+    if (this.host.now() - this.lastTablePersist >= TABLE_PERSIST_MS) await this.persist();
   }
 
   /** The party's table log, made on first use. */
