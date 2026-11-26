@@ -248,7 +248,7 @@ describe("table awards", () => {
         {
           a: { voiceMs: 900_000, talkMs: 50_000 },
           b: { voiceMs: 900_000, talkMs: 20_000 },
-          c: { voiceMs: 900_000, talkMs: 0 },
+          c: { voiceMs: 900_000, talkMs: 30_000 },
           d: { voiceMs: 899_999, talkMs: 0 },
         },
         undefined,
@@ -259,6 +259,53 @@ describe("table awards", () => {
     expect(r.table).toEqual([{ id: "quiet", title: "Quiet but strong", who: ["Bilal"], line: "Said the least, and still won 3 games." }]);
     // One win is not enough.
     expect(tableIds(tableLog({ a: { voiceMs: 900_000 } }, undefined, [game({ winnerIds: ["a"] })]))).toEqual([]);
+  });
+
+  it("gives no Quiet but strong when the quietest seat won fewer than 2 games", () => {
+    const wins = [game({ winnerIds: ["a"] }), game({ winnerIds: ["a"] }), game({ winnerIds: ["b"] }), game({ winnerIds: ["c"] })];
+    // Bilal and Chen talked less and were in voice as long: the quietest won once.
+    const long = buildRecap(
+      tableLog({ a: { voiceMs: 900_000, talkMs: 900_000 }, b: { voiceMs: 900_000, talkMs: 10_000 }, c: { voiceMs: 900_000, talkMs: 20_000 } }, undefined, wins),
+      0,
+    )!;
+    expect(long.table.map((x) => [x.id, x.who])).toEqual([["chatty", ["Asha"]]]);
+    // Only Asha was in voice 15 minutes: one seat is not enough.
+    const short = buildRecap(
+      tableLog({ a: { voiceMs: 900_000, talkMs: 900_000 }, b: { voiceMs: 600_000, talkMs: 10_000 }, c: { voiceMs: 600_000, talkMs: 20_000 } }, undefined, wins),
+      0,
+    )!;
+    expect(short.table.map((x) => [x.id, x.who])).toEqual([["chatty", ["Asha"]]]);
+  });
+
+  it("names only the tied quiet seats with the most wins", () => {
+    const wins = [game({ winnerIds: ["a", "b", "c"] }), game({ winnerIds: ["b", "c"] }), game({ winnerIds: ["b"] })];
+    const r = buildRecap(
+      tableLog({ a: { voiceMs: 900_000, talkMs: 50_000 }, b: { voiceMs: 900_000, talkMs: 10_000 }, c: { voiceMs: 900_000, talkMs: 10_000 } }, undefined, wins),
+      0,
+    )!;
+    expect(r.table).toEqual([{ id: "quiet", title: "Quiet but strong", who: ["Bilal"], line: "Said the least, and still won 3 games." }]);
+  });
+
+  it("skips Quiet but strong for someone who has a voice award", () => {
+    const wins = [game({ winnerIds: ["b"] }), game({ winnerIds: ["b"] })];
+    const r = buildRecap(
+      tableLog({ a: { voiceMs: 900_000, talkMs: 100_000 }, b: { voiceMs: 900_000, talkMs: 60_000, peak: 0.9 } }, undefined, wins),
+      0,
+    )!;
+    expect(r.table.map((x) => [x.id, x.who])).toEqual([["shout", ["Bilal"]]]);
+  });
+
+  it("gives no Quiet but strong when 2 voice awards are out", () => {
+    const wins = [game({ winnerIds: ["b"] }), game({ winnerIds: ["b"] })];
+    const r = buildRecap(
+      tableLog(
+        { a: { voiceMs: 900_000, talkMs: 300_000 }, b: { voiceMs: 900_000, talkMs: 10_000 }, c: { voiceMs: 900_000, talkMs: 20_000, overTalks: 9 } },
+        undefined,
+        wins,
+      ),
+      0,
+    )!;
+    expect(r.table.map((x) => x.id)).toEqual(["chatty", "overtalk"]);
   });
 
   it("never names an uncounted seat in a voice award", () => {
@@ -314,6 +361,7 @@ describe("table awards", () => {
     const seat = (peak: number): TableCounts => ({ peak, talkMs: 60_000 });
     expect(buildRecap(tableLog({ a: seat(0.9), b: seat(0.86) }, undefined, champ), 0)!.table[0]).toMatchObject({ id: "shout", who: ["Bilal"] });
     expect(buildRecap(tableLog({ a: seat(0.9), b: seat(0.8) }, undefined, champ), 0)!.table[0]).toMatchObject({ id: "shout", who: ["Asha"] });
+    expect(buildRecap(tableLog({ a: seat(0.2), b: seat(0.15) }, undefined, champ), 0)!.table[0]).toMatchObject({ id: "shout", who: ["Bilal"] });
   });
 
   it("spreads within the table list too", () => {

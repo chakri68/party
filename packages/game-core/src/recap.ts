@@ -178,7 +178,8 @@ const TABLE_RULES: AwardRule[] = [
     // Any peak above 0, from someone who talked at least a minute.
     min: Number.MIN_VALUE,
     voice: true,
-    near: (top, best) => best >= top - 0.05,
+    // In hundredths, so 0.20 against 0.15 is near despite float error.
+    near: (top, best) => Math.round((top - best) * 100) <= 5,
     eligible: (id, c) => c.table(id, "talkMs") >= 60_000,
     score: (id, c) => c.table(id, "peak"),
     line: () => "Had the loudest shout of the night.",
@@ -207,6 +208,7 @@ function pickAwards(
   awarded: Set<string>,
   limit: number,
   voiceLimit = Infinity,
+  voiced = new Set<string>(),
 ): RecapAward[] {
   const awards: RecapAward[] = [];
   let voice = 0;
@@ -235,7 +237,10 @@ function pickAwards(
       .map((s) => s.id);
     if (winners.length > MAX_TIED) continue;
     for (const id of winners) awarded.add(id);
-    if (rule.voice) voice++;
+    if (rule.voice) {
+      voice++;
+      for (const id of winners) voiced.add(id);
+    }
     awards.push({ id: rule.id, title: rule.title, who: winners.map(ctx.name), line: rule.line(winners, ctx) });
   }
   return awards;
@@ -327,8 +332,9 @@ export function buildRecap(log: PartyLog, now: number): Recap | null {
   const rival = awards.length < MAX_AWARDS ? rivals(log.games, order, ctx, awarded) : null;
   if (rival) awards.push(rival);
 
-  const table = pickAwards(TABLE_RULES, order, ctx, awarded, MAX_TABLE, MAX_VOICE);
-  const quiet = quietButStrong(order, ctx);
+  const voiced = new Set<string>();
+  const table = pickAwards(TABLE_RULES, order, ctx, awarded, MAX_TABLE, MAX_VOICE, voiced);
+  const quiet = quietButStrong(order, ctx, voiced);
   if (quiet && table.length < MAX_TABLE && table.filter((a) => isVoice(a.id)).length < MAX_VOICE) table.push(quiet);
 
   const loudest = log.table?.loudest ?? null;
@@ -348,14 +354,19 @@ export function buildRecap(log: PartyLog, now: number): Recap | null {
 const isVoice = (id: string) => id === "quiet" || TABLE_RULES.some((r) => r.id === id && r.voice);
 
 /**
- * The counted seat that talked the least, among those in voice 15 minutes who
- * won at least 2 games. It isn't passed on to someone close behind.
+ * The counted seat that talked the least of all those in voice 15 minutes (at
+ * least 2 of them), if it won at least 2 games. It isn't passed on to someone
+ * close behind. Seats with a voice award (`voiced`) are skipped; among tied
+ * seats, only those with the most wins are named.
  */
-function quietButStrong(order: string[], ctx: Ctx): RecapAward | null {
-  const fit = order.filter((id) => ctx.counted.has(id) && ctx.table(id, "voiceMs") >= 900_000 && ctx.wins(id) >= 2);
-  if (!fit.length) return null;
+function quietButStrong(order: string[], ctx: Ctx, voiced: Set<string>): RecapAward | null {
+  const fit = order.filter((id) => ctx.counted.has(id) && ctx.table(id, "voiceMs") >= 900_000);
+  if (fit.length < 2) return null;
   const low = Math.min(...fit.map((id) => ctx.table(id, "talkMs")));
-  const who = fit.filter((id) => ctx.table(id, "talkMs") === low);
-  if (who.length > MAX_TIED) return null;
-  return { id: "quiet", title: "Quiet but strong", who: who.map(ctx.name), line: `Said the least, and still won ${ctx.wins(who[0]!)} games.` };
+  const lowest = fit.filter((id) => ctx.table(id, "talkMs") === low && !voiced.has(id));
+  if (!lowest.length) return null;
+  const most = Math.max(...lowest.map(ctx.wins));
+  const who = lowest.filter((id) => ctx.wins(id) === most);
+  if (most < 2 || who.length > MAX_TIED) return null;
+  return { id: "quiet", title: "Quiet but strong", who: who.map(ctx.name), line: `Said the least, and still won ${most} games.` };
 }
