@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { hostVoiceAction, joinAllowed, joinLines, pttEnabled, voiceBarModel, voiceMenuItem } from "../src/views/voice-bar.ts";
+import { hostVoiceAction, joinAllowed, joinLines, pttEnabled, voiceBarModel, voiceMenuItem, voiceSettingChecks } from "../src/views/voice-bar.ts";
+import { DEFAULT_VOICE_PREFS } from "../src/voice/prefs.ts";
 import type { VoiceMemberView, VoiceView } from "../src/voice/voice.ts";
 
 const member = (id: string, extra: Partial<VoiceMemberView> = {}): VoiceMemberView => ({
@@ -222,5 +223,25 @@ describe("host mute", () => {
     });
     expect(hostVoiceAction(member("me", { self: true }), true)).toBeNull();
     expect(hostVoiceAction(member("ben"), false)).toBeNull();
+  });
+});
+
+describe("voiceSettingChecks", () => {
+  it("has Count my talk time for the recap, bound to countTalk, after Keep the screen on", () => {
+    const rows = voiceSettingChecks(DEFAULT_VOICE_PREFS, true);
+    const labels = rows.map((r) => r.label);
+    const i = labels.indexOf("Count my talk time for the recap");
+    expect(i).toBe(labels.indexOf("Keep the screen on in voice") + 1);
+    const row = rows[i]!;
+    expect(row.checked).toBe(true);
+    expect(row.patch(false)).toEqual({ countTalk: false });
+    expect(row.patch(true)).toEqual({ countTalk: true });
+    expect(voiceSettingChecks({ ...DEFAULT_VOICE_PREFS, countTalk: false }, true)[i]!.checked).toBe(false);
+  });
+
+  it("Hide my network address needs a relay server", () => {
+    const hide = (hasTurn: boolean) => voiceSettingChecks(DEFAULT_VOICE_PREFS, hasTurn).find((r) => r.label === "Hide my network address")!;
+    expect(hide(false).disabled).toBe(true);
+    expect(hide(true).disabled).toBe(false);
   });
 });

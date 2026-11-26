@@ -17,6 +17,7 @@ describe("voicePrefs", () => {
       relayOnly: false,
       duck: true,
       keepScreenOn: true,
+      countTalk: true,
     });
     expect(prefs.room("ABCD")).toEqual({ on: false, mic: "on", volumes: {}, blocked: [] });
   });
@@ -52,6 +53,16 @@ describe("voicePrefs", () => {
     expect(voicePrefs(store).get().keepScreenOn).toBe(true);
     expect(voicePrefs(store).set({ keepScreenOn: false }).keepScreenOn).toBe(false);
     expect(voicePrefs(store).get().keepScreenOn).toBe(false);
+  });
+
+  it("saved prefs without countTalk read as on", () => {
+    const store = memoryStore();
+    store.write("voice", JSON.stringify({ duck: false, keepScreenOn: false }));
+    expect(voicePrefs(store).get()).toEqual({ ...DEFAULT_VOICE_PREFS, duck: false, keepScreenOn: false, countTalk: true });
+    store.write("voice", JSON.stringify({ countTalk: "no" }));
+    expect(voicePrefs(store).get().countTalk).toBe(true);
+    expect(voicePrefs(store).set({ countTalk: false }).countTalk).toBe(false);
+    expect(voicePrefs(store).get().countTalk).toBe(false);
   });
 
   it("set merges and saves", () => {

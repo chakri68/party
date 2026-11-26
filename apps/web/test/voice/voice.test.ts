@@ -1190,3 +1190,130 @@ describe("VoiceController", () => {
     expect(() => bad.voice.stop()).not.toThrow();
   });
 });
+
+describe("talk events for the recap", () => {
+  const TICK = 1000 / METER_HZ;
+  const talks = (s: { sent: ClientMessage[] }) => s.sent.filter((m) => m.type === "voice-talk" || m.type === "voice-count");
+
+  /** Joined and ticked once, so the mic meter exists. Returns the mic analyser. */
+  async function talking(opts: Opts = {}) {
+    const s = await joined(opts);
+    await s.clock.advance(TICK);
+    const mic = s.env.ctx!.analysers.at(-1)!;
+    return { ...s, micLevel: (v: number) => (mic.level = v) };
+  }
+
+  it("voice-join carries countTalk", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ countTalk: false });
+    const s = setup({ store });
+    await s.voice.join(true);
+    expect(s.sent).toEqual([{ type: "voice-join", muted: false, count: false }]);
+  });
+
+  it("one on when I start, one off with the peak when the hold runs out", async () => {
+    const s = await talking();
+    s.micLevel(0.123);
+    await s.clock.advance(TICK);
+    expect(talks(s)).toEqual([{ type: "voice-talk", on: true }]);
+    s.micLevel(0.456);
+    await s.clock.advance(TICK * 3);
+    expect(talks(s)).toEqual([{ type: "voice-talk", on: true }]);
+    s.micLevel(0);
+    await s.clock.advance(TICK * (SPEAK_HOLD_TICKS - 1));
+    expect(talks(s)).toEqual([{ type: "voice-talk", on: true }]);
+    await s.clock.advance(TICK);
+    expect(talks(s)).toEqual([
+      { type: "voice-talk", on: true },
+      { type: "voice-talk", on: false, peak: 0.46 },
+    ]);
+    await s.clock.advance(TICK * 5);
+    expect(talks(s)).toHaveLength(2);
+    // A level over 1 is sent as 1.
+    s.micLevel(1.7);
+    await s.clock.advance(TICK);
+    s.micLevel(0);
+    await s.clock.advance(TICK * SPEAK_HOLD_TICKS);
+    expect(talks(s).slice(2)).toEqual([
+      { type: "voice-talk", on: true },
+      { type: "voice-talk", on: false, peak: 1 },
+    ]);
+  });
+
+  it("push-to-talk released mid-burst sends off at once", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ mode: "ptt" });
+    const s = await joined({ store });
+    // The mic meter is made on the first tick that reads it, so hold once first.
+    s.voice.setPtt(true);
+    await s.clock.advance(TICK);
+    s.voice.setPtt(false);
+    s.env.ctx!.analysers.at(-1)!.level = 0.3;
+    // Not held: a loud mic sends nothing.
+    await s.clock.advance(TICK * 3);
+    expect(talks(s)).toEqual([]);
+    s.voice.setPtt(true);
+    await s.clock.advance(TICK);
+    expect(talks(s)).toEqual([{ type: "voice-talk", on: true }]);
+    s.voice.setPtt(false);
+    expect(talks(s)).toEqual([
+      { type: "voice-talk", on: true },
+      { type: "voice-talk", on: false, peak: 0.3 },
+    ]);
+    await s.clock.advance(TICK * 5);
+    expect(talks(s)).toHaveLength(2);
+  });
+
+  it("mute mid-burst sends off before the mute; a muted loud mic sends nothing", async () => {
+    const s = await talking();
+    s.micLevel(0.2);
+    await s.clock.advance(TICK);
+    s.voice.setMuted(true);
+    expect(s.sent.slice(-2)).toEqual([
+      { type: "voice-talk", on: false, peak: 0.2 },
+      { type: "voice-self-mute", muted: true },
+    ]);
+    await s.clock.advance(TICK * 5);
+    expect(talks(s)).toHaveLength(2);
+  });
+
+  it("countTalk off sends no talk; changing it while joined sends voice-count", async () => {
+    const store = memoryStore();
+    voicePrefs(store).set({ countTalk: false });
+    const s = await talking({ store });
+    s.micLevel(0.2);
+    await s.clock.advance(TICK * 3);
+    expect(talks(s)).toEqual([]);
+    await s.voice.updatePrefs({ countTalk: true });
+    expect(talks(s)).toEqual([{ type: "voice-count", on: true }]);
+    await s.clock.advance(TICK);
+    expect(talks(s).slice(1)).toEqual([{ type: "voice-talk", on: true }]);
+    s.micLevel(0.7);
+    await s.clock.advance(TICK);
+    await s.voice.updatePrefs({ countTalk: false });
+    expect(talks(s).slice(2)).toEqual([
+      { type: "voice-talk", on: false, peak: 0.7 },
+      { type: "voice-count", on: false },
+    ]);
+    await s.clock.advance(TICK * 3);
+    expect(talks(s)).toHaveLength(4);
+    // The same value again sends nothing.
+    await s.voice.updatePrefs({ countTalk: false });
+    expect(talks(s)).toHaveLength(4);
+  });
+
+  it("changing countTalk out of voice sends nothing", async () => {
+    const s = setup();
+    await s.voice.updatePrefs({ countTalk: false });
+    expect(s.sent).toEqual([]);
+  });
+
+  it("leaving voice mid-burst sends no off", async () => {
+    const s = await talking();
+    s.micLevel(0.2);
+    await s.clock.advance(TICK);
+    s.voice.leave();
+    expect(talks(s)).toEqual([{ type: "voice-talk", on: true }]);
+    expect(s.sent.at(-1)).toEqual({ type: "voice-leave" });
+  });
+});
