@@ -298,8 +298,8 @@ button.ov-row-body:focus-visible { outline: 2px solid var(--accent); outline-off
   left: 9cqw;
   top: 9cqw;
   display: block;
-  width: 24cqw;
-  height: 24cqw;
+  width: 28cqw;
+  height: 28cqw;
   fill: currentColor;
   opacity: 0.92;
 }
@@ -504,6 +504,8 @@ button.ov-hand-card:focus-visible { outline: 3px solid var(--accent); outline-of
   .overheat .ov-name { flex: 0 0 auto; max-width: 100%; }
   .overheat .ov-tags { flex-wrap: wrap; }
   .overheat .ov-hand-list { grid-template-columns: 1fr 1fr; }
+  /* A smaller face leaves more room for the line, so it wraps less. */
+  .overheat .ov-hand-card .ov-card { width: 36px; min-width: 36px; height: 48px; }
   .overheat .ov-score { font-size: 1.15rem; }
   .overheat .ov-row.aim .ov-engine { padding-right: 52px; }
   .overheat .ov-row.aim button.ov-row-body::after {

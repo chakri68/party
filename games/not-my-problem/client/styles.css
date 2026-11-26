@@ -284,6 +284,8 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 .nmp-card.off { filter: grayscale(1) brightness(0.72); opacity: 0.85; box-shadow: none; }
 .nmp-card.off::after { content: ""; position: absolute; inset: 3px; border: 1.5px dashed rgb(255 255 255 / 0.75); border-radius: 6px; pointer-events: none; }
 .nmp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; z-index: 1; }
+/* Keep the focus ring lime on a greyed-out card. */
+.nmp-card.off:focus-visible { filter: none; opacity: 1; }
 .nmp-card.fresh { animation: nmp-slide 360ms cubic-bezier(.2, .8, .2, 1); }
 @keyframes nmp-slide {
   from { transform: translateY(24px); opacity: 0; }
@@ -358,12 +360,13 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
   .nmp-problem { grid-template-columns: 40px 1fr; padding: 6px 10px; }
   .nmp-problem .nmp-ic { width: 40px; height: 40px; }
   .nmp-card { --nmp-ic: 24px; }
+  .nmp-reveal .nmp-card { --nmp-ic: 24px; }
   .nmp-card-line { display: none; }
   .nmp-card-name { margin-bottom: auto; }
   .nmp-dock { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
   .nmp-prompt { grid-column: 1 / -1; }
   .nmp-panel { grid-column: 1; grid-row: 2; }
-  .nmp-hand { grid-column: 2; grid-row: 2; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+  .nmp-hand { grid-column: 2; grid-row: 2; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 14px 8px 8px; margin: -14px -8px -8px; }
   .nmp-buttons { justify-content: flex-start; flex-wrap: wrap; }
 }
 
@@ -373,7 +376,9 @@ button.nmp-seat-body:focus-visible { outline: 2px solid var(--accent); outline-o
 .nmp.compact .nmp-hand .nmp-card { --nmp-ic: 24px; }
 .nmp.compact .nmp-card-line { display: none; }
 .nmp.compact .nmp-card-name { margin-bottom: auto; }
-.nmp.compact .nmp-hand { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 8px 4px 4px; margin: -8px -4px 0; }
+/* One sideways row scrolls, so it clips what sticks out. The padding (more on top,
+   for a raised card) leaves room for the focus ring, 8px out. */
+.nmp.compact .nmp-hand { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; padding: 14px 8px 8px; margin: -14px -8px -8px; }
 
 /* ---- Feedback ---------------------------------------------------------------- */
 

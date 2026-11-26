@@ -26,7 +26,7 @@
 - **Not My Problem! action cards:** the colour says when you play the card.
   - Green answers a Problem: Quick Fix, Fake Report.
   - Amber passes a Problem: Blame Game.
-  - Violet is played when a Problem comes to you: Not Me, Revenge, HR Complaint.
+  - Violet answers a pass: Not Me, Revenge, HR Complaint.
   - Blue is played on your turn: Overtime, Intern, Promotion, Spy.
   - Each card shows an icon and the name. Its line stays on the card, since hand cards are about 110 px wide.
 - **Not My Problem! Problems:** red, with an icon, the name, the line, and the warnings as dots.
