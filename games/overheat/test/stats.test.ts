@@ -92,7 +92,7 @@ describe("bounty and pushedOver", () => {
     expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
   });
 
-  it("a Push that turns up a Swap credits the pusher for what the Swap does", () => {
+  it("a Push that turns up a Swap: the chooser gets the credit for busting someone else", () => {
     // ids: p1 R9=0; p2 R9 R9 R1=1..3; deck wrench=4; p0 shove=5
     const s = lead(
       stateWith({
@@ -109,11 +109,37 @@ describe("bounty and pushedOver", () => {
     // p1 gives their R9 (id 0) for p2's R1 (id 3): p2 goes to 27.
     t = ok(act(t.state, "p1", { type: "wrench", targetId: "p2", mine: 0, theirs: 3 }));
     expect(byId(t.state, "p2").status).toBe("busted");
-    expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
-    expect(find(t, "bounty")).toMatchObject({ playerId: "p0", targetId: "p2" });
+    expect(stats(t.state)).toEqual({ p1: { pushedOver: 1 } });
+    expect(find(t, "bounty")).toEqual({ type: "bounty", playerId: "p1", targetId: "p2", points: BOUNTY });
+    expect(byId(t.state, "p1").score).toBe(BOUNTY);
   });
 
-  it("a Push that turns up a Push credits the first pusher", () => {
+  /** p0 pushes p1 (the leader, at 19), which turns up `power`; p1 then busts themselves with it. */
+  const pushedSelfBust = (power: "wrench" | "steal") =>
+    // ids: p1 R9 R9 R1=0..2; p2 R9=3; deck power=4; p0 shove=5
+    lead(
+      stateWith({
+        n: 3,
+        deck: [power],
+        settings: CUT,
+        players: [{ hand: ["shove"] }, { engine: ["R9", "R9", "R1"], score: 30, flipped: true }, { engine: ["R9"], flipped: true }],
+      }),
+      "p1",
+    );
+  const selfBustChoice = { wrench: { type: "wrench", targetId: "p2", mine: 2, theirs: 3 }, steal: { type: "steal", targetId: "p2", theirs: 3 } } as const;
+
+  it.each(["wrench", "steal"] as const)("a Push that turns up %s, and the chooser busts themselves: the pusher gets the credit", (power) => {
+    let t = playFirst(pushedSelfBust(power));
+    t = ok(act(t.state, "p0", { type: "target", targetId: "p1" }));
+    expect(t.state.pending).toMatchObject({ kind: power, chooserId: "p1", by: "p0" });
+    t = ok(act(t.state, "p1", selfBustChoice[power]));
+    expect(byId(t.state, "p1").status).toBe("busted");
+    expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
+    expect(find(t, "bounty")).toEqual({ type: "bounty", playerId: "p0", targetId: "p1", points: BOUNTY });
+    expect(byId(t.state, "p0").score).toBe(BOUNTY);
+  });
+
+  it("a Push that turns up a Push: the one who aims the second Push gets the credit", () => {
     // ids: p1 R1=0; p2 R9 R9 R5=1..3; deck shove=4 R5=5; p0 shove=6
     const s = lead(
       stateWith({
@@ -128,11 +154,25 @@ describe("bounty and pushedOver", () => {
     t = ok(act(t.state, "p0", { type: "target", targetId: "p1" }));
     expect(t.state.pending).toMatchObject({ kind: "shove", chooserId: "p1", by: "p0" });
     t = ok(act(t.state, "p1", { type: "target", targetId: "p2" }));
-    // The log still says p1 pushed the card onto p2.
     expect(find(t, "flip")).toMatchObject({ playerId: "p2", by: "p1" });
     expect(byId(t.state, "p2").status).toBe("busted");
-    expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
-    expect(find(t, "bounty")).toMatchObject({ playerId: "p0", targetId: "p2" });
+    expect(stats(t.state)).toEqual({ p1: { pushedOver: 1 } });
+    expect(find(t, "bounty")).toMatchObject({ playerId: "p1", targetId: "p2" });
+  });
+
+  it("in a chain, a card the second Push turns up credits the second pusher", () => {
+    // ids: p1 R1=0; p2 R9 R9 R4=1..3; deck shove=4 heatwave=5; p0 shove=6. Limit down: 21.
+    const s = stateWith({
+      n: 3,
+      deck: ["shove", "heatwave"],
+      settings: CUT,
+      players: [{ hand: ["shove"] }, { engine: ["R1"], flipped: true }, { engine: ["R9", "R9", "R4"], flipped: true }],
+    });
+    let t = playFirst(s);
+    t = ok(act(t.state, "p0", { type: "target", targetId: "p1" }));
+    t = ok(act(t.state, "p1", { type: "target", targetId: "p2" }));
+    expect(byId(t.state, "p2").status).toBe("busted");
+    expect(stats(t.state)).toEqual({ p1: { pushedOver: 1 } });
   });
 
   it("in Classic a Swap bust counts pushedOver, with no bounty", () => {
@@ -188,6 +228,8 @@ describe("bounty and pushedOver", () => {
     expect(byId(t.state, "p1").status).toBe("busted");
     // Lost the B9's points, got the bounty.
     expect(byId(t.state, "p0").score).toBe(bankScore(byId(t.state, "p0").engine, false) + BOUNTY);
+    expect(find(t, "bounty")).toEqual({ type: "bounty", playerId: "p0", targetId: "p1", points: BOUNTY });
+    expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
   });
 
   it("a Steal that makes the thief go too hot credits nobody", () => {
@@ -203,23 +245,33 @@ describe("bounty and pushedOver", () => {
   });
 
   it("a pusher who has left still counts, but gets no bounty", () => {
-    const s = lead(
-      stateWith({
-        n: 3,
-        deck: ["wrench"],
-        settings: CUT,
-        players: [{ hand: ["shove"] }, { engine: ["R9"], flipped: true }, { engine: ["R9", "R9", "R1"], score: 30, flipped: true }],
-      }),
-      "p2",
-    );
-    let t = playFirst(s);
+    let t = playFirst(pushedSelfBust("wrench"));
     t = ok(act(t.state, "p0", { type: "target", targetId: "p1" }));
     t = oh.onPlayerRemoved!(t.state, "p0", ctx());
-    t = ok(act(t.state, "p1", { type: "wrench", targetId: "p2", mine: 0, theirs: 3 }));
-    expect(byId(t.state, "p2").status).toBe("busted");
+    t = ok(act(t.state, "p1", selfBustChoice.wrench));
+    expect(byId(t.state, "p1").status).toBe("busted");
     expect(types(t)).not.toContain("bounty");
     expect(byId(t.state, "p0").score).toBe(0);
     expect(stats(t.state)).toEqual({ p0: { pushedOver: 1 } });
+  });
+
+  it("a bounty that lifts a player to the target ends the game at round end", () => {
+    // ids: p0 R9=0; p1 R9 R9 R1=1..3; dump=4. p0 at 97 of 100; the leader p1 at 99.
+    const s = lead(
+      stateWith({
+        n: 2,
+        settings: { ...CUT, target: 100 },
+        players: [{ engine: ["R9"], score: 97, flipped: true, hand: ["dump"] }, { engine: ["R9", "R9", "R1"], score: 99, flipped: true }],
+      }),
+      "p1",
+    );
+    let t = playFirst(s);
+    t = ok(act(t.state, "p0", { type: "dump", targetId: "p1", mine: 0 }));
+    expect(byId(t.state, "p0").score).toBe(102);
+    expect(t.state.phase).toBe("playing");
+    // p0's row is empty now, so saving adds nothing: only the bounty gets them there.
+    t = ok(act(t.state, "p0", { type: "bank" }));
+    expect(t.state).toMatchObject({ phase: "finished", endReason: "target", winnerIds: ["p0"] });
   });
 
   it("a game stored without stats still counts", () => {

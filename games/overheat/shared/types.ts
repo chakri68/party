@@ -82,9 +82,9 @@ export interface Pending {
    */
   fromHand: boolean;
   /**
-   * A Push turned this card up for the chooser: who pushed (the first one, in
-   * a chain of Pushes). If the card makes someone go too hot, they get the
-   * credit. Missing otherwise.
+   * A Push turned this card up for the chooser: who pushed it. If the card
+   * makes the chooser go too hot, they get the credit (the chooser gets it for
+   * anyone else). Missing otherwise.
    */
   by?: string;
 }

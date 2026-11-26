@@ -230,16 +230,16 @@ function advance(state: State, ctx: GameContext, out: Out): void {
 
 /**
  * A number card lands in player `idx`'s engine. A waiting Turbo doubles it.
- * `by` pushed it there; `credit` gets the credit if it makes them go too hot.
+ * `by` pushed it there, and gets the credit if it makes them go too hot.
  */
-function place(state: State, idx: number, card: NumberCard, out: Out, by?: string, credit = by): void {
+function place(state: State, idx: number, card: NumberCard, out: Out, by?: string): void {
   const p = state.players[idx]!;
   const mult = p.turbo ? 2 : 1;
   p.turbo = false;
   p.engine.push({ card, mult });
   p.heat += card.value * mult;
   out.events.push(pub({ type: "flip", playerId: p.id, card, mult, heat: p.heat, ...(by ? { by } : {}) }));
-  check(state, idx, out, credit);
+  check(state, idx, out, by);
 }
 
 /** Who `chooserIdx` may aim a `kind` card at. See `aimTargets` for the rules. */
@@ -303,14 +303,14 @@ export function resolvePower(
  * Player `idx` turns over a card as its flipper. False when there was nothing
  * to draw. In Cutthroat a power from your own flip goes to your hand while it
  * has room; one a Push turns up always fires. `fromHand` passes on to a choice
- * the card opens (a Push played from a hand). `credit` is who gets the credit
- * for what the card does: the pusher, or the first pusher of a chain.
+ * the card opens (a Push played from a hand). `by` is the pusher, who gets the
+ * credit for what the card does to the target.
  */
-function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string, fromHand = false, credit = by): boolean {
+function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string, fromHand = false): boolean {
   const card = draw(state, ctx, out);
   if (!card) return false;
   if (card.kind === "number") {
-    place(state, idx, card, out, by, credit);
+    place(state, idx, card, out, by);
     return true;
   }
   const p = state.players[idx]!;
@@ -322,7 +322,7 @@ function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: st
     return true;
   }
   out.events.push(pub({ type: "flip", playerId: p.id, card, mult: 1, heat: p.heat, ...(by ? { by } : {}) }));
-  resolvePower(state, idx, card, ctx, out, { fromHand, by: credit });
+  resolvePower(state, idx, card, ctx, out, { fromHand, by });
   return true;
 }
 
@@ -413,8 +413,9 @@ function blocked(state: State, me: Player, them: Player, card: PowerCard, out: O
 function choose(state: State, seat: number, action: Choice, ctx: GameContext, out: Out): void {
   const { kind, card, fromHand, by: pusher } = state.pending!;
   const me = state.players[seat]!;
-  // Who gets the credit if this card makes someone go too hot.
-  const by = pusher ?? me.id;
+  // Credit for making someone go too hot: the chooser, for anyone else. If
+  // the chooser goes too hot from a card a Push turned up, the pusher.
+  const self = pusher ?? me.id;
   const target = state.players.findIndex((p) => p.id === action.targetId);
   const them = state.players[target]!;
   state.step = "turn";
@@ -441,8 +442,8 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
     state.discard.push(card);
     rescore(state, seat, out);
     rescore(state, target, out);
-    check(state, seat, out, by);
-    check(state, target, out, by);
+    check(state, seat, out, self);
+    check(state, target, out, me.id);
   } else if (kind === "steal" && action.type === "steal") {
     // A thief still flipping adds the card to their row; anyone else throws it away.
     const got = takeCard(state, target, action.theirs);
@@ -455,7 +456,7 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
       me.heat += worth(got);
     } else state.discard.push(got.card);
     state.discard.push(card);
-    check(state, seat, out, by);
+    check(state, seat, out, self);
   } else if (kind === "dump" && action.type === "dump") {
     const gave = takeCard(state, seat, action.mine);
     if (me.status === "flipping") me.heat = Math.max(0, me.heat - worth(gave));
@@ -464,7 +465,7 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
     out.events.push(pub({ type: "dump", playerId: me.id, targetId: them.id, card: gave }));
     state.discard.push(card);
     rescore(state, seat, out);
-    check(state, target, out, by);
+    check(state, target, out, me.id);
   } else if (kind === "audit") {
     const lost = them.engine.splice(auditIndex(them.engine), 1)[0]!;
     state.discard.push(lost.card, card);
@@ -475,7 +476,7 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
   } else {
     out.events.push(pub({ type: "shove", playerId: me.id, targetId: them.id }));
     // Draw before the Shove hits the discard, so a reshuffle can't hand it back.
-    const drew = flipInto(state, target, ctx, out, me.id, fromHand, by);
+    const drew = flipInto(state, target, ctx, out, me.id, fromHand);
     if (!drew) out.events.push(pub({ type: "fizzle", playerId: me.id, card: null }));
     state.discard.push(card);
   }
