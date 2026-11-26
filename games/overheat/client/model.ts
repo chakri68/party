@@ -198,8 +198,8 @@ export function describe(e: OverheatEvent, props: GameViewProps): string | null 
     case "block":
       return `${whose(e.playerId)} Block stopped it.`;
     case "bounty":
-      if (e.targetId === me) return `${who(e.playerId)} made you go too hot. You were the leader, so ${who(e.playerId)} gets +${e.points} points.`;
-      return `${who(e.playerId)} made the leader go too hot: +${e.points} points.`;
+      if (e.targetId === me) return `${who(e.playerId)} made you go too hot. You were the leader, so ${who(e.playerId)} gets ${e.points} points.`;
+      return `${who(e.playerId)} made ${whom(e.targetId)} go too hot. ${who(e.targetId)} was the leader, so ${e.playerId === me ? "you get" : `${who(e.playerId)} gets`} ${e.points} points.`;
     case "rescore":
       return `${who(e.playerId)} ${e.playerId === me ? "have" : "has"} ${e.score} points now.`;
     case "fuse-tick":

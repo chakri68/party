@@ -18,7 +18,7 @@ Computer players can fill seats in this game. They flip first and save when the 
 
 1. At the start of each round the game picks a heat limit from 18 to 30. Everyone's heat starts at 0 and every engine (your row of cards) is empty.
 2. Turns go round the table. The first player moves one seat each round.
-3. On your turn, press **Flip** to turn over the top card, or **Save +N** to keep your points and leave the round. On your first turn of a round you must flip, so you can't save 0.
+3. On your turn, press **Flip** to turn over the top card, or **Save +N** to keep your points and leave the round. On your first turn of a round you must flip.
 4. A number card goes into your engine. Its number goes on your heat and on your points.
 5. If your heat goes over your limit, you are **too hot**. You are out of the round with 0 points. This is checked after every change, so a card from another player can make you too hot on their turn.
 6. If your heat is exactly your limit, that's **Perfect**: +10 points, and you save at once.
@@ -34,9 +34,9 @@ Power cards add no heat and no points of their own. The **Power cards** setting 
 | Cool | 4 | 4 | Your heat goes down by 5. Never below 0. |
 | Double | 3 | 3 | Your next number card this round counts double: double heat, double points. |
 | Push | 3 | 3 | Pick a player still flipping. The next card from the deck goes into their engine. If it's a power card, it works for them at once. |
-| Swap | 2 | 2 | Pick a player. Swap one of your number cards with one of theirs. Heat and points move with the cards. |
+| Swap | 2 | 2 | Pick a player. Swap one of your number cards with one of theirs. Points move with the cards. Heat moves too, for players still flipping. |
 | Burn | 2 | 2 | Pick a player still flipping. At the start of each of their turns, their heat goes up by 1. A player can have more than one. |
-| Limit down | 2 | 2 | The limit goes down by 3 for every player still flipping, you too. |
+| Limit down | 2 | 2 | The limit goes down by 3 for every player still flipping. If you are still flipping, that includes you. |
 | Steal | – | 3 | Take one number card from a player's row. Its heat and points come with it. |
 | Dump | – | 2 | Give one of your number cards to a player still flipping. Its heat and points go with it. |
 | Audit | – | 2 | Pick a player who saved this round. They lose their highest card. |
@@ -53,7 +53,7 @@ A power card works as soon as you flip it. Push, Swap and Burn can only be aimed
 - **Playing a card.** On your turn you may play one card from your hand, before you flip or save. Then you still flip or save.
 - **Saved turns.** After you save or go too hot, you still get turns while you hold cards. You see "Play a card or pass." Play a card that aims at someone (Push, Swap, Burn, Steal, Dump, Audit) or Limit down, or press **Pass**. Cool and Double are for players still flipping.
 - **Saved is not safe.** Steal, Swap and Audit can reach a player who saved. Their round points are worked out again, and their score goes down or up. A saved player can't go too hot.
-- **Steal while saved.** If you have saved, a card you steal is thrown away. It only takes the points from them.
+- **Steal while saved.** If you have saved or gone too hot, a card you steal is thrown away. It only takes the points from them.
 - **Block.** You never play it. When a player aims a card at you, your Block stops it by itself, and both cards are thrown away. Everyone sees "Ravi's Block stopped it." Limit down hits everyone and can't be blocked. A Block that a Push turns up, or one that comes with a full hand, does nothing.
 - **The leader.** At the start of each round, the player with the top score is the leader, with a "Leader" mark on their row. There is no leader when the top score is shared, or is 0.
 - **Bounty.** If a card you play makes the leader go too hot, you get 5 points at once. It counts for the card's own effect: Push (the card it brings), Swap, Dump and Limit down. Burn's heat at the start of a turn doesn't count.

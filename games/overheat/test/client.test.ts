@@ -159,9 +159,9 @@ group("log lines", () => {
   it("names the blocker and the bounty", () => {
     expect(say({ type: "block", playerId: "p1", byId: "p0", card: { ...e, power: "steal" } })).toBe("Ravi's Block stopped it.");
     expect(say({ type: "block", playerId: "p0", byId: "p1", card: { ...e, power: "steal" } })).toBe("Your Block stopped it.");
-    expect(say({ type: "bounty", playerId: "p2", targetId: "p1", points: 5 })).toBe("Meera made the leader go too hot: +5 points.");
-    expect(say({ type: "bounty", playerId: "p0", targetId: "p1", points: 5 })).toBe("You made the leader go too hot: +5 points.");
-    expect(say({ type: "bounty", playerId: "p2", targetId: "p0", points: 5 })).toBe("Meera made you go too hot. You were the leader, so Meera gets +5 points.");
+    expect(say({ type: "bounty", playerId: "p2", targetId: "p1", points: 5 })).toBe("Meera made Ravi go too hot. Ravi was the leader, so Meera gets 5 points.");
+    expect(say({ type: "bounty", playerId: "p0", targetId: "p1", points: 5 })).toBe("You made Ravi go too hot. Ravi was the leader, so you get 5 points.");
+    expect(say({ type: "bounty", playerId: "p2", targetId: "p0", points: 5 })).toBe("Meera made you go too hot. You were the leader, so Meera gets 5 points.");
   });
 
   it("has no emoji and none of the banned words", () => {
