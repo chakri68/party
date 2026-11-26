@@ -1,0 +1,421 @@
+<title>Card Faces: Printed or Bold</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap">
+<style>
+/* Layout: one column; each game gets a row of two panels, Printed beside Bold, with a hand strip at real phone size and a close-up row. Single dark theme, matching the app's "Ink & Lime" shell. */
+:root {
+  color-scheme: dark;
+  --bg: #0e0e0c;
+  --surface: #171714;
+  --surface-2: #1d1d1a;
+  --line: #2e2d28;
+  --ink: #f3f1ea;
+  --muted: #9c9888;
+  --accent: #c6f432;
+  /* Printed cards: paper and print inks */
+  --paper: #f7f2e6;
+  --paper-edge: #e4dcc8;
+  --print-ink: #1d1b16;
+  --print-red: #b3262a;
+  --print-help: #2c4a7a;
+  --print-hit: #9e2b25;
+  --print-all: #a8720f;
+  --print-guard: #4b3c78;
+  --print-fix: #2f6b45;
+  /* Bold cards: flat game colours */
+  --b-red: #e5484d;
+  --b-amber: #f5a524;
+  --b-blue: #3e8ef7;
+  --b-green: #2fae6b;
+  --b-violet: #8e6cf0;
+  --b-ink: #24231f;
+  --b-white: #ffffff;
+  --font: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--text); line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--font); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; letter-spacing: -0.02em; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+p { margin: 0; max-width: 65ch; color: var(--ink); }
+.lead { color: var(--muted); font-size: 1.05rem; }
+header { display: grid; gap: 14px; }
+.kicker { font-family: var(--font); color: var(--accent); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Survey table */
+.survey { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.92rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font); font-weight: 500; color: var(--muted); font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; }
+tr:last-child td { border-bottom: 0; }
+td b { font-family: var(--font); font-weight: 500; }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 0.75rem; font-family: var(--font); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.now { color: var(--accent); border-color: rgb(198 244 50 / 0.4); }
+
+/* Game sections */
+section.game { display: grid; gap: 18px; }
+.game-head { display: grid; gap: 6px; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.panel-head h2 { font-size: 1.15rem; }
+.tag { font-family: var(--font); font-size: 0.75rem; color: var(--muted); }
+.felt { background: var(--surface-2); border-radius: 12px; padding: 14px; display: grid; gap: 8px; }
+.felt-label { font-size: 0.75rem; color: var(--muted); font-family: var(--font); }
+.hand { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.hand .card { --w: 58px; flex: none; }
+.close { display: flex; gap: 12px; flex-wrap: wrap; }
+.close .card { --w: 132px; }
+@media (max-width: 420px) { .close .card { --w: 112px; } }
+.note { font-size: 0.88rem; color: var(--muted); }
+
+/* Card shell (both styles) */
+.card { width: var(--w); aspect-ratio: 5 / 7; position: relative; container-type: inline-size; border-radius: 8%/5.7%; overflow: hidden; flex: none; box-shadow: 0 2px 6px rgb(0 0 0 / 0.45); }
+.card svg { display: block; }
+.ic { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Printed ---------- */
+.p { background: var(--paper); color: var(--print-ink); border: 1px solid var(--paper-edge); }
+.p.red { color: var(--print-red); }
+.p .corner { position: absolute; display: grid; justify-items: center; line-height: 0.9; font-family: var(--serif); font-weight: 700; font-size: 17cqw; }
+.p .corner svg { width: 11cqw; height: 11cqw; fill: currentColor; margin-top: 1.5cqw; }
+.p .corner.tl { left: 6cqw; top: 5cqw; }
+.p .corner.br { right: 6cqw; bottom: 5cqw; transform: rotate(180deg); }
+.p .pip { position: absolute; width: 18cqw; height: 18cqw; transform: translate(-50%, -50%); fill: currentColor; }
+.p .pip.flip { transform: translate(-50%, -50%) rotate(180deg); }
+.p .ace { position: absolute; inset: 0; display: grid; place-items: center; }
+.p .ace svg { width: 46cqw; height: 46cqw; fill: currentColor; }
+.p .court { position: absolute; inset: 20cqw 17cqw; border: 0.8cqw solid currentColor; border-radius: 3cqw; display: grid; place-items: center; gap: 0; align-content: center; }
+.p .court::before { content: ""; position: absolute; inset: 2cqw; border: 0.4cqw solid currentColor; border-radius: 2cqw; opacity: 0.45; }
+.p .court svg { width: 30cqw; height: 30cqw; }
+.p .court b { font-family: var(--serif); font-size: 26cqw; line-height: 1; }
+.p.back { background: var(--print-help); border-color: #1f3657; }
+.p.back::before { content: ""; position: absolute; inset: 5cqw; border: 1cqw solid var(--paper); border-radius: 4cqw;
+  background:
+    repeating-linear-gradient(45deg, rgb(247 242 230 / 0.22) 0 1.2cqw, transparent 1.2cqw 6cqw),
+    repeating-linear-gradient(-45deg, rgb(247 242 230 / 0.22) 0 1.2cqw, transparent 1.2cqw 6cqw); }
+.p.back::after { content: ""; position: absolute; left: 50%; top: 50%; width: 28cqw; height: 28cqw; transform: translate(-50%, -50%) rotate(45deg); background: var(--paper); border: 1.4cqw solid var(--print-help); outline: 1cqw solid var(--paper); }
+
+/* Printed number card (Overheat) */
+.p.num .shape { position: absolute; left: 50%; top: 52%; width: 58cqw; height: 58cqw; transform: translate(-50%, -50%); }
+.p.num .shape svg { width: 100%; height: 100%; fill: var(--c); }
+.p.num .shape b { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--serif); font-size: 26cqw; color: var(--paper); padding-top: var(--nudge, 0); }
+.p.num .corner { color: var(--c); }
+
+/* Printed power card */
+.p.pow { padding: 0; }
+.p.pow .frame { position: absolute; inset: 4cqw; border: 0.7cqw solid var(--k); border-radius: 4cqw; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.p.pow .banner { background: var(--k); color: var(--paper); font-family: var(--serif); font-weight: 700; text-align: center; font-size: 12cqw; line-height: 1.05; padding: 3cqw 2cqw 3.4cqw; letter-spacing: 0.01em; }
+.p.pow .vig { display: grid; place-items: center; color: var(--k); position: relative; }
+.p.pow .vig::before { content: ""; position: absolute; width: 56cqw; height: 56cqw; border-radius: 50%; border: 0.5cqw solid var(--k); opacity: 0.35; box-shadow: 0 0 0 2.2cqw var(--paper), 0 0 0 2.7cqw rgb(0 0 0 / 0.12); }
+.p.pow .vig svg { width: 40cqw; height: 40cqw; stroke-width: 1.35; position: relative; }
+.p.pow .rule { font-family: var(--text); font-size: 7.4cqw; line-height: 1.2; text-align: center; padding: 0 4cqw 3cqw; color: var(--print-ink); }
+.p.pow .foot { font-family: var(--text); font-size: 5.6cqw; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; color: var(--k); padding: 0 0 2.6cqw; font-weight: 600; }
+.hand .p.pow .rule, .hand .b.pow .rule { display: none; }
+.hand .p.pow .banner { font-size: 14cqw; }
+.p.pow .warn { display: flex; justify-content: center; gap: 2cqw; padding-bottom: 2.6cqw; }
+.p.pow .warn i { width: 6cqw; height: 6cqw; border-radius: 50%; background: var(--k); }
+
+/* ---------- Bold ---------- */
+.b { background: var(--b-white); color: var(--b-ink); border-radius: 10%/7.1%; }
+.b.std .rank { position: absolute; left: 8cqw; top: 3cqw; font-family: var(--font); font-weight: 700; font-size: 44cqw; line-height: 1; letter-spacing: -0.04em; color: var(--c); }
+.b.std .suit { position: absolute; right: 7cqw; bottom: 7cqw; width: 56cqw; height: 56cqw; fill: var(--c); }
+.b.std .suit-s { position: absolute; left: 10cqw; top: 51cqw; width: 18cqw; height: 18cqw; fill: var(--c); }
+.b.back { background: var(--b-ink); display: grid; place-items: center; }
+.b.back::before { content: ""; position: absolute; inset: 6cqw; border-radius: 7cqw; border: 1.4cqw solid #3a3833; }
+.b.back svg { width: 44cqw; height: 44cqw; color: var(--accent); stroke-width: 2.2; }
+
+.b.num { background: var(--c); color: var(--b-white); }
+.b.num .big { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font); font-weight: 700; font-size: 78cqw; line-height: 1; letter-spacing: -0.05em; padding-bottom: 4cqw; color: var(--on, var(--b-white)); }
+.b.num .sh { position: absolute; left: 8cqw; top: 8cqw; width: 18cqw; height: 18cqw; fill: var(--on, var(--b-white)); opacity: 0.9; }
+.b.num .sh.br { left: auto; top: auto; right: 8cqw; bottom: 8cqw; }
+
+.b.pow { background: var(--k); color: var(--on, var(--b-white)); display: grid; grid-template-rows: 1fr auto auto; justify-items: center; padding: 8cqw 6cqw 7cqw; text-align: center; }
+.b.pow svg { width: 62cqw; height: 62cqw; stroke-width: 2.3; align-self: center; }
+.b.pow .name { font-family: var(--font); font-weight: 700; font-size: 15cqw; line-height: 1.02; letter-spacing: -0.01em; }
+.b.pow .rule { font-family: var(--text); font-size: 7.4cqw; line-height: 1.2; margin-top: 3cqw; opacity: 0.92; }
+.hand .b.pow .name { font-size: 16.5cqw; }
+.b.pow .warn { position: absolute; top: 6cqw; right: 6cqw; display: flex; gap: 1.8cqw; }
+.b.pow .warn i { width: 8cqw; height: 8cqw; border-radius: 50%; background: var(--on, var(--b-white)); }
+
+/* Legend chips */
+.keys { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.82rem; color: var(--muted); }
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+.keys i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+/* Verdict */
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 14px; }
+.verdict ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 70ch; }
+.verdict li::marker { color: var(--accent); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="s-spades" viewBox="0 0 24 24"><path d="M12 1.8c2.6 3.4 8.6 7 8.6 11.6a4.4 4.4 0 0 1-7.4 3.2l1.3 5.6H9.5l1.3-5.6a4.4 4.4 0 0 1-7.4-3.2C3.4 8.8 9.4 5.2 12 1.8z"/></symbol>
+    <symbol id="s-hearts" viewBox="0 0 24 24"><path d="M12 21.4S2.4 15.2 2.4 8.9a5 5 0 0 1 9.6-2 5 5 0 0 1 9.6 2c0 6.3-9.6 12.5-9.6 12.5z"/></symbol>
+    <symbol id="s-diamonds" viewBox="0 0 24 24"><path d="M12 1.6 20.4 12 12 22.4 3.6 12z"/></symbol>
+    <symbol id="s-clubs" viewBox="0 0 24 24"><circle cx="12" cy="6.6" r="4.6"/><circle cx="6.6" cy="13.4" r="4.6"/><circle cx="17.4" cy="13.4" r="4.6"/><path d="M12 10.5 13.6 22.4h-3.2z"/><circle cx="12" cy="12.6" r="2.2"/></symbol>
+    <symbol id="sh-red" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></symbol>
+    <symbol id="sh-amber" viewBox="0 0 24 24"><path d="M12 2.5 22 20.5H2z"/></symbol>
+    <symbol id="sh-blue" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/></symbol>
+    <symbol id="sh-green" viewBox="0 0 24 24"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z"/></symbol>
+    <symbol id="crown" viewBox="0 0 24 24"><path class="ic" stroke-width="1.4" d="M4 18 3 8l5 4 4-6 4 6 5-4-1 10z M4 20.5h16"/><circle cx="3" cy="7" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="21" cy="7" r="1"/></symbol>
+
+    <!-- Overheat power icons -->
+    <symbol id="i-cool" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5M3 10.6l3.7-.6L5.4 6.5M21 13.4l-3.7.6 1.3 3.5M3 13.4l3.7.6-1.3 3.5M21 10.6l-3.7-.6 1.3-3.5"/></symbol>
+    <symbol id="i-double" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="10.5" height="14" rx="1.8"/><rect x="10" y="3.5" width="10.5" height="14" rx="1.8"/><path d="M13.4 8.3l4.2 4.6M17.6 8.3l-4.2 4.6"/></symbol>
+    <symbol id="i-push" viewBox="0 0 24 24"><rect x="15" y="4" width="6.5" height="16" rx="1.6"/><path d="M2.5 12h9.5M8.5 8l4 4-4 4"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></symbol>
+    <symbol id="i-burn" viewBox="0 0 24 24"><path d="M12 2.5c.6 3.2 5.8 5.6 5.8 11a5.8 5.8 0 0 1-11.6 0c0-2.8 1.6-4.4 2.6-5.8.4 1.8 1.3 2.9 2.4 3.3-.3-3.1-.2-5.8.8-8.5z"/><path d="M12 20a2.4 2.4 0 0 1-2.4-2.4c0-1.6 1.4-2.4 2.4-4 1 1.6 2.4 2.4 2.4 4A2.4 2.4 0 0 1 12 20z"/></symbol>
+    <symbol id="i-limit" viewBox="0 0 24 24"><path d="M3.5 5h17M12 8.5v11M7.5 15l4.5 4.5 4.5-4.5"/><path d="M3.5 10.5h4M16.5 10.5h4" stroke-dasharray="1.5 2"/></symbol>
+    <symbol id="i-steal" viewBox="0 0 24 24"><rect x="13" y="3" width="8" height="11" rx="1.6"/><path d="M15.5 18.5H4M8 14.5l-4 4 4 4"/></symbol>
+    <symbol id="i-dump" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><path d="M8.5 18.5H20M16 14.5l4 4-4 4"/></symbol>
+    <symbol id="i-audit" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.2"/><path d="M14.6 14.6 21 21M7.5 10.2l1.8 1.8 3.4-3.6"/></symbol>
+    <symbol id="i-block" viewBox="0 0 24 24"><path d="M12 2.8 20 6v6c0 5-3.4 8.2-8 9.4-4.6-1.2-8-4.4-8-9.4V6z"/><path d="M8.5 12h7"/></symbol>
+
+    <!-- Not My Problem icons -->
+    <symbol id="i-fix" viewBox="0 0 24 24"><path d="M14.5 3.2a4.6 4.6 0 0 0-4.3 6.2L3.6 16a2.1 2.1 0 0 0 3 3l6.6-6.6a4.6 4.6 0 0 0 6.2-4.3l-3 1.2-2.6-2.6z"/></symbol>
+    <symbol id="i-blame" viewBox="0 0 24 24"><circle cx="17.5" cy="6.5" r="3"/><path d="M12.5 21c0-3.2 2.2-5.5 5-5.5s4.5 2.3 4.5 5.5M2.5 13h8.5M7.5 9.5 11 13l-3.5 3.5"/></symbol>
+    <symbol id="i-notme" viewBox="0 0 24 24"><path d="M7 12.5V5.6a1.5 1.5 0 0 1 3 0V11M10 10.5V4a1.5 1.5 0 0 1 3 0v6.5M13 10.5V5.2a1.5 1.5 0 0 1 3 0v6.8M16 11a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7 6.2 6.2 0 0 1-5.2-2.9L4.2 14a1.5 1.5 0 0 1 2.6-1.5L7 13"/></symbol>
+    <symbol id="i-revenge" viewBox="0 0 24 24"><path d="M20 7.5H9a5 5 0 0 0 0 10h3M16 3.5l4 4-4 4"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+    <symbol id="i-hr" viewBox="0 0 24 24"><path d="M3 10v4h3.5l8.5 5.5V4.5L6.5 10z"/><path d="M18 9a4.2 4.2 0 0 1 0 6M20.5 6.5a7.8 7.8 0 0 1 0 11"/></symbol>
+    <symbol id="i-fake" viewBox="0 0 24 24"><path d="M6 2.8h8.5l4 4V21.2H6z M14.5 2.8v4h4"/><path d="M10.3 11a2 2 0 1 1 3 1.7c-.7.4-1 .9-1 1.6M12.3 17.4v.2"/></symbol>
+    <symbol id="i-overtime" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 8.5V13l3 2M9.5 2.5h5"/></symbol>
+    <symbol id="i-intern" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.8"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0M10 14.5h4l-.6 3h-2.8z"/></symbol>
+    <symbol id="i-promo" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6M6 21.5h12"/></symbol>
+    <symbol id="i-spy" viewBox="0 0 24 24"><path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="17" height="7" rx="1.5"/><path d="M7 7h.01M7 17h.01M13 15l4 4M17 15l-4 4"/></symbol>
+    <symbol id="i-leak" viewBox="0 0 24 24"><path d="M12 2.8s6.5 7.2 6.5 11.4a6.5 6.5 0 0 1-13 0C5.5 10 12 2.8 12 2.8z"/><path d="M9 15.5a3 3 0 0 0 3 2.5"/></symbol>
+    <symbol id="i-angry" viewBox="0 0 24 24"><path d="M3.5 4.5h17v11.5H10l-5 4.5v-4.5H3.5z"/><path d="M12 7.5v4M12 13.8v.2"/></symbol>
+    <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 3 21 12 12 21 3 12z"/><path d="M12 7.5 16.5 12 12 16.5 7.5 12z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <span class="kicker">Party games · card design</span>
+    <h1>Card faces: printed or bold</h1>
+    <p class="lead">Two ways to draw every card in the app. On the left of each game, cards that look like a real printed deck. On the right, flat cards with one big icon. Each panel shows a hand at the real size on a phone, then the same cards up close.</p>
+  </header>
+
+  <section class="game">
+    <div class="game-head">
+      <h3>Where cards show up</h3>
+      <p class="note">Ten games use cards today. Eight share the normal 52-card deck, but each one keeps its own copy of the card code and styles. One shared card piece would fix all eight at once.</p>
+    </div>
+    <div class="survey">
+      <table>
+        <thead><tr><th>Game</th><th>Cards</th><th>Today</th></tr></thead>
+        <tbody>
+          <tr><td><b>Crazy Eights, Sevens, Go Fish, Old Maid, President, Cheat, Oh Hell, Hold'em</b></td><td>Normal 52-card deck</td><td><span class="pill">Rank and suit text, one big suit in the middle</span></td></tr>
+          <tr><td><b>Overheat</b></td><td>36 number cards in 4 colours, 10 power cards</td><td><span class="pill">Small coloured tiles; power cards are text boxes</span></td></tr>
+          <tr><td><b>Not My Problem!</b></td><td>10 action cards, 3 Problems</td><td><span class="pill">Name and one line in a box</span></td></tr>
+          <tr><td><b>Nightfall, Short Night, Imposter</b></td><td>One secret role card each</td><td><span class="pill">Could use the same frame later</span></td></tr>
+          <tr><td><b>Face Off</b></td><td>A word card to read out</td><td><span class="pill">Could use the same frame later</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="game" id="deck">
+    <div class="game-head">
+      <h3>The normal deck</h3>
+      <p class="note">Used by eight games. The bold side also shows the four-colour deck: spades black, hearts red, diamonds blue, clubs green. On a small phone you can tell the suit from the colour alone. Either style could use it.</p>
+    </div>
+    <div class="pair">
+      <div class="panel"><div class="panel-head"><h2>Printed</h2><span class="tag">pips, corners, court frame</span></div>
+        <div class="felt"><span class="felt-label">Your hand, real phone size</span><div class="hand" data-set="deck-p-hand"></div></div>
+        <div class="close" data-set="deck-p-close"></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Bold</h2><span class="tag">one big number, one big suit</span></div>
+        <div class="felt"><span class="felt-label">Your hand, real phone size</span><div class="hand" data-set="deck-b-hand"></div></div>
+        <div class="close" data-set="deck-b-close"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="game" id="overheat">
+    <div class="game-head">
+      <h3>Overheat</h3>
+      <p class="note">Number cards keep their colour and shape, so colour is never the only sign. Power cards get a colour for what they do.</p>
+      <div class="keys">
+        <span><i style="background:var(--b-blue)"></i>Helps you</span>
+        <span><i style="background:var(--b-red)"></i>Hits a player</span>
+        <span><i style="background:var(--b-amber)"></i>Hits everyone</span>
+        <span><i style="background:var(--b-violet)"></i>Keeps you safe</span>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="panel"><div class="panel-head"><h2>Printed</h2><span class="tag">title banner, drawn picture, rule text</span></div>
+        <div class="felt"><span class="felt-label">Your row and your cards, real phone size</span><div class="hand" data-set="oh-p-hand"></div></div>
+        <div class="close" data-set="oh-p-close"></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Bold</h2><span class="tag">flat colour, big icon, name</span></div>
+        <div class="felt"><span class="felt-label">Your row and your cards, real phone size</span><div class="hand" data-set="oh-b-hand"></div></div>
+        <div class="close" data-set="oh-b-close"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="game" id="nmp">
+    <div class="game-head">
+      <h3>Not My Problem!</h3>
+      <p class="note">Card colour says when you can play it. Problems are red and show their warnings as dots.</p>
+      <div class="keys">
+        <span><i style="background:var(--b-green)"></i>Answers a Problem</span>
+        <span><i style="background:var(--b-amber)"></i>Passes a Problem</span>
+        <span><i style="background:var(--b-violet)"></i>Played when a Problem comes to you</span>
+        <span><i style="background:var(--b-blue)"></i>Played on your turn</span>
+        <span><i style="background:var(--b-red)"></i>Problem</span>
+      </div>
+    </div>
+    <div class="pair">
+      <div class="panel"><div class="panel-head"><h2>Printed</h2><span class="tag">office memo frame</span></div>
+        <div class="felt"><span class="felt-label">Your hand, real phone size</span><div class="hand" data-set="nmp-p-hand"></div></div>
+        <div class="close" data-set="nmp-p-close"></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Bold</h2><span class="tag">flat colour, big icon, name</span></div>
+        <div class="felt"><span class="felt-label">Your hand, real phone size</span><div class="hand" data-set="nmp-b-hand"></div></div>
+        <div class="close" data-set="nmp-b-close"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <h2>What I think</h2>
+    <ul>
+      <li><b>Overheat and Not My Problem!: bold.</b> These cards are new to players. A big icon and a colour tell you what a card does in a glance, even at hand size, where the rule text is too small to read anyway. Tap a card to see its rule.</li>
+      <li><b>The normal deck: printed, with the four-colour suits.</b> People already know how playing cards look, so the printed style reads as "real cards" right away. The four colours fix the one real problem today: hearts and diamonds look the same on a small screen.</li>
+      <li><b>One look for the whole app:</b> if you want every game to feel the same, go bold everywhere. It is simpler to draw, and it fits the app's flat dark style better than paper cards do.</li>
+      <li><b>Cost:</b> one shared card piece for the 8 normal-deck games, then a drawn icon for each of the 20 special cards. Text stays the same, and all icons are SVG.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const SUIT_COLOR_BOLD = { spades: "var(--b-ink)", hearts: "var(--b-red)", diamonds: "var(--b-blue)", clubs: "var(--b-green)" };
+const RANK = { 1: "A", 11: "J", 12: "Q", 13: "K" };
+const rk = (r) => RANK[r] ?? String(r);
+const use = (id, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><use href="#${id}"/></svg>`;
+const icon = (id) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#${id}"/></svg>`;
+
+// Pip spots (x%, y%) for 2-10; spots below the middle are drawn upside down.
+const L = 30, C = 50, R = 70;
+const PIPS = {
+  2: [[C, 20], [C, 80]],
+  3: [[C, 20], [C, 50], [C, 80]],
+  4: [[L, 20], [R, 20], [L, 80], [R, 80]],
+  5: [[L, 20], [R, 20], [C, 50], [L, 80], [R, 80]],
+  6: [[L, 20], [R, 20], [L, 50], [R, 50], [L, 80], [R, 80]],
+  7: [[L, 20], [R, 20], [C, 35], [L, 50], [R, 50], [L, 80], [R, 80]],
+  8: [[L, 20], [R, 20], [C, 35], [L, 50], [R, 50], [C, 65], [L, 80], [R, 80]],
+  9: [[L, 20], [R, 20], [L, 40], [R, 40], [C, 50], [L, 60], [R, 60], [L, 80], [R, 80]],
+  10: [[L, 20], [R, 20], [C, 30], [L, 40], [R, 40], [L, 60], [R, 60], [C, 70], [L, 80], [R, 80]],
+};
+
+function printedStd(rank, suit) {
+  const red = suit === "hearts" || suit === "diamonds";
+  const corner = (pos) => `<span class="corner ${pos}">${rk(rank)}${use("s-" + suit)}</span>`;
+  let mid = "";
+  if (rank === 1) mid = `<span class="ace">${use("s-" + suit)}</span>`;
+  else if (rank > 10) mid = `<span class="court">${use("crown", "")}<b>${rk(rank)}</b></span>`;
+  else mid = PIPS[rank].map(([x, y]) => `<svg class="pip${y > 50 ? " flip" : ""}" style="left:${x}%;top:${y}%" viewBox="0 0 24 24"><use href="#s-${suit}"/></svg>`).join("");
+  return `<div class="card p${red ? " red" : ""}" role="img" aria-label="${rk(rank)} of ${suit}">${corner("tl")}${mid}${corner("br")}</div>`;
+}
+function boldStd(rank, suit) {
+  return `<div class="card b std" style="--c:${SUIT_COLOR_BOLD[suit]}" role="img" aria-label="${rk(rank)} of ${suit}"><span class="rank">${rk(rank)}</span>${use("s-" + suit, "suit-s")}${use("s-" + suit, "suit")}</div>`;
+}
+const backP = () => `<div class="card p back" role="img" aria-label="Card back"></div>`;
+const backB = () => `<div class="card b back" role="img" aria-label="Card back">${icon("i-logo")}</div>`;
+
+// Overheat
+const OH_COL = { red: ["var(--b-red)", "var(--print-red)"], amber: ["var(--b-amber)", "#b9720a"], blue: ["var(--b-blue)", "var(--print-help)"], green: ["var(--b-green)", "var(--print-fix)"] };
+function printedNum(v, col) {
+  const corner = (pos) => `<span class="corner ${pos}">${v}${use("sh-" + col)}</span>`;
+  const nudge = col === "amber" ? "18cqw" : "0";
+  return `<div class="card p num" style="--c:${OH_COL[col][1]};--nudge:${nudge}" role="img" aria-label="${col} ${v}">${corner("tl")}<span class="shape">${use("sh-" + col)}<b>${v}</b></span>${corner("br")}</div>`;
+}
+function boldNum(v, col) {
+  const on = col === "amber" ? "var(--b-ink)" : "var(--b-white)";
+  return `<div class="card b num" style="--c:${OH_COL[col][0]};--on:${on}" role="img" aria-label="${col} ${v}">${use("sh-" + col, "sh")}<span class="big">${v}</span>${use("sh-" + col, "sh br")}</div>`;
+}
+const KIND = {
+  help: ["var(--b-blue)", "var(--print-help)", "Helps you"],
+  hit: ["var(--b-red)", "var(--print-hit)", "Hits a player"],
+  all: ["var(--b-amber)", "var(--print-all)", "Hits everyone"],
+  guard: ["var(--b-violet)", "var(--print-guard)", "Keeps you safe"],
+  fix: ["var(--b-green)", "var(--print-fix)", "Answers a Problem"],
+  pass: ["var(--b-amber)", "var(--print-all)", "Passes a Problem"],
+  react: ["var(--b-violet)", "var(--print-guard)", "When it comes to you"],
+  turn: ["var(--b-blue)", "var(--print-help)", "On your turn"],
+  problem: ["var(--b-red)", "var(--print-hit)", "Problem"],
+};
+function printedPow(c) {
+  const [, ink, label] = KIND[c.kind];
+  const warn = c.warn ? `<div class="warn">${"<i></i>".repeat(c.warn)}</div>` : `<div class="foot">${label}</div>`;
+  return `<div class="card p pow" style="--k:${ink}" role="img" aria-label="${c.name}"><div class="frame"><div class="banner">${c.name}</div><div class="vig">${icon(c.icon)}</div><div><div class="rule">${c.line}</div>${warn}</div></div></div>`;
+}
+function boldPow(c) {
+  const [col] = KIND[c.kind];
+  const on = c.kind === "all" || c.kind === "pass" ? "var(--b-ink)" : "var(--b-white)";
+  const warn = c.warn ? `<span class="warn">${"<i></i>".repeat(c.warn)}</span>` : "";
+  return `<div class="card b pow" style="--k:${col};--on:${on}" role="img" aria-label="${c.name}">${warn}${icon(c.icon)}<span class="name">${c.name}</span><span class="rule">${c.line}</span></div>`;
+}
+
+const OH_POW = {
+  cool: { name: "Cool", icon: "i-cool", kind: "help", line: "Your heat goes down by 5." },
+  double: { name: "Double", icon: "i-double", kind: "help", line: "Your next number card counts double." },
+  push: { name: "Push", icon: "i-push", kind: "hit", line: "A player you pick must flip the next card." },
+  swap: { name: "Swap", icon: "i-swap", kind: "hit", line: "Swap one of your cards with one of a player's cards." },
+  burn: { name: "Burn", icon: "i-burn", kind: "hit", line: "A player gets +1 heat at the start of each turn." },
+  limit: { name: "Limit down", icon: "i-limit", kind: "all", line: "The limit goes down by 3 for everyone still flipping." },
+  steal: { name: "Steal", icon: "i-steal", kind: "hit", line: "Take a number card from a player." },
+  dump: { name: "Dump", icon: "i-dump", kind: "hit", line: "Give one of your number cards to a player." },
+  audit: { name: "Audit", icon: "i-audit", kind: "hit", line: "A player who saved loses their highest card." },
+  block: { name: "Block", icon: "i-block", kind: "guard", line: "Stops the next card a player aims at you." },
+};
+const NMP = {
+  fix: { name: "Quick Fix", icon: "i-fix", kind: "fix", line: "Fix your Problem." },
+  fake: { name: "Fake Report", icon: "i-fake", kind: "fix", line: "Play a card face down and say it is a Quick Fix." },
+  blame: { name: "Blame Game", icon: "i-blame", kind: "pass", line: "Pass your Problem to another player." },
+  notme: { name: "Not Me", icon: "i-notme", kind: "react", line: "A Problem passed to you goes back." },
+  revenge: { name: "Revenge", icon: "i-revenge", kind: "react", line: "A Problem passed to you goes to someone else." },
+  hr: { name: "HR Complaint", icon: "i-hr", kind: "react", line: "Cancel the last move." },
+  overtime: { name: "Overtime", icon: "i-overtime", kind: "turn", line: "A player draws 2 cards on their next turn." },
+  intern: { name: "Intern", icon: "i-intern", kind: "turn", line: "Your next warning goes to the Intern." },
+  promo: { name: "Promotion", icon: "i-promo", kind: "turn", line: "Remove 1 of your warnings." },
+  spy: { name: "Spy", icon: "i-spy", kind: "turn", line: "Take a random card from a player." },
+  server: { name: "Server Down", icon: "i-server", kind: "problem", line: "1 warning if not fixed.", warn: 1 },
+  leak: { name: "Data Leak", icon: "i-leak", kind: "problem", line: "2 warnings if not fixed. An Intern stops only 1.", warn: 2 },
+  angry: { name: "Angry Client", icon: "i-angry", kind: "problem", line: "1 warning if not fixed. Can't go back to the player who passed it.", warn: 1 },
+};
+
+const deckHand = [[1, "spades"], [7, "hearts"], [10, "clubs"], [12, "diamonds"], [4, "diamonds"], [13, "spades"]];
+const deckClose = [[1, "spades"], [7, "hearts"], [12, "clubs"], [9, "diamonds"]];
+const ohRow = [[7, "red"], [4, "amber"], [9, "blue"], [2, "green"]];
+const ohHand = ["cool", "steal", "block"];
+const ohClose = ["steal", "block", "limit", "audit", "cool", "swap"];
+const nmpHand = ["fix", "blame", "notme", "hr", "spy", "intern"];
+const nmpClose = ["server", "leak", "angry", "fix", "blame", "notme", "revenge", "hr", "fake", "overtime", "intern", "promo", "spy"];
+
+const SETS = {
+  "deck-p-hand": () => deckHand.map(([r, s]) => printedStd(r, s)).join(""),
+  "deck-b-hand": () => deckHand.map(([r, s]) => boldStd(r, s)).join(""),
+  "deck-p-close": () => deckClose.map(([r, s]) => printedStd(r, s)).join("") + backP(),
+  "deck-b-close": () => deckClose.map(([r, s]) => boldStd(r, s)).join("") + backB(),
+  "oh-p-hand": () => ohRow.map(([v, c]) => printedNum(v, c)).join("") + ohHand.map((k) => printedPow(OH_POW[k])).join(""),
+  "oh-b-hand": () => ohRow.map(([v, c]) => boldNum(v, c)).join("") + ohHand.map((k) => boldPow(OH_POW[k])).join(""),
+  "oh-p-close": () => [printedNum(8, "red"), printedNum(5, "amber")].join("") + ohClose.map((k) => printedPow(OH_POW[k])).join(""),
+  "oh-b-close": () => [boldNum(8, "red"), boldNum(5, "amber")].join("") + ohClose.map((k) => boldPow(OH_POW[k])).join(""),
+  "nmp-p-hand": () => nmpHand.map((k) => printedPow(NMP[k])).join(""),
+  "nmp-b-hand": () => nmpHand.map((k) => boldPow(NMP[k])).join(""),
+  "nmp-p-close": () => nmpClose.map((k) => printedPow(NMP[k])).join(""),
+  "nmp-b-close": () => nmpClose.map((k) => boldPow(NMP[k])).join(""),
+};
+for (const el of document.querySelectorAll("[data-set]")) el.innerHTML = SETS[el.dataset.set]();
+</script>
