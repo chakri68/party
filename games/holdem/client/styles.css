@@ -102,6 +102,9 @@
   font-variant-numeric: tabular-nums;
 }
 .he-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
+/* Omaha's four: fanned, so the name keeps its room. */
+.he-seat-cards.four { gap: 0; }
+.he-seat-cards.four > .he-mini + .he-mini { margin-left: -7px; }
 .he-seat-bet {
   grid-area: bet;
   justify-self: end;
@@ -303,6 +306,9 @@
 .he-hole .he-card { width: var(--hole-w); height: var(--hole-h); }
 .he-hole .he-card .corner { font-size: 0.95rem; }
 .he-hole.folded .he-card { filter: brightness(0.5) saturate(0.4); }
+/* Omaha's four, fanned on a phone: each card keeps its corner and middle in view. */
+.he-hole.four { gap: 0; }
+.he-hole.four > .he-card + .he-card { margin-left: -16px; }
 .he-me-text { display: grid; gap: 3px; min-width: 0; }
 .he-label { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
 .he-me-stack {
@@ -354,7 +360,7 @@
   accent-color: var(--accent);
   touch-action: pan-y;
 }
-.he-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.he-quick { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
 .he-quick button { min-height: 44px; padding: 0 4px; font-size: 0.85rem; }
 .he-quick button.on { border-color: var(--accent); color: var(--accent); }
 
@@ -389,6 +395,8 @@
   .he-card .pip.face { font-size: 1.9rem; }
   .he-pot { font-size: 1.2rem; }
   .he-hole .he-card .corner { font-size: 1.1rem; }
+  .he-hole.four { gap: 6px; }
+  .he-hole.four > .he-card + .he-card { margin-left: 0; }
   /* Room to breathe: the actions sit beside your cards. */
   .he-dock { grid-template-columns: auto minmax(0, 1fr); align-items: end; column-gap: 16px; }
   .he-raise { grid-column: 1 / -1; grid-row: 1; }

@@ -25,6 +25,10 @@ export const HANDS_PER_LEVEL_OPTIONS = [10, 6, 4] as const;
 export const ENDING_OPTIONS = ["last", 20, 30, 45] as const;
 export const REBUY_OPTIONS = ["off", "early"] as const;
 export const TURN_SECONDS_OPTIONS = [20, 30, 45] as const;
+/** Which poker game the table plays. Hold'em and Omaha share everything but the cards and the bet limit. */
+export const VARIANT_OPTIONS = ["holdem", "omaha"] as const;
+
+export type Variant = (typeof VARIANT_OPTIONS)[number];
 
 export type Ending = (typeof ENDING_OPTIONS)[number];
 export type RebuySetting = (typeof REBUY_OPTIONS)[number];
@@ -36,6 +40,8 @@ export interface HoldemSettings {
   /** "early": one rebuy each, while the blinds are in their first three levels. */
   rebuys: RebuySetting;
   turnSeconds: number;
+  /** Missing in settings stored before Omaha: read it through `variantOf`. */
+  variant: Variant;
 }
 
 export const DEFAULT_SETTINGS: HoldemSettings = {
@@ -44,7 +50,14 @@ export const DEFAULT_SETTINGS: HoldemSettings = {
   ending: "last",
   rebuys: "off",
   turnSeconds: 30,
+  variant: "holdem",
 };
+
+/** The table's game, for settings stored before there was a choice. */
+export const variantOf = (settings: Partial<Pick<HoldemSettings, "variant">>): Variant => settings.variant ?? "holdem";
+
+/** Private cards each player gets. */
+export const HOLE_CARDS: Record<Variant, number> = { holdem: 2, omaha: 4 };
 
 /** Rebuys are open while the blinds are in levels 0–2. */
 export const REBUY_LEVELS = 3;
@@ -95,7 +108,7 @@ export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
 export interface HoldemPlayerState {
   id: string;
   stack: number;
-  /** Your two cards this hand; empty if you weren't dealt in. */
+  /** Your private cards this hand (2, or 4 in Omaha); empty if you weren't dealt in. */
   hole: Card[];
   /** Dealt into the hand in progress (or the one just finished). */
   inHand: boolean;
@@ -211,6 +224,7 @@ export interface HoldemPublicPlayer {
 
 export interface HoldemPublicState {
   step: Step | "over";
+  variant: Variant;
   handNumber: number;
   /** 1-based for people. */
   level: number;
@@ -249,6 +263,8 @@ export interface LegalActions {
   /** Raise-to bounds for this round. Null when you can't raise. */
   minRaiseTo: number | null;
   maxRaiseTo: number | null;
+  /** The top raise is all your chips. Omaha's pot limit can make it less. */
+  maxIsAllIn: boolean;
   /** True when the first bet of the round would be a bet, not a raise. */
   opening: boolean;
 }

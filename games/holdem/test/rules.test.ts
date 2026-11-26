@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   awardPots,
   bestHand,
+  bestHandFor,
   blindsFor,
   buildPots,
   compareHands,
+  handScoreFor,
+  isPotLimit,
   levelIndexFor,
   makeDeck,
   parseCardId,
@@ -226,5 +229,69 @@ describe("deck and blinds", () => {
     expect(levelIndexFor(6, 6)).toBe(0);
     expect(levelIndexFor(7, 6)).toBe(1);
     expect(levelIndexFor(13, 6)).toBe(2);
+  });
+});
+
+describe("Omaha hands: exactly 2 private cards and exactly 3 shared", () => {
+  const omaha = (hole: string, board: string) => bestHandFor("omaha", cards(hole), cards(board));
+
+  it.each([
+    // Best of all nine would be wrong in each of these.
+    ["4 hearts on the board and 1 in hand: no flush", "Qh 3s 4d 8c", "Ah Kh 7h 2h 9c", "High card, Ace"],
+    ["4 spades in hand and 1 on the board: no flush, no straight", "As Ks Qs Js", "Ts 2h 3d 7c 9h", "High card, Ace"],
+    ["four of a kind on the board: only three of them play", "Ah Kd Qc Js", "9s 9h 9d 9c 2h", "Three of a kind, Nines"],
+    ["a straight on the board does not count", "Ac Ad Kc Kd", "5h 6s 7h 8s 9d", "Pair of Aces"],
+    ["one card in hand makes no straight", "Ts 2c 2d 3h", "Js Qd Kc Ah 4d", "Pair of Twos"],
+    // And the 2+3 hands that are real.
+    ["2 hearts in hand and 3 on the board: a flush", "Qh 3h 4d 8c", "Ah Kh 7h 2c 9c", "Flush, Ace high"],
+    ["a pair in hand and trips on the board: a full house", "Ac Ad 7h 8h", "Kh Kd Ks 5c 2d", "Full house, Kings over Aces"],
+    ["2 in hand and 3 on the board: a straight", "Js Ts 2c 2d", "Qs 9h 3h 8d Ah", "Straight, Queen high"],
+  ])("%s", (_, hole, board, label) => {
+    expect(omaha(hole, board).label).toBe(label);
+  });
+
+  it("the five always use 2 private cards and 3 shared", () => {
+    const deck = makeDeck();
+    for (let i = 0; i < 200; i++) {
+      // A fixed walk through the deck: different hands, no randomness.
+      const picked = Array.from({ length: 9 }, (_, k) => deck[(i * 7 + k * 5) % 52]!);
+      if (new Set(picked.map((c) => c.id)).size < 9) continue;
+      const hole = picked.slice(0, 4);
+      const board = picked.slice(4);
+      const best = bestHandFor("omaha", hole, board);
+      expect(best.cards.filter((id) => hole.some((c) => c.id === id))).toHaveLength(2);
+      expect(best.cards.filter((id) => board.some((c) => c.id === id))).toHaveLength(3);
+    }
+  });
+
+  it("works on the flop: 3 shared cards, all of them play", () => {
+    expect(omaha("Ah Ad Kc 2s", "As 7d 3c").label).toBe("Three of a kind, Aces");
+  });
+
+  it("scores in the same order as the hand values", () => {
+    const pairs = [
+      ["Qh 3s 4d 8c", "Ac 5d 6s Tc", "Ah Kh 7h 2h 9c"],
+      ["As Ks Qs Js", "2c 3c 8d 8h", "Ts 2h 3d 7c 9h"],
+      ["Ac Ad 7h 8h", "Kc 5s 6d 6h", "Kh Kd Ks 5c 2d"],
+    ];
+    for (const [a, b, board] of pairs) {
+      const va = bestHandFor("omaha", cards(a!), cards(board!));
+      const vb = bestHandFor("omaha", cards(b!), cards(board!));
+      const sa = handScoreFor("omaha", cards(a!), cards(board!));
+      const sb = handScoreFor("omaha", cards(b!), cards(board!));
+      expect(Math.sign(sa - sb), `${a} vs ${b} on ${board}`).toBe(Math.sign(compareHands(va, vb)));
+    }
+  });
+
+  it("Hold'em keeps the best five of all seven", () => {
+    const hole = cards("Qh 3s");
+    const board = cards("Ah Kh 7h 2h 9c");
+    expect(bestHandFor("holdem", hole, board)).toEqual(bestHand([...hole, ...board]));
+    expect(bestHandFor("holdem", hole, board).label).toBe("Flush, Ace high");
+  });
+
+  it("only Omaha is pot-limit", () => {
+    expect(isPotLimit("omaha")).toBe(true);
+    expect(isPotLimit("holdem")).toBe(false);
   });
 });

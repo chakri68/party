@@ -1,4 +1,4 @@
-import { ACE, HAND_CATEGORIES, SUITS, type Card, type HandValue, type Pot, type PotResult, type Rank, type Suit } from "./types.ts";
+import { ACE, HAND_CATEGORIES, SUITS, type Card, type HandValue, type Pot, type PotResult, type Rank, type Suit, type Variant } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Cards
@@ -154,12 +154,21 @@ export function bestHand(cards: readonly Card[]): HandValue {
 // `bestHand`: the bot's agreement test in test/bot.test.ts checks it.
 // ---------------------------------------------------------------------------
 
-const BASE = 16;
-const pack = (category: number, ranks: readonly number[]): number => {
+/**
+ * Category, then `lead` deciding ranks (`l0`, `l1`), then the top `kick`
+ * ranks of `rest`, packed four bits each into five slots.
+ */
+function packHand(category: number, lead: number, l0: number, l1: number, rest: number, kick: number): number {
   let n = category;
-  for (let i = 0; i < 5; i++) n = n * BASE + (ranks[i] ?? 0);
+  let slots = 0;
+  if (lead > 0) (n = n * 16 + l0), slots++;
+  if (lead > 1) (n = n * 16 + l1), slots++;
+  for (let r = 14; r >= 2 && kick > 0; r--) {
+    if (rest & (1 << r)) (n = n * 16 + r), slots++, kick--;
+  }
+  for (; slots < 5; slots++) n *= 16;
   return n;
-};
+}
 
 /** Highest straight in a rank bitmask (bit r for rank r, Ace also at bit 1), or 0. */
 function straightIn(mask: number): number {
@@ -171,52 +180,109 @@ function straightIn(mask: number): number {
   return 0;
 }
 
-const topRanks = (mask: number, count: number): number[] => {
-  const out: number[] = [];
-  for (let r = 14; r >= 2 && out.length < count; r--) if (mask & (1 << r)) out.push(r);
-  return out;
-};
+const SUIT_INDEX: Record<Suit, number> = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
+/** Scratch counts, all zero between calls. The bot calls this thousands of times a decision. */
+const rankCount = new Uint8Array(15);
+const suitCount = new Uint8Array(4);
+const suitMask = new Uint16Array(4);
 
 /** Best five of five to seven cards, as a number: higher wins, equal ties. */
 export function handScore(cards: readonly Card[]): number {
-  const counts = new Array<number>(15).fill(0);
-  const suitMask: Record<string, number> = {};
-  const suitCount: Record<string, number> = {};
   let mask = 0;
-  for (const c of cards) {
-    counts[c.rank]!++;
-    mask |= 1 << c.rank;
-    suitMask[c.suit] = (suitMask[c.suit] ?? 0) | (1 << c.rank);
-    suitCount[c.suit] = (suitCount[c.suit] ?? 0) + 1;
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i]!;
+    const bit = 1 << c.rank;
+    const si = SUIT_INDEX[c.suit];
+    rankCount[c.rank]!++;
+    mask |= bit;
+    suitMask[si]! |= bit;
+    suitCount[si]!++;
   }
   let flushMask = 0;
-  for (const s in suitCount) if (suitCount[s]! >= 5) flushMask = suitMask[s]!;
+  for (let si = 0; si < 4; si++) {
+    if (suitCount[si]! >= 5) flushMask = suitMask[si]!;
+    suitCount[si] = 0;
+    suitMask[si] = 0;
+  }
+  // Groups, high rank first (and the counts back to zero).
+  let quad = 0;
+  let trip = 0;
+  let trip2 = 0;
+  let pair = 0;
+  let pair2 = 0;
+  for (let r = 14; r >= 2; r--) {
+    const n = rankCount[r]!;
+    if (!n) continue;
+    rankCount[r] = 0;
+    if (n === 4) quad ||= r;
+    else if (n === 3) trip ? (trip2 ||= r) : (trip = r);
+    else if (n === 2) pair ? (pair2 ||= r) : (pair = r);
+  }
   if (flushMask) {
     const sf = straightIn(flushMask);
-    if (sf) return pack(8, [sf]);
+    if (sf) return packHand(8, 1, sf, 0, 0, 0);
   }
-  const quads: number[] = [];
-  const trips: number[] = [];
-  const pairs: number[] = [];
-  for (let r = 14; r >= 2; r--) {
-    if (counts[r] === 4) quads.push(r);
-    else if (counts[r] === 3) trips.push(r);
-    else if (counts[r] === 2) pairs.push(r);
-  }
-  const kickers = (skip: number[], count: number) => topRanks(skip.reduce((m, r) => m & ~(1 << r), mask), count);
-  if (quads.length) return pack(7, [quads[0]!, ...kickers([quads[0]!], 1)]);
-  if (trips.length && trips.length + pairs.length >= 2) {
-    const pair = Math.max(trips[1] ?? 0, pairs[0] ?? 0);
-    return pack(6, [trips[0]!, pair]);
-  }
-  if (flushMask) return pack(5, topRanks(flushMask, 5));
+  if (quad) return packHand(7, 1, quad, 0, mask & ~(1 << quad), 1);
+  if (trip && (trip2 || pair)) return packHand(6, 2, trip, Math.max(trip2, pair), 0, 0);
+  if (flushMask) return packHand(5, 0, 0, 0, flushMask, 5);
   const straight = straightIn(mask);
-  if (straight) return pack(4, [straight]);
-  if (trips.length) return pack(3, [trips[0]!, ...kickers([trips[0]!], 2)]);
-  if (pairs.length >= 2) return pack(2, [pairs[0]!, pairs[1]!, ...kickers([pairs[0]!, pairs[1]!], 1)]);
-  if (pairs.length) return pack(1, [pairs[0]!, ...kickers([pairs[0]!], 3)]);
-  return pack(0, topRanks(mask, 5));
+  if (straight) return packHand(4, 1, straight, 0, 0, 0);
+  if (trip) return packHand(3, 1, trip, 0, mask & ~(1 << trip), 2);
+  if (pair2) return packHand(2, 2, pair, pair2, mask & ~(1 << pair) & ~(1 << pair2), 1);
+  if (pair) return packHand(1, 1, pair, 0, mask & ~(1 << pair), 3);
+  return packHand(0, 0, 0, 0, mask, 5);
 }
+
+// ---------------------------------------------------------------------------
+// Variants: which five cards a player may use
+// ---------------------------------------------------------------------------
+
+/**
+ * Omaha: every hand of exactly 2 private cards and exactly 3 shared ones
+ * (60 with 4 private cards and 5 shared). `visit` gets the same array each
+ * time: copy it to keep it.
+ */
+function omahaFives(hole: readonly Card[], board: readonly Card[], visit: (five: Card[]) => void): void {
+  const five: Card[] = [];
+  for (let a = 0; a < hole.length; a++)
+    for (let b = a + 1; b < hole.length; b++)
+      for (let c = 0; c < board.length; c++)
+        for (let d = c + 1; d < board.length; d++)
+          for (let e = d + 1; e < board.length; e++) {
+            five[0] = hole[a]!;
+            five[1] = hole[b]!;
+            five[2] = board[c]!;
+            five[3] = board[d]!;
+            five[4] = board[e]!;
+            visit(five);
+          }
+}
+
+/** A player's best hand in this game. Hold'em: any five of the seven. Omaha: 2 private + 3 shared. */
+export function bestHandFor(variant: Variant, hole: readonly Card[], board: readonly Card[]): HandValue {
+  if (variant !== "omaha") return bestHand([...hole, ...board]);
+  let best: HandValue | null = null;
+  omahaFives(hole, board, (five) => {
+    const v = bestHand(five);
+    if (!best || compareHands(v, best) > 0) best = v;
+  });
+  if (!best) throw new Error("Omaha needs at least 2 private cards and 3 shared cards");
+  return best;
+}
+
+/** `bestHandFor` as one number: higher wins, equal ties. */
+export function handScoreFor(variant: Variant, hole: readonly Card[], board: readonly Card[]): number {
+  if (variant !== "omaha") return handScore([...hole, ...board]);
+  let best = -1;
+  omahaFives(hole, board, (five) => {
+    const s = handScore(five);
+    if (s > best) best = s;
+  });
+  return best;
+}
+
+/** Omaha bets are pot-limit. The other games are no-limit. */
+export const isPotLimit = (variant: Variant): boolean => variant === "omaha";
 
 /** Category name for a list: "Two pair". */
 export function categoryName(category: number): string {

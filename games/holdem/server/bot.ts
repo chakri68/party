@@ -1,11 +1,24 @@
 import type { BotContext, GameBot } from "@games/game-core";
-import { handScore, makeDeck } from "../shared/rules.ts";
-import type { Card, HoldemAction, HoldemPrivateState, HoldemPublicState, LegalActions } from "../shared/types.ts";
+import { handScoreFor, makeDeck } from "../shared/rules.ts";
+import { HOLE_CARDS, type Card, type HoldemAction, type HoldemPrivateState, type HoldemPublicState, type LegalActions, type Variant } from "../shared/types.ts";
 
 /** About 1 decision in this many is a random legal one, as a person's slip would be. */
 const RANDOM_MOVE_ODDS = 10;
 /** Most Monte Carlo deals per decision. */
 export const EQUITY_TRIALS = 200;
+/**
+ * Reading one Omaha hand checks 60 fives. So Omaha gets a budget of hand
+ * reads per decision (mine and each opponent's, every deal) instead of a fixed
+ * number of deals: 150 deals heads-up, 33 against 8. It keeps the worst case
+ * under about 5 ms.
+ */
+export const OMAHA_HAND_READS = 300;
+
+/** Deals for one decision against this many opponents. */
+export function equityTrials(variant: Variant, opponents: number): number {
+  if (variant !== "omaha") return EQUITY_TRIALS;
+  return Math.min(EQUITY_TRIALS, Math.floor(OMAHA_HAND_READS / (opponents + 1)));
+}
 /** Under this many big blinds (stack plus bet), preflop is push or fold. */
 const SHORT_STACK_BB = 8;
 /** Preflop: an unopened raise is to this many big blinds. */
@@ -36,8 +49,10 @@ const COMMIT_SHARE = 0.6;
 /**
  * My share of the pot against these opponents, by random deals of the cards
  * nobody can see. `opponents` holds face-up cards, or null for a hidden hand.
+ * Hands are read by the variant's rule (Omaha: 2 private + 3 shared).
  */
 export function equity(
+  variant: Variant,
   hole: readonly Card[],
   board: readonly Card[],
   opponents: readonly (readonly Card[] | null)[],
@@ -46,10 +61,12 @@ export function equity(
 ): number {
   const known = new Set([...hole, ...board, ...opponents.flatMap((o) => o ?? [])].map((c) => c.id));
   const deck = makeDeck().filter((c) => !known.has(c.id));
+  const holeCards = HOLE_CARDS[variant];
   const hidden = opponents.filter((o) => o === null).length;
-  const need = 5 - board.length + 2 * hidden;
+  const need = 5 - board.length + holeCards * hidden;
   const full = [...board];
-  const fixedMine = board.length === 5 ? handScore([...hole, ...board]) : 0;
+  const theirs: Card[] = [];
+  const fixedMine = board.length === 5 ? handScoreFor(variant, hole, board) : 0;
   let total = 0;
   for (let t = 0; t < trials; t++) {
     // Draw `need` cards to the front of the deck.
@@ -62,13 +79,17 @@ export function equity(
     let next = 0;
     full.length = board.length;
     while (full.length < 5) full.push(deck[next++]!);
-    const me = board.length === 5 ? fixedMine : handScore([...hole, ...full]);
+    const me = board.length === 5 ? fixedMine : handScoreFor(variant, hole, full);
     let tied = 0;
     let lost = false;
     for (let k = 0; k < opponents.length; k++) {
-      const face = opponents[k];
-      const hand = face ? [...face, ...full] : [deck[next++]!, deck[next++]!, ...full];
-      const s = handScore(hand);
+      let face = opponents[k];
+      if (!face) {
+        theirs.length = 0;
+        for (let i = 0; i < holeCards; i++) theirs.push(deck[next++]!);
+        face = theirs;
+      }
+      const s = handScoreFor(variant, face, full);
       if (s > me) {
         lost = true;
         break;
@@ -103,6 +124,41 @@ export function preflopTier(a: Card, b: Card): 1 | 2 | 3 | 4 | 5 {
   return 5;
 }
 
+/** Omaha points: pairs, two-card suits, ranks close together, high cards, across all 4. */
+export function omahaPoints(hole: readonly Card[]): number {
+  let points = 0;
+  const byRank = new Map<number, number>();
+  const bySuit = new Map<string, Card[]>();
+  for (const c of hole) {
+    byRank.set(c.rank, (byRank.get(c.rank) ?? 0) + 1);
+    bySuit.set(c.suit, [...(bySuit.get(c.suit) ?? []), c]);
+    if (c.rank >= 10) points += c.rank === 14 ? 2 : 1;
+  }
+  // A pair can make a set. Three or four of a rank: those cards block each other.
+  for (const [rank, n] of byRank) {
+    if (n === 2) points += rank >= 12 ? 8 : rank >= 10 ? 6 : 4;
+    else if (n > 2) points -= 6;
+  }
+  // Two of a suit can make a flush, best with the Ace. A third of it adds little.
+  for (const cards of bySuit.values()) {
+    if (cards.length === 2) points += cards.some((c) => c.rank === 14) ? 5 : 3;
+    else if (cards.length > 2) points += 1;
+  }
+  // Ranks close together make straights.
+  const ranks = [...byRank.keys()].sort((a, b) => b - a);
+  for (let i = 1; i < ranks.length; i++) {
+    const gap = ranks[i - 1]! - ranks[i]!;
+    if (gap <= 3) points += 4 - gap;
+  }
+  return points;
+}
+
+/** Omaha start tiers, 1 to 5 like Hold'em's. */
+export function omahaPreflopTier(hole: readonly Card[]): 1 | 2 | 3 | 4 | 5 {
+  const p = omahaPoints(hole);
+  return p >= 18 ? 1 : p >= 13 ? 2 : p >= 9 ? 3 : p >= 6 ? 4 : 5;
+}
+
 // ---------------------------------------------------------------------------
 // Moves
 // ---------------------------------------------------------------------------
@@ -116,15 +172,17 @@ const ALL_IN: HoldemAction = { type: "all-in" };
 const giveUp = (legal: LegalActions): HoldemAction => (legal.check ? CHECK : FOLD);
 /** Check when free, else call. Never a call for nothing. */
 const stay = (legal: LegalActions): HoldemAction => (legal.call > 0 ? CALL : CHECK);
-/** Everything in: all-in when a raise is open, else call (or check). */
-const shove = (legal: LegalActions): HoldemAction => (legal.maxRaiseTo !== null ? ALL_IN : stay(legal));
+/** The biggest raise the table allows: all-in, or Omaha's pot-sized raise. */
+const top = (legal: LegalActions): HoldemAction => (legal.maxIsAllIn ? ALL_IN : { type: "raise", to: legal.maxRaiseTo! });
+/** Everything it may: the top raise when a raise is open, else call (or check). */
+const shove = (legal: LegalActions): HoldemAction => (legal.maxRaiseTo !== null ? top(legal) : stay(legal));
 
 /** A raise to about `to`, kept to whole chips inside what the table allows. */
 function raiseTo(legal: LegalActions, to: number): HoldemAction {
   const { minRaiseTo: min, maxRaiseTo: max } = legal;
   if (min === null || max === null) return stay(legal);
   const size = Math.min(max, Math.max(min, Math.round(to)));
-  if (size >= max || size >= COMMIT_SHARE * max) return ALL_IN;
+  if (size >= max || (legal.maxIsAllIn && size >= COMMIT_SHARE * max)) return top(legal);
   return { type: "raise", to: size };
 }
 
@@ -138,7 +196,7 @@ function randomMove(legal: LegalActions, ctx: BotContext): HoldemAction {
 function preflop(pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalActions, stack: number, ctx: BotContext): HoldemAction {
   const bb = pub.bb;
   const dealt = pub.players.filter((p) => p.inHand).length;
-  let tier = preflopTier(priv.hole[0]!, priv.hole[1]!);
+  let tier = pub.variant === "omaha" ? omahaPreflopTier(priv.hole) : preflopTier(priv.hole[0]!, priv.hole[1]!);
   // Fewer players, so weaker hands are worth playing.
   if (dealt <= 3) tier = Math.max(1, tier - 1) as typeof tier;
   if (stack < SHORT_STACK_BB * bb) return tier <= 3 ? shove(legal) : giveUp(legal);
@@ -170,7 +228,8 @@ export function raiseThreshold(opponents: number, owed: number): number {
 
 function postflop(playerId: string, pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalActions, ctx: BotContext): HoldemAction {
   const opponents = pub.players.filter((p) => p.id !== playerId && p.inHand && !p.folded);
-  const eq = equity(priv.hole, pub.board, opponents.map((p) => p.cards), EQUITY_TRIALS, ctx.randomInt);
+  const trials = equityTrials(pub.variant, opponents.length);
+  const eq = equity(pub.variant, priv.hole, pub.board, opponents.map((p) => p.cards), trials, ctx.randomInt);
   const owed = legal.call;
   const pot = pub.pot;
   if (eq > ALL_IN_EQUITY) return shove(legal);
@@ -186,7 +245,7 @@ function postflop(playerId: string, pub: HoldemPublicState, priv: HoldemPrivateS
 }
 
 /**
- * Hold'em: a hand table before the flop, then equity by random deals against
+ * Hold'em and Omaha: a hand table before the flop, then equity by random deals against
  * the players still in, set against the pot odds. Rebuys and comes back
  * whenever it may.
  */
@@ -201,7 +260,7 @@ export const holdemBot: GameBot<HoldemPublicState, HoldemPrivateState, HoldemAct
     if (ctx.randomInt(RANDOM_MOVE_ODDS) === 0) return randomMove(legal, ctx);
     const me = pub.players.find((p) => p.id === playerId);
     const stack = (me?.stack ?? 0) + (me?.bet ?? 0);
-    if (priv.hole.length < 2) return giveUp(legal);
+    if (priv.hole.length < HOLE_CARDS[pub.variant]) return giveUp(legal);
     if (pub.board.length === 0) return preflop(pub, priv, legal, stack, ctx);
     return postflop(playerId, pub, priv, legal, ctx);
   },

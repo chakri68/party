@@ -7,7 +7,10 @@ import {
   REBUY_OPTIONS,
   STARTING_CHIPS_OPTIONS,
   TURN_SECONDS_OPTIONS,
+  VARIANT_OPTIONS,
+  variantOf,
   type HoldemSettings,
+  type Variant,
 } from "./types.ts";
 
 /** Plain-language rules for the lobby's Rules button (§25). */
@@ -37,14 +40,32 @@ export const holdemRules: string[] = [
   "The blinds go up every few hands. So the game always ends.",
   "If you lose all your chips, you are out.",
   "The chips are play chips. You do not use real money.",
+  "The host can pick Omaha instead of Texas Hold'em. Omaha changes 3 things.",
+  "In Omaha, you get 4 cards, not 2.",
+  "In Omaha, your hand must use exactly 2 of your 4 cards and exactly 3 shared cards.",
+  "In Omaha, the most you can bet is the size of the pot.",
 ];
+
+const VARIANT_LABELS: Record<Variant, string> = { holdem: "Texas Hold'em", omaha: "Omaha" };
+const VARIANT_HINTS: Record<Variant, string> = {
+  holdem: "2 cards each. You can bet any amount.",
+  omaha: "4 cards each. Use exactly 2 of them. You can bet up to the pot.",
+};
 
 /** What the lobby shows (and the host can change) before a game. */
 export function holdemSettingFields(raw: unknown, _players: number): SettingField[] {
   const s: HoldemSettings = { ...DEFAULT_SETTINGS, ...(raw as Partial<HoldemSettings> | null) };
   const bb = blindsFor(0).bb;
   const index = <T>(list: readonly T[], value: T) => Math.max(0, list.indexOf(value));
+  const variant = variantOf(s);
   return [
+    {
+      key: "variant",
+      label: "Game",
+      selected: index(VARIANT_OPTIONS as readonly string[], variant),
+      options: VARIANT_OPTIONS.map((v) => ({ label: VARIANT_LABELS[v], patch: { variant: v } })),
+      hint: VARIANT_HINTS[variant],
+    },
     {
       key: "startingChips",
       label: "Starting chips",

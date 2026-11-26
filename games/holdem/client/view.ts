@@ -3,16 +3,17 @@ import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatChips } from "../shared/rules.ts";
-import type {
-  Card,
-  HandSummary,
-  HoldemEvent,
-  HoldemPrivateState,
-  HoldemPublicPlayer,
-  HoldemPublicState,
-  LegalActions,
+import {
+  HOLE_CARDS,
+  type Card,
+  type HandSummary,
+  type HoldemEvent,
+  type HoldemPrivateState,
+  type HoldemPublicPlayer,
+  type HoldemPublicState,
+  type LegalActions,
 } from "../shared/types.ts";
-import { cardFace, cardLabel, cardMini, cardShort, cardSlot, chip, miniBack } from "./cards.ts";
+import { cardFace, cardLabel, cardList, cardMini, cardShort, cardSlot, chip, miniBack } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -78,7 +79,7 @@ function describe(e: HoldemEvent, props: GameViewProps): string | null {
     case "level-up":
       return `The blinds go up to ${formatChips(e.sb)}/${formatChips(e.bb)}.`;
     case "your-cards":
-      return `Your cards are the ${cardLabel(e.cards[0]!)} and the ${cardLabel(e.cards[1]!)}.`;
+      return `Your cards are ${cardList(e.cards, true)}.`;
     case "bet": {
       const name = who(e.playerId);
       const why = e.auto === "timer" ? " (out of time)" : e.auto === "skip" ? " (skipped)" : e.auto === "sitting-out" ? " (sitting out)" : "";
@@ -358,7 +359,7 @@ export class HoldemView implements GameView {
     return new DOMRect(r.left + r.width / 2 - size / 2, r.top + r.height / 2 - size / 2, size, size);
   }
 
-  /** Your two cards rise in, and everyone else's backs pop on their seats. */
+  /** Your cards rise in, and everyone else's backs pop on their seats. */
   private async dealIn(props: GameViewProps, dealt: string[], after = 0) {
     const flights: Promise<unknown>[] = [];
     dealt.forEach((id, i) => {
@@ -617,7 +618,7 @@ export class HoldemView implements GameView {
           return el;
         })
       : p.inHand && !p.folded && game.step !== "over"
-        ? [miniBack(), miniBack()]
+        ? Array.from({ length: HOLE_CARDS[game.variant] }, miniBack)
         : [];
     const gain = won[p.id];
     const label = [
@@ -628,7 +629,7 @@ export class HoldemView implements GameView {
       showRoles && blind ? (blind === "SB" ? "small blind" : "big blind") : "",
       status.toLowerCase(),
       ...extras,
-      p.cards ? `showing ${p.cards.map(cardLabel).join(" and ")}` : "",
+      p.cards ? `showing ${cardList(p.cards)}` : "",
       gain ? `won ${formatChips(gain)}` : "",
       current ? "their turn" : "",
     ]
@@ -644,7 +645,7 @@ export class HoldemView implements GameView {
       },
       seat ? avatar(name, seat.avatarSeed, "sm") : h("span", { class: "avatar avatar-sm" }),
       h("span", { class: "he-seat-name", "aria-hidden": "true" }, h("span", { class: "he-name" }, name)),
-      h("span", { class: "he-seat-cards", "aria-hidden": "true" }, cards),
+      h("span", { class: `he-seat-cards${cards.length > 2 ? " four" : ""}`, "aria-hidden": "true" }, cards),
       h(
         "span",
         { class: "he-seat-stack", "aria-hidden": "true" },
@@ -743,11 +744,12 @@ export class HoldemView implements GameView {
               if (best.has(c.id)) el.classList.add("best");
               return el;
             })
-          : [cardSlot(), cardSlot()],
+          : Array.from({ length: HOLE_CARDS[game.variant] }, cardSlot),
       );
     }
     this.hole.classList.toggle("folded", !!me?.folded);
-    this.hole.setAttribute("aria-label", hole.length ? `Your cards: ${hole.map(cardLabel).join(" and ")}` : "No cards this hand");
+    this.hole.classList.toggle("four", HOLE_CARDS[game.variant] > 2);
+    this.hole.setAttribute("aria-label", hole.length ? `Your cards: ${cardList(hole)}` : "No cards this hand");
 
     const badges: (HTMLElement | null)[] = me && me.inHand && game.step !== "over"
       ? [
@@ -799,7 +801,9 @@ export class HoldemView implements GameView {
         h(
           "button",
           { type: "button", class: "primary he-confirm", disabled: busy, onclick: () => this.confirmRaise(legal) },
-          this.raiseTo >= (legal.maxRaiseTo ?? 0) ? `All-in ${formatChips(legal.maxRaiseTo ?? 0)}` : `${legal.opening ? "Bet" : "Raise to"} ${formatChips(this.raiseTo)}`,
+          legal.maxIsAllIn && this.raiseTo >= (legal.maxRaiseTo ?? 0)
+            ? `All-in ${formatChips(legal.maxRaiseTo ?? 0)}`
+            : `${legal.opening ? "Bet" : "Raise to"} ${formatChips(this.raiseTo)}`,
         ),
       ];
     } else if (legal) {
@@ -815,7 +819,7 @@ export class HoldemView implements GameView {
               callAllIn ? `All-in ${formatChips(legal.call)}` : `Call ${formatChips(legal.call)}`,
             ),
         legal.minRaiseTo !== null && legal.maxRaiseTo !== null
-          ? legal.minRaiseTo >= legal.maxRaiseTo
+          ? legal.minRaiseTo >= legal.maxRaiseTo && legal.maxIsAllIn
             ? h("button", { type: "button", class: "primary", disabled: busy, onclick: () => this.send({ type: "all-in" }) }, `All-in ${formatChips(legal.maxRaiseTo)}`)
             : h("button", { type: "button", class: "primary", disabled: busy, onclick: () => this.openRaise(legal) }, legal.opening ? "Bet" : "Raise")
           : null,
@@ -864,7 +868,10 @@ export class HoldemView implements GameView {
     this.rerender();
   }
 
-  /** Quick amounts. Pot-sized means the pot after you call, on top of the call. */
+  /**
+   * Quick amounts. Pot-sized means the pot after you call, on top of the call.
+   * Under Omaha's pot limit, Pot is the top and there is no All-in past it.
+   */
   private quickAmounts(game: HoldemPublicState, legal: LegalActions): { label: string; to: number }[] {
     const me = game.players.find((p) => p.id === this.props?.playerId);
     const owed = Math.max(0, game.currentBet - (me?.bet ?? 0));
@@ -876,7 +883,7 @@ export class HoldemView implements GameView {
       { label: "Min", to: min },
       { label: "½ pot", to: clamp(game.currentBet + after / 2) },
       { label: "Pot", to: clamp(game.currentBet + after) },
-      { label: "All-in", to: max },
+      ...(legal.maxIsAllIn ? [{ label: "All-in", to: max }] : []),
     ];
   }
 
@@ -889,8 +896,9 @@ export class HoldemView implements GameView {
     this.raiseTo = Math.min(max, Math.max(min, this.raiseTo));
     this.slider.value = String(this.raiseTo);
     this.raiseHead.textContent = legal.opening ? "Bet" : "Raise to";
-    this.raiseOut.textContent = this.raiseTo >= max ? `${formatChips(max)} · all-in` : formatChips(this.raiseTo);
-    this.slider.setAttribute("aria-valuetext", `${formatChips(this.raiseTo)} chips${this.raiseTo >= max ? ", all-in" : ""}`);
+    const allIn = legal.maxIsAllIn && this.raiseTo >= max;
+    this.raiseOut.textContent = allIn ? `${formatChips(max)} · all-in` : formatChips(this.raiseTo);
+    this.slider.setAttribute("aria-valuetext", `${formatChips(this.raiseTo)} chips${allIn ? ", all-in" : ""}`);
     replaceChildren(
       this.quick,
       this.quickAmounts(game, legal).map((q) =>
@@ -919,7 +927,7 @@ export class HoldemView implements GameView {
   private confirmRaise(legal: LegalActions) {
     const max = legal.maxRaiseTo ?? 0;
     this.raiseOpen = false;
-    this.send(this.raiseTo >= max ? { type: "all-in" } : { type: "raise", to: this.raiseTo });
+    this.send(legal.maxIsAllIn && this.raiseTo >= max ? { type: "all-in" } : { type: "raise", to: this.raiseTo });
   }
 
   // ---- clocks -----------------------------------------------------------------

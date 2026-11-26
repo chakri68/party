@@ -12,10 +12,11 @@ import { holdemManifest } from "../shared/manifest.ts";
 import { holdemBot } from "./bot.ts";
 import {
   awardPots,
-  bestHand,
+  bestHandFor,
   blindsFor,
   buildPots,
   formatChips,
+  isPotLimit,
   levelIndexFor,
   makeDeck,
   ordinal,
@@ -24,12 +25,15 @@ import {
 import {
   DEFAULT_SETTINGS,
   ENDING_OPTIONS,
+  HOLE_CARDS,
   HANDS_PER_LEVEL_OPTIONS,
   REBUY_LEVELS,
   REBUY_OPTIONS,
   STARTING_CHIPS_OPTIONS,
   STREETS,
   TURN_SECONDS_OPTIONS,
+  VARIANT_OPTIONS,
+  variantOf,
   type AutoReason,
   type BetKind,
   type Card,
@@ -162,15 +166,29 @@ function canRaise(s: State, p: Player): boolean {
   return s.players.some((o) => o !== p && actable(o));
 }
 
+/**
+ * The most `p` may raise to. No-limit: all their chips. Pot-limit (Omaha):
+ * the call plus the pot after the call, on top of the high bet. A full
+ * minimum raise is always allowed, even when it is more than the pot.
+ */
+function raiseCap(s: State, p: Player): number {
+  const all = p.bet + p.stack;
+  if (!isPotLimit(variantOf(s.settings))) return all;
+  const owed = Math.max(0, s.currentBet - p.bet);
+  const pot = s.players.reduce((sum, o) => sum + (o.inHand ? o.contributed : 0), 0);
+  return Math.min(all, Math.max(s.currentBet + pot + owed, s.currentBet + s.minRaise));
+}
+
 function legalFor(s: State, p: Player): LegalActions {
   const owed = Math.max(0, s.currentBet - p.bet);
-  const max = p.bet + p.stack;
+  const max = raiseCap(s, p);
   const raise = canRaise(s, p);
   return {
     check: owed === 0,
     call: Math.min(owed, p.stack),
     minRaiseTo: raise ? Math.min(s.currentBet + s.minRaise, max) : null,
     maxRaiseTo: raise ? max : null,
+    maxIsAllIn: max === p.bet + p.stack,
     opening: s.currentBet === 0,
   };
 }
@@ -223,7 +241,7 @@ function applyBet(s: State, idx: number, action: HoldemAction, out: Out, auto?: 
       break;
     }
     case "raise": {
-      const max = p.bet + p.stack;
+      const max = raiseCap(s, p);
       if (!canRaise(s, p)) return "You can only call or fold.";
       if (!Number.isInteger(action.to) || action.to > max) return `You can raise to ${formatChips(max)} at most.`;
       const min = s.currentBet + s.minRaise;
@@ -240,6 +258,8 @@ function applyBet(s: State, idx: number, action: HoldemAction, out: Out, auto?: 
         ev("all-in");
       } else {
         if (!canRaise(s, p)) return "You can only call or fold.";
+        const cap = raiseCap(s, p);
+        if (total > cap) return `The pot limits your bet. You can raise to ${formatChips(cap)} at most.`;
         raiseTo(s, p, total, out, auto);
       }
       break;
@@ -375,7 +395,8 @@ function showdown(s: State, ctx: GameContext, out: Out): void {
   const { totals, folded } = contributions(s);
   const pots = buildPots(totals, folded);
   const contenders = s.players.filter(live);
-  const values = Object.fromEntries(contenders.map((p) => [p.id, bestHand([...p.hole, ...s.board])]));
+  const variant = variantOf(s.settings);
+  const values = Object.fromEntries(contenders.map((p) => [p.id, bestHandFor(variant, p.hole, s.board)]));
   const { won, returned, results } = awardPots(
     pots,
     Object.fromEntries(Object.entries(values).map(([id, v]) => [id, v.ranks])),
@@ -470,7 +491,8 @@ function startHand(s: State, ctx: GameContext, out: Out): void {
 
   // One card at a time, from the button's left.
   const order = around(s, s.buttonIndex).filter((i) => s.players[i]!.inHand);
-  for (let round = 0; round < 2; round++) for (const i of order) s.players[i]!.hole.push(s.deck.shift()!);
+  const holeCards = HOLE_CARDS[variantOf(s.settings)];
+  for (let round = 0; round < holeCards; round++) for (const i of order) s.players[i]!.hole.push(s.deck.shift()!);
 
   const sbP = s.players[s.sbIndex]!;
   const bbP = s.players[s.bbIndex]!;
@@ -582,9 +604,17 @@ function parseSettings(input: unknown): HoldemSettings | null {
     (HANDS_PER_LEVEL_OPTIONS as readonly unknown[]).includes(s.handsPerLevel) &&
     (ENDING_OPTIONS as readonly unknown[]).includes(s.ending) &&
     (REBUY_OPTIONS as readonly unknown[]).includes(s.rebuys) &&
-    (TURN_SECONDS_OPTIONS as readonly unknown[]).includes(s.turnSeconds);
+    (TURN_SECONDS_OPTIONS as readonly unknown[]).includes(s.turnSeconds) &&
+    (VARIANT_OPTIONS as readonly unknown[]).includes(s.variant);
   return ok
-    ? { startingChips: s.startingChips, handsPerLevel: s.handsPerLevel, ending: s.ending, rebuys: s.rebuys, turnSeconds: s.turnSeconds }
+    ? {
+        startingChips: s.startingChips,
+        handsPerLevel: s.handsPerLevel,
+        ending: s.ending,
+        rebuys: s.rebuys,
+        turnSeconds: s.turnSeconds,
+        variant: s.variant,
+      }
     : null;
 }
 
@@ -702,7 +732,7 @@ export const holdemGame: GameDefinition<
         p.shown = true;
         const summary = state.lastHand!;
         summary.shown[playerId] = p.hole;
-        if (state.board.length >= 3) summary.labels[playerId] = bestHand([...p.hole, ...state.board]).label;
+        if (state.board.length >= 3) summary.labels[playerId] = bestHandFor(variantOf(state.settings), p.hole, state.board).label;
         return { ok: true, transition: { state, events: [pub({ type: "reveal", hands: { [playerId]: p.hole } })] } };
       }
       case "back": {
@@ -837,6 +867,7 @@ export const holdemGame: GameDefinition<
     const seatId = (i: number) => (state.handNumber ? (state.players[i]?.id ?? null) : null);
     return {
       step: playing ? state.step : "over",
+      variant: variantOf(state.settings),
       handNumber: state.handNumber,
       level: level + 1,
       sb,
@@ -880,7 +911,7 @@ export const holdemGame: GameDefinition<
     const p = state.players.find((x) => x.id === playerId);
     if (!p) return { hole: [], best: null, legal: null, canShow: false, canBack: false, canRebuy: false };
     const playing = state.phase === "playing" && !p.removed;
-    const best = p.inHand && p.hole.length && state.board.length >= 3 ? bestHand([...p.hole, ...state.board]) : null;
+    const best = p.inHand && p.hole.length && state.board.length >= 3 ? bestHandFor(variantOf(state.settings), p.hole, state.board) : null;
     const lh = state.lastHand;
     const canShow =
       playing && p.inHand && !p.shown && p.hole.length > 0 &&
