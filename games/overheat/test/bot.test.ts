@@ -10,6 +10,8 @@ import {
   type OverheatPublicState,
   type OverheatSettings,
   type Pending,
+  type PowerCard,
+  type PowerKind,
 } from "../shared/types.ts";
 
 /** Never takes the random move; other rolls land on the top value. */
@@ -42,7 +44,15 @@ function player(id: string, o: Partial<OverheatPlayerState> & { cards?: string[]
 
 function view(
   players: OverheatPlayerState[],
-  o: { turn?: string; pending?: Pending | null; target?: number } = {},
+  o: {
+    turn?: string;
+    pending?: Pending | null;
+    target?: number;
+    powers?: OverheatSettings["powers"];
+    hand?: PowerKind[];
+    leaderId?: string | null;
+    played?: boolean;
+  } = {},
 ) {
   const pending = o.pending ?? null;
   const pub = {
@@ -56,14 +66,15 @@ function view(
     deckCount: 40,
     discardCount: 0,
     handCounts: {},
-    leaderId: null,
-    played: false,
+    leaderId: o.leaderId ?? null,
+    played: o.played ?? false,
     roundEndsAt: 0,
-    settings: { ...DEFAULT_SETTINGS, target: o.target ?? 150 },
+    settings: { ...DEFAULT_SETTINGS, powers: o.powers ?? "classic", target: o.target ?? 150 },
     winnerIds: [],
     endReason: null,
   } as OverheatPublicState;
-  return { playerId: "me", public: pub, private: { hand: [] } };
+  const hand: PowerCard[] = (o.hand ?? []).map((power, i) => ({ kind: "power", id: 500 + i, power }));
+  return { playerId: "me", public: pub, private: { hand } };
 }
 const pend = (kind: Pending["kind"], chooserId: string): Pending => ({
   kind,
@@ -230,8 +241,8 @@ describe("overheatBot all-bot games", () => {
     for (const [name, s] of settings) check(players, name, s, 50);
   }, 60_000);
 
-  it("Cutthroat games finish with 2 to 8 players", () => {
-    for (let players = 2; players <= 8; players++) check(players, "cutthroat", { powers: "cutthroat" }, 25);
+  it.each(["off", "classic", "cutthroat"] as const)("%s games finish with 2 to 8 players", (powers) => {
+    for (let players = 2; players <= 8; players++) check(players, powers, { powers }, 40);
   }, 60_000);
 
   it("stays fast", () => {
@@ -239,5 +250,147 @@ describe("overheatBot all-bot games", () => {
     const start = performance.now();
     for (let seed = 1; seed <= 50; seed++) moves += playBots(overheatGame, { players: 4, seed }).moves;
     expect((performance.now() - start) / moves).toBeLessThan(2);
+  });
+});
+
+describe("overheatBot Cutthroat hands", () => {
+  const cut = { powers: "cutthroat" as const };
+  const play = (id: number) => ({ type: "play", cardId: id });
+  const choose = (kind: Pending["kind"]) => ({ pending: pend(kind, "me"), ...cut });
+
+  it("plays Cool when the room left is small", () => {
+    // Heat 19 of 24: room 5.
+    const v = view([player("me", { cards: ["R9", "B9", "G1"] }), player("o")], { ...cut, hand: ["vent"] });
+    expect(overheatBot.decide(v, steady)).toEqual(play(500));
+  });
+
+  it("counts Burn against the room for Cool", () => {
+    // Heat 14 of 24 with 4 fuses: room 6.
+    const v = view([player("me", { cards: ["R9", "B5"], fuses: 4 }), player("o")], { ...cut, hand: ["vent"] });
+    expect(overheatBot.decide(v, steady)).toEqual(play(500));
+  });
+
+  it("plays Double early, and keeps it late", () => {
+    const early = view([player("me"), player("o")], { ...cut, hand: ["turbo"] });
+    expect(overheatBot.decide(early, steady)).toEqual(play(500));
+    const late = view([player("me", { cards: ["R9", "B5"] }), player("o")], { ...cut, hand: ["turbo"] });
+    expect(overheatBot.decide(late, steady)).not.toEqual(play(500));
+  });
+
+  it("plays Steal when a card fits, and keeps it when none does", () => {
+    const me = player("me", { cards: ["R9", "B6"] }); // room 9
+    const fits = view([me, player("o", { cards: ["R9"] })], { ...cut, hand: ["steal"] });
+    expect(overheatBot.decide(fits, steady)).toEqual(play(500));
+    const tight = view([player("me", { cards: ["R9", "B9"] }), player("o", { cards: ["R9"] })], { ...cut, hand: ["steal"] });
+    expect(overheatBot.decide(tight, steady)).not.toEqual(play(500));
+  });
+
+  it("steals from the leader's row first, then the highest card that fits", () => {
+    const me = player("me", { cards: ["R9", "B6"] }); // room 9
+    const a = player("a", { cards: ["G9", "G8"] });
+    const lead = player("b", { cards: ["A4", "A2"], score: 40 });
+    const move = overheatBot.decide(view([me, a, lead], { ...choose("steal"), leaderId: "b" }), steady);
+    expect(move).toEqual({ type: "steal", targetId: "b", theirs: lead.engine[0]!.card.id });
+    const noLead = overheatBot.decide(view([me, a, lead], choose("steal")), steady);
+    expect(noLead).toEqual({ type: "steal", targetId: "a", theirs: a.engine[0]!.card.id });
+  });
+
+  it("counts Burn for a safe Steal, and takes a card that lands on the limit", () => {
+    const a = player("a", { cards: ["G9", "G7", "G2"] });
+    // Heat 15 of 24 with 2 fuses: room 7. The 9 would go too hot after the Burn.
+    const burnt = player("me", { cards: ["R9", "B6"], fuses: 2 });
+    expect(overheatBot.decide(view([burnt, a], choose("steal")), steady)).toEqual({ type: "steal", targetId: "a", theirs: a.engine[1]!.card.id });
+    // Room 9: the 9 lands on 24, which is Perfect.
+    const exact = player("me", { cards: ["R9", "B6"] });
+    expect(overheatBot.decide(view([exact, a], choose("steal")), steady)).toEqual({ type: "steal", targetId: "a", theirs: a.engine[0]!.card.id });
+  });
+
+  it("pushes the flipper closest to the limit, the leader first", () => {
+    const me = player("me", { cards: ["R2"] });
+    const near = player("a", { cards: ["R9", "B9", "G3"] }); // room 3
+    const lead = player("b", { cards: ["R9", "B9"], score: 40 }); // room 6
+    const far = player("c", { cards: ["R2"] });
+    expect(overheatBot.decide(view([me, near, lead, far], { ...cut, hand: ["shove"] }), steady)).toEqual(play(500));
+    expect(overheatBot.decide(view([me, near, lead, far], choose("shove")), steady)).toEqual({ type: "target", targetId: "a" });
+    expect(overheatBot.decide(view([me, near, lead, far], { ...choose("shove"), leaderId: "b" }), steady)).toEqual({ type: "target", targetId: "b" });
+    expect(overheatBot.decide(view([me, far, lead], { ...choose("fuse"), leaderId: "b" }), steady)).toEqual({ type: "target", targetId: "b" });
+  });
+
+  it("audits the saved player with the highest card", () => {
+    const me = player("me", { cards: ["R2"] });
+    const a = player("a", { cards: ["R5", "B4"], status: "banked" });
+    const b = player("b", { cards: ["R8"], status: "banked" });
+    expect(overheatBot.decide(view([me, a, b, player("c")], { ...cut, hand: ["audit"] }), steady)).toEqual(play(500));
+    expect(overheatBot.decide(view([me, a, b, player("c")], choose("audit")), steady)).toEqual({ type: "target", targetId: "b" });
+  });
+
+  it("keeps cards with no use now and flips or saves", () => {
+    const v = view([player("me", { cards: ["R3"] }), player("o")], { ...cut, hand: ["heatwave", "block", "vent"] });
+    expect(overheatBot.decide(v, steady)).toEqual({ type: "flip" });
+  });
+
+  it("flips a little further before saving than in Classic", () => {
+    const at = (cards: string[], powers: "classic" | "cutthroat") =>
+      overheatBot.decide(view([player("me", { cards }), player("o")], { powers }), steady);
+    // Margin 3: both save. Margin 4: Classic saves, Cutthroat is in its middle band.
+    expect(at(["R9", "B9", "G3"], "cutthroat")).toEqual({ type: "bank" });
+    expect(at(["R9", "B9", "G2"], "classic")).toEqual({ type: "bank" });
+    expect(at(["R9", "B9", "G2"], "cutthroat")).toEqual({ type: "bank" });
+    expect(overheatBot.decide(view([player("me", { cards: ["R9", "B9", "G2"] }), player("o")], cut), { randomInt: (m: number) => (m === 2 ? 0 : m - 1), chance: () => 0 })).toEqual({ type: "flip" });
+    // Margin 5: Classic is in its middle band (saves on this roll), Cutthroat flips.
+    expect(at(["R9", "B9", "G1"], "classic")).toEqual({ type: "bank" });
+    expect(at(["R9", "B9", "G1"], "cutthroat")).toEqual({ type: "flip" });
+  });
+
+  it("plays only one card a turn", () => {
+    const v = view([player("me", { cards: ["R9", "B9", "G3"] }), player("o")], { ...cut, hand: ["vent"], played: true });
+    expect(overheatBot.decide(v, steady)).toEqual({ type: "bank" });
+  });
+
+  it("on a saved turn plays an aimed card that has a target", () => {
+    const me = player("me", { cards: ["R3"], status: "banked" });
+    const v = view([me, player("o", { cards: ["R9", "B9"] })], { ...cut, hand: ["block", "shove"] });
+    expect(overheatBot.decide(v, steady)).toEqual(play(501));
+  });
+
+  it("on a saved turn plays Limit down when it has nothing aimed", () => {
+    const me = player("me", { cards: ["R3"], status: "busted" });
+    const v = view([me, player("o", { cards: ["R9", "B9"] })], { ...cut, hand: ["vent", "heatwave"] });
+    expect(overheatBot.decide(v, steady)).toEqual(play(501));
+  });
+
+  it("passes when holding only Blocks, or cards it can't play now", () => {
+    for (const status of ["banked", "busted"] as const) {
+      const me = player("me", { cards: ["R3"], status });
+      for (const hand of [["block"], ["block", "block"], ["vent", "turbo"], ["audit"]] as PowerKind[][]) {
+        const v = view([me, player("o", { cards: ["R9"] })], { ...cut, hand });
+        for (const ctx of [steady, zero]) expect(overheatBot.decide(v, ctx), hand.join()).toEqual({ type: "pass" });
+      }
+    }
+  });
+
+  it("a saved Steal takes the leader's best saved card", () => {
+    const me = player("me", { cards: ["R3"], status: "banked" });
+    const a = player("a", { cards: ["G9", "G8"], status: "banked" });
+    const lead = player("b", { cards: ["A4", "A6"], status: "banked", score: 40 });
+    const flipper = player("c", { cards: ["B9"] });
+    const v = view([me, a, lead, flipper], { ...choose("steal"), leaderId: "b" });
+    expect(overheatBot.decide(v, steady)).toEqual({ type: "steal", targetId: "b", theirs: lead.engine[1]!.card.id });
+  });
+
+  it("a saved Swap gives its lowest card for a saved player's best", () => {
+    const me = player("me", { cards: ["R3", "R7"], status: "banked" });
+    const a = player("a", { cards: ["G9", "G2"], status: "banked" });
+    const flipper = player("c", { cards: ["B1"] });
+    const v = view([me, a, flipper], choose("wrench"));
+    expect(overheatBot.decide(v, steady)).toEqual({ type: "wrench", targetId: "a", mine: me.engine[0]!.card.id, theirs: a.engine[0]!.card.id });
+  });
+
+  it("only counts a Swap as a bust on a player still flipping", () => {
+    const me = player("me", { cards: ["R9", "R1"] });
+    const saved = player("a", { cards: ["R9", "B9", "G4"], status: "banked" });
+    const b = player("b", { cards: ["R2", "B3"] });
+    const move = overheatBot.decide(view([me, saved, b], choose("wrench")), steady) as { targetId: string };
+    expect(move.targetId).toBe("b");
   });
 });

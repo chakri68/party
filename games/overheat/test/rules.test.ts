@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bankScore, buildDeck, cardFromCode, colourBonus, enginePoints, POWER_LINES, POWER_NAMES } from "../shared/rules.ts";
 import { cutthroatRules, overheatSettingFields } from "../shared/rules-text.ts";
 import { overheatGame } from "../server/game.ts";
-import { BOUNTY, CLASSIC_POWERS, CUTTHROAT_COPIES, HAND_MAX, POWERS, POWER_COPIES, type EngineCard, type PowerKind } from "../shared/types.ts";
+import { BOUNTY, CLASSIC_POWERS, CUTTHROAT_COPIES, DEFAULT_SETTINGS, HAND_MAX, POWERS, POWER_COPIES, type EngineCard, type PowerKind } from "../shared/types.ts";
 
 const e = (code: string, mult: 1 | 2 = 1): EngineCard => ({ card: cardFromCode(code, 0) as EngineCard["card"], mult });
 const many = (...codes: string[]) => codes.map((c) => e(c));
@@ -58,6 +58,14 @@ describe("scoring", () => {
 });
 
 describe("settings fields", () => {
+  it("defaults to Cutthroat", () => {
+    expect(DEFAULT_SETTINGS.powers).toBe("cutthroat");
+    expect(overheatGame.parseSettings!(undefined)).toEqual({ target: 150, powers: "cutthroat" });
+    for (const raw of [undefined, null, {}, { target: 100 }]) {
+      expect(overheatSettingFields(raw, 4).find((x) => x.key === "powers")?.selected).toBe(2);
+    }
+  });
+
   it("selects the saved options", () => {
     const f = overheatSettingFields({ target: 200, powers: "off" }, 4);
     expect(f.find((x) => x.key === "target")?.selected).toBe(2);

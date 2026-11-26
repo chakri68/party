@@ -1,23 +1,29 @@
 import { seededRandomInt } from "@games/game-core";
+import { overheatBot } from "../server/bot.ts";
 import { overheatGame as oh } from "../server/game.ts";
-import { DEFAULT_SETTINGS, type OverheatServerState } from "../shared/types.ts";
+import { DEFAULT_SETTINGS, type OverheatServerState, type PowerSetting } from "../shared/types.ts";
 
 export interface SimResult {
   bustRate: number;
   avgEngineCards: number;
   avgFlipsPerRound: number;
+  avgRoundsPerGame: number;
 }
 
 /**
- * Plays whole games back to back with simple bots until `rounds` rounds have
- * finished. Bots bank once heat is within 4 of their gauge; choices use Skip's
- * random pick. Every figure is per player-round (each non-removed player's
- * outcome in a finished round counts once).
+ * Plays whole games back to back until `rounds` rounds have finished (the last
+ * game is played out). Off and Classic use simple bots: bank once heat is
+ * within 4 of the gauge; choices use Skip's random pick. Cutthroat drives the
+ * real computer player (`overheatBot`) from the views. Every figure but
+ * rounds per game is per player-round (each non-removed player's outcome in a
+ * finished round counts once).
  */
-export function simulate(opts: { players: number; rounds: number; seed: number }): SimResult {
+export function simulate(opts: { players: number; rounds: number; seed: number; powers?: PowerSetting }): SimResult {
   const ctx = { now: 0, randomInt: seededRandomInt(opts.seed) };
+  const botCtx = { randomInt: ctx.randomInt, chance: () => 0 };
   const roster = Array.from({ length: opts.players }, (_, i) => ({ id: `p${i}` }));
-  const settings = { ...DEFAULT_SETTINGS, powers: "classic" as const };
+  const powers = opts.powers ?? "classic";
+  const settings = { ...DEFAULT_SETTINGS, powers };
   let rounds = 0;
   let playerRounds = 0;
   let busts = 0;
@@ -30,9 +36,15 @@ export function simulate(opts: { players: number; rounds: number; seed: number }
     let state: OverheatServerState = t.state;
     for (;;) {
       if (state.phase === "finished") break;
-      let events = t.events;
       if (state.step === "round-end") {
         t = oh.onTimer!(state, "next-round", ctx);
+      } else if (powers === "cutthroat") {
+        const id = oh.getAwaitedPlayerIds(state)[0]!;
+        const move = overheatBot.decide({ playerId: id, public: oh.getPublicState(state), private: oh.getPrivateState(state, id) }, botCtx);
+        if (!move) throw new Error(`sim: bot ${id} had no move`);
+        const r = oh.handleAction(state, id, move, ctx);
+        if (!r.ok) throw new Error(`sim: bot action rejected: ${r.error.code}`);
+        t = r.transition;
       } else if (state.step === "choosing") {
         t = oh.skipTurn!(state, state.pending!.chooserId, ctx);
       } else {
@@ -42,9 +54,8 @@ export function simulate(opts: { players: number; rounds: number; seed: number }
         if (!r.ok) throw new Error(`sim: bot action rejected: ${r.error.code}`);
         t = r.transition;
       }
-      events = t.events;
       state = t.state;
-      for (const e of events) {
+      for (const e of t.events) {
         if (e.event.type === "flip") flips++;
         if (e.event.type !== "round-end") continue;
         rounds++;
@@ -61,5 +72,6 @@ export function simulate(opts: { players: number; rounds: number; seed: number }
     bustRate: busts / playerRounds,
     avgEngineCards: cards / playerRounds,
     avgFlipsPerRound: flips / playerRounds,
+    avgRoundsPerGame: rounds / games,
   };
 }

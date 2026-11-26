@@ -33,7 +33,7 @@ export interface OverheatSettings {
   target: number;
   powers: PowerSetting;
 }
-export const DEFAULT_SETTINGS: OverheatSettings = { target: 150, powers: "classic" };
+export const DEFAULT_SETTINGS: OverheatSettings = { target: 150, powers: "cutthroat" };
 
 export interface NumberCard {
   kind: "number";
