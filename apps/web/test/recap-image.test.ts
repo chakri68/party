@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_HEIGHT, IMAGE_PAD, IMAGE_SITE_ROOM, layoutAwards, layoutBody, limitLines, wrapLines } from "../src/views/recap-image.ts";
+import { IMAGE_HEIGHT, IMAGE_PAD, IMAGE_SITE_ROOM, layoutBody, limitLines, wrapLines } from "../src/views/recap-image.ts";
 
 const measure = (s: string) => s.length * 10;
 
@@ -34,7 +34,11 @@ describe("limitLines", () => {
   });
 });
 
-describe("layoutAwards", () => {
+describe("layoutBody with main awards only", () => {
+  const mainOnly = (list: Parameters<typeof layoutBody>[0]["awards"], w: number, hgt: number, f: Parameters<typeof layoutBody>[3]) => {
+    const { scale, awards: blocks } = layoutBody({ awards: list, table: [], moment: null }, w, hgt, f);
+    return { scale, blocks };
+  };
   const awards = Array.from({ length: 5 }, (_, i) => ({
     title: `Award number ${i}`,
     who: "Sam, Mei, Arjun, Priya, Devansh, Kavya, Rohan and Ananya Subramaniam",
@@ -42,7 +46,7 @@ describe("layoutAwards", () => {
   }));
   const m = (s: string, size: number) => s.length * size * 0.5;
   it("fits every award with a title, names and a line", () => {
-    const { blocks, scale } = layoutAwards(awards, 920, 800, m);
+    const { blocks, scale } = mainOnly(awards, 920, 800, m);
     expect(blocks).toHaveLength(5);
     expect(scale).toBeLessThan(1);
     for (const b of blocks) {
@@ -53,13 +57,13 @@ describe("layoutAwards", () => {
     }
   });
   it("keeps full size when there is room", () => {
-    expect(layoutAwards(awards.slice(0, 1), 920, 800, m).scale).toBe(1);
+    expect(mainOnly(awards.slice(0, 1), 920, 800, m).scale).toBe(1);
   });
   it("keeps three long unbroken names whole", () => {
     const w = "W".repeat(20);
     const three = [{ title: "Champion of the night", who: `${w}, ${w} and ${w}`, line: "Won the most games" }];
     // 23 px a letter at full size: one name is 460 px, two with ", " are 966 px, past the 920 px line.
-    const { blocks, scale } = layoutAwards(three, 920, 800, m);
+    const { blocks, scale } = mainOnly(three, 920, 800, m);
     expect(scale).toBe(1);
     expect(blocks[0]!.who).toHaveLength(3);
     expect(blocks[0]!.who.join(" ")).toBe(`${w}, ${w} and ${w}`);
@@ -67,12 +71,12 @@ describe("layoutAwards", () => {
   it("shrinks rather than cut a name when that still fits", () => {
     const w = "W".repeat(20);
     const four = [{ title: "Champion of the night", who: `${w}, ${w}, ${w} and ${w}`, line: "Won" }];
-    const { blocks, scale } = layoutAwards(four, 920, 800, m);
+    const { blocks, scale } = mainOnly(four, 920, 800, m);
     expect(scale).toBeLessThan(1);
     expect(blocks[0]!.who.join(" ")).not.toContain("…");
   });
   it("never draws a title without names, even when tight", () => {
-    const { blocks } = layoutAwards(awards, 920, 100, m);
+    const { blocks } = mainOnly(awards, 920, 100, m);
     for (const b of blocks) expect(b.who.length).toBeGreaterThan(0);
   });
 });

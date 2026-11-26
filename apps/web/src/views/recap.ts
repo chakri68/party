@@ -32,13 +32,14 @@ export function momentText(moment: NonNullable<Recap["moment"]>, gameName: (id: 
   return `Loudest moment: ${moment.count} people talking at once, in ${where}.`;
 }
 
-/** One paragraph for the group chat: the main awards, then the table ones. */
-export function recapShareText(recap: Recap, appTitle: string, site: string): string {
+/** One paragraph for the group chat: the main awards, the table ones, then the moment. */
+export function recapShareText(recap: Recap, appTitle: string, site: string, gameName: (id: string) => string): string {
   const all = [...recap.awards, ...recap.table];
-  const body = all.length
-    ? all.map((a) => `${a.title}: ${joinNames(a.who)}.`).join(" ")
-    : `${recap.gamesPlayed === 1 ? "1 game" : `${recap.gamesPlayed} games`} tonight.`;
-  return `${appTitle} recap: ${body} Play at ${site}`;
+  const parts = all.length
+    ? all.map((a) => `${a.title}: ${joinNames(a.who)}.`)
+    : [`${recap.gamesPlayed === 1 ? "1 game" : `${recap.gamesPlayed} games`} tonight.`];
+  if (recap.moment) parts.push(momentText(recap.moment, gameName));
+  return `${appTitle} recap: ${parts.join(" ")} Play at ${site}`;
 }
 
 /** Called with the slot under the recap or the closed message. Absent: a Home button. */
@@ -63,7 +64,7 @@ export function shareMode(env: { canShareFiles: boolean; hasShare: boolean; coar
 }
 
 export function shareButton(recap: Recap, o: RecapViewOptions): HTMLElement {
-  const text = recapShareText(recap, o.appTitle, location.host);
+  const text = recapShareText(recap, o.appTitle, location.host, o.gameName);
   const nav: { share?: (d: ShareData) => Promise<void> } = navigator;
   const coarse = matchMedia("(pointer: coarse)").matches;
   const label = nav.share && coarse ? "Share" : "Copy recap";

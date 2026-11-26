@@ -52,7 +52,7 @@ describe("the recap screen's words", () => {
         { id: "eye", title: "Sharpest eye", who: ["Mei", "Arjun"], line: "Called 3 bluffs right." },
       ],
     });
-    expect(recapShareText(r, "CouchParty", "couchpartygames.com")).toBe(
+    expect(recapShareText(r, "CouchParty", "couchpartygames.com", name)).toBe(
       "CouchParty recap: Biggest liar: Sam. Sharpest eye: Mei and Arjun. Play at couchpartygames.com",
     );
   });
@@ -62,19 +62,24 @@ describe("the recap screen's words", () => {
     expect(momentText({ count: 5, gameId: null }, name)).toBe("Loudest moment: 5 people talking at once, in the lobby.");
   });
 
-  it("shares the table awards after the main ones, without the moment", () => {
-    const r = recap({ awards: [liar], table: [chatty, dj], moment: { count: 4, gameId: null } });
-    expect(recapShareText(r, "Party", "example.com")).toBe(
-      "Party recap: Biggest liar: Sam. Most talkative: Mei. DJ of the night: Arjun and Priya. Play at example.com",
+  it("shares the table awards after the main ones, then the moment", () => {
+    const r = recap({ awards: [liar], table: [chatty, dj], moment: { count: 4, gameId: "overheat" } });
+    expect(recapShareText(r, "Party", "example.com", name)).toBe(
+      "Party recap: Biggest liar: Sam. Most talkative: Mei. DJ of the night: Arjun and Priya. Loudest moment: 4 people talking at once, in Overheat. Play at example.com",
     );
   });
 
+  it("leaves the moment out when there is none", () => {
+    const r = recap({ awards: [liar], table: [chatty] });
+    expect(recapShareText(r, "Party", "example.com", name)).toBe("Party recap: Biggest liar: Sam. Most talkative: Mei. Play at example.com");
+  });
+
   it("shares table awards alone, not the games count", () => {
-    expect(recapShareText(recap({ table: [chatty] }), "Party", "example.com")).toBe("Party recap: Most talkative: Mei. Play at example.com");
+    expect(recapShareText(recap({ table: [chatty] }), "Party", "example.com", name)).toBe("Party recap: Most talkative: Mei. Play at example.com");
   });
 
   it("shares a quiet night too", () => {
-    expect(recapShareText(recap({ gamesPlayed: 2 }), "Party Games", "example.com")).toBe(
+    expect(recapShareText(recap({ gamesPlayed: 2 }), "Party Games", "example.com", name)).toBe(
       "Party Games recap: 2 games tonight. Play at example.com",
     );
   });

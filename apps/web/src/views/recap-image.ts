@@ -154,17 +154,6 @@ export function layoutBody(
   return build(MIN_SCALE, 1, false).layout;
 }
 
-/** Fit every award in maxHeight: layoutBody with no table and no moment. */
-export function layoutAwards(
-  awards: AwardText[],
-  maxWidth: number,
-  maxHeight: number,
-  measure: (s: string, size: number, weight: number) => number,
-): { scale: number; blocks: AwardBlock[] } {
-  const { scale, awards: blocks } = layoutBody({ awards, table: [], moment: null }, maxWidth, maxHeight, measure);
-  return { scale, blocks };
-}
-
 export interface RecapImageOptions {
   appTitle: string;
   gameName: (id: string) => string;
