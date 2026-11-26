@@ -1329,6 +1329,9 @@ html[data-vt="lobby"]::view-transition-old(*):only-child { animation: vt-shrink 
 .award-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .award-who { font-size: 1.6rem; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .recap-quiet { margin: 0; }
+.recap-table { margin: 10px 0 0; font-size: 1.1rem; }
+.awards-table .award:first-child { border-color: var(--line); }
+.recap-moment { margin: 0; }
 .recap .actions, .party-over { width: 100%; max-width: 360px; }
 .party-over { display: grid; gap: 10px; justify-items: stretch; }
 .party-over:empty { display: none; }

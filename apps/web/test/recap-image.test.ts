@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutAwards, limitLines, wrapLines } from "../src/views/recap-image.ts";
+import { IMAGE_HEIGHT, IMAGE_PAD, IMAGE_SITE_ROOM, layoutAwards, layoutBody, limitLines, wrapLines } from "../src/views/recap-image.ts";
 
 const measure = (s: string) => s.length * 10;
 
@@ -74,5 +74,54 @@ describe("layoutAwards", () => {
   it("never draws a title without names, even when tight", () => {
     const { blocks } = layoutAwards(awards, 920, 100, m);
     for (const b of blocks) expect(b.who.length).toBeGreaterThan(0);
+  });
+});
+
+describe("layoutBody", () => {
+  const m = (s: string, size: number) => s.length * size * 0.5;
+  const award = (i: number, who = "Sam and Mei") => ({ title: `Award number ${i}`, who, line: "Told the most lies tonight." });
+  const main = Array.from({ length: 5 }, (_, i) => award(i));
+  const table = Array.from({ length: 3 }, (_, i) => award(i + 5));
+  const moment = "Loudest moment: 5 people talking at once, in Overheat.";
+  // The app name, the heading and a two-line meta line sit above the body.
+  const top = IMAGE_PAD + 66 + 111 + 2 * 43 + 56;
+  const room = IMAGE_HEIGHT - IMAGE_SITE_ROOM - top;
+
+  it("fits 5 awards, 3 table awards and the moment inside the picture", () => {
+    const out = layoutBody({ awards: main, table, moment }, 920, room, m);
+    expect(out.awards).toHaveLength(5);
+    expect(out.table).toHaveLength(3);
+    expect(out.moment.length).toBeGreaterThan(0);
+    expect(top + out.height).toBeLessThanOrEqual(IMAGE_HEIGHT - IMAGE_SITE_ROOM);
+  });
+
+  it("shrinks before it drops the moment", () => {
+    const roomy = layoutBody({ awards: main, table, moment }, 920, 5000, m);
+    expect(roomy.scale).toBe(1);
+    const out = layoutBody({ awards: main, table, moment }, 920, room, m);
+    expect(out.scale).toBeLessThan(1);
+    expect(out.moment.length).toBeGreaterThan(0);
+  });
+
+  it("drops the moment first when it can't fit", () => {
+    const full = layoutBody({ awards: main, table, moment }, 920, 5000, m);
+    const without = layoutBody({ awards: main, table, moment: null }, 920, 5000, m);
+    // Room for every award at the smallest size, but not for the moment as well.
+    const small = layoutBody({ awards: main, table, moment: null }, 920, 1, m);
+    const out = layoutBody({ awards: main, table, moment }, 920, small.height + 1, m);
+    expect(full.height).toBeGreaterThan(without.height);
+    expect(out.moment).toEqual([]);
+    expect(out.awards).toHaveLength(5);
+    expect(out.table).toHaveLength(3);
+    expect(out.height).toBeLessThanOrEqual(small.height + 1);
+  });
+
+  it("counts the table heading only when there are table awards", () => {
+    const one = [table[0]!];
+    const mainOnly = layoutBody({ awards: main, table: [], moment: null }, 920, 5000, m).height;
+    const asMain = layoutBody({ awards: [...main, ...one], table: [], moment: null }, 920, 5000, m).height;
+    const asTable = layoutBody({ awards: main, table: one, moment: null }, 920, 5000, m).height;
+    expect(asMain).toBeGreaterThan(mainOnly);
+    expect(asTable).toBeGreaterThan(asMain);
   });
 });

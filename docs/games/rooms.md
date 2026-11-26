@@ -262,8 +262,11 @@ When the night is done, the host taps **End party**, under the lobby or the resu
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 
 - How many games you played, for how long, and the game you played most.
-- Up to five awards, like **Biggest liar**, **Sharpest eye**, **Most suspicious** or **Backstabber**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you, players you made go too hot. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!, Overheat); every game counts toward **Champion of the night**.
+- Up to five awards, like **Biggest liar**, **Sharpest eye**, **Most suspicious**, **Backstabber**, **On a roll** or **Rivals**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you, players you made go too hot, wins in a row, two players who beat each other. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!, Overheat); every game counts toward **Champion of the night**.
+- **Around the table**: up to three awards from the room, like **Most talkative**, **DJ of the night** or **Most excited**, plus the loudest moment.
 - A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
 - **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
+
+Voice counts only how long you talk, never what you say. Nothing is recorded. To turn it off, open voice settings and turn off **Count my talk time for the recap**.
 
 Chat still works. Anyone who opens the link later sees the recap too, until the room is cleaned up. If no game finished, there's no recap: the room just says the party is over.

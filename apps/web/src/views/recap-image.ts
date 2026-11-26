@@ -2,10 +2,14 @@
 // recap screen. The drawing is thin; the layout rules are the pure helpers.
 
 import type { Recap } from "@games/game-core";
-import { joinNames, recapMeta } from "./recap.ts";
+import { joinNames, momentText, recapMeta } from "./recap.ts";
 
 export const IMAGE_WIDTH = 1080;
 export const IMAGE_HEIGHT = 1350;
+/** The margin on every side. */
+export const IMAGE_PAD = 80;
+/** Kept free at the bottom for the site line. */
+export const IMAGE_SITE_ROOM = 150;
 
 /** Split text into lines that each fit maxWidth. A word wider than a line is cut. */
 export function wrapLines(text: string, maxWidth: number, measure: (s: string) => number): string[] {
@@ -60,58 +64,105 @@ export const MIN_SCALE = 0.5;
 /** Names get 3 lines: three 20-letter names need that much at full size. */
 export const WHO_LINES = 3;
 
+/** The "Around the table" heading and the loudest moment line, at scale 1. */
+export const BODY_SIZES = { heading: 34, moment: 32 } as const;
+/** The moment line wraps to at most 2 lines. */
+const MOMENT_LINES = 2;
+
+export interface BodyText {
+  awards: AwardText[];
+  table: AwardText[];
+  moment: string | null;
+}
+
+export interface BodyLayout {
+  scale: number;
+  awards: AwardBlock[];
+  table: AwardBlock[];
+  /** Empty when there is no moment, or it was dropped to make room. */
+  moment: string[];
+  height: number;
+}
+
+/** Line height for text of base size n at this scale. */
+const lineHeight = (n: number, scale: number) => Math.round(Math.round(n * scale) * 1.25);
+
 /**
- * Fit every award in maxHeight. Shrinks the text step by step; names wrap to
- * at most 3 lines and the line to 2, and end in "…" when cut. It shrinks
- * further rather than cut a name, while that still fits. A title is never
- * drawn without its names. measure(text, size, weight) gives the width in px.
+ * Fit the awards, the table awards (under their heading) and the moment line
+ * in maxHeight. Shrinks the text step by step; names wrap to at most 3 lines
+ * and the line to 2, and end in "…" when cut. It shrinks further rather than
+ * cut a name, and drops the moment line before it cuts a name. When nothing
+ * else fits, it drops the moment line before it cuts a line to 1. A title is
+ * never drawn without its names. measure(text, size, weight) gives the width
+ * in px.
  */
-export function layoutAwards(
-  awards: AwardText[],
+export function layoutBody(
+  body: BodyText,
   maxWidth: number,
   maxHeight: number,
   measure: (s: string, size: number, weight: number) => number,
-): { scale: number; blocks: AwardBlock[] } {
-  const build = (scale: number, lineMax: number) => {
+): BodyLayout {
+  const build = (scale: number, lineMax: number, withMoment: boolean) => {
     const size = (n: number) => Math.round(n * scale);
+    const lh = (n: number) => lineHeight(n, scale);
     let namesCut = false;
     const fit = (text: string, base: number, weight: number, max: number) => {
       const m = (t: string) => measure(t, size(base), weight);
       const all = wrapLines(text, maxWidth, m);
       return { cut: all.length > max, lines: limitLines(all, max, maxWidth, m) };
     };
-    const blocks = awards.map((a) => {
-      const who = fit(a.who, AWARD_SIZES.who, 700, WHO_LINES);
-      if (who.cut) namesCut = true;
-      return {
-        title: fit(a.title, AWARD_SIZES.title, 700, 1).lines,
-        who: who.lines,
-        line: fit(a.line, AWARD_SIZES.line, 400, lineMax).lines,
-      };
-    });
-    const lh = (n: number) => Math.round(size(n) * 1.25);
-    const height = blocks.reduce(
-      (sum, b) =>
-        sum +
-        b.title.length * lh(AWARD_SIZES.title) +
-        b.who.length * lh(AWARD_SIZES.who) +
-        b.line.length * lh(AWARD_SIZES.line) +
-        AWARD_SIZES.inner * 2 * scale +
-        AWARD_SIZES.gap * scale,
-      0,
-    );
-    return { blocks, height, namesCut };
+    const blocks = (list: AwardText[]) =>
+      list.map((a) => {
+        const who = fit(a.who, AWARD_SIZES.who, 700, WHO_LINES);
+        if (who.cut) namesCut = true;
+        return {
+          title: fit(a.title, AWARD_SIZES.title, 700, 1).lines,
+          who: who.lines,
+          line: fit(a.line, AWARD_SIZES.line, 400, lineMax).lines,
+        };
+      });
+    const awards = blocks(body.awards);
+    const table = blocks(body.table);
+    const moment = withMoment && body.moment ? fit(body.moment, BODY_SIZES.moment, 400, MOMENT_LINES).lines : [];
+    const blockHeight = (b: AwardBlock) =>
+      b.title.length * lh(AWARD_SIZES.title) +
+      b.who.length * lh(AWARD_SIZES.who) +
+      b.line.length * lh(AWARD_SIZES.line) +
+      AWARD_SIZES.inner * 2 * scale +
+      AWARD_SIZES.gap * scale;
+    const height =
+      [...awards, ...table].reduce((sum, b) => sum + blockHeight(b), 0) +
+      (table.length ? lh(BODY_SIZES.heading) + AWARD_SIZES.inner * 2 * scale : 0) +
+      moment.length * lh(BODY_SIZES.moment);
+    return { layout: { scale, awards, table, moment, height }, namesCut };
   };
-  // First the biggest scale where every name fits whole; else the biggest that fits at all.
-  let firstFit: { scale: number; blocks: AwardBlock[] } | null = null;
-  for (let scale = 1; scale >= MIN_SCALE - 1e-9; scale -= 0.05) {
-    const r = build(scale, 2);
-    if (r.height > maxHeight) continue;
-    if (!r.namesCut) return { scale, blocks: r.blocks };
-    firstFit ??= { scale, blocks: r.blocks };
+  // Best first: everything with names whole, then without the moment, then
+  // with names cut. Within each, the biggest scale that fits.
+  const tries: [boolean, boolean][] = [
+    [true, true],
+    [false, true],
+    [true, false],
+    [false, false],
+  ];
+  for (const [withMoment, wholeNames] of tries) {
+    if (withMoment && !body.moment) continue;
+    for (let scale = 1; scale >= MIN_SCALE - 1e-9; scale -= 0.05) {
+      const r = build(scale, 2, withMoment);
+      if (r.layout.height <= maxHeight && (!wholeNames || !r.namesCut)) return r.layout;
+    }
   }
-  if (firstFit) return firstFit;
-  return { scale: MIN_SCALE, blocks: build(MIN_SCALE, 1).blocks };
+  return build(MIN_SCALE, 1, false).layout;
+}
+
+/** Fit every award in maxHeight: layoutBody with no table and no moment. */
+export function layoutAwards(
+  awards: AwardText[],
+  maxWidth: number,
+  maxHeight: number,
+  measure: (s: string, size: number, weight: number) => number,
+): { scale: number; blocks: AwardBlock[] } {
+  const { scale, awards: blocks } = layoutBody({ awards, table: [], moment: null }, maxWidth, maxHeight, measure);
+  return { scale, blocks };
 }
 
 export interface RecapImageOptions {
@@ -139,9 +190,9 @@ export async function recapImage(recap: Recap, opts: RecapImageOptions): Promise
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no canvas");
 
-  const pad = 80;
+  const pad = IMAGE_PAD;
   const maxW = IMAGE_WIDTH - pad * 2;
-  const bottom = IMAGE_HEIGHT - 150; // room for the site line
+  const bottom = IMAGE_HEIGHT - IMAGE_SITE_ROOM;
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
   ctx.textBaseline = "top";
@@ -165,34 +216,35 @@ export async function recapImage(recap: Recap, opts: RecapImageOptions): Promise
   text("Tonight's recap", 76, 700, ink, 16);
   text(recapMeta(recap, opts.gameName), 34, 400, muted, 56);
 
-  if (recap.awards.length) {
-    const { scale, blocks } = layoutAwards(
-      recap.awards.map((a) => ({ title: a.title, who: joinNames(a.who), line: a.line })),
-      maxW,
-      bottom - y,
-      (t, size, weight) => {
-        ctx.font = `${weight} ${size}px ${font}`;
-        return ctx.measureText(t).width;
-      },
-    );
-    const sz = (n: number) => Math.round(n * scale);
-    const draw = (lines: string[], base: number, weight: number, color: string, gap: number) => {
-      ctx.font = `${weight} ${sz(base)}px ${font}`;
-      ctx.fillStyle = color;
-      for (const l of lines) {
-        ctx.fillText(l, pad, y);
-        y += Math.round(sz(base) * 1.25);
-      }
-      y += gap * scale;
-    };
-    for (const b of blocks) {
-      draw(b.title, AWARD_SIZES.title, 700, accent, AWARD_SIZES.inner);
-      draw(b.who, AWARD_SIZES.who, 700, ink, AWARD_SIZES.inner);
-      draw(b.line, AWARD_SIZES.line, 400, muted, AWARD_SIZES.gap);
+  const measure = (t: string, size: number, weight: number) => {
+    ctx.font = `${weight} ${size}px ${font}`;
+    return ctx.measureText(t).width;
+  };
+  const toText = (a: Recap["awards"][number]): AwardText => ({ title: a.title, who: joinNames(a.who), line: a.line });
+  const moment = recap.moment ? momentText(recap.moment, opts.gameName) : null;
+  if (recap.quiet) text(recap.quiet, 40, 400, ink, 40);
+  const body = layoutBody({ awards: recap.awards.map(toText), table: recap.table.map(toText), moment }, maxW, bottom - y, measure);
+  const { scale } = body;
+  const draw = (lines: string[], base: number, weight: number, color: string, gap: number) => {
+    ctx.font = `${weight} ${Math.round(base * scale)}px ${font}`;
+    ctx.fillStyle = color;
+    for (const l of lines) {
+      ctx.fillText(l, pad, y);
+      y += lineHeight(base, scale);
     }
-  } else {
-    text(recap.quiet ?? "", 40, 400, ink, 0);
+    y += gap * scale;
+  };
+  const drawBlock = (b: AwardBlock) => {
+    draw(b.title, AWARD_SIZES.title, 700, accent, AWARD_SIZES.inner);
+    draw(b.who, AWARD_SIZES.who, 700, ink, AWARD_SIZES.inner);
+    draw(b.line, AWARD_SIZES.line, 400, muted, AWARD_SIZES.gap);
+  };
+  body.awards.forEach(drawBlock);
+  if (body.table.length) {
+    draw(["Around the table"], BODY_SIZES.heading, 700, ink, AWARD_SIZES.inner * 2);
+    body.table.forEach(drawBlock);
   }
+  draw(body.moment, BODY_SIZES.moment, 400, ink, 0);
 
   ctx.font = `400 32px ${font}`;
   ctx.fillStyle = muted;
