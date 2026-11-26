@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bankScore, buildDeck, cardFromCode, colourBonus, enginePoints, POWER_LINES, POWER_NAMES } from "../shared/rules.ts";
-import { cutthroatRules, overheatSettingFields } from "../shared/rules-text.ts";
+import { overheatRules, overheatSettingFields } from "../shared/rules-text.ts";
 import { overheatGame } from "../server/game.ts";
 import { BOUNTY, CLASSIC_POWERS, CUTTHROAT_COPIES, DEFAULT_SETTINGS, HAND_MAX, POWERS, POWER_COPIES, type EngineCard, type PowerKind } from "../shared/types.ts";
 
@@ -112,14 +112,17 @@ describe("cutthroat", () => {
     expect(f({ powers: "cutthroat" }).selected).toBe(2);
     expect(f({ powers: "cutthroat" }).hint).toBe("26 power cards. Keep them and play them on others.");
   });
-  it("power lines are plain", () => {
+  it("power lines and the rules are plain", () => {
     const banned = /\b(nuke|screw|stab|backstab|piece of cake|hit the road|dodge|rip|trick|sneak|rob|nick|swipe|cheat)\b/i;
-    for (const p of POWERS) {
-      const line = POWER_LINES[p];
+    for (const line of [...POWERS.map((p) => POWER_LINES[p]), ...overheatRules]) {
       expect(line.length).toBeGreaterThan(5);
       expect(line).not.toMatch(/\p{Extended_Pictographic}/u);
       expect(line).not.toMatch(banned);
     }
-    expect(cutthroatRules.length).toBeGreaterThan(3);
+  });
+  it("the one rules list has every card line and says which mode", () => {
+    for (const p of POWERS) expect(overheatRules.some((l) => l.startsWith(POWER_LINES[p]))).toBe(true);
+    expect(overheatRules.filter((l) => l.startsWith("Classic:")).length).toBeGreaterThan(0);
+    expect(overheatRules.filter((l) => l.startsWith("Cutthroat:")).length).toBeGreaterThan(2);
   });
 });

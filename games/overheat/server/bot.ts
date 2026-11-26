@@ -209,11 +209,10 @@ function choice(pub: Pub, me: Player, pending: Pending, ctx: BotContext): Overhe
  * whoever is closest to the limit, a Burn to the score leader, and a Swap
  * busts someone if it can, or else cools the bot's own engine. In Cutthroat
  * Push, Burn and Dump go to the flipper closest to the limit, the leader
- * first, and the bot plays
- * a hand card before the flip or save when one helps: Cool when close, Double
- * early, a Steal that fits, then Push, Burn, Dump or Audit when they have a
- * target. On a saved or too-hot turn it plays the best card that does some
- * good, else passes.
+ * first, and the bot plays a hand card before the flip or save when one
+ * helps: Cool when close, Double early, a Steal that fits, then Push, Burn,
+ * Dump or Audit when they have a target. On a saved or too-hot turn it plays
+ * the best card that does some good, else passes.
  */
 export const overheatBot: GameBot<OverheatPublicState, OverheatPrivateState, OverheatAction> = {
   decide({ playerId, public: pub, private: priv }, ctx) {

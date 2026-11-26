@@ -2,8 +2,36 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { aimTargets, bankScore, cardLabel, colourBonus, enginePoints, isAimed } from "../shared/rules.ts";
-import { HEATWAVE_DROP, VENT_HEAT, type Card, type Colour, type EngineCard, type OverheatEvent, type OverheatPlayerState, type OverheatPublicState, type Pending } from "../shared/types.ts";
+import { bankScore, cardLabel, colourBonus, enginePoints } from "../shared/rules.ts";
+import {
+  HEATWAVE_DROP,
+  VENT_HEAT,
+  type Card,
+  type Colour,
+  type EngineCard,
+  type OverheatAction,
+  type OverheatEvent,
+  type OverheatPlayerState,
+  type OverheatPrivateState,
+  type OverheatPublicState,
+  type Pending,
+} from "../shared/types.ts";
+import {
+  an,
+  CHOICE_TEXT,
+  cardsPickable,
+  describe,
+  emptyPick,
+  handModel,
+  pickKey,
+  rowPick,
+  rowTags,
+  savedTurn,
+  tapCard,
+  tapPlayer,
+  targetsFor,
+  type Pick,
+} from "./model.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -22,8 +50,30 @@ const SHAPES: Record<Colour, string> = {
 const FUSE_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="15" r="7"/><path d="M14.5 9.5 18 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19.5" cy="4.5" r="2" class="spark"/></svg>';
 
+/** The leader mark: a crown, always with the word. */
+const LEADER_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18l-1.5-10-4.5 4-3-7-3 7-4.5-4z"/></svg>';
+/** The hand badge: two cards. */
+const HAND_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="11" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="10" y="3" width="11" height="15" rx="2"/></svg>';
+
+/** The row button's words for each aimed card. */
+const AIM_VERB: Record<Pending["kind"], string> = {
+  shove: "Push a card onto",
+  fuse: "Put the Burn on",
+  audit: "Audit",
+  dump: "Give your card to",
+  wrench: "Swap with",
+  steal: "Take from",
+};
+
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const an = (label: string) => (/^[AEIOU]/.test(label) ? `an ${label}` : `a ${label}`);
+
+function svgSpan(cls: string, svg: string): HTMLElement {
+  const s = h("span", { class: cls, "aria-hidden": "true" });
+  s.innerHTML = svg;
+  return s;
+}
 
 function shapeEl(colour: Colour): HTMLElement {
   const s = h("span", { class: "ov-shape", "aria-hidden": "true" });
@@ -35,7 +85,7 @@ function cardText(e: EngineCard): string {
   return `${cardLabel(e.card)}${e.mult === 2 ? ", counts double" : ""}`;
 }
 
-/** An engine card. A button when it can be picked (Wrench). */
+/** An engine card. A button when it can be picked (Swap, Steal, Dump). */
 function engineCard(e: EngineCard, onPick?: () => void): HTMLElement {
   const parts = [
     h("b", { class: "ov-val", "aria-hidden": "true" }, String(e.card.value)),
@@ -55,94 +105,8 @@ function cardFace(card: Card, mult: 1 | 2 = 1): HTMLElement {
   return h("span", { class: "ov-card ov-power", role: "img", "aria-label": cardLabel(card) }, h("b", { class: "ov-pname" }, cardLabel(card)));
 }
 
-/** Who the pending card can be aimed at: the same rule the server uses. */
-function validTargets(game: OverheatPublicState, pending: Pending): string[] {
-  const chooser = game.players.findIndex((p) => p.id === pending.chooserId);
-  return aimTargets(game.players, chooser, pending.kind, game.settings.powers === "cutthroat").map((i) => game.players[i]!.id);
-}
-
-function describe(e: OverheatEvent, props: GameViewProps): string | null {
-  const me = props.playerId;
-  const who = (id: string | null | undefined) => (id === me ? "You" : seatName(props.room, id));
-  const whom = (id: string | null | undefined) => (id === me ? "you" : seatName(props.room, id));
-  switch (e.type) {
-    case "round-start":
-      return `Round ${e.round}. The heat limit is ${e.gauge}.`;
-    case "flip": {
-      const x2 = e.mult === 2 ? " (counts double)" : "";
-      if (e.by) return `${who(e.by)} pushed ${an(cardLabel(e.card))}${x2} onto ${whom(e.playerId)}.`;
-      if (e.card.kind === "power" && !isAimed(e.card.power)) return null;
-      return `${who(e.playerId)} flipped ${an(cardLabel(e.card))}${x2}.`;
-    }
-    case "keep":
-      return `${who(e.playerId)} kept a power card.`;
-    case "keep-card":
-      return null; // The "keep" line says it.
-    case "play":
-      return `${who(e.playerId)} played ${an(cardLabel(e.card))}.`;
-    case "pass":
-      return `${who(e.playerId)} passed.`;
-    case "vent":
-      return `Cool: −${VENT_HEAT} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
-    case "turbo":
-      return `Double: the next number card for ${whom(e.playerId)} counts double.`;
-    case "shove":
-      return null; // The flip that follows says it.
-    case "wrench":
-      return `${who(e.playerId)} gave ${whom(e.targetId)} ${an(cardLabel(e.gave.card))} and took ${an(cardLabel(e.got.card))}.`;
-    case "fuse":
-      return `${who(e.playerId)} put a Burn on ${whom(e.targetId)}. Each Burn adds 1 heat at the start of each of ${e.targetId === me ? "your" : "their"} turns.`;
-    case "steal":
-      return e.kept
-        ? `${who(e.playerId)} took ${an(cardLabel(e.card.card))} from ${whom(e.targetId)}.`
-        : `${who(e.playerId)} took ${an(cardLabel(e.card.card))} from ${whom(e.targetId)} and threw it away.`;
-    case "dump":
-      return `${who(e.playerId)} gave ${an(cardLabel(e.card.card))} to ${whom(e.targetId)}.`;
-    case "audit":
-      return `${who(e.playerId)} played Audit on ${whom(e.targetId)}: ${an(cardLabel(e.card.card))} is gone. Score: ${e.score}.`;
-    case "block":
-      return `${e.playerId === me ? "Your" : `${seatName(props.room, e.playerId)}'s`} Block stopped the ${cardLabel(e.card)}.`;
-    case "bounty":
-      return `${who(e.playerId)} got ${e.points} extra points for the leader.`;
-    case "rescore":
-      return null; // The steal, swap or audit line says it; the row shows the new points.
-    case "fuse-tick":
-      return `Burn: +${e.fuses} heat for ${whom(e.playerId)}. Heat is ${e.heat} now.`;
-    case "heatwave":
-      return `Limit down! The limit is ${HEATWAVE_DROP} lower for ${e.hit.length === 1 ? whom(e.hit[0]) : "every player still flipping"}.`;
-    case "fizzle":
-      if (e.card?.power === "block") return "A Block works only from a hand. This one does nothing.";
-      return e.card ? `Nobody to aim the ${cardLabel(e.card)} at. It does nothing.` : "No cards left to flip.";
-    case "bust":
-      return `Too hot! ${who(e.playerId)} went over the limit (${e.heat} / ${e.gauge}).`;
-    case "redline":
-      return `${who(e.playerId)} hit the limit exactly. +10!`;
-    case "bank":
-      return `${who(e.playerId)} saved ${e.points} points. Score: ${e.score}.`;
-    case "reshuffle":
-      return "The used cards were shuffled into a new deck.";
-    case "round-end":
-      return `Round ${e.round} is over.`;
-    case "turn-skipped":
-      return `The host skipped ${whom(e.playerId)}.`;
-    case "player-removed":
-      return `${who(e.playerId)} left the game.`;
-    case "game-over":
-      if (e.reason === "abandoned") return "Everyone else left.";
-      if (e.winnerIds.includes(me)) return e.winnerIds.length > 1 ? "You tied for first. You share the win!" : "You have the highest score. You win!";
-      return e.winnerIds.length > 1 ? "Players tied for first." : `${who(e.winnerIds[0])} wins.`;
-  }
-}
-
 /** See Farkle: "all" plays the events' sounds, "cues" only the turn chime and ending, "none" nothing. */
 type Sounds = "all" | "cues" | "none";
-
-interface WrenchPick {
-  /** Which pending card the picks belong to. */
-  key: string;
-  mine: number | null;
-  theirs: { targetId: string; id: number } | null;
-}
 
 export class OverheatView implements GameView {
   private api: GameClientApi;
@@ -163,7 +127,9 @@ export class OverheatView implements GameView {
 
   /** Sent and not yet answered: the buttons stay locked meanwhile. */
   private pending = new Set<string>();
-  private wrench: WrenchPick = { key: "", mine: null, theirs: null };
+  private pick: Pick = { key: "", mine: null, theirs: null, targetId: null };
+  /** "Your cards": only in Cutthroat, for a seated player. */
+  private handEl = h("section", { class: "ov-hand", "aria-label": "Your cards" });
 
   private queue = new AnimationQueue();
   private wasMine = false;
@@ -177,6 +143,7 @@ export class OverheatView implements GameView {
       this.status,
       this.head,
       h("section", { class: "ov-table", "aria-label": "Table" }, this.rows),
+      this.handEl,
       this.log,
       h("div", { class: "ov-dock" }, this.note, this.actions),
     );
@@ -199,7 +166,7 @@ export class OverheatView implements GameView {
 
   rejected(clientActionId: string, message: string) {
     if (this.pending.delete(clientActionId)) {
-      this.wrench = { key: "", mine: null, theirs: null };
+      this.pick = { key: "", mine: null, theirs: null, targetId: null };
       this.actions.classList.remove("shake");
       void this.actions.offsetWidth; // restart the animation
       this.actions.classList.add("shake");
@@ -244,10 +211,14 @@ export class OverheatView implements GameView {
     return game.step === "choosing" && game.pending?.chooserId === me ? game.pending : null;
   }
 
-  private wrenchPick(pending: Pending): WrenchPick {
-    const key = `${pending.chooserId}:${pending.card.id}`;
-    if (this.wrench.key !== key) this.wrench = { key, mine: null, theirs: null };
-    return this.wrench;
+  /** What I've tapped so far for this pending card. A new card starts fresh. */
+  private pickFor(pending: Pending): Pick {
+    if (this.pick.key !== pickKey(pending)) this.pick = emptyPick(pending);
+    return this.pick;
+  }
+
+  private hand(props: GameViewProps) {
+    return (props.private as OverheatPrivateState | null)?.hand ?? [];
   }
 
   // ---- render -------------------------------------------------------------------
@@ -264,14 +235,15 @@ export class OverheatView implements GameView {
 
     this.api.setTurn(
       !mine ? null
-      : choice?.kind === "wrench" ? "Pick 2 cards"
-      : choice ? "Pick a player"
+      : choice ? CHOICE_TEXT[choice.kind].turn
+      : savedTurn(game, me) ? "Play a card or pass"
       : "Flip or save",
     );
 
     this.renderStatus(props, game, mine);
     this.renderHead(game);
     this.renderRows(props, game);
+    this.renderHand(props, game);
     this.renderDock(props, game, mine);
 
     const events = props.events as OverheatEvent[];
@@ -310,10 +282,9 @@ export class OverheatView implements GameView {
     const pending = game.pending;
     let text: string;
     if (mine && game.step === "choosing" && pending) {
-      text =
-        pending.kind === "wrench" ? "Pick one of your cards and one of theirs."
-        : pending.kind === "fuse" ? "Pick a player to get the Burn."
-        : "Pick a player to push a card onto.";
+      text = CHOICE_TEXT[pending.kind].status;
+    } else if (savedTurn(game, props.playerId)) {
+      text = "Play a card or pass.";
     } else if (mine) {
       text = "Your turn. Flip a card or save.";
     } else {
@@ -321,7 +292,11 @@ export class OverheatView implements GameView {
       const seat = props.room.seats.find((s) => s.id === id);
       const name = seat?.name ?? "Someone";
       const away = seat && seat.presence !== "connected" ? ` (${PRESENCE_LABEL[seat.presence]})` : "";
-      text = game.step === "choosing" && pending ? `${name}${away} is playing a ${cardLabel(pending.card)}` : `${name}${away} is flipping`;
+      const flipping = game.players.find((p) => p.id === id)?.status === "flipping";
+      text =
+        game.step === "choosing" && pending ? `${name}${away} is playing ${an(cardLabel(pending.card))}`
+        : flipping ? `${name}${away} is flipping`
+        : `${name}${away} can play a card`;
       replaceChildren(this.status, seat ? avatar(seat.name, seat.avatarSeed, "sm") : null, h("span", {}, text));
       return;
     }
@@ -359,8 +334,8 @@ export class OverheatView implements GameView {
   private renderRows(props: GameViewProps, game: OverheatPublicState) {
     const me = props.playerId;
     const choice = this.choosing(game, me);
-    const aimable = choice && !this.pending.size ? new Set(validTargets(game, choice)) : new Set<string>();
-    const pick = choice?.kind === "wrench" ? this.wrenchPick(choice) : null;
+    const aimable = choice && !this.pending.size ? new Set(targetsFor(game, me, choice.kind)) : new Set<string>();
+    const pick = choice ? this.pickFor(choice) : null;
     const winners = new Set(game.winnerIds);
 
     replaceChildren(
@@ -371,6 +346,8 @@ export class OverheatView implements GameView {
         const away = !!seat && seat.presence !== "connected" && !p.removed;
         const acting = game.step !== "round-end" && game.step !== "finished" && p.id === game.awaitedId;
         const status = this.statusText(p);
+        const tags = rowTags(game, p.id);
+        const picked = !!pick && (pick.targetId === p.id || pick.theirs?.targetId === p.id);
         const cls = [
           "ov-row",
           p.id === me && "me",
@@ -379,17 +356,18 @@ export class OverheatView implements GameView {
           winners.has(p.id) && "winner",
           away && "away",
           aimable.has(p.id) && "aim",
+          picked && "picked",
         ].filter(Boolean).join(" ");
 
-        // Wrench: my cards, and the cards of anyone I can aim at, can be picked.
-        const pickHere = pick && (p.id === me || aimable.has(p.id));
+        // Swap, Steal, Dump: the cards I may take or give are buttons.
+        const pickHere = !!choice && !this.pending.size && cardsPickable(choice.kind, p.id === me) && (p.id === me || aimable.has(p.id));
         const cards = p.engine.length
           ? p.engine.map((e) => {
-              if (!pickHere) return engineCard(e);
-              const el = engineCard(e, () => this.onWrenchCard(p.id, e.card.id));
-              const picked = p.id === me ? pick.mine === e.card.id : pick.theirs?.targetId === p.id && pick.theirs.id === e.card.id;
-              el.classList.toggle("picked", picked);
-              el.setAttribute("aria-pressed", String(picked));
+              if (!pickHere || !pick) return engineCard(e);
+              const el = engineCard(e, () => this.onCard(p.id, e.card.id));
+              const on = p.id === me ? pick.mine === e.card.id : pick.theirs?.targetId === p.id && pick.theirs.id === e.card.id;
+              el.classList.toggle("picked", on);
+              el.setAttribute("aria-pressed", String(on));
               return el;
             })
           : [h("span", { class: "ov-empty" }, p.status === "flipping" ? "No cards yet" : "")];
@@ -415,6 +393,8 @@ export class OverheatView implements GameView {
                 h("span", { class: "ov-chip" }, status),
                 p.turbo && p.status === "flipping" ? h("span", { class: "ov-chip ov-turbo" }, "Next ×2") : null,
                 h("span", { class: "ov-fuse", hidden: p.fuses === 0 || p.status !== "flipping", "aria-hidden": "true" }, h("span", { class: "ov-fuse-icon" }), `×${p.fuses}`),
+                tags.leader ? h("span", { class: "ov-leader", "aria-hidden": "true" }, svgSpan("ov-icon", LEADER_SVG), "Leader") : null,
+                tags.hand ? h("span", { class: "ov-hand-count", "aria-hidden": "true" }, svgSpan("ov-icon", HAND_SVG), tags.hand) : null,
               ),
             ),
             h("span", { class: "ov-score", "aria-hidden": "true" }, String(p.score)),
@@ -427,26 +407,59 @@ export class OverheatView implements GameView {
 
         const label = [
           p.id === me ? `${name} (you)` : name,
+          tags.leader ? "leader" : "",
           `score ${p.score}`,
           status,
           p.status === "flipping" || p.engine.length ? `heat ${p.heat} of ${p.gauge}` : "",
           p.fuses ? `${p.fuses} burn${p.fuses > 1 ? "s" : ""}` : "",
           p.turbo && p.status === "flipping" ? "next number card counts double" : "",
+          tags.hand ? `holds ${tags.hand}` : "",
           acting ? "playing now" : "",
           away ? PRESENCE_LABEL[seat!.presence] : "",
         ].filter(Boolean).join(", ");
 
-        const verb = choice?.kind === "fuse" ? "Put the Burn on" : "Push a card onto";
-        const body = aimable.has(p.id) && choice?.kind !== "wrench"
-          ? h("button", { type: "button", class: "ov-row-body", "aria-label": `${verb} ${name}. ${label}`, onclick: () => this.onTarget(p.id) }, parts)
+        const rowButton = aimable.has(p.id) && !!choice && rowPick(choice.kind);
+        const body = rowButton
+          ? h(
+              "button",
+              { type: "button", class: "ov-row-body", "aria-label": `${AIM_VERB[choice.kind]} ${name}. ${label}`, "aria-pressed": choice.kind === "dump" ? String(picked) : null, onclick: () => this.onPlayer(p.id) },
+              parts,
+            )
           : h("div", { class: "ov-row-body" }, parts);
-        const li = h("li", { class: cls, "data-player": p.id, "aria-label": aimable.has(p.id) && choice?.kind !== "wrench" ? null : label, "aria-current": acting ? "true" : null }, body);
+        const li = h("li", { class: cls, "data-player": p.id, "aria-label": rowButton ? null : label, "aria-current": acting ? "true" : null }, body);
         li.dataset.heat = String(p.heat);
         li.dataset.gauge = String(p.gauge);
         li.dataset.flipping = String(p.status === "flipping");
         this.paintBar(li, game.gauge);
         return li;
       }),
+    );
+  }
+
+  /** "Your cards": my hand, each card a button when I can play it now. */
+  private renderHand(props: GameViewProps, game: OverheatPublicState) {
+    const me = game.players.find((p) => p.id === props.playerId);
+    this.handEl.hidden = game.settings.powers !== "cutthroat" || !me || me.removed || game.step === "finished";
+    if (this.handEl.hidden) return;
+    const locked = this.pending.size > 0;
+    const cards = handModel(game, props.playerId, this.hand(props));
+    const items = cards.map((c) => {
+      const inner = [
+        h("b", { class: "ov-hand-name" }, c.name),
+        h("span", { class: "ov-hand-line" }, c.line),
+        c.reason ? h("span", { class: "ov-hand-why" }, c.reason) : null,
+      ];
+      if (!c.playable) return h("li", { class: "ov-hand-card off", "data-card": c.card.id }, inner);
+      return h(
+        "li",
+        {},
+        h("button", { type: "button", class: "ov-hand-card", "data-card": c.card.id, disabled: locked, onclick: () => this.send(c.action) }, inner),
+      );
+    });
+    replaceChildren(
+      this.handEl,
+      h("h2", { class: "ov-hand-title" }, "Your cards"),
+      items.length ? h("ul", { class: "ov-hand-list" }, items) : h("p", { class: "ov-empty" }, "No cards yet. Power cards you flip go here."),
     );
   }
 
@@ -492,24 +505,13 @@ export class OverheatView implements GameView {
       return;
     }
     const choice = this.choosing(game, props.playerId);
-    if (choice?.kind === "wrench") {
-      const pick = this.wrenchPick(choice);
-      const card = (id: number | undefined, owner: string | undefined) => {
-        const e = game.players.find((p) => p.id === owner)?.engine.find((x) => x.card.id === id);
-        return e ? cardLabel(e.card) : "";
-      };
-      replaceChildren(
-        this.actions,
-        hint(
-          pick.mine === null && !pick.theirs ? "Pick one of your cards"
-          : pick.mine === null ? `Theirs: ${card(pick.theirs?.id, pick.theirs?.targetId)}. Now pick one of yours`
-          : `Yours: ${card(pick.mine, props.playerId)}. Now pick one of theirs`,
-        ),
-      );
+    if (choice) {
+      replaceChildren(this.actions, hint(this.pickHint(game, choice, props.playerId)));
       return;
     }
-    if (choice) {
-      replaceChildren(this.actions, hint(choice.kind === "fuse" ? "Pick a player to get the Burn" : "Pick a player to push a card onto"));
+    if (savedTurn(game, props.playerId)) {
+      replaceChildren(this.actions, h("button", { type: "button", class: "ov-pass-btn", onclick: () => this.send({ type: "pass" }) }, "Pass"));
+      this.note.textContent = "Tap one of your cards to play it, or pass.";
       return;
     }
     const points = bankScore(me.engine, false);
@@ -525,34 +527,66 @@ export class OverheatView implements GameView {
     }
   }
 
+  /** What to tap next for my pending card. */
+  private pickHint(game: OverheatPublicState, choice: Pending, me: string): string {
+    const pick = this.pickFor(choice);
+    const label = (id: number | null | undefined, owner: string | null | undefined) => {
+      const e = game.players.find((p) => p.id === owner)?.engine.find((x) => x.card.id === id);
+      return e ? cardLabel(e.card) : "";
+    };
+    const name = (id: string | null) => seatName(this.props!.room, id);
+    switch (choice.kind) {
+      case "wrench":
+        return pick.mine === null && !pick.theirs ? "Pick one of your cards"
+          : pick.mine === null ? `Theirs: ${label(pick.theirs?.id, pick.theirs?.targetId)}. Now pick one of yours`
+          : `Yours: ${label(pick.mine, me)}. Now pick one of theirs`;
+      case "dump":
+        return pick.mine === null && !pick.targetId ? "Pick one of your cards, then a player"
+          : pick.mine === null ? `To ${name(pick.targetId)}. Now pick one of your cards`
+          : `Give ${label(pick.mine, me)}. Now pick a player`;
+      case "steal":
+        return "Pick a card from a player's row";
+      case "audit":
+        return "Pick a player who saved";
+      case "fuse":
+        return "Pick a player to get the Burn";
+      case "shove":
+        return "Pick a player to push a card onto";
+    }
+  }
+
   // ---- interaction ----------------------------------------------------------------
 
-  private send(action: { type: "flip" } | { type: "bank" } | { type: "target"; targetId: string } | { type: "wrench"; targetId: string; mine: number; theirs: number }) {
+  private send(action: OverheatAction) {
     if (this.busy || this.pending.size) return;
     this.pending.add(this.api.act(action));
     this.rerender();
   }
 
-  private onTarget(targetId: string) {
-    if (this.busy) return;
-    this.send({ type: "target", targetId });
-  }
-
-  private onWrenchCard(owner: string, id: number) {
+  /** The pending card I'm choosing for, if taps count now. */
+  private tapChoice(): Pending | null {
     const props = this.props;
     const game = props?.game as OverheatPublicState | undefined;
-    if (this.busy || !props || !game || this.pending.size) return;
-    const choice = this.choosing(game, props.playerId);
-    if (choice?.kind !== "wrench") return;
-    const pick = this.wrenchPick(choice);
-    if (owner === props.playerId) pick.mine = pick.mine === id ? null : id;
-    else pick.theirs = pick.theirs?.targetId === owner && pick.theirs.id === id ? null : { targetId: owner, id };
-    if (pick.mine !== null && pick.theirs) {
-      const { mine, theirs } = pick;
-      this.send({ type: "wrench", targetId: theirs.targetId, mine, theirs: theirs.id });
-      return;
-    }
-    this.rerender();
+    if (this.busy || !props || !game || this.pending.size) return null;
+    return this.choosing(game, props.playerId);
+  }
+
+  private onPlayer(targetId: string) {
+    const choice = this.tapChoice();
+    if (!choice) return;
+    this.apply(tapPlayer(choice, this.pickFor(choice), this.props!.playerId, targetId));
+  }
+
+  private onCard(owner: string, id: number) {
+    const choice = this.tapChoice();
+    if (!choice) return;
+    this.apply(tapCard(choice, this.pickFor(choice), this.props!.playerId, owner, id));
+  }
+
+  private apply(tap: ReturnType<typeof tapCard>) {
+    this.pick = tap.pick;
+    if (tap.action) this.send(tap.action);
+    else this.rerender();
   }
 
   // ---- animation ------------------------------------------------------------------
@@ -657,6 +691,49 @@ export class OverheatView implements GameView {
       case "wrench":
         await this.showWrench(e);
         break;
+      case "keep":
+        audio.play("deal");
+        await bubble(this.anchorFor(e.playerId), "Kept a card", "anim-bubble", 700);
+        break;
+      case "play":
+        audio.play("deal");
+        await bubble(this.anchorFor(e.playerId), cardLabel(e.card), "anim-bubble ov-callout", 900);
+        break;
+      case "pass":
+        audio.play("pass");
+        await bubble(this.anchorFor(e.playerId), "Pass", "anim-bubble", 700);
+        break;
+      case "steal":
+        audio.play("card-place");
+        await bubble(this.anchorFor(e.targetId), `Lost ${cardLabel(e.card.card)}`, "anim-bubble ov-loss", 1000);
+        break;
+      case "dump":
+        audio.play("card-place");
+        await bubble(this.anchorFor(e.targetId), `Got ${cardLabel(e.card.card)}`, "anim-bubble ov-hot", 1000);
+        break;
+      case "audit":
+        audio.play("card-place");
+        await bubble(this.anchorFor(e.targetId), `Lost ${cardLabel(e.card.card)}`, "anim-bubble ov-loss", 1000);
+        break;
+      case "block":
+        audio.play("pass");
+        once(this.row(e.playerId) ?? this.rows, "aimed");
+        await bubble(this.anchorFor(e.playerId), "Block!", "anim-bubble ov-cool", 1000);
+        break;
+      case "bounty":
+        audio.play("correct");
+        if (e.playerId === me) audio.buzz([30, 30, 30]);
+        await bubble(this.anchorFor(e.playerId), `Leader too hot +${e.points}`, "anim-bubble ov-gain", 1200);
+        break;
+      case "rescore": {
+        const score = this.row(e.playerId)?.querySelector<HTMLElement>(".ov-score");
+        if (score) {
+          score.textContent = String(e.score);
+          once(score, "pop");
+        }
+        await wait(300);
+        break;
+      }
       case "fizzle":
         audio.play("pass");
         await bubble(this.anchorFor(e.playerId), e.card ? "No target" : "No cards left", "anim-bubble", 900);
@@ -788,12 +865,12 @@ export class OverheatView implements GameView {
   private eventSounds(events: OverheatEvent[], props: GameViewProps) {
     const types = new Set(events.map((e) => e.type));
     if (types.has("round-start") || types.has("reshuffle")) audio.play("shuffle");
-    if (types.has("flip") || types.has("wrench")) audio.play("card-place");
-    if (types.has("shove") || types.has("fuse")) audio.play("deal");
+    if (types.has("flip") || types.has("wrench") || types.has("steal") || types.has("dump") || types.has("audit")) audio.play("card-place");
+    if (types.has("shove") || types.has("fuse") || types.has("keep") || types.has("play")) audio.play("deal");
     if (types.has("fuse-tick")) audio.play("tick");
     if (types.has("heatwave") || types.has("turbo")) audio.play("nudge");
-    if (types.has("bank") || types.has("redline")) audio.play("correct");
-    if (types.has("fizzle") || types.has("turn-skipped") || types.has("vent")) audio.play("pass");
+    if (types.has("bank") || types.has("redline") || types.has("bounty")) audio.play("correct");
+    if (types.has("fizzle") || types.has("turn-skipped") || types.has("vent") || types.has("pass") || types.has("block")) audio.play("pass");
     const bust = events.find((e) => e.type === "bust" && e.playerId === props.playerId);
     if (types.has("bust")) audio.play("boom");
     if (bust) audio.buzz([60, 40, 90]);

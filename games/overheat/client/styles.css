@@ -155,6 +155,22 @@ button.ov-row-body:focus-visible { outline: 2px solid var(--accent); outline-off
   font-variant-numeric: tabular-nums;
 }
 
+/* Cutthroat: the leader mark and the hand size. Each has an icon and a word. */
+.ov-leader, .ov-hand-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ov-leader { background: var(--ov-amber); color: #241500; }
+.ov-hand-count { border: 1px solid var(--line); color: var(--ink); }
+.ov-icon svg { display: block; width: 13px; height: 13px; fill: currentColor; }
+.ov-row.picked { box-shadow: 0 0 0 3px var(--accent); border-color: var(--accent); }
+
 /* ---- Heat bar --------------------------------------------------------------
    --ov-fill: heat on the bar's scale. --ov-mark: this player's limit on it.
    --ov-t: heat / limit, which moves the colour from cool blue to hot red. */
@@ -288,6 +304,43 @@ button.ov-card.pickable { cursor: pointer; outline: 2px dashed var(--muted); out
 button.ov-card.picked { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-4px); }
 button.ov-card:focus-visible { outline: 3px solid var(--accent); }
 
+/* ---- Your cards (Cutthroat) --------------------------------------------------- */
+
+.ov-hand { display: grid; gap: 6px; }
+.ov-hand[hidden] { display: none; }
+.ov-hand-title { margin: 0; font-size: 0.85rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.ov-hand-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ov-hand-card {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card, #f4f1e8);
+  color: var(--card-ink, #111);
+  font: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+button.ov-hand-card { cursor: pointer; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+button.ov-hand-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ov-hand-card.off { background: var(--surface); color: var(--muted); }
+.ov-hand-name { font-size: 0.9rem; font-weight: 800; }
+.ov-hand-card.off .ov-hand-name { color: var(--ink); }
+.ov-hand-line { font-size: 0.8rem; line-height: 1.25; }
+.ov-hand-why { font-size: 0.75rem; font-weight: 700; color: var(--danger); }
+
 /* ---- Log + dock --------------------------------------------------------------- */
 
 .ov-log {
@@ -370,9 +423,11 @@ button.ov-card:focus-visible { outline: 3px solid var(--accent); }
   .overheat .ov-gauge b { font-size: 0.95rem; }
   .overheat .ov-rows { gap: 6px; }
   .overheat .ov-row-body { position: relative; gap: 4px; padding: 6px 10px 8px; }
-  .overheat .ov-who { display: flex; align-items: center; gap: 6px; }
-  .overheat .ov-name { flex: 0 1 auto; }
-  .overheat .ov-tags { flex-wrap: nowrap; }
+  /* The chips wrap under the name when they don't fit beside it (Cutthroat adds two). */
+  .overheat .ov-who { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+  .overheat .ov-name { flex: 0 0 auto; max-width: 100%; }
+  .overheat .ov-tags { flex-wrap: wrap; }
+  .overheat .ov-hand-list { grid-template-columns: 1fr 1fr; }
   .overheat .ov-score { font-size: 1.15rem; }
   .overheat .ov-val { font-size: 0.95rem; }
   .overheat .ov-shape svg { width: 10px; height: 10px; }

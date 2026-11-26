@@ -126,9 +126,9 @@ export const POWER_LINES: Record<PowerKind, string> = {
   fuse: "Burn: a player you pick gets +1 heat at the start of each of their turns.",
   heatwave: "Limit down: the limit goes down by 3 for everyone still flipping.",
   steal: "Steal: take a number card from a player.",
-  dump: "Dump: give your last card to a player.",
-  audit: "Audit: a player loses their best card.",
-  block: "Block: keep it in your hand. Cancel a card played on you.",
+  dump: "Dump: give one of your number cards to a player who is still flipping.",
+  audit: "Audit: a player who saved this round loses their highest card.",
+  block: "Block: keep it in your hand. It stops the next card a player aims at you.",
 };
 
 export function cardLabel(card: Card): string {

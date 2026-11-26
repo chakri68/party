@@ -223,6 +223,7 @@ describe("overheatBot all-bot games", () => {
   const settings: [string, Partial<OverheatSettings>][] = [
     ["powers off", { powers: "off" }],
     ["target 100", { target: 100 }],
+    ["classic target 100", { powers: "classic", target: 100 }],
   ];
   const check = (players: number, name: string, s: Partial<OverheatSettings>, seeds: number) => {
     for (let seed = 1; seed <= seeds; seed++) {
