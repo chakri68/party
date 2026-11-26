@@ -11,7 +11,7 @@ vi.mock("@games/ui", () => ({
 vi.mock("../src/brand.ts", () => ({ icon: () => ({}) }));
 vi.mock("../src/views/recap-image.ts", () => ({ recapImage: () => new Promise(() => {}) }));
 
-const recap = (over: Partial<Recap> = {}): Recap => ({ gamesPlayed: 3, minutes: 80, topGameId: "cheat", awards: [], quiet: null, ...over });
+const recap = (over: Partial<Recap> = {}): Recap => ({ gamesPlayed: 3, minutes: 80, topGameId: "cheat", awards: [], table: [], moment: null, quiet: null, ...over });
 const name = (id: string) => ({ cheat: "Cheat", imposter: "Imposter" })[id] ?? id;
 
 describe("the recap screen's words", () => {

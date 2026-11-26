@@ -441,3 +441,4 @@ export function stableHash(text: string): number {
 }
 
 export * from "./recap.ts";
+export * from "./table.ts";
