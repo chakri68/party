@@ -57,8 +57,8 @@ export interface BotRunResult {
   stuck: { playerId: string; reason: "null-while-awaited" }[];
   /**
    * The most accepted moves by one seat with no other seat's move between, as
-   * the room counts it. Fired timers neither count nor break a run. The room
-   * calls a bot stuck past `BOT_MAX_RUN`.
+   * the room counts it. Fired timers don't count; one that changes the state
+   * breaks the run. The room calls a bot stuck past `BOT_MAX_RUN`.
    */
   longestRun: number;
 }
@@ -166,6 +166,8 @@ export function playBots(
     timers.delete(next[0]);
     clock = Math.max(clock, next[1]);
     const t = def.onTimer(state, next[0], ctx());
+    // A timer that moved the game on breaks a run, as in the room.
+    if (t.state !== state) run = { playerId: "", moves: 0 };
     state = t.state;
     track(t.timers);
     result.moves++;

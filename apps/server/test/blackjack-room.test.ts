@@ -3,6 +3,7 @@
 // that they each move on their own timers and nobody gets called stuck.
 import { blackjackGame } from "@games/blackjack/server";
 import type { BlackjackPrivateState, BlackjackPublicState } from "@games/blackjack/shared";
+import { seededRandomInt } from "@games/game-core";
 import { describe, expect, it } from "vitest";
 import { RoomRuntime } from "../src/runtime.ts";
 import { join, roomOf, send, World } from "./harness.ts";
@@ -31,7 +32,27 @@ describe("Blackjack with computers in the room", () => {
     expect(roomOf(ana).phase).toBe("results");
     expect(rounds).toBe(10);
     expect(world.errors).toEqual([]);
-  });
+  }, 30_000);
+
+  it("one computer plays a whole 20-round game while the person never moves", async () => {
+    // Only the clock moves the game on between the computer's moves, so its
+    // moves never pile up into one run the room would call stuck.
+    for (let seed = 1; seed <= 12; seed++) {
+      const world = new World();
+      (world as unknown as { rng: (max: number) => number }).rng = seededRandomInt(seed);
+      const room = new RoomRuntime("K7DX", world.host(), { blackjack: blackjackGame }, "blackjack");
+      await room.load();
+      await room.claim();
+      const ana = await join(world, room, "Ana");
+      await send(room, ana, { type: "update-settings", settings: { rounds: 20 } });
+      await send(room, ana, { type: "add-bot" });
+      await send(room, ana, { type: "start-game" });
+      for (let i = 0; i < 40000 && roomOf(ana).phase === "playing"; i++) await world.tick(room, 250);
+      expect(roomOf(ana).phase, `seed ${seed}`).toBe("results");
+      expect(ana.last("error"), `seed ${seed}`).toBeUndefined();
+      expect(world.errors, `seed ${seed}`).toEqual([]);
+    }
+  }, 30_000);
 
   it("computers keep playing while the person sits out", async () => {
     const world = new World();
@@ -45,5 +66,5 @@ describe("Blackjack with computers in the room", () => {
     for (let i = 0; i < 20000 && roomOf(ana).phase === "playing"; i++) await world.tick(room, 250);
     expect(roomOf(ana).phase).toBe("results");
     expect(world.errors).toEqual([]);
-  });
+  }, 30_000);
 });

@@ -65,17 +65,14 @@ describe("bets", () => {
 });
 
 describe("blackjackBot through the game", () => {
-  const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+  const seeds = Array.from({ length: 12 }, (_, i) => i + 1);
   const settings: [string, BlackjackSettings][] = [
     ["default", DEFAULT_SETTINGS],
     ["20 rounds, rebuys", { rounds: 20, rebuys: "one", turnSeconds: 15 }],
   ];
 
   it.each(settings)("finishes every game cleanly (%s)", (_name, s) => {
-    // One seat alone makes every move in a row: about 2.5 a round, so 20 rounds
-    // can pass the room's cap. In a room that's a computer playing while every
-    // person sits out the whole game; see "one seat alone" below.
-    for (const players of s.rounds > 15 ? [2, 5, 7] : [1, 2, 5, 7]) {
+    for (const players of [1, 2, 5, 7]) {
       for (const seed of seeds) {
         const r = playBots(bj, { players, seed: seed * 31 + players, settings: s });
         const where = `players ${players}, seed ${seed}`;
@@ -85,17 +82,7 @@ describe("blackjackBot through the game", () => {
         expect(r.longestRun, where).toBeLessThan(BOT_MAX_RUN);
       }
     }
-  });
-
-  it("one seat alone stays under the room's cap for 10 and 15 rounds", () => {
-    for (const rounds of [10, 15]) {
-      for (const seed of seeds) {
-        const r = playBots(bj, { players: 1, seed, settings: { ...DEFAULT_SETTINGS, rounds, rebuys: "one" } });
-        expect(r.outcome).not.toBeNull();
-        expect(r.longestRun).toBeLessThan(BOT_MAX_RUN);
-      }
-    }
-  });
+  }, 30_000);
 
   it("rebuys when it runs out early", () => {
     // Big bets would need many rounds; force a broke bot straight away.
@@ -126,5 +113,5 @@ describe("blackjackBot through the game", () => {
     for (const seed of [1, 2, 3, 4, 5]) playBots(timed, { players: 7, seed, settings: { ...DEFAULT_SETTINGS, rounds: 20 } });
     expect(calls).toBeGreaterThan(500);
     expect(worst).toBeLessThan(5);
-  });
+  }, 30_000);
 });

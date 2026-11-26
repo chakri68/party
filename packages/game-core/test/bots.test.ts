@@ -195,6 +195,31 @@ describe("playBots", () => {
     expect(toy.log.current!.hand).toEqual([3, 1, 2]);
   });
 
+  it("a timer that moves the game on breaks a run", () => {
+    // One seat: three moves, then a pause the "next" timer ends. Thirty rounds of it.
+    type S = { left: number; rounds: number; waiting: boolean };
+    const game = {
+        manifest: { id: "solo" },
+        defaultSettings: {},
+        createGame: () => ({ state: { left: 3, rounds: 30, waiting: false } as S, events: [] }),
+        handleAction: (st: S) => {
+          const left = st.left - 1;
+          const state = left ? { ...st, left } : { ...st, left: 3, rounds: st.rounds - 1, waiting: true };
+          return { ok: true, transition: { state, events: [], timers: left ? [] : [{ kind: "set", timerId: "next", delayMs: 1000 }] } };
+        },
+        onTimer: (st: S) => ({ state: { ...st, waiting: false }, events: [] }),
+        getPublicState: (st: S) => st,
+        getPrivateState: () => ({}),
+        getAwaitedPlayerIds: (st: S) => (st.waiting || !st.rounds ? [] : ["p1"]),
+        getResult: (st: S) => (st.rounds ? null : { winnerIds: ["p1"], standings: [] }),
+        bot: { decide: (v: BotView<S, unknown>) => (v.public.waiting || !v.public.rounds ? null : { type: "go" }) },
+      } as unknown as AnyGameDefinition;
+    const r = playBots(game, { players: 1, seed: 1 });
+    expect(r.outcome).not.toBeNull();
+    expect(r.moves).toBe(30 * 3 + 29);
+    expect(r.longestRun).toBe(3);
+  });
+
   it("longestRun counts one seat's moves in a row, not timers", () => {
     let passes = 0;
     const { def } = makeToy((v) => {
