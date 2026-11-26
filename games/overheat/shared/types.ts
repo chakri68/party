@@ -81,6 +81,12 @@ export interface Pending {
    * Once it resolves, the turn stays with the turn owner if they still flip.
    */
   fromHand: boolean;
+  /**
+   * A Push turned this card up for the chooser: who pushed (the first one, in
+   * a chain of Pushes). If the card makes someone go too hot, they get the
+   * credit. Missing otherwise.
+   */
+  by?: string;
 }
 
 export type Step = "turn" | "choosing" | "round-end";
@@ -171,6 +177,8 @@ export type OverheatEvent =
   | { type: "audit"; playerId: string; targetId: string; card: EngineCard; score: number }
   /** `playerId`'s Block cancelled `card`, played by `byId`. */
   | { type: "block"; playerId: string; byId: string; card: PowerCard }
+  /** `playerId`'s card made the leader `targetId` go too hot: `points` added to their score. */
+  | { type: "bounty"; playerId: string; targetId: string; points: number }
   /** A saved player's row changed: their round points and score now. */
   | { type: "rescore"; playerId: string; roundPoints: number; score: number }
   /** An aimed card with no valid target, or a Shove/Flip with no cards left. */

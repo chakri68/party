@@ -1,8 +1,9 @@
-import { shuffle, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
+import { bumpStat, shuffle, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { overheatManifest } from "../shared/manifest.ts";
 import { overheatBot } from "./bot.ts";
 import { aimTargets, auditIndex, bankScore, buildDeck, cardFromCode, isAimed } from "../shared/rules.ts";
 import {
+  BOUNTY,
   DEFAULT_SETTINGS,
   GAUGE_MAX,
   GAUGE_MIN,
@@ -82,19 +83,33 @@ function draw(state: State, ctx: GameContext, out: Out): Card | null {
   return state.deck.shift() ?? null;
 }
 
-/** Bust or redline for player `idx`, after any change to their heat. Redline banks. */
-function check(state: State, idx: number, out: Out): void {
+/**
+ * Bust or redline for player `idx`, after any change to their heat. Redline banks.
+ * `by` is whose card made the change. A bust they caused for someone else
+ * counts for them, and in Cutthroat busting the leader pays the bounty.
+ */
+function check(state: State, idx: number, out: Out, by?: string): void {
   const p = state.players[idx]!;
   if (p.status !== "flipping") return;
   if (p.heat > p.gauge) {
     p.status = "busted";
     p.roundPoints = 0;
     out.events.push(pub({ type: "bust", playerId: p.id, heat: p.heat, gauge: p.gauge }));
+    if (by && by !== p.id) credit(state, by, p.id, out);
   } else if (p.heat === p.gauge) {
     p.redline = true;
     out.events.push(pub({ type: "redline", playerId: p.id }));
     bank(state, idx, out);
   }
+}
+
+/** `by` made `targetId` go too hot. The leader can go too hot only once a round, so the bounty pays once. */
+function credit(state: State, by: string, targetId: string, out: Out): void {
+  bumpStat((state.stats ??= {}), by, "pushedOver");
+  const hunter = state.players.find((p) => p.id === by);
+  if (!isCutthroat(state) || targetId !== state.leaderId || !hunter || !inGame(hunter)) return;
+  hunter.score += BOUNTY;
+  out.events.push(pub({ type: "bounty", playerId: by, targetId, points: BOUNTY }));
 }
 
 function bank(state: State, idx: number, out: Out): void {
@@ -108,15 +123,27 @@ function bank(state: State, idx: number, out: Out): void {
 /**
  * Cutthroat: a saved player's row changed, so their round points are counted
  * again with the normal scoring (Perfect stays if they earned it), and their
- * score moves by the difference. Anyone not saved is left alone.
+ * score moves by the difference. Anyone not saved is left alone. Returns
+ * their score now. No event when the round points stay the same.
  */
-export function rescore(state: State, idx: number, out: Out): void {
+export function rescore(state: State, idx: number, out: Out): number {
   const p = state.players[idx]!;
-  if (!isCutthroat(state) || p.status !== "banked") return;
+  if (!isCutthroat(state) || p.status !== "banked") return p.score;
   const now = bankScore(p.engine, p.redline);
+  if (now === p.roundPoints) return p.score;
   p.score += now - p.roundPoints;
   p.roundPoints = now;
   out.events.push(pub({ type: "rescore", playerId: p.id, roundPoints: p.roundPoints, score: p.score }));
+  return p.score;
+}
+
+/** Cutthroat: the only top score among players still in, if above 0. Otherwise nobody. */
+function findLeader(state: State): string | null {
+  if (!isCutthroat(state)) return null;
+  const left = state.players.filter(inGame);
+  const top = Math.max(...left.map((p) => p.score));
+  const at = left.filter((p) => p.score === top);
+  return top > 0 && at.length === 1 ? at[0]!.id : null;
 }
 
 /** Rolls a fresh gauge, clears the table into the discard, and starts the first turn. */
@@ -130,6 +157,7 @@ function startRound(state: State, ctx: GameContext, out: Out): void {
   state.pending = null;
   state.played = false;
   state.turnIndex = state.firstIndex;
+  state.leaderId = findLeader(state);
   for (const p of state.players) {
     if (p.removed) continue;
     Object.assign(p, {
@@ -200,15 +228,18 @@ function advance(state: State, ctx: GameContext, out: Out): void {
   endRound(state, ctx, out);
 }
 
-/** A number card lands in player `idx`'s engine. A waiting Turbo doubles it. */
-function place(state: State, idx: number, card: NumberCard, out: Out, by?: string): void {
+/**
+ * A number card lands in player `idx`'s engine. A waiting Turbo doubles it.
+ * `by` pushed it there; `credit` gets the credit if it makes them go too hot.
+ */
+function place(state: State, idx: number, card: NumberCard, out: Out, by?: string, credit = by): void {
   const p = state.players[idx]!;
   const mult = p.turbo ? 2 : 1;
   p.turbo = false;
   p.engine.push({ card, mult });
   p.heat += card.value * mult;
   out.events.push(pub({ type: "flip", playerId: p.id, card, mult, heat: p.heat, ...(by ? { by } : {}) }));
-  check(state, idx, out);
+  check(state, idx, out, credit);
 }
 
 /** Who `chooserIdx` may aim a `kind` card at. See `aimTargets` for the rules. */
@@ -219,7 +250,8 @@ export function validTargets(state: State, chooserIdx: number, kind: Pending["ki
 /**
  * Player `idx` resolves a power card as its flipper (their own flip, or a
  * Shove's). Aimed cards with someone to aim at open a choice and wait in
- * `pending`; everything else goes straight to the discard.
+ * `pending`; everything else goes straight to the discard. `by` is the pusher
+ * when a Push turned the card up: they get the credit for what it does.
  */
 export function resolvePower(
   state: State,
@@ -227,7 +259,7 @@ export function resolvePower(
   card: PowerCard,
   _ctx: GameContext,
   out: Out,
-  { fromHand = false }: { fromHand?: boolean } = {},
+  { fromHand = false, by }: { fromHand?: boolean; by?: string } = {},
 ): void {
   const me = state.players[idx]!;
   const power = card.power;
@@ -239,7 +271,7 @@ export function resolvePower(
       return;
     }
     state.step = "choosing";
-    state.pending = { kind, chooserId: me.id, card, fromHand };
+    state.pending = { kind, chooserId: me.id, card, fromHand, ...(by ? { by } : {}) };
     return;
   }
   state.discard.push(card);
@@ -249,7 +281,7 @@ export function resolvePower(
   } else if (power === "vent") {
     me.heat = Math.max(0, me.heat - VENT_HEAT);
     out.events.push(pub({ type: "vent", playerId: me.id, heat: me.heat }));
-    check(state, idx, out);
+    check(state, idx, out, by);
   } else if (power === "turbo") {
     me.turbo = true;
     out.events.push(pub({ type: "turbo", playerId: me.id }));
@@ -263,7 +295,7 @@ export function resolvePower(
     }
     for (const i of hit) state.players[i]!.gauge -= HEATWAVE_DROP;
     out.events.push(pub({ type: "heatwave", playerId: me.id, hit: hit.map((i) => state.players[i]!.id) }));
-    for (const i of hit) check(state, i, out);
+    for (const i of hit) check(state, i, out, by ?? me.id);
   }
 }
 
@@ -271,13 +303,14 @@ export function resolvePower(
  * Player `idx` turns over a card as its flipper. False when there was nothing
  * to draw. In Cutthroat a power from your own flip goes to your hand while it
  * has room; one a Push turns up always fires. `fromHand` passes on to a choice
- * the card opens (a Push played from a hand).
+ * the card opens (a Push played from a hand). `credit` is who gets the credit
+ * for what the card does: the pusher, or the first pusher of a chain.
  */
-function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string, fromHand = false): boolean {
+function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: string, fromHand = false, credit = by): boolean {
   const card = draw(state, ctx, out);
   if (!card) return false;
   if (card.kind === "number") {
-    place(state, idx, card, out, by);
+    place(state, idx, card, out, by, credit);
     return true;
   }
   const p = state.players[idx]!;
@@ -289,7 +322,7 @@ function flipInto(state: State, idx: number, ctx: GameContext, out: Out, by?: st
     return true;
   }
   out.events.push(pub({ type: "flip", playerId: p.id, card, mult: 1, heat: p.heat, ...(by ? { by } : {}) }));
-  resolvePower(state, idx, card, ctx, out, { fromHand });
+  resolvePower(state, idx, card, ctx, out, { fromHand, by: credit });
   return true;
 }
 
@@ -378,8 +411,10 @@ function blocked(state: State, me: Player, them: Player, card: PowerCard, out: O
 
 /** Plays the pending card with a checked choice. It can open a new choice (Shove into an aimed card). */
 function choose(state: State, seat: number, action: Choice, ctx: GameContext, out: Out): void {
-  const { kind, card, fromHand } = state.pending!;
+  const { kind, card, fromHand, by: pusher } = state.pending!;
   const me = state.players[seat]!;
+  // Who gets the credit if this card makes someone go too hot.
+  const by = pusher ?? me.id;
   const target = state.players.findIndex((p) => p.id === action.targetId);
   const them = state.players[target]!;
   state.step = "turn";
@@ -398,14 +433,16 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
     const got = them.engine[b]!;
     me.engine[a] = got;
     them.engine[b] = gave;
-    me.heat = Math.max(0, me.heat - worth(gave) + worth(got));
-    them.heat = Math.max(0, them.heat - worth(got) + worth(gave));
+    // In Cutthroat only players still flipping carry heat that matters.
+    const moves = (p: Player) => !isCutthroat(state) || p.status === "flipping";
+    if (moves(me)) me.heat = Math.max(0, me.heat - worth(gave) + worth(got));
+    if (moves(them)) them.heat = Math.max(0, them.heat - worth(got) + worth(gave));
     out.events.push(pub({ type: "wrench", playerId: me.id, targetId: them.id, gave, got }));
     state.discard.push(card);
     rescore(state, seat, out);
     rescore(state, target, out);
-    check(state, seat, out);
-    check(state, target, out);
+    check(state, seat, out, by);
+    check(state, target, out, by);
   } else if (kind === "steal" && action.type === "steal") {
     // A thief still flipping adds the card to their row; anyone else throws it away.
     const got = takeCard(state, target, action.theirs);
@@ -418,7 +455,7 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
       me.heat += worth(got);
     } else state.discard.push(got.card);
     state.discard.push(card);
-    check(state, seat, out);
+    check(state, seat, out, by);
   } else if (kind === "dump" && action.type === "dump") {
     const gave = takeCard(state, seat, action.mine);
     if (me.status === "flipping") me.heat = Math.max(0, me.heat - worth(gave));
@@ -427,18 +464,18 @@ function choose(state: State, seat: number, action: Choice, ctx: GameContext, ou
     out.events.push(pub({ type: "dump", playerId: me.id, targetId: them.id, card: gave }));
     state.discard.push(card);
     rescore(state, seat, out);
-    check(state, target, out);
+    check(state, target, out, by);
   } else if (kind === "audit") {
     const lost = them.engine.splice(auditIndex(them.engine), 1)[0]!;
     state.discard.push(lost.card, card);
-    // Audit aims only at saved players, so the score after is known before the rescore says it.
-    const score = them.score - them.roundPoints + bankScore(them.engine, them.redline);
-    out.events.push(pub({ type: "audit", playerId: me.id, targetId: them.id, card: lost, score }));
-    rescore(state, target, out);
+    // The audit line comes first, so its event goes in before the rescore's.
+    const at = out.events.length;
+    const score = rescore(state, target, out);
+    out.events.splice(at, 0, pub({ type: "audit", playerId: me.id, targetId: them.id, card: lost, score }));
   } else {
     out.events.push(pub({ type: "shove", playerId: me.id, targetId: them.id }));
     // Draw before the Shove hits the discard, so a reshuffle can't hand it back.
-    const drew = flipInto(state, target, ctx, out, me.id, fromHand);
+    const drew = flipInto(state, target, ctx, out, me.id, fromHand, by);
     if (!drew) out.events.push(pub({ type: "fizzle", playerId: me.id, card: null }));
     state.discard.push(card);
   }
@@ -721,6 +758,10 @@ export const overheatGame: GameDefinition<
       winnerIds: state.winnerIds,
       endReason: state.endReason,
     };
+  },
+
+  partyStats(state) {
+    return state.stats ?? {};
   },
 
   getPrivateState(state, playerId) {

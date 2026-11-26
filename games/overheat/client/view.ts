@@ -102,6 +102,8 @@ function describe(e: OverheatEvent, props: GameViewProps): string | null {
       return `${who(e.playerId)} played Audit on ${whom(e.targetId)}: ${an(cardLabel(e.card.card))} is gone. Score: ${e.score}.`;
     case "block":
       return `${e.playerId === me ? "Your" : `${seatName(props.room, e.playerId)}'s`} Block stopped the ${cardLabel(e.card)}.`;
+    case "bounty":
+      return `${who(e.playerId)} got ${e.points} extra points for the leader.`;
     case "rescore":
       return null; // The steal, swap or audit line says it; the row shows the new points.
     case "fuse-tick":

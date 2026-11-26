@@ -240,6 +240,25 @@ describe("Swap with a saved player", () => {
     expect(byId(t.state, "p1").heat).toBe(2);
   });
 
+  it("leaves a saved player's heat alone; only a flipper's heat moves", () => {
+    // ids: p0 R9=0; p1 R2 B3=1,2; wrench=3
+    const s = saved(stateWith({ n: 2, settings: CUT, players: [{ engine: ["R9"], flipped: true, hand: ["wrench"] }, { engine: ["R2", "B3"] }] }), "p1", 0);
+    let t = playFirst(s);
+    t = ok(act(t.state, "p0", { type: "wrench", targetId: "p1", mine: 0, theirs: 1 }));
+    expect(byId(t.state, "p0").heat).toBe(2);
+    expect(byId(t.state, "p1").heat).toBe(5);
+  });
+
+  it("no rescore when the round points stay the same", () => {
+    // ids: p0 R5=0; p1 R5 B3=1,2; wrench=3
+    const s = saved(stateWith({ n: 2, settings: CUT, players: [{ engine: ["R5"], flipped: true, hand: ["wrench"] }, { engine: ["R5", "B3"] }] }), "p1", 0);
+    let t = playFirst(s);
+    t = ok(act(t.state, "p0", { type: "wrench", targetId: "p1", mine: 0, theirs: 1 }));
+    expect(find(t, "wrench")).toBeDefined();
+    expect(types(t)).not.toContain("rescore");
+    expect(byId(t.state, "p1")).toMatchObject({ roundPoints: 8, score: 8 });
+  });
+
   it("is not allowed in Classic", () => {
     // p0 flips a Swap; the only other player with cards has saved.
     const s = saved(
@@ -325,11 +344,12 @@ describe("Block", () => {
   });
 
   it("is not in Classic: a Push hits a player even if they somehow hold a Block", () => {
-    const s = stateWith({ n: 2, deck: ["shove", "R1"], settings: { powers: "classic" }, players: [{ engine: ["R9"], flipped: true }, { engine: ["R5"], flipped: true }] });
+    const s = stateWith({ n: 2, deck: ["shove", "R1"], settings: { powers: "classic" }, players: [{ engine: ["R9"], flipped: true }, { engine: ["R5"], flipped: true, hand: ["block"] }] });
     let t = ok(act(s, "p0", { type: "flip" }));
     t = ok(act(t.state, "p0", { type: "target", targetId: "p1" }));
     expect(types(t)).not.toContain("block");
     expect(byId(t.state, "p1").heat).toBe(6);
+    expect(names(t.state, "p1")).toEqual(["block"]);
   });
 
   it("the block event shows no other hand cards", () => {
