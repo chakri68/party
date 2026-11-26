@@ -2,7 +2,7 @@ import { audio } from "@games/audio";
 import { countdown, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { ACTION_TEXT, PROBLEM_TEXT } from "../shared/cards.ts";
 import type { ActionCard, NmpEvent, NmpPrivateState, NmpPublicState } from "../shared/types.ts";
-import { actionIcon, cardFace, handCard, playWhen, problemIcon, timingLabel } from "./cards.ts";
+import { actionIcon, cardFace, handCard, handCardView, icon, playWhen, problemFace, timingLabel } from "./cards.ts";
 import { nextFeed, type FeedMemo } from "./feed.ts";
 import { PICK_VERB, cardMove, needsFor } from "./moves.ts";
 import { namesFor, promptModel, renderPrompt, type PromptButton } from "./prompts.ts";
@@ -17,6 +17,13 @@ const REJECT_MS = 3000;
 const REVEAL_MS = 2000;
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** One element from trusted markup (our own card faces). */
+function fromHtml(markup: string): Element {
+  const t = document.createElement("template");
+  t.innerHTML = markup;
+  return t.content.firstElementChild!;
+}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -338,6 +345,7 @@ export class NotMyProblemView implements GameView {
       return;
     }
     const text = PROBLEM_TEXT[p.kind];
+    const face = problemFace(p.kind);
     const holder = p.ownerId === props.playerId ? "You hold it." : `${seatName(props.room, p.ownerId)} holds it.`;
     const tries =
       p.attemptsLeft <= 0 ? "It can't be passed on now."
@@ -346,8 +354,9 @@ export class NotMyProblemView implements GameView {
       this.table,
       h(
         "div",
-        { class: `nmp-problem k-${p.kind}`, role: "group", "aria-label": `Problem: ${text.name}. ${text.line} ${holder} ${tries}` },
-        problemIcon(p.kind),
+        { class: face.cls, role: "group", "aria-label": `Problem: ${text.name}. ${text.line} ${holder} ${tries}` },
+        icon(face.icon, "nmp-ic"),
+        fromHtml(face.warn),
         h(
           "div",
           { class: "nmp-problem-text", "aria-hidden": "true" },
@@ -443,20 +452,13 @@ export class NotMyProblemView implements GameView {
         if (fresh) btn.classList.add("fresh");
       }
       const selected = sel?.cardId === card.id;
-      const canPickDown = facePick && card.id !== sel!.cardId;
-      const now = playable.has(card.id);
-      btn.classList.toggle("selected", selected);
-      btn.classList.toggle("playable", now);
-      btn.classList.toggle("pick", canPickDown);
-      btn.classList.toggle("picked", facePick && sel!.picked === card.id);
-      btn.setAttribute("aria-pressed", String(selected || (facePick && sel!.picked === card.id)));
-      const name = ACTION_TEXT[card.kind].name;
-      btn.setAttribute(
-        "aria-label",
-        canPickDown ? `Put ${name} face down` : `${name}. ${ACTION_TEXT[card.kind].line}${now ? " You can play it now." : ""}`,
-      );
+      const picked = facePick && sel!.picked === card.id;
+      const v = handCardView(card, { now: playable.has(card.id), anyPlayable: playable.size > 0, selected, canPickDown: facePick && card.id !== sel!.cardId, picked });
+      for (const [cls, on] of Object.entries(v.classes)) btn.classList.toggle(cls, on);
+      btn.setAttribute("aria-pressed", String(selected || picked));
+      btn.setAttribute("aria-label", v.label);
       const tagEl = btn.querySelector(".nmp-card-when");
-      if (tagEl) tagEl.textContent = canPickDown ? "Pick" : now ? "Play now" : timingLabel(card.kind);
+      if (tagEl) tagEl.textContent = v.tag;
       if (this.hand.children[i] !== btn) this.hand.insertBefore(btn, this.hand.children[i] ?? null);
     });
     if (!hand.length) replaceChildren(this.hand, h("p", { class: "hint" }, "No cards"));

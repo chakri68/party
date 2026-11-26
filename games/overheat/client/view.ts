@@ -7,7 +7,6 @@ import {
   HEATWAVE_DROP,
   VENT_HEAT,
   type Card,
-  type Colour,
   type EngineCard,
   type OverheatAction,
   type OverheatEvent,
@@ -22,6 +21,8 @@ import {
   cardsPickable,
   describe,
   emptyPick,
+  faceSpec,
+  handCardClass,
   handModel,
   pickKey,
   rowPick,
@@ -30,6 +31,7 @@ import {
   tapCard,
   tapPlayer,
   targetsFor,
+  type FaceSpec,
   type Pick,
 } from "./model.ts";
 
@@ -40,13 +42,6 @@ const PRESENCE_LABEL: Record<Presence, string> = {
   left: "left",
 };
 
-/** Colour is never the only signal: each colour has its own shape. */
-const SHAPES: Record<Colour, string> = {
-  red: '<circle cx="12" cy="12" r="9"/>',
-  amber: '<path d="M12 2.5 22 20.5H2z"/>',
-  blue: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/>',
-  green: '<path d="M12 1.5 22.5 12 12 22.5 1.5 12z"/>',
-};
 const FUSE_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="15" r="7"/><path d="M14.5 9.5 18 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19.5" cy="4.5" r="2" class="spark"/></svg>';
 
@@ -75,34 +70,31 @@ function svgSpan(cls: string, svg: string): HTMLElement {
   return s;
 }
 
-function shapeEl(colour: Colour): HTMLElement {
-  const s = h("span", { class: "ov-shape", "aria-hidden": "true" });
-  s.innerHTML = `<svg viewBox="0 0 24 24">${SHAPES[colour]}</svg>`;
-  return s;
-}
-
-function cardText(e: EngineCard): string {
-  return `${cardLabel(e.card)}${e.mult === 2 ? ", counts double" : ""}`;
+/**
+ * A card face from `faceSpec`: the one path every card face takes (row, picks,
+ * flight ghosts, hand), so a card in flight matches the card once it lands.
+ * A button when it can be picked (Swap, Steal, Dump). "decorative": a picture
+ * only, hidden from screen readers, for when words beside it say the same.
+ */
+function faceEl(f: FaceSpec, id: number, opts: { onPick?: () => void; decorative?: boolean } = {}): HTMLElement {
+  const { onPick, decorative } = opts;
+  const el = onPick
+    ? h("button", { type: "button", class: `${f.cls} pickable`, "data-card": id, "aria-label": f.label, onclick: onPick })
+    : decorative
+      ? h("span", { class: f.cls, "aria-hidden": "true" })
+      : h("span", { class: f.cls, "data-card": id, role: "img", "aria-label": f.label });
+  el.innerHTML = f.html;
+  return el;
 }
 
 /** An engine card. A button when it can be picked (Swap, Steal, Dump). */
 function engineCard(e: EngineCard, onPick?: () => void): HTMLElement {
-  const parts = [
-    h("b", { class: "ov-val", "aria-hidden": "true" }, String(e.card.value)),
-    shapeEl(e.card.colour),
-    e.mult === 2 ? h("i", { class: "ov-x2", "aria-hidden": "true" }, "×2") : null,
-  ];
-  const cls = `ov-card ov-${e.card.colour}`;
-  if (onPick) {
-    return h("button", { type: "button", class: `${cls} pickable`, "data-card": e.card.id, "aria-label": cardText(e), onclick: onPick }, parts);
-  }
-  return h("span", { class: cls, "data-card": e.card.id, role: "img", "aria-label": cardText(e) }, parts);
+  return faceEl(faceSpec(e.card, e.mult), e.card.id, { onPick });
 }
 
 /** Any card face, for flights and the short look at a flipped power card. */
 function cardFace(card: Card, mult: 1 | 2 = 1): HTMLElement {
-  if (card.kind === "number") return engineCard({ card, mult });
-  return h("span", { class: "ov-card ov-power", role: "img", "aria-label": cardLabel(card) }, h("b", { class: "ov-pname" }, cardLabel(card)));
+  return faceEl(faceSpec(card, mult), card.id);
 }
 
 /** See Farkle: "all" plays the events' sounds, "cues" only the turn chime and ending, "none" nothing. */
@@ -444,16 +436,23 @@ export class OverheatView implements GameView {
     const locked = this.pending.size > 0;
     const cards = handModel(game, props.playerId, this.hand(props));
     const items = cards.map((c) => {
+      // The face is a picture of the card; the name, line and reason say it in words.
+      const face = faceEl(faceSpec(c.card), c.card.id, { decorative: true });
       const inner = [
-        h("b", { class: "ov-hand-name" }, c.name),
-        h("span", { class: "ov-hand-line" }, c.line),
-        c.reason ? h("span", { class: "ov-hand-why" }, c.reason) : null,
+        face,
+        h(
+          "span",
+          { class: "ov-hand-text" },
+          h("b", { class: "ov-hand-name" }, c.name),
+          h("span", { class: "ov-hand-line" }, c.line),
+          c.reason ? h("span", { class: "ov-hand-why" }, c.reason) : null,
+        ),
       ];
-      if (!c.playable) return h("li", { class: "ov-hand-card off", "data-card": c.card.id }, inner);
+      if (!c.playable) return h("li", { class: handCardClass(c), "data-card": c.card.id }, inner);
       return h(
         "li",
         {},
-        h("button", { type: "button", class: "ov-hand-card", "data-card": c.card.id, disabled: locked, onclick: () => this.send(c.action) }, inner),
+        h("button", { type: "button", class: handCardClass(c), "data-card": c.card.id, disabled: locked, onclick: () => this.send(c.action) }, inner),
       );
     });
     replaceChildren(
