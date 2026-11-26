@@ -1302,6 +1302,19 @@ describe("talk events for the recap", () => {
     expect(talks(s)).toHaveLength(4);
   });
 
+  it("a voice-count send that throws doesn't stop the rest of the change", async () => {
+    const s = await talking();
+    let calls = 0;
+    s.voice.subscribe(() => calls++);
+    const push = s.sent.push.bind(s.sent);
+    s.sent.push = (...ms: ClientMessage[]) => {
+      if (ms.some((m) => m.type === "voice-count")) throw new Error("socket closed");
+      return push(...ms);
+    };
+    await s.voice.updatePrefs({ countTalk: false });
+    expect(calls).toBeGreaterThan(0);
+  });
+
   it("changing countTalk out of voice sends nothing", async () => {
     const s = setup();
     await s.voice.updatePrefs({ countTalk: false });

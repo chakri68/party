@@ -120,6 +120,8 @@ export const ICE_REQUEST_LIMIT = { burst: 3, windowMs: 60_000 };
 export const VOICE_SIGNAL_MAX_LENGTH = 6144;
 /** voice-talk: at most this many per seat in a window. The server drops the rest. */
 export const VOICE_TALK_LIMIT = { burst: 30, windowMs: 10_000 };
+/** voice-count: at most this many per seat in a window. The server drops the rest. */
+export const VOICE_COUNT_LIMIT = { burst: 5, windowMs: 10_000 };
 
 export type VoiceMode = "off" | "global" | "game";
 
@@ -230,9 +232,13 @@ export type ClientMessage =
   /** Host only, while playing: pauses the game or resumes it. */
   | { type: "pause-game"; paused: boolean }
   /** Joins room voice. `muted` is whether the mic starts off. */
+  /** `count`: whether this seat's talk time counts for the recap. */
   | { type: "voice-join"; muted: boolean; count: boolean }
+  /** Started talking. Only counted for the recap, never sent on. */
   | { type: "voice-talk"; on: true }
+  /** Stopped talking. `peak` is the loudest level in the burst, 0 to 1. */
   | { type: "voice-talk"; on: false; peak: number }
+  /** Turns counting talk time for the recap on or off. */
   | { type: "voice-count"; on: boolean }
   | { type: "voice-leave" }
   | { type: "voice-self-mute"; muted: boolean }

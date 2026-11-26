@@ -1,5 +1,5 @@
 import { TABLE_KEYS, type TableLog } from "@games/game-core";
-import { GRACE_MS, VOICE_TALK_LIMIT } from "@games/protocol";
+import { GRACE_MS, VOICE_COUNT_LIMIT, VOICE_TALK_LIMIT } from "@games/protocol";
 import { FREE_SOUND_IDS } from "@games/sounds/list";
 import { beforeEach, describe, expect, it } from "vitest";
 import { RoomRuntime } from "../src/runtime.ts";
@@ -239,11 +239,48 @@ describe("table counts through the room", () => {
     }
   });
 
-  it("drops talk messages over the limit", async () => {
+  it("drops talk starts over the limit", async () => {
     await vjoin(a);
-    const pairs = VOICE_TALK_LIMIT.burst / 2;
-    for (let i = 0; i < pairs; i++) await talk(a, 100);
-    await talk(a, 100); // over the limit: neither counted
-    expect(seatOf(a).talkMs).toBe(pairs * 100);
+    for (let i = 0; i < VOICE_TALK_LIMIT.burst; i++) await talk(a, 100);
+    await talk(a, 100); // over the limit: not counted
+    expect(seatOf(a).talkMs).toBe(VOICE_TALK_LIMIT.burst * 100);
+  });
+
+  it("never drops a talk stop", async () => {
+    await vjoin(a);
+    for (let i = 0; i < VOICE_TALK_LIMIT.burst; i++) await on(a);
+    await world.tick(room, 3_000);
+    await off(a);
+    expect(seatOf(a).talkMs).toBe(3_000);
+  });
+
+  it("drops voice-count messages over the limit", async () => {
+    await vjoin(a);
+    for (let i = 0; i < VOICE_COUNT_LIMIT.burst; i++) await send(room, a, { type: "voice-count", on: i % 2 === 0 });
+    expect(live()!.table!.sessions).toHaveProperty(idOf(a));
+    await send(room, a, { type: "voice-count", on: false }); // over the limit: ignored
+    expect(live()!.table!.sessions).toHaveProperty(idOf(a));
+  });
+
+  it("names nobody in a voice award who turned counting off", async () => {
+    await vjoin(a);
+    await talk(a, TALK_BURST_CAP_MS);
+    await talk(a, TALK_BURST_CAP_MS); // 4 minutes: enough for Most talkative
+    await send(room, a, { type: "voice-count", on: false });
+    await send(room, a, { type: "start-game" });
+    await playToWindow();
+    await world.tick(room, TOY_WINDOW_MS);
+    await send(room, a, { type: "end-party" });
+    expect(stored().party!.table!.seats[idOf(a)]!.talkMs).toBe(2 * TALK_BURST_CAP_MS);
+    expect(roomOf(a).recap!.table).toEqual([]);
+  });
+
+  it("joining voice with counting off takes a counted seat out", async () => {
+    await vjoin(a);
+    await talk(a, 2_000);
+    await send(room, a, { type: "voice-leave" });
+    expect(live()!.table!.counted).toEqual([idOf(a)]);
+    await vjoin(a, false);
+    expect(live()!.table!.counted).toEqual([]);
   });
 });

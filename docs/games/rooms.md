@@ -182,7 +182,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - There is no voice bar. Once you are in voice, your mic button is in the top row, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.
 
-The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), and "Keep the screen on in voice" (on at first; turn it off to save battery). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
+The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), "Keep the screen on in voice" (on at first; turn it off to save battery), and "Count my talk time for the recap" (on at first; see Ending the party). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
 The settings stay on your device. No one records your voice.
 
@@ -267,6 +267,6 @@ Then the room closes. Nobody can start another game in it. Everyone sees the sam
 - A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
 - **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
 
-Voice counts only how long you talk, never what you say. Nothing is recorded. To turn it off, open voice settings and turn off **Count my talk time for the recap**.
+Voice counts only when you talk and how loud, never what you say. Nothing is recorded. To turn it off, open voice settings and turn off **Count my talk time for the recap**.
 
 Chat still works. Anyone who opens the link later sees the recap too, until the room is cleaned up. If no game finished, there's no recap: the room just says the party is over.

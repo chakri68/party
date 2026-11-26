@@ -91,7 +91,25 @@ describe("TableTally", () => {
     expect(log.seats.a?.talkMs).toBe(4000);
     expect(t.counting(log, "a")).toBe(false);
     expect(t.open()).toEqual([]);
+    expect(log.counted).toEqual([]);
+    t.setCounting(log, "a", true, 5000);
     expect(log.counted).toEqual(["a"]);
+  });
+
+  it("keeps a seat counted when it leaves voice", () => {
+    const { log, t } = setup("a");
+    t.drop(log, "a", 1000);
+    expect(log.counted).toEqual(["a"]);
+  });
+
+  it("closes its own burst past the cap and opens a new one", () => {
+    const { log, t } = setup("a");
+    t.talkOn(log, "a", 0, lobby);
+    t.talkOn(log, "a", TALK_BURST_CAP_MS + 1, lobby);
+    expect(log.seats.a?.talkMs).toBe(TALK_BURST_CAP_MS);
+    expect(t.open()).toEqual(["a"]);
+    t.talkOff(log, "a", TALK_BURST_CAP_MS + 5001, 0.5);
+    expect(log.seats.a?.talkMs).toBe(TALK_BURST_CAP_MS + 5000);
   });
 
   it("counts voice time over sessions", () => {
@@ -103,7 +121,6 @@ describe("TableTally", () => {
     t.setCounting(log, "a", true, 110_000);
     t.setCounting(log, "a", false, 130_000);
     expect(log.seats.a?.voiceMs).toBe(90_000);
-    expect(log.counted).toEqual(["a"]);
   });
 
   it("drop closes an open burst", () => {

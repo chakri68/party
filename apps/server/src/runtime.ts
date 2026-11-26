@@ -34,6 +34,7 @@ import {
   safeEqual,
   SOUND_COOLDOWN_MS,
   VOICE_CAP,
+  VOICE_COUNT_LIMIT,
   VOICE_TALK_LIMIT,
   type ChatMessage,
   type ClientMessage,
@@ -855,6 +856,7 @@ export class RoomRuntime {
 
       case "voice-count": {
         if (!data.voice?.some((m) => m.id === seat.id)) return;
+        if (!this.allow("count", seat.id, VOICE_COUNT_LIMIT)) return;
         const table = data.party?.table;
         if ((!!table && this.tally.counting(table, seat.id)) === msg.on) return;
         this.setCounting(seat, msg.on);
@@ -866,9 +868,10 @@ export class RoomRuntime {
         const me = data.voice?.find((m) => m.id === seat.id);
         const table = data.party?.table;
         if (!me || me.selfMuted || me.hostMuted || !table || !this.tally.counting(table, seat.id)) return;
-        if (!this.allow("talk", seat.id, VOICE_TALK_LIMIT)) return;
         const now = this.host.now();
+        // Only starts are limited: a stop is cheap, and closing twice does nothing.
         if (msg.on) {
+          if (!this.allow("talk", seat.id, VOICE_TALK_LIMIT)) return;
           const playing = data.phase === "playing";
           this.tally.talkOn(table, seat.id, now, {
             gameId: playing ? (data.game?.gameId ?? null) : null,

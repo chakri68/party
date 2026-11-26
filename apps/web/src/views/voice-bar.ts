@@ -101,7 +101,7 @@ export function hostVoiceAction(m: VoiceMemberView, isHost: boolean): { label: "
     : { label: "Mute", message: { type: "host-mute", playerId: m.id, muted: true } };
 }
 
-/** What the Voice panel can ask of the room: am I the host, and send a message. */
+/** One checkbox in Voice settings. */
 export interface SettingCheck {
   label: string;
   checked: boolean;
@@ -125,6 +125,7 @@ export function voiceSettingChecks(p: VoicePrefs, hasTurn: boolean): SettingChec
   ];
 }
 
+/** What the Voice panel can ask of the room: am I the host, and send a message. */
 export interface VoiceHost {
   isHost(): boolean;
   send(msg: ClientMessage): void;

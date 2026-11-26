@@ -20,7 +20,9 @@ export class TableTally {
       const sessions = (log.sessions ??= {});
       if (sessions[id] === undefined) sessions[id] = now;
     } else {
+      // Off means off: never named in a voice award. Leaving voice (drop) keeps it.
       this.drop(log, id, now);
+      log.counted = log.counted.filter((x) => x !== id);
     }
   }
 
@@ -29,7 +31,10 @@ export class TableTally {
   }
 
   talkOn(log: TableLog, id: string, now: number, ctx: TalkContext): void {
-    if (!this.counting(log, id) || this.bursts.has(id)) return;
+    if (!this.counting(log, id)) return;
+    const mine = this.bursts.get(id);
+    if (mine && now - mine.start <= TALK_BURST_CAP_MS) return;
+    // Bursts past the cap, this seat's own too, are closed (at the cap) first.
     for (const [other, burst] of [...this.bursts]) {
       if (now - burst.start > TALK_BURST_CAP_MS) this.talkOff(log, other, now, null);
     }

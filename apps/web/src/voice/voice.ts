@@ -443,7 +443,7 @@ export class VoiceController {
       if (next.relayOnly !== before.relayOnly && this.phase === "joined") this.rejoin();
       if (next.countTalk !== before.countTalk && this.phase === "joined") {
         if (!next.countTalk) this.endTalk();
-        this.deps.send({ type: "voice-count", on: next.countTalk });
+        this.guard(() => this.deps.send({ type: "voice-count", on: next.countTalk }));
       }
       this.syncPublishing();
       this.notify();
