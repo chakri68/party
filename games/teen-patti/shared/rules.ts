@@ -155,9 +155,3 @@ export const stakeAfter = (amount: number, seen: boolean): number => (seen ? amo
 /** At this pot, every hand still in is shown. */
 export const potLimitFor = (boot: number): number => POT_LIMIT_BOOTS * boot;
 
-/** 1 → "1st", 3 → "3rd", 12 → "12th". */
-export function ordinal(n: number): string {
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${suffix}`;
-}

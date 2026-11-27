@@ -4,7 +4,6 @@ import {
   checkPlay,
   compareCards,
   makeDeck,
-  ordinal,
   parseCardId,
   playableRanks,
   pointsFor,
@@ -105,6 +104,5 @@ describe("standing", () => {
     expect(setName(2, 6)).toBe("a pair of Sixes");
     expect(setName(3, 2)).toBe("three Twos");
     expect(setName(4, 1)).toBe("four Aces");
-    expect([1, 2, 3, 11].map(ordinal)).toEqual(["1st", "2nd", "3rd", "11th"]);
   });
 });

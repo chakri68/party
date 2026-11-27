@@ -2,7 +2,8 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { checkPlay, compareCards, ordinal, setName, titleFor } from "../shared/rules.ts";
+import { ordinal } from "@games/game-core";
+import { checkPlay, compareCards, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG } from "./cards.ts";
 

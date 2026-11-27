@@ -344,9 +344,3 @@ export function levelIndexFor(handNumber: number, handsPerLevel: number): number
   return Math.floor(Math.max(0, handNumber - 1) / handsPerLevel);
 }
 
-/** 1 → "1st", 3 → "3rd", 12 → "12th". */
-export function ordinal(n: number): string {
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${suffix}`;
-}

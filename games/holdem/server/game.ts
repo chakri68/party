@@ -2,6 +2,7 @@ import {
   awardPots,
   buildPots,
   formatChips,
+  ordinal,
   shuffle,
   type CreateGameOptions,
   type GameContext,
@@ -19,7 +20,6 @@ import {
   isPotLimit,
   levelIndexFor,
   makeDeck,
-  ordinal,
   parseCardId,
 } from "../shared/rules.ts";
 import {

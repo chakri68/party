@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { awardPots, buildPots, compareRanks, formatChips } from "../src/chips.ts";
+import { awardPots, buildPots, compareRanks, formatChips, ordinal } from "../src/chips.ts";
 
 describe("buildPots", () => {
   it("one all-in under two callers: a main pot for three and a side pot for two", () => {
@@ -99,5 +99,13 @@ describe("formatChips", () => {
     expect(formatChips(999)).toBe("999");
     expect(formatChips(4200)).toBe("4,200");
     expect(formatChips(1234567)).toBe("1,234,567");
+  });
+});
+
+describe("ordinal", () => {
+  it("gives 1st, 2nd, 3rd, and th for the teens", () => {
+    expect([1, 2, 3, 4, 10, 11, 12, 13, 21, 22, 23, 101, 111, 112].map(ordinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "10th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th",
+    ]);
   });
 });

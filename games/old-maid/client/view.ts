@@ -2,7 +2,8 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { compareCards, ordinal, outText } from "../shared/rules.ts";
+import { ordinal } from "@games/game-core";
+import { compareCards, outText } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
 import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort } from "./cards.ts";
 

@@ -3,6 +3,7 @@ import {
   castVote,
   dropVoter,
   openBallot,
+  ordinal,
   strictMajority,
   type Ballot,
   type GameContext,
@@ -12,7 +13,7 @@ import {
   type TimerRequest,
 } from "@games/game-core";
 import { passTheBombManifest } from "../shared/manifest.ts";
-import { displayCluster, modesOf, normalizeWord, ordinal, parseTyping, shapeProblem } from "../shared/rules.ts";
+import { displayCluster, modesOf, normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
 import { modesProblem } from "../shared/viable.ts";
 import {
   BOOM_MS,

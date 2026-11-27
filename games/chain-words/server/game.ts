@@ -1,8 +1,8 @@
-import { type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
+import { ordinal, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { isWord } from "@games/words/dictionary";
 import { chainWordsManifest } from "../shared/manifest.ts";
 import { OPENERS } from "../shared/openers.ts";
-import { lastLetter, MAX_WORD, normalizeWord, ordinal, parseTyping, shapeProblem, type TypingData } from "../shared/rules.ts";
+import { lastLetter, MAX_WORD, normalizeWord, parseTyping, shapeProblem, type TypingData } from "../shared/rules.ts";
 import {
   CHAIN_SHOWN,
   type ChainWordsAction,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidText, countMatches, isLegalBid, minQuantity, ordinal, skipBid, smallestRaise } from "../shared/rules.ts";
+import { bidText, countMatches, isLegalBid, minQuantity, skipBid, smallestRaise } from "../shared/rules.ts";
 import { liarsDiceSettingFields } from "../shared/rules-text.ts";
 import type { Face } from "../shared/types.ts";
 
@@ -116,7 +116,6 @@ describe("words and settings", () => {
     expect(bidText(1, 3)).toBe("one 3");
     expect(bidText(4, 6)).toBe("four 6s");
     expect(bidText(15, 2)).toBe("15 2s");
-    expect([1, 2, 3, 4, 11, 12, 13, 21].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st"]);
   });
 
   it("shows the dice on the table for the chosen start", () => {
