@@ -1,5 +1,6 @@
 import { GRACE_MS } from "@games/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
+import { blackjackGame } from "@games/blackjack/server";
 import { sevensGame } from "@games/sevens/server";
 import { nightfallGame } from "@games/nightfall/server";
 import { notMyProblemGame } from "@games/not-my-problem/server";
@@ -635,6 +636,27 @@ describe("pause", () => {
     expect(game().phase).toBe("reveal");
     await world.tick(room, 1);
     expect(game().phase).toBe("night");
+  });
+
+  it("Blackjack through the room", async () => {
+    await open({ blackjack: blackjackGame }, "blackjack");
+    await start();
+    const game = () => roomOf(a).game as { step: string; clock: { endsAt: number } | null; pausedAt: number | null };
+    expect(game().step).toBe("betting");
+    const D = game().clock!.endsAt;
+    await world.tick(room, 5000);
+    await pauseGame(a);
+    expect(game().pausedAt).toBe(world.clock);
+    await world.tick(room, 60_000);
+    await pauseGame(a, false);
+    expect(game().clock!.endsAt).toBe(D + 60_000);
+    expect(game().pausedAt).toBeNull();
+    await world.tick(room, D + 60_000 - world.clock - 1);
+    expect(game().step).toBe("betting");
+    await world.tick(room, 1);
+    // Nobody bet: the round is skipped.
+    expect(game().step).toBe("settle");
+    expect(world.errors).toEqual([]);
   });
 
   it("Not My Problem through the room", async () => {

@@ -131,6 +131,7 @@ const RULES: AwardRule[] = [
   { id: "doubter", title: "Hardest to convince", min: 5, score: (id, c) => c.stat(id, "noGoVotes"), line: ([id], c) => `Voted No-go ${c.stat(id!, "noGoVotes")} times.` },
   { id: "rescuer", title: "Always there", min: 2, score: (id, c) => c.stat(id, "rescues"), line: ([id], c) => `Got ${c.stat(id!, "rescues")} friends back up.` },
   { id: "fire", title: "Fire starter", min: 2, score: (id, c) => c.stat(id, "firesLit"), line: ([id], c) => `Lit ${c.stat(id!, "firesLit")} fires.` },
+  { id: "bust", title: "One card too many", min: 3, score: (id, c) => c.stat(id, "busts"), line: ([id], c) => `Went over the limit ${c.stat(id!, "busts")} times.` },
 ];
 
 const STREAK: AwardRule = {
