@@ -187,7 +187,10 @@ export interface BlackjackPublicState {
 export interface LegalMoves {
   /** The hand these moves are for. */
   hand: number;
-  /** Cards in that hand now. A move names it, so a second tap on a stale screen is refused. */
+  /**
+   * Cards across all your hands now. A move names it, so a second tap on a
+   * stale screen is refused, a split included (it changes this count too).
+   */
   cards: number;
   hit: boolean;
   stand: boolean;
@@ -211,7 +214,7 @@ export interface BlackjackPrivateState {
 
 export type BlackjackAction =
   | { type: "bet"; amount: number }
-  /** `cards`: how many cards the hand has as you see it (see `LegalMoves.cards`). */
+  /** `cards`: how many cards you have across your hands, as you see it (see `LegalMoves.cards`). */
   | { type: MoveKind; hand: number; cards: number }
   | { type: "rebuy" }
   /** Don't rebuy: you are out. */

@@ -67,7 +67,7 @@ Host picks these in the lobby.
 - **Players.** Everyone else: name, chips, bet, their cards and total. While a player is still playing, their box is lit. After the pay, each hand shows Win, Blackjack, Tie, Lose or Bust.
 - **Your cards.** Your hand (or 2 hands after a split, with the one you are playing lit), the total and the bet. Below: your chips.
 - **Betting.** Quick amounts (10, 25, 50, 100, 250, 500 and All), a minus and a plus (10 each), and the **Bet** button. The game keeps your last amount for the next round.
-- **Playing.** Hit, Stand, Double and Split. A button is grey when you can't use it now. If you tap twice fast, the second tap is not used, so you never take a card you didn't see coming.
+- **Playing.** Hit, Stand, Double and Split. A button is grey when you can't use it now. If you tap twice fast, the second tap is not used, so you never take a card by mistake.
 - Your clock ticks in its last five seconds. Sounds and vibration cue the deal, your turn and your wins.
 
 ## When things go sideways

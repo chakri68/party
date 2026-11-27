@@ -338,7 +338,7 @@ function legalMoves(s: State, p: Player): LegalMoves | null {
   const two = hand.cards.length === 2;
   return {
     hand: i,
-    cards: hand.cards.length,
+    cards: p.hands.reduce((n, h) => n + h.cards.length, 0),
     hit: true,
     stand: true,
     double: two && p.stack >= hand.bet,
@@ -419,7 +419,7 @@ function parseAction(input: unknown): BlackjackAction | null {
     case "split": {
       const hand = a.hand as number;
       const cards = a.cards as number;
-      const ok = Number.isInteger(hand) && hand >= 0 && hand < 2 && Number.isInteger(cards) && cards >= 1 && cards <= 21;
+      const ok = Number.isInteger(hand) && hand >= 0 && hand < 2 && Number.isInteger(cards) && cards >= 2 && cards <= 42;
       return ok ? { type: a.type, hand, cards } : null;
     }
     case "rebuy":

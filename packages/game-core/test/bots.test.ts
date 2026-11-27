@@ -195,29 +195,40 @@ describe("playBots", () => {
     expect(toy.log.current!.hand).toEqual([3, 1, 2]);
   });
 
-  it("a timer that moves the game on breaks a run", () => {
-    // One seat: three moves, then a pause the "next" timer ends. Thirty rounds of it.
-    type S = { left: number; rounds: number; waiting: boolean };
-    const game = {
+  describe("a timer between one seat's moves", () => {
+    // One seat, never awaited, makes 40 moves. Every fourth time it's asked it
+    // waits instead, so the "tick" timer fires between its moves. (A real bot
+    // is pure; this one counts calls, to put a timer inside a run.)
+    type S = { moves: number };
+    const game = (tickChanges: boolean) => {
+      let asked = 0;
+      const tick = { kind: "set", timerId: "tick", delayMs: 1000 };
+      return {
         manifest: { id: "solo" },
         defaultSettings: {},
-        createGame: () => ({ state: { left: 3, rounds: 30, waiting: false } as S, events: [] }),
-        handleAction: (st: S) => {
-          const left = st.left - 1;
-          const state = left ? { ...st, left } : { ...st, left: 3, rounds: st.rounds - 1, waiting: true };
-          return { ok: true, transition: { state, events: [], timers: left ? [] : [{ kind: "set", timerId: "next", delayMs: 1000 }] } };
-        },
-        onTimer: (st: S) => ({ state: { ...st, waiting: false }, events: [] }),
+        createGame: () => ({ state: { moves: 0 } as S, events: [], timers: [tick] }),
+        handleAction: (st: S) => ({ ok: true, transition: { state: { moves: st.moves + 1 }, events: [] } }),
+        // Re-arms itself. Either a fresh state object, or the one it was given.
+        onTimer: (st: S) => ({ state: tickChanges ? { ...st } : st, events: [], timers: [tick] }),
         getPublicState: (st: S) => st,
         getPrivateState: () => ({}),
-        getAwaitedPlayerIds: (st: S) => (st.waiting || !st.rounds ? [] : ["p1"]),
-        getResult: (st: S) => (st.rounds ? null : { winnerIds: ["p1"], standings: [] }),
-        bot: { decide: (v: BotView<S, unknown>) => (v.public.waiting || !v.public.rounds ? null : { type: "go" }) },
+        getAwaitedPlayerIds: () => [],
+        getResult: (st: S) => (st.moves >= 40 ? { winnerIds: ["p1"], standings: [] } : null),
+        bot: { decide: () => (++asked % 4 === 0 ? null : { type: "go" }) },
       } as unknown as AnyGameDefinition;
-    const r = playBots(game, { players: 1, seed: 1 });
-    expect(r.outcome).not.toBeNull();
-    expect(r.moves).toBe(30 * 3 + 29);
-    expect(r.longestRun).toBe(3);
+    };
+
+    it("one that changes the state breaks the run", () => {
+      const r = playBots(game(true), { players: 1, seed: 1 });
+      expect(r.outcome).not.toBeNull();
+      expect(r.longestRun).toBe(3);
+    });
+
+    it("one that returns the state as it was keeps the run going", () => {
+      const r = playBots(game(false), { players: 1, seed: 1 });
+      expect(r.outcome).not.toBeNull();
+      expect(r.longestRun).toBe(40);
+    });
   });
 
   it("longestRun counts one seat's moves in a row, not timers", () => {

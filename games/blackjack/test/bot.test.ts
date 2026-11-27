@@ -84,6 +84,21 @@ describe("blackjackBot through the game", () => {
     }
   }, 30_000);
 
+  it("comes back when it is sitting out and has nothing else to do", () => {
+    const randomInt = seededRandomInt(3);
+    const created = bj.createGame([{ id: "p1" }, { id: "p2" }], DEFAULT_SETTINGS, { roundNumber: 1, dealerSeat: 0 }, { now: 0, randomInt });
+    const state = { ...created.state, step: "settle" as const, players: created.state.players.map((p) => (p.id === "p1" ? { ...p, missed: 2 } : p)) };
+    const priv = bj.getPrivateState(state, "p1");
+    expect(priv).toEqual({ bet: null, canRebuy: false, canBack: true, moves: null });
+    const view = { playerId: "p1", public: bj.getPublicState(state), private: priv };
+    expect(blackjackBot.decide(view, { randomInt, chance: () => 0 })).toEqual({ type: "back" });
+    // Once back, nothing to do until the next betting.
+    const after = bj.handleAction(state, "p1", { type: "back" }, { now: 0, randomInt });
+    if (!after.ok) throw new Error(after.error.message);
+    const again = { playerId: "p1", public: bj.getPublicState(after.transition.state), private: bj.getPrivateState(after.transition.state, "p1") };
+    expect(blackjackBot.decide(again, { randomInt, chance: () => 0 })).toBeNull();
+  });
+
   it("rebuys when it runs out early", () => {
     // Big bets would need many rounds; force a broke bot straight away.
     const randomInt = seededRandomInt(3);

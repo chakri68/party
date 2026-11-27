@@ -170,7 +170,8 @@ interface RoomData {
   party?: PartyLog;
   /**
    * The seat that made the latest bot moves, how many in a row, and whether it
-   * has been skipped once already. A person's move or another seat's clears it.
+   * has been skipped once already. A person's move, another seat's move, or a
+   * game timer that changes the game state clears it, `skipped` included.
    */
   botRun?: { seatId: string; moves: number; skipped: boolean };
   /** The host locked the room: new people can't join. Optional: older rooms are open. */

@@ -33,7 +33,7 @@ type Loose = Exclude<BlackjackAction, { type: MoveKind }> | Move;
 
 function fill(state: State, id: string, action: Loose): BlackjackAction {
   if (!("hand" in action) || action.cards !== undefined) return action as BlackjackAction;
-  const cards = state.players.find((p) => p.id === id)!.hands[action.hand]?.cards.length ?? 0;
+  const cards = state.players.find((p) => p.id === id)!.hands.reduce((n, h) => n + h.cards.length, 0);
   return { ...action, cards };
 }
 
@@ -415,6 +415,18 @@ describe("taps and sitting out", () => {
     expect(bj.getPrivateState(state, "p1").moves).toMatchObject({ hand: 0, cards: 3 });
     state = act(state, "p1", { type: "hit", hand: 0, cards: 3 }).state;
     expect(state.players[0]!.hands[0]!.cards).toHaveLength(4);
+  });
+
+  it("a tap sent before a split showed is refused too", () => {
+    // 8 and 8 against a 6. The split deals a 2 and a 3: hand 1 is 8-2, two cards again.
+    let { state } = start({ players: 1, deck: ["hearts-8", "spades-6", "diamonds-8", "hearts-9", "clubs-2", "clubs-3", "clubs-4"] });
+    state = act(state, "p1", { type: "bet", amount: 10 }).state;
+    state = act(state, "p1", { type: "split", hand: 0, cards: 2 }).state;
+    expect(state.players[0]!.hands.map((h) => h.cards.length)).toEqual([2, 2]);
+    expect(refuse(state, "p1", { type: "hit", hand: 0, cards: 2 })).toBe("Your cards changed. Look again.");
+    expect(bj.getPrivateState(state, "p1").moves).toMatchObject({ hand: 0, cards: 4 });
+    state = act(state, "p1", { type: "hit", hand: 0, cards: 4 }).state;
+    expect(state.players[0]!.hands[0]!.cards.map((c) => c.id)).toEqual(["hearts-8", "clubs-2", "clubs-4"]);
   });
 
   it("a seat the host skipped gets no bet for that round", () => {

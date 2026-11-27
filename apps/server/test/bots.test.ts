@@ -501,6 +501,35 @@ describe("bots in a game", () => {
     expect(a.last("error")).toMatchObject({ code: "game-ended", message: STUCK });
   });
 
+  it("the in-a-row cap: a game timer that changes nothing doesn't break the run", async () => {
+    // A clock that fires between every pair of bot moves and returns the state as it was.
+    const TICK_MS = 300;
+    const tick = { kind: "set" as const, timerId: "tick", delayMs: TICK_MS };
+    const tickingHog = {
+      ...hogGame,
+      createGame: (...args: Parameters<AnyGameDefinition["createGame"]>) => ({ ...hogGame.createGame(...args), timers: [tick] }),
+      onTimer: (st: unknown, timerId: string) => (timerId === "tick" ? { state: st, events: [], timers: [tick] } : { state: st, events: [] }),
+    } as AnyGameDefinition;
+    await setUp(tickingHog);
+    toyKnobs.decide = "hog";
+    const a = await table(["Ana"], 1);
+    await toBotTurn();
+    const moved = events(a).filter((e) => e.type === "moved").length;
+    // Small steps, so the clock fires between every two moves of the bot.
+    let ticks = 0;
+    for (let i = 0; i < 4000 && roomOf(a).phase !== "lobby"; i++) {
+      const before = data().timers["game:tick"];
+      await world.tick(room, 100);
+      if (data().timers["game:tick"] !== before) ticks++;
+    }
+    expect(roomOf(a).phase).toBe("lobby");
+    expect(ticks).toBeGreaterThan(52);
+    const after = events(a);
+    expect(after.filter((e) => e.type === "skipped")).toHaveLength(1);
+    expect(after.filter((e) => e.type === "moved").length - moved).toBe(52);
+    expect(a.last("error")).toMatchObject({ code: "game-ended", message: STUCK });
+  });
+
   it("a bot that keeps the turn moves again quickly", async () => {
     await setUp(hogGame);
     toyKnobs.decide = "hog";

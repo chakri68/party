@@ -15,7 +15,7 @@ export const blackjackRules: string[] = [
   "You play against the dealer. You do not play against the other players.",
   "Everyone starts with 1,000 play chips. You do not use real money.",
   "Each round, everyone bets at the same time. The smallest bet is 10.",
-  "If you do not bet in time, you sit out that round. Miss 2 bets and you sit out until you tap Play next round.",
+  "If you do not bet in time, you sit out that round. Miss 2 bets in a row and you sit out until you tap Play next round.",
   "You get 2 cards face up. The dealer gets 1 card face up and 1 card face down.",
   "Number cards count their number. Jack, Queen and King count 10. An Ace counts 1 or 11.",
   "Try to get closer to 21 than the dealer. Over 21 is a bust, and you lose your bet at once.",
