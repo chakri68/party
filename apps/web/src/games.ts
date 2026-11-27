@@ -28,6 +28,7 @@ import { samePageManifest, samePageRules, samePageSettingFields } from "@games/s
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
+import { teenPattiManifest, teenPattiRules, teenPattiSettingFields } from "@games/teen-patti/shared";
 import { thornsManifest, thornsRules, thornsSettingFields } from "@games/thorns/shared";
 import { treasureHuntManifest, treasureHuntRules, treasureHuntSettingFields } from "@games/treasure-hunt/shared";
 import { wildsManifest, wildsRules, wildsSettingFields } from "@games/wilds/shared";
@@ -254,6 +255,13 @@ export const games: Record<string, GameEntry> = {
     rules: holdemRules,
     settingFields: holdemSettingFields,
     loadClient: () => import("@games/holdem/client").then((m) => m.default),
+  },
+  "teen-patti": {
+    section: "cards",
+    manifest: teenPattiManifest,
+    rules: teenPattiRules,
+    settingFields: teenPattiSettingFields,
+    loadClient: () => import("@games/teen-patti/client").then((m) => m.default),
   },
   overheat: {
     section: "cards",

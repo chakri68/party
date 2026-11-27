@@ -108,6 +108,9 @@ importers:
       '@games/sounds':
         specifier: workspace:*
         version: link:../../packages/sounds
+      '@games/teen-patti':
+        specifier: workspace:*
+        version: link:../../games/teen-patti
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
@@ -223,6 +226,9 @@ importers:
       '@games/sounds':
         specifier: workspace:*
         version: link:../../packages/sounds
+      '@games/teen-patti':
+        specifier: workspace:*
+        version: link:../../games/teen-patti
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
@@ -736,6 +742,24 @@ importers:
       '@games/hidden-roles':
         specifier: workspace:*
         version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/teen-patti:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -80,7 +80,7 @@ The host is the first person into the room. The tag next to their name says "hos
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
+Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, Overheat, President, Sevens, Teen Patti and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
@@ -220,12 +220,12 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall and Not My Problem!). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
+- **Pause** and **Resume**, in games that can pause (Nightfall, Not My Problem! and Teen Patti). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 A main button you can't press right now is grey with a dashed edge, not lime.
 
-In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
+In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, President, Sevens, Teen Patti, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
 
 ## Leaving
 

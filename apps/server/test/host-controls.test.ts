@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sevensGame } from "@games/sevens/server";
 import { nightfallGame } from "@games/nightfall/server";
 import { notMyProblemGame } from "@games/not-my-problem/server";
+import { teenPattiGame } from "@games/teen-patti/server";
 import type { AnyGameDefinition, GameContext } from "@games/game-core";
 import { RoomRuntime } from "../src/runtime.ts";
 import { plainGame, TOY_WINDOW_MS, toyGame, toyKnobs, type ToyPublic, type ToyState } from "./bot-toy.ts";
@@ -662,6 +663,33 @@ describe("pause", () => {
     // The turn timed out: the turn player drew.
     expect(game().token).toBeGreaterThan(token);
     expect(game().drawCount).toBe(drawCount - 1);
+    expect(world.errors).toEqual([]);
+  });
+
+  it("Teen Patti through the room", async () => {
+    const conns = await open({ "teen-patti": teenPattiGame }, "teen-patti", ["Ana", "Ben", "Cy"]);
+    await start();
+    const game = () => roomOf(a).game as { step: string; currentPlayerId: string; turn: { endsAt: number }; pausedAt: number | null; handNumber: number };
+    const D = game().turn.endsAt;
+    const mover = conns.find((c) => idOf(c) === game().currentPlayerId)!;
+    const turnId = game().currentPlayerId;
+    await world.tick(room, 5000);
+    await pauseGame(a);
+    expect(game().pausedAt).toBe(world.clock);
+    // Past the old deadline: the turn doesn't time out, and the turn player can't move.
+    await world.tick(room, 60_000);
+    expect(world.clock).toBeGreaterThan(D);
+    await send(room, mover, { type: "game-action", clientActionId: "c1", action: { type: "chaal" } });
+    expect(mover.last("action-rejected")).toMatchObject({ clientActionId: "c1", code: "wrong-phase", message: "The game is paused." });
+    expect(game()).toMatchObject({ step: "betting", currentPlayerId: turnId });
+    await pauseGame(a, false);
+    expect(game().turn.endsAt).toBe(D + 60_000);
+    expect(game().pausedAt).toBeNull();
+    await world.tick(room, D + 60_000 - world.clock - 1);
+    expect(game().currentPlayerId).toBe(turnId);
+    await world.tick(room, 1);
+    // The turn timed out: that player packed, and the next one is up.
+    expect(game().currentPlayerId).not.toBe(turnId);
     expect(world.errors).toEqual([]);
   });
 

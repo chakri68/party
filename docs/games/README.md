@@ -17,6 +17,7 @@ New here? Start with [Rooms and the lobby](rooms.md): making a room, getting fri
 | [Not My Problem!](not-my-problem.md) | 3–8 | Fix Problems or pass them on. Three warnings and you are fired. |
 | [Oh Hell](oh-hell.md) | 3–7 | Bid exactly how many tricks you'll take. Hand sizes change every round. |
 | [Hold'em](holdem.md) | 2–9 | No-limit Texas Hold'em with play chips; blinds climb until someone has everything. |
+| [Teen Patti](teen-patti.md) | 3–7 | 3 cards each. Play Blind or Seen, Chaal or Pack, and ask for a Show. |
 | [Overheat](overheat.md) | 2–8 | Flip for points, stay under the heat limit, push cards onto rivals. |
 
 ## Dice
