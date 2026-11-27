@@ -141,6 +141,26 @@ describe("holdemBot preflop", () => {
     expect(preflopTier(...(c("7s 2d") as [never, never]))).toBe(5);
   });
 
+  it("draws the Short Deck tiers from the 36 cards", () => {
+    const shares = (variant: "holdem" | "shortdeck") => {
+      const deck = makeDeck(variant);
+      const counts = [0, 0, 0, 0, 0];
+      for (let a = 0; a < deck.length; a++) for (let b = a + 1; b < deck.length; b++) counts[preflopTier(deck[a]!, deck[b]!, variant) - 1]!++;
+      return counts;
+    };
+    // All 630 two-card hands: about half are trash (tier 5).
+    expect(shares("shortdeck")).toEqual([50, 32, 142, 78, 328]);
+    // Hold'em's tiers over all 1,326 hands stay as they were.
+    expect(shares("holdem")).toEqual([50, 38, 182, 204, 852]);
+    const tier = (hand: string) => preflopTier(...(c(hand) as [never, never]), "shortdeck");
+    expect(tier("6s 6d")).toBe(4); // the lowest pair; 2-2 is tier 3 in Hold'em
+    expect(tier("8s 8d")).toBe(2);
+    expect(tier("9h 8h")).toBe(4);
+    expect(tier("7h 6h")).toBe(5); // small suited cards: tier 4 in Hold'em
+    expect(tier("Kh 7h")).toBe(5);
+    expect(tier("As Kd")).toBe(1);
+  });
+
   it("raises a strong hand to about 3 big blinds", () => {
     const v = view({ hole: "Qs Qd", opponents: 5, currentBet: 20, legal: { check: false, call: 20, minRaiseTo: 40 } });
     expect(holdemBot.decide(v, high)).toEqual({ type: "raise", to: 60 });

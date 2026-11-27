@@ -19,6 +19,7 @@ New here? Start with [Rooms and the lobby](rooms.md): making a room, getting fri
 | [Hold'em](holdem.md) | 2–9 | No-limit Texas Hold'em with play chips; blinds climb until someone has everything. |
 | [Teen Patti](teen-patti.md) | 3–7 | 3 cards each. Play Blind or Seen, Chaal or Pack, and ask for a Show. |
 | [Overheat](overheat.md) | 2–8 | Flip for points, stay under the heat limit, push cards onto rivals. |
+| [Blackjack](blackjack.md) | 1–7 | Get closer to 21 than the dealer. Everyone plays at the same time. |
 
 ## Dice
 

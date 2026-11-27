@@ -170,7 +170,8 @@ interface RoomData {
   party?: PartyLog;
   /**
    * The seat that made the latest bot moves, how many in a row, and whether it
-   * has been skipped once already. A person's move or another seat's clears it.
+   * has been skipped once already. A person's move, another seat's move, or a
+   * game timer that changes the game state clears it, `skipped` included.
    */
   botRun?: { seatId: string; moves: number; skipped: boolean };
   /** The host locked the room: new people can't join. Optional: older rooms are open. */
@@ -485,7 +486,12 @@ export class RoomRuntime {
       if (key.startsWith(GAME_TIMER_PREFIX)) {
         changed = true;
         const timerId = key.slice(GAME_TIMER_PREFIX.length);
+        const before = this.data.game?.state;
         events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
+        // The clock moved the game on, so a bot's moves either side aren't one run.
+        // The cap is for a bot moving while the game stands still; a turn clock its
+        // moves keep resetting never fires inside such a loop.
+        if (this.data?.game && this.data.game.state !== before) delete this.data.botRun;
       }
       if (key.startsWith(BOT_TIMER_PREFIX)) {
         const out = this.onBotTimer(key.slice(BOT_TIMER_PREFIX.length));

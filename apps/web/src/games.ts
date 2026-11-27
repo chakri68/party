@@ -1,6 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
+import { blackjackManifest, blackjackRules, blackjackSettingFields } from "@games/blackjack/shared";
 import { blindRallyManifest, blindRallyRules, blindRallySettingFields, rallyManifest, rallyRules, rallySettingFields } from "@games/blind-rally/shared";
 import { bluffDefinitionsManifest, bluffDefinitionsRules, bluffDefinitionsSettingFields, fakeWordManifest, fakeWordRules, fakeWordSettingFields } from "@games/bluff/shared";
 import { chainWordsManifest, chainWordsRules, chainWordsSettingFields } from "@games/chain-words/shared";
@@ -269,6 +270,13 @@ export const games: Record<string, GameEntry> = {
     rules: overheatRules,
     settingFields: overheatSettingFields,
     loadClient: () => import("@games/overheat/client").then((m) => m.default),
+  },
+  blackjack: {
+    section: "cards",
+    manifest: blackjackManifest,
+    rules: blackjackRules,
+    settingFields: blackjackSettingFields,
+    loadClient: () => import("@games/blackjack/client").then((m) => m.default),
   },
   "same-page": {
     section: "words",

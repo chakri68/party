@@ -16,6 +16,7 @@
   "dependencies": {
     "@games/animation": "workspace:*",
     "@games/audio": "workspace:*",
+    "@games/blackjack": "workspace:*",
     "@games/blind-rally": "workspace:*",
     "@games/bluff": "workspace:*",
     "@games/chain-words": "workspace:*",

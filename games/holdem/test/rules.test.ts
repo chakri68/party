@@ -255,8 +255,9 @@ describe("Short Deck hands", () => {
     expect(beats("Ah 6d 7c 8s 9h", "As Ad Ac Kd Qh", "shortdeck")).toBe(1);
     // In Hold'em the same cards are only Ace high.
     expect(bestHand(cards("Ah 6d 7c 8s 9h")).label).toBe("High card, Ace");
-    // A-6-7-8-9 in one suit is a straight flush.
+    // A-6-7-8-9 in one suit is a straight flush: it beats four of a kind.
     expect(sd("Ah 6h 7h 8h 9h").label).toBe("Straight flush, Nine high");
+    expect(beats("Ah 6h 7h 8h 9h", "Ks Kd Kc Kh Qd", "shortdeck")).toBe(1);
   });
 
   it("finds A-6-7-8-9 among seven cards", () => {
