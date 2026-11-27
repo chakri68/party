@@ -34,18 +34,26 @@ export function compareRanks(a: readonly number[], b: readonly number[]): number
  * band takes everyone's chips between the previous level and this one, folded
  * players' included, and can be won by anyone still in who reached it. Chips
  * nobody else matched come back as an `uncalled` pot for the one who bet them.
+ *
+ * `covered`: players still in who never ran short (Teen Patti, where a Blind
+ * bet is half a Seen one, so totals differ without anyone being short). Each
+ * counts as in for as much as the deepest of them, so only an all-in caps
+ * what a player can win.
  */
-export function buildPots(contributions: Record<string, number>, folded: Iterable<string>): Pot[] {
+export function buildPots(contributions: Record<string, number>, folded: Iterable<string>, covered: Iterable<string> = []): Pot[] {
   const out = new Set(folded);
   const ids = Object.keys(contributions).filter((id) => (contributions[id] ?? 0) > 0);
   const live = ids.filter((id) => !out.has(id));
-  const levels = [...new Set(live.map((id) => contributions[id]!))].sort((a, b) => a - b);
+  const cover = new Set([...covered].filter((id) => live.includes(id)));
+  const coverTop = Math.max(0, ...[...cover].map((id) => contributions[id]!));
+  const reach = (id: string) => (cover.has(id) ? coverTop : contributions[id]!);
+  const levels = [...new Set(live.map(reach))].sort((a, b) => a - b);
   const pots: Pot[] = [];
   let prev = 0;
   for (const level of levels) {
     let amount = 0;
     for (const id of ids) amount += Math.max(0, Math.min(contributions[id]!, level) - prev);
-    pots.push({ amount, eligible: live.filter((id) => contributions[id]! >= level) });
+    pots.push({ amount, eligible: live.filter((id) => reach(id) >= level) });
     prev = level;
   }
   // Folded chips beyond every live player's total (someone left mid-bet): into the top pot.

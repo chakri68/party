@@ -84,6 +84,32 @@ describe("awardPots", () => {
   });
 });
 
+describe("buildPots with covered players (Teen Patti)", () => {
+  it("players still betting share one pot, though their totals differ", () => {
+    // b bet Seen (twice the Blind bet), c stayed Blind: nothing is uncalled.
+    expect(buildPots({ b: 300, c: 150 }, [], ["b", "c"])).toEqual([{ amount: 450, eligible: ["b", "c"] }]);
+  });
+
+  it("an all-in wins only what it matched from each player", () => {
+    // a all-in for 50. b and c keep betting, with different totals. d packed after 100.
+    expect(buildPots({ a: 50, b: 200, c: 100, d: 100 }, ["d"], ["b", "c"])).toEqual([
+      { amount: 200, eligible: ["a", "b", "c"] },
+      { amount: 250, eligible: ["b", "c"] },
+    ]);
+  });
+
+  it("an all-in deeper than everyone still betting gets the unmatched part back", () => {
+    expect(buildPots({ a: 300, b: 200, c: 250 }, [], ["b", "c"])).toEqual([
+      { amount: 700, eligible: ["a", "b", "c"] },
+      { amount: 50, eligible: ["a"], uncalled: true },
+    ]);
+  });
+
+  it("a packed player can't be covered: same pots as without the list", () => {
+    expect(buildPots({ a: 40, b: 20, c: 30 }, ["b"], ["a", "b"])).toEqual(buildPots({ a: 40, b: 20, c: 30 }, ["b"]));
+  });
+});
+
 describe("compareRanks", () => {
   it("compares left to right, and a longer tuple wins a tie on the shared part", () => {
     expect(compareRanks([2, 9], [2, 8])).toBeGreaterThan(0);
