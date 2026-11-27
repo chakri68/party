@@ -1,3 +1,5 @@
+import type { Pot, PotResult } from "@games/game-core";
+
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
 
 /** Display order. Alternating colours so neighbouring suits don't blur together. */
@@ -72,14 +74,6 @@ export const REBUY_LEVELS = 3;
 // Pots and hands
 // ---------------------------------------------------------------------------
 
-export interface Pot {
-  amount: number;
-  /** Who can win it: still in, and in at least this deep. */
-  eligible: string[];
-  /** Chips nobody matched. They go straight back to whoever bet them. */
-  uncalled?: boolean;
-}
-
 export const HAND_CATEGORIES = [
   "High card",
   "Pair",
@@ -147,14 +141,6 @@ export interface HoldemPlayerState {
   bustedHand: number | null;
   bustStack: number;
   rebuysUsed: number;
-}
-
-export interface PotResult {
-  amount: number;
-  winners: string[];
-  /** The winning hand, or null when nobody had to show (fold-out, uncalled). */
-  label: string | null;
-  uncalled?: boolean;
 }
 
 /** What happened last hand, for the table's summary line and the showdown highlight. */

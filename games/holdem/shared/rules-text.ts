@@ -1,5 +1,5 @@
-import type { SettingField } from "@games/game-core";
-import { blindsFor, formatChips, handOrder } from "./rules.ts";
+import { formatChips, type SettingField } from "@games/game-core";
+import { blindsFor, handOrder } from "./rules.ts";
 import {
   DEFAULT_SETTINGS,
   ENDING_OPTIONS,

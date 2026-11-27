@@ -440,5 +440,6 @@ export function stableHash(text: string): number {
   return h >>> 0;
 }
 
+export * from "./chips.ts";
 export * from "./recap.ts";
 export * from "./table.ts";

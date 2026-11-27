@@ -1,4 +1,7 @@
 import {
+  awardPots,
+  buildPots,
+  formatChips,
   shuffle,
   type CreateGameOptions,
   type GameContext,
@@ -11,11 +14,8 @@ import {
 import { holdemManifest } from "../shared/manifest.ts";
 import { holdemBot } from "./bot.ts";
 import {
-  awardPots,
   bestHandFor,
   blindsFor,
-  buildPots,
-  formatChips,
   isPotLimit,
   levelIndexFor,
   makeDeck,

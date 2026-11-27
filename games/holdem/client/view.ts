@@ -2,7 +2,7 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { formatChips } from "../shared/rules.ts";
+import { formatChips } from "@games/game-core";
 import {
   HOLE_CARDS,
   type Card,
