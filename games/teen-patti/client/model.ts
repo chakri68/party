@@ -1,9 +1,9 @@
 // The view's words, with no DOM: the log lines, the summary and the seat tags.
 // Kept apart so tests can read them.
 import { formatChips } from "@games/game-core";
-import { seatName, type GameViewProps } from "@games/ui";
+import { joinList, seatName, type GameViewProps } from "@games/ui";
 import type { HandSummary, LegalMoves, MoveKind, TeenPattiEvent, TeenPattiPublicPlayer } from "../shared/types.ts";
-import { cardLabel, joinList } from "./cards.ts";
+import { cardLabel } from "./cards.ts";
 
 /** "Ana", "Ana and Ben", "Ana, Ben and Cy". */
 export const names = (list: string[]) => joinList(list);

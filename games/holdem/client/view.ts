@@ -1,7 +1,7 @@
 import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
-import { avatar, formatSeconds, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { avatar, formatSeconds, h, joinList, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { formatChips } from "@games/game-core";
 import {
   HOLE_CARDS,
@@ -13,7 +13,7 @@ import {
   type HoldemPublicState,
   type LegalActions,
 } from "../shared/types.ts";
-import { cardFace, cardLabel, cardList, cardMini, cardShort, cardSlot, chip, joinList, miniBack } from "./cards.ts";
+import { cardFace, cardLabel, cardList, cardMini, cardShort, cardSlot, chip, miniBack } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -477,7 +477,7 @@ export class HoldemView implements GameView {
   }
 
   private markBoard(lit: Set<string>) {
-    for (const el of this.board.querySelectorAll<HTMLElement>(".he-card[data-card]")) {
+    for (const el of this.board.querySelectorAll<HTMLElement>(".pcard[data-card]")) {
       el.classList.toggle("best", lit.has(el.dataset.card!));
       el.classList.toggle("dim", lit.size > 0 && !lit.has(el.dataset.card!));
     }
@@ -506,7 +506,7 @@ export class HoldemView implements GameView {
     row.classList.toggle("won", !!won);
     row.classList.toggle("lost", !won);
     const best = new Set(summary.bestCards[id] ?? []);
-    for (const el of row.querySelectorAll<HTMLElement>(".he-mini[data-card]")) el.classList.toggle("best", best.has(el.dataset.card!));
+    for (const el of row.querySelectorAll<HTMLElement>(".pcard-mini[data-card]")) el.classList.toggle("best", best.has(el.dataset.card!));
     const tag = row.querySelector(".he-sd-won")!;
     tag.textContent = won ? `+${formatChips(won)}` : "";
   }

@@ -1,10 +1,16 @@
 /* Blackjack. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is bj- prefixed: other games' stylesheets may be loaded in the same tab.
-   Card faces match Hold'em's. */
+   Everything is bj- prefixed or under .blackjack: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .blackjack {
-  --card-w: 50px;
-  --card-h: 72px;
+  --pcard-w: 50px;
+  --pcard-h: 72px;
+  --pcard-radius: 7px;
+  --pcard-corner: 0.85rem;
+  --pcard-corner-y: 3px;
+  --pcard-corner-x: 4px;
+  --pcard-pip: 1.6rem;
+  --pcard-face: 1.35rem;
   --mine-w: 52px;
   --mine-h: 74px;
   display: flex;
@@ -52,7 +58,7 @@
 .bj-total.bust { color: var(--danger); }
 .bj-rule { margin: 0; font-size: 0.72rem; color: var(--muted); text-align: center; }
 
-.bj-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: var(--card-h); }
+.bj-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: var(--pcard-h); }
 
 /* ---- Other players: two across on a phone ----------------------------------- */
 
@@ -86,50 +92,8 @@
 
 /* ---- Cards --------------------------------------------------------------------- */
 
-.bj-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  border-radius: 7px;
-  background: var(--card);
-  color: var(--card-ink);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-}
-.bj-card.red { color: var(--red); }
-.bj-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.bj-card.slot { background: none; border: 1.5px dashed var(--line); box-shadow: none; }
-.bj-card .corner { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 0.95; font-size: 0.85rem; }
-.bj-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.bj-card .corner i { font-style: normal; font-size: 0.85em; }
-.bj-card .tl { top: 3px; left: 4px; }
-.bj-card .br { bottom: 3px; right: 4px; transform: rotate(180deg); }
-.bj-card .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; }
-.bj-card .pip.face { font-weight: 800; font-size: 1.35rem; font-family: Georgia, "Times New Roman", serif; }
-.bj-card.flip, .bj-mini.flip { animation: bj-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.blackjack .pcard.flip, .blackjack .pcard-mini.flip { animation: bj-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes bj-flip { from { transform: rotateY(90deg) scale(1.08); } }
-
-.bj-mini {
-  display: inline-grid;
-  place-items: center;
-  align-content: center;
-  width: 19px;
-  height: 26px;
-  border-radius: 3px;
-  background: var(--card);
-  color: var(--card-ink);
-  line-height: 0.9;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-}
-.bj-mini b { font-size: 0.7rem; font-weight: 800; letter-spacing: -0.05em; }
-.bj-mini i { font-size: 0.62rem; font-style: normal; }
-.bj-mini.red { color: var(--red); }
 
 .bj-chip { display: inline-block; flex: 0 0 auto; width: 14px; height: 14px; color: var(--accent); line-height: 0; }
 .bj-chip svg { display: block; }
@@ -157,15 +121,14 @@
 .bj-hand { display: grid; gap: 4px; justify-items: center; padding: 4px; border-radius: 12px; border: 1.5px solid transparent; }
 .bj-hand.on { border-color: var(--accent); }
 .bj-hand .bj-row { flex-wrap: nowrap; min-height: var(--mine-h); }
-.bj-hand .bj-card { width: var(--mine-w); height: var(--mine-h); }
-.bj-hand .bj-card .corner { font-size: 0.95rem; }
+.bj-hand { --pcard-w: var(--mine-w); --pcard-h: var(--mine-h); --pcard-corner: 0.95rem; }
 /* Two hands after a split, or many cards: the cards overlap so they fit across a
    phone. Each card's corner stays in view. */
-.bj-hands:has(.bj-hand + .bj-hand) .bj-row, .bj-hand .bj-row:has(.bj-card:nth-child(4)) { gap: 0; }
-.bj-hands:has(.bj-hand + .bj-hand) .bj-hand .bj-card + .bj-card { margin-left: -26px; }
-.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(4)) .bj-card + .bj-card { margin-left: -30px; }
-.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(6)) .bj-card + .bj-card { margin-left: -34px; }
-.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(7)) .bj-card + .bj-card { margin-left: -38px; }
+.bj-hands:has(.bj-hand + .bj-hand) .bj-row, .bj-hand .bj-row:has(.pcard:nth-child(4)) { gap: 0; }
+.bj-hands:has(.bj-hand + .bj-hand) .bj-hand .pcard + .pcard { margin-left: -26px; }
+.bj-hands .bj-hand .bj-row:has(.pcard:nth-child(4)) .pcard + .pcard { margin-left: -30px; }
+.bj-hands .bj-hand .bj-row:has(.pcard:nth-child(6)) .pcard + .pcard { margin-left: -34px; }
+.bj-hands .bj-hand .bj-row:has(.pcard:nth-child(7)) .pcard + .pcard { margin-left: -38px; }
 .bj-hand-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 8px; font-size: 0.85rem; color: var(--muted); }
 .bj-hand-line .bj-total { color: var(--ink); font-size: 1.05rem; }
 .bj-result { font-weight: 800; color: var(--ink); }
@@ -207,22 +170,28 @@
 }
 
 @media (min-width: 700px) {
-  .blackjack { --card-w: 66px; --card-h: 94px; --mine-w: 72px; --mine-h: 102px; gap: 14px; }
+  .blackjack {
+    --pcard-w: 66px;
+    --pcard-h: 94px;
+    --pcard-corner: 1.05rem;
+    --pcard-pip: 2.1rem;
+    --pcard-face: 1.8rem;
+    --pcard-mini-w: 23px;
+    --pcard-mini-h: 32px;
+    --pcard-mini-rank: 0.82rem;
+    --pcard-mini-suit: 0.72rem;
+    --mine-w: 72px;
+    --mine-h: 102px;
+    gap: 14px;
+  }
   .bj-status { min-height: 50px; }
   .bj-dealer { padding: 12px 10px 10px; gap: 8px; }
-  .bj-card .corner { font-size: 1.05rem; }
-  .bj-card .pip { font-size: 2.1rem; }
-  .bj-card .pip.face { font-size: 1.8rem; }
-  .bj-mini { width: 23px; height: 32px; }
-  .bj-mini b { font-size: 0.82rem; }
-  .bj-mini i { font-size: 0.72rem; }
-  .bj-hands:has(.bj-hand + .bj-hand) .bj-hand .bj-card + .bj-card { margin-left: -30px; }
+  .bj-hands:has(.bj-hand + .bj-hand) .bj-hand .pcard + .pcard { margin-left: -30px; }
 }
 
 /* Phone held sideways: a short screen. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .blackjack { --card-w: 44px; --card-h: 62px; --mine-w: 48px; --mine-h: 68px; gap: 6px; }
-  .bj-card .pip { font-size: 1.4rem; }
+  .blackjack { --pcard-w: 44px; --pcard-h: 62px; --pcard-pip: 1.4rem; --mine-w: 48px; --mine-h: 68px; gap: 6px; }
   .bj-dealer { padding: 6px 10px; gap: 4px; }
   .bj-rule { display: none; }
   .bj-actions button { min-height: 44px; }
@@ -239,6 +208,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .blackjack .shake { animation: none; outline: 2px solid var(--red); }
-  .bj-card.flip, .bj-mini.flip { animation: none; }
+  .blackjack .pcard.flip, .blackjack .pcard-mini.flip { animation: none; }
   .bj-seat { transition: none; }
 }

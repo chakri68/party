@@ -1,0 +1,70 @@
+/* Playing cards (cards.ts), shared by the card games. Uses the shell's tokens
+   (--card, --card-ink, --red, --accent, --line).
+
+   A game sizes them with these custom properties, on its root or on any box
+   around the cards (a hand, a slot); each has the default shown:
+     --pcard-w: 58px; --pcard-h: 84px; --pcard-radius: 8px;
+     --pcard-corner: 0.95rem;   corner text size
+     --pcard-corner-y: 4px; --pcard-corner-x: 5px;   corner inset
+     --pcard-pip: 1.9rem; --pcard-face: 1.6rem;   middle suit, middle J Q K letter
+     --pcard-mini-w: 19px; --pcard-mini-h: 26px; --pcard-mini-rank: 0.7rem; --pcard-mini-suit: 0.62rem;
+   Variants (best, dim, selected, flip, fans and overlaps) belong to the game,
+   under its root class: other games' stylesheets may be loaded in the same tab. */
+
+.pcard {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--pcard-w, 58px);
+  height: var(--pcard-h, 84px);
+  padding: 0;
+  border: none;
+  border-radius: var(--pcard-radius, 8px);
+  background: var(--card);
+  color: var(--card-ink);
+  font: inherit;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pcard.red { color: var(--red); }
+.pcard.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
+  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
+}
+.pcard.slot { background: none; border: 1.5px dashed var(--line); box-shadow: none; }
+.pcard .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  font-size: var(--pcard-corner, 0.95rem);
+}
+.pcard .corner b { font-weight: 800; letter-spacing: -0.05em; }
+.pcard .corner i { font-style: normal; font-size: 0.85em; }
+.pcard .tl { top: var(--pcard-corner-y, 4px); left: var(--pcard-corner-x, 5px); }
+.pcard .br { bottom: var(--pcard-corner-y, 4px); right: var(--pcard-corner-x, 5px); transform: rotate(180deg); }
+.pcard .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--pcard-pip, 1.9rem); }
+.pcard .pip.face { font-weight: 800; font-size: var(--pcard-face, 1.6rem); font-family: Georgia, "Times New Roman", serif; }
+
+/* Seat-sized: rank over suit, nothing else fits. */
+.pcard-mini {
+  display: inline-grid;
+  place-items: center;
+  align-content: center;
+  width: var(--pcard-mini-w, 19px);
+  height: var(--pcard-mini-h, 26px);
+  border-radius: 3px;
+  background: var(--card);
+  color: var(--card-ink);
+  line-height: 0.9;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+.pcard-mini b { font-size: var(--pcard-mini-rank, 0.7rem); font-weight: 800; letter-spacing: -0.05em; }
+.pcard-mini i { font-size: var(--pcard-mini-suit, 0.62rem); font-style: normal; }
+.pcard-mini.red { color: var(--red); }
+.pcard-mini.back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3.5px);
+  box-shadow: inset 0 0 0 1.5px var(--card);
+}

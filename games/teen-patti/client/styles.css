@@ -1,9 +1,16 @@
-/* Teen Patti. Cards and chips drawn like Hold'em's. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is tp- prefixed: other games' stylesheets may be loaded in the same tab. */
+/* Teen Patti. Chips drawn like Hold'em's. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is tp- prefixed or under .teen-patti: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .teen-patti {
-  --card-w: 50px;
-  --card-h: 72px;
+  --pcard-w: 50px;
+  --pcard-h: 72px;
+  --pcard-radius: 7px;
+  --pcard-corner: 0.85rem;
+  --pcard-corner-y: 3px;
+  --pcard-corner-x: 4px;
+  --pcard-pip: 1.6rem;
+  --pcard-face: 1.35rem;
   --hand-w: 56px;
   --hand-h: 80px;
   display: flex;
@@ -159,28 +166,8 @@
 }
 .tp-seat-bar.low span, .tp-bar.low span { background: var(--danger); }
 
-/* Seat-sized cards: rank over suit. */
-.tp-mini {
-  display: inline-grid;
-  place-items: center;
-  align-content: center;
-  width: 19px;
-  height: 26px;
-  border-radius: 3px;
-  background: var(--card);
-  color: var(--card-ink);
-  line-height: 0.9;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-}
-.tp-mini b { font-size: 0.7rem; font-weight: 800; letter-spacing: -0.05em; }
-.tp-mini i { font-size: 0.62rem; font-style: normal; }
-.tp-mini.red { color: var(--red); }
-.tp-mini.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3.5px);
-  box-shadow: inset 0 0 0 1.5px var(--card);
-}
-.tp-mini.best { box-shadow: 0 0 0 2px var(--accent); }
-.tp-mini.flip { animation: tp-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+/* Seat-sized cards (.pcard-mini): rank over suit. */
+.teen-patti .pcard-mini.flip { animation: tp-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
 
 /* ---- Table: pot, stake, last hand ------------------------------------------ */
 
@@ -239,44 +226,8 @@
 
 /* ---- Cards ------------------------------------------------------------------- */
 
-.tp-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  border-radius: 7px;
-  background: var(--card);
-  color: var(--card-ink);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-.tp-card.red { color: var(--red); }
-.tp-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.tp-card.slot { background: none; border: 1.5px dashed var(--line); box-shadow: none; }
-.tp-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.85rem;
-}
-.tp-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.tp-card .corner i { font-style: normal; font-size: 0.85em; }
-.tp-card .tl { top: 3px; left: 4px; }
-.tp-card .br { bottom: 3px; right: 4px; transform: rotate(180deg); }
-.tp-card .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; }
-.tp-card .pip.face { font-weight: 800; font-size: 1.35rem; font-family: Georgia, "Times New Roman", serif; }
-/* Showdown: the winning five stand out, the rest step back. */
-.tp-card.best { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); transform: translateY(-3px); }
-.tp-card.dim { filter: brightness(0.55) saturate(0.6); }
-.tp-card.flip { animation: tp-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.teen-patti .pcard { transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.teen-patti .pcard.flip { animation: tp-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes tp-flip {
   from { transform: rotateY(90deg) scale(1.08); }
 }
@@ -303,10 +254,8 @@
 .teen-patti.over .tp-dock { position: static; background: none; }
 
 .tp-me { display: flex; align-items: center; gap: 12px; min-height: var(--hand-h); }
-.tp-hand { display: flex; gap: 6px; flex: 0 0 auto; }
-.tp-hand .tp-card { width: var(--hand-w); height: var(--hand-h); }
-.tp-hand .tp-card .corner { font-size: 0.95rem; }
-.tp-hand.packed .tp-card { filter: brightness(0.5) saturate(0.4); }
+.tp-hand { display: flex; gap: 6px; flex: 0 0 auto; --pcard-w: var(--hand-w); --pcard-h: var(--hand-h); --pcard-corner: 0.95rem; }
+.tp-hand.packed .pcard { filter: brightness(0.5) saturate(0.4); }
 .tp-me-text { display: grid; gap: 3px; min-width: 0; }
 .tp-label { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
 .tp-me-stack {
@@ -389,23 +338,24 @@
 
 @media (min-width: 700px) {
   .teen-patti {
-    --card-w: 70px;
-    --card-h: 100px;
+    --pcard-w: 70px;
+    --pcard-h: 100px;
+    --pcard-corner: 1.05rem;
+    --pcard-pip: 2.2rem;
+    --pcard-face: 1.9rem;
+    --pcard-mini-w: 23px;
+    --pcard-mini-h: 32px;
+    --pcard-mini-rank: 0.82rem;
+    --pcard-mini-suit: 0.72rem;
     --hand-w: 76px;
     --hand-h: 108px;
     gap: 14px;
   }
   .tp-seat { min-height: 60px; padding: 8px 10px 9px; }
   .tp-seat-name { font-size: 0.95rem; }
-  .tp-mini { width: 23px; height: 32px; }
-  .tp-mini b { font-size: 0.82rem; }
-  .tp-mini i { font-size: 0.72rem; }
   .tp-table { padding: 22px 20px 16px; gap: 12px; }
-  .tp-card .corner { font-size: 1.05rem; }
-  .tp-card .pip { font-size: 2.2rem; }
-  .tp-card .pip.face { font-size: 1.9rem; }
   .tp-pot { font-size: 1.2rem; }
-  .tp-hand .tp-card .corner { font-size: 1.1rem; }
+  .tp-hand { --pcard-corner: 1.1rem; }
   /* Room to breathe: the actions sit beside your cards. */
   .tp-dock { grid-template-columns: auto minmax(0, 1fr); align-items: end; column-gap: 16px; }
   .tp-peeks { grid-column: 1 / -1; grid-row: 1; }
@@ -417,10 +367,8 @@
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .teen-patti { --card-w: 50px; --card-h: 72px; --hand-w: 50px; --hand-h: 72px; gap: 8px; }
-  .tp-card .corner, .tp-hand .tp-card .corner { font-size: 0.95rem; }
-  .tp-card .pip { font-size: 1.9rem; }
-  .tp-card .pip.face { font-size: 1.6rem; }
+  .teen-patti { --pcard-w: 50px; --pcard-h: 72px; --pcard-pip: 1.9rem; --pcard-face: 1.6rem; --hand-w: 50px; --hand-h: 72px; gap: 8px; }
+  .teen-patti, .tp-hand { --pcard-corner: 0.95rem; }
   .tp-table { padding: 10px 12px 8px; gap: 8px; }
   .tp-dock { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); row-gap: 4px; }
 }
@@ -436,9 +384,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .teen-patti .shake { animation: none; outline: 2px solid var(--red); }
-  .tp-card, .tp-seat { transition: none; }
-  .tp-card.best { transform: none; }
-  .tp-card.flip, .tp-mini.flip { animation: none; }
+  .teen-patti .pcard, .tp-seat { transition: none; }
+  .teen-patti .pcard.flip, .teen-patti .pcard-mini.flip { animation: none; }
   .tp-sd-row, .tp-sd-row.enter, .tp-summary.pop { animation: none; transition: none; }
   .tp-seat-bar span, .tp-bar span { transition: none; }
 }

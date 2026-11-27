@@ -6,6 +6,7 @@ Party games for a group chat, played on phones. Read this before adding a game o
 
 - `games/<id>/`: one game. `shared/` (types, rules, manifest), `server/game.ts` (the `GameDefinition`), `client/` (the view), `test/`.
 - `packages/game-core`: the game contract (`GameDefinition`), ballots, RNG, party recap stats and awards (`recap.ts`).
+- `packages/ui/src/cards.ts` and `cards.css`: standard playing-card faces (corners, pips, backs, minis). A card game binds its ranks with `cardFaces` and sizes the cards with the `--pcard-*` properties in its own styles.
 - `packages/protocol`: wire messages and room state. Bump `PROTOCOL_VERSION` when either changes shape.
 - `packages/sounds`: the free sound board pack: `sounds.json` plus `free/*.mp3`, CC0 only. Change it with `pnpm sound` (`scripts/sound.mjs`). The memes pack never enters git. It lives in the party-games R2 bucket `party-games-memes`.
 - Host sounds (step 2) live in the R2 bucket bound as `SOUNDS`, keyed `lib/<library>/`. The Worker serves them (`apps/server/src/host-sounds.ts`). The room only stores which library it uses.

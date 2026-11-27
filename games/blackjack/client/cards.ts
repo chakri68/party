@@ -1,42 +1,20 @@
-import { h } from "@games/ui";
+import { cardFaces, h } from "@games/ui";
 import { formatRank, rankName } from "../shared/rules.ts";
-import type { Card, Suit } from "../shared/types.ts";
+import type { Card, Rank } from "../shared/types.ts";
 
-// The same 52-card faces as Hold'em: corners, a big pip, serif letters on faces.
-// U+FE0E asks for text presentation; without it some platforms draw a heart as an emoji.
-export const SUIT_SYMBOL: Record<Suit, string> = { spades: "♠︎", hearts: "♥︎", diamonds: "♦︎", clubs: "♣︎" };
-const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
+// The shared card faces (@games/ui), with Blackjack's ranks: the Ace is 1.
+const faces = cardFaces<Rank>({ short: formatRank, name: rankName });
+export const cardLabel = faces.label;
 
-const isRed = (suit: Suit) => suit === "hearts" || suit === "diamonds";
-const isFace = (rank: number) => rank > 10;
-export const cardLabel = (c: Pick<Card, "suit" | "rank">) => `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`;
+/** `flip`: the card was just dealt, so it turns over as it lands. */
+const flipped = (el: HTMLElement, flip: boolean) => (flip && el.classList.add("flip"), el);
 
 /** A full card face: the dealer's cards and yours. */
-export function cardFace(c: Card, flip = false): HTMLElement {
-  const corner = (pos: string) =>
-    h("span", { class: `corner ${pos}`, "aria-hidden": "true" }, h("b", {}, formatRank(c.rank)), h("i", {}, SUIT_SYMBOL[c.suit]));
-  return h(
-    "span",
-    { class: `bj-card${isRed(c.suit) ? " red" : ""}${flip ? " flip" : ""}`, role: "img", "aria-label": cardLabel(c) },
-    corner("tl"),
-    h("span", { class: `pip${isFace(c.rank) ? " face" : ""}`, "aria-hidden": "true" }, isFace(c.rank) ? formatRank(c.rank) : SUIT_SYMBOL[c.suit]),
-    corner("br"),
-  );
-}
-
+export const cardFace = (c: Card, flip = false) => flipped(faces.face(c), flip);
 /** A seat-sized face: rank over suit, nothing else fits. */
-export function cardMini(c: Card, flip = false): HTMLElement {
-  return h(
-    "span",
-    { class: `bj-mini${isRed(c.suit) ? " red" : ""}${flip ? " flip" : ""}`, role: "img", "aria-label": cardLabel(c) },
-    h("b", { "aria-hidden": "true" }, formatRank(c.rank)),
-    h("i", { "aria-hidden": "true" }, SUIT_SYMBOL[c.suit]),
-  );
-}
-
-export function cardBack(): HTMLElement {
-  return h("span", { class: "bj-card back", role: "img", "aria-label": "Face-down card" });
-}
+export const cardMini = (c: Card, flip = false) => flipped(faces.mini(c), flip);
+export const cardBack = () => faces.back("Face-down card");
+export const cardSlot = faces.slot;
 
 /** One play chip, drawn: a disc with a notched rim. Decorative. */
 export function chip(): HTMLElement {

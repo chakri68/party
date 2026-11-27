@@ -11,7 +11,7 @@ import type {
   Card,
   PublicHand,
 } from "../shared/types.ts";
-import { cardBack, cardFace, cardLabel, cardMini, chip } from "./cards.ts";
+import { cardBack, cardFace, cardLabel, cardMini, cardSlot, chip } from "./cards.ts";
 import { describe, handLabel, quickBets, resultText, roundNet, statusText, type Names } from "./text.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
@@ -172,7 +172,7 @@ export class BlackjackView implements GameView {
     replaceChildren(
       this.dealer,
       h("div", { class: "bj-dealer-head" }, h("b", {}, "Dealer"), label ? h("span", { class: `bj-total${total !== null && total > 21 ? " bust" : ""}` }, label) : null),
-      h("div", { class: "bj-row", role: "group", "aria-label": cards.length ? `Dealer cards: ${cards.map((c) => (c ? cardLabel(c) : "face down")).join(", ")}` : "No cards yet" }, row.length ? row : h("span", { class: "bj-card slot", "aria-hidden": "true" })),
+      h("div", { class: "bj-row", role: "group", "aria-label": cards.length ? `Dealer cards: ${cards.map((c) => (c ? cardLabel(c) : "face down")).join(", ")}` : "No cards yet" }, row.length ? row : cardSlot()),
       h("p", { class: "bj-rule" }, "Dealer stands on 17. Blackjack pays 3 to 2."),
     );
   }
