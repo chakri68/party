@@ -4,7 +4,7 @@ No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds 
 
 Chips are play chips: no buying, no cash-out, nothing carries over between games.
 
-Computer players can fill seats in this game, in all three games: Hold'em, Omaha and Short Deck. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
+Computer players can play in all three games: Texas Hold'em, Omaha and Short Deck. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
 
 ## The short version
 
@@ -57,13 +57,13 @@ The hand rankings are the same. Your screen shows your best hand by the Omaha ru
 
 ## Short Deck
 
-The host can set **Game** to Short Deck in the lobby. It is Texas Hold'em with a smaller deck. Everything above stays the same, except these things.
+The host can set **Game** to Short Deck in the lobby. It is Texas Hold'em with a smaller deck. These things change:
 
 - **36 cards:** 6 up to Ace in each suit. There are no 2, 3, 4 or 5 cards.
 - **A flush beats a full house.** With fewer cards, a flush is harder to make.
 - **A-6-7-8-9 is the lowest straight.** Here the Ace counts as a low card, under the 6. There is no A-2-3-4-5 straight.
-- A straight still beats three of a kind.
-- Bets are no-limit, as in Hold'em. The blinds are the same.
+
+A straight still beats three of a kind. Bets are no-limit, as in Hold'em, and the blinds are the same.
 
 Hand rankings in Short Deck, best first:
 

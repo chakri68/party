@@ -3,7 +3,10 @@ export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
 /** Display order. Alternating colours so neighbouring suits don't blur together. */
 export const SUITS: readonly Suit[] = ["spades", "hearts", "clubs", "diamonds"];
 
-/** 2 to 14: Aces are high (the wheel treats them as 1, see `bestHand`). */
+/**
+ * 2 to 14: Aces are high. In a straight the Ace can also play low, under the
+ * deck's lowest rank: A-2-3-4-5, or A-6-7-8-9 in Short Deck (see `bestHand`).
+ */
 export type Rank = number;
 export const ACE: Rank = 14;
 

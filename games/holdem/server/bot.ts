@@ -1,6 +1,6 @@
 import type { BotContext, GameBot } from "@games/game-core";
 import { handScoreFor, makeDeck } from "../shared/rules.ts";
-import { HOLE_CARDS, type Card, type HoldemAction, type HoldemPrivateState, type HoldemPublicState, type LegalActions, type Variant } from "../shared/types.ts";
+import { HOLE_CARDS, LOW_RANK, type Card, type HoldemAction, type HoldemPrivateState, type HoldemPublicState, type LegalActions, type Variant } from "../shared/types.ts";
 
 /** About 1 decision in this many is a random legal one, as a person's slip would be. */
 const RANDOM_MOVE_ODDS = 10;
@@ -105,13 +105,36 @@ export function equity(
 // Preflop
 // ---------------------------------------------------------------------------
 
-/** 1 is the best (TT+, AK, AQ suited), 5 is trash. */
-export function preflopTier(a: Card, b: Card): 1 | 2 | 3 | 4 | 5 {
+/** Where the preflop tiers draw their lines, by rank. Omaha has its own points (below). */
+interface TierLines {
+  /** Pairs at this rank or more are tier 2; down to `pair3`, tier 3; lower, tier 4. */
+  pair2: number;
+  pair3: number;
+  /** King-suited is tier 4 from this low card. */
+  kingSuited: number;
+  /** Suited cards this close, the lower at least `suitedLow`, are tier 4. */
+  suitedGap: number;
+  suitedLow: number;
+  /** Cards one apart, the lower at least this, are tier 4. */
+  connectedLow: number;
+}
+
+const SD = LOW_RANK.shortdeck;
+const TIER_LINES: Record<Exclude<Variant, "omaha">, TierLines> = {
+  holdem: { pair2: 7, pair3: 2, kingSuited: 2, suitedGap: 2, suitedLow: 5, connectedLow: 7 },
+  // No cards under 6, so the small ones count from the deck's lowest rank: 6-6 is
+  // the lowest pair, and small suited or connected cards are worth less.
+  shortdeck: { pair2: SD + 2, pair3: SD + 1, kingSuited: SD + 3, suitedGap: 1, suitedLow: SD + 2, connectedLow: SD + 3 },
+};
+
+/** 1 is the best (TT+, AK, AQ suited), 5 is trash. Hold'em and Short Deck. */
+export function preflopTier(a: Card, b: Card, variant: Variant = "holdem"): 1 | 2 | 3 | 4 | 5 {
+  const lines = TIER_LINES[variant === "shortdeck" ? "shortdeck" : "holdem"];
   const hi = Math.max(a.rank, b.rank);
   const lo = Math.min(a.rank, b.rank);
   const suited = a.suit === b.suit;
   const gap = hi - lo;
-  if (gap === 0) return hi >= 10 ? 1 : hi >= 7 ? 2 : 3;
+  if (gap === 0) return hi >= 10 ? 1 : hi >= lines.pair2 ? 2 : hi >= lines.pair3 ? 3 : 4;
   if (hi === 14) {
     if (lo === 13 || (lo === 12 && suited)) return 1;
     if (lo === 12 || (lo === 11 && suited)) return 2;
@@ -119,8 +142,8 @@ export function preflopTier(a: Card, b: Card): 1 | 2 | 3 | 4 | 5 {
     return 4;
   }
   if (lo >= 10) return hi === 13 && lo === 12 && suited ? 2 : 3;
-  if (suited && (hi === 13 || (gap <= 2 && lo >= 5))) return 4;
-  if (gap === 1 && lo >= 7) return 4;
+  if (suited && ((hi === 13 && lo >= lines.kingSuited) || (gap <= lines.suitedGap && lo >= lines.suitedLow))) return 4;
+  if (gap === 1 && lo >= lines.connectedLow) return 4;
   return 5;
 }
 
@@ -204,7 +227,7 @@ function randomMove(legal: LegalActions, ctx: BotContext): HoldemAction {
 function preflop(pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalActions, stack: number, ctx: BotContext): HoldemAction {
   const bb = pub.bb;
   const dealt = pub.players.filter((p) => p.inHand).length;
-  let tier = pub.variant === "omaha" ? omahaPreflopTier(priv.hole) : preflopTier(priv.hole[0]!, priv.hole[1]!);
+  let tier = pub.variant === "omaha" ? omahaPreflopTier(priv.hole) : preflopTier(priv.hole[0]!, priv.hole[1]!, pub.variant);
   // Fewer players, so weaker hands are worth playing.
   if (dealt <= 3) tier = Math.max(1, tier - 1) as typeof tier;
   if (stack < SHORT_STACK_BB * bb) return tier <= 3 ? shove(legal) : giveUp(legal);

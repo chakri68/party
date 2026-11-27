@@ -73,8 +73,16 @@ export function compareHands(a: HandValue, b: HandValue): number {
 // Hand order per game. One evaluator; each game maps a category to its strength.
 // ---------------------------------------------------------------------------
 
+// Categories, as indexes into HAND_CATEGORIES.
+const HIGH_CARD = 0;
+const PAIR = 1;
+const TWO_PAIR = 2;
+const THREE_OF_A_KIND = 3;
+const STRAIGHT = 4;
 const FLUSH = 5;
 const FULL_HOUSE = 6;
+const FOUR_OF_A_KIND = 7;
+const STRAIGHT_FLUSH = 8;
 /** Strength by category (index into HAND_CATEGORIES). Short Deck: a flush beats a full house. */
 const STRENGTH: Record<Variant, readonly number[]> = {
   holdem: [0, 1, 2, 3, 4, 5, 6, 7, 8],
@@ -249,18 +257,18 @@ export function handScore(cards: readonly Card[], variant: Variant = "holdem"): 
   }
   if (flushMask) {
     const sf = straightIn(flushMask, low);
-    if (sf) return packHand(strength[8]!, 1, sf, 0, 0, 0);
+    if (sf) return packHand(strength[STRAIGHT_FLUSH]!, 1, sf, 0, 0, 0);
   }
-  if (quad) return packHand(strength[7]!, 1, quad, 0, mask & ~(1 << quad), 1);
+  if (quad) return packHand(strength[FOUR_OF_A_KIND]!, 1, quad, 0, mask & ~(1 << quad), 1);
   // Seven cards can't hold both a full house and a flush, so their order here doesn't matter.
   if (trip && (trip2 || pair)) return packHand(strength[FULL_HOUSE]!, 2, trip, Math.max(trip2, pair), 0, 0);
   if (flushMask) return packHand(strength[FLUSH]!, 0, 0, 0, flushMask, 5);
   const straight = straightIn(mask, low);
-  if (straight) return packHand(strength[4]!, 1, straight, 0, 0, 0);
-  if (trip) return packHand(strength[3]!, 1, trip, 0, mask & ~(1 << trip), 2);
-  if (pair2) return packHand(strength[2]!, 2, pair, pair2, mask & ~(1 << pair) & ~(1 << pair2), 1);
-  if (pair) return packHand(strength[1]!, 1, pair, 0, mask & ~(1 << pair), 3);
-  return packHand(strength[0]!, 0, 0, 0, mask, 5);
+  if (straight) return packHand(strength[STRAIGHT]!, 1, straight, 0, 0, 0);
+  if (trip) return packHand(strength[THREE_OF_A_KIND]!, 1, trip, 0, mask & ~(1 << trip), 2);
+  if (pair2) return packHand(strength[TWO_PAIR]!, 2, pair, pair2, mask & ~(1 << pair) & ~(1 << pair2), 1);
+  if (pair) return packHand(strength[PAIR]!, 1, pair, 0, mask & ~(1 << pair), 3);
+  return packHand(strength[HIGH_CARD]!, 0, 0, 0, mask, 5);
 }
 
 // ---------------------------------------------------------------------------
