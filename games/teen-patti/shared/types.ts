@@ -140,6 +140,12 @@ export interface HandSummary {
 
 export type EndReason = "last-standing" | "time" | "abandoned";
 
+export interface AllIn {
+  playerId: string;
+  /** Each dealt player's chips in the pot when this player went all-in. */
+  at: Record<string, number>;
+}
+
 export interface SideshowRequest {
   fromId: string;
   toId: string;
@@ -160,6 +166,12 @@ export interface TeenPattiServerState {
   /** The Blind bet this hand. A Seen bet is twice this. */
   stake: number;
   sideshow: SideshowRequest | null;
+  /**
+   * This hand's all-ins, in the order they happened, each with what every
+   * player had put in at that moment: the pot that all-in can win.
+   * Optional: games stored before it had none.
+   */
+  allIns?: AllIn[];
   lastHand: HandSummary | null;
   /** When the step timer fires (pauses between hands), for the client. */
   stepEndsAt: number;

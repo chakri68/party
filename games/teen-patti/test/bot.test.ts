@@ -201,6 +201,7 @@ describe("teenPattiBot does little work", () => {
 
   it("decides well under 20 ms at worst", () => {
     // A smoke test only: a slow, busy test machine must not fail it. The test above pins the work.
+    handStrength(c("As Ah Ad")); // the one-time table, built on first use, is not a decision
     const views = [
       view({ cards: "Ts 9d 4c", legal: { sideshow: { toId: "o1", cost: 20 }, show: null }, opponents: 6 }),
       view({ cards: "Ts 9d 4c", answer: "o1", opponents: 6 }),
@@ -212,8 +213,7 @@ describe("teenPattiBot does little work", () => {
       teenPattiBot.decide(views[i % 3]!, { randomInt: seededRandomInt(i), chance: () => 50 });
       times.push(performance.now() - start);
     }
-    times.sort((a, b) => a - b);
-    expect(times[100]!).toBeLessThan(20);
+    expect(Math.max(...times)).toBeLessThan(20);
   });
 });
 

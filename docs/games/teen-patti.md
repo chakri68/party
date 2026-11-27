@@ -24,8 +24,8 @@ The host can pause this game. While paused, the turn timer and the Sideshow time
 - **Stake:** the bet now. A Blind bet is the stake. A Seen bet is twice the stake.
 - **Chaal:** a bet to stay in.
 - **Pack:** give up this hand. The chips you put in stay in the pot.
-- **Show:** with 2 players left, both hands turn over and the better hand wins.
-- **Sideshow:** you ask the player just before you to compare cards in private.
+- **Show:** with 2 players left to bet, every hand still in turns over and the best hand wins.
+- **Sideshow:** you ask the player before you who is still betting to compare cards in private.
 
 ## How it plays
 
@@ -36,8 +36,8 @@ The host can pause this game. While paused, the turn timer and the Sideshow time
    - **Pack:** give up this hand.
    - **Chaal:** bet 1 times the stake if you are Blind, or 2 times the stake if you are Seen.
    - **Double:** bet 2 times the stake if you are Blind, or 4 times the stake if you are Seen. The stake doubles for everyone. For example, the stake is 20. A Seen player doubles: they bet 80, and the stake is now 40. The next Blind bet is 40, and the next Seen bet is 80.
-   - **Show** (only when 2 players are left): pay your normal bet, and both hands turn over. A Blind player pays the Blind price, a Seen player the Seen price. The better hand wins the pot. If the two hands are equal, the player who asked for the Show loses.
-   - **Sideshow** (only when 3 or more players are left): if you are Seen, and the player still in just before you is also Seen, you can ask them for a Sideshow. It costs your normal Seen bet. They say yes or no. They have 15 seconds; no answer is a no.
+   - **Show** (only when 2 players are left to bet): pay your normal bet, and every hand still in turns over. Either player may ask for a Show, Blind or Seen. Each pays their own price: a Blind player pays the Blind price, a Seen player the Seen price. The best hand wins the pot. If your hand is equal to the hand of the player you asked, you lose.
+   - **Sideshow** (only when 3 or more players are left to bet): if you are Seen, and the player before you who is still betting is also Seen, you can ask them for a Sideshow. It costs your normal Seen bet. They say yes or no. They have 15 seconds; no answer is a no.
      - **Yes:** you two see each other's cards. Nobody else does. The lower hand packs. If the hands are equal, the player who asked packs. Then play goes on from the player after you.
      - **No:** nothing happens. Your bet stays in the pot, and play goes on.
 5. **The hand ends** when only one player is left (they win the pot without showing), after a Show, or when the cards turn over for one of the reasons below.
@@ -49,19 +49,19 @@ Each button shows its price, like "Chaal 40" or "Double 80". Every seat shows **
 Best first:
 
 1. **Trail:** 3 cards of the same rank, like 7-7-7. A-A-A is the best, 2-2-2 the lowest.
-2. **Pure sequence:** 3 cards in a row, all in one suit.
-3. **Sequence:** 3 cards in a row, in any suits.
-4. **Color:** 3 cards of one suit, not in a row.
+2. **Pure sequence:** 3 cards in a sequence, all in one suit.
+3. **Sequence:** 3 cards in a sequence, in any suits.
+4. **Color:** 3 cards of one suit, not in a sequence.
 5. **Pair:** 2 cards of the same rank.
 6. **High card:** none of these.
 
-**Rows (for both kinds of sequence):** A-K-Q is the best. A-2-3 is next. Then K-Q-J, Q-J-10, and so on down to 4-3-2. K-A-2 is not a row.
+**Sequences (for both kinds):** A-K-Q is the best. A-2-3 is next. Then K-Q-J, Q-J-10, and so on down to 4-3-2. K-A-2 is not a sequence.
 
 **Ties:** two hands of the same kind compare by rank. A Pair compares the pair first, then the third card. Color and High card compare the top card, then the next, then the last. Suits never count. Fully equal hands share the pot (but in a Show, the player who asked loses a tie, and in a Sideshow, the player who asked packs).
 
 ## Short stacks and the pot limit
 
-**All-in.** If you can't pay a normal bet, you can go all-in: you put in all your chips and stay in the hand. You can win only what you matched from each player. The other players keep betting into a side pot that you can't win. When at most one player can still bet, every hand still in turns over: the best hand that put in enough wins each pot. With 2 players left, going all-in turns both hands over at once. Chips that nobody else matched go back to the player who bet them.
+**All-in.** If you can't pay a normal bet, you can go all-in: you put in all your chips and stay in the hand. You can win the pot as it is at that moment. Bets made after that go into a side pot that only the players still betting can win. If a second player goes all-in later, they can win the pot as it is then, and a new side pot starts. When at most one player can still bet, every hand still in turns over, and the best hand that can win each pot takes it. With 2 players left, going all-in turns both hands over at once. If only you put chips in a side pot, and only you can win it, those chips come back to you.
 
 A stack smaller than the boot puts in what it has and is all-in from the start.
 

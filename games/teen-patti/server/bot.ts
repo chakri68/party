@@ -33,25 +33,30 @@ const SHOW_DROP = 0.3;
 const ACCEPT_ABOVE = 0.55;
 
 /**
- * Every 3-card hand's score, sorted: 22,100 of them. Built once when the
- * module loads, so a decision is one binary search.
+ * Every 3-card hand's score, sorted: 22,100 of them, so a decision is one
+ * binary search. Built on the first use (about 20 ms), not when the module
+ * loads: the server bundles every game, and a cold start shouldn't pay for it.
+ * The same table every time, so `decide` stays pure.
  */
-const ALL_SCORES: Float64Array = (() => {
+let allScores: Float64Array | null = null;
+function scores(): Float64Array {
+  if (allScores) return allScores;
   const deck = makeDeck();
-  const scores: number[] = [];
+  const list: number[] = [];
   for (let a = 0; a < deck.length; a++)
     for (let b = a + 1; b < deck.length; b++)
-      for (let c = b + 1; c < deck.length; c++) scores.push(handScore([deck[a]!, deck[b]!, deck[c]!]));
-  return Float64Array.from(scores).sort();
-})();
+      for (let c = b + 1; c < deck.length; c++) list.push(handScore([deck[a]!, deck[b]!, deck[c]!]));
+  allScores = Float64Array.from(list).sort();
+  return allScores;
+}
 
 /** First index with a score at least `s`. */
-function lowerBound(s: number): number {
+function lowerBound(table: Float64Array, s: number): number {
   let lo = 0;
-  let hi = ALL_SCORES.length;
+  let hi = table.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (ALL_SCORES[mid]! < s) lo = mid + 1;
+    if (table[mid]! < s) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -59,10 +64,11 @@ function lowerBound(s: number): number {
 
 /** The share of all hands this one beats, ties counting half: 0 to 1. */
 export function handStrength(cards: readonly Card[]): number {
+  const table = scores();
   const s = handScore(cards);
-  const below = lowerBound(s);
-  const equal = lowerBound(s + 1) - below;
-  return (below + equal / 2) / ALL_SCORES.length;
+  const below = lowerBound(table, s);
+  const equal = lowerBound(table, s + 1) - below;
+  return (below + equal / 2) / table.length;
 }
 
 const PACK: TeenPattiAction = { type: "pack" };

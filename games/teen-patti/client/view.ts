@@ -345,7 +345,7 @@ export class TeenPattiView implements GameView {
     this.levelText.textContent =
       game.step === "over"
         ? `Boot ${formatChips(game.boot)}`
-        : `Hand ${game.handNumber} · Boot ${formatChips(game.boot)} · ${formatChips(game.nextBoot)} ${hands === 1 ? "next hand" : `in ${hands} hands`}`;
+        : `Hand ${game.handNumber} · Boot ${formatChips(game.boot)} · Next boot ${formatChips(game.nextBoot)} ${hands === 1 ? "next hand" : `in ${hands} hands`}`;
   }
 
   private renderStatus(props: GameViewProps, game: TeenPattiPublicState, priv: TeenPattiPrivateState | null) {

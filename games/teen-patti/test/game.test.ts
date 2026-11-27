@@ -331,10 +331,24 @@ describe("Sideshow", () => {
     expect(turn(t.state)).toBe("p3");
     expect(t.timers).toContainEqual({ kind: "cancel", timerId: ANSWER_TIMER });
   });
+
+  it("the asked player leaving calls it off too", () => {
+    const s = seenPair(["Kh Kd 4s", "2c 7d 9h", "As Ah Ad", "5c 5d 5h"]);
+    const asked = act(s, "p2", { type: "sideshow" }).state;
+    const pot = pubOf(asked).pot;
+    const t = tp.onPlayerRemoved!(asked, "p1", ctx());
+    expect(t.state).toMatchObject({ step: "betting", sideshow: null });
+    expect(t.state.players[1]).toMatchObject({ packed: true, removed: true });
+    expect(t.state.players[2]!.packed).toBe(false); // the asker stays in, and the bet stays in the pot
+    expect(pubOf(t.state).pot).toBe(pot);
+    expect(turn(t.state)).toBe("p3");
+    expect(t.timers).toContainEqual({ kind: "cancel", timerId: ANSWER_TIMER });
+    expect(types(t)).not.toContain("sideshow-cards");
+  });
 });
 
 describe("all-in and side pots", () => {
-  it("a short stack can't Chaal, but can go all-in, and wins only what it matched", () => {
+  it("a short stack can't Chaal, but can go all-in, and wins the pot as it was then", () => {
     // p1 has 30 after the boot. Deal order p1, p2, p0. p1 has the best hand, p2 the next.
     let s = table([1000, 40, 1000], { decks: [deal("As Ah Ad", "Ks Kh Kd", "2c 7d 9h")] });
     s = play(s, "p1", { type: "see" });
@@ -349,17 +363,19 @@ describe("all-in and side pots", () => {
     s = play(s, "p1", { type: "all-in" });
     expect(s.players[1]).toMatchObject({ stack: 0, allIn: true, contributed: 40 });
     expect(turn(s)).toBe("p2");
-    // In: p0 30, p1 40 (all-in), p2 50. p1 can win up to 40 from each.
-    expect(pubOf(s).pots).toEqual([
-      { amount: 110, eligible: ["p0", "p1", "p2"] },
-      { amount: 10, eligible: ["p0", "p2"] },
-    ]);
-    // p2 and p0 go on, then p2 packs: p0 and the all-in p1 show.
+    // In: p0 30, p1 40 (all-in), p2 50. p1 can win all 120: still one pot.
+    expect(pubOf(s).pots).toEqual([]);
+    expect(s.allIns).toEqual([{ playerId: "p1", at: { p0: 30, p1: 40, p2: 50 } }]);
+    // p2 and p0 go on into a side pot, then p2 packs: p0 and the all-in p1 show.
     s = play(s, "p2", { type: "chaal" }); // p2 in for 90
     s = play(s, "p0", { type: "chaal" }); // p0 in for 50
+    expect(pubOf(s).pots).toEqual([
+      { amount: 120, eligible: ["p0", "p1", "p2"] },
+      { amount: 60, eligible: ["p0", "p2"] },
+    ]);
     const t = act(s, "p2", { type: "pack" });
     expect(t.state.lastHand).toMatchObject({ reason: "all-in", showBy: null });
-    // p1's Trail takes the 120 it matched. The rest, p2's packed chips too, goes to p0.
+    // p1's Trail takes the 120 it could win. The side pot, p2's packed chips too, goes to p0.
     expect(t.state.lastHand!.won).toEqual({ p1: 120, p0: 60 });
     expect(stacks(t.state)).toEqual([1010, 120, 910]);
   });
@@ -373,9 +389,95 @@ describe("all-in and side pots", () => {
     const t = act(s, "p1", { type: "all-in" }); // p1 has 10 left: short of 20
     expect(t.state.step).toBe("showdown");
     expect(t.state.lastHand).toMatchObject({ reason: "all-in" });
-    // In: p0 50, p1 30, p2 10. p0 wins the 70 p1 could win, and its unmatched 20 comes back.
-    expect(t.state.lastHand!.won).toEqual({ p0: 70 });
+    // In: p0 50, p1 30, p2 10. p1 could win all 90, so p0 wins all 90. A Seen bet is not "more" than a Blind one.
+    expect(t.state.lastHand!.won).toEqual({ p0: 90 });
     expect(stacks(t.state)).toEqual([1040, 0, 990]);
+  });
+
+  it("Seen bets against a Blind player don't come back to the Seen player who goes all-in", () => {
+    // p1 (100) plays Seen, p2 Blind, p0 packs. Deal order p1, p2, p0.
+    let s = table([1000, 100, 1000], { decks: [deal("Kh Kd 4s", "As Ah Ad", "2c 7d 9h")] });
+    s = play(s, "p1", { type: "see" });
+    s = play(s, "p1", { type: "chaal" }); // Seen 20
+    s = play(s, "p2", { type: "chaal" }); // Blind 10
+    s = play(s, "p0", { type: "pack" });
+    for (let i = 0; i < 3; i++) {
+      s = play(s, "p1", { type: "chaal" });
+      s = play(s, "p2", { type: "chaal" });
+    }
+    expect(s.players[1]).toMatchObject({ stack: 10, contributed: 90 });
+    expect(s.players[2]!.contributed).toBe(50);
+    const t = act(s, "p1", { type: "all-in" });
+    // p1 is in for 100, p2 for 50, p0 for 10. p2 can win the whole 160; nothing comes back to p1.
+    expect(t.state.lastHand).toMatchObject({ reason: "all-in", won: { p2: 160 } });
+    expect(t.state.lastHand!.pots).toEqual([{ amount: 160, winners: ["p2"], label: "Trail of Aces" }]);
+    expect(stacks(t.state)).toEqual([990, 0, 1110]);
+    // The loser has no chips: they are out.
+    const next = timer(t.state, STEP_TIMER).state;
+    expect(next.players[1]).toMatchObject({ out: true, bustedHand: 1 });
+  });
+
+  it("a Blind all-in wins the Seen bets made before it", () => {
+    // p1 (30) stays Blind and goes all-in with the best hand. Deal order p1, p2, p0.
+    let s = table([1000, 30, 1000], { decks: [deal("As Ah Ad", "Ks Kh Kd", "2c 7d 9h")] });
+    s = play(s, "p1", { type: "chaal" }); // Blind 10: 10 left
+    s = play(s, "p2", { type: "see" });
+    s = play(s, "p2", { type: "double" }); // Seen 40: the stake is 20
+    s = play(s, "p0", { type: "see" });
+    s = play(s, "p0", { type: "chaal" }); // Seen 40
+    s = play(s, "p1", { type: "all-in" }); // 10, short of 20
+    // In: p0 50, p1 30, p2 50. p1 can win all 130.
+    s = play(s, "p2", { type: "chaal" }); // 40
+    const t = act(s, "p0", { type: "pack" });
+    expect(t.state.lastHand!.pots).toEqual([
+      { amount: 130, winners: ["p1"], label: "Trail of Aces" },
+      { amount: 40, winners: ["p2"], label: null, uncalled: true },
+    ]);
+    expect(t.state.lastHand!.won).toEqual({ p1: 130 });
+    expect(stacks(t.state)).toEqual([950, 130, 950]);
+  });
+
+  it("several all-ins nest side pots, in the order they happened", () => {
+    // Deal order p1, p2, p3, p0. Best hand p1, then p2, then p0.
+    let s = table([1000, 40, 80, 1000], { decks: [deal("As Ah Ad", "Ks Kh Kd", "2c 7d 9h", "Qs Qh 4d")] });
+    s = play(s, "p1", { type: "double" }); // Blind 20: the stake is 20, 10 left
+    s = play(s, "p2", { type: "chaal" }); // 20: 50 left
+    s = play(s, "p3", { type: "chaal" });
+    s = play(s, "p0", { type: "chaal" });
+    s = play(s, "p1", { type: "all-in" }); // 10: p1 can win 130
+    s = play(s, "p2", { type: "chaal" }); // 20: 30 left
+    s = play(s, "p3", { type: "double" }); // 40: the stake is 40
+    s = play(s, "p0", { type: "chaal" }); // 40
+    s = play(s, "p2", { type: "all-in" }); // 30: p2 can win 260
+    expect(s.allIns!.map((a) => a.playerId)).toEqual(["p1", "p2"]);
+    s = play(s, "p3", { type: "chaal" }); // 40
+    s = play(s, "p0", { type: "chaal" }); // 40
+    expect(pubOf(s).pots).toEqual([
+      { amount: 130, eligible: ["p0", "p1", "p2", "p3"] },
+      { amount: 130, eligible: ["p0", "p2", "p3"] },
+      { amount: 80, eligible: ["p0", "p3"] },
+    ]);
+    const t = act(s, "p3", { type: "pack" });
+    expect(t.state.lastHand!.won).toEqual({ p1: 130, p2: 130, p0: 80 });
+    expect(stacks(t.state)).toEqual([970, 130, 130, 890]);
+  });
+
+  it("Show is open when 2 can still bet, with an all-in player still in; the asker loses ties", () => {
+    // Deal order p1, p2, p0. p2 and p0 have equal hands; p1 the worst.
+    let s = table([1000, 40, 1000], { decks: [deal("2c 3d 5h", "Ks Kh 4d", "Kc Kd 4s")] });
+    s = play(s, "p1", { type: "double" }); // 20: the stake is 20
+    s = play(s, "p2", { type: "chaal" });
+    s = play(s, "p0", { type: "chaal" });
+    s = play(s, "p1", { type: "all-in" }); // 10
+    expect(privOf(s, "p2").legal).toMatchObject({ show: 20, sideshow: null });
+    const t = act(s, "p2", { type: "show" });
+    expect(t.state.lastHand).toMatchObject({ reason: "show", showBy: "p2" });
+    // Every hand still in turns over, the all-in one too.
+    expect(t.state.lastHand!.order).toEqual(["p1", "p2", "p0"]);
+    expect(Object.keys(t.state.lastHand!.shown).sort()).toEqual(["p0", "p1", "p2"]);
+    // p2 asked and ties p0: p0 takes the main pot and the Show bet.
+    expect(t.state.lastHand!.won).toEqual({ p0: 120 });
+    expect(stats(t.state).p2).toEqual({ wrongCalls: 1 });
   });
 });
 
@@ -413,9 +515,9 @@ describe("ending and placing", () => {
     let s = table([1000, 10, 15], { decks: [deal("2c 3d 5h", "As Ah Ad", "7c 8d Th"), deal("As Ah Ad", "2c 3d 5h")] });
     expect(turn(s)).toBe("p2");
     s = play(s, "p2", { type: "all-in" });
-    // Only p0 can still bet: everyone shows. p2's Trail takes the 30.
+    // Only p0 can still bet: everyone shows. p2's Trail takes all 35.
     expect(s.step).toBe("showdown");
-    expect(s.lastHand!.won).toEqual({ p2: 30 });
+    expect(s.lastHand!.won).toEqual({ p2: 35 });
     s = timer(s, STEP_TIMER).state;
     expect(s.players[1]).toMatchObject({ out: true, bustedHand: 1 });
     expect(s.step).toBe("between-hands");
@@ -586,7 +688,7 @@ describe("party stats", () => {
     expect(stats(u).p1).toEqual({ liesTold: 1 });
   });
 
-  it("still Blind after the pot passes 20 boots is a big bet, once per hand", () => {
+  it("a Blind Chaal or Double once the pot is past 20 boots is a big bet, once per hand", () => {
     let s = table([1000, 1000, 1000]);
     s = play(s, "p1", { type: "double" }); // 20, stake 20
     s = play(s, "p2", { type: "double" }); // 40, stake 40
@@ -594,9 +696,13 @@ describe("party stats", () => {
     s = play(s, "p0", { type: "double" }); // 80: pot 170
     expect(stats(s)).toEqual({});
     s = play(s, "p1", { type: "chaal" }); // 80: pot 250, past 200
-    expect(stats(s)).toEqual({ p0: { bigBids: 1 }, p1: { bigBids: 1 }, p2: { bigBids: 1 } });
-    s = play(s, "p2", { type: "chaal" });
-    expect(stats(s).p2).toEqual({ bigBids: 1 });
+    expect(stats(s)).toEqual({ p1: { bigBids: 1 } }); // only the player who bet
+    s = play(s, "p2", { type: "see" });
+    s = play(s, "p2", { type: "chaal" }); // Seen: not a Blind bet
+    s = play(s, "p0", { type: "chaal" });
+    s = play(s, "p1", { type: "chaal" }); // again: still once
+    const big = (id: string) => stats(s)[id]?.bigBids ?? 0;
+    expect([big("p0"), big("p1"), big("p2")]).toEqual([1, 1, 0]);
   });
 
   it("never shows in the public or private state", () => {

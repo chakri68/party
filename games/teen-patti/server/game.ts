@@ -1,6 +1,5 @@
 import {
   awardPots,
-  buildPots,
   bumpStat,
   formatChips,
   shuffle,
@@ -10,6 +9,7 @@ import {
   type GameEventEnvelope,
   type GameOutcome,
   type GameResult,
+  type Pot,
   type StatKey,
   type TimerRequest,
 } from "@games/game-core";
@@ -144,31 +144,64 @@ function put(p: Player, amount: number): number {
   return a;
 }
 
-/** The pots from what's in, with an all-in capping only what that player can win. */
-function potsOf(s: State) {
+/** Notes anyone who just went all-in, with the pot as it is now: what they can win. */
+function noteAllIns(s: State): void {
+  const list = (s.allIns ??= []);
   const dealt = s.players.filter((p) => p.inHand);
-  return buildPots(
-    Object.fromEntries(dealt.map((p) => [p.id, p.contributed])),
-    dealt.filter((p) => p.packed).map((p) => p.id),
-    dealt.filter(actable).map((p) => p.id),
-  );
+  for (const p of dealt) {
+    if (p.allIn && !list.some((a) => a.playerId === p.id)) {
+      list.push({ playerId: p.id, at: Object.fromEntries(dealt.map((o) => [o.id, o.contributed])) });
+    }
+  }
+}
+
+/**
+ * The pots, by time. An all-in player can win the pot as it was when they
+ * went all-in. Bets after that go into a side pot that only the players
+ * still betting can win. Several all-ins nest, in the order they happened.
+ * A side pot holding only one player's chips, that only they can win, is
+ * uncalled: it goes back to them.
+ */
+function potsOf(s: State): Pot[] {
+  const dealt = s.players.filter((p) => p.inHand);
+  const liveIds = dealt.filter(live).map((p) => p.id);
+  const allIns = s.allIns ?? [];
+  const marks = [...allIns.map((a) => a.at), Object.fromEntries(dealt.map((p) => [p.id, p.contributed]))];
+  const pots: Pot[] = [];
+  const gone = new Set<string>();
+  let prev: Record<string, number> = {};
+  marks.forEach((at, k) => {
+    const from = dealt.filter((p) => (at[p.id] ?? 0) > (prev[p.id] ?? 0)).map((p) => p.id);
+    const amount = dealt.reduce((sum, p) => sum + (at[p.id] ?? 0) - (prev[p.id] ?? 0), 0);
+    const eligible = liveIds.filter((id) => !gone.has(id));
+    if (amount > 0) {
+      const pot: Pot = { amount, eligible };
+      if (pots.length && eligible.length === 1 && from.length === 1 && from[0] === eligible[0]) pot.uncalled = true;
+      pots.push(pot);
+    }
+    if (allIns[k]) gone.add(allIns[k]!.playerId);
+    prev = at;
+  });
+  return pots;
 }
 
 function legalFor(s: State, p: Player): LegalMoves {
   const chaal = chaalFor(s.stake, p.seen);
   const double = doubleFor(s.stake, p.seen);
   const short = p.stack < chaal;
+  // Show when only 2 can still bet; Sideshow when more can.
+  const bettors = s.players.filter(actable).length;
   const target = previousActor(s, s.players.indexOf(p));
   const asked = target >= 0 ? s.players[target]! : null;
   const sideshow =
-    p.seen && !short && liveCount(s) >= 3 && asked && asked.seen && !asked.away && !asked.sittingOut
+    p.seen && !short && bettors >= 3 && asked && asked.seen && !asked.away && !asked.sittingOut
       ? { toId: asked.id, cost: chaal }
       : null;
   return {
     chaal: short ? null : chaal,
     double: p.stack >= double ? double : null,
     allIn: short ? p.stack : null,
-    show: liveCount(s) === 2 && !short ? chaal : null,
+    show: bettors === 2 && !short ? chaal : null,
     sideshow,
   };
 }
@@ -206,6 +239,7 @@ function pack(p: Player, reason: PackReason, out: Out): void {
 /** Chips in, the stake moved, and the recap counts that hang on a bet. */
 function bet(s: State, p: Player, kind: MoveKind, amount: number, out: Out): void {
   const paid = put(p, amount);
+  noteAllIns(s);
   if (kind === "chaal" || kind === "double") s.stake = Math.max(s.stake, stakeAfter(paid, p.seen));
   p.lastMove = { kind, amount: paid };
   out.events.push(pub({ type: "bet", playerId: p.id, kind, amount: paid, seen: p.seen, stake: s.stake }));
@@ -215,14 +249,10 @@ function bet(s: State, p: Player, kind: MoveKind, amount: number, out: Out): voi
     p.lied = true;
     stat(s, p.id, "liesTold");
   }
-  // Still Blind with a big pot: a bold bet for the recap.
-  if (potOf(s) > BIG_BLIND_POT_BOOTS * boot(s)) {
-    for (const o of s.players) {
-      if (live(o) && !o.seen && !o.bigBid) {
-        o.bigBid = true;
-        stat(s, o.id, "bigBids");
-      }
-    }
+  // A Blind bet into a big pot: a bold bet for the recap.
+  if ((kind === "chaal" || kind === "double") && !p.seen && !p.bigBid && potOf(s) > BIG_BLIND_POT_BOOTS * boot(s)) {
+    p.bigBid = true;
+    stat(s, p.id, "bigBids");
   }
 }
 
@@ -247,7 +277,9 @@ function applyMove(s: State, ctx: GameContext, idx: number, action: TeenPattiAct
       bet(s, p, "all-in", legal.allIn, out);
       break;
     case "show":
-      if (legal.show === null) return liveCount(s) === 2 ? "You don't have enough chips for a Show." : "You can ask for a Show only when 2 players are left.";
+      if (legal.show === null) {
+        return s.players.filter(actable).length === 2 ? "You don't have enough chips for a Show." : "You can ask for a Show only when 2 players are left to bet.";
+      }
       bet(s, p, "show", legal.show, out);
       showdown(s, ctx, out, "show", p.id);
       return null;
@@ -349,7 +381,8 @@ function summaryBase(s: State, reason: ShowReason | null, showBy: string | null)
 
 /**
  * Every hand still in turns up and the pots are paid. Equal hands split,
- * except in a Show: there the player who asked loses a tie.
+ * except in a Show: there the player who asked loses a tie (to the player
+ * they asked, and to an all-in player still in).
  */
 function showdown(s: State, ctx: GameContext, out: Out, reason: ShowReason, showBy: string | null): void {
   stopClock(s, out);
@@ -368,8 +401,9 @@ function showdown(s: State, ctx: GameContext, out: Out, reason: ShowReason, show
     if (!r.uncalled && pots[i]!.eligible.length > 1) r.label = values[r.winners[0]!]!.label;
   });
   if (showBy) {
-    const other = contenders.find((p) => p.id !== showBy)!;
-    stat(s, showBy, compareHands(s.players.find((p) => p.id === showBy)!.cards, other.cards) > 0 ? "rightCalls" : "wrongCalls");
+    // The asked player: the other one still betting.
+    const asked = contenders.find((p) => p.id !== showBy && !p.allIn)!;
+    stat(s, showBy, compareHands(s.players.find((p) => p.id === showBy)!.cards, asked.cards) > 0 ? "rightCalls" : "wrongCalls");
   }
   const summary = summaryBase(s, reason, showBy);
   summary.pots = results;
@@ -441,10 +475,13 @@ function startHand(s: State, ctx: GameContext, out: Out): void {
   s.stake = b;
   s.step = "betting";
   s.sideshow = null;
+  s.allIns = [];
   const boots = order.map((i) => {
     const p = s.players[i]!;
     return { playerId: p.id, amount: put(p, b) };
   });
+  // A stack short of the boot is all-in with everyone's boot in.
+  noteAllIns(s);
   out.events.push(
     pub({
       type: "hand-start",
@@ -598,6 +635,7 @@ export const teenPattiGame: GameDefinition<
       deadline: 0,
       stake: 0,
       sideshow: null,
+      allIns: [],
       lastHand: null,
       stepEndsAt: 0,
       testDecks: options?.deck ? normalizeDecks(options.deck) : null,
