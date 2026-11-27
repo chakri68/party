@@ -5,11 +5,11 @@
 .blackjack {
   --card-w: 50px;
   --card-h: 72px;
-  --mine-w: 58px;
-  --mine-h: 82px;
+  --mine-w: 52px;
+  --mine-h: 74px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   flex: 1;
   min-width: 0;
 }
@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 50px;
+  min-height: 44px;
   padding: 6px 12px;
   border: 1.5px solid var(--line);
   border-radius: 14px;
@@ -40,8 +40,8 @@
 .bj-dealer {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  padding: 12px 10px 10px;
+  gap: 6px;
+  padding: 8px 10px;
   border: 1.5px solid var(--line);
   border-radius: 16px;
   background: var(--surface);
@@ -50,7 +50,7 @@
 .bj-dealer-head b { font-size: 0.95rem; }
 .bj-total { font-weight: 800; font-variant-numeric: tabular-nums; }
 .bj-total.bust { color: var(--danger); }
-.bj-rule { margin: 0; font-size: 0.75rem; color: var(--muted); text-align: center; }
+.bj-rule { margin: 0; font-size: 0.72rem; color: var(--muted); text-align: center; }
 
 .bj-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: var(--card-h); }
 
@@ -59,9 +59,9 @@
 .bj-seats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .bj-seat {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
-  padding: 6px 8px 7px;
+  padding: 5px 7px 6px;
   border: 1.5px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
@@ -142,28 +142,43 @@
   position: sticky;
   bottom: 0;
   margin: auto -16px 0;
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  padding: 6px 16px calc(8px + env(safe-area-inset-bottom));
   background: linear-gradient(to top, var(--bg) 88%, transparent);
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
 }
+.bj-dock > * { grid-column: 1 / -1; }
 .blackjack.over .bj-dock { position: static; background: none; }
 
 .bj-hands { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .bj-hands[hidden] { display: none; }
 .bj-hand { display: grid; gap: 4px; justify-items: center; padding: 4px; border-radius: 12px; border: 1.5px solid transparent; }
 .bj-hand.on { border-color: var(--accent); }
-.bj-hand .bj-row { min-height: var(--mine-h); }
+.bj-hand .bj-row { flex-wrap: nowrap; min-height: var(--mine-h); }
 .bj-hand .bj-card { width: var(--mine-w); height: var(--mine-h); }
 .bj-hand .bj-card .corner { font-size: 0.95rem; }
-/* Two hands after a split: the cards overlap so both fit across a phone. */
-.bj-hands:has(.bj-hand + .bj-hand) .bj-hand .bj-row { flex-wrap: nowrap; }
+/* Two hands after a split, or many cards: the cards overlap so they fit across a
+   phone. Each card's corner stays in view. */
+.bj-hands:has(.bj-hand + .bj-hand) .bj-row, .bj-hand .bj-row:has(.bj-card:nth-child(4)) { gap: 0; }
 .bj-hands:has(.bj-hand + .bj-hand) .bj-hand .bj-card + .bj-card { margin-left: -26px; }
+.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(4)) .bj-card + .bj-card { margin-left: -30px; }
+.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(6)) .bj-card + .bj-card { margin-left: -34px; }
+.bj-hands .bj-hand .bj-row:has(.bj-card:nth-child(7)) .bj-card + .bj-card { margin-left: -38px; }
 .bj-hand-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 8px; font-size: 0.85rem; color: var(--muted); }
 .bj-hand-line .bj-total { color: var(--ink); font-size: 1.05rem; }
 .bj-result { font-weight: 800; color: var(--ink); }
 
-.bj-me { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
+/* One hand: the total sits beside the cards, and your chips beside the hand,
+   so the dock stays short and the table stays in view. */
+.bj-dock:has(.bj-hand:only-child) .bj-hands { grid-column: 1; justify-content: flex-start; }
+.bj-dock:has(.bj-hand:only-child) .bj-me { grid-column: 2; flex-direction: column; align-items: flex-end; gap: 2px; }
+.bj-hand:only-child { grid-template-columns: auto minmax(0, auto); align-items: center; column-gap: 10px; padding: 0; }
+.bj-hand:only-child .bj-hand-line { display: grid; justify-items: start; gap: 2px; }
+.bj-hand:only-child .bj-hand-line .bj-total { font-size: 1.3rem; line-height: 1.1; }
+
+.bj-me { display: flex; align-items: center; justify-content: center; gap: 4px 12px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
 .bj-me-stack { font-size: 0.95rem; }
 .bj-me-stack b { color: var(--ink); }
 
@@ -171,24 +186,30 @@
 .bj-actions:empty { display: none; }
 .bj-actions button { min-height: 52px; padding-inline: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bj-actions.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-/* Hit, Stand, Double, Split: thumb-sized, two by two on a phone. */
-.bj-actions.moves { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Hit, Stand, Double, Split: thumb-sized, one row of four. */
+.bj-actions.moves { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .bj-actions .bj-hit, .bj-actions .bj-stand { border-color: var(--ink); font-weight: 800; }
-.bj-quick-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 6px; }
-.bj-actions .bj-quick { min-height: 44px; padding: 0 4px; font-size: 0.9rem; }
+.bj-quick-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; }
+.bj-actions .bj-quick { min-height: 44px; padding: 0 2px; font-size: 0.85rem; }
 .bj-quick.on { border-color: var(--accent); color: var(--accent); }
 .bj-bet-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; }
 .bj-actions .bj-step { padding: 0; font-size: 1.4rem; line-height: 1; }
+
+/* A very narrow phone: two by two. */
+@media (max-width: 339px) {
+  .bj-actions.moves { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* ---- Bigger screens ---------------------------------------------------------------- */
 
 @media (min-width: 520px) {
   .bj-seats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .bj-actions.moves { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (min-width: 700px) {
   .blackjack { --card-w: 66px; --card-h: 94px; --mine-w: 72px; --mine-h: 102px; gap: 14px; }
+  .bj-status { min-height: 50px; }
+  .bj-dealer { padding: 12px 10px 10px; gap: 8px; }
   .bj-card .corner { font-size: 1.05rem; }
   .bj-card .pip { font-size: 2.1rem; }
   .bj-card .pip.face { font-size: 1.8rem; }
@@ -204,7 +225,6 @@
   .bj-card .pip { font-size: 1.4rem; }
   .bj-dealer { padding: 6px 10px; gap: 4px; }
   .bj-rule { display: none; }
-  .bj-actions.moves { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bj-actions button { min-height: 44px; }
 }
 
