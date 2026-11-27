@@ -97,6 +97,9 @@ function waitsOnBet(p: Player): boolean {
   return canBet(p) && p.bet === null && !p.sitOut && p.missed < 2;
 }
 
+/** Missed 2 bets in a row, so the table doesn't wait on this seat's bet. */
+const canBack = (p: Player) => !p.removed && !p.out && p.missed >= 2;
+
 const activeHand = (p: Player): number => (p.removed ? -1 : p.hands.findIndex((h) => !h.done));
 const playing = (p: Player) => activeHand(p) >= 0;
 
@@ -335,6 +338,7 @@ function legalMoves(s: State, p: Player): LegalMoves | null {
   const two = hand.cards.length === 2;
   return {
     hand: i,
+    cards: hand.cards.length,
     hit: true,
     stand: true,
     double: two && p.stack >= hand.bet,
@@ -342,10 +346,14 @@ function legalMoves(s: State, p: Player): LegalMoves | null {
   };
 }
 
-/** Null on success, or why not. */
-function applyMove(s: State, ctx: GameContext, p: Player, kind: MoveKind, index: number, out: Out): string | null {
+/**
+ * Null on success, or why not. `cards` is the hand's size as the player saw
+ * it: a second tap sent before the first one's card showed is refused.
+ */
+function applyMove(s: State, ctx: GameContext, p: Player, kind: MoveKind, index: number, cards: number, out: Out): string | null {
   const legal = legalMoves(s, p);
   if (!legal || legal.hand !== index) return "That hand is done.";
+  if (legal.cards !== cards) return "Your cards changed. Look again.";
   const hand = p.hands[index]!;
   switch (kind) {
     case "hit":
@@ -408,12 +416,15 @@ function parseAction(input: unknown): BlackjackAction | null {
     case "hit":
     case "stand":
     case "double":
-    case "split":
-      return Number.isInteger(a.hand) && (a.hand as number) >= 0 && (a.hand as number) < 2
-        ? { type: a.type, hand: a.hand as number }
-        : null;
+    case "split": {
+      const hand = a.hand as number;
+      const cards = a.cards as number;
+      const ok = Number.isInteger(hand) && hand >= 0 && hand < 2 && Number.isInteger(cards) && cards >= 1 && cards <= 21;
+      return ok ? { type: a.type, hand, cards } : null;
+    }
     case "rebuy":
     case "stay-out":
+    case "back":
       return { type: a.type };
     default:
       return null;
@@ -507,6 +518,7 @@ export const blackjackGame: GameDefinition<
         if (prev.step !== "betting") return reject("not-betting", "Bets are closed.");
         if (!canBet(me)) return reject("cant-bet", me.pendingRebuy ? "Rebuy first." : "You have no chips.");
         if (me.bet !== null) return reject("already-bet", "You already bet.");
+        if (me.sitOut) return reject("sitting-out", "You sit out this round.");
         const min = Math.min(MIN_BET, me.stack);
         if (action.amount < min || action.amount > me.stack) {
           return reject("bad-bet", `Bet from ${formatChips(min)} to ${formatChips(me.stack)}.`);
@@ -541,11 +553,17 @@ export const blackjackGame: GameDefinition<
         afterLeave(state, ctx, out);
         return { ok: true, transition: done(state, out) };
       }
+      case "back": {
+        if (!canBack(me)) return reject("not-sitting-out", "You are already playing.");
+        const state = clone(prev);
+        state.players[seat]!.missed = 0;
+        return { ok: true, transition: { state, events: [pub({ type: "back", playerId })] } };
+      }
       default: {
         if (prev.step !== "play") return reject("not-playing", "Wait for the cards.");
         const state = clone(prev);
         const out = newOut();
-        const error = applyMove(state, ctx, state.players[seat]!, action.type, action.hand, out);
+        const error = applyMove(state, ctx, state.players[seat]!, action.type, action.hand, action.cards, out);
         if (error) return reject("illegal-move", error);
         maybeEndPlay(state, ctx, out);
         return { ok: true, transition: done(state, out) };
@@ -657,7 +675,6 @@ export const blackjackGame: GameDefinition<
       rounds: state.settings.rounds,
       minBet: MIN_BET,
       startingChips: STARTING_CHIPS,
-      rebuyOpen: state.settings.rebuys === "one" && state.round <= rebuyRounds(state.settings.rounds),
       players: state.players.map((p) => ({
         id: p.id,
         stack: p.stack,
@@ -703,12 +720,13 @@ export const blackjackGame: GameDefinition<
 
   getPrivateState(state, playerId) {
     const p = state.players.find((x) => x.id === playerId);
-    const none: BlackjackPrivateState = { bet: null, canRebuy: false, moves: null };
+    const none: BlackjackPrivateState = { bet: null, canRebuy: false, canBack: false, moves: null };
     if (!p || p.removed || state.phase !== "playing") return none;
     const betting = state.step === "betting";
     return {
-      bet: betting && canBet(p) && p.bet === null ? { min: Math.min(MIN_BET, p.stack), max: p.stack } : null,
+      bet: betting && canBet(p) && p.bet === null && !p.sitOut ? { min: Math.min(MIN_BET, p.stack), max: p.stack } : null,
       canRebuy: betting && p.pendingRebuy,
+      canBack: canBack(p),
       moves: legalMoves(state, p),
     };
   },
@@ -726,7 +744,9 @@ export const blackjackGame: GameDefinition<
     const left = state.players.filter((p) => p.removed);
     return {
       winnerIds: state.winnerIds,
-      ...(state.winnerIds.length ? {} : { headline: "The dealer took every chip." }),
+      ...(state.winnerIds.length
+        ? {}
+        : { headline: state.endReason === "abandoned" ? "Everyone left the table." : "The dealer took every chip." }),
       standings: [
         ...ranked.map((p) => ({
           playerId: p.id,

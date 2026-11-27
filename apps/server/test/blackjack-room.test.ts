@@ -26,7 +26,7 @@ describe("Blackjack with computers in the room", () => {
       rounds = Math.max(rounds, game.round);
       const priv = ana.last("update")!.private as BlackjackPrivateState | null;
       if (priv?.bet) await send(room, ana, { type: "game-action", clientActionId: `a${n++}`, action: { type: "bet", amount: 10 } });
-      else if (priv?.moves) await send(room, ana, { type: "game-action", clientActionId: `a${n++}`, action: { type: "stand", hand: priv.moves.hand } });
+      else if (priv?.moves) await send(room, ana, { type: "game-action", clientActionId: `a${n++}`, action: { type: "stand", hand: priv.moves.hand, cards: priv.moves.cards } });
       else await world.tick(room, 250);
     }
     expect(roomOf(ana).phase).toBe("results");
@@ -52,6 +52,35 @@ describe("Blackjack with computers in the room", () => {
       expect(ana.last("error"), `seed ${seed}`).toBeUndefined();
       expect(world.errors, `seed ${seed}`).toEqual([]);
     }
+  }, 30_000);
+
+  it("a person sitting out taps Play next round, and the next betting waits for them", async () => {
+    const world = new World();
+    const room = new RoomRuntime("K7DX", world.host(), { blackjack: blackjackGame }, "blackjack");
+    await room.load();
+    await room.claim();
+    const ana = await join(world, room, "Ana");
+    await send(room, ana, { type: "add-bot" });
+    await send(room, ana, { type: "start-game" });
+    const game = () => roomOf(ana).game as BlackjackPublicState;
+    const me = () => game().players.find((p) => p.id === ana.last("welcome")!.playerId)!;
+    const priv = () => ana.last("update")!.private as BlackjackPrivateState;
+    // Ana misses two bets: she is sitting out, and the computer's bet alone deals.
+    for (let i = 0; i < 2000 && !me().sittingOut; i++) await world.tick(room, 250);
+    expect(me().sittingOut).toBe(true);
+    for (let i = 0; i < 2000 && game().step === "betting"; i++) await world.tick(room, 250);
+    expect(game().step).not.toBe("betting");
+    expect(priv().canBack).toBe(true);
+    await send(room, ana, { type: "game-action", clientActionId: "b1", action: { type: "back" } });
+    expect(me().sittingOut).toBe(false);
+    for (let i = 0; i < 2000 && game().step !== "betting"; i++) await world.tick(room, 250);
+    const round = game().round;
+    // Well past the computer's think time: the table still waits on Ana.
+    await world.tick(room, 5000);
+    expect(game()).toMatchObject({ step: "betting", round });
+    expect(roomOf(ana).awaitingPlayerIds).toEqual([ana.last("welcome")!.playerId]);
+    expect(priv().bet).not.toBeNull();
+    expect(world.errors).toEqual([]);
   }, 30_000);
 
   it("computers keep playing while the person sits out", async () => {

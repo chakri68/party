@@ -17,7 +17,7 @@ Computer players can fill seats in this game. They play by the usual Blackjack c
 
 1. **Bet.** Everyone bets at the same time, before the clock runs out. The smallest bet is 10. The largest is all your chips. If you have less than 10, you can bet what you have. No bet in time means you sit out this round.
 2. **Deal.** You get 2 cards face up. The dealer gets 1 card face up and 1 card face down.
-3. **The dealer checks.** If the dealer's face-up card is an Ace or a 10-value card, the dealer looks at the face-down card. If the dealer has Blackjack, the round ends at once. A player with Blackjack gets the bet back. Everyone else loses. The log says when the dealer checked and found nothing.
+3. **The dealer checks.** If the dealer's face-up card is an Ace or a card worth 10 (10, Jack, Queen or King), the dealer looks at the face-down card. If the dealer has Blackjack, the round ends at once. A player with Blackjack gets the bet back. Everyone else loses. The log says when the dealer checked and found nothing.
 4. **Play.** Everyone plays at the same time, on their own cards:
    - **Hit:** take 1 more card.
    - **Stand:** stop with what you have.
@@ -29,7 +29,7 @@ Computer players can fill seats in this game. They play by the usual Blackjack c
 5. **Dealer.** When every hand is done, the dealer turns over the face-down card. The dealer takes cards until 17 or more, and stands on every 17, also a soft 17 (an Ace counted as 11). If every hand is a bust or a Blackjack, the dealer takes no cards.
 6. **Pay.**
    - A win pays the same as your bet: bet 100, get 200 back.
-   - **Blackjack** is an Ace and a 10-value card as your first 2 cards. It pays 3 to 2, rounded down to a whole chip: bet 10, win 15; bet 15, win 22. A 21 after a split is not Blackjack. It is only 21.
+   - **Blackjack** is an Ace and a card worth 10 as your first 2 cards. It pays 3 to 2, rounded down to a whole chip: bet 10, win 15; bet 15, win 22. A 21 after a split is not Blackjack. It is only 21.
    - Blackjack beats a 21 made of 3 or more cards.
    - The same total as the dealer gives your bet back.
    - A bust always loses, even when the dealer goes over 21 too.
@@ -67,15 +67,14 @@ Host picks these in the lobby.
 - **Players.** Everyone else: name, chips, bet, their cards and total. While a player is still playing, their box is lit. After the pay, each hand shows Win, Blackjack, Tie, Lose or Bust.
 - **Your cards.** Your hand (or 2 hands after a split, with the one you are playing lit), the total and the bet. Below: your chips.
 - **Betting.** Quick amounts (10, 25, 50, 100, 250, 500 and All), a minus and a plus (10 each), and the **Bet** button. The game keeps your last amount for the next round.
-- **Playing.** Hit, Stand, Double and Split. A button is grey when you can't use it now.
+- **Playing.** Hit, Stand, Double and Split. A button is grey when you can't use it now. If you tap twice fast, the second tap is not used, so you never take a card you didn't see coming.
 - Your clock ticks in its last five seconds. Sounds and vibration cue the deal, your turn and your wins.
 
 ## When things go sideways
 
-- **No bet in time.** You sit out this round. Two rounds in a row and the table stops waiting for your bet: rounds start as soon as everyone else has bet. You can still bet while betting is open, and then you play again.
+- **No bet in time.** You sit out this round. Miss 2 bets in a row and you are sitting out: the table stops waiting for your bet, and rounds start as soon as everyone else has bet. Tap **Play next round** at any time, and the next betting waits for you again. You can also just bet while betting is open.
 - **Out of time while playing.** Your hands stand.
 - **Disconnected player.** The table doesn't wait on them. With no bet yet, they sit out the round. Hands they are playing stand.
-- **Idle player.** The host's Skip does what the clock would.
 - **The host removes a player.** Their chips leave with them, also the chips they bet this round.
 - **The host pauses the game.** The clock stops for everyone. Nobody can bet or play. When the host taps **Resume**, the clock goes on from where it stopped.
 - **Game over.** The host sees Rematch and Back to lobby; everyone else sees Play again.

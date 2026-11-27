@@ -107,6 +107,8 @@ export function describe(e: BlackjackEvent, n: Names): string | null {
       return `${does(n, e.playerId, "rebuy", "rebuys")} for ${formatChips(e.chips)} chips.`;
     case "stay-out":
       return `${does(n, e.playerId, "stay", "stays")} out.`;
+    case "back":
+      return `${who(n, e.playerId)} ${e.playerId === n.me ? "play" : "plays"} again from the next round.`;
     case "player-removed":
       return `${who(n, e.playerId)} left the game.`;
     case "game-over":
@@ -131,6 +133,7 @@ export function waitingOn(game: BlackjackPublicState): string[] {
 export function statusText(game: BlackjackPublicState, priv: BlackjackPrivateState | null, n: Names): string {
   const me = game.players.find((p) => p.id === n.me);
   const others = (ids: string[]) => ids.filter((id) => id !== n.me).map((id) => n.name(id));
+  if (game.step !== "over" && priv?.canBack && !priv.bet) return "You are sitting out";
   switch (game.step) {
     case "over":
       return "Game over";

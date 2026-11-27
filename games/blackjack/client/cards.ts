@@ -10,7 +10,6 @@ const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", di
 const isRed = (suit: Suit) => suit === "hearts" || suit === "diamonds";
 const isFace = (rank: number) => rank > 10;
 export const cardLabel = (c: Pick<Card, "suit" | "rank">) => `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`;
-export const cardShort = (c: Pick<Card, "suit" | "rank">) => `${formatRank(c.rank)}${SUIT_SYMBOL[c.suit]}`;
 
 /** A full card face: the dealer's cards and yours. */
 export function cardFace(c: Card, flip = false): HTMLElement {

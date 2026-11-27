@@ -274,7 +274,7 @@ export class BlackjackView implements GameView {
       }),
     );
     this.hands.hidden = !p.hands.length;
-    const tag = p.removed ? "You left" : p.out ? "You are out" : p.sittingOut && game.step === "betting" && p.bet === null ? "Sitting out. Bet to play again." : "";
+    const tag = p.removed ? "You left" : p.out ? "You are out" : p.sittingOut ? "Sitting out" : "";
     replaceChildren(
       this.me,
       h("span", { class: "bj-me-stack" }, chip(), h("b", {}, formatChips(p.stack)), " chips"),
@@ -299,9 +299,14 @@ export class BlackjackView implements GameView {
     if (priv?.moves) {
       const m = priv.moves;
       const move = (type: "hit" | "stand" | "double" | "split", label: string, ok: boolean) =>
-        h("button", { class: `bj-${type}`, disabled: off || !ok, onclick: () => this.send({ type, hand: m.hand }) }, label);
+        h("button", { class: `bj-${type}`, disabled: off || !ok, onclick: () => this.send({ type, hand: m.hand, cards: m.cards }) }, label);
       replaceChildren(this.actions, move("hit", "Hit", m.hit), move("stand", "Stand", m.stand), move("double", "Double", m.double), move("split", "Split", m.split));
       this.actions.className = "bj-actions moves";
+      return;
+    }
+    if (priv?.canBack) {
+      replaceChildren(this.actions, h("button", { class: "primary", disabled: off, onclick: () => this.send({ type: "back" }) }, "Play next round"));
+      this.actions.className = "bj-actions";
       return;
     }
     replaceChildren(this.actions);

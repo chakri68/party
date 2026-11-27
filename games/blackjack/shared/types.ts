@@ -169,8 +169,6 @@ export interface BlackjackPublicState {
   rounds: number;
   minBet: number;
   startingChips: number;
-  /** Rebuys are on and the game is still in its first half. */
-  rebuyOpen: boolean;
   players: BlackjackPublicPlayer[];
   /** The face-down card is null. */
   dealer: { cards: (Card | null)[]; total: number | null; soft: boolean; blackjack: boolean };
@@ -189,6 +187,8 @@ export interface BlackjackPublicState {
 export interface LegalMoves {
   /** The hand these moves are for. */
   hand: number;
+  /** Cards in that hand now. A move names it, so a second tap on a stale screen is refused. */
+  cards: number;
   hit: boolean;
   stand: boolean;
   double: boolean;
@@ -199,6 +199,8 @@ export interface BlackjackPrivateState {
   /** Bet bounds, while you can bet. */
   bet: { min: number; max: number } | null;
   canRebuy: boolean;
+  /** You missed 2 bets in a row: "back" makes the next betting wait for you again. */
+  canBack: boolean;
   /** Moves for your current hand, while you play. */
   moves: LegalMoves | null;
 }
@@ -209,13 +211,13 @@ export interface BlackjackPrivateState {
 
 export type BlackjackAction =
   | { type: "bet"; amount: number }
-  | { type: "hit"; hand: number }
-  | { type: "stand"; hand: number }
-  | { type: "double"; hand: number }
-  | { type: "split"; hand: number }
+  /** `cards`: how many cards the hand has as you see it (see `LegalMoves.cards`). */
+  | { type: MoveKind; hand: number; cards: number }
   | { type: "rebuy" }
   /** Don't rebuy: you are out. */
-  | { type: "stay-out" };
+  | { type: "stay-out" }
+  /** Sitting out: play again from the next betting. */
+  | { type: "back" };
 
 export type MoveKind = "hit" | "stand" | "double" | "split";
 /** Why the game acted for someone. */
@@ -244,5 +246,6 @@ export type BlackjackEvent =
   | { type: "busted"; playerIds: string[]; rebuy: string[] }
   | { type: "rebuy"; playerId: string; chips: number }
   | { type: "stay-out"; playerId: string }
+  | { type: "back"; playerId: string }
   | { type: "player-removed"; playerId: string }
   | { type: "game-over"; winnerIds: string[]; reason: EndReason };

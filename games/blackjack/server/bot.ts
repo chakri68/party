@@ -1,6 +1,14 @@
 import type { GameBot } from "@games/game-core";
 import { cardValue, handTotal, isPair } from "../shared/rules.ts";
-import { MIN_BET, type BlackjackAction, type BlackjackPrivateState, type BlackjackPublicState, type Card } from "../shared/types.ts";
+import {
+  MIN_BET,
+  type BlackjackAction,
+  type BlackjackPrivateState,
+  type BlackjackPublicState,
+  type Card,
+  type LegalMoves,
+  type MoveKind,
+} from "../shared/types.ts";
 
 /**
  * Basic strategy for this table: 6 decks, the dealer stands on every 17,
@@ -65,30 +73,27 @@ export function botBet(stack: number, min: number, roll: number): number {
   return Math.min(stack, Math.max(min, amount, MIN_BET));
 }
 
+const MOVE: Record<Play, (m: LegalMoves) => MoveKind> = {
+  P: () => "split",
+  D: (m) => (m.double ? "double" : "hit"),
+  d: (m) => (m.double ? "double" : "stand"),
+  H: () => "hit",
+  S: () => "stand",
+};
+
 export const blackjackBot: GameBot<BlackjackPublicState, BlackjackPrivateState, BlackjackAction> = {
   decide(view, ctx) {
     const priv = view.private;
     if (priv.canRebuy) return { type: "rebuy" };
     if (priv.bet) return { type: "bet", amount: botBet(priv.bet.max, priv.bet.min, ctx.randomInt(8)) };
+    // Skipped twice by the host: come back for the next round.
+    if (priv.canBack) return { type: "back" };
     const moves = priv.moves;
     if (!moves) return null;
     const me = view.public.players.find((p) => p.id === view.playerId);
     const hand = me?.hands[moves.hand];
     const up = view.public.dealer.cards[0];
-    if (!hand || !up) return { type: "stand", hand: moves.hand };
-    const play = basicStrategy(hand.cards, up, moves.split);
-    const i = moves.hand;
-    switch (play) {
-      case "P":
-        return { type: "split", hand: i };
-      case "D":
-        return { type: moves.double ? "double" : "hit", hand: i };
-      case "d":
-        return { type: moves.double ? "double" : "stand", hand: i };
-      case "H":
-        return { type: "hit", hand: i };
-      default:
-        return { type: "stand", hand: i };
-    }
+    const play: Play = hand && up ? basicStrategy(hand.cards, up, moves.split) : "S";
+    return { type: MOVE[play](moves), hand: moves.hand, cards: moves.cards };
   },
 };

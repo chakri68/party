@@ -10,6 +10,7 @@ import {
   type BlackjackEvent,
   type BlackjackServerState,
   type BlackjackSettings,
+  type MoveKind,
 } from "../shared/types.ts";
 
 type State = BlackjackServerState;
@@ -26,13 +27,25 @@ function start(opts: { players?: number; deck?: string[]; settings?: Partial<Bla
   return { state: t.state, ids, events: t.events.map((e) => e.event) as BlackjackEvent[] };
 }
 
-function act(state: State, id: string, action: BlackjackAction) {
+/** A move without `cards` names the hand's size as it is now, as a fresh screen would. */
+type Move = { type: MoveKind; hand: number; cards?: number };
+type Loose = Exclude<BlackjackAction, { type: MoveKind }> | Move;
+
+function fill(state: State, id: string, action: Loose): BlackjackAction {
+  if (!("hand" in action) || action.cards !== undefined) return action as BlackjackAction;
+  const cards = state.players.find((p) => p.id === id)!.hands[action.hand]?.cards.length ?? 0;
+  return { ...action, cards };
+}
+
+function act(state: State, id: string, loose: Loose) {
+  const action = fill(state, id, loose);
   const r = bj.handleAction(state, id, action, ctx());
   if (!r.ok) throw new Error(`${id} ${JSON.stringify(action)}: ${r.error.message}`);
   return { state: r.transition.state, events: r.transition.events.map((e) => e.event) as BlackjackEvent[], timers: r.transition.timers ?? [] };
 }
 
-function refuse(state: State, id: string, action: BlackjackAction): string {
+function refuse(state: State, id: string, loose: Loose): string {
+  const action = fill(state, id, loose);
   const r = bj.handleAction(state, id, action, ctx());
   if (r.ok) throw new Error(`${id} ${JSON.stringify(action)} was allowed`);
   return r.error.message;
@@ -86,7 +99,7 @@ describe("a round", () => {
     expect(pub(state).dealer).toEqual({ cards: [expect.objectContaining({ id: "spades-6" }), null], total: 6, soft: false, blackjack: false });
     expect(JSON.stringify(pub(state))).not.toContain("spades-10");
 
-    expect(bj.getPrivateState(state, "p1").moves).toEqual({ hand: 0, hit: true, stand: true, double: true, split: true });
+    expect(bj.getPrivateState(state, "p1").moves).toEqual({ hand: 0, cards: 2, hit: true, stand: true, double: true, split: true });
     expect(bj.getPrivateState(state, "p2").moves).toMatchObject({ hand: 0, double: true, split: false });
     expect(refuse(state, "p2", { type: "split", hand: 0 })).toBe("You can split only 2 cards of the same rank.");
 
@@ -270,6 +283,28 @@ describe("clocks", () => {
   });
 });
 
+describe("pause in the dealer's turn", () => {
+  it("moves the dealer's beat on, and leaves the stopped clock alone", () => {
+    let { state } = start({ players: 1, deck: ["hearts-10", "spades-6", "diamonds-7", "hearts-9", "clubs-5"] });
+    state = act(state, "p1", { type: "bet", amount: 10 }).state;
+    state = act(state, "p1", { type: "stand", hand: 0 }).state;
+    expect(state.step).toBe("dealer");
+    const beat = state.stepEndsAt;
+    expect(state.deadline).toBe(0);
+    clock += 300;
+    state = bj.pause!(state, true, ctx()).state;
+    clock += 45_000;
+    state = bj.pause!(state, false, ctx()).state;
+    expect(state.stepEndsAt).toBe(beat + 45_000);
+    expect(state.deadline).toBe(0);
+    expect(pub(state).clock).toBeNull();
+    // The room fires the held timer on resume: the dealer goes on from there.
+    const t = fire(state, STEP_TIMER, DEALER_MS - 300);
+    expect(t.events).toEqual([{ type: "dealer-draw", card: expect.objectContaining({ id: "clubs-5" }) }]);
+    expect(t.state.stepEndsAt).toBe(clock + DEALER_MS);
+  });
+});
+
 describe("chips and the end", () => {
   it("rebuys once in the first half", () => {
     let { state } = start({ players: 1, settings: { rebuys: "one" }, deck: ["hearts-10", "spades-10", "diamonds-6", "hearts-9"] });
@@ -368,6 +403,133 @@ describe("chips and the end", () => {
   });
 });
 
+describe("taps and sitting out", () => {
+  it("a second Hit sent for the same cards is refused, not played", () => {
+    let { state } = start({ players: 1, deck: ["hearts-2", "spades-9", "diamonds-3", "hearts-8", "clubs-4", "clubs-5"] });
+    state = act(state, "p1", { type: "bet", amount: 10 }).state;
+    // Both taps were sent while the hand had 2 cards.
+    state = act(state, "p1", { type: "hit", hand: 0, cards: 2 }).state;
+    expect(refuse(state, "p1", { type: "hit", hand: 0, cards: 2 })).toBe("Your cards changed. Look again.");
+    expect(refuse(state, "p1", { type: "stand", hand: 0, cards: 2 })).toBe("Your cards changed. Look again.");
+    expect(state.players[0]!.hands[0]!.cards).toHaveLength(3);
+    expect(bj.getPrivateState(state, "p1").moves).toMatchObject({ hand: 0, cards: 3 });
+    state = act(state, "p1", { type: "hit", hand: 0, cards: 3 }).state;
+    expect(state.players[0]!.hands[0]!.cards).toHaveLength(4);
+  });
+
+  it("a seat the host skipped gets no bet for that round", () => {
+    let { state } = start();
+    state = bj.skipTurn!(state, "p2", ctx()).state;
+    expect(bj.getPrivateState(state, "p2").bet).toBeNull();
+    expect(refuse(state, "p2", { type: "bet", amount: 10 })).toBe("You sit out this round.");
+    // A computer in that seat has nothing to do, so it can't undo the skip.
+    const view = { playerId: "p2", public: bj.getPublicState(state), private: bj.getPrivateState(state, "p2") };
+    expect(bj.bot!.decide(view, { randomInt: () => 0, chance: () => 0 })).toBeNull();
+  });
+
+  it("Play next round: a sitting-out seat makes the next betting wait for it again", () => {
+    const round = ["hearts-10", "clubs-9", "spades-7", "diamonds-8"];
+    let { state } = start({ deck: [...round, ...round, ...round] });
+    for (let r = 0; r < 2; r++) {
+      state = act(state, "p1", { type: "bet", amount: 10 }).state;
+      state = fire(state, TURN_TIMER, 20_000).state;
+      state = fire(state, TURN_TIMER, 20_000).state;
+      state = finishRound(state).state;
+    }
+    expect(pub(state).players[1]!.sittingOut).toBe(true);
+    expect(bj.getAwaitedPlayerIds(state)).toEqual(["p1"]);
+    // p1 bets: the table doesn't wait on p2.
+    state = act(state, "p1", { type: "bet", amount: 10 }).state;
+    expect(state.step).toBe("play");
+    expect(bj.getPrivateState(state, "p2").canBack).toBe(true);
+    const back = act(state, "p2", { type: "back" });
+    expect(back.events).toEqual([{ type: "back", playerId: "p2" }]);
+    state = back.state;
+    expect(bj.getPrivateState(state, "p2").canBack).toBe(false);
+    expect(refuse(state, "p2", { type: "back" })).toBe("You are already playing.");
+    state = fire(state, TURN_TIMER, 20_000).state;
+    state = finishRound(state).state;
+    expect(state.step).toBe("betting");
+    expect(bj.getAwaitedPlayerIds(state)).toEqual(["p1", "p2"]);
+    state = act(state, "p1", { type: "bet", amount: 10 }).state;
+    expect(state.step).toBe("betting");
+  });
+});
+
+describe("chips", () => {
+  /** Chips a seat holds: its stack, plus what it has on the table and not yet paid. */
+  const holdings = (p: State["players"][number]) =>
+    p.removed ? 0 : p.stack + (p.hands.length ? p.hands.filter((h) => h.result === null).reduce((a, h) => a + h.bet, 0) : (p.bet ?? 0));
+  const ledger = (s: State) => s.players.reduce((a, p) => a + holdings(p), 0);
+
+  it("are never made or lost except by the pay, rebuys and leavers", () => {
+    // Random moves, junk moves, skips, drops, leavers and pauses, against a ledger.
+    for (let seed = 1; seed <= 30; seed++) {
+      const r = seededRandomInt(seed);
+      const n = 1 + r(7);
+      const ids = Array.from({ length: n }, (_, i) => `p${i + 1}`);
+      clock = 1_000_000;
+      const c = (): GameContext => ({ now: clock, randomInt: r });
+      const settings: BlackjackSettings = { rounds: [10, 15, 20][r(3)]!, rebuys: r(2) ? "one" : "off", turnSeconds: 15 };
+      const created = bj.createGame(ids.map((id) => ({ id })), settings, { roundNumber: 1, dealerSeat: 0 }, c());
+      let s = created.state;
+      const timers = new Map<string, number>();
+      const track = (reqs: { kind: string; timerId: string; delayMs?: number }[] = []) => {
+        for (const t of reqs) t.kind === "set" ? timers.set(t.timerId, clock + t.delayMs!) : timers.delete(t.timerId);
+      };
+      track(created.timers);
+      const apply = (t: { state: State; events: { event: BlackjackEvent }[]; timers?: never[] | unknown[] }, left = 0) => {
+        let expected = ledger(s) - left;
+        for (const { event: e } of t.events) {
+          if (e.type === "settled") for (const res of e.results) expected += res.paid - res.bet;
+          if (e.type === "rebuy") expected += e.chips;
+        }
+        expect(ledger(t.state), `seed ${seed}`).toBe(expected);
+        for (const p of t.state.players) expect(p.stack, `seed ${seed}`).toBeGreaterThanOrEqual(0);
+        s = t.state;
+        track(t.timers as never);
+      };
+      for (let step = 0; step < 4000 && !bj.getResult(s); step++) {
+        const roll = r(100);
+        const id = ids[r(n)]!;
+        if (roll < 2) {
+          s = bj.pause!(s, true, c()).state;
+          clock += r(5000);
+          s = bj.pause!(s, false, c()).state;
+        } else if (roll < 3) {
+          const p = s.players.find((x) => x.id === id)!;
+          apply(bj.onPlayerRemoved!(s, id, c()), holdings(p));
+        } else if (roll < 6) {
+          apply(r(2) ? bj.onPlayerDisconnected!(s, id, c()) : bj.onPlayerReconnected!(s, id, c()));
+        } else if (roll < 8) {
+          apply(bj.skipTurn!(s, id, c()));
+        } else if (roll < 70) {
+          const priv = bj.getPrivateState(s, id);
+          const view = { playerId: id, public: bj.getPublicState(s), private: priv };
+          const kinds = ["hit", "stand", "double", "split"] as const;
+          const k = r(10);
+          const action: unknown =
+            k < 3 ? { type: kinds[r(4)], hand: r(2), cards: 2 + r(2) }
+            : k < 4 ? { type: "bet", amount: 1 + r(1500) }
+            : k < 5 ? { type: r(2) ? "rebuy" : "back" }
+            : bj.bot!.decide(view, { randomInt: r, chance: () => r(100) });
+          const parsed = bj.parseAction(action);
+          if (!parsed) continue;
+          const res = bj.handleAction(s, id, parsed, c());
+          if (res.ok) apply(res.transition);
+        } else {
+          const next = [...timers.entries()].sort((a, b) => a[1] - b[1])[0];
+          expect(next, `seed ${seed}: no timer in ${s.step}`).toBeDefined();
+          timers.delete(next![0]);
+          clock = Math.max(clock, next![1]);
+          apply(bj.onTimer!(s, next![0], c()));
+        }
+      }
+      expect(bj.getResult(s), `seed ${seed} never ended`).not.toBeNull();
+    }
+  }, 30_000);
+});
+
 describe("settings", () => {
   it("parses only the listed options", () => {
     expect(bj.parseSettings(undefined)).toEqual(DEFAULT_SETTINGS);
@@ -379,8 +541,11 @@ describe("settings", () => {
   it("parses moves", () => {
     expect(bj.parseAction({ type: "bet", amount: 50 })).toEqual({ type: "bet", amount: 50 });
     expect(bj.parseAction({ type: "bet", amount: 1.5 })).toBeNull();
-    expect(bj.parseAction({ type: "hit", hand: 1 })).toEqual({ type: "hit", hand: 1 });
-    expect(bj.parseAction({ type: "hit", hand: 2 })).toBeNull();
+    expect(bj.parseAction({ type: "hit", hand: 1, cards: 3 })).toEqual({ type: "hit", hand: 1, cards: 3 });
+    expect(bj.parseAction({ type: "hit", hand: 1 })).toBeNull();
+    expect(bj.parseAction({ type: "hit", hand: 2, cards: 2 })).toBeNull();
+    expect(bj.parseAction({ type: "stand", hand: 0, cards: 0 })).toBeNull();
+    expect(bj.parseAction({ type: "back" })).toEqual({ type: "back" });
     expect(bj.parseAction({ type: "rebuy" })).toEqual({ type: "rebuy" });
     expect(bj.parseAction({ type: "insurance" })).toBeNull();
   });

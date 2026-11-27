@@ -40,6 +40,7 @@ group("log lines", () => {
     expect(describe({ type: "move", playerId: "p2", hand: 0, kind: "stand", auto: "timer" }, names)).toBe("Ravi stands (out of time).");
     expect(describe({ type: "bust", playerId: "p1", hand: 0, total: 24 }, names)).toBe("You went over 21 with 24.");
     expect(describe({ type: "round-start", round: 4, shuffled: true }, names)).toBe("Round 4. Place your bets. The dealer shuffled the cards.");
+    expect(describe({ type: "back", playerId: "p2" }, names)).toBe("Ravi plays again from the next round.");
   });
 
   it("sum your hands at the pay", () => {

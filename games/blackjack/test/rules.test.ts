@@ -9,7 +9,6 @@ import {
   makeShoe,
   parseCardId,
   payout,
-  totalLabel,
 } from "../shared/rules.ts";
 import { SHOE_CARDS } from "../shared/types.ts";
 
@@ -50,14 +49,6 @@ describe("hand totals", () => {
   it("goes over 21 only when no Ace can drop to 1", () => {
     expect(handTotal(cards("hearts-K", "spades-Q", "clubs-2"))).toEqual({ total: 22, soft: false });
     expect(handTotal(cards("hearts-K", "spades-Q", "clubs-A"))).toEqual({ total: 21, soft: false });
-  });
-
-  it("labels totals", () => {
-    expect(totalLabel(cards("hearts-A", "spades-6"))).toBe("Soft 17");
-    expect(totalLabel(cards("hearts-10", "spades-6"))).toBe("16");
-    expect(totalLabel(cards("hearts-A", "spades-K"))).toBe("Blackjack");
-    expect(totalLabel(cards("hearts-A", "spades-K"), true)).toBe("21");
-    expect(totalLabel(cards("hearts-10", "spades-6", "clubs-8"))).toBe("Bust 24");
   });
 });
 

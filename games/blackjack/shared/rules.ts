@@ -85,24 +85,9 @@ export function payout(result: HandResult, bet: number): number {
   }
 }
 
-/** "Soft 17", "20", "Blackjack", "Bust 24". */
-export function totalLabel(cards: Pick<Card, "rank">[], split = false): string {
-  if (isBlackjack(cards, split)) return "Blackjack";
-  const { total, soft } = handTotal(cards);
-  if (total > 21) return `Bust ${total}`;
-  return soft && total < 21 ? `Soft ${total}` : String(total);
-}
-
 /** The first half: a player who runs out in one of these rounds can rebuy. */
 export const rebuyRounds = (rounds: number): number => Math.floor(rounds / 2);
 
 export function formatChips(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-/** 1 → "1st", 3 → "3rd", 12 → "12th". */
-export function ordinal(n: number): string {
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${suffix}`;
 }
