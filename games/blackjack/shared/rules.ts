@@ -88,6 +88,3 @@ export function payout(result: HandResult, bet: number): number {
 /** The first half: a player who runs out in one of these rounds can rebuy. */
 export const rebuyRounds = (rounds: number): number => Math.floor(rounds / 2);
 
-export function formatChips(n: number): string {
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}

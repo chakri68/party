@@ -1,5 +1,6 @@
 import {
   bumpStat,
+  formatChips,
   shuffle,
   type CreateGameOptions,
   type GameContext,
@@ -13,7 +14,6 @@ import { blackjackManifest } from "../shared/manifest.ts";
 import {
   dealerDraws,
   dealerPeeks,
-  formatChips,
   handResult,
   handTotal,
   isBlackjack,

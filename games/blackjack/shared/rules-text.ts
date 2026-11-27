@@ -1,5 +1,5 @@
-import type { SettingField } from "@games/game-core";
-import { formatChips, rebuyRounds } from "./rules.ts";
+import { formatChips, type SettingField } from "@games/game-core";
+import { rebuyRounds } from "./rules.ts";
 import {
   DEFAULT_SETTINGS,
   MIN_BET,

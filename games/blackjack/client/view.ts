@@ -1,7 +1,7 @@
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, countdown, h, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { formatChips } from "../shared/rules.ts";
+import { formatChips } from "@games/game-core";
 import type {
   BlackjackAction,
   BlackjackEvent,

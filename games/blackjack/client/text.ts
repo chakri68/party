@@ -1,6 +1,6 @@
 // Words for the table: the log line, the status banner and hand results.
 // Pure, so tests can read them without a page.
-import { formatChips } from "../shared/rules.ts";
+import { formatChips } from "@games/game-core";
 import type {
   BlackjackEvent,
   BlackjackPrivateState,
