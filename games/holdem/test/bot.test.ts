@@ -1,7 +1,8 @@
 import { BOT_MAX_RUN, seededRandomInt, shuffle, type AnyGameDefinition, type BotContext, type BotView, type GameContext } from "@games/game-core";
 import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { OMAHA_HAND_READS, equity, equityTrials, holdemBot, omahaPreflopTier, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { OMAHA_HAND_READS, POSTFLOP_LINES, equity, equityTrials, holdemBot, omahaPreflopTier, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { addStats, emptyStats, simulate, summarize } from "./sim.ts";
 import { holdemGame } from "../server/game.ts";
 import { bestHand, bestHandFor, compareHands, handScore, handScoreFor, makeDeck, parseCardId } from "../shared/rules.ts";
 import {
@@ -270,6 +271,62 @@ describe("holdemBot after the flop", () => {
     times.sort((a, b) => a - b);
     expect(times[10]).toBeLessThan(20);
   });
+});
+
+describe("holdemBot lines after the flop", () => {
+  it("keeps one table of lines, one row per game", () => {
+    // Tuned by simulation: see test/sim-report.test.ts. Change them only with new numbers from it.
+    const shared = { raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, bluff: 9 };
+    expect(POSTFLOP_LINES).toEqual({
+      holdem: { ...shared, raiseHeadsUp: 0.58 },
+      omaha: { ...shared, raiseHeadsUp: 0.55 },
+      shortdeck: { ...shared, raiseHeadsUp: 0.55 },
+    });
+    for (const lines of Object.values(POSTFLOP_LINES)) {
+      for (const opponents of [1, 2, 5]) {
+        expect(raiseThreshold(opponents, 0, lines)).toBeLessThan(raiseThreshold(opponents, 100, lines));
+        expect(raiseThreshold(opponents, 100, lines)).toBeLessThan(lines.allIn);
+      }
+    }
+  });
+
+  it("still bluffs sometimes: a bet with nothing, checked to heads-up", () => {
+    let bets = 0;
+    const tries = 300;
+    for (let seed = 1; seed <= tries; seed++) {
+      const move = holdemBot.decide(view({ hole: "7s 2d", board: "Ac Kd 9h", opponents: 1, pot: 200 }), steady(seed));
+      if (move?.type === "raise" || move?.type === "all-in") bets++;
+    }
+    expect(bets / tries).toBeGreaterThan(0.03);
+    expect(bets / tries).toBeLessThan(0.2);
+  });
+
+  // Loose bands, so a later change can't make the bot absurd. Normal small-stakes play at 6:
+  // VPIP 20 to 35%, to showdown 25 to 35% of flops seen. The bot sits a little looser before the flop.
+  const runs = [
+    ["holdem", 6, 400],
+    ["omaha", 6, 100],
+    ["shortdeck", 6, 400],
+    ["holdem", 2, 600],
+  ] as const;
+  it.each(runs)("plays like a friendly, decent player: %s at %i seats", (variant, players, hands) => {
+    const run = simulate({ variant, bots: Array.from({ length: players }, () => holdemBot), hands, seed: 3 });
+    expect(run.rejected).toBe(0);
+    const s = summarize(run.seats.reduce(addStats, emptyStats()));
+    const at = `${variant} at ${players}: ${JSON.stringify(s)}`;
+    const heads = players === 2;
+    expect(s.vpip, at).toBeGreaterThan(heads ? 40 : 15);
+    expect(s.vpip, at).toBeLessThan(heads ? 85 : 60);
+    expect(s.pfr, at).toBeGreaterThan(5);
+    expect(s.pfr, at).toBeLessThan(s.vpip);
+    expect(s.wtsd, at).toBeGreaterThan(heads ? 10 : 20);
+    expect(s.wtsd, at).toBeLessThan(50);
+    expect(s.foldToBet, at).toBeGreaterThan(35);
+    expect(s.foldToBet, at).toBeLessThan(80);
+    expect(s.afFlop, at).toBeGreaterThan(1);
+    expect(s.afFlop, at).toBeLessThan(8);
+    expect(s.allIn, at).toBeLessThan(15);
+  }, 30_000);
 });
 
 describe("holdemBot hand reading", () => {
