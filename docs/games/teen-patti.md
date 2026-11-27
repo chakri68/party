@@ -36,7 +36,7 @@ The host can pause this game. While paused, the turn timer and the Sideshow time
    - **Pack:** give up this hand.
    - **Chaal:** bet 1 times the stake if you are Blind, or 2 times the stake if you are Seen.
    - **Double:** bet 2 times the stake if you are Blind, or 4 times the stake if you are Seen. The stake doubles for everyone. For example, the stake is 20. A Seen player doubles: they bet 80, and the stake is now 40. The next Blind bet is 40, and the next Seen bet is 80.
-   - **Show** (only when 2 players are left to bet): pay your normal bet, and every hand still in turns over. Either player may ask for a Show, Blind or Seen. Each pays their own price: a Blind player pays the Blind price, a Seen player the Seen price. The best hand wins the pot. If your hand is equal to the hand of the player you asked, you lose.
+   - **Show** (only when 2 players are left to bet): pay your normal bet, and every hand still in turns over. Either player may ask for a Show, Blind or Seen. Each pays their own price: a Blind player pays the Blind price, a Seen player the Seen price. The best hand wins the pot. If your hand is equal to the hand of the player you asked, you lose. An all-in player with an equal hand shares the pot as normal.
    - **Sideshow** (only when 3 or more players are left to bet): if you are Seen, and the player before you who is still betting is also Seen, you can ask them for a Sideshow. It costs your normal Seen bet. They say yes or no. They have 15 seconds; no answer is a no.
      - **Yes:** you two see each other's cards. Nobody else does. The lower hand packs. If the hands are equal, the player who asked packs. Then play goes on from the player after you.
      - **No:** nothing happens. Your bet stays in the pot, and play goes on.
@@ -63,7 +63,7 @@ Best first:
 
 **All-in.** If you can't pay a normal bet, you can go all-in: you put in all your chips and stay in the hand. You can win the pot as it is at that moment. Bets made after that go into a side pot that only the players still betting can win. If a second player goes all-in later, they can win the pot as it is then, and a new side pot starts. When at most one player can still bet, every hand still in turns over, and the best hand that can win each pot takes it. With 2 players left, going all-in turns both hands over at once. If only you put chips in a side pot, and only you can win it, those chips come back to you.
 
-A stack smaller than the boot puts in what it has and is all-in from the start.
+A stack smaller than the boot puts in what it has and is all-in from the start. It can win only what it matched: its own amount from each player. The rest of the boots go into a side pot.
 
 **Pot limit.** When the pot reaches 256 times the boot, every hand still in turns over, and the best hand wins. At a boot of 10, that is a pot of 2,560.
 

@@ -144,14 +144,19 @@ function put(p: Player, amount: number): number {
   return a;
 }
 
-/** Notes anyone who just went all-in, with the pot as it is now: what they can win. */
-function noteAllIns(s: State): void {
+/**
+ * Notes anyone who just went all-in, with the pot as it is now: what they
+ * can win. At the boot (`atBoot`) a short stack matches chips only: it can
+ * win at most its own amount from each player, smallest stack first.
+ */
+function noteAllIns(s: State, atBoot = false): void {
   const list = (s.allIns ??= []);
   const dealt = s.players.filter((p) => p.inHand);
-  for (const p of dealt) {
-    if (p.allIn && !list.some((a) => a.playerId === p.id)) {
-      list.push({ playerId: p.id, at: Object.fromEntries(dealt.map((o) => [o.id, o.contributed])) });
-    }
+  const fresh = dealt.filter((p) => p.allIn && !list.some((a) => a.playerId === p.id));
+  if (atBoot) fresh.sort((a, b) => a.contributed - b.contributed);
+  for (const p of fresh) {
+    const cap = atBoot ? p.contributed : Infinity;
+    list.push({ playerId: p.id, at: Object.fromEntries(dealt.map((o) => [o.id, Math.min(o.contributed, cap)])) });
   }
 }
 
@@ -160,7 +165,8 @@ function noteAllIns(s: State): void {
  * went all-in. Bets after that go into a side pot that only the players
  * still betting can win. Several all-ins nest, in the order they happened.
  * A side pot holding only one player's chips, that only they can win, is
- * uncalled: it goes back to them.
+ * uncalled: it goes back to them. Neighbouring pots that the same players
+ * can win are one pot.
  */
 function potsOf(s: State): Pot[] {
   const dealt = s.players.filter((p) => p.inHand);
@@ -175,9 +181,10 @@ function potsOf(s: State): Pot[] {
     const amount = dealt.reduce((sum, p) => sum + (at[p.id] ?? 0) - (prev[p.id] ?? 0), 0);
     const eligible = liveIds.filter((id) => !gone.has(id));
     if (amount > 0) {
-      const pot: Pot = { amount, eligible };
-      if (pots.length && eligible.length === 1 && from.length === 1 && from[0] === eligible[0]) pot.uncalled = true;
-      pots.push(pot);
+      const uncalled = pots.length > 0 && eligible.length === 1 && from.length === 1 && from[0] === eligible[0];
+      const last = pots.at(-1);
+      if (last && !!last.uncalled === uncalled && last.eligible.join() === eligible.join()) last.amount += amount;
+      else pots.push(uncalled ? { amount, eligible, uncalled } : { amount, eligible });
     }
     if (allIns[k]) gone.add(allIns[k]!.playerId);
     prev = at;
@@ -250,7 +257,7 @@ function bet(s: State, p: Player, kind: MoveKind, amount: number, out: Out): voi
     stat(s, p.id, "liesTold");
   }
   // A Blind bet into a big pot: a bold bet for the recap.
-  if ((kind === "chaal" || kind === "double") && !p.seen && !p.bigBid && potOf(s) > BIG_BLIND_POT_BOOTS * boot(s)) {
+  if ((kind === "chaal" || kind === "double") && !p.seen && !p.bigBid && potOf(s) - paid > BIG_BLIND_POT_BOOTS * boot(s)) {
     p.bigBid = true;
     stat(s, p.id, "bigBids");
   }
@@ -381,8 +388,8 @@ function summaryBase(s: State, reason: ShowReason | null, showBy: string | null)
 
 /**
  * Every hand still in turns up and the pots are paid. Equal hands split,
- * except in a Show: there the player who asked loses a tie (to the player
- * they asked, and to an all-in player still in).
+ * except in a Show: there the player who asked loses a tie to the player
+ * they asked. Against an all-in player, equal hands split as normal.
  */
 function showdown(s: State, ctx: GameContext, out: Out, reason: ShowReason, showBy: string | null): void {
   stopClock(s, out);
@@ -391,8 +398,11 @@ function showdown(s: State, ctx: GameContext, out: Out, reason: ShowReason, show
   const pots = potsOf(s);
   const contenders = s.players.filter(live);
   const values = Object.fromEntries(contenders.map((p) => [p.id, evaluate(p.cards)]));
+  // The asker loses only to the asked player's equal hand: a tiebreak only when those two are equal.
+  const asked = showBy ? contenders.find((p) => p.id !== showBy && !p.allIn)! : null;
+  const askerLoses = !!asked && compareHands(s.players.find((p) => p.id === showBy)!.cards, asked.cards) === 0;
   const strength = Object.fromEntries(
-    contenders.map((p) => [p.id, showBy ? [...values[p.id]!.ranks, p.id === showBy ? 0 : 1] : values[p.id]!.ranks]),
+    contenders.map((p) => [p.id, askerLoses ? [...values[p.id]!.ranks, p.id === showBy ? 0 : 1] : values[p.id]!.ranks]),
   );
   const order = fromDealer(s);
   const { won, returned, results } = awardPots(pots, strength, order);
@@ -400,9 +410,7 @@ function showdown(s: State, ctx: GameContext, out: Out, reason: ShowReason, show
   results.forEach((r, i) => {
     if (!r.uncalled && pots[i]!.eligible.length > 1) r.label = values[r.winners[0]!]!.label;
   });
-  if (showBy) {
-    // The asked player: the other one still betting.
-    const asked = contenders.find((p) => p.id !== showBy && !p.allIn)!;
+  if (showBy && asked) {
     stat(s, showBy, compareHands(s.players.find((p) => p.id === showBy)!.cards, asked.cards) > 0 ? "rightCalls" : "wrongCalls");
   }
   const summary = summaryBase(s, reason, showBy);
@@ -480,8 +488,8 @@ function startHand(s: State, ctx: GameContext, out: Out): void {
     const p = s.players[i]!;
     return { playerId: p.id, amount: put(p, b) };
   });
-  // A stack short of the boot is all-in with everyone's boot in.
-  noteAllIns(s);
+  // A stack short of the boot is all-in, matching chips only.
+  noteAllIns(s, true);
   out.events.push(
     pub({
       type: "hand-start",

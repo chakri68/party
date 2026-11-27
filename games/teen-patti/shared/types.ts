@@ -243,7 +243,7 @@ export interface LegalMoves {
   double: number | null;
   /** All your chips, when you can't pay a normal bet. */
   allIn: number | null;
-  /** Only with 2 players left. Costs a normal bet. */
+  /** Only with 2 players left to bet. Costs a normal bet. */
   show: number | null;
   /** Ask the player before you to compare cards. Costs a Seen bet. */
   sideshow: { toId: string; cost: number } | null;

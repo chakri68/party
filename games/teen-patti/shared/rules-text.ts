@@ -25,7 +25,7 @@ export const teenPattiRules: string[] = [
   "A Blind player bets 1 or 2 times the stake. A Seen player bets 2 or 4 times the stake.",
   "If you bet the bigger amount, the stake doubles for everyone.",
   "When only 2 players are left to bet, either one can ask for a Show, Blind or Seen. A Show costs your normal bet. Every hand still in turns over, and the best hand wins the pot.",
-  "In a Show, if your hand is equal to the hand of the player you asked, you lose.",
+  "In a Show, if your hand is equal to the hand of the player you asked, you lose. An all-in player with an equal hand shares the pot as normal.",
   "A Seen player can ask for a Sideshow with the player before them who is still betting, if that player is also Seen. A Sideshow costs your normal bet.",
   "The other player can say yes or no to a Sideshow. If they say yes, you 2 see each other's cards. The lower hand packs. If the hands are equal, the player who asked packs.",
   "If nobody answers a Sideshow in time, the answer is no.",
