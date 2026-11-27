@@ -102,7 +102,14 @@
   font-variant-numeric: tabular-nums;
 }
 .he-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
-/* Omaha's four: fanned, so the name keeps its room. */
+/* Omaha's four: fanned, on a row of their own under the name, so the name keeps its room. */
+.he-seat.four {
+  grid-template-areas:
+    "face name name"
+    "face stack bet"
+    ". cards cards";
+}
+.he-seat.four > .he-seat-cards { justify-self: start; }
 .he-seat-cards.four { gap: 0; }
 /* Overlapped, so the rank sits left in the part that shows ("10" too). */
 .he-seat-cards.four > .he-mini { justify-items: start; padding-left: 1px; }

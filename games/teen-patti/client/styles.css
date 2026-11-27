@@ -58,10 +58,12 @@
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The three cards get a row under the name, so a name and the D badge keep the width. */
   grid-template-areas:
-    "face name cards"
+    "face name name"
     "face stack sight"
-    "face bet bet";
+    ". cards cards"
+    ". bet bet";
   align-items: center;
   column-gap: 7px;
   row-gap: 2px;
@@ -102,7 +104,7 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.tp-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
+.tp-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: start; min-height: 26px; }
 .tp-seat > .tp-sight { grid-area: sight; justify-self: end; }
 .tp-seat-bet {
   grid-area: bet;
@@ -325,6 +327,8 @@
 .tp-actions .hint { flex: 1; color: var(--muted); font-size: 0.9rem; }
 .tp-actions button { min-height: 52px; padding-inline: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-actions button.tp-pack { color: var(--danger); }
+/* The price on a line of its own, under the word: "Sideshow 2,560" fits a third of a phone. */
+.tp-actions .tp-price { display: block; font-size: 0.9em; font-variant-numeric: tabular-nums; line-height: 1.15; }
 /* Your turn: thumb-sized buttons, two or three across, the price on each. */
 .tp-actions.move-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
 .tp-actions button.tp-see, .tp-actions .tp-see { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: var(--accent); color: var(--accent); }

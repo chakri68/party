@@ -638,7 +638,7 @@ export class HoldemView implements GameView {
     return h(
       "div",
       {
-        class: `he-seat${current ? " current" : ""}${p.folded || !p.inHand ? " idle" : ""}${p.out || p.removed ? " gone" : ""}${gain ? " won" : ""}${presence ? " away" : ""}`,
+        class: `he-seat${HOLE_CARDS[game.variant] > 2 ? " four" : ""}${current ? " current" : ""}${p.folded || !p.inHand ? " idle" : ""}${p.out || p.removed ? " gone" : ""}${gain ? " won" : ""}${presence ? " away" : ""}`,
         role: "listitem",
         "data-player": p.id,
         "aria-label": label,

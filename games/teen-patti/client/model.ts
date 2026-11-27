@@ -45,14 +45,19 @@ export function seatTag(p: TeenPattiPublicPlayer): { text: string; hot: boolean 
   return null;
 }
 
-/** The buttons for a turn, in order, each with its price. */
-export function moveButtons(legal: LegalMoves): { action: string; label: string; primary?: boolean }[] {
-  const out: { action: string; label: string; primary?: boolean }[] = [{ action: "pack", label: "Pack" }];
-  if (legal.allIn !== null) out.push({ action: "all-in", label: `All-in ${formatChips(legal.allIn)}`, primary: true });
-  if (legal.chaal !== null) out.push({ action: "chaal", label: `Chaal ${formatChips(legal.chaal)}`, primary: true });
-  if (legal.double !== null) out.push({ action: "double", label: `Double ${formatChips(legal.double)}` });
-  if (legal.show !== null) out.push({ action: "show", label: `Show ${formatChips(legal.show)}` });
-  if (legal.sideshow !== null) out.push({ action: "sideshow", label: `Sideshow ${formatChips(legal.sideshow.cost)}` });
+/** The buttons for a turn, in order, each with its price. `label` is the whole line; the view stacks `word` over `price`. */
+export function moveButtons(legal: LegalMoves): { action: string; label: string; word: string; price?: string; primary?: boolean }[] {
+  const out: { action: string; label: string; word: string; price?: string; primary?: boolean }[] = [{ action: "pack", label: "Pack", word: "Pack" }];
+  const add = (action: MoveKind, amount: number, primary?: boolean) => {
+    const word = MOVE_WORD[action];
+    const price = formatChips(amount);
+    out.push({ action, label: `${word} ${price}`, word, price, ...(primary ? { primary } : {}) });
+  };
+  if (legal.allIn !== null) add("all-in", legal.allIn, true);
+  if (legal.chaal !== null) add("chaal", legal.chaal, true);
+  if (legal.double !== null) add("double", legal.double);
+  if (legal.show !== null) add("show", legal.show);
+  if (legal.sideshow !== null) add("sideshow", legal.sideshow.cost);
   return out;
 }
 

@@ -569,7 +569,8 @@ export class TeenPattiView implements GameView {
               disabled: busy,
               onclick: () => this.send({ type: b.action }),
             },
-            b.label,
+            b.word,
+            b.price ? [" ", h("span", { class: "tp-price" }, b.price)] : null,
           ),
         ),
       ];
