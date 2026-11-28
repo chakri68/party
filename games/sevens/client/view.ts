@@ -2,9 +2,10 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { isRedSuit, SUIT_NAME, SUIT_SYMBOL, withCardSizes } from "@games/ui/cards";
 import { formatRank, rowBounds, SEVEN } from "../shared/rules.ts";
 import { SUITS, type Card, type SevensEvent, type SevensPrivateState, type SevensPublicState, type Suit } from "../shared/types.ts";
-import { cardBack, cardLabel, cardShort, fullCard, isRed, miniCard, SUIT_NAME, SUIT_SYMBOL } from "./cards.ts";
+import { cardBack, cardLabel, cardShort, fullCard, miniCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -238,7 +239,7 @@ export class SevensView implements GameView {
       const r = this.anchorFor(playerId, this.props).getBoundingClientRect();
       from = new DOMRect(r.left + r.width / 2 - to.width * 0.35, r.top + r.height / 2 - to.height * 0.35, to.width * 0.7, to.height * 0.7);
     }
-    await fly(miniCard(card), from, to, duration, { handoff: true });
+    await fly(withCardSizes(miniCard(card), cell), from, to, duration, { handoff: true });
     // Land it for real now, so the next flight in this batch sees it on the table.
     const landed = once(miniCard(card), "landed");
     landed.dataset.cell = `${card.suit}-${row}-${card.rank}`;
@@ -304,7 +305,7 @@ export class SevensView implements GameView {
           h(
             "div",
             { class: "sv-opp-text", "aria-hidden": "true" },
-            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null),
+            h("span", { class: "name" }, h("span", { class: "nm", title: name }, name), p.id === game.dealerId ? h("span", { class: "sv-dealer", title: "Dealer" }, "D") : null),
             h(
               "span",
               { class: "count" },
@@ -330,7 +331,7 @@ export class SevensView implements GameView {
             const key = `${suit}-${i}-${r}`;
             const cell = this.board.querySelector<HTMLElement>(`[data-cell="${key}"]`);
             const played = !!row && r >= row.low && r <= row.high;
-            if (cell && cell.classList.contains("card") !== played) cell.replaceWith(this.cell(suit, i, r, played));
+            if (cell && cell.classList.contains("pcard-mini") !== played) cell.replaceWith(this.cell(suit, i, r, played));
           }
           const label = this.board.querySelector(`[data-row="${suit}-${i}"]`);
           label?.setAttribute("aria-label", this.rowLabel(game, suit, i));
@@ -352,7 +353,7 @@ export class SevensView implements GameView {
             return h(
               "div",
               { class: "sv-row", role: "group", "data-row": `${suit}-${i}`, "aria-label": this.rowLabel(game, suit, i) },
-              h("span", { class: `sv-row-suit${isRed(suit) ? " red" : ""}`, "aria-hidden": "true" }, i === 0 ? SUIT_SYMBOL[suit] : ""),
+              h("span", { class: `sv-row-suit${isRedSuit(suit) ? " red" : ""}`, "aria-hidden": "true" }, i === 0 ? SUIT_SYMBOL[suit] : ""),
               cells,
             );
           }),
@@ -362,7 +363,7 @@ export class SevensView implements GameView {
   }
 
   private cell(suit: Suit, row: number, rank: number, played: boolean): HTMLElement {
-    const cell = played ? miniCard({ suit, rank }) : h("span", { class: `slot${rank === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
+    const cell = played ? miniCard({ suit, rank }) : h("span", { class: `sv-slot${rank === SEVEN ? " seven" : ""}`, "aria-hidden": "true" });
     cell.dataset.cell = `${suit}-${row}-${rank}`;
     return cell;
   }
@@ -419,7 +420,7 @@ export class SevensView implements GameView {
       this.me,
       h("span", { class: "you" }, "Your hand"),
       mine ? h("span", { class: "count" }, `${mine.cardCount} ${mine.cardCount === 1 ? "card" : "cards"}`) : null,
-      mine && game.dealerId === props.playerId ? h("span", { class: "dealer", title: "Dealer" }, "D") : null,
+      mine && game.dealerId === props.playerId ? h("span", { class: "sv-dealer", title: "Dealer" }, "D") : null,
     );
 
     // Forced play: the server only lets you pass when nothing fits, and usually

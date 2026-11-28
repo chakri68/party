@@ -2,9 +2,11 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
-import { checkPlay, compareCards, ordinal, setName, titleFor } from "../shared/rules.ts";
+import { withCardSizes } from "@games/ui/cards";
+import { ordinal } from "@games/game-core";
+import { checkPlay, compareCards, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, TITLE_TAG } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard, TITLE_TAG } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -303,7 +305,7 @@ export class PresidentView implements GameView {
         const from = mine ? mine.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), to);
         if (mine) mine.style.visibility = "hidden"; // it's in the air now; settle removes it
         await wait(i * 60);
-        await fly(cardFace(card), from, to, 320, { handoff: true });
+        await fly(withCardSizes(cardFace(card), this.root), from, to, 320, { handoff: true });
         landing[i]!.style.visibility = "";
         once(landing[i]!, "landed");
       }),
@@ -325,7 +327,7 @@ export class PresidentView implements GameView {
       ),
     ).catch(() => {});
     delete this.pile.dataset.set;
-    replaceChildren(this.pile, h("span", { class: "pr-card slot", "aria-hidden": "true" }));
+    replaceChildren(this.pile, cardSlot());
   }
 
   /**
@@ -345,7 +347,7 @@ export class PresidentView implements GameView {
         const from = mine ? mine.getBoundingClientRect() : this.cardRectAt(this.anchorFor(fromId, props), like);
         if (mine) mine.style.visibility = "hidden";
         await wait(i * 80);
-        await fly(card ? cardFace(card) : cardBackFull(), from, to, 380);
+        await fly(withCardSizes(card ? cardFace(card) : cardBackFull(), this.root), from, to, 380);
       }),
     );
   }
@@ -436,7 +438,7 @@ export class PresidentView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed ? "left" : p.place ? `out ${ordinal(p.place)}` : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed ? "left" : p.place ? `out ${ordinal(p.place)}` : [cardBackTiny(), ` ${p.cardCount}`],
               p.passed && !p.place ? h("span", { class: "pass-label" }, " · pass") : null,
               h("span", { class: "pts" }, ` · ${p.points} ${p.points === 1 ? "pt" : "pts"}`),
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
@@ -462,7 +464,7 @@ export class PresidentView implements GameView {
     // Already showing (it just landed): leave it be, landing and all.
     if (this.pile.dataset.set !== key || !this.pile.childElementCount) {
       this.pile.dataset.set = key;
-      replaceChildren(this.pile, top ? top.cards.map((c) => cardFace(c)) : h("span", { class: "pr-card slot", "aria-hidden": "true" }));
+      replaceChildren(this.pile, top ? top.cards.map((c) => cardFace(c)) : cardSlot());
     }
     this.pileCaption.textContent = top
       ? `${seatName(room, top.playerId)}: ${setName(top.cards.length, top.cards[0]!.rank)}`

@@ -26,12 +26,20 @@ export function recapMeta(recap: Recap, gameName: (id: string) => string): strin
   return parts.join(" · ");
 }
 
-/** One paragraph for the group chat. */
-export function recapShareText(recap: Recap, appTitle: string, site: string): string {
-  const body = recap.awards.length
-    ? recap.awards.map((a) => `${a.title}: ${joinNames(a.who)}.`).join(" ")
-    : `${recap.gamesPlayed === 1 ? "1 game" : `${recap.gamesPlayed} games`} tonight.`;
-  return `${appTitle} recap: ${body} Play at ${site}`;
+/** "Loudest moment: 5 people talking at once, in Overheat." */
+export function momentText(moment: NonNullable<Recap["moment"]>, gameName: (id: string) => string): string {
+  const where = moment.gameId ? gameName(moment.gameId) : "the lobby";
+  return `Loudest moment: ${moment.count} people talking at once, in ${where}.`;
+}
+
+/** One paragraph for the group chat: the main awards, the table ones, then the moment. */
+export function recapShareText(recap: Recap, appTitle: string, site: string, gameName: (id: string) => string): string {
+  const all = [...recap.awards, ...recap.table];
+  const parts = all.length
+    ? all.map((a) => `${a.title}: ${joinNames(a.who)}.`)
+    : [`${recap.gamesPlayed === 1 ? "1 game" : `${recap.gamesPlayed} games`} tonight.`];
+  if (recap.moment) parts.push(momentText(recap.moment, gameName));
+  return `${appTitle} recap: ${parts.join(" ")} Play at ${site}`;
 }
 
 /** Called with the slot under the recap or the closed message. Absent: a Home button. */
@@ -56,7 +64,7 @@ export function shareMode(env: { canShareFiles: boolean; hasShare: boolean; coar
 }
 
 export function shareButton(recap: Recap, o: RecapViewOptions): HTMLElement {
-  const text = recapShareText(recap, o.appTitle, location.host);
+  const text = recapShareText(recap, o.appTitle, location.host, o.gameName);
   const nav: { share?: (d: ShareData) => Promise<void> } = navigator;
   const coarse = matchMedia("(pointer: coarse)").matches;
   const label = nav.share && coarse ? "Share" : "Copy recap";
@@ -109,6 +117,22 @@ export interface RecapViewOptions {
   home: () => void;
 }
 
+function awardList(awards: Recap["awards"], cls: string, from: number): HTMLElement {
+  return h(
+    "ol",
+    { class: cls },
+    awards.map((a, i) =>
+      h(
+        "li",
+        { class: "award", style: `--i: ${from + i}` },
+        h("span", { class: "award-title" }, a.title),
+        h("strong", { class: "award-who" }, joinNames(a.who)),
+        h("span", { class: "muted" }, a.line),
+      ),
+    ),
+  );
+}
+
 export function recapView(o: RecapViewOptions): HTMLElement {
   const { recap } = o;
   return h(
@@ -116,21 +140,11 @@ export function recapView(o: RecapViewOptions): HTMLElement {
     { class: "recap" },
     h("h2", {}, "Tonight's recap"),
     h("p", { class: "muted recap-meta" }, recapMeta(recap, o.gameName)),
-    recap.awards.length
-      ? h(
-          "ol",
-          { class: "awards" },
-          recap.awards.map((a, i) =>
-            h(
-              "li",
-              { class: "award", style: `--i: ${i}` },
-              h("span", { class: "award-title" }, a.title),
-              h("strong", { class: "award-who" }, joinNames(a.who)),
-              h("span", { class: "muted" }, a.line),
-            ),
-          ),
-        )
-      : h("p", { class: "recap-quiet" }, recap.quiet ?? ""),
+    recap.awards.length ? awardList(recap.awards, "awards", 0) : null,
+    recap.table.length ? h("h3", { class: "recap-table" }, "Around the table") : null,
+    recap.table.length ? awardList(recap.table, "awards awards-table", recap.awards.length) : null,
+    recap.quiet ? h("p", { class: "recap-quiet" }, recap.quiet) : null,
+    recap.moment ? h("p", { class: "recap-moment" }, momentText(recap.moment, o.gameName)) : null,
     h("div", { class: "actions" }, shareButton(recap, o)),
     outlet(o.partyOver, o.isHost, recap, o.home),
   );

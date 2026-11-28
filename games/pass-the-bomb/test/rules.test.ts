@@ -1,6 +1,6 @@
 import { seededRandomInt } from "@games/game-core";
 import { describe, expect, it } from "vitest";
-import { displayCluster, effectiveCluster, modesOf, normalizeWord, ordinal, parseTyping, shapeProblem } from "../shared/rules.ts";
+import { displayCluster, effectiveCluster, modesOf, normalizeWord, parseTyping, shapeProblem } from "../shared/rules.ts";
 import { allWords, isWord } from "@games/words/dictionary";
 import { CLUSTERS, MIN_MATCHES } from "../server/words.ts";
 import { CATEGORY_WORDS, inCategory, MIN_CATEGORY_WORDS } from "../server/categories.ts";
@@ -47,10 +47,6 @@ describe("typing stream", () => {
     expect(parseTyping(["a"])).toBeNull();
     expect(parseTyping(null)).toBeNull();
   });
-});
-
-it("ordinals", () => {
-  expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]);
 });
 
 /** All sixteen, reverse included. */

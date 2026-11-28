@@ -40,7 +40,7 @@ describe("voice roster", () => {
   const idOf = (c: FakeConn) => c.last("welcome")!.playerId;
   const members = (c: FakeConn) => c.last("voice-state")!.members;
   const voiceCount = (...cs: FakeConn[]) => cs.reduce((n, c) => n + c.inbox.filter((m) => m.type.startsWith("voice-")).length, 0);
-  const vjoin = (c: FakeConn, muted = false) => send(room, c, { type: "voice-join", muted });
+  const vjoin = (c: FakeConn, muted = false) => send(room, c, { type: "voice-join", muted, count: true });
 
   beforeEach(async () => {
     toyKnobs.decide = "normal";
@@ -322,7 +322,7 @@ describe("voice signals and ICE", () => {
   let c: FakeConn;
   const idOf = (x: FakeConn) => x.last("welcome")!.playerId;
   const vjoin = async (x: FakeConn) => {
-    await send(room, x, { type: "voice-join", muted: false });
+    await send(room, x, { type: "voice-join", muted: false, count: true });
     await flushPromises();
   };
   const sig = (from: FakeConn, to: FakeConn, data: unknown = { sdp: "x" }) =>
@@ -445,7 +445,7 @@ describe("voice signals and ICE", () => {
 
   it("a hung TURN fetch does not hold up the room", async () => {
     world.turn = () => new Promise(() => {});
-    await send(room, a, { type: "voice-join", muted: false });
+    await send(room, a, { type: "voice-join", muted: false, count: true });
     await send(room, a, { type: "ready", ready: true });
     expect(roomOf(b).seats.find((s) => s.id === idOf(a))!.ready).toBe(true);
   });
@@ -453,7 +453,7 @@ describe("voice signals and ICE", () => {
   it("no voice-ice for a seat that left voice before the fetch came back", async () => {
     let done!: (v: IceServer[]) => void;
     world.turn = () => new Promise((r) => (done = r));
-    await send(room, a, { type: "voice-join", muted: false });
+    await send(room, a, { type: "voice-join", muted: false, count: true });
     await send(room, a, { type: "voice-leave" });
     done(TURN);
     await flushPromises();

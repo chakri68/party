@@ -1,9 +1,10 @@
 /* Cheat. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is ch- prefixed: other games' stylesheets may be loaded in the same tab. */
+   Everything is ch- prefixed or under .cheat: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .cheat {
-  --card-w: 58px;
-  --card-h: 84px;
+  --pcard-w: 58px;
+  --pcard-h: 84px;
   --card-overlap: -18px;
   display: flex;
   flex-direction: column;
@@ -86,14 +87,6 @@
   border-radius: 4px;
   color: var(--muted);
 }
-.ch-back-mini {
-  display: inline-block;
-  width: 9px;
-  height: 13px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
-  box-shadow: 0 0 0 1px var(--accent);
-}
 
 /* ---- Table: the pile, and the play on top of it -------------------------- */
 
@@ -110,10 +103,10 @@
 
 /* A few backs, each nudged over, so a big pile looks like one. */
 .ch-pile-wrap { display: grid; justify-items: center; gap: 6px; }
-.ch-pile { position: relative; width: calc(var(--card-w) + 8px); height: calc(var(--card-h) + 8px); }
-.ch-pile .ch-card { position: absolute; top: 0; left: 0; }
-.ch-pile .ch-card:nth-child(2) { top: 4px; left: 4px; }
-.ch-pile .ch-card:nth-child(3) { top: 8px; left: 8px; }
+.ch-pile { position: relative; width: calc(var(--pcard-w) + 8px); height: calc(var(--pcard-h) + 8px); }
+.ch-pile .pcard { position: absolute; top: 0; left: 0; }
+.ch-pile .pcard:nth-child(2) { top: 4px; left: 4px; }
+.ch-pile .pcard:nth-child(3) { top: 8px; left: 8px; }
 .ch-pile-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .ch-play-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; justify-items: center; }
@@ -123,16 +116,16 @@
   position: relative;
   display: flex;
   justify-content: center;
-  min-height: var(--card-h);
+  min-height: var(--pcard-h);
 }
-.ch-play .ch-card + .ch-card { margin-left: -28px; }
+.ch-play .pcard + .pcard { margin-left: -28px; }
 /* Accepted: it's just the top of the pile now. Called: kept up for the record. */
-.ch-play.settled .ch-card { filter: brightness(0.8); }
-.ch-play.old .ch-card { filter: brightness(0.7) saturate(0.7); }
+.ch-play.settled .pcard { filter: brightness(0.8); }
+.ch-play.old .pcard { filter: brightness(0.7) saturate(0.7); }
 /* Yours, face up to you only. */
-.ch-play .ch-card.mine { box-shadow: 0 0 0 2px var(--line), 0 2px 6px rgb(0 0 0 / 0.45); }
-.ch-play .ch-card.wrong { box-shadow: 0 0 0 3px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
-.ch-play .ch-card.flip { animation: ch-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.ch-play .pcard.mine { box-shadow: 0 0 0 2px var(--line), 0 2px 6px rgb(0 0 0 / 0.45); }
+.ch-play .pcard.wrong { box-shadow: 0 0 0 3px var(--danger), 0 2px 6px rgb(0 0 0 / 0.45); }
+.ch-play .pcard.flip { animation: ch-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes ch-flip {
   from { transform: rotateY(90deg) scale(1.08); }
 }
@@ -175,71 +168,21 @@
 }
 .ch-bar.low span { background: var(--danger); }
 
-/* ---- Cards ---------------------------------------------------------------- */
+/* ---- Cards (.pcard, cards.css) -------------------------------------------- */
 
-.ch-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--card-ink);
-  font: inherit;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
-}
-.ch-card.red { color: var(--red); }
-.ch-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.ch-card.slot {
-  display: grid;
-  place-items: center;
-  background: none;
-  border: 1.5px dashed var(--line);
-  box-shadow: none;
-  color: var(--muted);
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-.ch-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.95rem;
-}
-.ch-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.ch-card .corner i { font-style: normal; font-size: 0.85em; }
-.ch-card .tl { top: 4px; left: 5px; }
-.ch-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
-.ch-card .pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-}
-.ch-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+/* The empty play spot says what goes first. */
+.cheat .pcard.slot { display: grid; place-items: center; color: var(--muted); font-size: 1.4rem; font-weight: 700; }
 
 /* Hand cards: pick up to four on your turn. */
-.ch-hand .ch-card { cursor: default; scroll-snap-align: start; }
-.ch-hand .ch-card + .ch-card { margin-left: var(--card-overlap); }
-.ch-hand .ch-card.playable { cursor: pointer; }
-.ch-hand .ch-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.ch-hand .pcard { cursor: default; scroll-snap-align: start; }
+.ch-hand .pcard + .pcard { margin-left: var(--card-overlap); }
+.ch-hand .pcard.playable { cursor: pointer; }
+.ch-hand .pcard.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
 @media (hover: hover) and (pointer: fine) {
-  .ch-hand .ch-card.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
+  .ch-hand .pcard.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
 }
-.ch-hand .ch-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
-.ch-hand .ch-card.fresh { animation: ch-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
+.ch-hand .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.ch-hand .pcard.fresh { animation: ch-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
 @keyframes ch-fresh {
   from { transform: translateY(-24px) scale(1.08); }
 }
@@ -314,25 +257,23 @@ button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a
 
 @media (min-width: 700px) {
   .cheat {
-    --card-w: 76px;
-    --card-h: 108px;
+    --pcard-w: 76px;
+    --pcard-h: 108px;
+    --pcard-corner: 1.1rem;
+    --pcard-pip: 2.4rem;
     --card-overlap: -24px;
     gap: 14px;
   }
   .ch-table { gap: 32px; padding: 20px 20px 18px; }
-  .ch-card .corner { font-size: 1.1rem; }
-  .ch-card .pip { font-size: 2.4rem; }
-  .ch-play .ch-card + .ch-card { margin-left: -36px; }
+  .ch-play .pcard + .pcard { margin-left: -36px; }
   .ch-hand { justify-content: safe center; }
 }
 
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .cheat { --card-w: 58px; --card-h: 84px; --card-overlap: -18px; gap: 8px; }
-  .ch-card .corner { font-size: 0.95rem; }
-  .ch-card .pip { font-size: 1.9rem; }
-  .ch-play .ch-card + .ch-card { margin-left: -28px; }
+  .cheat { --pcard-w: 58px; --pcard-h: 84px; --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --card-overlap: -18px; gap: 8px; }
+  .ch-play .pcard + .pcard { margin-left: -28px; }
   .ch-table { gap: 16px; padding: 8px 12px; }
   .ch-status { min-height: 40px; }
   .ch-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
@@ -351,7 +292,7 @@ button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a
 }
 
 /* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
-.ch-play .ch-card.landed { animation: ch-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+.ch-play .pcard.landed { animation: ch-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes ch-land {
   from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
@@ -361,8 +302,7 @@ button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a
 
 @media (prefers-reduced-motion: reduce) {
   .cheat .shake { animation: none; outline: 2px solid var(--red); }
-  .ch-card, .ch-opp { transition: none; }
-  .ch-card.selected { transform: none; outline: 2px solid var(--accent); }
-  .ch-play .ch-card.landed, .ch-play .ch-card.flip, .ch-verdict.stamp, .ch-hand .ch-card.fresh { animation: none; }
+  .ch-opp { transition: none; }
+  .ch-play .pcard.landed, .ch-play .pcard.flip, .ch-verdict.stamp, .ch-hand .pcard.fresh { animation: none; }
   .ch-bar span { transition: none; }
 }

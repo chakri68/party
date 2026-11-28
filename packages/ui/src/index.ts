@@ -1,10 +1,14 @@
 import type { RoomPublicState } from "@games/protocol";
+import { h, type Child } from "./dom.ts";
 import { faceColor, faceSvg } from "./faces.ts";
 
 export { faceColor, faceSvg };
 export { dieSvg, diePlural, DIE_NAMES, type DieOptions } from "./dice.ts";
 export { keepInRow, rowScrollDelta, rowTarget, type RowMemo } from "./row.ts";
 export { countdown, formatSeconds, type Countdown, type CountdownOptions } from "./countdown.ts";
+// Playing cards are on their own entry, "@games/ui/cards", so their CSS loads only with the card games.
+export { joinList } from "./text.ts";
+export { chipIcon } from "./chip.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)
@@ -72,42 +76,7 @@ export interface GameClientModule {
 // DOM helper
 // ---------------------------------------------------------------------------
 
-type Attrs = Record<string, string | number | boolean | EventListener | undefined | null>;
-type Child = Node | string | number | null | undefined | false;
-
-/**
- * `h("button", { class: "x", onclick: fn }, "Play")`. Keys starting with `on`
- * become listeners; `false`/`null`/`undefined` attributes are skipped.
- */
-export function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Attrs = {},
-  ...children: (Child | Child[])[]
-): HTMLElementTagNameMap[K] {
-  const el = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) {
-    if (value === undefined || value === null || value === false) continue;
-    if (key.startsWith("on") && typeof value === "function") {
-      el.addEventListener(key.slice(2), value);
-    } else if (value === true) {
-      el.setAttribute(key, "");
-    } else {
-      el.setAttribute(key, String(value));
-    }
-  }
-  for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    el.append(child instanceof Node ? child : String(child));
-  }
-  return el;
-}
-
-/** Replaces an element's children in one go. */
-export function replaceChildren(el: Element, ...children: (Child | Child[])[]): void {
-  el.replaceChildren(
-    ...children.flat().filter((c): c is Node | string | number => c !== null && c !== undefined && c !== false).map((c) => (c instanceof Node ? c : String(c))),
-  );
-}
+export { h, replaceChildren } from "./dom.ts";
 
 /** Seat name for a player id, for joining game projections with room state (§7). */
 export function seatName(room: RoomPublicState, playerId: string | null | undefined): string {

@@ -1,9 +1,14 @@
+import type { Pot, PotResult } from "@games/game-core";
+
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
 
 /** Display order. Alternating colours so neighbouring suits don't blur together. */
 export const SUITS: readonly Suit[] = ["spades", "hearts", "clubs", "diamonds"];
 
-/** 2 to 14: Aces are high (the wheel treats them as 1, see `bestHand`). */
+/**
+ * 2 to 14: Aces are high. In a straight the Ace can also play low, under the
+ * deck's lowest rank: A-2-3-4-5, or A-6-7-8-9 in Short Deck (see `bestHand`).
+ */
 export type Rank = number;
 export const ACE: Rank = 14;
 
@@ -25,6 +30,13 @@ export const HANDS_PER_LEVEL_OPTIONS = [10, 6, 4] as const;
 export const ENDING_OPTIONS = ["last", 20, 30, 45] as const;
 export const REBUY_OPTIONS = ["off", "early"] as const;
 export const TURN_SECONDS_OPTIONS = [20, 30, 45] as const;
+/**
+ * Which poker game the table plays. They share everything but the cards, the
+ * bet limit and (Short Deck) the deck and the order of hands.
+ */
+export const VARIANT_OPTIONS = ["holdem", "omaha", "shortdeck"] as const;
+
+export type Variant = (typeof VARIANT_OPTIONS)[number];
 
 export type Ending = (typeof ENDING_OPTIONS)[number];
 export type RebuySetting = (typeof REBUY_OPTIONS)[number];
@@ -36,6 +48,8 @@ export interface HoldemSettings {
   /** "early": one rebuy each, while the blinds are in their first three levels. */
   rebuys: RebuySetting;
   turnSeconds: number;
+  /** Missing in settings stored before Omaha: read it through `variantOf`. */
+  variant: Variant;
 }
 
 export const DEFAULT_SETTINGS: HoldemSettings = {
@@ -44,7 +58,17 @@ export const DEFAULT_SETTINGS: HoldemSettings = {
   ending: "last",
   rebuys: "off",
   turnSeconds: 30,
+  variant: "holdem",
 };
+
+/** The table's game, for settings stored before there was a choice. */
+export const variantOf = (settings: Partial<Pick<HoldemSettings, "variant">>): Variant => settings.variant ?? "holdem";
+
+/** Private cards each player gets. */
+export const HOLE_CARDS: Record<Variant, number> = { holdem: 2, omaha: 4, shortdeck: 2 };
+
+/** The lowest rank in the deck. Short Deck takes out the 2s to 5s: 36 cards. */
+export const LOW_RANK: Record<Variant, Rank> = { holdem: 2, omaha: 2, shortdeck: 6 };
 
 /** Rebuys are open while the blinds are in levels 0–2. */
 export const REBUY_LEVELS = 3;
@@ -52,14 +76,6 @@ export const REBUY_LEVELS = 3;
 // ---------------------------------------------------------------------------
 // Pots and hands
 // ---------------------------------------------------------------------------
-
-export interface Pot {
-  amount: number;
-  /** Who can win it: still in, and in at least this deep. */
-  eligible: string[];
-  /** Chips nobody matched. They go straight back to whoever bet them. */
-  uncalled?: boolean;
-}
 
 export const HAND_CATEGORIES = [
   "High card",
@@ -74,9 +90,12 @@ export const HAND_CATEGORIES = [
 ] as const;
 
 export interface HandValue {
-  /** Index into HAND_CATEGORIES. */
+  /** Index into HAND_CATEGORIES: what the hand is, not how strong. */
   category: number;
-  /** Tiebreak tuple, compared left to right: category, deciding ranks, kickers. */
+  /**
+   * Tiebreak tuple, compared left to right: the category's strength in this
+   * game (see `categoryStrength`), deciding ranks, kickers.
+   */
   ranks: number[];
   /** The five cards that make it, deciding cards first. */
   cards: string[];
@@ -95,7 +114,7 @@ export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
 export interface HoldemPlayerState {
   id: string;
   stack: number;
-  /** Your two cards this hand; empty if you weren't dealt in. */
+  /** Your private cards this hand (2, or 4 in Omaha); empty if you weren't dealt in. */
   hole: Card[];
   /** Dealt into the hand in progress (or the one just finished). */
   inHand: boolean;
@@ -125,14 +144,6 @@ export interface HoldemPlayerState {
   bustedHand: number | null;
   bustStack: number;
   rebuysUsed: number;
-}
-
-export interface PotResult {
-  amount: number;
-  winners: string[];
-  /** The winning hand, or null when nobody had to show (fold-out, uncalled). */
-  label: string | null;
-  uncalled?: boolean;
 }
 
 /** What happened last hand, for the table's summary line and the showdown highlight. */
@@ -211,6 +222,7 @@ export interface HoldemPublicPlayer {
 
 export interface HoldemPublicState {
   step: Step | "over";
+  variant: Variant;
   handNumber: number;
   /** 1-based for people. */
   level: number;
@@ -249,6 +261,8 @@ export interface LegalActions {
   /** Raise-to bounds for this round. Null when you can't raise. */
   minRaiseTo: number | null;
   maxRaiseTo: number | null;
+  /** The top raise is all your chips. Omaha's pot limit can make it less. */
+  maxIsAllIn: boolean;
   /** True when the first bet of the round would be a bet, not a raise. */
   opening: boolean;
 }

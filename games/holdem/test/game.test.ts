@@ -17,8 +17,9 @@ function c(text: string): string[] {
 
 /** Hole cards in deal order (from the button's left), then the board: one at a time, like a real deal. */
 function deck(holes: string[], board: string): string[] {
-  const pairs = holes.map(c);
-  return [...pairs.map((p) => p[0]!), ...pairs.map((p) => p[1]!), ...c(board)];
+  const hands = holes.map(c);
+  const rounds = Math.max(...hands.map((h) => h.length));
+  return [...Array.from({ length: rounds }, (_, r) => hands.map((h) => h[r]!)).flat(), ...c(board)];
 }
 
 /**
@@ -529,5 +530,222 @@ describe("hidden cards", () => {
     expect(he.parseAction({ type: "nope" })).toBeNull();
     expect(he.parseSettings({ startingChips: 3000, ending: 30 })).toMatchObject({ startingChips: 3000, ending: 30 });
     expect(he.parseSettings({ startingChips: 99 })).toBeNull();
+  });
+});
+
+describe("Omaha", () => {
+  const omaha = { variant: "omaha" } as const;
+
+  it("deals four each and reads every hand as 2 private cards and 3 shared", () => {
+    // Deal order p1, p2, p0. Four hearts on the board: p1 and p0 hold one heart each, so no flush.
+    let s = table([1500, 1500, 1500], {
+      settings: omaha,
+      decks: [deck(["Qh 3s 4d 8c", "Ac 5d 6s Tc", "2c 3c 8d 8h"], "Ah Kh 7h 2h 9c")],
+    });
+    expect(pubOf(s).variant).toBe("omaha");
+    expect(s.players.every((p) => p.hole.length === 4)).toBe(true);
+    expect(pubOf(s).players.every((p) => p.cards === null)).toBe(true);
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "check" });
+    expect(privOf(s, "p1").best?.label).toBe("High card, Ace");
+    for (let street = 0; street < 3; street++) for (const id of ["p1", "p2", "p0"]) s = play(s, id, { type: "check" });
+    expect(pubOf(s).step).toBe("showdown");
+    expect(s.lastHand!.labels).toEqual({ p0: "Pair of Eights", p1: "High card, Ace", p2: "Pair of Aces" });
+    expect(s.lastHand!.pots).toEqual([{ amount: 60, winners: ["p2"], label: "Pair of Aces" }]);
+    expect(s.lastHand!.bestCards.p2).toEqual(c("Ac Ah Kh Tc 9c"));
+    expect(pubOf(s).players.every((p) => p.cards?.length === 4)).toBe(true);
+  });
+
+  it("pot-limit: the most you can raise to is the call plus the pot after the call", () => {
+    // Button p0, blinds p1 and p2: p3 acts first.
+    let s = table([3000, 3000, 3000, 3000], { settings: omaha });
+    expect(privOf(s, "p3").legal).toMatchObject({ call: 20, minRaiseTo: 40, maxRaiseTo: 70, maxIsAllIn: false });
+    expect(refuse(s, "p3", { type: "raise", to: 71 }).message).toMatch(/70/);
+    expect(refuse(s, "p3", { type: "all-in" }).message).toMatch(/pot.*70/);
+    s = play(s, "p3", { type: "raise", to: 70 });
+    // 70 to call, and 100 in the pot: 70 + 170.
+    expect(privOf(s, "p0").legal).toMatchObject({ call: 70, minRaiseTo: 120, maxRaiseTo: 240, maxIsAllIn: false });
+    s = play(s, "p0", { type: "raise", to: 240 });
+    // The small blind owes 230, and the pot is 340: 240 + 570.
+    expect(privOf(s, "p1").legal).toMatchObject({ call: 230, maxRaiseTo: 810 });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "call" });
+    s = play(s, "p3", { type: "call" });
+    // After the flop, the top opening bet is the pot.
+    expect(pubOf(s)).toMatchObject({ step: "flop", pot: 960, currentPlayerId: "p1" });
+    expect(privOf(s, "p1").legal).toMatchObject({ opening: true, minRaiseTo: 20, maxRaiseTo: 960, maxIsAllIn: false });
+    s = play(s, "p1", { type: "raise", to: 960 });
+    expect(s.players[1]!.stack).toBe(3000 - 240 - 960);
+  });
+
+  it("pot-limit: a stack under the limit can go all-in", () => {
+    let s = table([3000, 3000, 3000, 60], { settings: omaha });
+    expect(privOf(s, "p3").legal).toMatchObject({ minRaiseTo: 40, maxRaiseTo: 60, maxIsAllIn: true });
+    s = play(s, "p3", { type: "all-in" });
+    expect(pubOf(s).players[3]).toMatchObject({ allIn: true, bet: 60, stack: 0 });
+  });
+
+  it("pot-limit: a short all-in doesn't reopen the betting, and the next cap counts it", () => {
+    let s = table([100, 3000, 3000, 3000], { settings: omaha });
+    s = play(s, "p3", { type: "raise", to: 70 }); // a raise of 50
+    // p0 has 100: under the cap of 240, so all-in is allowed. It raises by only 30.
+    expect(privOf(s, "p0").legal).toMatchObject({ maxRaiseTo: 100, maxIsAllIn: true });
+    s = play(s, "p0", { type: "all-in" });
+    // The small blind owes 90, and the pot is 200: 100 + 290.
+    expect(privOf(s, "p1").legal).toMatchObject({ call: 90, minRaiseTo: 150, maxRaiseTo: 390 });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "call" });
+    // p3 already acted, and the short all-in was not a full raise: call or fold only.
+    expect(privOf(s, "p3").legal).toMatchObject({ call: 30, minRaiseTo: null, maxRaiseTo: null });
+    expect(refuse(s, "p3", { type: "raise", to: 200 }).code).toBe("illegal-bet");
+  });
+
+  it("pot-limit: a folded player's chips count in the pot", () => {
+    let s = table([3000, 3000, 3000, 3000], { settings: omaha });
+    s = play(s, "p3", { type: "raise", to: 70 });
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "fold" }); // the small blind's 10 stays in
+    // The big blind owes 50, and the pot is 170: 70 + 220.
+    expect(privOf(s, "p2").legal).toMatchObject({ call: 50, maxRaiseTo: 290 });
+  });
+
+  it("Show after a fold-out names the hand by the 2+3 rule", () => {
+    // Heads-up, deal order p1 then p0. p1 holds one heart; the board gets four.
+    let s = table([1500, 1500], { settings: omaha, decks: [deck(["Qh 3s 4d 8c", "Ac 5d 6s Tc"], "Ah Kh 7h 2h 9c")] });
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "check" });
+    s = play(s, "p1", { type: "check" });
+    s = play(s, "p0", { type: "check" });
+    s = play(s, "p1", { type: "raise", to: 20 });
+    s = play(s, "p0", { type: "fold" });
+    expect(s.board).toHaveLength(4);
+    expect(privOf(s, "p1").canShow).toBe(true);
+    s = play(s, "p1", { type: "show" });
+    // All seven cards would make a flush. Two of p1's cards and three shared ones don't.
+    expect(s.lastHand!.labels.p1).toBe("High card, Ace");
+  });
+
+  it("Hold'em stays no-limit", () => {
+    const s = table([3000, 3000, 3000, 3000]);
+    expect(pubOf(s).variant).toBe("holdem");
+    expect(privOf(s, "p3").legal).toMatchObject({ maxRaiseTo: 3000, maxIsAllIn: true });
+  });
+
+  it("plays a whole game to the end, betting the pot every time", () => {
+    const settings = { ...DEFAULT_SETTINGS, startingChips: 1000, variant: "omaha" as const };
+    let s = he.createGame(ids(3).map((id) => ({ id })), settings, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    let hands = 0;
+    for (let i = 0; i < 5000 && s.phase === "playing"; i++) {
+      if (s.step === "between-hands") expect(stacks(s).reduce((a, b) => a + b, 0)).toBe(3000);
+      const id = turn(s);
+      if (!id) {
+        s = timer(s, STEP_TIMER).state;
+        continue;
+      }
+      const legal = privOf(s, id).legal!;
+      const me = s.players.find((p) => p.id === id)!;
+      if (legal.maxRaiseTo !== null) expect(legal.maxRaiseTo).toBeLessThanOrEqual(me.stack + me.bet);
+      const move: HoldemAction =
+        legal.maxRaiseTo === null
+          ? { type: legal.call ? "call" : "check" }
+          : legal.maxIsAllIn
+            ? { type: "all-in" }
+            : { type: "raise", to: legal.maxRaiseTo };
+      s = play(s, id, move);
+      hands = s.handNumber;
+    }
+    expect(s.phase).toBe("over");
+    expect(hands).toBeGreaterThan(0);
+    const result = he.getResult(s)!;
+    expect(result.winnerIds).toHaveLength(1);
+    expect(result.standings[0]).toMatchObject({ value: 3000 });
+  });
+
+  it("each player's four cards reach only them", () => {
+    const t = he.createGame(ids(4).map((id) => ({ id })), { ...DEFAULT_SETTINGS, variant: "omaha" }, { roundNumber: 1, dealerSeat: 0 }, ctx());
+    for (const p of t.state.players) {
+      expect(p.hole).toHaveLength(4);
+      for (const card of p.hole) {
+        expect(findLeaks({ def: he, state: t.state, events: t.events, players: ids(4), secret: card.id, allowed: [p.id] })).toEqual([]);
+      }
+    }
+  });
+
+  it("settings: Omaha is a choice, and settings stored without one play Hold'em", () => {
+    expect(he.parseSettings({})).toMatchObject({ variant: "holdem" });
+    expect(he.parseSettings({ variant: "omaha" })).toMatchObject({ variant: "omaha" });
+    expect(he.parseSettings({ variant: "stud" })).toBeNull();
+    const old = { ...DEFAULT_SETTINGS } as Partial<HoldemSettings>;
+    delete old.variant;
+    const s = he.createGame(ids(3).map((id) => ({ id })), old as HoldemSettings, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    expect(s.players.every((p) => p.hole.length === 2)).toBe(true);
+    expect(pubOf(s).variant).toBe("holdem");
+    expect(privOf(s, "p0").legal).toMatchObject({ maxRaiseTo: 1500, maxIsAllIn: true });
+  });
+});
+
+describe("Short Deck", () => {
+  const short = { variant: "shortdeck" } as const;
+  const rankOf = (id: string) => {
+    const r = id.split("-")[1]!;
+    return r === "A" ? 14 : r === "K" ? 13 : r === "Q" ? 12 : r === "J" ? 11 : Number(r);
+  };
+
+  it("a flush beats a full house at the showdown, and A-6-7-8-9 is a straight", () => {
+    // Deal order p1, p2, p0. Board: three hearts and a pair of Kings.
+    let s = table([1500, 1500, 1500], {
+      settings: short,
+      decks: [deck(["Ah Th", "Ks 9d", "As 8c"], "Kh 9h 6h Kc 7d")],
+    });
+    expect(pubOf(s).variant).toBe("shortdeck");
+    s = play(s, "p0", { type: "call" });
+    s = play(s, "p1", { type: "call" });
+    s = play(s, "p2", { type: "check" });
+    for (let street = 0; street < 3; street++) for (const id of ["p1", "p2", "p0"]) s = play(s, id, { type: "check" });
+    expect(s.lastHand!.labels).toEqual({
+      p0: "Straight, Nine high",
+      p1: "Flush, Ace high",
+      p2: "Full house, Kings over Nines",
+    });
+    expect(s.lastHand!.pots).toEqual([{ amount: 60, winners: ["p1"], label: "Flush, Ace high" }]);
+  });
+
+  it("test decks must come from the 36 cards", () => {
+    expect(() =>
+      he.createGame(ids(2).map((id) => ({ id })), { ...DEFAULT_SETTINGS, ...short }, { roundNumber: 1, dealerSeat: 0 }, ctx(), { deck: ["clubs-2"] }),
+    ).toThrow(/this deck/);
+  });
+
+  it("plays a whole game to the end, and only cards 6 to Ace ever show", () => {
+    const settings = { ...DEFAULT_SETTINGS, startingChips: 1000, ...short };
+    let s = he.createGame(ids(4).map((id) => ({ id })), settings, { roundNumber: 1, dealerSeat: 0 }, ctx()).state;
+    const seen = new Set<string>();
+    const look = () => {
+      const text = JSON.stringify([pubOf(s), ...ids(4).map((id) => privOf(s, id))]);
+      for (const m of text.matchAll(/"((?:clubs|diamonds|hearts|spades)-(?:A|K|Q|J|10|[2-9]))"/g)) seen.add(m[1]!);
+    };
+    for (let i = 0; i < 5000 && s.phase === "playing"; i++) {
+      look();
+      if (s.step === "between-hands") expect(stacks(s).reduce((a, b) => a + b, 0)).toBe(4000);
+      if (s.step === "preflop" && s.board.length === 0) expect(s.deck.length + s.players.filter((p) => p.inHand).length * 2).toBe(36);
+      const id = turn(s);
+      if (!id) {
+        s = timer(s, STEP_TIMER).state;
+        continue;
+      }
+      const legal = privOf(s, id).legal!;
+      // No-limit: the top raise is all your chips.
+      if (legal.maxRaiseTo !== null) expect(legal.maxIsAllIn).toBe(true);
+      s = play(s, id, legal.maxRaiseTo !== null ? { type: "all-in" } : { type: legal.call ? "call" : "check" });
+    }
+    expect(s.phase).toBe("over");
+    expect(he.getResult(s)!.winnerIds).toHaveLength(1);
+    expect(seen.size).toBeGreaterThan(8);
+    expect([...seen].filter((id) => rankOf(id) < 6)).toEqual([]);
+  });
+
+  it("is a choice in the settings", () => {
+    expect(he.parseSettings({ variant: "shortdeck" })).toMatchObject({ variant: "shortdeck" });
   });
 });

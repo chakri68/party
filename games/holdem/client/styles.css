@@ -1,9 +1,16 @@
 /* Hold'em. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is he- prefixed: other games' stylesheets may be loaded in the same tab. */
+   Everything is he- prefixed or under .holdem: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .holdem {
-  --card-w: 50px;
-  --card-h: 72px;
+  --pcard-w: 50px;
+  --pcard-h: 72px;
+  --pcard-radius: 7px;
+  --pcard-corner: 0.85rem;
+  --pcard-corner-y: 3px;
+  --pcard-corner-x: 4px;
+  --pcard-pip: 1.6rem;
+  --pcard-face: 1.35rem;
   --hole-w: 56px;
   --hole-h: 80px;
   display: flex;
@@ -102,6 +109,18 @@
   font-variant-numeric: tabular-nums;
 }
 .he-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: end; min-height: 26px; }
+/* Omaha's four: fanned, on a row of their own under the name, so the name keeps its room. */
+.he-seat.four {
+  grid-template-areas:
+    "face name name"
+    "face stack bet"
+    ". cards cards";
+}
+.he-seat.four > .he-seat-cards { justify-self: start; }
+.he-seat-cards.four { gap: 0; }
+/* Overlapped, so the rank sits left in the part that shows ("10" too). */
+.he-seat-cards.four > .pcard-mini { justify-items: start; padding-left: 1px; }
+.he-seat-cards.four > .pcard-mini + .pcard-mini { margin-left: -5px; }
 .he-seat-bet {
   grid-area: bet;
   justify-self: end;
@@ -154,28 +173,9 @@
 }
 .he-seat-bar.low span, .he-bar.low span { background: var(--danger); }
 
-/* Seat-sized cards: rank over suit. */
-.he-mini {
-  display: inline-grid;
-  place-items: center;
-  align-content: center;
-  width: 19px;
-  height: 26px;
-  border-radius: 3px;
-  background: var(--card);
-  color: var(--card-ink);
-  line-height: 0.9;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-}
-.he-mini b { font-size: 0.7rem; font-weight: 800; letter-spacing: -0.05em; }
-.he-mini i { font-size: 0.62rem; font-style: normal; }
-.he-mini.red { color: var(--red); }
-.he-mini.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3.5px);
-  box-shadow: inset 0 0 0 1.5px var(--card);
-}
-.he-mini.best { box-shadow: 0 0 0 2px var(--accent); }
-.he-mini.flip { animation: he-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+/* Seat-sized cards (.pcard-mini): rank over suit. */
+.holdem .pcard-mini.best { box-shadow: 0 0 0 2px var(--accent); }
+.holdem .pcard-mini.flip { animation: he-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
 
 /* ---- Table: board, pot, last hand ------------------------------------------ */
 
@@ -235,44 +235,11 @@
 
 /* ---- Cards ------------------------------------------------------------------- */
 
-.he-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  border-radius: 7px;
-  background: var(--card);
-  color: var(--card-ink);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-.he-card.red { color: var(--red); }
-.he-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.he-card.slot { background: none; border: 1.5px dashed var(--line); box-shadow: none; }
-.he-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.85rem;
-}
-.he-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.he-card .corner i { font-style: normal; font-size: 0.85em; }
-.he-card .tl { top: 3px; left: 4px; }
-.he-card .br { bottom: 3px; right: 4px; transform: rotate(180deg); }
-.he-card .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; }
-.he-card .pip.face { font-weight: 800; font-size: 1.35rem; font-family: Georgia, "Times New Roman", serif; }
+.holdem .pcard { transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 /* Showdown: the winning five stand out, the rest step back. */
-.he-card.best { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); transform: translateY(-3px); }
-.he-card.dim { filter: brightness(0.55) saturate(0.6); }
-.he-card.flip { animation: he-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+.holdem .pcard.best { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); transform: translateY(-3px); }
+.holdem .pcard.dim { filter: brightness(0.55) saturate(0.6); }
+.holdem .pcard.flip { animation: he-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes he-flip {
   from { transform: rotateY(90deg) scale(1.08); }
 }
@@ -299,10 +266,11 @@
 .holdem.over .he-dock { position: static; background: none; }
 
 .he-me { display: flex; align-items: center; gap: 12px; min-height: var(--hole-h); }
-.he-hole { display: flex; gap: 6px; flex: 0 0 auto; }
-.he-hole .he-card { width: var(--hole-w); height: var(--hole-h); }
-.he-hole .he-card .corner { font-size: 0.95rem; }
-.he-hole.folded .he-card { filter: brightness(0.5) saturate(0.4); }
+.he-hole { display: flex; gap: 6px; flex: 0 0 auto; --pcard-w: var(--hole-w); --pcard-h: var(--hole-h); --pcard-corner: 0.95rem; }
+.he-hole.folded .pcard { filter: brightness(0.5) saturate(0.4); }
+/* Omaha's four, fanned on a phone: each card keeps its corner and middle in view. */
+.he-hole.four { gap: 0; }
+.he-hole.four > .pcard + .pcard { margin-left: -16px; }
 .he-me-text { display: grid; gap: 3px; min-width: 0; }
 .he-label { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
 .he-me-stack {
@@ -354,7 +322,7 @@
   accent-color: var(--accent);
   touch-action: pan-y;
 }
-.he-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.he-quick { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
 .he-quick button { min-height: 44px; padding: 0 4px; font-size: 0.85rem; }
 .he-quick button.on { border-color: var(--accent); color: var(--accent); }
 
@@ -371,24 +339,27 @@
 
 @media (min-width: 700px) {
   .holdem {
-    --card-w: 70px;
-    --card-h: 100px;
+    --pcard-w: 70px;
+    --pcard-h: 100px;
+    --pcard-corner: 1.05rem;
+    --pcard-pip: 2.2rem;
+    --pcard-face: 1.9rem;
+    --pcard-mini-w: 23px;
+    --pcard-mini-h: 32px;
+    --pcard-mini-rank: 0.82rem;
+    --pcard-mini-suit: 0.72rem;
     --hole-w: 76px;
     --hole-h: 108px;
     gap: 14px;
   }
   .he-seat { min-height: 60px; padding: 8px 10px 9px; }
   .he-seat-name { font-size: 0.95rem; }
-  .he-mini { width: 23px; height: 32px; }
-  .he-mini b { font-size: 0.82rem; }
-  .he-mini i { font-size: 0.72rem; }
   .he-table { padding: 22px 20px 16px; gap: 12px; }
   .he-board { gap: 10px; }
-  .he-card .corner { font-size: 1.05rem; }
-  .he-card .pip { font-size: 2.2rem; }
-  .he-card .pip.face { font-size: 1.9rem; }
   .he-pot { font-size: 1.2rem; }
-  .he-hole .he-card .corner { font-size: 1.1rem; }
+  .he-hole { --pcard-corner: 1.1rem; }
+  .he-hole.four { gap: 6px; }
+  .he-hole.four > .pcard + .pcard { margin-left: 0; }
   /* Room to breathe: the actions sit beside your cards. */
   .he-dock { grid-template-columns: auto minmax(0, 1fr); align-items: end; column-gap: 16px; }
   .he-raise { grid-column: 1 / -1; grid-row: 1; }
@@ -400,10 +371,8 @@
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .holdem { --card-w: 50px; --card-h: 72px; --hole-w: 50px; --hole-h: 72px; gap: 8px; }
-  .he-card .corner, .he-hole .he-card .corner { font-size: 0.95rem; }
-  .he-card .pip { font-size: 1.9rem; }
-  .he-card .pip.face { font-size: 1.6rem; }
+  .holdem { --pcard-w: 50px; --pcard-h: 72px; --pcard-pip: 1.9rem; --pcard-face: 1.6rem; --hole-w: 50px; --hole-h: 72px; gap: 8px; }
+  .holdem, .he-hole { --pcard-corner: 0.95rem; }
   .he-table { padding: 10px 12px 8px; gap: 8px; }
   .he-dock { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); row-gap: 4px; }
 }
@@ -419,9 +388,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .holdem .shake { animation: none; outline: 2px solid var(--red); }
-  .he-card, .he-seat { transition: none; }
-  .he-card.best { transform: none; }
-  .he-card.flip, .he-mini.flip { animation: none; }
+  .holdem .pcard, .he-seat { transition: none; }
+  .holdem .pcard.best { transform: none; }
+  .holdem .pcard.flip, .holdem .pcard-mini.flip { animation: none; }
   .he-sd-row, .he-sd-row.enter, .he-summary.pop { animation: none; transition: none; }
   .he-seat-bar span, .he-bar span { transition: none; }
 }

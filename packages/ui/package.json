@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cards": "./src/cards.ts"
   },
   "scripts": {
     "typecheck": "tsc -p ."

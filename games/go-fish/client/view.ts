@@ -2,9 +2,10 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { withCardSizes } from "@games/ui/cards";
 import { compareCards, formatRank, makeCard, rankName, rankPlural } from "../shared/rules.ts";
 import { SUITS, type AskRecord, type Card, type GoFishEvent, type GoFishPrivateState, type GoFishPublicState, type Rank } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -385,7 +386,7 @@ export class GoFishView implements GameView {
         const el = landing.find((b) => b.dataset.card === card.id);
         const to = el ? el.getBoundingClientRect() : this.cardRectAt(this.anchorFor(toId, props), size);
         try {
-          await fly(cardFace(card), froms[i]!, to, 340);
+          await fly(withCardSizes(cardFace(card), this.hand), froms[i]!, to, 340);
         } finally {
           if (el) el.style.visibility = "";
         }
@@ -411,7 +412,7 @@ export class GoFishView implements GameView {
         const el = card && landing.find((b) => b.dataset.card === card.id);
         const to = el ? el.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), from);
         try {
-          await fly(card ? cardFace(card) : cardBackFull(), from, to, 300);
+          await fly(withCardSizes(card ? cardFace(card) : cardBackFull(), this.hand), from, to, 300);
         } finally {
           if (el) el.style.visibility = "";
         }
@@ -436,7 +437,7 @@ export class GoFishView implements GameView {
     await Promise.all(
       cards.map(async (card, i) => {
         await new Promise((r) => setTimeout(r, i * 60));
-        await fly(cardFace(card), froms[i]!, new DOMRect(pile.left + i * BOOK_STEP, pile.top, w, pile.height), 320, { handoff: true });
+        await fly(withCardSizes(cardFace(card), this.book), froms[i]!, new DOMRect(pile.left + i * BOOK_STEP, pile.top, w, pile.height), 320, { handoff: true });
         landed[i] = once(cardFace(card), "landed");
         if (i === 0) {
           replaceChildren(this.book, landed[0]!);
@@ -524,7 +525,7 @@ export class GoFishView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed || p.out ? holding : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed || p.out ? holding : [cardBackTiny(), ` ${p.cardCount}`],
               h("span", { class: "books" }, ` · ${bookText}`),
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),
@@ -545,7 +546,7 @@ export class GoFishView implements GameView {
     this.pond.setAttribute("aria-label", `Pond, ${game.pondCount} ${game.pondCount === 1 ? "card" : "cards"}`);
     replaceChildren(
       this.pond,
-      game.pondCount ? cardBackFull() : h("span", { class: "gf-card slot", "aria-hidden": "true" }),
+      game.pondCount ? cardBackFull() : cardSlot(),
       h("span", { class: "gf-pond-count", "aria-hidden": "true" }, game.pondCount ? `Pond: ${game.pondCount} ${game.pondCount === 1 ? "card" : "cards"} to draw` : "Pond empty: nothing to draw"),
     );
 
@@ -555,7 +556,7 @@ export class GoFishView implements GameView {
       this.book.dataset.rank = key;
       replaceChildren(
         this.book,
-        game.lastBook === null ? h("span", { class: "gf-card slot", "aria-hidden": "true" }) : bookCards(game.lastBook).map((c) => cardFace(c)),
+        game.lastBook === null ? cardSlot() : bookCards(game.lastBook).map((c) => cardFace(c)),
       );
     }
     this.setBooksDown(game.booksDown);

@@ -62,6 +62,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@games/blackjack':
+        specifier: workspace:*
+        version: link:../../games/blackjack
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
@@ -149,6 +152,9 @@ importers:
       '@games/sounds':
         specifier: workspace:*
         version: link:../../packages/sounds
+      '@games/teen-patti':
+        specifier: workspace:*
+        version: link:../../games/teen-patti
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
@@ -174,6 +180,9 @@ importers:
       '@games/audio':
         specifier: workspace:*
         version: link:../../packages/audio
+      '@games/blackjack':
+        specifier: workspace:*
+        version: link:../../games/blackjack
       '@games/blind-rally':
         specifier: workspace:*
         version: link:../../games/blind-rally
@@ -264,6 +273,9 @@ importers:
       '@games/sounds':
         specifier: workspace:*
         version: link:../../packages/sounds
+      '@games/teen-patti':
+        specifier: workspace:*
+        version: link:../../games/teen-patti
       '@games/thorns':
         specifier: workspace:*
         version: link:../../games/thorns
@@ -286,6 +298,24 @@ importers:
       vite:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@26.6.5)(esbuild@0.28.1)
+
+  games/blackjack:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
 
   games/blind-rally:
     dependencies:
@@ -777,6 +807,24 @@ importers:
       '@games/hidden-roles':
         specifier: workspace:*
         version: link:../../packages/hidden-roles
+      '@games/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+
+  games/teen-patti:
+    dependencies:
+      '@games/animation':
+        specifier: workspace:*
+        version: link:../../packages/animation
+      '@games/audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@games/game-core':
+        specifier: workspace:*
+        version: link:../../packages/game-core
+      '@games/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@games/ui':
         specifier: workspace:*
         version: link:../../packages/ui

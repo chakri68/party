@@ -1,4 +1,4 @@
-import type { GameOutcome } from "@games/game-core";
+import { ordinal, type GameOutcome } from "@games/game-core";
 import { formatClock } from "../shared/wire.ts";
 import type { BlindRallyState, TeamState } from "../shared/types.ts";
 import { trackData } from "./geometry.ts";
@@ -19,9 +19,6 @@ export interface Placing {
   /** Effective time, finishers only. */
   timeMs: number | null;
 }
-
-const ORDINAL = ["th", "st", "nd", "rd"];
-const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ORDINAL[n % 10] ?? "th"}`;
 
 export function placings(state: BlindRallyState): Placing[] {
   const racing = state.teams.filter((t) => t.run);

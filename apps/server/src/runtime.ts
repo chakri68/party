@@ -5,6 +5,7 @@ import {
   BOT_MAX_RUN,
   buildRecap,
   emptyPartyLog,
+  emptyTableLog,
   PARTY_LOG_MAX,
   seededRandomInt,
   stableHash,
@@ -16,6 +17,7 @@ import {
   type GameTransition,
   type PartyLog,
   type PartyStats,
+  type TableLog,
 } from "@games/game-core";
 import {
   CHAT_KEEP,
@@ -32,6 +34,8 @@ import {
   safeEqual,
   SOUND_COOLDOWN_MS,
   VOICE_CAP,
+  VOICE_COUNT_LIMIT,
+  VOICE_TALK_LIMIT,
   type ChatMessage,
   type ClientMessage,
   type ErrorCode,
@@ -45,6 +49,7 @@ import {
   type VoiceMember,
 } from "@games/protocol";
 import { onBoard } from "./sounds.ts";
+import { TABLE_PERSIST_MS, TableTally } from "./table.ts";
 import { IceCache, pruneVoice, VOICE_SIGNAL_LIMIT } from "./voice.ts";
 
 // ---------------------------------------------------------------------------
@@ -165,7 +170,8 @@ interface RoomData {
   party?: PartyLog;
   /**
    * The seat that made the latest bot moves, how many in a row, and whether it
-   * has been skipped once already. A person's move or another seat's clears it.
+   * has been skipped once already. A person's move, another seat's move, or a
+   * game timer that changes the game state clears it, `skipped` included.
    */
   botRun?: { seatId: string; moves: number; skipped: boolean };
   /** The host locked the room: new people can't join. Optional: older rooms are open. */
@@ -234,6 +240,10 @@ export class RoomRuntime {
   private lastVoiceSent: string | null = null;
   /** TURN servers for the room, made on first use. In memory: after an eviction it starts empty. */
   private iceCache: IceCache | null = null;
+  /** Open talk bursts. In memory: a hibernation loses the bursts still open, and counts not yet written (up to TABLE_PERSIST_MS). */
+  private tally = new TableTally();
+  /** When the room last wrote to storage, so talk saves at most once per TABLE_PERSIST_MS. */
+  private lastTablePersist = 0;
 
   private readonly code: string;
   private readonly host: RoomHost;
@@ -476,7 +486,12 @@ export class RoomRuntime {
       if (key.startsWith(GAME_TIMER_PREFIX)) {
         changed = true;
         const timerId = key.slice(GAME_TIMER_PREFIX.length);
+        const before = this.data.game?.state;
         events.push(...this.applyGameHook((def, st) => def.onTimer?.(st, timerId, this.ctx()), true));
+        // The clock moved the game on, so a bot's moves either side aren't one run.
+        // The cap is for a bot moving while the game stands still; a turn clock its
+        // moves keep resetting never fires inside such a loop.
+        if (this.data?.game && this.data.game.state !== before) delete this.data.botRun;
       }
       if (key.startsWith(BOT_TIMER_PREFIX)) {
         const out = this.onBotTimer(key.slice(BOT_TIMER_PREFIX.length));
@@ -705,6 +720,7 @@ export class RoomRuntime {
         };
         chat.messages.push(line);
         if (chat.messages.length > CHAT_KEEP) chat.messages.splice(0, chat.messages.length - CHAT_KEEP);
+        this.bumpTable(seat, "chats");
         await this.persist();
         return this.broadcastChat([line]);
       }
@@ -712,10 +728,11 @@ export class RoomRuntime {
       case "emote": {
         // Over the limit just drops: a toast per extra tap would be worse than the spam.
         if (!this.allow("emote", seat.id, EMOTE_LIMIT)) return;
+        this.bumpTable(seat, "reactions");
         for (const c of this.liveConns()) {
           if (c.state?.playerId) c.send({ type: "emote", from: seat.id, emoji: msg.emoji });
         }
-        return;
+        return this.persistTableSoon();
       }
 
       case "sound": {
@@ -724,7 +741,9 @@ export class RoomRuntime {
         if (data.phase === "ended" || data.soundsOff || !onBoard(msg.id, this.host.soundPacks ?? [], !!data.library)) return;
         if (!this.allow("sound", seat.id, { burst: 1, windowMs: SOUND_COOLDOWN_MS })) return;
         if (!this.allow("sound-room", "*", ROOM_SOUND_LIMIT)) return;
-        return this.relaySound(msg.id, seat.id);
+        this.bumpTable(seat, "sounds");
+        this.relaySound(msg.id, seat.id);
+        return this.persistTableSoon();
       }
 
       case "room-sounds": {
@@ -739,9 +758,11 @@ export class RoomRuntime {
         const line = data.chat?.messages.find((m) => m.id === msg.messageId);
         if (!line) return; // scrolled off the top, most likely: nothing to say
         const who = line.reactions[msg.emoji] ?? [];
-        const next = who.includes(seat.id) ? who.filter((id) => id !== seat.id) : [...who, seat.id];
+        const adding = !who.includes(seat.id);
+        const next = adding ? [...who, seat.id] : who.filter((id) => id !== seat.id);
         if (next.length) line.reactions[msg.emoji] = next;
         else delete line.reactions[msg.emoji];
+        if (adding) this.bumpTable(seat, "reactions");
         await this.persist();
         return this.broadcastChat([line]);
       }
@@ -818,6 +839,8 @@ export class RoomRuntime {
         if (me) me.selfMuted = msg.muted || me.hostMuted;
         else if (roster.length >= VOICE_CAP) return this.error(conn, "voice-full", "Voice is full.");
         else roster.push({ id: seat.id, selfMuted: msg.muted, hostMuted: false });
+        this.setCounting(seat, msg.count);
+        this.settleVoice();
         await this.persist();
         this.flushVoice();
         // Not awaited: a slow TURN fetch must never hold up the room.
@@ -837,6 +860,36 @@ export class RoomRuntime {
         return;
       }
 
+      case "voice-count": {
+        if (!data.voice?.some((m) => m.id === seat.id)) return;
+        if (!this.allow("count", seat.id, VOICE_COUNT_LIMIT)) return;
+        const table = data.party?.table;
+        if ((!!table && this.tally.counting(table, seat.id)) === msg.on) return;
+        this.setCounting(seat, msg.on);
+        return this.persist();
+      }
+
+      case "voice-talk": {
+        // Never an update and never a message to anyone: only counted, and saved now and then.
+        const me = data.voice?.find((m) => m.id === seat.id);
+        const table = data.party?.table;
+        if (!me || me.selfMuted || me.hostMuted || !table || !this.tally.counting(table, seat.id)) return;
+        const now = this.host.now();
+        // Only starts are limited: a stop is cheap, and closing twice does nothing.
+        if (msg.on) {
+          if (!this.allow("talk", seat.id, VOICE_TALK_LIMIT)) return;
+          const playing = data.phase === "playing";
+          this.tally.talkOn(table, seat.id, now, {
+            gameId: playing ? (data.game?.gameId ?? null) : null,
+            offTurn: playing && data.awaiting.length > 0 && !data.awaiting.includes(seat.id),
+            afterWin: data.phase === "results" && !!data.party!.games.at(-1)?.winnerIds.includes(seat.id),
+          });
+          return;
+        }
+        this.tally.talkOff(table, seat.id, now, msg.peak);
+        return this.persistTableSoon();
+      }
+
       case "voice-ice-request": {
         if (!data.voice?.some((m) => m.id === seat.id)) return;
         if (!this.allow("ice", seat.id, ICE_REQUEST_LIMIT)) return;
@@ -848,6 +901,7 @@ export class RoomRuntime {
         const at = data.voice?.findIndex((m) => m.id === seat.id) ?? -1;
         if (at < 0) return;
         data.voice!.splice(at, 1);
+        this.settleVoice();
         await this.persist();
         return this.flushVoice();
       }
@@ -858,6 +912,7 @@ export class RoomRuntime {
         if (!msg.muted && me.hostMuted) return this.error(conn, "not-available", "The host muted you.");
         if (me.selfMuted === msg.muted) return;
         me.selfMuted = msg.muted;
+        this.settleVoice();
         await this.persist();
         return this.flushVoice();
       }
@@ -886,6 +941,7 @@ export class RoomRuntime {
           changed = true;
         }
         if (!changed) return;
+        this.settleVoice();
         await this.persist();
         return this.flushVoice();
       }
@@ -1433,6 +1489,7 @@ export class RoomRuntime {
 
   private async persist(): Promise<void> {
     if (!this.data) return;
+    this.lastTablePersist = this.host.now();
     await this.host.storage.put(STORAGE_KEY, this.data);
     const next = Math.min(...Object.values(this.data.timers));
     if (Number.isFinite(next)) await this.host.storage.setAlarm(next);
@@ -1447,7 +1504,7 @@ export class RoomRuntime {
     const data = this.data!;
     if (data.phase === "playing") this.scheduleBots();
     data.stateVersion++;
-    if (data.voice) data.voice = pruneVoice(data.voice, data.seats, data.phase, data.hostId);
+    this.settleVoice();
     await this.persist();
 
     const room = this.publicState();
@@ -1492,13 +1549,58 @@ export class RoomRuntime {
 
   /** Prunes the roster, then tells every seated connection if it changed since the last send. */
   private flushVoice(): void {
-    const data = this.data!;
-    const members = pruneVoice(data.voice ?? [], data.seats, data.phase, data.hostId);
-    if (data.voice) data.voice = members;
+    const members = this.settleVoice();
     const json = JSON.stringify(members);
     if (json === this.lastVoiceSent) return;
     this.lastVoiceSent = json;
     for (const c of this.liveConns()) if (c.state?.playerId) c.send({ type: "voice-state", members });
+  }
+
+  /**
+   * Prunes the roster, then closes table counts for anyone it no longer fits:
+   * gone from voice (session and burst) or muted (burst). Covers leave,
+   * disconnect, mute and End party. Call it before a persist so the counts are saved.
+   */
+  private settleVoice(): VoiceMember[] {
+    const data = this.data!;
+    const members = pruneVoice(data.voice ?? [], data.seats, data.phase, data.hostId);
+    if (data.voice) data.voice = members;
+    const table = data.party?.table;
+    // A woken room has no bursts in memory but may still have stored sessions.
+    const ids = new Set([...this.tally.open(), ...Object.keys(table?.sessions ?? {})]);
+    if (!table || !ids.size) return members;
+    const now = this.host.now();
+    for (const id of ids) {
+      const m = members.find((x) => x.id === id);
+      if (!m) this.tally.drop(table, id, now);
+      else if (m.selfMuted || m.hostMuted) this.tally.talkOff(table, id, now, null);
+    }
+    return members;
+  }
+
+  /** Saves new table counts, at most once per TABLE_PERSIST_MS. Any other save carries them sooner. */
+  private async persistTableSoon(): Promise<void> {
+    if (this.host.now() - this.lastTablePersist >= TABLE_PERSIST_MS) await this.persist();
+  }
+
+  /** The party's table log, made on first use. */
+  private table(): TableLog {
+    return ((this.data!.party ??= emptyPartyLog()).table ??= emptyTableLog());
+  }
+
+  /** Turns talk counting on or off for a seat. Computer players never count. */
+  private setCounting(seat: SeatData, on: boolean): void {
+    if (seat.bot) return;
+    if (!on && !this.data!.party?.table) return;
+    this.tally.setCounting(this.table(), seat.id, on, this.host.now());
+    if (on) this.data!.party!.names[seat.id] = seat.name;
+  }
+
+  /** One more sound, reaction or chat line for the recap. Computer players never count. */
+  private bumpTable(seat: SeatData, key: "sounds" | "reactions" | "chats"): void {
+    if (seat.bot) return;
+    this.tally.bump(this.table(), seat.id, key);
+    this.data!.party!.names[seat.id] = seat.name;
   }
 
   /** Sliding-window rate limit. Records the send when it's allowed. */

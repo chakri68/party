@@ -1,9 +1,10 @@
 /* President. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is pr- prefixed: other games' stylesheets may be loaded in the same tab. */
+   Everything is pr- prefixed or under .president: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .president {
-  --card-w: 58px;
-  --card-h: 84px;
+  --pcard-w: 58px;
+  --pcard-h: 84px;
   --card-overlap: -26px;
   --table-card-w: 64px;
   --table-card-h: 92px;
@@ -81,14 +82,6 @@
 }
 .pr-opp.out .count { color: var(--accent); font-weight: 600; }
 .pr-opp .pts { color: var(--muted); font-weight: 400; }
-.pr-back-mini {
-  display: inline-block;
-  width: 9px;
-  height: 13px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
-  box-shadow: 0 0 0 1px var(--accent);
-}
 
 /* Titles: up the table in accent, down it in danger. Citizens get no badge. */
 .pr-title {
@@ -126,9 +119,8 @@
 }
 .pr-pile-wrap { display: grid; justify-items: center; gap: 8px; }
 .pr-pile-wrap[hidden] { display: none; }
-.pr-pile { display: flex; justify-content: center; min-height: var(--table-card-h); }
-.pr-pile .pr-card { width: var(--table-card-w); height: var(--table-card-h); }
-.pr-pile .pr-card + .pr-card { margin-left: -22px; }
+.pr-pile { display: flex; justify-content: center; min-height: var(--table-card-h); --pcard-w: var(--table-card-w); --pcard-h: var(--table-card-h); }
+.pr-pile .pcard + .pcard { margin-left: -22px; }
 .pr-pile-caption { margin: 0; font-size: 0.85rem; color: var(--muted); text-align: center; min-height: 1.3em; }
 
 .pr-recap { display: grid; gap: 8px; width: 100%; max-width: 360px; }
@@ -143,65 +135,17 @@
 .pr-swaps li { display: grid; gap: 1px; }
 .pr-swaps li:not(.done) span + span { color: var(--ink); font-weight: 600; }
 
-/* ---- Cards ---------------------------------------------------------------- */
-
-.pr-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--card-ink);
-  font: inherit;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
-}
-.pr-card.red { color: var(--red); }
-.pr-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.pr-card.slot {
-  background: none;
-  border: 1.5px dashed var(--line);
-  box-shadow: none;
-}
-.pr-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.95rem;
-}
-.pr-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.pr-card .corner i { font-style: normal; font-size: 0.85em; }
-.pr-card .tl { top: 4px; left: 5px; }
-.pr-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
-.pr-card .pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-}
-.pr-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+/* ---- Cards (.pcard, cards.css) -------------------------------------------- */
 
 /* Hand cards */
-.pr-hand .pr-card { cursor: pointer; scroll-snap-align: start; }
-.pr-hand .pr-card + .pr-card { margin-left: var(--card-overlap); }
+.pr-hand .pcard { cursor: pointer; scroll-snap-align: start; }
+.pr-hand .pcard + .pcard { margin-left: var(--card-overlap); }
 /* On your turn, dim what can't go down so the options pop. */
-.president.my-turn .pr-hand .pr-card:not(.playable) { filter: brightness(0.62) saturate(0.6); }
-.pr-hand .pr-card.playable { box-shadow: 0 0 0 2px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
-.pr-hand .pr-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.55); }
+.president.my-turn .pr-hand .pcard:not(.playable) { filter: brightness(0.62) saturate(0.6); }
+.pr-hand .pcard.playable { box-shadow: 0 0 0 2px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.pr-hand .pcard.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.55); }
 /* Just handed to you in the exchange. */
-.pr-hand .pr-card.got::after {
+.pr-hand .pcard.got::after {
   content: "";
   position: absolute;
   top: 5px;
@@ -213,9 +157,9 @@
   box-shadow: 0 0 0 2px var(--card);
 }
 @media (hover: hover) and (pointer: fine) {
-  .pr-hand .pr-card.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
+  .pr-hand .pcard.playable:not(.selected):hover { transform: translateY(-8px); z-index: 1; }
 }
-.pr-hand .pr-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.pr-hand .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
 
 /* ---- Log + dock ----------------------------------------------------------- */
 
@@ -277,27 +221,25 @@
 
 @media (min-width: 700px) {
   .president {
-    --card-w: 76px;
-    --card-h: 108px;
+    --pcard-w: 76px;
+    --pcard-h: 108px;
+    --pcard-corner: 1.1rem;
+    --pcard-pip: 2.4rem;
     --card-overlap: -30px;
     --table-card-w: 84px;
     --table-card-h: 120px;
     gap: 14px;
   }
   .pr-table { padding: 16px 16px 18px; min-height: 210px; }
-  .pr-card .corner { font-size: 1.1rem; }
-  .pr-card .pip { font-size: 2.4rem; }
-  .pr-pile .pr-card + .pr-card { margin-left: -26px; }
+  .pr-pile .pcard + .pcard { margin-left: -26px; }
   .pr-hand { justify-content: safe center; }
 }
 
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .president { --card-w: 58px; --card-h: 84px; --card-overlap: -26px; --table-card-w: 58px; --table-card-h: 84px; gap: 8px; }
-  .pr-card .corner { font-size: 0.95rem; }
-  .pr-card .pip { font-size: 1.9rem; }
-  .pr-pile .pr-card + .pr-card { margin-left: -22px; }
+  .president { --pcard-w: 58px; --pcard-h: 84px; --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --card-overlap: -26px; --table-card-w: 58px; --table-card-h: 84px; gap: 8px; }
+  .pr-pile .pcard + .pcard { margin-left: -22px; }
   .pr-table { padding: 8px 12px; min-height: 0; }
   .pr-status { min-height: 40px; }
   .pr-me { flex: 0 0 auto; }
@@ -318,13 +260,13 @@
 }
 
 /* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
-.pr-pile .pr-card.landed { animation: pr-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+.pr-pile .pcard.landed { animation: pr-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes pr-land {
   from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .president .shake { animation: none; outline: 2px solid var(--red); }
-  .pr-card, .pr-opp { transition: none; }
-  .pr-pile .pr-card.landed { animation: none; }
+  .pr-opp { transition: none; }
+  .pr-pile .pcard.landed { animation: none; }
 }

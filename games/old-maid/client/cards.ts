@@ -1,23 +1,18 @@
 import { h } from "@games/ui";
+import { cardFaces } from "@games/ui/cards";
 import { formatRank, rankName } from "../shared/rules.ts";
-import type { Card, Suit } from "../shared/types.ts";
+import type { Card, Rank, Suit } from "../shared/types.ts";
 
-// U+FE0E asks for text presentation; without it some platforms draw ♥ as an emoji.
-export const SUIT_SYMBOL: Record<Suit, string> = {
-  spades: "♠︎",
-  hearts: "♥︎",
-  diamonds: "♦︎",
-  clubs: "♣︎",
-};
-export const SUIT_NAME: Record<Suit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
+// The shared card faces (@games/ui/cards), with Old Maid's ranks: the Ace is 1.
+// The joker is Old Maid's own, so it branches off before the shared face.
+const faces = cardFaces<Rank>({ short: formatRank, name: rankName });
 
-type Face = Pick<Card, "suit" | "rank">;
+type Face = { suit: Suit | "joker"; rank: Rank; id?: string };
+const standard = (c: Face) => ({ suit: c.suit as Suit, rank: c.rank, id: c.id });
 
-export const isRed = (c: Face) => c.suit === "hearts" || c.suit === "diamonds";
-export const cardLabel = (c: Face) => (c.suit === "joker" ? "Joker" : `${rankName(c.rank)} of ${SUIT_NAME[c.suit]}`);
-export const cardShort = (c: Face) => (c.suit === "joker" ? "the joker" : `${formatRank(c.rank)}${SUIT_SYMBOL[c.suit]}`);
-
-const isFace = (rank: number) => rank > 10;
+export const cardLabel = (c: Face) => (c.suit === "joker" ? "Joker" : faces.label(standard(c)));
+export const cardShort = (c: Face) => (c.suit === "joker" ? "the joker" : faces.short(standard(c)));
+export const { back: cardBackFull, tinyBack: cardBackTiny, slot: cardSlot } = faces;
 
 /**
  * A jester's cap: three floppy points with a bell on each, over a band. The
@@ -37,40 +32,15 @@ const JESTER_CAP = `<svg viewBox="-2 0 104 92" aria-hidden="true">
   </g>
 </svg>`;
 
-function faceParts(c: Face): Node[] {
-  if (c.suit === "joker") {
-    const corner = (pos: string) =>
-      h("span", { class: `corner word ${pos}`, "aria-hidden": "true" }, [..."JOKER"].map((l) => h("span", {}, l)));
-    const pip = h("span", { class: "pip joker", "aria-hidden": "true" });
-    pip.innerHTML = JESTER_CAP;
-    return [corner("tl"), pip, corner("br")];
-  }
-  const suit = c.suit;
-  const corner = (pos: string) =>
-    h("span", { class: `corner ${pos}`, "aria-hidden": "true" }, h("b", {}, formatRank(c.rank)), h("i", {}, SUIT_SYMBOL[suit]));
-  return [
-    corner("tl"),
-    h("span", { class: `pip${isFace(c.rank) ? " face" : ""}`, "aria-hidden": "true" }, isFace(c.rank) ? formatRank(c.rank) : SUIT_SYMBOL[suit]),
-    corner("br"),
-  ];
+/** The joker: "JOKER" stacked down the corners, a jester's cap in the middle. */
+function jokerFace(id: string | undefined): HTMLElement {
+  const corner = (pos: string) => h("span", { class: `corner word ${pos}`, "aria-hidden": "true" }, [..."JOKER"].map((l) => h("span", {}, l)));
+  const pip = h("span", { class: "pip joker", "aria-hidden": "true" });
+  pip.innerHTML = JESTER_CAP;
+  return h("span", { class: "pcard om-joker", role: "img", "aria-label": "Joker", "data-card": id }, corner("tl"), pip, corner("br"));
 }
 
 /** A card face: hand cards, the pile, and animation ghosts. Nothing in Old Maid is pressed face up. */
 export function cardFace(c: Card | Face): HTMLElement {
-  const id = "id" in c ? c.id : undefined;
-  return h(
-    "span",
-    { class: `om-card${isRed(c) ? " red" : ""}${c.suit === "joker" ? " joker" : ""}`, role: "img", "aria-label": cardLabel(c), "data-card": id },
-    faceParts(c),
-  );
-}
-
-/** A full-size card back, for the fan you pick from and cards in flight. */
-export function cardBackFull(): HTMLElement {
-  return h("span", { class: "om-card back", "aria-hidden": "true" });
-}
-
-/** A small card back, for opponents' hand sizes. */
-export function cardBackMini(): HTMLElement {
-  return h("span", { class: "om-back-mini", "aria-hidden": "true" });
+  return c.suit === "joker" ? jokerFace(c.id) : faces.face(standard(c));
 }

@@ -1,7 +1,7 @@
 // Voice settings saved on this device: one set for every room, plus per room
 // whether I was in voice and with what mic choice, my volume for each person
 // and who I muted for me.
-// Nothing here goes to the server.
+// Nothing here goes to the server, but voice tells the room whether I count my talk time.
 
 import { readLocal, writeLocal } from "../identity.ts";
 
@@ -18,6 +18,8 @@ export interface VoicePrefs {
   duck: boolean;
   /** Keep the screen on while in voice (costs battery, so it can be turned off). */
   keepScreenOn: boolean;
+  /** Count my talk time for the party recap. */
+  countTalk: boolean;
 }
 
 export const DEFAULT_VOICE_PREFS: VoicePrefs = {
@@ -31,6 +33,7 @@ export const DEFAULT_VOICE_PREFS: VoicePrefs = {
   relayOnly: false,
   duck: true,
   keepScreenOn: true,
+  countTalk: true,
 };
 
 /** The mic choice a reload keeps: talking, Mute (mic still on), or Turn off mic / Listen only. */
@@ -83,6 +86,7 @@ function readPrefs(raw: Record<string, unknown>): VoicePrefs {
     relayOnly: bool(raw.relayOnly, d.relayOnly),
     duck: bool(raw.duck, d.duck),
     keepScreenOn: bool(raw.keepScreenOn, d.keepScreenOn),
+    countTalk: bool(raw.countTalk, d.countTalk),
   };
 }
 

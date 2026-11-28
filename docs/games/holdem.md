@@ -1,10 +1,10 @@
 # Hold'em
 
-No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds that climb until one player has every chip. 2–9 players.
+No-limit Texas Hold'em as a tournament. Two cards each, five shared, and blinds that climb until one player has every chip. 2–9 players. The host can pick Omaha or Short Deck instead (see [Omaha](#omaha) and [Short Deck](#short-deck)).
 
 Chips are play chips: no buying, no cash-out, nothing carries over between games.
 
-Computer players can fill seats in this game. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
+Computer players can play in all three games: Texas Hold'em, Omaha and Short Deck. They play good starting cards and fold most bad ones. After the flop, they bet when their hand is likely to win, and they sometimes bluff. They buy back in when they can.
 
 ## The short version
 
@@ -42,6 +42,41 @@ Hand rankings, best first:
 
 Ties go to the higher ranks, then the leftover cards (kickers). Identical hands split the pot.
 
+## Omaha
+
+The host can set **Game** to Omaha in the lobby. Everything above stays the same, except three things.
+
+- **4 cards each**, not 2. Only you see them.
+- **Your hand is exactly 2 of your cards and exactly 3 shared cards.** Not 1, not 3, not 4. Some examples:
+  - Four hearts are on the table, and you have one heart. You do **not** have a flush. You need two hearts in your hand.
+  - You have four spades. Only two of them can play, so you need three spades on the table for a flush.
+  - A straight on the table is not your hand. You must use 2 of your cards.
+- **Pot-limit betting.** The most you can bet or raise is the size of the pot. To work it out: first call, then add the whole pot after your call. For example, 100 is in the pot, and then someone bets 50. Now 150 is in the middle. You call 50, and now 200 is in the middle. So you can raise by 200 more, to 250 in all. All-in is allowed only when your chips fit under this limit. The smallest bet and raise are the same as in Hold'em.
+
+The hand rankings are the same. Your screen shows your best hand by the Omaha rule, so it never names a hand you can't use.
+
+## Short Deck
+
+The host can set **Game** to Short Deck in the lobby. It is Texas Hold'em with a smaller deck. These things change:
+
+- **36 cards:** 6 up to Ace in each suit. There are no 2, 3, 4 or 5 cards.
+- **A flush beats a full house.** With fewer cards, a flush is harder to make.
+- **A-6-7-8-9 is the lowest straight.** Here the Ace counts as a low card, under the 6. There is no A-2-3-4-5 straight.
+
+A straight still beats three of a kind. Bets are no-limit, as in Hold'em, and the blinds are the same.
+
+Hand rankings in Short Deck, best first:
+
+1. **Straight flush:** five in a row, one suit. A-K-Q-J-10 is a royal flush. A-6-7-8-9 in one suit is the lowest.
+2. **Four of a kind**
+3. **Flush:** five of one suit.
+4. **Full house:** three of one rank and two of another.
+5. **Straight:** five in a row. A-6-7-8-9 is the lowest.
+6. **Three of a kind**
+7. **Two pair**
+8. **Pair**
+9. **High card**
+
 ## Winning and scoring
 
 Last player with chips wins. With a time cap, the hand in progress finishes when time's up and the biggest stack wins.
@@ -58,6 +93,7 @@ Host picks these in the lobby.
 
 | Setting | Options | What it changes |
 | --- | --- | --- |
+| Game | **Texas Hold'em**, Omaha, Short Deck | Omaha: 4 cards each, use exactly 2 of them, and bets up to the size of the pot. See [Omaha](#omaha). Short Deck: 36 cards (6 to Ace), and a flush beats a full house. See [Short Deck](#short-deck). |
 | Starting chips | 1,000, **1,500**, 3,000 | 50, 75 or 150 big blinds at the opening 10/20. |
 | Blind speed | Slow (10 hands), **Normal (6)**, Turbo (4) | Hands per blind level. Counted in hands, not minutes, so a slow hand doesn't eat a level. |
 | Ending | **Last one standing**, 20 min, 30 min, 45 min | The time caps end after the hand in progress. Biggest stack wins. |
@@ -70,8 +106,8 @@ Host picks these in the lobby.
 - **Status.** Whose turn it is, or "Your turn · 40 to call" when it's yours.
 - **Seats.** Everyone else, from your left: name, stack, what they've bet this round, D/SB/BB markers, and Folded, All-in or Out. Whoever's acting is highlighted, with their clock draining along the bottom of the seat.
 - **The table.** The five shared cards, the pot, and main and side pots once there are any. Below that, the last hand: who won what, with what.
-- **Your dock.** Your two cards, your best hand so far ("Pair of Nines") once there's a flop, your stack and your clock.
-- **Actions.** Fold, Check or Call, and Bet or Raise. Raise opens a slider bound to the legal minimum and your stack, with Min, ½ pot, Pot and All-in shortcuts, and a confirm button. If all you can do is go all-in, the button says so.
+- **Your dock.** Your cards (2, or 4 in Omaha), your best hand so far ("Pair of Nines") once there's a flop, your stack and your clock.
+- **Actions.** Fold, Check or Call, and Bet or Raise. Raise opens a slider bound to the legal minimum and your stack (in Omaha, the pot limit), with Min, ½ pot, Pot and All-in shortcuts, and a confirm button. In Omaha, All-in shows only when your chips fit under the pot limit. If all you can do is go all-in, the button says so.
 - **Showdown.** Hands turn up one by one, each with its label, and the board lights up that player's best five. Then the winners get stamped, everyone else dims, and the pot slides over. The pause grows with the number of hands. The last hand of the game gets an extra beat before the results.
 - **Show, I'm back, Rebuy** appear when they apply.
 - Your clock ticks in its last five seconds. Sounds and vibration cue the deal, bets, your turn and the pot.

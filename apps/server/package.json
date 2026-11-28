@@ -16,6 +16,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@games/blackjack": "workspace:*",
     "@games/blind-rally": "workspace:*",
     "@games/bluff": "workspace:*",
     "@games/chain-words": "workspace:*",
@@ -44,6 +45,7 @@
     "@games/same-page": "workspace:*",
     "@games/scribbl": "workspace:*",
     "@games/sevens": "workspace:*",
+    "@games/teen-patti": "workspace:*",
     "@games/short-night": "workspace:*",
     "@games/sounds": "workspace:*",
     "@games/thorns": "workspace:*",

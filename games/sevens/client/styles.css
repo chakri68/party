@@ -1,8 +1,19 @@
-/* Sevens. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted). */
+/* Sevens. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is sv- prefixed or under .sevens: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .sevens {
-  --card-w: 58px;
-  --card-h: 84px;
+  --pcard-w: 58px;
+  --pcard-h: 84px;
+  /* Board cards fill their cell, 5 by 7, type scaled to the screen. */
+  --pcard-mini-w: auto;
+  --pcard-mini-h: auto;
+  --pcard-mini-ratio: 5 / 7;
+  --pcard-mini-radius: 5px;
+  --pcard-mini-line: 1;
+  --pcard-mini-tracking: -0.04em;
+  --pcard-mini-rank: clamp(0.55rem, 2.7vw, 1rem);
+  --pcard-mini-suit: calc(0.85 * clamp(0.55rem, 2.7vw, 1rem));
   --card-overlap: -22px;
   display: flex;
   flex-direction: column;
@@ -28,7 +39,7 @@
 }
 /* The text wraps, so a long name stays inside the banner. */
 .sv-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
-.my-turn .sv-status {
+.sevens.my-turn .sv-status {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
@@ -72,21 +83,13 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.dealer {
+.sv-dealer {
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--muted);
-}
-.card-back {
-  display: inline-block;
-  width: 9px;
-  height: 13px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
-  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* ---- Board ---------------------------------------------------------------- */
@@ -109,81 +112,26 @@
 }
 .sv-row-suit { font-size: 1.1rem; text-align: center; color: var(--ink); }
 .sv-row-suit.red { color: var(--danger); }
-.slot {
+.sv-slot {
   aspect-ratio: 5 / 7;
   border-radius: 4px;
   border: 1px dashed #2a2924;
 }
 /* The column everything grows out from. */
-.slot.seven { border-color: rgb(198 244 50 / 0.55); }
+.sv-slot.seven { border-color: rgb(198 244 50 / 0.55); }
 
-/* ---- Cards ---------------------------------------------------------------- */
+/* ---- Cards (.pcard, .pcard-mini: cards.css) ------------------------------ */
 
-.card {
-  background: var(--card);
-  color: var(--card-ink);
-  border-radius: 5px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-  user-select: none;
-  -webkit-user-select: none;
-}
-.card.red { color: var(--red); }
-
-.card.mini {
-  aspect-ratio: 5 / 7;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  font-size: clamp(0.55rem, 2.7vw, 1rem);
-}
-.card.mini b { font-weight: 800; letter-spacing: -0.04em; }
-.card.mini i { font-style: normal; font-size: 0.85em; }
-
-.card.full {
-  position: relative;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  font: inherit;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
-}
-.card.full + .card.full { margin-left: var(--card-overlap); }
-.card.full .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.95rem;
-}
-.card.full .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.card.full .corner i { font-style: normal; font-size: 0.85em; }
-.card.full .tl { top: 4px; left: 5px; }
-.card.full .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
-.card.full .pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-}
-.card.full .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
-
+.sv-hand .pcard + .pcard { margin-left: var(--card-overlap); }
+.sv-hand .pcard { cursor: pointer; }
 /* On your turn, dim what can't go down so the options pop. */
-.my-turn .card.full:not(.playable) { filter: brightness(0.62) saturate(0.6); }
-.card.full.playable { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
-.card.full.selected { transform: translateY(-16px); z-index: 1; }
+.sevens.my-turn .sv-hand .pcard:not(.playable) { filter: brightness(0.62) saturate(0.6); }
+.sv-hand .pcard.playable { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.sv-hand .pcard.selected { transform: translateY(-16px); z-index: 1; }
 @media (hover: hover) and (pointer: fine) {
-  .card.full.playable:hover { transform: translateY(-10px); z-index: 1; }
+  .sv-hand .pcard.playable:hover { transform: translateY(-10px); z-index: 1; }
 }
-.card.full:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.sv-hand .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
 
 /* ---- Log + dock ----------------------------------------------------------- */
 
@@ -205,7 +153,7 @@
   gap: 6px;
 }
 /* After the game the results panel leads; the hand is just for the record. */
-.finished .sv-dock { position: static; background: none; }
+.sevens.finished .sv-dock { position: static; background: none; }
 
 .sv-dock-head {
   display: flex;
@@ -230,14 +178,18 @@
   padding: 20px 6px 6px;
   margin: -14px -6px 0;
 }
-.sv-hand .card.full { scroll-snap-align: start; }
+.sv-hand .pcard { scroll-snap-align: start; }
 
 /* ---- Bigger screens ------------------------------------------------------- */
 
 @media (min-width: 700px) {
   .sevens {
-    --card-w: 76px;
-    --card-h: 108px;
+    --pcard-w: 76px;
+    --pcard-h: 108px;
+    --pcard-corner: 1.1rem;
+    --pcard-pip: 2.4rem;
+    --pcard-mini-rank: 1rem;
+    --pcard-mini-suit: 0.85rem;
     /* 18 cards (the most anyone holds at 3 players) still fit without scrolling. */
     --card-overlap: -30px;
     gap: 14px;
@@ -249,19 +201,14 @@
     grid-template-columns: 1.6em repeat(13, minmax(0, 46px));
     justify-content: center;
   }
-  .card.mini { font-size: 1rem; }
   .sv-row-suit { font-size: 1.4rem; }
-  .card.full .corner { font-size: 1.1rem; }
-  .card.full .pip { font-size: 2.4rem; }
   .sv-hand { justify-content: safe center; }
 }
 
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .sevens { --card-w: 58px; --card-h: 84px; --card-overlap: -22px; gap: 8px; }
-  .card.full .corner { font-size: 0.95rem; }
-  .card.full .pip { font-size: 1.9rem; }
+  .sevens { --pcard-w: 58px; --pcard-h: 84px; --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --card-overlap: -22px; gap: 8px; }
   .sv-status { min-height: 40px; }
   .sv-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
   .sv-dock-head { flex-direction: column; align-items: flex-start; justify-content: center; max-width: 280px; min-height: 0; }
@@ -271,7 +218,7 @@
 
 /* ---- Feedback ------------------------------------------------------------- */
 
-.shake { animation: sv-shake 300ms ease; }
+.sevens .shake { animation: sv-shake 300ms ease; }
 @keyframes sv-shake {
   25% { transform: translateX(-6px); }
   50% { transform: translateX(6px); }
@@ -279,17 +226,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shake { animation: none; outline: 2px solid var(--red); }
-  .card.full, .sv-opp { transition: none; }
+  .sevens .shake { animation: none; outline: 2px solid var(--red); }
+  .sv-opp { transition: none; }
 }
 
 /* ---- Motion (Phase 5) ---------------------------------------------------- */
 
 /* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
-.card.mini.landed { animation: sv-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+.sv-board .pcard-mini.landed { animation: sv-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes sv-land {
   from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.mini.landed { animation: none; }
+  .sv-board .pcard-mini.landed { animation: none; }
 }

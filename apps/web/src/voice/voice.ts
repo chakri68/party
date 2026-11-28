@@ -140,6 +140,8 @@ export class VoiceController {
   private saveTimer: number | null = null;
   private links = new Map<string, LinkState>();
   private speaking = new Map<string, SpeakState>();
+  /** The loudest mic level in my open talk burst; null when no burst is open. */
+  private talkPeak: number | null = null;
   private meterTimer: number | null = null;
 
   private refreshing: Promise<void> | null = null;
@@ -439,6 +441,10 @@ export class VoiceController {
         next.autoGainControl !== before.autoGainControl;
       if (next.outputDeviceId !== before.outputDeviceId) void this.deps.playback.setOutput(next.outputDeviceId);
       if (next.relayOnly !== before.relayOnly && this.phase === "joined") this.rejoin();
+      if (next.countTalk !== before.countTalk && this.phase === "joined") {
+        if (!next.countTalk) this.endTalk();
+        this.guard(() => this.deps.send({ type: "voice-count", on: next.countTalk }));
+      }
       this.syncPublishing();
       this.notify();
       if (micChanged && this.micLive()) {
@@ -577,7 +583,7 @@ export class VoiceController {
     // The saved speaker. The browser may refuse until the first tap; the settings can set it again.
     if (this.prefs.outputDeviceId !== null) void this.deps.playback.setOutput(this.prefs.outputDeviceId).catch(() => false);
     this.openSession();
-    this.deps.send({ type: "voice-join", muted: this.selfMuted });
+    this.deps.send({ type: "voice-join", muted: this.selfMuted, count: this.prefs.countTalk });
     this.saveRoom({ on: true, mic });
     // Already listed (a reload): the server sends no roster when nothing changed.
     if (this.isListed()) {
@@ -589,10 +595,11 @@ export class VoiceController {
 
   /** A fresh transport and session, keeping the mic. */
   private rejoin(): void {
+    this.endTalk();
     this.closeTransport();
     this.openSession();
     this.setStatus("joining");
-    this.deps.send({ type: "voice-join", muted: this.selfMuted || !this.micLive() });
+    this.deps.send({ type: "voice-join", muted: this.selfMuted || !this.micLive(), count: this.prefs.countTalk });
     if (this.isListed()) this.applyRoster();
   }
 
@@ -625,6 +632,8 @@ export class VoiceController {
     this.up = false;
     this.queue = [];
     this.published = null;
+    // The room closes an open burst itself on leave and disconnect.
+    this.talkPeak = null;
     this.links.clear();
     if (t) this.guard(() => t.disconnect());
   }
@@ -747,6 +756,8 @@ export class VoiceController {
   private applyMute(muted: boolean): void {
     if (!muted && this.hostMuted()) return;
     if (muted !== this.selfMuted) {
+      // Off before the mute, so the room keeps the peak.
+      if (muted) this.endTalk();
       this.selfMuted = muted;
       this.deps.send({ type: "voice-self-mute", muted });
     }
@@ -781,6 +792,7 @@ export class VoiceController {
     const want = on ? this.deps.mic.track : null;
     if (want === this.published) return;
     this.published = want;
+    if (!want) this.endTalk();
     const failed = () => {
       if (this.transport === t && this.published === want) this.published = undefined;
     };
@@ -848,10 +860,33 @@ export class VoiceController {
         const next = nextSpeaking(prev, level);
         this.speaking.set(m.id, next);
         if (next.speaking !== prev.speaking) changed = true;
+        if (m.id === selfId) this.trackTalk(next.speaking, level);
       }
       if (changed) this.notify();
     });
     this.startMeter();
+  }
+
+  // ---- talk time for the recap ----
+
+  /** Sends voice-talk on when I start talking into a sent, counted mic, and off when that stops. */
+  private trackTalk(speaking: boolean, level: number): void {
+    const want = speaking && !!this.published && this.prefs.countTalk;
+    if (this.talkPeak !== null) {
+      this.talkPeak = Math.max(this.talkPeak, level);
+      if (!want) this.endTalk();
+    } else if (want) {
+      this.talkPeak = level;
+      this.deps.send({ type: "voice-talk", on: true });
+    }
+  }
+
+  /** Closes my open burst, if any, with its peak rounded to 2 places. */
+  private endTalk(): void {
+    if (this.talkPeak === null) return;
+    const peak = Math.round(Math.min(1, Math.max(0, this.talkPeak)) * 100) / 100;
+    this.talkPeak = null;
+    this.guard(() => this.deps.send({ type: "voice-talk", on: false, peak }));
   }
 
   // ---- ICE refresh ----
@@ -890,6 +925,7 @@ export class VoiceController {
     if (status === this.status) return;
     this.status = status;
     if (status !== "on") {
+      this.endTalk();
       this.stopMeter();
       this.speaking.clear();
     }
