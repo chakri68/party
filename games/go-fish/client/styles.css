@@ -1,9 +1,10 @@
 /* Go Fish. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is gf- prefixed: other games' stylesheets may be loaded in the same tab. */
+   Everything is gf- prefixed or under .go-fish: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
 
 .go-fish {
-  --card-w: 58px;
-  --card-h: 84px;
+  --pcard-w: 58px;
+  --pcard-h: 84px;
   --card-overlap: -18px;
   --book-step: 14px; /* BOOK_STEP in view.ts */
   display: flex;
@@ -91,14 +92,6 @@
   border-radius: 4px;
   color: var(--muted);
 }
-.gf-back-mini {
-  display: inline-block;
-  width: 9px;
-  height: 13px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
-  box-shadow: 0 0 0 1px var(--accent);
-}
 
 /* ---- Table: the pond, and the latest book --------------------------------- */
 
@@ -115,7 +108,7 @@
 .gf-spot { display: grid; justify-items: center; gap: 6px; }
 .gf-pond { display: grid; justify-items: center; gap: 6px; }
 /* A little depth, so it reads as a pile rather than a card. */
-.gf-pond:not(.empty) .gf-card.back {
+.gf-pond:not(.empty) .pcard.back {
   box-shadow: 2px 2px 0 -1px var(--card-ink), 3px 3px 0 -1px var(--accent), 0 4px 10px rgb(0 0 0 / 0.45);
 }
 .gf-pond-count, .gf-book-count { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -123,11 +116,11 @@
 .gf-pond-count { white-space: normal; text-align: center; max-width: 16ch; }
 
 /* A book, fanned so all four read. */
-.gf-book { position: relative; width: calc(var(--card-w) + 3 * var(--book-step)); height: var(--card-h); }
-.gf-book .gf-card { position: absolute; top: 0; left: 0; }
-.gf-book .gf-card:nth-child(2) { left: var(--book-step); }
-.gf-book .gf-card:nth-child(3) { left: calc(2 * var(--book-step)); }
-.gf-book .gf-card:nth-child(4) { left: calc(3 * var(--book-step)); }
+.gf-book { position: relative; width: calc(var(--pcard-w) + 3 * var(--book-step)); height: var(--pcard-h); }
+.gf-book .pcard { position: absolute; top: 0; left: 0; }
+.gf-book .pcard:nth-child(2) { left: var(--book-step); }
+.gf-book .pcard:nth-child(3) { left: calc(2 * var(--book-step)); }
+.gf-book .pcard:nth-child(4) { left: calc(3 * var(--book-step)); }
 
 /* What's been asked lately: the table's memory. */
 .gf-heard {
@@ -152,70 +145,19 @@
 }
 .gf-heard li.hit .answer { color: var(--accent); font-weight: 600; }
 
-/* ---- Cards ---------------------------------------------------------------- */
-
-.gf-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--card-w);
-  height: var(--card-h);
-  min-height: 0;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--card-ink);
-  font: inherit;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
-}
-.gf-card.red { color: var(--red); }
-.gf-card.back {
-  background: repeating-linear-gradient(45deg, var(--accent) 0 3px, #0e0e0c 3px 7px);
-  box-shadow: inset 0 0 0 4px var(--card), 0 2px 6px rgb(0 0 0 / 0.45);
-}
-.gf-card.slot {
-  display: grid;
-  place-items: center;
-  background: none;
-  border: 1.5px dashed var(--line);
-  box-shadow: none;
-}
-.gf-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.95rem;
-}
-.gf-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.gf-card .corner i { font-style: normal; font-size: 0.85em; }
-.gf-card .tl { top: 4px; left: 5px; }
-.gf-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
-.gf-card .pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-}
-.gf-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
+/* ---- Cards (.pcard, cards.css) -------------------------------------------- */
 
 /* Hand cards: tapping one picks its rank, and the whole rank lifts. */
-.gf-hand .gf-card { cursor: default; scroll-snap-align: start; }
-.gf-hand .gf-card:disabled { opacity: 1; cursor: default; }
-.go-fish.my-turn .gf-hand .gf-card.askable:not(:disabled) { cursor: pointer; }
-.gf-hand .gf-card + .gf-card { margin-left: var(--card-overlap); }
-.gf-hand .gf-card.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.gf-hand .pcard { cursor: default; scroll-snap-align: start; }
+.gf-hand .pcard:disabled { opacity: 1; cursor: default; }
+.go-fish.my-turn .gf-hand .pcard.askable:not(:disabled) { cursor: pointer; }
+.gf-hand .pcard + .pcard { margin-left: var(--card-overlap); }
+.gf-hand .pcard.selected { transform: translateY(-16px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
 @media (hover: hover) and (pointer: fine) {
-  .go-fish.my-turn .gf-hand .gf-card.askable:not(:disabled):not(.selected):hover { transform: translateY(-10px); z-index: 1; }
+  .go-fish.my-turn .gf-hand .pcard.askable:not(:disabled):not(.selected):hover { transform: translateY(-10px); z-index: 1; }
 }
-.gf-hand .gf-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
-.gf-hand .gf-card.fresh { animation: gf-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
+.gf-hand .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.gf-hand .pcard.fresh { animation: gf-fresh 420ms cubic-bezier(.2, .8, .2, 1.3); }
 @keyframes gf-fresh {
   from { transform: translateY(-24px) scale(1.08); }
 }
@@ -275,23 +217,21 @@
 
 @media (min-width: 700px) {
   .go-fish {
-    --card-w: 76px;
-    --card-h: 108px;
+    --pcard-w: 76px;
+    --pcard-h: 108px;
+    --pcard-corner: 1.1rem;
+    --pcard-pip: 2.4rem;
     --card-overlap: -24px;
     gap: 14px;
   }
   .gf-table { gap: 48px; padding: 20px 20px 16px; }
-  .gf-card .corner { font-size: 1.1rem; }
-  .gf-card .pip { font-size: 2.4rem; }
   .gf-hand { justify-content: safe center; }
 }
 
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .go-fish { --card-w: 58px; --card-h: 84px; --card-overlap: -18px; gap: 8px; }
-  .gf-card .corner { font-size: 0.95rem; }
-  .gf-card .pip { font-size: 1.9rem; }
+  .go-fish { --pcard-w: 58px; --pcard-h: 84px; --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --card-overlap: -18px; gap: 8px; }
   .gf-table { gap: 28px; padding: 8px 12px; }
   .gf-status { min-height: 40px; }
   .gf-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
@@ -311,14 +251,14 @@
 }
 
 /* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
-.gf-book .gf-card.landed { animation: gf-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+.gf-book .pcard.landed { animation: gf-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes gf-land {
   from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .go-fish .shake { animation: none; outline: 2px solid var(--red); }
-  .gf-card, .gf-opp { transition: none; }
-  .gf-hand .gf-card.selected { transform: none; }
-  .gf-book .gf-card.landed, .gf-hand .gf-card.fresh { animation: none; }
+  .gf-opp { transition: none; }
+  .gf-hand .pcard.selected { transform: none; }
+  .gf-book .pcard.landed, .gf-hand .pcard.fresh { animation: none; }
 }

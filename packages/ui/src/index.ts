@@ -8,6 +8,7 @@ export { keepInRow, rowScrollDelta, rowTarget, type RowMemo } from "./row.ts";
 export { countdown, formatSeconds, type Countdown, type CountdownOptions } from "./countdown.ts";
 // Playing cards are on their own entry, "@games/ui/cards", so their CSS loads only with the card games.
 export { joinList } from "./text.ts";
+export { chipIcon } from "./chip.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)

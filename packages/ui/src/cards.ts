@@ -55,6 +55,8 @@ export interface CardFaces<R> {
   back(opts?: BackOptions): HTMLElement;
   /** A seat-sized face-down card. Decorative. */
   miniBack(): HTMLElement;
+  /** A tiny face-down card (9 by 13 px) beside a hand-size count. Decorative. */
+  tinyBack(): HTMLElement;
   /** An empty spot where a card will go. Decorative. */
   slot(): HTMLElement;
 }
@@ -88,6 +90,41 @@ export function cardFaces<R>(ranks: RankText<R>): CardFaces<R> {
     back: ({ label: name } = {}) =>
       h("span", name ? { class: "pcard back", role: "img", "aria-label": name } : { class: "pcard back", "aria-hidden": "true" }),
     miniBack: () => h("span", { class: "pcard-mini back", "aria-hidden": "true" }),
+    tinyBack: () => h("span", { class: "pcard-tiny", "aria-hidden": "true" }),
     slot: () => h("span", { class: "pcard slot", "aria-hidden": "true" }),
   };
+}
+
+/** The custom properties in cards.css that size and shape the cards. */
+const SIZE_VARS = [
+  "--pcard-w",
+  "--pcard-h",
+  "--pcard-radius",
+  "--pcard-corner",
+  "--pcard-corner-y",
+  "--pcard-corner-x",
+  "--pcard-pip",
+  "--pcard-face",
+  "--pcard-mini-w",
+  "--pcard-mini-h",
+  "--pcard-mini-ratio",
+  "--pcard-mini-radius",
+  "--pcard-mini-line",
+  "--pcard-mini-rank",
+  "--pcard-mini-suit",
+  "--pcard-mini-tracking",
+] as const;
+
+/**
+ * Gives a card the sizes in force at `like` (the card it stands for, or the
+ * box it lands in), and returns it. For animation ghosts: `fly` puts them on
+ * `document.body`, outside the game root that sets the `--pcard-*` sizes.
+ */
+export function withCardSizes<T extends HTMLElement>(card: T, like: Element): T {
+  const style = getComputedStyle(like);
+  for (const name of SIZE_VARS) {
+    const value = style.getPropertyValue(name).trim();
+    if (value) card.style.setProperty(name, value);
+  }
+  return card;
 }

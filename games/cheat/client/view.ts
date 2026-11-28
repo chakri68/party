@@ -2,9 +2,10 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { withCardSizes } from "@games/ui/cards";
 import { claimText, rankPlural } from "../shared/rules.ts";
 import { MAX_PLAY, type Card, type CheatEvent, type CheatPrivateState, type CheatPublicState, type Rank } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
+import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -305,7 +306,7 @@ export class CheatView implements GameView {
         const from = own ? own.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), size);
         if (own) own.style.visibility = "hidden"; // it's in the air now; settle removes it
         await wait(i * 90);
-        await fly(cards?.[i] ? cardFace(cards[i]) : cardBackFull(), from, spot.getBoundingClientRect(), 300, { handoff: true });
+        await fly(withCardSizes(cards?.[i] ? cardFace(cards[i]) : cardBackFull(), spot), from, spot.getBoundingClientRect(), 300, { handoff: true });
         spot.style.visibility = "";
         once(spot, "landed");
         audio.play("card-place");
@@ -456,7 +457,7 @@ export class CheatView implements GameView {
     const depth = Math.min(3, Math.ceil(under / 6));
     if (this.pile.childElementCount !== Math.max(depth, 1) || this.pile.dataset.depth !== String(depth)) {
       this.pile.dataset.depth = String(depth);
-      replaceChildren(this.pile, depth ? Array.from({ length: depth }, () => cardBackFull()) : h("span", { class: "ch-card slot", "aria-hidden": "true" }));
+      replaceChildren(this.pile, depth ? Array.from({ length: depth }, () => cardBackFull()) : cardSlot());
     }
     this.pileCount.textContent = total ? `${total} in the pile` : "Empty pile";
     this.pile.setAttribute("role", "img");
@@ -508,7 +509,7 @@ export class CheatView implements GameView {
       this.playLabel.textContent = `${name(r.callerId)} called ${r.playerId === props.playerId ? "you" : seatName(room, r.playerId)} · ${name(r.takerId)} took ${r.taken}`;
       this.play.setAttribute("aria-label", `Turned over: ${r.cards.map(cardLabel).join(", ")}. The claim was ${claimText(r.cards.length, r.claim)}. ${r.lied ? "It was a lie" : "It was true"}.`);
     } else {
-      if (this.play.dataset.key !== "empty") replaceChildren(this.play, h("span", { class: "ch-card slot", "aria-hidden": "true" }, "A"));
+      if (this.play.dataset.key !== "empty") replaceChildren(this.play, withText(cardSlot(), "A"));
       this.play.dataset.key = "empty";
       this.playLabel.textContent = game.step === "finished" ? "" : "First: Aces";
       this.play.setAttribute("aria-label", "No cards played yet");
@@ -664,4 +665,10 @@ export class CheatView implements GameView {
     next.focus();
     next.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
+}
+
+/** An empty spot with a hint in it ("A": Aces go first). */
+function withText(el: HTMLElement, text: string): HTMLElement {
+  el.append(text);
+  return el;
 }

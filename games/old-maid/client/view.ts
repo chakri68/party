@@ -2,10 +2,11 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { withCardSizes } from "@games/ui/cards";
 import { ordinal } from "@games/game-core";
 import { compareCards, outText } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort } from "./cards.ts";
+import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -331,7 +332,7 @@ export class OldMaidView implements GameView {
     audio.play("deal");
 
     if (takerId !== me || !card || this.cards.has(card.id)) {
-      await fly(card ? cardFace(card) : cardBackFull(), from, this.cardRectAt(this.anchorFor(takerId, props), size), 340);
+      await fly(withCardSizes(card ? cardFace(card) : cardBackFull(), this.root), from, this.cardRectAt(this.anchorFor(takerId, props), size), 340);
       return;
     }
     // Yours: put it in its sorted spot first, hidden, so the flight has a real
@@ -345,7 +346,7 @@ export class OldMaidView implements GameView {
     el.classList.add("fresh");
     el.scrollIntoView({ block: "nearest", inline: "nearest" });
     try {
-      await fly(cardFace(card), from, el.getBoundingClientRect(), 340);
+      await fly(withCardSizes(cardFace(card), this.root), from, el.getBoundingClientRect(), 340);
     } finally {
       el.style.visibility = "";
     }
@@ -374,7 +375,7 @@ export class OldMaidView implements GameView {
             const from = el ? el.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), to);
             if (el) el.style.visibility = "hidden";
             await new Promise((r) => setTimeout(r, (p * 2 + c) * 50));
-            await fly(cardFace(card), from, to, 300, { handoff: true });
+            await fly(withCardSizes(cardFace(card), this.root), from, to, 300, { handoff: true });
             const landed = once(cardFace(card), "landed");
             if (c === 0) {
               replaceChildren(this.pile, landed);
@@ -493,7 +494,7 @@ export class OldMaidView implements GameView {
         "button",
         {
           type: "button",
-          class: `om-card back${this.selected === i ? " selected" : ""}`,
+          class: `pcard back${this.selected === i ? " selected" : ""}`,
           "aria-label": `Card ${i + 1} of ${source.cardCount}`,
           disabled: !myTurn,
           onclick: () => this.onSlotTap(i),
@@ -526,7 +527,7 @@ export class OldMaidView implements GameView {
     const key = game.lastPair ? pairKey(game.lastPair) : "";
     if (this.pile.dataset.pair !== key) {
       this.pile.dataset.pair = key;
-      replaceChildren(this.pile, game.lastPair ? game.lastPair.map((c) => cardFace(c)) : h("span", { class: "om-card slot", "aria-hidden": "true" }));
+      replaceChildren(this.pile, game.lastPair ? game.lastPair.map((c) => cardFace(c)) : cardSlot());
     }
     const pairs = game.discardCount / 2;
     this.setPairsDown(pairs);

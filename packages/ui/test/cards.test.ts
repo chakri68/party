@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cardFaces, isRedSuit, SUIT_SYMBOL, type FaceCard } from "../src/cards.ts";
+import { cardFaces, isRedSuit, SUIT_SYMBOL, withCardSizes, type FaceCard } from "../src/cards.ts";
 import { joinList } from "../src/text.ts";
 
 /** Just enough DOM for `h`: the tests run in Node. */
@@ -121,6 +121,24 @@ describe("minis, backs and slots", () => {
     expect(named.getAttribute("aria-label")).toBe("Face-down card");
     expect(named.getAttribute("aria-hidden")).toBeNull();
     expect(cls(high.miniBack())).toBe("pcard-mini back");
+    expect(cls(high.tinyBack())).toBe("pcard-tiny");
+    expect(el(high.tinyBack()).getAttribute("aria-hidden")).toBe("true");
     expect(cls(high.slot())).toBe("pcard slot");
+  });
+});
+
+describe("animation ghosts", () => {
+  it("take the card sizes set where they stand in for a card, and nothing else", () => {
+    const set = new Map<string, string>();
+    const ghost = { style: { setProperty: (k: string, v: string) => set.set(k, v) } } as unknown as HTMLElement;
+    const values: Record<string, string> = { "--pcard-corner": " 1.1rem", "--pcard-pip": "2.4rem", "--pcard-mini-ratio": "5 / 7", "--other": "1px" };
+    const g = globalThis as unknown as { getComputedStyle?: unknown };
+    g.getComputedStyle = () => ({ getPropertyValue: (k: string) => values[k] ?? "" });
+    try {
+      expect(withCardSizes(ghost, {} as Element)).toBe(ghost);
+    } finally {
+      delete g.getComputedStyle;
+    }
+    expect(Object.fromEntries(set)).toEqual({ "--pcard-corner": "1.1rem", "--pcard-pip": "2.4rem", "--pcard-mini-ratio": "5 / 7" });
   });
 });

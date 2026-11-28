@@ -1,11 +1,12 @@
 /* Oh Hell. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
-   Everything is oh- prefixed: other games' stylesheets may be loaded in the same tab.
-   Card sizes live in --oh-* custom properties with fallbacks, so cards drawn in the
-   Last trick dialog (outside .oh-hell) still come out the right size. */
+   Everything is oh- prefixed or under .oh-hell: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. The trick's sizes sit on
+   .oh-slot with fallbacks, so cards drawn in the Last trick dialog (outside .oh-hell)
+   still come out the right size. */
 
 .oh-hell {
-  --oh-card-w: 58px;
-  --oh-card-h: 84px;
+  --pcard-w: 58px;
+  --pcard-h: 84px;
   --oh-overlap: -18px;
   --oh-trick-w: 50px;
   --oh-trick-h: 72px;
@@ -146,15 +147,7 @@
   border-radius: 4px;
   color: var(--muted);
 }
-.oh-back-mini {
-  display: inline-block;
-  width: 9px;
-  height: 13px;
-  margin-right: 2px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(45deg, var(--accent) 0 1.5px, #0e0e0c 1.5px 3px);
-  box-shadow: 0 0 0 1px var(--accent);
-}
+.oh-hell .pcard-tiny { margin-right: 2px; }
 
 /* ---- Table --------------------------------------------------------------- */
 
@@ -183,8 +176,18 @@
   justify-content: center;
   gap: 10px 8px;
 }
-.oh-slot { display: grid; justify-items: center; gap: 4px; width: calc(var(--oh-trick-w, 50px) + 6px); }
-.oh-slot .oh-card { --oh-card-w: var(--oh-trick-w, 50px); --oh-card-h: var(--oh-trick-h, 72px); }
+/* A slot's J Q K letters are as big as its pips. */
+.oh-slot {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: calc(var(--oh-trick-w, 50px) + 6px);
+  --pcard-w: var(--oh-trick-w, 50px);
+  --pcard-h: var(--oh-trick-h, 72px);
+  --pcard-corner: 0.85rem;
+  --pcard-pip: 1.6rem;
+  --pcard-face: 1.6rem;
+}
 .oh-slot-name {
   max-width: 100%;
   overflow: hidden;
@@ -195,8 +198,8 @@
 }
 .oh-slot.lead .oh-slot-name::before { content: "▸"; margin-right: 2px; color: var(--accent); }
 /* Decided: everything but the winner steps back. */
-.oh-trick.decided .oh-slot:not(.won) .oh-card { filter: brightness(0.6); }
-.oh-slot.won .oh-card { transform: translateY(-6px); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.5); }
+.oh-trick.decided .oh-slot:not(.won) .pcard { filter: brightness(0.6); }
+.oh-slot.won .pcard { transform: translateY(-6px); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / 0.5); }
 .oh-slot.won .oh-slot-name { color: var(--ink); font-weight: 700; }
 
 .oh-bidboard { display: grid; justify-items: center; gap: 6px; padding: 10px 0 4px; text-align: center; }
@@ -235,63 +238,17 @@
 }
 .oh-countdown { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.3em; }
 
-/* ---- Cards --------------------------------------------------------------- */
+/* ---- Cards (.pcard, cards.css) ------------------------------------------- */
 
-.oh-card {
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  width: var(--oh-card-w, 58px);
-  height: var(--oh-card-h, 84px);
-  min-height: 0;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--card-ink);
-  font: inherit;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(0 0 0 / 0.08);
-  user-select: none;
-  -webkit-user-select: none;
-  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
-}
-.oh-card.red { color: var(--red); }
-.oh-card.empty {
-  background: none;
-  border: 1.5px dashed var(--line);
-  box-shadow: none;
-}
-.oh-card.sm { --oh-card-w: 40px; --oh-card-h: 56px; border-radius: 6px; }
-.oh-card.sm .corner { font-size: 0.75rem; }
-.oh-card.sm .pip { font-size: 1.3rem; }
-.oh-card .corner {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 0.95;
-  font-size: 0.95rem;
-}
-.oh-card .corner b { font-weight: 800; letter-spacing: -0.05em; }
-.oh-card .corner i { font-style: normal; font-size: 0.85em; }
-.oh-card .tl { top: 4px; left: 5px; }
-.oh-card .br { bottom: 4px; right: 5px; transform: rotate(180deg); }
-.oh-card .pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 1.9rem;
-}
-.oh-card .pip.face { font-weight: 800; font-size: 1.6rem; font-family: Georgia, "Times New Roman", serif; }
-.oh-slot .oh-card .corner { font-size: 0.85rem; }
-.oh-slot .oh-card .pip { font-size: 1.6rem; }
-.oh-slot .oh-card .br { display: none; }
+.oh-hell .pcard { transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, opacity 140ms ease; }
+/* The trump card: small, its J Q K letter full size. */
+.oh-trump { --pcard-w: 40px; --pcard-h: 56px; --pcard-radius: 6px; --pcard-corner: 0.75rem; --pcard-pip: 1.3rem; --pcard-face: 1.6rem; }
+.oh-slot .pcard .br { display: none; }
 
 /* Hand cards. Trump wears a lime stripe so it's findable at a glance. */
-.oh-hand .oh-card { cursor: default; scroll-snap-align: start; }
-.oh-hand .oh-card + .oh-card { margin-left: var(--oh-overlap); }
-.oh-hand .oh-card.trump::after {
+.oh-hand .pcard { cursor: default; scroll-snap-align: start; }
+.oh-hand .pcard + .pcard { margin-left: var(--oh-overlap); }
+.oh-hand .pcard.trump::after {
   content: "";
   position: absolute;
   left: 8px;
@@ -301,13 +258,13 @@
   border-radius: 2px 2px 0 0;
   background: var(--accent);
 }
-.oh-hand .oh-card.playable { cursor: pointer; }
-.oh-hand .oh-card.illegal { filter: brightness(0.5) saturate(0.6); }
-.oh-hand .oh-card.lifted { transform: translateY(-18px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
+.oh-hand .pcard.playable { cursor: pointer; }
+.oh-hand .pcard.illegal { filter: brightness(0.5) saturate(0.6); }
+.oh-hand .pcard.lifted { transform: translateY(-18px); z-index: 1; box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgb(0 0 0 / 0.5); }
 @media (hover: hover) and (pointer: fine) {
-  .oh-hand .oh-card.playable:not(.lifted):hover { transform: translateY(-8px); z-index: 1; }
+  .oh-hand .pcard.playable:not(.lifted):hover { transform: translateY(-8px); z-index: 1; }
 }
-.oh-hand .oh-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
+.oh-hand .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; z-index: 2; }
 
 /* ---- Log + dock ---------------------------------------------------------- */
 
@@ -380,8 +337,10 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
 
 @media (min-width: 700px) {
   .oh-hell {
-    --oh-card-w: 76px;
-    --oh-card-h: 108px;
+    --pcard-w: 76px;
+    --pcard-h: 108px;
+    --pcard-corner: 1.1rem;
+    --pcard-pip: 2.4rem;
     --oh-overlap: -24px;
     --oh-trick-w: 68px;
     --oh-trick-h: 96px;
@@ -389,11 +348,8 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
   }
   .oh-table { padding: 10px 20px 20px; }
   .oh-trick { gap: 14px 16px; }
-  .oh-card .corner { font-size: 1.1rem; }
-  .oh-card .pip { font-size: 2.4rem; }
-  .oh-slot .oh-card .corner { font-size: 1rem; }
-  .oh-slot .oh-card .pip { font-size: 2.1rem; }
-  .oh-card.sm { --oh-card-w: 48px; --oh-card-h: 68px; }
+  .oh-slot { --pcard-corner: 1rem; --pcard-pip: 2.1rem; --pcard-face: 2.1rem; }
+  .oh-trump { --pcard-w: 48px; --pcard-h: 68px; }
   .oh-sched { height: 32px; }
   .oh-hand { justify-content: safe center; }
 }
@@ -401,11 +357,8 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
 /* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
    label and buttons, so the dock leaves the table in view. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .oh-hell { --oh-card-w: 58px; --oh-card-h: 84px; --oh-overlap: -18px; --oh-trick-w: 50px; --oh-trick-h: 72px; gap: 8px; }
-  .oh-card .corner { font-size: 0.95rem; }
-  .oh-card .pip { font-size: 1.9rem; }
-  .oh-slot .oh-card .corner { font-size: 0.95rem; }
-  .oh-slot .oh-card .pip { font-size: 1.9rem; }
+  .oh-hell { --pcard-w: 58px; --pcard-h: 84px; --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --oh-overlap: -18px; --oh-trick-w: 50px; --oh-trick-h: 72px; gap: 8px; }
+  .oh-slot { --pcard-corner: 0.95rem; --pcard-pip: 1.9rem; --pcard-face: 1.9rem; }
   .oh-table { padding: 6px 12px 10px; }
   .oh-status { min-height: 40px; }
   .oh-dock { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); align-items: center; column-gap: 16px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
@@ -425,19 +378,19 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
 }
 
 /* Picks up where the flight leaves off (LAND_SCALE in @games/animation). */
-.oh-slot .oh-card.landed { animation: oh-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
+.oh-slot .pcard.landed { animation: oh-land 260ms cubic-bezier(.2, .8, .2, 1.4); }
 @keyframes oh-land {
   from { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent), 0 6px 14px rgb(0 0 0 / .4); }
 }
-.oh-trump .oh-card.flip { animation: oh-flip 480ms cubic-bezier(.2, .8, .2, 1) 200ms backwards; }
+.oh-trump .pcard.flip { animation: oh-flip 480ms cubic-bezier(.2, .8, .2, 1) 200ms backwards; }
 @keyframes oh-flip {
   from { transform: rotateY(90deg) scale(1.2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .oh-hell .shake { animation: none; outline: 2px solid var(--red); }
-  .oh-card, .oh-opp { transition: none; }
-  .oh-hand .oh-card.lifted { transform: none; outline: 3px solid var(--accent); outline-offset: 2px; }
-  .oh-slot.won .oh-card { transform: none; }
-  .oh-slot .oh-card.landed, .oh-trump .oh-card.flip { animation: none; }
+  .oh-hell .pcard, .oh-opp { transition: none; }
+  .oh-hand .pcard.lifted { transform: none; outline: 3px solid var(--accent); outline-offset: 2px; }
+  .oh-slot.won .pcard { transform: none; }
+  .oh-slot .pcard.landed, .oh-trump .pcard.flip { animation: none; }
 }

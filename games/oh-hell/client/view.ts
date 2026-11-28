@@ -2,8 +2,9 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence } from "@games/protocol";
 import { avatar, formatSeconds, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { SUIT_NAME, SUIT_SYMBOL, withCardSizes } from "@games/ui/cards";
 import type { Card, OhHellEvent, OhHellPrivateState, OhHellPublicPlayer, OhHellPublicState, Suit, TrickPlay } from "../shared/types.ts";
-import { SUIT_NAME, SUIT_SYMBOL, cardBackMini, cardFace, cardLabel, cardShort, handCard } from "./cards.ts";
+import { cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -233,7 +234,7 @@ export class OhHellView implements GameView {
         case "dealt":
           audio.play("shuffle");
           this.render(props, "none");
-          once(this.round.querySelector(".oh-card") ?? this.round, "flip");
+          once(this.round.querySelector(".pcard") ?? this.round, "flip");
           await this.dealIn(380);
           break;
         case "bid":
@@ -297,14 +298,15 @@ export class OhHellView implements GameView {
     const game = props.game as OhHellPublicState;
     this.shownTrick = [...this.shownTrick, { playerId, card }];
     this.drawTrick(props, game, this.shownTrick, null);
-    const spot = this.tableBody.querySelector<HTMLElement>(`[data-slot="${CSS.escape(playerId)}"] .oh-card`);
+    const spot = this.tableBody.querySelector<HTMLElement>(`[data-slot="${CSS.escape(playerId)}"] .pcard`);
     if (!spot) return;
     spot.style.visibility = "hidden";
     const to = spot.getBoundingClientRect();
     const own = playerId === props.playerId ? this.cards.get(card.id) : undefined;
     const from = own ? own.getBoundingClientRect() : this.cardRectAt(this.anchorFor(playerId, props), to);
     if (own) own.style.visibility = "hidden"; // in the air now; settle removes it
-    await fly(cardFace(card), from, to, 300, { handoff: true });
+    // Hand-size type, as it leaves the hand: the root's sizes, not the slot's.
+    await fly(withCardSizes(cardFace(card), this.root), from, to, 300, { handoff: true });
     spot.style.visibility = "";
     once(spot, "landed");
     audio.play("card-place");
@@ -324,7 +326,7 @@ export class OhHellView implements GameView {
 
   /** The trick sweeps over to whoever took it. */
   private async collect(winnerId: string, props: GameViewProps) {
-    const spots = [...this.tableBody.querySelectorAll<HTMLElement>(".oh-slot .oh-card:not(.empty)")];
+    const spots = [...this.tableBody.querySelectorAll<HTMLElement>(".oh-slot .pcard:not(.slot)")];
     if (!spots.length) return;
     const size = spots[0]!.getBoundingClientRect();
     const target = winnerId === props.playerId ? this.me.getBoundingClientRect() : this.cardRectAt(this.anchorFor(winnerId, props), size);
@@ -336,7 +338,7 @@ export class OhHellView implements GameView {
       rects.map(async (from, i) => {
         await wait(i * 50);
         const face = faces[i];
-        await fly(face ? cardFace(face) : h("span", { class: "oh-card" }), from, target, 340);
+        await fly(withCardSizes(face ? cardFace(face) : h("span", { class: "pcard" }), this.root), from, target, 340);
       }),
     );
     this.shownTrick = [];
@@ -389,7 +391,7 @@ export class OhHellView implements GameView {
   /** Trump, the round, and the whole schedule as a strip of bars. */
   private renderRound(game: OhHellPublicState) {
     const big = Math.max(...game.schedule);
-    const trump = cardFace(game.trump, "sm");
+    const trump = cardFace(game.trump);
     trump.setAttribute("aria-label", `Trump: ${SUIT_NAME[game.trump.suit]}. The face-up card is the ${cardLabel(game.trump)}.`);
     replaceChildren(
       this.round,
@@ -515,7 +517,7 @@ export class OhHellView implements GameView {
             "data-slot": id,
             "aria-label": card ? `${nm}: ${cardLabel(card)}${i === 0 ? ", led" : ""}${id === winnerId ? ", wins it" : ""}` : `${nm}: not played yet`,
           },
-          card ? cardFace(card) : h("span", { class: "oh-card empty", "aria-hidden": "true" }),
+          card ? cardFace(card) : cardSlot(),
           h("span", { class: "oh-slot-name", "aria-hidden": "true" }, nm),
         );
       }),
