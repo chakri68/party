@@ -31,18 +31,46 @@ const STRONG_CALL_BB = 10;
 /** Percent: a playable hand raises an unopened pot; trash calls a cheap bet. */
 const PLAYABLE_RAISE = 20;
 const TRASH_CALL = 15;
-/** After the flop: raise over this equity (heads-up, or more opponents), go all-in over the last. */
-const RAISE_EQUITY_HEADS_UP = 0.5;
-const RAISE_EQUITY = 0.65;
-const ALL_IN_EQUITY = 0.8;
-/** Facing a bet, a raise back needs this much more equity: it stops raise wars. */
-const RERAISE_MARGIN = 0.15;
-/** A raise always needs at least this much less equity than all-in does. */
-const RAISE_BELOW_ALL_IN = 0.05;
-/** Calls when equity is at least this share of the pot odds: about 10% looser than break-even. */
-const CALL_LOOSENESS = 0.9;
-/** Percent: a bet when checked to with one or two opponents, whatever the cards. */
-const BLUFF = 9;
+/** After the flop, the equity lines one game plays by. */
+export interface PostflopLines {
+  /** Raise over this equity heads-up, or against more opponents. */
+  raiseHeadsUp: number;
+  raise: number;
+  /** Go all-in (or Omaha's top raise) over this. */
+  allIn: number;
+  /** Facing a bet, a raise back needs this much more equity: it stops raise wars. */
+  reraiseMargin: number;
+  /** A raise always needs at least this much less equity than all-in does. */
+  raiseBelowAllIn: number;
+  /** A call needs this many times the break-even share of the pot (under 1 is looser than break-even)... */
+  callLooseness: number;
+  /** ...but never more than break-even plus this, so a big bet can't push it off every hand. */
+  callCap: number;
+  /** Percent: a bet when checked to with one or two opponents, whatever the cards. */
+  bluff: number;
+}
+
+/**
+ * After the flop, per game. Tuned by simulation (test/sim-report.test.ts).
+ * Equity here is against random hands, but a player who bets has better than
+ * random: so a call needs about twice the break-even share (the old 0.9 called
+ * far too much, to showdown about 65% of the time). The cap keeps big bets
+ * from scaring it off: people bet the pot and go all-in a lot. Heads-up, a bet
+ * needs a little more than a coin flip. Omaha and Short Deck hands run closer
+ * together, but lower raise lines for them did no better in play.
+ */
+export const POSTFLOP_LINES: Readonly<Record<Variant, Readonly<PostflopLines>>> = Object.freeze({
+  holdem: Object.freeze({ raiseHeadsUp: 0.58, raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, callCap: 0.2, bluff: 9 }),
+  omaha: Object.freeze({ raiseHeadsUp: 0.55, raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, callCap: 0.2, bluff: 9 }),
+  shortdeck: Object.freeze({ raiseHeadsUp: 0.55, raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, callCap: 0.2, bluff: 9 }),
+});
+
+/** After the flop: the equity a call needs, facing `owed` into a pot of `pot` (bets in front included). */
+export function callLine(owed: number, pot: number, lines: Readonly<PostflopLines>): number {
+  const breakEven = owed / (pot + owed);
+  return Math.min(lines.callLooseness * breakEven, breakEven + lines.callCap);
+}
+
 /** A raise this close to the whole stack goes all-in instead. */
 const COMMIT_SHARE = 0.6;
 
@@ -251,48 +279,62 @@ function preflop(pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalA
 }
 
 /** After the flop: the equity a raise needs, by opponents still in and chips owed. */
-export function raiseThreshold(opponents: number, owed: number): number {
-  const base = opponents === 1 ? RAISE_EQUITY_HEADS_UP : RAISE_EQUITY;
+export function raiseThreshold(opponents: number, owed: number, lines: Readonly<PostflopLines>): number {
+  const base = opponents === 1 ? lines.raiseHeadsUp : lines.raise;
   // Kept under the all-in line, so a raise back is not only ever all-in.
-  return Math.min(ALL_IN_EQUITY - RAISE_BELOW_ALL_IN, base + (owed > 0 ? RERAISE_MARGIN : 0));
+  return Math.min(lines.allIn - lines.raiseBelowAllIn, base + (owed > 0 ? lines.reraiseMargin : 0));
 }
 
-function postflop(playerId: string, pub: HoldemPublicState, priv: HoldemPrivateState, legal: LegalActions, ctx: BotContext): HoldemAction {
+function postflop(
+  playerId: string,
+  pub: HoldemPublicState,
+  priv: HoldemPrivateState,
+  legal: LegalActions,
+  lines: Readonly<PostflopLines>,
+  ctx: BotContext,
+): HoldemAction {
   const opponents = pub.players.filter((p) => p.id !== playerId && p.inHand && !p.folded);
   const trials = equityTrials(pub.variant, opponents.length);
   const eq = equity(pub.variant, priv.hole, pub.board, opponents.map((p) => p.cards), trials, ctx.randomInt);
   const owed = legal.call;
   const pot = pub.pot;
-  if (eq > ALL_IN_EQUITY) return shove(legal);
-  if (eq > raiseThreshold(opponents.length, owed) && legal.minRaiseTo !== null) {
+  if (eq > lines.allIn) return shove(legal);
+  if (eq > raiseThreshold(opponents.length, owed, lines) && legal.minRaiseTo !== null) {
     const share = 0.5 + ctx.randomInt(26) / 100;
     return raiseTo(legal, pub.currentBet + share * (pot + owed));
   }
   if (owed === 0) {
-    const bluff = opponents.length <= 2 && pub.currentBet === 0 && legal.minRaiseTo !== null && ctx.randomInt(100) < BLUFF;
+    const bluff = opponents.length <= 2 && pub.currentBet === 0 && legal.minRaiseTo !== null && ctx.randomInt(100) < lines.bluff;
     return bluff ? raiseTo(legal, pot / 2) : CHECK;
   }
-  return eq < CALL_LOOSENESS * (owed / (pot + owed)) ? FOLD : CALL;
+  return eq < callLine(owed, pot, lines) ? FOLD : CALL;
+}
+
+type HoldemBot = GameBot<HoldemPublicState, HoldemPrivateState, HoldemAction>;
+
+/** The bot playing by these lines after the flop. The game uses `holdemBot`; tests pit other lines against it. */
+export function holdemBotWith(table: Readonly<Record<Variant, Readonly<PostflopLines>>>): HoldemBot {
+  return {
+    decide({ playerId, public: pub, private: priv }, ctx) {
+      const legal = priv.legal;
+      if (legal === null) {
+        if (priv.canRebuy) return { type: "rebuy" };
+        if (priv.canBack) return { type: "back" };
+        return null;
+      }
+      if (ctx.randomInt(RANDOM_MOVE_ODDS) === 0) return randomMove(legal, ctx);
+      const me = pub.players.find((p) => p.id === playerId);
+      const stack = (me?.stack ?? 0) + (me?.bet ?? 0);
+      if (priv.hole.length < HOLE_CARDS[pub.variant]) return giveUp(legal);
+      if (pub.board.length === 0) return preflop(pub, priv, legal, stack, ctx);
+      return postflop(playerId, pub, priv, legal, table[pub.variant], ctx);
+    },
+  };
 }
 
 /**
- * Hold'em and Omaha: a hand table before the flop, then equity by random deals against
- * the players still in, set against the pot odds. Rebuys and comes back
- * whenever it may.
+ * Hold'em, Omaha and Short Deck: a hand table before the flop, then equity by
+ * random deals against the players still in, set against the pot odds by the
+ * game's lines. Rebuys and comes back whenever it may.
  */
-export const holdemBot: GameBot<HoldemPublicState, HoldemPrivateState, HoldemAction> = {
-  decide({ playerId, public: pub, private: priv }, ctx) {
-    const legal = priv.legal;
-    if (legal === null) {
-      if (priv.canRebuy) return { type: "rebuy" };
-      if (priv.canBack) return { type: "back" };
-      return null;
-    }
-    if (ctx.randomInt(RANDOM_MOVE_ODDS) === 0) return randomMove(legal, ctx);
-    const me = pub.players.find((p) => p.id === playerId);
-    const stack = (me?.stack ?? 0) + (me?.bet ?? 0);
-    if (priv.hole.length < HOLE_CARDS[pub.variant]) return giveUp(legal);
-    if (pub.board.length === 0) return preflop(pub, priv, legal, stack, ctx);
-    return postflop(playerId, pub, priv, legal, ctx);
-  },
-};
+export const holdemBot: HoldemBot = holdemBotWith(POSTFLOP_LINES);

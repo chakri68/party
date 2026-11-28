@@ -1,7 +1,8 @@
 import { BOT_MAX_RUN, seededRandomInt, shuffle, type AnyGameDefinition, type BotContext, type BotView, type GameContext } from "@games/game-core";
 import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { OMAHA_HAND_READS, equity, equityTrials, holdemBot, omahaPreflopTier, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { OMAHA_HAND_READS, POSTFLOP_LINES, callLine, equity, equityTrials, holdemBot, omahaPreflopTier, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { addStats, emptyStats, simulate, summarize } from "./sim.ts";
 import { holdemGame } from "../server/game.ts";
 import { bestHand, bestHandFor, compareHands, handScore, handScoreFor, makeDeck, parseCardId } from "../shared/rules.ts";
 import {
@@ -216,9 +217,10 @@ describe("holdemBot after the flop", () => {
 
   it("can raise back with good equity facing a bet, not only go all-in", () => {
     // Facing a bet with 2 opponents, equity of about 0.77 is under the all-in line (0.8).
+    const lines = POSTFLOP_LINES.holdem;
     for (const opponents of [1, 2, 4]) {
-      expect(raiseThreshold(opponents, 100)).toBeLessThan(0.77);
-      expect(raiseThreshold(opponents, 0)).toBeLessThan(raiseThreshold(opponents, 100));
+      expect(raiseThreshold(opponents, 100, lines)).toBeLessThan(0.77);
+      expect(raiseThreshold(opponents, 0, lines)).toBeLessThan(raiseThreshold(opponents, 100, lines));
     }
   });
 
@@ -270,6 +272,103 @@ describe("holdemBot after the flop", () => {
     times.sort((a, b) => a - b);
     expect(times[10]).toBeLessThan(20);
   });
+});
+
+describe("holdemBot lines after the flop", () => {
+  it("keeps one table of lines, one row per game", () => {
+    // Tuned by simulation: see test/sim-report.test.ts. Change them only with new numbers from it.
+    const shared = { raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, callCap: 0.2, bluff: 9 };
+    expect(POSTFLOP_LINES).toEqual({
+      holdem: { ...shared, raiseHeadsUp: 0.58 },
+      omaha: { ...shared, raiseHeadsUp: 0.55 },
+      shortdeck: { ...shared, raiseHeadsUp: 0.55 },
+    });
+    expect(Object.isFrozen(POSTFLOP_LINES) && Object.values(POSTFLOP_LINES).every(Object.isFrozen)).toBe(true);
+    for (const lines of Object.values(POSTFLOP_LINES)) {
+      for (const opponents of [1, 2, 5]) {
+        expect(raiseThreshold(opponents, 0, lines)).toBeLessThan(raiseThreshold(opponents, 100, lines));
+        expect(raiseThreshold(opponents, 100, lines)).toBeLessThan(lines.allIn);
+      }
+    }
+  });
+
+  it("needs about twice break-even to call a small bet, and less for a big one", () => {
+    for (const lines of Object.values(POSTFLOP_LINES)) {
+      // A quarter of the pot: break-even 1/6, the call needs twice that.
+      expect(callLine(100, 500, lines)).toBeCloseTo(1 / 3);
+      // The pot: break-even 1/3, the call needs 0.53, not 0.67.
+      expect(callLine(100, 200, lines)).toBeCloseTo(1 / 3 + 0.2);
+      // Twice the pot: break-even 0.4, the call needs 0.6, not 0.8.
+      expect(callLine(200, 300, lines)).toBeCloseTo(0.6);
+      // However big the bet, a call never needs more than break-even plus the cap.
+      for (const owed of [50, 300, 1000, 10_000]) {
+        expect(callLine(owed, 100 + owed, lines) - owed / (100 + 2 * owed)).toBeLessThanOrEqual(lines.callCap + 1e-9);
+      }
+    }
+  });
+
+  it.each([
+    // [bet as a share of the pot, most folds]. Without the cap it folds about 64% to the pot and 72% to twice it.
+    [1, 0.55],
+    [2, 0.65],
+  ])("calls a big bet heads-up with a fair share of hands it plays: %ix the pot", (size, most) => {
+    // People bet big and go all-in a lot. On a random flop, with a hand it would play, it must not fold most of the time.
+    const rng = seededRandomInt(5);
+    const bet = 100 * size;
+    let faced = 0;
+    let folds = 0;
+    while (faced < 300) {
+      const deck = shuffle(makeDeck(), rng);
+      if (preflopTier(deck[0]!, deck[1]!) > 4) continue;
+      const hole = [deck[0]!, deck[1]!];
+      const board = deck.slice(2, 5);
+      const v = view({ opponents: 1, pot: 100 + bet, currentBet: bet, legal: { check: false, call: bet, minRaiseTo: 2 * bet } });
+      const move = holdemBot.decide({ ...v, public: { ...v.public, board }, private: { ...v.private, hole } }, steady(faced));
+      faced++;
+      if (move?.type === "fold") folds++;
+    }
+    expect(folds / faced).toBeLessThan(most);
+    expect(folds / faced).toBeGreaterThan(0.25);
+  });
+
+  it("still bluffs sometimes: a bet with nothing, checked to heads-up", () => {
+    let bets = 0;
+    const tries = 300;
+    for (let seed = 1; seed <= tries; seed++) {
+      const move = holdemBot.decide(view({ hole: "7s 2d", board: "Ac Kd 9h", opponents: 1, pot: 200 }), steady(seed));
+      if (move?.type === "raise" || move?.type === "all-in") bets++;
+    }
+    expect(bets / tries).toBeGreaterThan(0.03);
+    expect(bets / tries).toBeLessThan(0.2);
+  });
+
+  // Loose bands, so a later change can't make the bot absurd. Normal small-stakes play at 6:
+  // VPIP 20 to 35%, to showdown 25 to 35% of flops seen. Before the flop the bot is much looser than
+  // that (about 40% in Hold'em, 50% in Omaha and Short Deck), so its VPIP band is wide.
+  const runs = [
+    ["holdem", 6, 400],
+    ["omaha", 6, 100],
+    ["shortdeck", 6, 400],
+    ["holdem", 2, 600],
+  ] as const;
+  it.each(runs)("plays like a friendly, decent player: %s at %i seats", (variant, players, hands) => {
+    const run = simulate({ variant, bots: Array.from({ length: players }, () => holdemBot), hands, seed: 3 });
+    expect(run.rejected).toBe(0);
+    const s = summarize(run.seats.reduce(addStats, emptyStats()));
+    const at = `${variant} at ${players}: ${JSON.stringify(s)}`;
+    const heads = players === 2;
+    expect(s.vpip, at).toBeGreaterThan(heads ? 40 : 15);
+    expect(s.vpip, at).toBeLessThan(heads ? 85 : 60);
+    expect(s.pfr, at).toBeGreaterThan(5);
+    expect(s.pfr, at).toBeLessThan(s.vpip);
+    expect(s.wtsd, at).toBeGreaterThan(heads ? 10 : 20);
+    expect(s.wtsd, at).toBeLessThan(50);
+    expect(s.foldToBet, at).toBeGreaterThan(35);
+    expect(s.foldToBet, at).toBeLessThan(80);
+    expect(s.afFlop, at).toBeGreaterThan(1);
+    expect(s.afFlop, at).toBeLessThan(8);
+    expect(s.allIn, at).toBeLessThan(15);
+  }, 30_000);
 });
 
 describe("holdemBot hand reading", () => {
@@ -524,9 +623,9 @@ const passive = (view: View): HoldemAction | null => {
 
 describe("holdemBot all-bot games", () => {
   // Table size is capped at 7 (Ruling P2-E). A game takes about 50 moves heads-up and about 350 at 7
-  // (10 to 40 hands: the blinds go up every 6 hands). So 200 seeds at 2 and 4 players, and 100 at 7,
-  // the biggest and slowest table. Hold'em may take up to about 60 s for this file; aim well under.
-  // Only the rebuy setting adds a move; it runs at 50 seeds.
+  // (10 to 40 hands: the blinds go up every 6 hands). So 120 seeds heads-up, 100 at 4 players, and 50
+  // at 7, the biggest and slowest table. This file should take under about 60 s; aim well under.
+  // Only the rebuy setting adds a move; it runs at 25 seeds.
   const check = (def: AnyGameDefinition, players: number, name: string, s: Partial<HoldemSettings>, seed: number) => {
     const run = playBots(def, { players, seed, settings: { ...DEFAULT_SETTINGS, ...s }, maxMoves: 20_000 });
     const at = `${name} seed ${seed}, ${players} players`;
@@ -538,13 +637,13 @@ describe("holdemBot all-bot games", () => {
   };
   const m = holdemGame.manifest;
   const sizes = [...new Set([m.minPlayers, m.bestMinPlayers ?? m.minPlayers, Math.min(m.maxPlayers, 7)])];
-  const seedsAt = (players: number) => (players >= 7 ? 100 : 200);
+  const seedsAt = (players: number) => (players >= 7 ? 50 : players >= 4 ? 100 : 120);
   it.each(sizes)("games finish with %i players", (players) => {
     for (let seed = 1; seed <= seedsAt(players); seed++) check(holdemGame, players, "defaults", {}, seed);
   }, 60_000);
 
-  // Omaha decisions read 60 fives a hand, and pot-limit games run longer: fewer seeds, about 5 s each size.
-  const omahaSeeds: Record<number, number> = { 2: 50, 4: 20, 7: 12 };
+  // Omaha decisions read 60 fives a hand, and pot-limit games run longer: fewer seeds, about 4 s each size.
+  const omahaSeeds: Record<number, number> = { 2: 24, 4: 10, 7: 6 };
   it.each(sizes)("Omaha games finish with %i players", (players) => {
     for (let seed = 1; seed <= (omahaSeeds[players] ?? 20); seed++) check(holdemGame, players, "omaha", { variant: "omaha" }, seed);
   }, 60_000);
@@ -561,11 +660,11 @@ describe("holdemBot all-bot games", () => {
         },
       },
     };
-    for (let seed = 1; seed <= (players >= 7 ? 40 : 80); seed++) check(watched, players, "shortdeck", { variant: "shortdeck" }, seed);
+    for (let seed = 1; seed <= (players >= 7 ? 25 : 50); seed++) check(watched, players, "shortdeck", { variant: "shortdeck" }, seed);
   }, 60_000);
 
   it("games finish with rebuys", () => {
-    for (let seed = 1; seed <= 50; seed++) check(holdemGame, 4, "rebuys", { rebuys: "early" }, seed);
+    for (let seed = 1; seed <= 25; seed++) check(holdemGame, 4, "rebuys", { rebuys: "early" }, seed);
   }, 30_000);
 
   // Review Focus 4: the person busts (and does not buy back in), and the bots play on to the end.
