@@ -1,4 +1,5 @@
-import { cardFaces, h } from "@games/ui";
+import { h } from "@games/ui";
+import { cardFaces } from "@games/ui/cards";
 import { formatRank, rankName } from "../shared/rules.ts";
 import type { Rank } from "../shared/types.ts";
 

@@ -1,10 +1,13 @@
 // The standard 52-card faces the card games share: the same corners, pips,
 // serif face letters, striped backs and seat-sized minis everywhere. The look
-// is in cards.css, loaded with this module. A game binds its own rank text
-// once (`cardFaces`) and sizes the cards with the custom properties listed in
-// cards.css; its own variants (best, dim, selected, fans) stay in its styles.
+// is in cards.css, loaded with this module, so import it from "@games/ui/cards"
+// (not the package root): only the card games then load that CSS. A game binds
+// its own rank text once (`cardFaces`) and sizes the cards with the custom
+// properties listed in cards.css; its own variants (best, dim, selected, fans)
+// stay in its styles, under its root class.
 import "./cards.css";
 import { h } from "./dom.ts";
+import { joinList } from "./text.ts";
 
 export type CardSuit = "spades" | "hearts" | "diamonds" | "clubs";
 
@@ -13,11 +16,6 @@ export const SUIT_SYMBOL: Record<CardSuit, string> = { spades: "♠︎", hearts:
 export const SUIT_NAME: Record<CardSuit, string> = { spades: "Spades", hearts: "Hearts", diamonds: "Diamonds", clubs: "Clubs" };
 
 export const isRedSuit = (suit: CardSuit) => suit === "hearts" || suit === "diamonds";
-
-/** "A, B and C". */
-export function joinList(items: readonly string[]): string {
-  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
-}
 
 /** What a face needs. `rank` is the game's own (an Ace may be 1 or 14). */
 export interface FaceCard<R> {
@@ -35,6 +33,11 @@ export interface RankText<R> {
   name(rank: R): string;
 }
 
+export interface BackOptions {
+  /** Names the back for a screen reader; without one it's decorative. */
+  label?: string;
+}
+
 export interface CardFaces<R> {
   /** "Ace of Spades": every face's accessible name. */
   label(c: FaceCard<R>): string;
@@ -48,8 +51,8 @@ export interface CardFaces<R> {
   handCard(c: FaceCard<R>): HTMLButtonElement;
   /** A seat-sized face, rank over suit: `span.pcard-mini`. */
   mini(c: FaceCard<R>): HTMLElement;
-  /** A face-down card. Decorative, unless given a label ("Face-down card"). */
-  back(label?: string): HTMLElement;
+  /** A face-down card. Decorative, unless given a `label` ("Face-down card"). */
+  back(opts?: BackOptions): HTMLElement;
   /** A seat-sized face-down card. Decorative. */
   miniBack(): HTMLElement;
   /** An empty spot where a card will go. Decorative. */
@@ -82,7 +85,7 @@ export function cardFaces<R>(ranks: RankText<R>): CardFaces<R> {
         h("b", { "aria-hidden": "true" }, ranks.short(c.rank)),
         h("i", { "aria-hidden": "true" }, SUIT_SYMBOL[c.suit]),
       ),
-    back: (name) =>
+    back: ({ label: name } = {}) =>
       h("span", name ? { class: "pcard back", role: "img", "aria-label": name } : { class: "pcard back", "aria-hidden": "true" }),
     miniBack: () => h("span", { class: "pcard-mini back", "aria-hidden": "true" }),
     slot: () => h("span", { class: "pcard slot", "aria-hidden": "true" }),

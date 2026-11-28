@@ -6,7 +6,8 @@ export { faceColor, faceSvg };
 export { dieSvg, diePlural, DIE_NAMES, type DieOptions } from "./dice.ts";
 export { keepInRow, rowScrollDelta, rowTarget, type RowMemo } from "./row.ts";
 export { countdown, formatSeconds, type Countdown, type CountdownOptions } from "./countdown.ts";
-export { cardFaces, isRedSuit, joinList, SUIT_NAME, SUIT_SYMBOL, type CardFaces, type FaceCard, type CardSuit, type RankText } from "./cards.ts";
+// Playing cards are on their own entry, "@games/ui/cards", so their CSS loads only with the card games.
+export { joinList } from "./text.ts";
 
 // ---------------------------------------------------------------------------
 // View lifecycle (§9)

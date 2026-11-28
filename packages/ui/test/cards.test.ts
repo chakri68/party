@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cardFaces, isRedSuit, joinList, SUIT_SYMBOL, type FaceCard } from "../src/cards.ts";
+import { cardFaces, isRedSuit, SUIT_SYMBOL, type FaceCard } from "../src/cards.ts";
+import { joinList } from "../src/text.ts";
 
 /** Just enough DOM for `h`: the tests run in Node. */
 class FakeEl {
@@ -115,7 +116,7 @@ describe("minis, backs and slots", () => {
     expect(plain.getAttribute("class")).toBe("pcard back");
     expect(plain.getAttribute("aria-hidden")).toBe("true");
     expect(plain.getAttribute("role")).toBeNull();
-    const named = el(high.back("Face-down card"));
+    const named = el(high.back({ label: "Face-down card" }));
     expect(named.getAttribute("role")).toBe("img");
     expect(named.getAttribute("aria-label")).toBe("Face-down card");
     expect(named.getAttribute("aria-hidden")).toBeNull();
