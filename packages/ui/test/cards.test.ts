@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cardFaces, isRedSuit, SUIT_SYMBOL, withCardSizes, type FaceCard } from "../src/cards.ts";
+import { CARD_SIZE_VARS, cardFaces, isRedSuit, SUIT_SYMBOL, withCardSizes, type FaceCard } from "../src/cards.ts";
 import { joinList } from "../src/text.ts";
 
 /** Just enough DOM for `h`: the tests run in Node. */
@@ -140,5 +141,13 @@ describe("animation ghosts", () => {
       delete g.getComputedStyle;
     }
     expect(Object.fromEntries(set)).toEqual({ "--pcard-corner": "1.1rem", "--pcard-pip": "2.4rem", "--pcard-mini-ratio": "5 / 7" });
+  });
+});
+
+describe("card sizes", () => {
+  it("withCardSizes copies exactly the --pcard-* properties cards.css reads", () => {
+    const css = readFileSync(new URL("../src/cards.css", import.meta.url), "utf8");
+    const used = new Set([...css.matchAll(/var\((--pcard-[a-z-]+)/g)].map((m) => m[1]));
+    expect([...CARD_SIZE_VARS].sort()).toEqual([...used].sort());
   });
 });

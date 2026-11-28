@@ -12,7 +12,7 @@ const standard = (c: Face) => ({ suit: c.suit as Suit, rank: c.rank, id: c.id })
 
 export const cardLabel = (c: Face) => (c.suit === "joker" ? "Joker" : faces.label(standard(c)));
 export const cardShort = (c: Face) => (c.suit === "joker" ? "the joker" : faces.short(standard(c)));
-export const { back: cardBackFull, tinyBack: cardBackMini, slot: cardSlot } = faces;
+export const { back: cardBackFull, tinyBack: cardBackTiny, slot: cardSlot } = faces;
 
 /**
  * A jester's cap: three floppy points with a bell on each, over a band. The

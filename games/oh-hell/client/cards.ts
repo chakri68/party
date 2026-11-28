@@ -6,7 +6,7 @@ import type { Rank } from "../shared/types.ts";
 export const {
   face: cardFace,
   handCard,
-  tinyBack: cardBackMini,
+  tinyBack: cardBackTiny,
   slot: cardSlot,
   label: cardLabel,
   short: cardShort,

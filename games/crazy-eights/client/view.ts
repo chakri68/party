@@ -13,7 +13,7 @@ import {
   type CrazyEightsPublicState,
   type Suit,
 } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -300,7 +300,7 @@ export class CrazyEightsView implements GameView {
     if (!props) return;
     const from = this.stock.getBoundingClientRect();
     if (playerId !== props.playerId) {
-      await fly(cardBackFull(), from, this.cardRectAt(this.anchorFor(playerId, props), from), 280);
+      await fly(withCardSizes(cardBackFull(), this.stock), from, this.cardRectAt(this.anchorFor(playerId, props), from), 280);
       return;
     }
     const hand = (props.private as CrazyEightsPrivateState | null)?.hand ?? [];
@@ -311,7 +311,7 @@ export class CrazyEightsView implements GameView {
     this.hand.insertBefore(btn, next ? this.cards.get(next.id)! : null);
     btn.scrollIntoView({ block: "nearest", inline: "nearest" });
     try {
-      await fly(cardBackFull(), from, btn.getBoundingClientRect(), 280);
+      await fly(withCardSizes(cardBackFull(), btn), from, btn.getBoundingClientRect(), 280);
     } finally {
       btn.style.visibility = "";
     }
@@ -378,7 +378,7 @@ export class CrazyEightsView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed ? "left" : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed ? "left" : [cardBackTiny(), ` ${p.cardCount}`],
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),
           ),
@@ -397,9 +397,12 @@ export class CrazyEightsView implements GameView {
       "aria-label",
       `Stock, ${game.stockCount} ${game.stockCount === 1 ? "card" : "cards"}${canDraw ? ". Draw a card" : ""}`,
     );
+    // An empty stock that can be reshuffled shows a ↻ in its spot.
+    const empty = cardSlot();
+    if (left) empty.append("↻");
     replaceChildren(
       this.stock,
-      game.stockCount ? cardBackFull() : withText(cardSlot(), left ? "↻" : ""),
+      game.stockCount ? cardBackFull() : empty,
       h("span", { class: "ce-stock-count", "aria-hidden": "true" }, game.stockCount ? String(game.stockCount) : left ? "reshuffle" : "empty"),
     );
 
@@ -596,10 +599,4 @@ export class CrazyEightsView implements GameView {
     next.focus();
     next.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
-}
-
-/** An empty spot with a mark in it ("↻": the pile can be reshuffled). */
-function withText(el: HTMLElement, text: string): HTMLElement {
-  el.append(text);
-  return el;
 }

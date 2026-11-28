@@ -6,7 +6,7 @@ import { withCardSizes } from "@games/ui/cards";
 import { ordinal } from "@games/game-core";
 import { compareCards, outText } from "../shared/rules.ts";
 import type { Card, OldMaidEvent, OldMaidPrivateState, OldMaidPublicState } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -461,7 +461,7 @@ export class OldMaidView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed || p.outPlace ? holding : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed || p.outPlace ? holding : [cardBackTiny(), ` ${p.cardCount}`],
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),
           ),

@@ -303,7 +303,6 @@ button.ch-call:hover:not(:disabled) { border-color: #ff9a9a; background: #ff9a9a
 @media (prefers-reduced-motion: reduce) {
   .cheat .shake { animation: none; outline: 2px solid var(--red); }
   .ch-opp { transition: none; }
-  .ch-hand .pcard.selected { transform: none; outline: 2px solid var(--accent); }
   .ch-play .pcard.landed, .ch-play .pcard.flip, .ch-verdict.stamp, .ch-hand .pcard.fresh { animation: none; }
   .ch-bar span { transition: none; }
 }

@@ -3,7 +3,7 @@ import { cardFaces } from "@games/ui/cards";
 import { formatRank, rankName } from "../shared/rules.ts";
 import type { Card, Rank } from "../shared/types.ts";
 
-// The shared card faces (@games/ui), with Blackjack's ranks: the Ace is 1.
+// The shared card faces (@games/ui/cards), with Blackjack's ranks: the Ace is 1.
 const faces = cardFaces<Rank>({ short: formatRank, name: rankName });
 export const cardLabel = faces.label;
 

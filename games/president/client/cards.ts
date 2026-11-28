@@ -7,7 +7,7 @@ export const {
   face: cardFace,
   handCard,
   back: cardBackFull,
-  tinyBack: cardBackMini,
+  tinyBack: cardBackTiny,
   slot: cardSlot,
   label: cardLabel,
   short: cardShort,

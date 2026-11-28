@@ -5,7 +5,7 @@ import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, ty
 import { withCardSizes } from "@games/ui/cards";
 import { compareCards, formatRank, makeCard, rankName, rankPlural } from "../shared/rules.ts";
 import { SUITS, type AskRecord, type Card, type GoFishEvent, type GoFishPrivateState, type GoFishPublicState, type Rank } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -525,7 +525,7 @@ export class GoFishView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed || p.out ? holding : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed || p.out ? holding : [cardBackTiny(), ` ${p.cardCount}`],
               h("span", { class: "books" }, ` · ${bookText}`),
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),

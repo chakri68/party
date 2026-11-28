@@ -259,6 +259,5 @@
 @media (prefers-reduced-motion: reduce) {
   .old-maid .shake { animation: none; outline: 2px solid var(--red); }
   .om-opp { transition: none; }
-  .om-fan .pcard.selected, .om-fan .pcard.lifted { transform: none; outline: 2px solid var(--accent); }
   .om-pile .pcard.landed, .om-hand .pcard.arrive { animation: none; }
 }

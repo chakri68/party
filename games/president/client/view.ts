@@ -6,7 +6,7 @@ import { withCardSizes } from "@games/ui/cards";
 import { ordinal } from "@games/game-core";
 import { checkPlay, compareCards, setName, titleFor } from "../shared/rules.ts";
 import type { Card, PresidentEvent, PresidentPrivateState, PresidentPublicState, Title } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard, TITLE_TAG } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard, TITLE_TAG } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -438,7 +438,7 @@ export class PresidentView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed ? "left" : p.place ? `out ${ordinal(p.place)}` : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed ? "left" : p.place ? `out ${ordinal(p.place)}` : [cardBackTiny(), ` ${p.cardCount}`],
               p.passed && !p.place ? h("span", { class: "pass-label" }, " · pass") : null,
               h("span", { class: "pts" }, ` · ${p.points} ${p.points === 1 ? "pt" : "pts"}`),
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,

@@ -95,8 +95,8 @@ export function cardFaces<R>(ranks: RankText<R>): CardFaces<R> {
   };
 }
 
-/** The custom properties in cards.css that size and shape the cards. */
-const SIZE_VARS = [
+/** The custom properties in cards.css that size and shape the cards (a test keeps the two in step). */
+export const CARD_SIZE_VARS = [
   "--pcard-w",
   "--pcard-h",
   "--pcard-radius",
@@ -122,7 +122,7 @@ const SIZE_VARS = [
  */
 export function withCardSizes<T extends HTMLElement>(card: T, like: Element): T {
   const style = getComputedStyle(like);
-  for (const name of SIZE_VARS) {
+  for (const name of CARD_SIZE_VARS) {
     const value = style.getPropertyValue(name).trim();
     if (value) card.style.setProperty(name, value);
   }

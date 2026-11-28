@@ -240,7 +240,6 @@
 
 /* ---- Cards (.pcard, cards.css) ------------------------------------------- */
 
-.oh-hell .pcard { transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, opacity 140ms ease; }
 /* The trump card: small, its J Q K letter full size. */
 .oh-trump { --pcard-w: 40px; --pcard-h: 56px; --pcard-radius: 6px; --pcard-corner: 0.75rem; --pcard-pip: 1.3rem; --pcard-face: 1.6rem; }
 .oh-slot .pcard .br { display: none; }
@@ -389,7 +388,7 @@ button.oh-bid.banned { text-decoration: line-through; border-style: dashed; colo
 
 @media (prefers-reduced-motion: reduce) {
   .oh-hell .shake { animation: none; outline: 2px solid var(--red); }
-  .oh-hell .pcard, .oh-opp { transition: none; }
+  .oh-opp { transition: none; }
   .oh-hand .pcard.lifted { transform: none; outline: 3px solid var(--accent); outline-offset: 2px; }
   .oh-slot.won .pcard { transform: none; }
   .oh-slot .pcard.landed, .oh-trump .pcard.flip { animation: none; }

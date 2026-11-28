@@ -5,7 +5,7 @@ import { avatar, h, keepInRow, replaceChildren, seatName, type GameClientApi, ty
 import { withCardSizes } from "@games/ui/cards";
 import { claimText, rankPlural } from "../shared/rules.ts";
 import { MAX_PLAY, type Card, type CheatEvent, type CheatPrivateState, type CheatPublicState, type Rank } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -357,7 +357,7 @@ export class CheatView implements GameView {
         await wait(i * 45);
         if (i % 2 === 0) audio.play("deal");
         const start = new DOMRect(from.left + from.width / 2 - size.width / 2 + i * 2, from.top + from.height / 2 - size.height / 2, size.width, size.height);
-        await fly(cardBackFull(), start, target, 380);
+        await fly(withCardSizes(cardBackFull(), this.play), start, target, 380);
       }),
     );
   }
@@ -437,7 +437,7 @@ export class CheatView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed ? holding : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed ? holding : [cardBackTiny(), ` ${p.cardCount}`],
               p.passed ? h("span", { class: "passed-label" }, " · pass") : null,
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),
@@ -509,7 +509,12 @@ export class CheatView implements GameView {
       this.playLabel.textContent = `${name(r.callerId)} called ${r.playerId === props.playerId ? "you" : seatName(room, r.playerId)} · ${name(r.takerId)} took ${r.taken}`;
       this.play.setAttribute("aria-label", `Turned over: ${r.cards.map(cardLabel).join(", ")}. The claim was ${claimText(r.cards.length, r.claim)}. ${r.lied ? "It was a lie" : "It was true"}.`);
     } else {
-      if (this.play.dataset.key !== "empty") replaceChildren(this.play, withText(cardSlot(), "A"));
+      if (this.play.dataset.key !== "empty") {
+        // The empty spot says what goes first: Aces.
+        const slot = cardSlot();
+        slot.append("A");
+        replaceChildren(this.play, slot);
+      }
       this.play.dataset.key = "empty";
       this.playLabel.textContent = game.step === "finished" ? "" : "First: Aces";
       this.play.setAttribute("aria-label", "No cards played yet");
@@ -665,10 +670,4 @@ export class CheatView implements GameView {
     next.focus();
     next.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
-}
-
-/** An empty spot with a hint in it ("A": Aces go first). */
-function withText(el: HTMLElement, text: string): HTMLElement {
-  el.append(text);
-  return el;
 }

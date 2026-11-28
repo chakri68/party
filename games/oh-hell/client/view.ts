@@ -4,7 +4,7 @@ import type { Presence } from "@games/protocol";
 import { avatar, formatSeconds, h, keepInRow, openDialog, replaceChildren, seatName, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
 import { SUIT_NAME, SUIT_SYMBOL, withCardSizes } from "@games/ui/cards";
 import type { Card, OhHellEvent, OhHellPrivateState, OhHellPublicPlayer, OhHellPublicState, Suit, TrickPlay } from "../shared/types.ts";
-import { cardBackMini, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
+import { cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -443,7 +443,7 @@ export class OhHellView implements GameView {
             "div",
             { class: "oh-opp-text", "aria-hidden": "true" },
             h("span", { class: "name" }, h("span", { class: "nm" }, name), dealer ? h("span", { class: "oh-dealer", title: "Dealer" }, "D") : null, h("span", { class: "pts" }, String(p.score))),
-            h("span", { class: `line${bidState(p, game)}` }, p.removed ? null : [cardBackMini(), ` ${p.cardCount} · `], line, away ? ` · ${PRESENCE_LABEL[seat!.presence]}` : ""),
+            h("span", { class: `line${bidState(p, game)}` }, p.removed ? null : [cardBackTiny(), ` ${p.cardCount} · `], line, away ? ` · ${PRESENCE_LABEL[seat!.presence]}` : ""),
           ),
         );
       }),
