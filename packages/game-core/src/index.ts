@@ -229,6 +229,12 @@ export interface GameDefinition<TState, TAction, TPublicState, TPrivateState, TS
     ctx: GameContext,
   ): GameResult<TState, TEvent>;
 
+  /**
+   * A timer the game set has fired. When nothing changes (a stale timer),
+   * return the same state object you were given. A different state object
+   * means the clock moved the game on: the room then breaks a computer's run
+   * of moves in a row (see `BOT_MAX_RUN`), and clears its one skip.
+   */
   onTimer?(state: TState, timerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
 
   onPlayerDisconnected?(state: TState, playerId: string, ctx: GameContext): GameTransition<TState, TEvent>;
@@ -312,6 +318,7 @@ export const STAT_KEYS = [
   "firesLit",
   "problemsPassed",
   "pushedOver",
+  "busts",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -440,4 +447,7 @@ export function stableHash(text: string): number {
   return h >>> 0;
 }
 
+export * from "./chips.ts";
+export * from "./text.ts";
 export * from "./recap.ts";
+export * from "./table.ts";

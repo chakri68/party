@@ -104,8 +104,3 @@ export function bidText(quantity: number, face: Face): string {
   return `${numberWord(quantity)} ${face}${quantity === 1 ? "" : "s"}`;
 }
 
-/** "1st", "2nd", "3rd", "4th". */
-export function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${s}`;
-}

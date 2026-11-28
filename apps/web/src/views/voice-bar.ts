@@ -101,6 +101,30 @@ export function hostVoiceAction(m: VoiceMemberView, isHost: boolean): { label: "
     : { label: "Mute", message: { type: "host-mute", playerId: m.id, muted: true } };
 }
 
+/** One checkbox in Voice settings. */
+export interface SettingCheck {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  patch: (on: boolean) => Partial<VoicePrefs>;
+}
+
+/** The checkboxes in Voice settings, in order. */
+export function voiceSettingChecks(p: VoicePrefs, hasTurn: boolean): SettingCheck[] {
+  const row = (label: string, checked: boolean, patch: (on: boolean) => Partial<VoicePrefs>, disabled = false): SettingCheck => ({ label, checked, disabled, patch });
+  return [
+    row("Remove echo", p.echoCancellation, (on) => ({ echoCancellation: on })),
+    row("Remove background noise", p.noiseSuppression, (on) => ({ noiseSuppression: on })),
+    row("Keep my mic volume steady", p.autoGainControl, (on) => ({ autoGainControl: on })),
+    row("Push to talk", p.mode === "ptt", (on) => ({ mode: on ? "ptt" : "open" })),
+    row("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => ({ deafenAlsoMutes: on })),
+    row("Lower game sound when people talk", p.duck, (on) => ({ duck: on })),
+    row("Keep the screen on in voice", p.keepScreenOn, (on) => ({ keepScreenOn: on })),
+    row("Count my talk time for the recap", p.countTalk, (on) => ({ countTalk: on })),
+    row("Hide my network address", p.relayOnly, (on) => ({ relayOnly: on }), !hasTurn),
+  ];
+}
+
 /** What the Voice panel can ask of the room: am I the host, and send a message. */
 export interface VoiceHost {
   isHost(): boolean;
@@ -503,10 +527,10 @@ export class VoiceBar {
     const v = this.voice.view();
     const set = (patch: Partial<VoicePrefs>) => void this.voice.updatePrefs(patch);
 
-    const check = (label: string, checked: boolean, onChange: (on: boolean) => void, disabled = false) => {
-      const input = h("input", { type: "checkbox", checked, disabled });
-      input.addEventListener("change", () => onChange(input.checked));
-      return h("label", {}, label, input);
+    const check = (c: SettingCheck) => {
+      const input = h("input", { type: "checkbox", checked: c.checked, disabled: c.disabled });
+      input.addEventListener("change", () => set(c.patch(input.checked)));
+      return h("label", {}, c.label, input);
     };
     const devices = (kind: "audioinput" | "audiooutput", selected: string | null, fallback: string, onChange: (id: string | null) => void) => {
       const select = h("select", { class: "voice-device" }, h("option", { value: "" }, "Default"));
@@ -532,14 +556,7 @@ export class VoiceBar {
         { class: "settings voice-settings" },
         h("label", {}, "Mic", micSelect),
         speakerSelect ? h("label", {}, "Speaker", speakerSelect) : null,
-        check("Remove echo", p.echoCancellation, (on) => set({ echoCancellation: on })),
-        check("Remove background noise", p.noiseSuppression, (on) => set({ noiseSuppression: on })),
-        check("Keep my mic volume steady", p.autoGainControl, (on) => set({ autoGainControl: on })),
-        check("Push to talk", p.mode === "ptt", (on) => set({ mode: on ? "ptt" : "open" })),
-        check("Hear no one also mutes my mic", p.deafenAlsoMutes, (on) => set({ deafenAlsoMutes: on })),
-        check("Lower game sound when people talk", p.duck, (on) => set({ duck: on })),
-        check("Keep the screen on in voice", p.keepScreenOn, (on) => set({ keepScreenOn: on })),
-        check("Hide my network address", p.relayOnly, (on) => set({ relayOnly: on }), !v.hasTurn),
+        ...voiceSettingChecks(p, v.hasTurn).map(check),
         v.hasTurn ? null : h("p", { class: "muted setting-hint" }, "Needs a relay server."),
         h("p", { class: "muted" }, "The settings stay on your device."),
       ),

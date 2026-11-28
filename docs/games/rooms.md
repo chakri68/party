@@ -80,7 +80,7 @@ The host is the first person into the room. The tag next to their name says "hos
 
 ### Computer players
 
-Some games let the host add computer players, so a small group can still play. For now, that is Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, Overheat, President, Sevens and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
+Some games let the host add computer players, so a small group can still play. For now, that is Blackjack, Cheat, Crazy Eights, Farkle, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, Overheat, President, Sevens, Teen Patti and Thorns. Only the host can add them, and only in the lobby, when the chosen game supports them. Tap **Add computer** under the player list. In the lobby, each computer shows a "computer" tag and has no ready sign. In a game, a small robot badge sits on its picture. The host removes one with the remove button next to its name, without asking first.
 
 Computers play by the same rules as everyone. They only see their own cards, as a person does.
 
@@ -182,7 +182,7 @@ You can talk with the room while you play. Voice usually goes straight from phon
 - There is no voice bar. Once you are in voice, your mic button is in the top row, in the lobby, in a game and on results. Its small dot is green when someone talks, and yellow while voice connects. **Voice** in the menu shows everyone in voice, with **Hear no one**, voice settings, **Turn off mic** and **Leave voice**.
 - When the party is over, voice stops and the mic button goes.
 
-The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), and "Keep the screen on in voice" (on at first; turn it off to save battery). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
+The settings button in the Voice panel opens **Voice settings**: which mic, which speaker (only where the phone allows it), remove echo, remove background noise, keep my mic volume steady, push to talk, "Hear no one also mutes my mic", "Lower game sound when people talk" (on at first), "Keep the screen on in voice" (on at first; turn it off to save battery), and "Count my talk time for the recap" (on at first; see Ending the party). While another person talks, game sound and sound board sounds get quieter, then come back. Not in Blind Rally or Rally. **Hide my network address** sends voice through a relay server, so others cannot see your address. It needs a relay server, and is greyed out when there is none.
 
 The settings stay on your device. No one records your voice.
 
@@ -220,12 +220,12 @@ The shell adds a few controls above the game when it's waiting on someone:
 The host also has these in the menu (the three dots at the top right):
 
 - **Restart** starts the same game again with the same settings (asks first). Players who are reconnecting stay in.
-- **Pause** and **Resume**, in games that can pause (Nightfall and Not My Problem!). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
+- **Pause** and **Resume**, in games that can pause (Blackjack, Nightfall, Not My Problem! and Teen Patti). While paused, the timer stops and nobody can play. The game is dimmed, with a card on top. Everyone else sees "Paused by the host", and the host sees "You paused the game" with a **Resume** button (the same as **Resume** in the menu).
 - **End game** sends everyone back to the lobby (asks to confirm).
 
 A main button you can't press right now is grey with a dashed edge, not lime.
 
-In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, President, Sevens, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
+In the card and dice games with a hand at the bottom (Cheat, Crazy Eights, Go Fish, Hold'em, Liar's Dice, Not My Problem!, Oh Hell, Old Maid, President, Sevens, Teen Patti, Thorns), a phone held sideways gets a shorter bottom bar: smaller cards, dice or discs, with your hand beside its buttons. That keeps the table in view.
 
 ## Leaving
 
@@ -262,8 +262,11 @@ When the night is done, the host taps **End party**, under the lobby or the resu
 Then the room closes. Nobody can start another game in it. Everyone sees the same recap:
 
 - How many games you played, for how long, and the game you played most.
-- Up to five awards, like **Biggest liar**, **Sharpest eye**, **Most suspicious** or **Backstabber**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you, players you made go too hot. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!, Overheat); every game counts toward **Champion of the night**.
+- Up to five awards, like **Biggest liar**, **Sharpest eye**, **Most suspicious**, **Backstabber**, **On a roll** or **Rivals**. They come from what happened in the games: lies nobody caught, bluffs called, votes against you, players you made go too hot, wins in a row, two players who beat each other. Some games feed awards (Cheat, Liar's Dice, Imposter, Nightfall, Fake Word, Bluff Definitions, Doodle Dash, Not My Problem!, Overheat, Blackjack); every game counts toward **Champion of the night**.
+- **Around the table**: up to three awards from the room, like **Most talkative**, **DJ of the night** or **Most excited**, plus the loudest moment.
 - A tie names everyone in it, up to three people. One person usually gets one award, so the recap goes around the room.
 - **Copy recap** (or **Share** on a phone) gives you a short text version for the group chat.
+
+Voice counts only when you talk and how loud, never what you say. Nothing is recorded. To turn it off, open voice settings and turn off **Count my talk time for the recap**.
 
 Chat still works. Anyone who opens the link later sees the recap too, until the room is cleaned up. If no game finished, there's no recap: the room just says the party is over.

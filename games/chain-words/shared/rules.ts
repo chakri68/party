@@ -2,7 +2,7 @@ import { MAX_WORD, MIN_WORD } from "@games/pass-the-bomb/shared";
 
 // The Bomb's typed-word helpers do the same job here: trim and lowercase, and
 // clean whatever comes off the typing stream.
-export { normalizeWord, ordinal, parseTyping, type TypingData } from "@games/pass-the-bomb/shared";
+export { normalizeWord, parseTyping, type TypingData } from "@games/pass-the-bomb/shared";
 export { MAX_WORD, MIN_WORD };
 
 /**

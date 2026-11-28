@@ -1,6 +1,7 @@
 // Client half of the game registry (§43). Explicit imports keep Vite's chunking
 // predictable; each game's client code loads only when a game starts.
 
+import { blackjackManifest, blackjackRules, blackjackSettingFields } from "@games/blackjack/shared";
 import { blindRallyManifest, blindRallyRules, blindRallySettingFields, rallyManifest, rallyRules, rallySettingFields } from "@games/blind-rally/shared";
 import { bluffDefinitionsManifest, bluffDefinitionsRules, bluffDefinitionsSettingFields, fakeWordManifest, fakeWordRules, fakeWordSettingFields } from "@games/bluff/shared";
 import { chainWordsManifest, chainWordsRules, chainWordsSettingFields } from "@games/chain-words/shared";
@@ -28,6 +29,7 @@ import { samePageManifest, samePageRules, samePageSettingFields } from "@games/s
 import { scribblManifest, scribblRules, scribblSettingFields } from "@games/scribbl/shared";
 import { sevensManifest, sevensRules, sevensSettingFields } from "@games/sevens/shared";
 import { shortNightManifest, shortNightRules, shortNightSettingFields } from "@games/short-night/shared";
+import { teenPattiManifest, teenPattiRules, teenPattiSettingFields } from "@games/teen-patti/shared";
 import { thornsManifest, thornsRules, thornsSettingFields } from "@games/thorns/shared";
 import { treasureHuntManifest, treasureHuntRules, treasureHuntSettingFields } from "@games/treasure-hunt/shared";
 import { wildsManifest, wildsRules, wildsSettingFields } from "@games/wilds/shared";
@@ -255,12 +257,26 @@ export const games: Record<string, GameEntry> = {
     settingFields: holdemSettingFields,
     loadClient: () => import("@games/holdem/client").then((m) => m.default),
   },
+  "teen-patti": {
+    section: "cards",
+    manifest: teenPattiManifest,
+    rules: teenPattiRules,
+    settingFields: teenPattiSettingFields,
+    loadClient: () => import("@games/teen-patti/client").then((m) => m.default),
+  },
   overheat: {
     section: "cards",
     manifest: overheatManifest,
     rules: overheatRules,
     settingFields: overheatSettingFields,
     loadClient: () => import("@games/overheat/client").then((m) => m.default),
+  },
+  blackjack: {
+    section: "cards",
+    manifest: blackjackManifest,
+    rules: blackjackRules,
+    settingFields: blackjackSettingFields,
+    loadClient: () => import("@games/blackjack/client").then((m) => m.default),
   },
   "same-page": {
     section: "words",

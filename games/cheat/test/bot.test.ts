@@ -193,7 +193,8 @@ describe("cheat with computer players: stats", () => {
 
 describe("cheatBot all-bot games", () => {
   // Table size is capped at 7 (Ruling P2-E). Games take 200 to 500 moves (a few thousand at most),
-  // so 200 seeds at each size fit. The extra settings run at 50 seeds: "one deck" is the default at
+  // so 200 seeds fit at the smaller sizes. Seven-player games are the longest: 200 seeds took 65 s
+  // on a busy machine, so they run 80. The extra settings run at 50 seeds: "one deck" is the default at
   // 4 players, so only near claims and two decks (the default at 7) need their own runs.
   const extras: [string, Partial<CheatSettings>, number][] = [
     ["near claims", { claims: "near" }, 4],
@@ -212,7 +213,7 @@ describe("cheatBot all-bot games", () => {
   const m = cheatGame.manifest;
   const sizes = [...new Set([m.minPlayers, m.bestMinPlayers ?? m.minPlayers, Math.min(m.maxPlayers, 7)])];
   it.each(sizes)("games finish with %i players", (players) => {
-    check(players, "defaults", {}, 200);
+    check(players, "defaults", {}, players >= 7 ? 80 : 200);
   }, 60_000);
 
   it.each(extras)("games finish with %s", (name, s, players) => {

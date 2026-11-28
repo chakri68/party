@@ -1,7 +1,7 @@
-import { bumpStat, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
+import { bumpStat, ordinal, type GameContext, type GameDefinition, type GameEventEnvelope, type GameResult, type TimerRequest } from "@games/game-core";
 import { liarsDiceManifest } from "../shared/manifest.ts";
 import { liarsDiceBot } from "./bot.ts";
-import { countMatches, isLegalBid, onesAreWild, ordinal, skipBid, smallestRaise } from "../shared/rules.ts";
+import { countMatches, isLegalBid, onesAreWild, skipBid, smallestRaise } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   REVEAL_MS,

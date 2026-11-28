@@ -1,18 +1,36 @@
 import type { Recap } from "@games/game-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { durationText, recapMeta, recapShareText, shareButton, shareMode } from "../src/views/recap.ts";
+import { durationText, momentText, recapMeta, recapShareText, recapView, shareButton, shareMode } from "../src/views/recap.ts";
 
+interface Fake {
+  tag: string;
+  kids: unknown[];
+}
 vi.mock("@games/ui", () => ({
-  h: (_tag: string, _attrs: object, label: string) => {
+  h: (tag: string, _attrs: object, ...children: unknown[]) => {
     const handlers: Record<string, () => void> = {};
-    return { addEventListener: (e: string, f: () => void) => (handlers[e] = f), click: () => handlers.click?.(), replaceChildren() {}, textContent: label };
+    const kids = children.flat().filter((c) => c !== null && c !== undefined && c !== false);
+    return {
+      tag,
+      kids,
+      append: (...c: unknown[]) => kids.push(...c),
+      addEventListener: (e: string, f: () => void) => (handlers[e] = f),
+      click: () => handlers.click?.(),
+      replaceChildren() {},
+      textContent: typeof children[0] === "string" ? children[0] : undefined,
+    };
   },
 }));
+/** Every bit of text in the fake tree, in order. */
+const texts = (n: unknown): string[] => (typeof n === "string" ? [n] : ((n as Fake).kids ?? []).flatMap(texts));
 vi.mock("../src/brand.ts", () => ({ icon: () => ({}) }));
 vi.mock("../src/views/recap-image.ts", () => ({ recapImage: () => new Promise(() => {}) }));
 
-const recap = (over: Partial<Recap> = {}): Recap => ({ gamesPlayed: 3, minutes: 80, topGameId: "cheat", awards: [], quiet: null, ...over });
-const name = (id: string) => ({ cheat: "Cheat", imposter: "Imposter" })[id] ?? id;
+const recap = (over: Partial<Recap> = {}): Recap => ({ gamesPlayed: 3, minutes: 80, topGameId: "cheat", awards: [], table: [], moment: null, quiet: null, ...over });
+const name = (id: string) => ({ cheat: "Cheat", imposter: "Imposter", overheat: "Overheat" })[id] ?? id;
+const liar = { id: "liar", title: "Biggest liar", who: ["Sam"], line: "Told 9 lies." };
+const chatty = { id: "chatty", title: "Most talkative", who: ["Mei"], line: "Talked for 14 minutes." };
+const dj = { id: "dj", title: "DJ of the night", who: ["Arjun", "Priya"], line: "Played 31 sounds." };
 
 describe("the recap screen's words", () => {
   it("writes the time in minutes, then hours", () => {
@@ -34,15 +52,75 @@ describe("the recap screen's words", () => {
         { id: "eye", title: "Sharpest eye", who: ["Mei", "Arjun"], line: "Called 3 bluffs right." },
       ],
     });
-    expect(recapShareText(r, "CouchParty", "couchpartygames.com")).toBe(
+    expect(recapShareText(r, "CouchParty", "couchpartygames.com", name)).toBe(
       "CouchParty recap: Biggest liar: Sam. Sharpest eye: Mei and Arjun. Play at couchpartygames.com",
     );
   });
 
+  it("writes the loudest moment, in a game or in the lobby", () => {
+    expect(momentText({ count: 5, gameId: "overheat" }, name)).toBe("Loudest moment: 5 people talking at once, in Overheat.");
+    expect(momentText({ count: 5, gameId: null }, name)).toBe("Loudest moment: 5 people talking at once, in the lobby.");
+  });
+
+  it("shares the table awards after the main ones, then the moment", () => {
+    const r = recap({ awards: [liar], table: [chatty, dj], moment: { count: 4, gameId: "overheat" } });
+    expect(recapShareText(r, "Party", "example.com", name)).toBe(
+      "Party recap: Biggest liar: Sam. Most talkative: Mei. DJ of the night: Arjun and Priya. Loudest moment: 4 people talking at once, in Overheat. Play at example.com",
+    );
+  });
+
+  it("leaves the moment out when there is none", () => {
+    const r = recap({ awards: [liar], table: [chatty] });
+    expect(recapShareText(r, "Party", "example.com", name)).toBe("Party recap: Biggest liar: Sam. Most talkative: Mei. Play at example.com");
+  });
+
+  it("shares table awards alone, not the games count", () => {
+    expect(recapShareText(recap({ table: [chatty] }), "Party", "example.com", name)).toBe("Party recap: Most talkative: Mei. Play at example.com");
+  });
+
   it("shares a quiet night too", () => {
-    expect(recapShareText(recap({ gamesPlayed: 2 }), "Party Games", "example.com")).toBe(
+    expect(recapShareText(recap({ gamesPlayed: 2 }), "Party Games", "example.com", name)).toBe(
       "Party Games recap: 2 games tonight. Play at example.com",
     );
+  });
+});
+
+describe("the recap screen", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const show = (r: Recap) => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    vi.stubGlobal("location", { host: "party.test" });
+    vi.stubGlobal("navigator", {});
+    return texts(recapView({ recap: r, isHost: true, appTitle: "Party", gameName: name, home: () => {} }));
+  };
+
+  it("shows Around the table after the main awards, then the moment", () => {
+    const t = show(recap({ awards: [liar], table: [chatty, dj], moment: { count: 5, gameId: "overheat" } }));
+    const at = (s: string) => t.indexOf(s);
+    expect(at("Biggest liar")).toBeGreaterThan(-1);
+    expect(at("Around the table")).toBeGreaterThan(at("Told 9 lies."));
+    expect(at("Most talkative")).toBeGreaterThan(at("Around the table"));
+    expect(at("DJ of the night")).toBeGreaterThan(at("Most talkative"));
+    expect(at("Arjun and Priya")).toBeGreaterThan(-1);
+    expect(at("Loudest moment: 5 people talking at once, in Overheat.")).toBeGreaterThan(at("Played 31 sounds."));
+  });
+
+  it("has no Around the table heading without table awards", () => {
+    const t = show(recap({ awards: [liar] }));
+    expect(t).not.toContain("Around the table");
+    expect(t.some((s) => s.startsWith("Loudest moment"))).toBe(false);
+  });
+
+  it("shows the quiet text, then the moment", () => {
+    const t = show(recap({ quiet: "A quiet night.", moment: { count: 3, gameId: null } }));
+    expect(t.indexOf("Loudest moment: 3 people talking at once, in the lobby.")).toBeGreaterThan(t.indexOf("A quiet night."));
+    expect(t.indexOf("A quiet night.")).toBeGreaterThan(-1);
+  });
+
+  it("shows table awards alone, without the quiet text", () => {
+    const t = show(recap({ table: [chatty] }));
+    expect(t).toContain("Around the table");
+    expect(t).toContain("Most talkative");
   });
 });
 

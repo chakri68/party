@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeDeck, ordinal, pairOff, parseCardId } from "../shared/rules.ts";
+import { makeDeck, pairOff, parseCardId } from "../shared/rules.ts";
 
 const cards = (ids: string[]) => ids.map((id) => parseCardId(id)!);
 
@@ -29,8 +29,4 @@ describe("decks", () => {
     expect(parseCardId("hearts-8~1")).toBeNull();
     expect(parseCardId("cups-3")).toBeNull();
   });
-});
-
-it("ordinal", () => {
-  expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]);
 });

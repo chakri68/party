@@ -1,3 +1,4 @@
+import { ordinal } from "@games/game-core";
 import { JOKER_RANK, PULLED_QUEEN, SUITS, type Card, type OldMaidCard, type Rank, type Suit } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -77,13 +78,6 @@ export function pairOff(hand: readonly Card[]): { pairs: Card[][]; rest: Card[] 
     }
   }
   return { pairs, rest: hand.filter((c) => !paired.has(c.id)) };
-}
-
-/** "1st", "2nd", "3rd", "11th"… */
-export function ordinal(n: number): string {
-  const teen = n % 100 >= 11 && n % 100 <= 13;
-  const suffix = teen ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
-  return `${n}${suffix}`;
 }
 
 /** When a player got out, in words: "first out", "out 2nd". Getting out is winning here. */

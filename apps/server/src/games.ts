@@ -1,3 +1,4 @@
+import { blackjackGame } from "@games/blackjack/server";
 import { blindRallyGame, rallyGame } from "@games/blind-rally/server";
 import { bluffDefinitionsGame, fakeWordGame } from "@games/bluff/server";
 import { chainWordsGame } from "@games/chain-words/server";
@@ -25,6 +26,7 @@ import { samePageGame } from "@games/same-page/server";
 import { scribblGame } from "@games/scribbl/server";
 import { sevensGame } from "@games/sevens/server";
 import { shortNightGame } from "@games/short-night/server";
+import { teenPattiGame } from "@games/teen-patti/server";
 import { thornsGame } from "@games/thorns/server";
 import { treasureHuntGame } from "@games/treasure-hunt/server";
 import { wildsGame } from "@games/wilds/server";
@@ -55,7 +57,9 @@ const GAMES: Record<string, AnyGameDefinition> = {
   thorns: thornsGame,
   "oh-hell": ohHellGame,
   holdem: holdemGame,
+  "teen-patti": teenPattiGame,
   overheat: overheatGame,
+  blackjack: blackjackGame,
   "same-page": samePageGame,
   "long-trail": longTrailGame,
   wilds: wildsGame,

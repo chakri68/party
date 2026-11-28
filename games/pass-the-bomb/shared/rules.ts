@@ -60,7 +60,3 @@ export function parseTyping(input: unknown): TypingData | null {
   return o.wrong === true ? { turn, text, wrong: true } : { turn, text };
 }
 
-export function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
-  return `${n}${s}`;
-}

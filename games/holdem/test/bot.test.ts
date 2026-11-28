@@ -1,9 +1,10 @@
 import { BOT_MAX_RUN, seededRandomInt, shuffle, type AnyGameDefinition, type BotContext, type BotView, type GameContext } from "@games/game-core";
 import { playBots } from "@games/game-core/testing";
 import { describe, expect, it } from "vitest";
-import { equity, holdemBot, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { OMAHA_HAND_READS, POSTFLOP_LINES, callLine, equity, equityTrials, holdemBot, omahaPreflopTier, preflopTier, raiseThreshold } from "../server/bot.ts";
+import { addStats, emptyStats, simulate, summarize } from "./sim.ts";
 import { holdemGame } from "../server/game.ts";
-import { bestHand, compareHands, handScore, makeDeck, parseCardId } from "../shared/rules.ts";
+import { bestHand, bestHandFor, compareHands, handScore, handScoreFor, makeDeck, parseCardId } from "../shared/rules.ts";
 import {
   DEFAULT_SETTINGS,
   type HoldemAction,
@@ -12,6 +13,7 @@ import {
   type HoldemPublicState,
   type HoldemSettings,
   type LegalActions,
+  type Variant,
 } from "../shared/types.ts";
 
 type View = BotView<HoldemPublicState, HoldemPrivateState>;
@@ -58,13 +60,15 @@ function view(o: {
   others?: Partial<HoldemPublicPlayer>;
   flags?: Partial<Pick<HoldemPrivateState, "canBack" | "canRebuy" | "canShow">>;
   bb?: number;
+  variant?: Variant;
 }): View {
   const bb = o.bb ?? 20;
   const board = c(o.board ?? "");
   const legal: LegalActions | null =
-    o.legal === null ? null : { check: true, call: 0, minRaiseTo: 2 * bb, maxRaiseTo: 1500, opening: true, ...o.legal };
+    o.legal === null ? null : { check: true, call: 0, minRaiseTo: 2 * bb, maxRaiseTo: 1500, maxIsAllIn: true, opening: true, ...o.legal };
   const others = Array.from({ length: o.opponents ?? 1 }, (_, i) => player(`o${i}`, o.others));
   const pub = {
+    variant: o.variant ?? "holdem",
     step: board.length === 0 ? "preflop" : board.length === 3 ? "flop" : board.length === 4 ? "turn" : "river",
     handNumber: 1,
     level: 1,
@@ -138,6 +142,26 @@ describe("holdemBot preflop", () => {
     expect(preflopTier(...(c("7s 2d") as [never, never]))).toBe(5);
   });
 
+  it("draws the Short Deck tiers from the 36 cards", () => {
+    const shares = (variant: "holdem" | "shortdeck") => {
+      const deck = makeDeck(variant);
+      const counts = [0, 0, 0, 0, 0];
+      for (let a = 0; a < deck.length; a++) for (let b = a + 1; b < deck.length; b++) counts[preflopTier(deck[a]!, deck[b]!, variant) - 1]!++;
+      return counts;
+    };
+    // All 630 two-card hands: about half are trash (tier 5).
+    expect(shares("shortdeck")).toEqual([50, 32, 142, 78, 328]);
+    // Hold'em's tiers over all 1,326 hands stay as they were.
+    expect(shares("holdem")).toEqual([50, 38, 182, 204, 852]);
+    const tier = (hand: string) => preflopTier(...(c(hand) as [never, never]), "shortdeck");
+    expect(tier("6s 6d")).toBe(4); // the lowest pair; 2-2 is tier 3 in Hold'em
+    expect(tier("8s 8d")).toBe(2);
+    expect(tier("9h 8h")).toBe(4);
+    expect(tier("7h 6h")).toBe(5); // small suited cards: tier 4 in Hold'em
+    expect(tier("Kh 7h")).toBe(5);
+    expect(tier("As Kd")).toBe(1);
+  });
+
   it("raises a strong hand to about 3 big blinds", () => {
     const v = view({ hole: "Qs Qd", opponents: 5, currentBet: 20, legal: { check: false, call: 20, minRaiseTo: 40 } });
     expect(holdemBot.decide(v, high)).toEqual({ type: "raise", to: 60 });
@@ -193,9 +217,10 @@ describe("holdemBot after the flop", () => {
 
   it("can raise back with good equity facing a bet, not only go all-in", () => {
     // Facing a bet with 2 opponents, equity of about 0.77 is under the all-in line (0.8).
+    const lines = POSTFLOP_LINES.holdem;
     for (const opponents of [1, 2, 4]) {
-      expect(raiseThreshold(opponents, 100)).toBeLessThan(0.77);
-      expect(raiseThreshold(opponents, 0)).toBeLessThan(raiseThreshold(opponents, 100));
+      expect(raiseThreshold(opponents, 100, lines)).toBeLessThan(0.77);
+      expect(raiseThreshold(opponents, 0, lines)).toBeLessThan(raiseThreshold(opponents, 100, lines));
     }
   });
 
@@ -215,6 +240,7 @@ describe("holdemBot after the flop", () => {
         call: owed,
         minRaiseTo: canRaise ? Math.min(currentBet + 20 * (1 + rng(10)), max) : null,
         maxRaiseTo: canRaise ? max : null,
+        maxIsAllIn: true,
         opening: currentBet === 0,
       };
       const v = view({ opponents: 1 + rng(6), currentBet, pot: currentBet + rng(5000), me: { stack, bet: myBet }, legal });
@@ -248,6 +274,103 @@ describe("holdemBot after the flop", () => {
   });
 });
 
+describe("holdemBot lines after the flop", () => {
+  it("keeps one table of lines, one row per game", () => {
+    // Tuned by simulation: see test/sim-report.test.ts. Change them only with new numbers from it.
+    const shared = { raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 2, callCap: 0.2, bluff: 9 };
+    expect(POSTFLOP_LINES).toEqual({
+      holdem: { ...shared, raiseHeadsUp: 0.58 },
+      omaha: { ...shared, raiseHeadsUp: 0.55 },
+      shortdeck: { ...shared, raiseHeadsUp: 0.55 },
+    });
+    expect(Object.isFrozen(POSTFLOP_LINES) && Object.values(POSTFLOP_LINES).every(Object.isFrozen)).toBe(true);
+    for (const lines of Object.values(POSTFLOP_LINES)) {
+      for (const opponents of [1, 2, 5]) {
+        expect(raiseThreshold(opponents, 0, lines)).toBeLessThan(raiseThreshold(opponents, 100, lines));
+        expect(raiseThreshold(opponents, 100, lines)).toBeLessThan(lines.allIn);
+      }
+    }
+  });
+
+  it("needs about twice break-even to call a small bet, and less for a big one", () => {
+    for (const lines of Object.values(POSTFLOP_LINES)) {
+      // A quarter of the pot: break-even 1/6, the call needs twice that.
+      expect(callLine(100, 500, lines)).toBeCloseTo(1 / 3);
+      // The pot: break-even 1/3, the call needs 0.53, not 0.67.
+      expect(callLine(100, 200, lines)).toBeCloseTo(1 / 3 + 0.2);
+      // Twice the pot: break-even 0.4, the call needs 0.6, not 0.8.
+      expect(callLine(200, 300, lines)).toBeCloseTo(0.6);
+      // However big the bet, a call never needs more than break-even plus the cap.
+      for (const owed of [50, 300, 1000, 10_000]) {
+        expect(callLine(owed, 100 + owed, lines) - owed / (100 + 2 * owed)).toBeLessThanOrEqual(lines.callCap + 1e-9);
+      }
+    }
+  });
+
+  it.each([
+    // [bet as a share of the pot, most folds]. Without the cap it folds about 64% to the pot and 72% to twice it.
+    [1, 0.55],
+    [2, 0.65],
+  ])("calls a big bet heads-up with a fair share of hands it plays: %ix the pot", (size, most) => {
+    // People bet big and go all-in a lot. On a random flop, with a hand it would play, it must not fold most of the time.
+    const rng = seededRandomInt(5);
+    const bet = 100 * size;
+    let faced = 0;
+    let folds = 0;
+    while (faced < 300) {
+      const deck = shuffle(makeDeck(), rng);
+      if (preflopTier(deck[0]!, deck[1]!) > 4) continue;
+      const hole = [deck[0]!, deck[1]!];
+      const board = deck.slice(2, 5);
+      const v = view({ opponents: 1, pot: 100 + bet, currentBet: bet, legal: { check: false, call: bet, minRaiseTo: 2 * bet } });
+      const move = holdemBot.decide({ ...v, public: { ...v.public, board }, private: { ...v.private, hole } }, steady(faced));
+      faced++;
+      if (move?.type === "fold") folds++;
+    }
+    expect(folds / faced).toBeLessThan(most);
+    expect(folds / faced).toBeGreaterThan(0.25);
+  });
+
+  it("still bluffs sometimes: a bet with nothing, checked to heads-up", () => {
+    let bets = 0;
+    const tries = 300;
+    for (let seed = 1; seed <= tries; seed++) {
+      const move = holdemBot.decide(view({ hole: "7s 2d", board: "Ac Kd 9h", opponents: 1, pot: 200 }), steady(seed));
+      if (move?.type === "raise" || move?.type === "all-in") bets++;
+    }
+    expect(bets / tries).toBeGreaterThan(0.03);
+    expect(bets / tries).toBeLessThan(0.2);
+  });
+
+  // Loose bands, so a later change can't make the bot absurd. Normal small-stakes play at 6:
+  // VPIP 20 to 35%, to showdown 25 to 35% of flops seen. Before the flop the bot is much looser than
+  // that (about 40% in Hold'em, 50% in Omaha and Short Deck), so its VPIP band is wide.
+  const runs = [
+    ["holdem", 6, 400],
+    ["omaha", 6, 100],
+    ["shortdeck", 6, 400],
+    ["holdem", 2, 600],
+  ] as const;
+  it.each(runs)("plays like a friendly, decent player: %s at %i seats", (variant, players, hands) => {
+    const run = simulate({ variant, bots: Array.from({ length: players }, () => holdemBot), hands, seed: 3 });
+    expect(run.rejected).toBe(0);
+    const s = summarize(run.seats.reduce(addStats, emptyStats()));
+    const at = `${variant} at ${players}: ${JSON.stringify(s)}`;
+    const heads = players === 2;
+    expect(s.vpip, at).toBeGreaterThan(heads ? 40 : 15);
+    expect(s.vpip, at).toBeLessThan(heads ? 85 : 60);
+    expect(s.pfr, at).toBeGreaterThan(5);
+    expect(s.pfr, at).toBeLessThan(s.vpip);
+    expect(s.wtsd, at).toBeGreaterThan(heads ? 10 : 20);
+    expect(s.wtsd, at).toBeLessThan(50);
+    expect(s.foldToBet, at).toBeGreaterThan(35);
+    expect(s.foldToBet, at).toBeLessThan(80);
+    expect(s.afFlop, at).toBeGreaterThan(1);
+    expect(s.afFlop, at).toBeLessThan(8);
+    expect(s.allIn, at).toBeLessThan(15);
+  }, 30_000);
+});
+
 describe("holdemBot hand reading", () => {
   // As the table plays it: two hole cards each and five shared board cards.
   it("scores hands in the same order as the game", () => {
@@ -261,6 +384,37 @@ describe("holdemBot hand reading", () => {
         Math.sign(compareHands(bestHand(a), bestHand(b))),
       );
     }
+  });
+
+  it("scores Short Deck hands in the same order as the game, on 36-card deals", () => {
+    const rng = seededRandomInt(8);
+    let flushVsFull = 0;
+    for (let i = 0; i < 3000; i++) {
+      const cards = shuffle(makeDeck("shortdeck"), rng);
+      const board = cards.slice(4, 9);
+      const a = [...cards.slice(0, 2), ...board];
+      const b = [...cards.slice(2, 4), ...board];
+      const va = bestHand(a, "shortdeck");
+      const vb = bestHand(b, "shortdeck");
+      if (new Set([va.category, vb.category]).size === 2 && [va.category, vb.category].every((k) => k === 5 || k === 6)) flushVsFull++;
+      expect(Math.sign(handScore(a, "shortdeck") - handScore(b, "shortdeck")), `${a.map((x) => x.id)} vs ${b.map((x) => x.id)}`).toBe(
+        Math.sign(compareHands(va, vb)),
+      );
+    }
+    // The deals met the changed order: a flush against a full house.
+    expect(flushVsFull).toBeGreaterThan(0);
+  });
+
+  it("deals Short Deck equity from the 36 cards", () => {
+    const maxes: number[] = [];
+    const rng = seededRandomInt(3);
+    const spy = (max: number) => (maxes.push(max), rng(max));
+    equity("shortdeck", c("As Kd"), c("6c 7s 8d"), [null], 10, spy);
+    // 36 cards, 5 known: the first draw of each deal picks from 31.
+    expect(Math.max(...maxes)).toBe(31);
+    // A-6-7-8-9 is a straight: it beats three Kings, and loses to a higher straight.
+    expect(equity("shortdeck", c("Ah 9d"), c("6c 7s 8d Kh Kc"), [c("Ks Qd")], 10, seededRandomInt(1))).toBe(1);
+    expect(equity("shortdeck", c("Ah 9d"), c("6c 7s 8d Kh Kc"), [c("9s Tc")], 10, seededRandomInt(1))).toBe(0);
   });
 
   it.each([
@@ -287,18 +441,169 @@ describe("holdemBot hand reading", () => {
   it("uses face-up cards and deals only the hidden ones", () => {
     const board = c("Kh 8d 3c 2s 5h");
     // Their Aces are face up: a pair of Kings loses to them, three Kings beat them.
-    expect(equity(c("Ks 7d"), board, [c("As Ad")], 200, seededRandomInt(1))).toBe(0);
-    expect(equity(c("Ks Kd"), board, [c("As Ad")], 200, seededRandomInt(1))).toBe(1);
+    expect(equity("holdem", c("Ks 7d"), board, [c("As Ad")], 200, seededRandomInt(1))).toBe(0);
+    expect(equity("holdem", c("Ks Kd"), board, [c("As Ad")], 200, seededRandomInt(1))).toBe(1);
     // A tie splits.
-    expect(equity(c("Ac 4d"), board, [c("As 4c")], 200, seededRandomInt(1))).toBe(0.5);
+    expect(equity("holdem", c("Ac 4d"), board, [c("As 4c")], 200, seededRandomInt(1))).toBe(0.5);
   });
 
   it("finds about the right share against hidden hands", () => {
-    const aces = equity(c("As Ad"), [], [null], 200, seededRandomInt(2));
+    const aces = equity("holdem", c("As Ad"), [], [null], 200, seededRandomInt(2));
     expect(aces).toBeGreaterThan(0.75);
     expect(aces).toBeLessThan(0.95);
-    const trash = equity(c("7s 2d"), [], [null, null, null, null], 200, seededRandomInt(2));
+    const trash = equity("holdem", c("7s 2d"), [], [null, null, null, null], 200, seededRandomInt(2));
     expect(trash).toBeLessThan(0.2);
+  });
+});
+
+describe("holdemBot in Omaha", () => {
+  const omaha = { variant: "omaha" } as const;
+  /** The middle of 21 timed decisions, in ms, after a few to warm up. */
+  const medianMs = (v: View) => {
+    for (let i = 0; i < 5; i++) holdemBot.decide(v, steady(i));
+    const times: number[] = [];
+    for (let i = 0; i < 21; i++) {
+      const start = performance.now();
+      holdemBot.decide(v, steady(i));
+      times.push(performance.now() - start);
+    }
+    times.sort((a, b) => a - b);
+    return times[10]!;
+  };
+
+  it("ranks starting hands by pairs, suits, close ranks and high cards across all 4", () => {
+    expect(omahaPreflopTier(c("As Ks Ah Kh"))).toBe(1); // two pairs, two suits, all high
+    expect(omahaPreflopTier(c("Ks Qs Jh Th"))).toBe(1); // four in a row, two suits
+    expect(omahaPreflopTier(c("Qs Jh Ts 9h"))).toBe(2); // four in a row, two suits
+    expect(omahaPreflopTier(c("Jh Th 9c 8d"))).toBe(3); // four in a row, one suit
+    expect(omahaPreflopTier(c("As Ad 7c 2h"))).toBe(2); // Aces, nothing else
+    // Middle runs with two suits play at least as well as A-2-3-4 with two suits.
+    expect(omahaPreflopTier(c("6s 7h 8s 9h"))).toBe(3);
+    expect(omahaPreflopTier(c("8s 7s 6h 5h"))).toBe(3);
+    // Low runs make low straights, which lose to higher ones.
+    expect(omahaPreflopTier(c("3c 4c 5d 6d"))).toBe(4);
+    expect(omahaPreflopTier(c("2c 3c 4d 5d"))).toBeGreaterThanOrEqual(4);
+    expect(omahaPreflopTier(c("As 2s 3h 4h"))).toBe(3);
+    expect(omahaPreflopTier(c("9s 9d 9h 2c"))).toBeGreaterThanOrEqual(4); // three of a kind blocks itself
+    expect(omahaPreflopTier(c("Kc 8d 4h 2s"))).toBe(5); // nothing works together
+  });
+
+  it("throws away about half of all starting hands", () => {
+    const rng = seededRandomInt(11);
+    const counts = [0, 0, 0, 0, 0, 0];
+    const n = 20_000;
+    for (let i = 0; i < n; i++) counts[omahaPreflopTier(shuffle(makeDeck(), rng).slice(0, 4))]!++;
+    const share = (tier: number) => counts[tier]! / n;
+    expect(share(5)).toBeGreaterThan(0.38);
+    expect(share(5)).toBeLessThan(0.52);
+    expect(share(1)).toBeLessThan(0.07);
+    expect(share(1) + share(2)).toBeLessThan(0.18);
+  });
+
+  it("raises a top starting hand and folds trash to a raise", () => {
+    const raise = view({ ...omaha, hole: "As Ks Ah Kh", opponents: 5, currentBet: 20, legal: { check: false, call: 20, minRaiseTo: 40, maxRaiseTo: 70, maxIsAllIn: false } });
+    expect(holdemBot.decide(raise, high)).toEqual({ type: "raise", to: 60 });
+    const trash = view({ ...omaha, hole: "Kc 8d 4h 2s", opponents: 5, currentBet: 200, pot: 230, legal: { check: false, call: 200, minRaiseTo: 380, maxRaiseTo: 630, maxIsAllIn: false } });
+    expect(holdemBot.decide(trash, high)).toEqual({ type: "fold" });
+  });
+
+  it("bets the pot, not all-in, with the best hand under the pot limit", () => {
+    // A royal flush: As Ks in hand, Qs Js Ts on the board.
+    const v = view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 2, pot: 300, legal: { maxRaiseTo: 300, maxIsAllIn: false } });
+    expect(holdemBot.decide(v, steady())).toEqual({ type: "raise", to: 300 });
+    const allIn = view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 2, pot: 300, me: { stack: 200 }, legal: { maxRaiseTo: 200, maxIsAllIn: true } });
+    expect(holdemBot.decide(allIn, steady())).toEqual({ type: "all-in" });
+  });
+
+  it("reads hands by the 2+3 rule", () => {
+    const board = c("Ah Kh 7h 2h 9c");
+    // One heart in hand is no flush: their pair of Aces wins every time.
+    expect(equity("omaha", c("Qh 3s 4d 8c"), board, [c("Ac 5d 6s Tc")], 50, seededRandomInt(1))).toBe(0);
+    // Two hearts in hand is a flush.
+    expect(equity("omaha", c("Qh 3h 4d 8c"), board, [c("Ac 5d 6s Tc")], 50, seededRandomInt(1))).toBe(1);
+    // Hidden hands get 4 cards: Aces against 8 hidden hands is far from a sure thing.
+    const aces = equity("omaha", c("As Ad 7c 2h"), [], [null, null, null, null, null, null, null, null], equityTrials("omaha", 8), seededRandomInt(2));
+    expect(aces).toBeGreaterThan(0.05);
+    expect(aces).toBeLessThan(0.4);
+  });
+
+  it("scores Omaha hands in the same order as the game", () => {
+    const rng = seededRandomInt(6);
+    for (let i = 0; i < 1000; i++) {
+      const cards = shuffle(makeDeck(), rng);
+      const board = cards.slice(8, 13);
+      const a = cards.slice(0, 4);
+      const b = cards.slice(4, 8);
+      const at = `${a.map((x) => x.id)} vs ${b.map((x) => x.id)} on ${board.map((x) => x.id)}`;
+      expect(Math.sign(handScoreFor("omaha", a, board) - handScoreFor("omaha", b, board)), at).toBe(
+        Math.sign(compareHands(bestHandFor("omaha", a, board), bestHandFor("omaha", b, board))),
+      );
+    }
+  });
+
+  it("never makes an illegal move under the pot limit", () => {
+    const rng = seededRandomInt(98);
+    for (let i = 0; i < 300; i++) {
+      const cards = shuffle(makeDeck(), rng);
+      const boardSize = [0, 3, 4, 5][rng(4)]!;
+      const currentBet = rng(3) === 0 ? 0 : 20 * (1 + rng(30));
+      const myBet = rng(2) ? 0 : Math.min(currentBet, 20 * rng(5));
+      const stack = 1 + rng(3000);
+      const pot = currentBet + rng(2000);
+      const owed = Math.min(Math.max(0, currentBet - myBet), stack);
+      const all = myBet + stack;
+      const cap = Math.min(all, Math.max(currentBet + pot + owed, currentBet + 20));
+      const canRaise = all > currentBet && rng(4) > 0;
+      const legal: LegalActions = {
+        check: owed === 0,
+        call: owed,
+        minRaiseTo: canRaise ? Math.min(currentBet + 20 * (1 + rng(10)), cap) : null,
+        maxRaiseTo: canRaise ? cap : null,
+        maxIsAllIn: cap === all,
+        opening: currentBet === 0,
+      };
+      const v = view({ variant: "omaha", opponents: 1 + rng(8), currentBet, pot, me: { stack, bet: myBet }, legal });
+      const pub = { ...v.public, board: cards.slice(4, 4 + boardSize) };
+      const move = holdemBot.decide({ ...v, public: pub, private: { ...v.private, hole: cards.slice(0, 4) } }, { randomInt: rng, chance: () => 50 });
+      const at = `case ${i}: ${JSON.stringify(legal)} -> ${JSON.stringify(move)}`;
+      expect(move, at).not.toBeNull();
+      if (move!.type === "check") expect(legal.check, at).toBe(true);
+      if (move!.type === "call") expect(legal.call, at).toBeGreaterThan(0);
+      if (move!.type === "raise") {
+        expect(Number.isInteger(move!.to), at).toBe(true);
+        expect(move!.to, at).toBeGreaterThanOrEqual(legal.minRaiseTo!);
+        expect(move!.to, at).toBeLessThanOrEqual(legal.maxRaiseTo!);
+      }
+      // All-in past the pot limit is refused.
+      if (move!.type === "all-in") expect((legal.maxRaiseTo !== null && legal.maxIsAllIn) || legal.call > 0, at).toBe(true);
+    }
+  });
+
+  it("keeps to its budget of hand reads, whatever the table size", () => {
+    // Each deal reads my hand and every opponent's (60 fives each). The budget caps reads per decision.
+    for (let n = 1; n <= 8; n++) expect(equityTrials("omaha", n) * (n + 1), `${n} opponents`).toBeLessThanOrEqual(OMAHA_HAND_READS);
+    // About 3 ms at worst on a laptop (5 ms is the target). Doubling the budget must fail here.
+    expect(OMAHA_HAND_READS).toBeLessThanOrEqual(300);
+  });
+
+  it("draws exactly its budget of deals in a decision: the flop, 8 opponents", () => {
+    // A royal flush on the flop: no deal ends early. Each deal draws 2 board cards and 4 cards for each of 8.
+    const v = view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 8, pot: 500 });
+    let draws = 0;
+    const rng = seededRandomInt(1);
+    const ctx: BotContext = { randomInt: (max) => (draws++ === 0 ? max - 1 : rng(max)), chance: () => 99 };
+    holdemBot.decide(v, ctx);
+    const perDeal = 2 + 4 * 8;
+    // The slip roll, the deals, and a roll for the raise size.
+    expect(draws).toBeGreaterThanOrEqual(1 + equityTrials("omaha", 8) * perDeal);
+    expect(draws).toBeLessThanOrEqual(3 + equityTrials("omaha", 8) * perDeal);
+  });
+
+  it("decides well under 20 ms at worst: the flop, 8 opponents, a hand that cannot lose", () => {
+    // A smoke test only: a slow, busy test machine must not fail it. The budget test above pins the work.
+    const flop = medianMs(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts", opponents: 8, pot: 500 }));
+    const river = medianMs(view({ ...omaha, hole: "As Ks 7c 8d", board: "Qs Js Ts 2h 3d", opponents: 8, pot: 500 }));
+    for (const t of [flop, river]) expect(t).toBeLessThan(20);
   });
 });
 
@@ -318,9 +623,9 @@ const passive = (view: View): HoldemAction | null => {
 
 describe("holdemBot all-bot games", () => {
   // Table size is capped at 7 (Ruling P2-E). A game takes about 50 moves heads-up and about 350 at 7
-  // (10 to 40 hands: the blinds go up every 6 hands). So 200 seeds at 2 and 4 players, and 100 at 7,
-  // the biggest and slowest table. Hold'em may take up to about 60 s for this file; aim well under.
-  // Only the rebuy setting adds a move; it runs at 50 seeds.
+  // (10 to 40 hands: the blinds go up every 6 hands). So 120 seeds heads-up, 100 at 4 players, and 50
+  // at 7, the biggest and slowest table. This file should take under about 60 s; aim well under.
+  // Only the rebuy setting adds a move; it runs at 25 seeds.
   const check = (def: AnyGameDefinition, players: number, name: string, s: Partial<HoldemSettings>, seed: number) => {
     const run = playBots(def, { players, seed, settings: { ...DEFAULT_SETTINGS, ...s }, maxMoves: 20_000 });
     const at = `${name} seed ${seed}, ${players} players`;
@@ -332,13 +637,34 @@ describe("holdemBot all-bot games", () => {
   };
   const m = holdemGame.manifest;
   const sizes = [...new Set([m.minPlayers, m.bestMinPlayers ?? m.minPlayers, Math.min(m.maxPlayers, 7)])];
-  const seedsAt = (players: number) => (players >= 7 ? 100 : 200);
+  const seedsAt = (players: number) => (players >= 7 ? 50 : players >= 4 ? 100 : 120);
   it.each(sizes)("games finish with %i players", (players) => {
     for (let seed = 1; seed <= seedsAt(players); seed++) check(holdemGame, players, "defaults", {}, seed);
   }, 60_000);
 
+  // Omaha decisions read 60 fives a hand, and pot-limit games run longer: fewer seeds, about 4 s each size.
+  const omahaSeeds: Record<number, number> = { 2: 24, 4: 10, 7: 6 };
+  it.each(sizes)("Omaha games finish with %i players", (players) => {
+    for (let seed = 1; seed <= (omahaSeeds[players] ?? 20); seed++) check(holdemGame, players, "omaha", { variant: "omaha" }, seed);
+  }, 60_000);
+
+  it.each(sizes)("Short Deck games finish with %i players, and bots only see cards 6 to Ace", (players) => {
+    const low = (cards: readonly { rank: number }[] | null) => (cards ?? []).some((x) => x.rank < 6);
+    const watched: AnyGameDefinition = {
+      ...holdemGame,
+      bot: {
+        decide(view, ctx) {
+          const v = view as View;
+          if (low(v.private.hole) || low(v.public.board) || v.public.players.some((p) => low(p.cards))) throw new Error("a card under 6");
+          return holdemBot.decide(v, ctx);
+        },
+      },
+    };
+    for (let seed = 1; seed <= (players >= 7 ? 25 : 50); seed++) check(watched, players, "shortdeck", { variant: "shortdeck" }, seed);
+  }, 60_000);
+
   it("games finish with rebuys", () => {
-    for (let seed = 1; seed <= 50; seed++) check(holdemGame, 4, "rebuys", { rebuys: "early" }, seed);
+    for (let seed = 1; seed <= 25; seed++) check(holdemGame, 4, "rebuys", { rebuys: "early" }, seed);
   }, 30_000);
 
   // Review Focus 4: the person busts (and does not buy back in), and the bots play on to the end.

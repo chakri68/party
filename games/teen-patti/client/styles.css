@@ -1,0 +1,391 @@
+/* Teen Patti. Chips drawn like Hold'em's. Uses the shell's tokens (--surface, --line, --card, --card-ink, --red, --danger, --accent, --muted).
+   Everything is tp- prefixed or under .teen-patti: other games' stylesheets may be loaded in the same tab.
+   The cards themselves are @games/ui's (cards.css), sized here. */
+
+.teen-patti {
+  --pcard-w: 50px;
+  --pcard-h: 72px;
+  --pcard-radius: 7px;
+  --pcard-corner: 0.85rem;
+  --pcard-corner-y: 3px;
+  --pcard-corner-x: 4px;
+  --pcard-pip: 1.6rem;
+  --pcard-face: 1.35rem;
+  --hand-w: 56px;
+  --hand-h: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Level line + turn indicator ----------------------------------------- */
+
+.tp-info {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tp-cap { white-space: nowrap; }
+
+.tp-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+/* The text wraps, so a long name stays inside the banner. */
+.tp-status > span { min-width: 0; overflow-wrap: anywhere; text-align: center; }
+.teen-patti.my-turn .tp-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.1rem;
+}
+
+/* ---- Seats: a compact grid, two across on a phone ------------------------- */
+
+.tp-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.tp-seat {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The three cards get a row under the name, so a name and the D badge keep the width. */
+  grid-template-areas:
+    "face name name"
+    "face stack sight"
+    ". cards cards"
+    ". bet bet";
+  align-items: center;
+  column-gap: 7px;
+  row-gap: 2px;
+  min-height: 64px;
+  padding: 6px 8px 7px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.tp-seat > .avatar { grid-area: face; }
+.tp-seat.current { border-color: var(--accent); background: var(--accent-soft); }
+.tp-seat.won { border-color: var(--accent); }
+.tp-seat.idle .tp-seat-name, .tp-seat.idle .tp-seat-stack { opacity: 0.6; }
+.tp-seat.gone { opacity: 0.45; }
+.tp-seat.away > .avatar { opacity: 0.5; }
+
+.tp-seat-name {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.tp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tp-seat-stack {
+  grid-area: stack;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tp-seat-cards { grid-area: cards; display: flex; gap: 2px; justify-self: start; min-height: 26px; }
+.tp-seat > .tp-sight { grid-area: sight; justify-self: end; }
+.tp-seat-bet {
+  grid-area: bet;
+  justify-self: start;
+  min-height: 1.2em;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tp-seat-bet .tp-chip { width: 13px; height: 13px; }
+.tp-gain { color: var(--accent); }
+
+.tp-badge {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.tp-badge.d { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tp-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.tp-tag.hot { color: var(--danger); }
+
+/* Whose turn: drains along the seat's bottom edge. */
+.tp-seat-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--line);
+}
+.tp-seat-bar span, .tp-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+.tp-seat-bar.low span, .tp-bar.low span { background: var(--danger); }
+
+/* Seat-sized cards (.pcard-mini): rank over suit. */
+.teen-patti .pcard-mini.flip { animation: tp-flip 380ms cubic-bezier(.2, .8, .2, 1) backwards; }
+
+/* ---- Table: pot, stake, last hand ------------------------------------------ */
+
+.tp-table {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.tp-middle { display: grid; justify-items: center; gap: 4px; min-height: 1.6em; }
+.tp-pot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.tp-pot .tp-chip { width: 18px; height: 18px; }
+.tp-pots { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tp-side { white-space: nowrap; }
+.tp-summary { margin: 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+.tp-summary.now { color: var(--ink); font-weight: 700; font-size: 0.95rem; }
+.tp-summary.pop { animation: tp-pop 320ms cubic-bezier(.2, .8, .2, 1.3); }
+@keyframes tp-pop { from { transform: scale(0.85); opacity: 0; } }
+
+/* Showdown: one row per hand that went the distance. */
+.tp-showdown { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; width: 100%; max-width: 420px; }
+.tp-sd-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  transition: border-color 200ms, background-color 200ms, opacity 250ms, filter 250ms;
+}
+.tp-sd-row.enter { animation: tp-sd-in 280ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes tp-sd-in { from { transform: translateY(6px); opacity: 0; } }
+.tp-sd-row.on { border-color: var(--ink); }
+.tp-sd-row.won { border-color: var(--accent); background: var(--accent-soft); }
+.tp-sd-row.lost { opacity: 0.55; filter: saturate(0.5); }
+.tp-sd-who { display: grid; min-width: 0; line-height: 1.2; }
+.tp-sd-who b, .tp-sd-who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-sd-who b { font-size: 0.85rem; }
+.tp-sd-who span { font-size: 0.75rem; color: var(--muted); }
+.tp-sd-row.won .tp-sd-who span { color: var(--ink); font-weight: 700; }
+.tp-sd-cards { display: flex; gap: 3px; }
+.tp-sd-won { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); font-size: 0.9rem; }
+.tp-sd-won:empty { display: none; }
+.tp-step { margin: 0; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Cards ------------------------------------------------------------------- */
+
+.teen-patti .pcard { transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.teen-patti .pcard.flip { animation: tp-flip 420ms cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes tp-flip {
+  from { transform: rotateY(90deg) scale(1.08); }
+}
+
+/* ---- Chips -------------------------------------------------------------------- */
+
+.tp-chip { display: inline-block; flex: 0 0 auto; width: 16px; height: 16px; color: var(--accent); line-height: 0; }
+.tp-chip svg { display: block; }
+.tp-chip-fly { color: var(--accent); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.5)); }
+
+/* ---- Log + dock --------------------------------------------------------------- */
+
+.tp-log { margin: 0; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.9rem; }
+
+.tp-dock {
+  position: sticky;
+  bottom: 0;
+  margin: auto -16px 0;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 88%, transparent);
+  display: grid;
+  gap: 8px;
+}
+.teen-patti.over .tp-dock { position: static; background: none; }
+
+.tp-me { display: flex; align-items: center; gap: 12px; min-height: var(--hand-h); }
+.tp-hand { display: flex; gap: 6px; flex: 0 0 auto; --pcard-w: var(--hand-w); --pcard-h: var(--hand-h); --pcard-corner: 0.95rem; }
+.tp-hand.packed .pcard { filter: brightness(0.5) saturate(0.4); }
+.tp-me-text { display: grid; gap: 3px; min-width: 0; }
+.tp-label { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
+.tp-me-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tp-me-stack > span:nth-child(2) { color: var(--ink); font-weight: 700; }
+
+/* Your clock. */
+.tp-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+
+.tp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 48px; }
+.tp-actions .hint { flex: 1; color: var(--muted); font-size: 0.9rem; }
+.tp-actions button { min-height: 52px; padding-inline: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-actions button.tp-pack { color: var(--danger); }
+/* The price on a line of its own, under the word: "Sideshow 2,560" fits a third of a phone. */
+.tp-actions .tp-price { display: block; font-size: 0.9em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+/* Your turn: thumb-sized buttons, two or three across, the price on each. */
+.tp-actions.move-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.tp-actions button.tp-see, .tp-actions .tp-see { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: var(--accent); color: var(--accent); }
+.tp-actions:not(.move-grid) .tp-see { min-width: 96px; }
+
+/* ---- Blind and Seen ------------------------------------------------------------ */
+
+.tp-icon { display: inline-flex; flex: 0 0 auto; line-height: 0; }
+.tp-sight {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.tp-sight.seen { border-color: var(--ink); color: var(--ink); }
+.tp-me-text > .tp-sight { justify-self: start; }
+
+.tp-stake { font-size: 0.8rem; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Cards you saw in a Sideshow, this hand. */
+.tp-peeks { display: grid; gap: 4px; }
+.tp-peek {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "who cards" "label cards";
+  align-items: center;
+  column-gap: 8px;
+  padding: 5px 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.8rem;
+}
+.tp-peek-who { grid-area: who; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.tp-peek-label { grid-area: label; font-weight: 700; }
+.tp-peek .tp-sd-cards { grid-area: cards; }
+
+
+/* ---- Bubbles ------------------------------------------------------------------ */
+
+.anim-bubble.tp-hot-bubble { background: var(--danger); color: #1b0606; }
+.anim-bubble.tp-win-bubble { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- Bigger screens ------------------------------------------------------------ */
+
+@media (min-width: 520px) {
+  .tp-seats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 700px) {
+  .teen-patti {
+    --pcard-w: 70px;
+    --pcard-h: 100px;
+    --pcard-corner: 1.05rem;
+    --pcard-pip: 2.2rem;
+    --pcard-face: 1.9rem;
+    --pcard-mini-w: 23px;
+    --pcard-mini-h: 32px;
+    --pcard-mini-rank: 0.82rem;
+    --pcard-mini-suit: 0.72rem;
+    --hand-w: 76px;
+    --hand-h: 108px;
+    gap: 14px;
+  }
+  .tp-seat { min-height: 60px; padding: 8px 10px 9px; }
+  .tp-seat-name { font-size: 0.95rem; }
+  .tp-table { padding: 22px 20px 16px; gap: 12px; }
+  .tp-pot { font-size: 1.2rem; }
+  .tp-hand { --pcard-corner: 1.1rem; }
+  /* Room to breathe: the actions sit beside your cards. */
+  .tp-dock { grid-template-columns: auto minmax(0, 1fr); align-items: end; column-gap: 16px; }
+  .tp-peeks { grid-column: 1 / -1; grid-row: 1; }
+  .tp-bar { grid-column: 1 / -1; grid-row: 2; }
+  .tp-me { grid-column: 1; grid-row: 3; }
+  .tp-actions { grid-column: 2; grid-row: 3; min-width: 0; }
+}
+
+/* Phone held sideways: a short screen. Phone-size cards, and the hand beside its
+   label and buttons, so the dock leaves the table in view. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .teen-patti { --pcard-w: 50px; --pcard-h: 72px; --pcard-pip: 1.9rem; --pcard-face: 1.6rem; --hand-w: 50px; --hand-h: 72px; gap: 8px; }
+  .teen-patti, .tp-hand { --pcard-corner: 0.95rem; }
+  .tp-table { padding: 10px 12px 8px; gap: 8px; }
+  .tp-dock { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); row-gap: 4px; }
+}
+
+/* ---- Feedback ------------------------------------------------------------------ */
+
+.teen-patti .shake { animation: tp-shake 300ms ease; }
+@keyframes tp-shake {
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teen-patti .shake { animation: none; outline: 2px solid var(--red); }
+  .teen-patti .pcard, .tp-seat { transition: none; }
+  .teen-patti .pcard.flip, .teen-patti .pcard-mini.flip { animation: none; }
+  .tp-sd-row, .tp-sd-row.enter, .tp-summary.pop { animation: none; transition: none; }
+  .tp-seat-bar span, .tp-bar span { transition: none; }
+}

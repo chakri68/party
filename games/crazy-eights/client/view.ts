@@ -2,6 +2,7 @@ import { AnimationQueue, bubble, fly, once } from "@games/animation";
 import { audio } from "@games/audio";
 import type { Presence, RoomPublicState } from "@games/protocol";
 import { avatar, h, keepInRow, replaceChildren, seatName, withBotBadge, type GameClientApi, type GameView, type GameViewProps } from "@games/ui";
+import { isRedSuit, SUIT_NAME, SUIT_SYMBOL, withCardSizes } from "@games/ui/cards";
 import { compareCards } from "../shared/rules.ts";
 import {
   EIGHT,
@@ -12,7 +13,7 @@ import {
   type CrazyEightsPublicState,
   type Suit,
 } from "../shared/types.ts";
-import { cardBackFull, cardBackMini, cardFace, cardLabel, cardShort, handCard, isRed, SUIT_NAME, SUIT_SYMBOL } from "./cards.ts";
+import { cardBackFull, cardBackTiny, cardFace, cardLabel, cardShort, cardSlot, handCard } from "./cards.ts";
 
 const PRESENCE_LABEL: Record<Presence, string> = {
   connected: "",
@@ -104,7 +105,7 @@ export class CrazyEightsView implements GameView {
       ...SUITS.map((suit) =>
         h(
           "button",
-          { type: "button", class: `ce-pick${isRed(suit) ? " red" : ""}`, "aria-label": SUIT_NAME[suit], onclick: () => this.callSuit(suit) },
+          { type: "button", class: `ce-pick${isRedSuit(suit) ? " red" : ""}`, "aria-label": SUIT_NAME[suit], onclick: () => this.callSuit(suit) },
           h("span", { "aria-hidden": "true" }, SUIT_SYMBOL[suit]),
         ),
       ),
@@ -277,9 +278,7 @@ export class CrazyEightsView implements GameView {
       from = this.cardRectAt(this.anchorFor(playerId, this.props), to);
     }
     // Dressed as a table card, so the corners don't change size as it lands.
-    const ghost = cardFace(card);
-    ghost.classList.add("on-table");
-    await fly(ghost, from, to, 340, { handoff: true });
+    await fly(withCardSizes(cardFace(card), this.pile), from, to, 340, { handoff: true });
     // Land it now, so the next flight in this batch sees it on top.
     replaceChildren(this.pile, once(this.pileCard(card), "landed"));
   }
@@ -301,7 +300,7 @@ export class CrazyEightsView implements GameView {
     if (!props) return;
     const from = this.stock.getBoundingClientRect();
     if (playerId !== props.playerId) {
-      await fly(cardBackFull(), from, this.cardRectAt(this.anchorFor(playerId, props), from), 280);
+      await fly(withCardSizes(cardBackFull(), this.stock), from, this.cardRectAt(this.anchorFor(playerId, props), from), 280);
       return;
     }
     const hand = (props.private as CrazyEightsPrivateState | null)?.hand ?? [];
@@ -312,7 +311,7 @@ export class CrazyEightsView implements GameView {
     this.hand.insertBefore(btn, next ? this.cards.get(next.id)! : null);
     btn.scrollIntoView({ block: "nearest", inline: "nearest" });
     try {
-      await fly(cardBackFull(), from, btn.getBoundingClientRect(), 280);
+      await fly(withCardSizes(cardBackFull(), btn), from, btn.getBoundingClientRect(), 280);
     } finally {
       btn.style.visibility = "";
     }
@@ -379,7 +378,7 @@ export class CrazyEightsView implements GameView {
             h(
               "span",
               { class: "count" },
-              p.removed ? "left" : [cardBackMini(), ` ${p.cardCount}`],
+              p.removed ? "left" : [cardBackTiny(), ` ${p.cardCount}`],
               away ? h("span", { class: "away-label" }, ` · ${PRESENCE_LABEL[seat!.presence]}`) : null,
             ),
           ),
@@ -398,9 +397,12 @@ export class CrazyEightsView implements GameView {
       "aria-label",
       `Stock, ${game.stockCount} ${game.stockCount === 1 ? "card" : "cards"}${canDraw ? ". Draw a card" : ""}`,
     );
+    // An empty stock that can be reshuffled shows a ↻ in its spot.
+    const empty = cardSlot();
+    if (left) empty.append("↻");
     replaceChildren(
       this.stock,
-      game.stockCount ? cardBackFull() : h("span", { class: "ce-card slot", "aria-hidden": "true" }, left ? "↻" : ""),
+      game.stockCount ? cardBackFull() : empty,
       h("span", { class: "ce-stock-count", "aria-hidden": "true" }, game.stockCount ? String(game.stockCount) : left ? "reshuffle" : "empty"),
     );
 
@@ -410,7 +412,7 @@ export class CrazyEightsView implements GameView {
     // The suit to follow. Loud after an eight, since that's the one people miss.
     const suit = game.activeSuit;
     this.suitBadge.classList.toggle("called", !!game.calledSuit);
-    this.suitBadge.classList.toggle("red", isRed(suit));
+    this.suitBadge.classList.toggle("red", isRedSuit(suit));
     replaceChildren(
       this.suitBadge,
       h("span", { class: "sym", "aria-hidden": "true" }, SUIT_SYMBOL[suit]),
