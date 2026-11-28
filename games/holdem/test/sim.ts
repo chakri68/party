@@ -6,7 +6,7 @@
 // random source, apart from the bots' rolls: the same seed deals the same
 // cards whoever sits where, so two runs with the seats swapped can be paired.
 
-import { seededRandomInt, type BotContext, type GameBot, type GameContext } from "@games/game-core";
+import { seededRandomInt, stableHash, type BotContext, type GameBot, type GameContext } from "@games/game-core";
 import { STEP_TIMER, holdemGame } from "../server/game.ts";
 import { DEFAULT_SETTINGS, type HoldemAction, type HoldemPrivateState, type HoldemPublicState, type HoldemServerState, type Street, type Variant } from "../shared/types.ts";
 
@@ -87,8 +87,9 @@ export function simulate(opts: { variant: Variant; bots: Bot[]; hands: number; s
   const botRandom = seededRandomInt(opts.seed * 7919 + 17);
   let now = 1_000_000;
   const ctx = (): GameContext => ({ now, randomInt: dealRandom, hostId: "p0" });
-  const botCtx: BotContext = { randomInt: botRandom, chance: () => 50 };
   const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+  // As the room does: one answer per seat, game and key.
+  const botCtx = ids.map((id): BotContext => ({ randomInt: botRandom, chance: (key) => stableHash(`${opts.seed}:${id}:${key}`) % 100 }));
 
   const settings = { ...DEFAULT_SETTINGS, variant: opts.variant };
   let state: HoldemServerState = holdemGame.createGame(ids.map((id) => ({ id })), settings, { roundNumber: 1, dealerSeat: 0 }, ctx()).state as HoldemServerState;
@@ -117,7 +118,7 @@ export function simulate(opts: { variant: Variant; bots: Bot[]; hands: number; s
       const pub = holdemGame.getPublicState(s) as HoldemPublicState;
       const priv = holdemGame.getPrivateState(s, id) as HoldemPrivateState;
       const legal = priv.legal!;
-      const action = opts.bots[seat]!.decide({ playerId: id, public: pub, private: priv }, botCtx);
+      const action = opts.bots[seat]!.decide({ playerId: id, public: pub, private: priv }, botCtx[seat]!);
       if (!action) throw new Error(`seat ${seat} gave no move`);
       if (counting) {
         const st = seats[seat]!;
@@ -232,4 +233,39 @@ export function interval(samples: readonly number[]) {
   const variance = samples.reduce((x, y) => x + (y - mean) ** 2, 0) / (n - 1);
   const half = 1.96 * Math.sqrt(variance / n);
   return { n, mean: 100 * mean, low: 100 * (mean - half), high: 100 * (mean + half) };
+}
+
+/**
+ * How a person might push the bot around after the flop, whatever their cards:
+ * "half" bets half the pot and "pot" the pot whenever nothing is owed; "cbet"
+ * bets the pot on the flop only. Otherwise it plays like `bot`.
+ */
+export type Exploit = "half" | "pot" | "cbet";
+
+export function exploiter(bot: Bot, kind: Exploit): Bot {
+  return {
+    decide(view, ctx) {
+      const { public: pub, private: priv } = view;
+      const legal = priv.legal;
+      const open = legal && pub.board.length >= 3 && legal.call === 0 && legal.minRaiseTo !== null && legal.maxRaiseTo !== null;
+      if (!open || (kind === "cbet" && pub.board.length !== 3)) return bot.decide(view, ctx);
+      const to = Math.round(pub.currentBet + (kind === "half" ? 0.5 : 1) * pub.pot);
+      const size = Math.max(legal.minRaiseTo!, to);
+      if (size >= legal.maxRaiseTo!) return legal.maxIsAllIn ? { type: "all-in" } : { type: "raise", to: legal.maxRaiseTo! };
+      return { type: "raise", to: size };
+    },
+  };
+}
+
+/**
+ * One exploiter in seat 0 against `bot` everywhere else, paired with the same
+ * deals where seat 0 plays `bot` too. Each hand's sample is seat 0's result
+ * with the exploiter less its result as the bot, in big blinds.
+ */
+export function exploit(opts: { variant: Variant; bot: Bot; kind: Exploit; players: number; hands: number; seed: number; stackBB?: number }) {
+  const others = Array.from({ length: opts.players - 1 }, () => opts.bot);
+  const a = simulate({ ...opts, bots: [exploiter(opts.bot, opts.kind), ...others] });
+  const b = simulate({ ...opts, bots: [opts.bot, ...others] });
+  const samples = a.results.map((row, h) => row[0]! - b.results[h]![0]!);
+  return { samples, rejected: a.rejected + b.rejected };
 }

@@ -2,6 +2,7 @@
 //
 //   HOLDEM_SIM=stats VARIANT=omaha PLAYERS=6 HANDS=4000 pnpm vitest run games/holdem/test/sim-report.test.ts
 //   HOLDEM_SIM=h2h VARIANT=omaha PLAYERS=6 HANDS=5000 SEED=1 CAND=raise=0.55,bluff=12 pnpm vitest run games/holdem/test/sim-report.test.ts
+//   HOLDEM_SIM=exploit KIND=pot VARIANT=holdem PLAYERS=2 HANDS=5000 pnpm vitest run games/holdem/test/sim-report.test.ts
 //   HOLDEM_SIM=equity VARIANT=omaha pnpm vitest run games/holdem/test/sim-report.test.ts
 //
 // BASE is the baseline: the game's lines in POSTFLOP_LINES (unset), "old" (before the
@@ -14,7 +15,7 @@ import { describe, it } from "vitest";
 import { POSTFLOP_LINES, equity, holdemBotWith, omahaPreflopTier, preflopTier, type PostflopLines } from "../server/bot.ts";
 import { makeDeck } from "../shared/rules.ts";
 import { HOLE_CARDS, type Variant } from "../shared/types.ts";
-import { addStats, emptyStats, headToHead, interval, simulate, summarize } from "./sim.ts";
+import { addStats, emptyStats, exploit, headToHead, interval, simulate, summarize, type Exploit } from "./sim.ts";
 
 // This package has no Node types (the game runs in a Worker), so the two Node bits are typed here.
 declare const process: { env: Record<string, string | undefined> };
@@ -27,7 +28,7 @@ const hands = Number(env.HANDS ?? 2000);
 const seed = Number(env.SEED ?? 1);
 
 /** The lines every game played by before the tuning. */
-const OLD: PostflopLines = { raiseHeadsUp: 0.5, raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 0.9, bluff: 9 };
+const OLD: PostflopLines = { raiseHeadsUp: 0.5, raise: 0.65, allIn: 0.8, reraiseMargin: 0.15, raiseBelowAllIn: 0.05, callLooseness: 0.9, callCap: 1, bluff: 9 };
 /** "callLooseness=1.4,bluff=12" → those lines. */
 const over = (text = ""): Partial<PostflopLines> =>
   Object.fromEntries(text.split(",").filter(Boolean).map((kv) => [kv.split("=")[0]!, Number(kv.split("=")[1])]));
@@ -55,6 +56,12 @@ describe.runIf(env.HOLDEM_SIM)("Hold'em bot tuning report", () => {
       const baseline = holdemBotWith({ ...POSTFLOP_LINES, [variant]: base });
       const { samples, rejected } = headToHead({ variant, candidate, baseline, players, hands, seed });
       out({ variant, players, hands, seed, cand: env.CAND, base: env.BASE ?? "current", samples, ...interval(samples), rejected, ms: performance.now() - start });
+    } else if (env.HOLDEM_SIM === "exploit") {
+      // KIND=half|pot|cbet: one seat pushes the bot (LINES laid over the baseline) around.
+      const bot = holdemBotWith(table(over(env.LINES)));
+      const kind = (env.KIND ?? "pot") as Exploit;
+      const { samples, rejected } = exploit({ variant, bot, kind, players, hands, seed });
+      out({ variant, players, hands, seed, kind, cand: env.LINES, base: env.BASE ?? "current", samples, ...interval(samples), rejected, ms: performance.now() - start });
     } else if (env.HOLDEM_SIM === "equity") {
       // Flop equity of a dealt hand against 1 and 2 random hands: all hands, and the ones the bot plays (tier 4 or better).
       const rng = seededRandomInt(seed);
